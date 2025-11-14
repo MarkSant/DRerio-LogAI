@@ -1,0 +1,2408 @@
+{
+  "file_path": "/home/user/ZebTrack-AI/src/zebtrack/core/main_view_model.py",
+  "total_methods": 141,
+  "total_lines": 5227,
+  "average_lines_per_method": 37.0709219858156,
+  "methods": [
+    {
+      "name": "__init__",
+      "start_line": 128,
+      "end_line": 407,
+      "line_count": 280,
+      "category": "utility_internal",
+      "called_methods": [
+        "_safe_get_default_weight",
+        "_publish_processing_mode",
+        "_init_coordinators",
+        "_init_recording_service",
+        "_setup_recording_service_callbacks"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_inject_or_create",
+      "start_line": 409,
+      "end_line": 420,
+      "line_count": 12,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_init_coordinators",
+      "start_line": 422,
+      "end_line": 583,
+      "line_count": 162,
+      "category": "utility_internal",
+      "called_methods": [
+        "_inject_or_create"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "run",
+      "start_line": 585,
+      "end_line": 591,
+      "line_count": 7,
+      "category": "orchestration",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "bind_events",
+      "start_line": 593,
+      "end_line": 606,
+      "line_count": 14,
+      "category": "other",
+      "called_methods": [
+        "_register_event_handlers"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "is_recording",
+      "start_line": 612,
+      "end_line": 614,
+      "line_count": 3,
+      "category": "property",
+      "called_methods": [],
+      "decorators": [
+        "property"
+      ],
+      "is_property": true
+    },
+    {
+      "name": "is_recording",
+      "start_line": 617,
+      "end_line": 622,
+      "line_count": 6,
+      "category": "query",
+      "called_methods": [],
+      "decorators": [
+        "<ast.Attribute object at 0x7ebfbfc6c730>"
+      ],
+      "is_property": false
+    },
+    {
+      "name": "detector",
+      "start_line": 625,
+      "end_line": 632,
+      "line_count": 8,
+      "category": "property",
+      "called_methods": [],
+      "decorators": [
+        "property"
+      ],
+      "is_property": true
+    },
+    {
+      "name": "detector",
+      "start_line": 635,
+      "end_line": 641,
+      "line_count": 7,
+      "category": "other",
+      "called_methods": [],
+      "decorators": [
+        "<ast.Attribute object at 0x7ebfbfc6c190>"
+      ],
+      "is_property": false
+    },
+    {
+      "name": "detector",
+      "start_line": 644,
+      "end_line": 650,
+      "line_count": 7,
+      "category": "other",
+      "called_methods": [],
+      "decorators": [
+        "<ast.Attribute object at 0x7ebfbfc53ee0>"
+      ],
+      "is_property": false
+    },
+    {
+      "name": "detector_initialized",
+      "start_line": 653,
+      "end_line": 655,
+      "line_count": 3,
+      "category": "property",
+      "called_methods": [],
+      "decorators": [
+        "property"
+      ],
+      "is_property": true
+    },
+    {
+      "name": "is_processing",
+      "start_line": 658,
+      "end_line": 660,
+      "line_count": 3,
+      "category": "property",
+      "called_methods": [],
+      "decorators": [
+        "property"
+      ],
+      "is_property": true
+    },
+    {
+      "name": "_on_state_change_for_test",
+      "start_line": 662,
+      "end_line": 688,
+      "line_count": 27,
+      "category": "event_handler_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_on_project_state_changed",
+      "start_line": 691,
+      "end_line": 700,
+      "line_count": 10,
+      "category": "event_handler_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_on_detector_state_changed",
+      "start_line": 702,
+      "end_line": 714,
+      "line_count": 13,
+      "category": "event_handler_internal",
+      "called_methods": [
+        "update_openvino_status"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_on_recording_state_changed",
+      "start_line": 716,
+      "end_line": 735,
+      "line_count": 20,
+      "category": "event_handler_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_on_processing_state_changed",
+      "start_line": 737,
+      "end_line": 747,
+      "line_count": 11,
+      "category": "event_handler_internal",
+      "called_methods": [
+        "_show_cancel_feedback"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "get_openvino_status",
+      "start_line": 749,
+      "end_line": 757,
+      "line_count": 9,
+      "category": "state_management",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "on_close",
+      "start_line": 759,
+      "end_line": 772,
+      "line_count": 14,
+      "category": "event_handler",
+      "called_methods": [
+        "join_threads"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "join_threads",
+      "start_line": 774,
+      "end_line": 792,
+      "line_count": 19,
+      "category": "other",
+      "called_methods": [
+        "_shutdown_arduino_manager"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_get_arduino_manager",
+      "start_line": 794,
+      "end_line": 797,
+      "line_count": 4,
+      "category": "utility_internal",
+      "called_methods": [
+        "_arduino_manager_cls"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_shutdown_arduino_manager",
+      "start_line": 799,
+      "end_line": 806,
+      "line_count": 8,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_schedule_on_ui",
+      "start_line": 808,
+      "end_line": 815,
+      "line_count": 8,
+      "category": "ui_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_setup_recording_service_callbacks",
+      "start_line": 817,
+      "end_line": 836,
+      "line_count": 20,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_init_recording_service",
+      "start_line": 838,
+      "end_line": 873,
+      "line_count": 36,
+      "category": "utility_internal",
+      "called_methods": [
+        "_setup_recording_service_callbacks"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_create_event_dispatcher",
+      "start_line": 986,
+      "end_line": 1020,
+      "line_count": 35,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_register_event_handlers",
+      "start_line": 1022,
+      "end_line": 1047,
+      "line_count": 26,
+      "category": "event_handler_internal",
+      "called_methods": [
+        "_create_event_dispatcher"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_handle_setup_zone_definition_for_single_video",
+      "start_line": 1049,
+      "end_line": 1054,
+      "line_count": 6,
+      "category": "event_handler_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_determine_processing_mode",
+      "start_line": 1056,
+      "end_line": 1081,
+      "line_count": 26,
+      "category": "orchestration_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_publish_processing_mode",
+      "start_line": 1083,
+      "end_line": 1100,
+      "line_count": 18,
+      "category": "orchestration_internal",
+      "called_methods": [
+        "_determine_processing_mode",
+        "_schedule_on_ui"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "refresh_project_views",
+      "start_line": 1102,
+      "end_line": 1122,
+      "line_count": 21,
+      "category": "ui_method",
+      "called_methods": [
+        "_schedule_on_ui"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_clear_external_trigger_wait",
+      "start_line": 1124,
+      "end_line": 1136,
+      "line_count": 13,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "log_arduino_event",
+      "start_line": 1138,
+      "end_line": 1140,
+      "line_count": 3,
+      "category": "other",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "on_arduino_status_change",
+      "start_line": 1142,
+      "end_line": 1144,
+      "line_count": 3,
+      "category": "event_handler",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "on_arduino_command_sent",
+      "start_line": 1146,
+      "end_line": 1148,
+      "line_count": 3,
+      "category": "event_handler",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "on_arduino_event",
+      "start_line": 1150,
+      "end_line": 1170,
+      "line_count": 21,
+      "category": "event_handler",
+      "called_methods": [
+        "log_arduino_event",
+        "trigger_recording",
+        "stop_recording"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "trigger_recording",
+      "start_line": 1172,
+      "end_line": 1188,
+      "line_count": 17,
+      "category": "other",
+      "called_methods": [
+        "_schedule_recording"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_schedule_recording",
+      "start_line": 1190,
+      "end_line": 1213,
+      "line_count": 24,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "close_project",
+      "start_line": 1215,
+      "end_line": 1227,
+      "line_count": 13,
+      "category": "state_management",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "create_project_workflow",
+      "start_line": 1229,
+      "end_line": 1248,
+      "line_count": 20,
+      "category": "orchestration",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_apply_wizard_detector_overrides",
+      "start_line": 1250,
+      "end_line": 1296,
+      "line_count": 47,
+      "category": "utility_internal",
+      "called_methods": [
+        "update_detector_parameters"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_show_post_creation_guide",
+      "start_line": 1298,
+      "end_line": 1319,
+      "line_count": 22,
+      "category": "event_handler_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_restore_detector_settings",
+      "start_line": 1321,
+      "end_line": 1330,
+      "line_count": 10,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_setup_zones_from_project",
+      "start_line": 1332,
+      "end_line": 1340,
+      "line_count": 9,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "open_project_workflow",
+      "start_line": 1342,
+      "end_line": 1358,
+      "line_count": 17,
+      "category": "state_management",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "setup_detector",
+      "start_line": 1360,
+      "end_line": 1375,
+      "line_count": 16,
+      "category": "state_management",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "setup_arduino",
+      "start_line": 1377,
+      "end_line": 1386,
+      "line_count": 10,
+      "category": "state_management",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "setup_detector_zones",
+      "start_line": 1388,
+      "end_line": 1423,
+      "line_count": 36,
+      "category": "state_management",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_safe_get_default_weight",
+      "start_line": 1427,
+      "end_line": 1444,
+      "line_count": 18,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "get_all_weight_names",
+      "start_line": 1446,
+      "end_line": 1452,
+      "line_count": 7,
+      "category": "query",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "classify_weight_type",
+      "start_line": 1454,
+      "end_line": 1456,
+      "line_count": 3,
+      "category": "other",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "add_new_weight",
+      "start_line": 1458,
+      "end_line": 1477,
+      "line_count": 20,
+      "category": "mutator",
+      "called_methods": [
+        "set_active_weight",
+        "get_all_weight_names"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "delete_weight",
+      "start_line": 1479,
+      "end_line": 1501,
+      "line_count": 23,
+      "category": "mutator",
+      "called_methods": [
+        "_safe_get_default_weight",
+        "set_active_weight",
+        "get_all_weight_names"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "set_active_weight",
+      "start_line": 1503,
+      "end_line": 1528,
+      "line_count": 26,
+      "category": "mutator",
+      "called_methods": [
+        "get_all_weight_names",
+        "update_openvino_status",
+        "convert_active_weight_to_openvino"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "manage_weights",
+      "start_line": 1530,
+      "end_line": 1532,
+      "line_count": 3,
+      "category": "other",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "load_new_weight",
+      "start_line": 1534,
+      "end_line": 1571,
+      "line_count": 38,
+      "category": "state_management",
+      "called_methods": [
+        "classify_weight_type",
+        "add_new_weight"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "set_openvino_usage",
+      "start_line": 1573,
+      "end_line": 1591,
+      "line_count": 19,
+      "category": "state_management",
+      "called_methods": [
+        "update_openvino_status",
+        "convert_active_weight_to_openvino"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "convert_active_weight_to_openvino",
+      "start_line": 1593,
+      "end_line": 1633,
+      "line_count": 41,
+      "category": "state_management",
+      "called_methods": [
+        "update_openvino_status"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "update_openvino_status",
+      "start_line": 1635,
+      "end_line": 1640,
+      "line_count": 6,
+      "category": "ui_method",
+      "called_methods": [
+        "get_openvino_status"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "are_project_overrides_active",
+      "start_line": 1643,
+      "end_line": 1649,
+      "line_count": 7,
+      "category": "property",
+      "called_methods": [],
+      "decorators": [
+        "property"
+      ],
+      "is_property": true
+    },
+    {
+      "name": "get_global_model_defaults",
+      "start_line": 1651,
+      "end_line": 1660,
+      "line_count": 10,
+      "category": "query",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_get_project_data_dict",
+      "start_line": 1662,
+      "end_line": 1667,
+      "line_count": 6,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_ensure_project_overrides_record",
+      "start_line": 1669,
+      "end_line": 1675,
+      "line_count": 7,
+      "category": "utility_internal",
+      "called_methods": [
+        "_get_project_data_dict"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "has_project_override_settings",
+      "start_line": 1677,
+      "end_line": 1686,
+      "line_count": 10,
+      "category": "query",
+      "called_methods": [
+        "_ensure_project_overrides_record"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "get_calibration_scope_info",
+      "start_line": 1688,
+      "end_line": 1743,
+      "line_count": 56,
+      "category": "query",
+      "called_methods": [
+        "has_project_override_settings"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "get_current_detector_parameters",
+      "start_line": 1745,
+      "end_line": 1757,
+      "line_count": 13,
+      "category": "query",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "get_factory_detector_parameters",
+      "start_line": 1759,
+      "end_line": 1771,
+      "line_count": 13,
+      "category": "query",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "update_detector_parameters",
+      "start_line": 1773,
+      "end_line": 1805,
+      "line_count": 33,
+      "category": "ui_method",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_persist_project_model_settings",
+      "start_line": 1807,
+      "end_line": 1831,
+      "line_count": 25,
+      "category": "utility_internal",
+      "called_methods": [
+        "_get_project_data_dict",
+        "_ensure_project_overrides_record"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "copy_global_model_settings_to_project",
+      "start_line": 1833,
+      "end_line": 1859,
+      "line_count": 27,
+      "category": "other",
+      "called_methods": [
+        "get_global_model_defaults",
+        "_persist_project_model_settings",
+        "refresh_project_views"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "save_current_calibration_to_project",
+      "start_line": 1861,
+      "end_line": 1889,
+      "line_count": 29,
+      "category": "state_management",
+      "called_methods": [
+        "_persist_project_model_settings",
+        "apply_project_model_overrides",
+        "refresh_project_views"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_apply_model_settings",
+      "start_line": 1891,
+      "end_line": 1898,
+      "line_count": 8,
+      "category": "utility_internal",
+      "called_methods": [
+        "set_openvino_usage",
+        "set_active_weight"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "resolve_project_model_settings",
+      "start_line": 1900,
+      "end_line": 1962,
+      "line_count": 63,
+      "category": "other",
+      "called_methods": [
+        "_safe_get_default_weight",
+        "get_all_weight_names"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "apply_project_model_overrides",
+      "start_line": 1964,
+      "end_line": 1994,
+      "line_count": 31,
+      "category": "state_management",
+      "called_methods": [
+        "resolve_project_model_settings",
+        "_apply_model_settings"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "save_project_model_overrides",
+      "start_line": 1996,
+      "end_line": 2024,
+      "line_count": 29,
+      "category": "state_management",
+      "called_methods": [
+        "apply_project_model_overrides"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_restore_global_model_defaults",
+      "start_line": 2026,
+      "end_line": 2030,
+      "line_count": 5,
+      "category": "utility_internal",
+      "called_methods": [
+        "_apply_model_settings"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "global_calibration_session",
+      "start_line": 2033,
+      "end_line": 2051,
+      "line_count": 19,
+      "category": "other",
+      "called_methods": [
+        "apply_project_model_overrides"
+      ],
+      "decorators": [
+        "contextmanager"
+      ],
+      "is_property": false
+    },
+    {
+      "name": "project_calibration_session",
+      "start_line": 2054,
+      "end_line": 2071,
+      "line_count": 18,
+      "category": "other",
+      "called_methods": [
+        "has_project_override_settings"
+      ],
+      "decorators": [
+        "contextmanager"
+      ],
+      "is_property": false
+    },
+    {
+      "name": "run_aquarium_detection",
+      "start_line": 2073,
+      "end_line": 2180,
+      "line_count": 108,
+      "category": "orchestration",
+      "called_methods": [
+        "_publish_processing_mode"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "apply_roi_template",
+      "start_line": 2182,
+      "end_line": 2232,
+      "line_count": 51,
+      "category": "state_management",
+      "called_methods": [
+        "setup_detector_zones"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "set_main_arena_polygon",
+      "start_line": 2234,
+      "end_line": 2282,
+      "line_count": 49,
+      "category": "mutator",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "save_manual_arena",
+      "start_line": 2284,
+      "end_line": 2292,
+      "line_count": 9,
+      "category": "state_management",
+      "called_methods": [
+        "update_main_arena"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "update_main_arena",
+      "start_line": 2294,
+      "end_line": 2310,
+      "line_count": 17,
+      "category": "ui_method",
+      "called_methods": [
+        "setup_detector_zones"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "add_roi_polygon",
+      "start_line": 2312,
+      "end_line": 2436,
+      "line_count": 125,
+      "category": "mutator",
+      "called_methods": [
+        "setup_detector_zones"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "can_remove_project_asset",
+      "start_line": 2438,
+      "end_line": 2454,
+      "line_count": 17,
+      "category": "query",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "delete_project_asset",
+      "start_line": 2456,
+      "end_line": 2489,
+      "line_count": 34,
+      "category": "mutator",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "run_live_calibration",
+      "start_line": 2491,
+      "end_line": 2589,
+      "line_count": 99,
+      "category": "orchestration",
+      "called_methods": [
+        "_publish_processing_mode"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_handle_external_trigger",
+      "start_line": 2591,
+      "end_line": 2636,
+      "line_count": 46,
+      "category": "event_handler_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "start_recording",
+      "start_line": 2638,
+      "end_line": 2703,
+      "line_count": 66,
+      "category": "orchestration",
+      "called_methods": [
+        "_clear_external_trigger_wait",
+        "setup_detector_zones",
+        "_handle_external_trigger",
+        "_schedule_recording",
+        "_ensure_zones_before_recording",
+        "setup_detector",
+        "setup_arduino"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "start_live_camera_analysis",
+      "start_line": 2705,
+      "end_line": 2769,
+      "line_count": 65,
+      "category": "orchestration",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "start_live_camera_analysis_from_config",
+      "start_line": 2771,
+      "end_line": 2918,
+      "line_count": 148,
+      "category": "orchestration",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "stop_recording",
+      "start_line": 2920,
+      "end_line": 2940,
+      "line_count": 21,
+      "category": "other",
+      "called_methods": [
+        "_clear_external_trigger_wait"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "start_live_project_session",
+      "start_line": 2942,
+      "end_line": 3004,
+      "line_count": 63,
+      "category": "orchestration",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_ensure_zones_before_recording",
+      "start_line": 3006,
+      "end_line": 3098,
+      "line_count": 93,
+      "category": "utility_internal",
+      "called_methods": [
+        "run_live_calibration"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "cancel_current_analysis",
+      "start_line": 3102,
+      "end_line": 3154,
+      "line_count": 53,
+      "category": "other",
+      "called_methods": [
+        "_show_cancel_feedback"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_show_cancel_feedback",
+      "start_line": 3156,
+      "end_line": 3175,
+      "line_count": 20,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "start_single_video_workflow",
+      "start_line": 3177,
+      "end_line": 3226,
+      "line_count": 50,
+      "category": "orchestration",
+      "called_methods": [
+        "setup_detector"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_handle_mixed_data_scenario",
+      "start_line": 3228,
+      "end_line": 3280,
+      "line_count": 53,
+      "category": "event_handler_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_validate_zones_with_ui",
+      "start_line": 3282,
+      "end_line": 3397,
+      "line_count": 116,
+      "category": "ui_internal",
+      "called_methods": [
+        "set_main_arena_polygon"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_handle_validation_error",
+      "start_line": 3399,
+      "end_line": 3447,
+      "line_count": 49,
+      "category": "event_handler_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "start_single_video_processing",
+      "start_line": 3449,
+      "end_line": 3601,
+      "line_count": 153,
+      "category": "orchestration",
+      "called_methods": [
+        "refresh_project_views",
+        "_prepare_results_directory",
+        "_create_processing_callbacks",
+        "_create_processing_context",
+        "_activate_analysis_view_mode",
+        "_handle_validation_error"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "start_project_processing_workflow",
+      "start_line": 3603,
+      "end_line": 3693,
+      "line_count": 91,
+      "category": "orchestration",
+      "called_methods": [
+        "_handle_mixed_data_scenario",
+        "_create_processing_callbacks",
+        "_create_processing_context",
+        "_activate_analysis_view_mode",
+        "_handle_validation_error",
+        "_validate_zones_with_ui"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "process_pending_project_videos",
+      "start_line": 3695,
+      "end_line": 3933,
+      "line_count": 239,
+      "category": "orchestration",
+      "called_methods": [
+        "_select_eligible_videos",
+        "_create_processing_callbacks",
+        "_create_processing_context",
+        "_activate_analysis_view_mode",
+        "_handle_validation_error"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "generate_parquet_summaries",
+      "start_line": 3935,
+      "end_line": 3942,
+      "line_count": 8,
+      "category": "orchestration",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_run_tracking_if_needed",
+      "start_line": 3944,
+      "end_line": 3969,
+      "line_count": 26,
+      "category": "orchestration_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_prepare_zone_data_for_tracking",
+      "start_line": 3971,
+      "end_line": 4000,
+      "line_count": 30,
+      "category": "orchestration_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_build_calibration_context",
+      "start_line": 4002,
+      "end_line": 4025,
+      "line_count": 24,
+      "category": "event_handler_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_tracking_cancelled",
+      "start_line": 4027,
+      "end_line": 4033,
+      "line_count": 7,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_resolve_single_animal_mode",
+      "start_line": 4035,
+      "end_line": 4069,
+      "line_count": 35,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_resolve_single_subject_tracker_preference",
+      "start_line": 4071,
+      "end_line": 4124,
+      "line_count": 54,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_configure_single_subject_tracker",
+      "start_line": 4126,
+      "end_line": 4136,
+      "line_count": 11,
+      "category": "utility_internal",
+      "called_methods": [
+        "_publish_processing_mode"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_determine_processing_intervals",
+      "start_line": 4138,
+      "end_line": 4166,
+      "line_count": 29,
+      "category": "orchestration_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_temporary_single_animal_mode",
+      "start_line": 4169,
+      "end_line": 4232,
+      "line_count": 64,
+      "category": "utility_internal",
+      "called_methods": [
+        "_resolve_single_animal_mode",
+        "_resolve_single_subject_tracker_preference",
+        "_configure_single_subject_tracker",
+        "_publish_processing_mode"
+      ],
+      "decorators": [
+        "contextmanager"
+      ],
+      "is_property": false
+    },
+    {
+      "name": "_activate_analysis_view_mode",
+      "start_line": 4234,
+      "end_line": 4239,
+      "line_count": 6,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_prepare_processing_ui",
+      "start_line": 4241,
+      "end_line": 4248,
+      "line_count": 8,
+      "category": "ui_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_finalize_processing",
+      "start_line": 4250,
+      "end_line": 4275,
+      "line_count": 26,
+      "category": "orchestration_internal",
+      "called_methods": [
+        "_publish_processing_mode",
+        "refresh_project_views"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_build_metadata_context",
+      "start_line": 4277,
+      "end_line": 4302,
+      "line_count": 26,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_select_eligible_videos",
+      "start_line": 4305,
+      "end_line": 4385,
+      "line_count": 81,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_generate_parquet_summaries_worker",
+      "start_line": 4387,
+      "end_line": 4449,
+      "line_count": 63,
+      "category": "utility_internal",
+      "called_methods": [
+        "refresh_project_views",
+        "_process_summary_video"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_process_summary_video",
+      "start_line": 4451,
+      "end_line": 4601,
+      "line_count": 151,
+      "category": "orchestration_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_make_progress_callback",
+      "start_line": 4603,
+      "end_line": 4670,
+      "line_count": 68,
+      "category": "utility_internal",
+      "called_methods": [
+        "_publish_processing_mode"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_prepare_calibration_context",
+      "start_line": 4679,
+      "end_line": 4703,
+      "line_count": 25,
+      "category": "event_handler_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_generate_reports_for_video",
+      "start_line": 4705,
+      "end_line": 4724,
+      "line_count": 20,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_register_project_outputs",
+      "start_line": 4726,
+      "end_line": 4752,
+      "line_count": 27,
+      "category": "utility_internal",
+      "called_methods": [
+        "refresh_project_views"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_run_analysis_pipeline",
+      "start_line": 4754,
+      "end_line": 4792,
+      "line_count": 39,
+      "category": "orchestration_internal",
+      "called_methods": [
+        "refresh_project_views"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_process_single_video",
+      "start_line": 4794,
+      "end_line": 4840,
+      "line_count": 47,
+      "category": "orchestration_internal",
+      "called_methods": [
+        "_temporary_single_animal_mode",
+        "refresh_project_views"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "apply_project_settings_to_batch",
+      "start_line": 4842,
+      "end_line": 4927,
+      "line_count": 86,
+      "category": "state_management",
+      "called_methods": [
+        "_prepare_results_directory"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_prepare_results_directory",
+      "start_line": 4929,
+      "end_line": 4934,
+      "line_count": 6,
+      "category": "orchestration_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_create_processing_callbacks",
+      "start_line": 4936,
+      "end_line": 5067,
+      "line_count": 132,
+      "category": "orchestration_internal",
+      "called_methods": [
+        "_publish_processing_mode",
+        "refresh_project_views"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_create_processing_context",
+      "start_line": 5069,
+      "end_line": 5087,
+      "line_count": 19,
+      "category": "orchestration_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_process_videos",
+      "start_line": 5089,
+      "end_line": 5113,
+      "line_count": 25,
+      "category": "orchestration_internal",
+      "called_methods": [
+        "_temporary_single_animal_mode"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "generate_report",
+      "start_line": 5115,
+      "end_line": 5120,
+      "line_count": 6,
+      "category": "orchestration",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "run_model_diagnostic",
+      "start_line": 5122,
+      "end_line": 5223,
+      "line_count": 102,
+      "category": "orchestration",
+      "called_methods": [
+        "_publish_processing_mode",
+        "convert_active_weight_to_openvino"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_diagnostic_processing_thread",
+      "start_line": 5225,
+      "end_line": 5276,
+      "line_count": 52,
+      "category": "orchestration_internal",
+      "called_methods": [
+        "_update_diagnostic_progress",
+        "_initialize_diagnostic_yolo_model",
+        "_initialize_diagnostic_openvino_model",
+        "_run_diagnostic_frame_loop",
+        "_finish_progress_dialog",
+        "_publish_processing_mode"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_update_diagnostic_progress",
+      "start_line": 5278,
+      "end_line": 5293,
+      "line_count": 16,
+      "category": "ui_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_finish_progress_dialog",
+      "start_line": 5295,
+      "end_line": 5298,
+      "line_count": 4,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_initialize_diagnostic_yolo_model",
+      "start_line": 5300,
+      "end_line": 5335,
+      "line_count": 36,
+      "category": "utility_internal",
+      "called_methods": [
+        "_finish_progress_dialog"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_initialize_diagnostic_openvino_model",
+      "start_line": 5337,
+      "end_line": 5408,
+      "line_count": 72,
+      "category": "utility_internal",
+      "called_methods": [
+        "_finish_progress_dialog"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_run_diagnostic_frame_loop",
+      "start_line": 5410,
+      "end_line": 5496,
+      "line_count": 87,
+      "category": "orchestration_internal",
+      "called_methods": [
+        "_finish_progress_dialog",
+        "_update_diagnostic_progress"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_finish_diagnostic_and_save_report",
+      "start_line": 5498,
+      "end_line": 5534,
+      "line_count": 37,
+      "category": "utility_internal",
+      "called_methods": [
+        "_format_diagnostic_report",
+        "_publish_processing_mode"
+      ],
+      "decorators": [],
+      "is_property": false
+    },
+    {
+      "name": "_format_diagnostic_report",
+      "start_line": 5536,
+      "end_line": 5632,
+      "line_count": 97,
+      "category": "utility_internal",
+      "called_methods": [],
+      "decorators": [],
+      "is_property": false
+    }
+  ],
+  "category_summary": {
+    "utility_internal": {
+      "count": 38,
+      "total_lines": 1550,
+      "methods": [
+        "__init__",
+        "_inject_or_create",
+        "_init_coordinators",
+        "_get_arduino_manager",
+        "_shutdown_arduino_manager",
+        "_setup_recording_service_callbacks",
+        "_init_recording_service",
+        "_create_event_dispatcher",
+        "_clear_external_trigger_wait",
+        "_schedule_recording",
+        "_apply_wizard_detector_overrides",
+        "_restore_detector_settings",
+        "_setup_zones_from_project",
+        "_safe_get_default_weight",
+        "_get_project_data_dict",
+        "_ensure_project_overrides_record",
+        "_persist_project_model_settings",
+        "_apply_model_settings",
+        "_restore_global_model_defaults",
+        "_ensure_zones_before_recording",
+        "_show_cancel_feedback",
+        "_tracking_cancelled",
+        "_resolve_single_animal_mode",
+        "_resolve_single_subject_tracker_preference",
+        "_configure_single_subject_tracker",
+        "_temporary_single_animal_mode",
+        "_activate_analysis_view_mode",
+        "_build_metadata_context",
+        "_select_eligible_videos",
+        "_generate_parquet_summaries_worker",
+        "_make_progress_callback",
+        "_generate_reports_for_video",
+        "_register_project_outputs",
+        "_finish_progress_dialog",
+        "_initialize_diagnostic_yolo_model",
+        "_initialize_diagnostic_openvino_model",
+        "_finish_diagnostic_and_save_report",
+        "_format_diagnostic_report"
+      ]
+    },
+    "orchestration": {
+      "count": 15,
+      "total_lines": 1225,
+      "methods": [
+        "run",
+        "create_project_workflow",
+        "run_aquarium_detection",
+        "run_live_calibration",
+        "start_recording",
+        "start_live_camera_analysis",
+        "start_live_camera_analysis_from_config",
+        "start_live_project_session",
+        "start_single_video_workflow",
+        "start_single_video_processing",
+        "start_project_processing_workflow",
+        "process_pending_project_videos",
+        "generate_parquet_summaries",
+        "generate_report",
+        "run_model_diagnostic"
+      ]
+    },
+    "other": {
+      "count": 14,
+      "total_lines": 274,
+      "methods": [
+        "bind_events",
+        "detector",
+        "detector",
+        "join_threads",
+        "log_arduino_event",
+        "trigger_recording",
+        "classify_weight_type",
+        "manage_weights",
+        "copy_global_model_settings_to_project",
+        "resolve_project_model_settings",
+        "global_calibration_session",
+        "project_calibration_session",
+        "stop_recording",
+        "cancel_current_analysis"
+      ]
+    },
+    "property": {
+      "count": 5,
+      "total_lines": 24,
+      "methods": [
+        "is_recording",
+        "detector",
+        "detector_initialized",
+        "is_processing",
+        "are_project_overrides_active"
+      ]
+    },
+    "query": {
+      "count": 8,
+      "total_lines": 132,
+      "methods": [
+        "is_recording",
+        "get_all_weight_names",
+        "get_global_model_defaults",
+        "has_project_override_settings",
+        "get_calibration_scope_info",
+        "get_current_detector_parameters",
+        "get_factory_detector_parameters",
+        "can_remove_project_asset"
+      ]
+    },
+    "event_handler_internal": {
+      "count": 13,
+      "total_lines": 332,
+      "methods": [
+        "_on_state_change_for_test",
+        "_on_project_state_changed",
+        "_on_detector_state_changed",
+        "_on_recording_state_changed",
+        "_on_processing_state_changed",
+        "_register_event_handlers",
+        "_handle_setup_zone_definition_for_single_video",
+        "_show_post_creation_guide",
+        "_handle_external_trigger",
+        "_handle_mixed_data_scenario",
+        "_handle_validation_error",
+        "_build_calibration_context",
+        "_prepare_calibration_context"
+      ]
+    },
+    "state_management": {
+      "count": 15,
+      "total_lines": 434,
+      "methods": [
+        "get_openvino_status",
+        "close_project",
+        "open_project_workflow",
+        "setup_detector",
+        "setup_arduino",
+        "setup_detector_zones",
+        "load_new_weight",
+        "set_openvino_usage",
+        "convert_active_weight_to_openvino",
+        "save_current_calibration_to_project",
+        "apply_project_model_overrides",
+        "save_project_model_overrides",
+        "apply_roi_template",
+        "save_manual_arena",
+        "apply_project_settings_to_batch"
+      ]
+    },
+    "event_handler": {
+      "count": 4,
+      "total_lines": 41,
+      "methods": [
+        "on_close",
+        "on_arduino_status_change",
+        "on_arduino_command_sent",
+        "on_arduino_event"
+      ]
+    },
+    "ui_internal": {
+      "count": 4,
+      "total_lines": 148,
+      "methods": [
+        "_schedule_on_ui",
+        "_validate_zones_with_ui",
+        "_prepare_processing_ui",
+        "_update_diagnostic_progress"
+      ]
+    },
+    "orchestration_internal": {
+      "count": 15,
+      "total_lines": 713,
+      "methods": [
+        "_determine_processing_mode",
+        "_publish_processing_mode",
+        "_run_tracking_if_needed",
+        "_prepare_zone_data_for_tracking",
+        "_determine_processing_intervals",
+        "_finalize_processing",
+        "_process_summary_video",
+        "_run_analysis_pipeline",
+        "_process_single_video",
+        "_prepare_results_directory",
+        "_create_processing_callbacks",
+        "_create_processing_context",
+        "_process_videos",
+        "_diagnostic_processing_thread",
+        "_run_diagnostic_frame_loop"
+      ]
+    },
+    "ui_method": {
+      "count": 4,
+      "total_lines": 77,
+      "methods": [
+        "refresh_project_views",
+        "update_openvino_status",
+        "update_detector_parameters",
+        "update_main_arena"
+      ]
+    },
+    "mutator": {
+      "count": 6,
+      "total_lines": 277,
+      "methods": [
+        "add_new_weight",
+        "delete_weight",
+        "set_active_weight",
+        "set_main_arena_polygon",
+        "add_roi_polygon",
+        "delete_project_asset"
+      ]
+    }
+  },
+  "largest_methods": [
+    {
+      "name": "__init__",
+      "line_count": 280,
+      "category": "utility_internal",
+      "start_line": 128,
+      "end_line": 407,
+      "called_methods": [
+        "_safe_get_default_weight",
+        "_publish_processing_mode",
+        "_init_coordinators",
+        "_init_recording_service",
+        "_setup_recording_service_callbacks"
+      ]
+    },
+    {
+      "name": "process_pending_project_videos",
+      "line_count": 239,
+      "category": "orchestration",
+      "start_line": 3695,
+      "end_line": 3933,
+      "called_methods": [
+        "_select_eligible_videos",
+        "_create_processing_callbacks",
+        "_create_processing_context",
+        "_activate_analysis_view_mode",
+        "_handle_validation_error"
+      ]
+    },
+    {
+      "name": "_init_coordinators",
+      "line_count": 162,
+      "category": "utility_internal",
+      "start_line": 422,
+      "end_line": 583,
+      "called_methods": [
+        "_inject_or_create"
+      ]
+    },
+    {
+      "name": "start_single_video_processing",
+      "line_count": 153,
+      "category": "orchestration",
+      "start_line": 3449,
+      "end_line": 3601,
+      "called_methods": [
+        "refresh_project_views",
+        "_prepare_results_directory",
+        "_create_processing_callbacks",
+        "_create_processing_context",
+        "_activate_analysis_view_mode",
+        "_handle_validation_error"
+      ]
+    },
+    {
+      "name": "_process_summary_video",
+      "line_count": 151,
+      "category": "orchestration_internal",
+      "start_line": 4451,
+      "end_line": 4601,
+      "called_methods": []
+    },
+    {
+      "name": "start_live_camera_analysis_from_config",
+      "line_count": 148,
+      "category": "orchestration",
+      "start_line": 2771,
+      "end_line": 2918,
+      "called_methods": []
+    },
+    {
+      "name": "_create_processing_callbacks",
+      "line_count": 132,
+      "category": "orchestration_internal",
+      "start_line": 4936,
+      "end_line": 5067,
+      "called_methods": [
+        "_publish_processing_mode",
+        "refresh_project_views"
+      ]
+    },
+    {
+      "name": "add_roi_polygon",
+      "line_count": 125,
+      "category": "mutator",
+      "start_line": 2312,
+      "end_line": 2436,
+      "called_methods": [
+        "setup_detector_zones"
+      ]
+    },
+    {
+      "name": "_validate_zones_with_ui",
+      "line_count": 116,
+      "category": "ui_internal",
+      "start_line": 3282,
+      "end_line": 3397,
+      "called_methods": [
+        "set_main_arena_polygon"
+      ]
+    },
+    {
+      "name": "run_aquarium_detection",
+      "line_count": 108,
+      "category": "orchestration",
+      "start_line": 2073,
+      "end_line": 2180,
+      "called_methods": [
+        "_publish_processing_mode"
+      ]
+    },
+    {
+      "name": "run_model_diagnostic",
+      "line_count": 102,
+      "category": "orchestration",
+      "start_line": 5122,
+      "end_line": 5223,
+      "called_methods": [
+        "_publish_processing_mode",
+        "convert_active_weight_to_openvino"
+      ]
+    },
+    {
+      "name": "run_live_calibration",
+      "line_count": 99,
+      "category": "orchestration",
+      "start_line": 2491,
+      "end_line": 2589,
+      "called_methods": [
+        "_publish_processing_mode"
+      ]
+    },
+    {
+      "name": "_format_diagnostic_report",
+      "line_count": 97,
+      "category": "utility_internal",
+      "start_line": 5536,
+      "end_line": 5632,
+      "called_methods": []
+    },
+    {
+      "name": "_ensure_zones_before_recording",
+      "line_count": 93,
+      "category": "utility_internal",
+      "start_line": 3006,
+      "end_line": 3098,
+      "called_methods": [
+        "run_live_calibration"
+      ]
+    },
+    {
+      "name": "start_project_processing_workflow",
+      "line_count": 91,
+      "category": "orchestration",
+      "start_line": 3603,
+      "end_line": 3693,
+      "called_methods": [
+        "_handle_mixed_data_scenario",
+        "_create_processing_callbacks",
+        "_create_processing_context",
+        "_activate_analysis_view_mode",
+        "_handle_validation_error",
+        "_validate_zones_with_ui"
+      ]
+    },
+    {
+      "name": "_run_diagnostic_frame_loop",
+      "line_count": 87,
+      "category": "orchestration_internal",
+      "start_line": 5410,
+      "end_line": 5496,
+      "called_methods": [
+        "_finish_progress_dialog",
+        "_update_diagnostic_progress"
+      ]
+    },
+    {
+      "name": "apply_project_settings_to_batch",
+      "line_count": 86,
+      "category": "state_management",
+      "start_line": 4842,
+      "end_line": 4927,
+      "called_methods": [
+        "_prepare_results_directory"
+      ]
+    },
+    {
+      "name": "_select_eligible_videos",
+      "line_count": 81,
+      "category": "utility_internal",
+      "start_line": 4305,
+      "end_line": 4385,
+      "called_methods": []
+    },
+    {
+      "name": "_initialize_diagnostic_openvino_model",
+      "line_count": 72,
+      "category": "utility_internal",
+      "start_line": 5337,
+      "end_line": 5408,
+      "called_methods": [
+        "_finish_progress_dialog"
+      ]
+    },
+    {
+      "name": "_make_progress_callback",
+      "line_count": 68,
+      "category": "utility_internal",
+      "start_line": 4603,
+      "end_line": 4670,
+      "called_methods": [
+        "_publish_processing_mode"
+      ]
+    },
+    {
+      "name": "start_recording",
+      "line_count": 66,
+      "category": "orchestration",
+      "start_line": 2638,
+      "end_line": 2703,
+      "called_methods": [
+        "_clear_external_trigger_wait",
+        "setup_detector_zones",
+        "_handle_external_trigger",
+        "_schedule_recording",
+        "_ensure_zones_before_recording",
+        "setup_detector",
+        "setup_arduino"
+      ]
+    },
+    {
+      "name": "start_live_camera_analysis",
+      "line_count": 65,
+      "category": "orchestration",
+      "start_line": 2705,
+      "end_line": 2769,
+      "called_methods": []
+    },
+    {
+      "name": "_temporary_single_animal_mode",
+      "line_count": 64,
+      "category": "utility_internal",
+      "start_line": 4169,
+      "end_line": 4232,
+      "called_methods": [
+        "_resolve_single_animal_mode",
+        "_resolve_single_subject_tracker_preference",
+        "_configure_single_subject_tracker",
+        "_publish_processing_mode"
+      ]
+    },
+    {
+      "name": "resolve_project_model_settings",
+      "line_count": 63,
+      "category": "other",
+      "start_line": 1900,
+      "end_line": 1962,
+      "called_methods": [
+        "_safe_get_default_weight",
+        "get_all_weight_names"
+      ]
+    },
+    {
+      "name": "start_live_project_session",
+      "line_count": 63,
+      "category": "orchestration",
+      "start_line": 2942,
+      "end_line": 3004,
+      "called_methods": []
+    },
+    {
+      "name": "_generate_parquet_summaries_worker",
+      "line_count": 63,
+      "category": "utility_internal",
+      "start_line": 4387,
+      "end_line": 4449,
+      "called_methods": [
+        "refresh_project_views",
+        "_process_summary_video"
+      ]
+    },
+    {
+      "name": "get_calibration_scope_info",
+      "line_count": 56,
+      "category": "query",
+      "start_line": 1688,
+      "end_line": 1743,
+      "called_methods": [
+        "has_project_override_settings"
+      ]
+    },
+    {
+      "name": "_resolve_single_subject_tracker_preference",
+      "line_count": 54,
+      "category": "utility_internal",
+      "start_line": 4071,
+      "end_line": 4124,
+      "called_methods": []
+    },
+    {
+      "name": "cancel_current_analysis",
+      "line_count": 53,
+      "category": "other",
+      "start_line": 3102,
+      "end_line": 3154,
+      "called_methods": [
+        "_show_cancel_feedback"
+      ]
+    },
+    {
+      "name": "_handle_mixed_data_scenario",
+      "line_count": 53,
+      "category": "event_handler_internal",
+      "start_line": 3228,
+      "end_line": 3280,
+      "called_methods": []
+    }
+  ],
+  "most_called_methods": [
+    {
+      "method": "_publish_processing_mode",
+      "call_count": 11
+    },
+    {
+      "method": "refresh_project_views",
+      "call_count": 9
+    },
+    {
+      "method": "update_openvino_status",
+      "call_count": 4
+    },
+    {
+      "method": "get_all_weight_names",
+      "call_count": 4
+    },
+    {
+      "method": "setup_detector_zones",
+      "call_count": 4
+    },
+    {
+      "method": "_finish_progress_dialog",
+      "call_count": 4
+    },
+    {
+      "method": "_safe_get_default_weight",
+      "call_count": 3
+    },
+    {
+      "method": "set_active_weight",
+      "call_count": 3
+    },
+    {
+      "method": "convert_active_weight_to_openvino",
+      "call_count": 3
+    },
+    {
+      "method": "apply_project_model_overrides",
+      "call_count": 3
+    },
+    {
+      "method": "_create_processing_callbacks",
+      "call_count": 3
+    },
+    {
+      "method": "_create_processing_context",
+      "call_count": 3
+    },
+    {
+      "method": "_activate_analysis_view_mode",
+      "call_count": 3
+    },
+    {
+      "method": "_handle_validation_error",
+      "call_count": 3
+    },
+    {
+      "method": "_setup_recording_service_callbacks",
+      "call_count": 2
+    },
+    {
+      "method": "_show_cancel_feedback",
+      "call_count": 2
+    },
+    {
+      "method": "_schedule_on_ui",
+      "call_count": 2
+    },
+    {
+      "method": "_schedule_recording",
+      "call_count": 2
+    },
+    {
+      "method": "_get_project_data_dict",
+      "call_count": 2
+    },
+    {
+      "method": "_ensure_project_overrides_record",
+      "call_count": 2
+    },
+    {
+      "method": "has_project_override_settings",
+      "call_count": 2
+    },
+    {
+      "method": "_persist_project_model_settings",
+      "call_count": 2
+    },
+    {
+      "method": "_apply_model_settings",
+      "call_count": 2
+    },
+    {
+      "method": "_clear_external_trigger_wait",
+      "call_count": 2
+    },
+    {
+      "method": "setup_detector",
+      "call_count": 2
+    },
+    {
+      "method": "_prepare_results_directory",
+      "call_count": 2
+    },
+    {
+      "method": "_temporary_single_animal_mode",
+      "call_count": 2
+    },
+    {
+      "method": "_update_diagnostic_progress",
+      "call_count": 2
+    },
+    {
+      "method": "_init_coordinators",
+      "call_count": 1
+    },
+    {
+      "method": "_init_recording_service",
+      "call_count": 1
+    }
+  ],
+  "most_caller_methods": [
+    {
+      "method": "start_recording",
+      "calls_count": 7
+    },
+    {
+      "method": "start_single_video_processing",
+      "calls_count": 6
+    },
+    {
+      "method": "start_project_processing_workflow",
+      "calls_count": 6
+    },
+    {
+      "method": "_diagnostic_processing_thread",
+      "calls_count": 6
+    },
+    {
+      "method": "__init__",
+      "calls_count": 5
+    },
+    {
+      "method": "process_pending_project_videos",
+      "calls_count": 5
+    },
+    {
+      "method": "_temporary_single_animal_mode",
+      "calls_count": 4
+    },
+    {
+      "method": "on_arduino_event",
+      "calls_count": 3
+    },
+    {
+      "method": "delete_weight",
+      "calls_count": 3
+    },
+    {
+      "method": "set_active_weight",
+      "calls_count": 3
+    },
+    {
+      "method": "copy_global_model_settings_to_project",
+      "calls_count": 3
+    },
+    {
+      "method": "save_current_calibration_to_project",
+      "calls_count": 3
+    },
+    {
+      "method": "_publish_processing_mode",
+      "calls_count": 2
+    },
+    {
+      "method": "add_new_weight",
+      "calls_count": 2
+    },
+    {
+      "method": "load_new_weight",
+      "calls_count": 2
+    },
+    {
+      "method": "set_openvino_usage",
+      "calls_count": 2
+    },
+    {
+      "method": "_persist_project_model_settings",
+      "calls_count": 2
+    },
+    {
+      "method": "_apply_model_settings",
+      "calls_count": 2
+    },
+    {
+      "method": "resolve_project_model_settings",
+      "calls_count": 2
+    },
+    {
+      "method": "apply_project_model_overrides",
+      "calls_count": 2
+    },
+    {
+      "method": "_finalize_processing",
+      "calls_count": 2
+    },
+    {
+      "method": "_generate_parquet_summaries_worker",
+      "calls_count": 2
+    },
+    {
+      "method": "_process_single_video",
+      "calls_count": 2
+    },
+    {
+      "method": "_create_processing_callbacks",
+      "calls_count": 2
+    },
+    {
+      "method": "run_model_diagnostic",
+      "calls_count": 2
+    },
+    {
+      "method": "_run_diagnostic_frame_loop",
+      "calls_count": 2
+    },
+    {
+      "method": "_finish_diagnostic_and_save_report",
+      "calls_count": 2
+    },
+    {
+      "method": "_init_coordinators",
+      "calls_count": 1
+    },
+    {
+      "method": "bind_events",
+      "calls_count": 1
+    },
+    {
+      "method": "_on_detector_state_changed",
+      "calls_count": 1
+    }
+  ]
+}

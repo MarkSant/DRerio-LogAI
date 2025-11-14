@@ -8,32 +8,16 @@ from __future__ import annotations
 
 import glob
 import os
-import shutil
-import tempfile
 import threading
-import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
 
-import cv2
-import numpy as np
-import pandas as pd
 import structlog
-from shapely.geometry import Polygon
-
-try:
-    from ultralytics import YOLO
-
-    ULTRALYTICS_AVAILABLE = True
-except ImportError:
-    YOLO = None
-    ULTRALYTICS_AVAILABLE = False
 
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.reporter import Reporter
@@ -41,7 +25,6 @@ from zebtrack.analysis.roi import ROI
 
 # Task 2.2: Coordinator imports (REFACTOR-VIEWMODEL-001)
 from zebtrack.core.analysis_coordinator import AnalysisCoordinator
-from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.core.detector_service import DetectorService
@@ -61,11 +44,19 @@ from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.core.ui_coordinator import UICoordinator
 from zebtrack.core.video_orchestrator import VideoOrchestrator
 from zebtrack.core.video_processing_service import VideoProcessingService
-from zebtrack.core.weight_manager import OpenVINOExportError, WeightManager
+from zebtrack.core.weight_manager import WeightManager
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
-from zebtrack.plugins import DETECTOR_PLUGINS
+from zebtrack.orchestrators.analysis_orchestrator import AnalysisOrchestrator
+from zebtrack.orchestrators.calibration_orchestrator import CalibrationOrchestrator
+from zebtrack.orchestrators.model_diagnostics_orchestrator import ModelDiagnosticsOrchestrator
+from zebtrack.orchestrators.processing_config_orchestrator import ProcessingConfigOrchestrator
+from zebtrack.orchestrators.project_orchestrator import ProjectOrchestrator
+from zebtrack.orchestrators.recording_session_orchestrator import RecordingSessionOrchestrator
+from zebtrack.orchestrators.ui_state_controller import UIStateController
+from zebtrack.orchestrators.video_processing_orchestrator import VideoProcessingOrchestrator
+from zebtrack.orchestrators.zone_arena_orchestrator import ZoneArenaOrchestrator
 from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.events import Events
 from zebtrack.ui.gui import ApplicationGUI
@@ -373,7 +364,6 @@ class MainViewModel:
         self.cancel_event = threading.Event()
         self.pending_single_video_analysis = None
         self.processing_worker: ProcessingWorker | None = None
-        self._pending_external_trigger: dict | None = None
         self._cancel_feedback_displayed = False
 
         # Initialize services (Phase 2.2 + Phase 3 + Phase 7.2)
@@ -524,6 +514,8 @@ class MainViewModel:
             lambda: LiveCameraCoordinator(
                 state_manager=self.state_manager,
                 live_camera_service=self.live_camera_service,
+                project_manager=self.project_manager,
+                settings=self.settings,
                 camera=None,  # Camera initialized lazily when needed
                 event_bus=self.ui_event_bus,
             ),
@@ -582,6 +574,33 @@ class MainViewModel:
 
         log.info("main_view_model.coordinators_initialized")
 
+        # Sprint 24: Video Processing Orchestrator
+        self.video_processing_orchestrator = VideoProcessingOrchestrator(self)
+
+        # Sprint 25: Analysis Orchestrator
+        self.analysis_orchestrator = AnalysisOrchestrator(self)
+
+        # Sprint 26: Recording Session Orchestrator
+        self.recording_session_orchestrator = RecordingSessionOrchestrator(self)
+
+        # Sprint 27: Project Orchestrator
+        self.project_orchestrator = ProjectOrchestrator(self)
+
+        # Sprint 28: UI State Controller
+        self.ui_state_controller = UIStateController(self)
+
+        # Sprint 29: Model Diagnostics Orchestrator
+        self.model_diagnostics_orchestrator = ModelDiagnosticsOrchestrator(self)
+
+        # Sprint 30: Zone Arena Orchestrator
+        self.zone_arena_orchestrator = ZoneArenaOrchestrator(self)
+
+        # Sprint 31: Processing Config Orchestrator
+        self.processing_config_orchestrator = ProcessingConfigOrchestrator(self)
+
+        # Sprint 32: Calibration Orchestrator
+        self.calibration_orchestrator = CalibrationOrchestrator(self)
+
     def run(self):
         """Start the Tkinter main event loop.
 
@@ -610,16 +629,19 @@ class MainViewModel:
 
     @property
     def is_recording(self) -> bool:
-        """Get recording status from StateManager."""
-        return self.state_manager.get_recording_state().is_recording
+        """Check if currently recording.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator.is_recording
 
     @is_recording.setter
     def is_recording(self, value: bool) -> None:
-        """Update recording status in StateManager."""
-        self.state_manager.update_recording_state(
-            source="controller.is_recording_setter",
-            is_recording=value,
-        )
+        """Set recording state.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        self.recording_session_orchestrator.is_recording = value
 
     @property
     def detector(self) -> Detector | None:
@@ -714,25 +736,15 @@ class MainViewModel:
             self.update_openvino_status()
 
     def _on_recording_state_changed(
-        self, category: StateCategory, key: str, old_value: Any, new_value: Any
-    ):
-        """Publica eventos de UI em resposta a mudanças no estado de Gravação."""
-        if not self.ui_event_bus:
-            return
-        if key == "is_recording":
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_BUTTON_STATE,
-                {"button_name": "start_rec", "state": "disabled" if new_value else "normal"},
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_BUTTON_STATE,
-                {"button_name": "stop_rec", "state": "normal" if new_value else "disabled"},
-            )
-        elif key == "arduino_connected":
-            port = self.state_manager.get_recording_state().arduino_port
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_ARDUINO_STATUS, {"connected": new_value, "port": port}
-            )
+        self, category: StateCategory, key: str, old_value, new_value
+    ) -> None:
+        """Handle recording state changes.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator._on_recording_state_changed(
+            category=category, key=key, old_value=old_value, new_value=new_value
+        )
 
     def _on_processing_state_changed(
         self, category: StateCategory, key: str, old_value: Any, new_value: Any
@@ -806,71 +818,25 @@ class MainViewModel:
         self.arduino = None
 
     def _schedule_on_ui(self, func, *args, **kwargs):
-        """
-        Schedule a function to run on the UI thread.
+        """Schedule a function to run on the UI thread.
 
-        Phase 4: Delegates to UICoordinator for centralized UI scheduling.
-        Kept for backward compatibility with existing code.
+        Facade - delegates to UIStateController (Sprint 28).
         """
-        self.ui_coordinator.schedule(func, *args, **kwargs)
+        return self.ui_state_controller._schedule_on_ui(func, *args, **kwargs)
 
     def _setup_recording_service_callbacks(self) -> None:
-        """Set up UI callbacks for RecordingService."""
-        if self.recording_service is None:
-            return
+        """Setup callbacks for recording service.
 
-        # Inject UI callbacks for view updates
-        self.recording_service.set_ui_callbacks(
-            {
-                "show_error": lambda title, msg: self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR, {"title": title, "message": msg}
-                ),
-                "update_button_state": lambda btn, state: self.ui_event_bus.publish_event(
-                    Events.UI_UPDATE_BUTTON_STATE, {"button_name": btn, "state": state}
-                ),
-                "set_status": lambda msg: self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS, {"message": msg}
-                ),
-                "stop_recording_callback": self.stop_recording,
-            }
-        )
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator._setup_recording_service_callbacks()
 
     def _init_recording_service(self) -> None:
+        """Initialize recording service.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        Initialize RecordingService with dependencies and UI callbacks.
-
-        Phase 2.2: Extracts recording orchestration logic from MainViewModel.
-
-        Note:
-        - recorder, state_manager, project_manager are passed as references (will update)
-        - arduino_manager is initially None and updated via _sync_recording_service_arduino()
-          when setup_arduino() is called.
-        """
-        # Store controller reference so RecordingService can access current recorder/managers
-        self.recording_service = RecordingService(
-            controller=self,  # Pass self to access current recorder/arduino_manager
-            state_manager=self.state_manager,
-            project_manager=self.project_manager,
-            root=self.root,
-        )
-
-        # Setup UI callbacks
-        self._setup_recording_service_callbacks()
-
-        # Initialize LiveCameraService (Phase: Live Camera Analysis)
-        if self._live_camera_service_param is None:
-            from zebtrack.core.live_camera_service import LiveCameraService
-
-            self.live_camera_service = LiveCameraService(
-                controller=self,
-                state_manager=self.state_manager,
-                project_manager=self.project_manager,
-                recording_service=self.recording_service,
-                detector_service=self.detector_service,
-                root=self.root,
-            )
-        else:
-            self.live_camera_service = self._live_camera_service_param
+        return self.recording_session_orchestrator._init_recording_service()
 
     # Phase 7.1: Generic event dispatcher mapping (consolidates 32 handlers into declarative config)
     _EVENT_METHOD_MAPPING: ClassVar[dict] = {
@@ -1054,31 +1020,11 @@ class MainViewModel:
             self.view.setup_zone_definition_for_single_video(video_path, config)
 
     def _determine_processing_mode(self) -> ProcessingMode:
-        """Inspect current detector/settings state to infer active mode."""
-        detector = getattr(self, "detector", None)
-        if detector and hasattr(detector, "is_single_subject_mode"):
-            try:
-                if detector.is_single_subject_mode():
-                    return ProcessingMode.SINGLE_SUBJECT
-            except Exception:  # pragma: no cover - defensive telemetry
-                log.warning(
-                    "controller.processing_mode.detector_probe_failed",
-                    exc_info=True,
-                )
+        """Inspect current detector/settings state to infer active mode.
 
-        try:
-            use_single = bool(self.settings.tracking.use_single_subject_tracker)
-            log.info(
-                "controller.determine_processing_mode",
-                use_single_subject_tracker=use_single,
-                result="SINGLE_SUBJECT" if use_single else "MULTI_TRACK",
-            )
-            if use_single:
-                return ProcessingMode.SINGLE_SUBJECT
-        except AttributeError:  # pragma: no cover - optional settings
-            pass
-
-        return ProcessingMode.MULTI_TRACK
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
+        """
+        return self.processing_config_orchestrator._determine_processing_mode()
 
     def _publish_processing_mode(
         self,
@@ -1087,17 +1033,13 @@ class MainViewModel:
         force: bool = False,
         mode_override: ProcessingMode | None = None,
     ) -> ProcessingReport:
-        """Notify the GUI about the current processing mode when it changes."""
-        mode = mode_override or self._determine_processing_mode()
-        if not force and mode == getattr(self, "_active_processing_mode", None):
-            return ProcessingReport(mode=mode, source=source)
+        """Notify the GUI about the current processing mode when it changes.
 
-        self._active_processing_mode = mode
-        report = ProcessingReport(mode=mode, source=source)
-        view = getattr(self, "view", None)
-        if view and hasattr(view, "update_processing_mode"):
-            self._schedule_on_ui(view.update_processing_mode, report)
-        return report
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
+        """
+        return self.processing_config_orchestrator._publish_processing_mode(
+            source=source, force=force, mode_override=mode_override
+        )
 
     def refresh_project_views(
         self,
@@ -1106,34 +1048,22 @@ class MainViewModel:
         append_summary: bool = False,
         immediate: bool = False,
     ) -> None:
-        """Request a refresh of project-related UI components on the main thread."""
-        if not getattr(self, "view", None):
-            return
+        """Request a refresh of project-related UI components on the main thread.
 
-        refresh_fn = getattr(self.view, "refresh_project_views", None)
-        if not callable(refresh_fn):
-            return
-
-        self._schedule_on_ui(
-            refresh_fn,
-            reason,
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.refresh_project_views(
+            reason=reason,
             append_summary=append_summary,
             immediate=immediate,
         )
 
-    def _clear_external_trigger_wait(self):
-        if not self._pending_external_trigger:
-            return
+    def _clear_external_trigger_wait(self) -> None:
+        """Clear external trigger wait state.
 
-        self._pending_external_trigger = None
-        self.ui_event_bus.publish_event(Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE)
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_BUTTON_STATE, {"button_name": "start_rec", "state": "normal"}
-        )
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_BUTTON_STATE, {"button_name": "stop_rec", "state": "disabled"}
-        )
-        self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator._clear_external_trigger_wait()
 
     def log_arduino_event(self, message: str):
         """Task 2.2: Delegates to HardwareCoordinator."""
@@ -1147,45 +1077,23 @@ class MainViewModel:
         """Task 2.2: Delegates to HardwareCoordinator."""
         self.hardware_coordinator.on_arduino_command_sent(command, success, source)
 
-    def on_arduino_event(self, event_code: int):
-        """Handle Arduino event signals for external trigger control.
+    def on_arduino_event(self, event_code: int) -> None:
+        """Handle Arduino event.
 
-        Args:
-            event_code: Integer code from Arduino (1 for start, 0 for stop).
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        log.info("controller.arduino.event_received", code=event_code)
-        self.log_arduino_event(f"Evento {event_code} recebido do Arduino.")
-
-        if event_code == 1:
-            if self._pending_external_trigger:
-                self.log_arduino_event("Sinal externo recebido. Iniciando gravação...")
-                self.trigger_recording(event_code)
-            else:
-                log.warning("controller.arduino.event.unexpected_start")
-        elif event_code == 0:
-            if self.is_recording or self._pending_external_trigger:
-                self.log_arduino_event("Sinal externo solicitando parada.")
-                self.stop_recording()
-        else:
-            log.info("controller.arduino.event.ignored", code=event_code)
+        return self.recording_session_orchestrator.on_arduino_event(
+            event_code=event_code
+        )
 
     def trigger_recording(self, event_code: int | None = None):
-        """Trigger a pending recording session from external Arduino event.
+        """Trigger recording via external event.
 
-        Args:
-            event_code: Optional Arduino event code that triggered recording.
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        if not self._pending_external_trigger:
-            log.warning("controller.external_trigger.no_pending", code=event_code)
-            return
-
-        context = self._pending_external_trigger
-        self._pending_external_trigger = None
-
-        if self.ui_event_bus:
-            self.ui_event_bus.publish_event(Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE)
-        project_data = self.project_manager.project_data or {}
-        self._schedule_recording(context, project_data, trigger_source="external")
+        return self.recording_session_orchestrator.trigger_recording(
+            event_code=event_code
+        )
 
     def _schedule_recording(
         self,
@@ -1194,57 +1102,32 @@ class MainViewModel:
         *,
         trigger_source: str,
     ) -> None:
-        """
-        Schedule a recording session via RecordingCoordinator.
+        """Schedule recording after delay.
 
-        Sprint 15: Updated to use RecordingCoordinator instead of RecordingService directly.
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        # Inject camera dimensions into context
-        camera_width = getattr(self.view.camera, "actual_width", None)
-        camera_height = getattr(self.view.camera, "actual_height", None)
-        context["camera_width"] = camera_width
-        context["camera_height"] = camera_height
-
-        # Delegate to RecordingCoordinator (Sprint 15)
-        self.recording_coordinator.start_recording(
+        return self.recording_session_orchestrator._schedule_recording(
             context=context,
             project_data=project_data,
             trigger_source=trigger_source,
         )
 
-    def close_project(self):
-        """
-        Close the current project.
+    def close_project(self) -> None:
+        """Close current project.
 
-        Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        # Delegate to adapter which handles all UI coordination
-        new_project_manager = self.project_workflow_adapter.close_project(
-            restore_global_defaults_callback=self._restore_global_model_defaults,
-            settings_obj=self.settings,
-        )
-        # Update reference to new project manager
-        self.project_manager = new_project_manager
+        return self.project_orchestrator.close_project()
 
-    def create_project_workflow(self, **kwargs):
-        """
-        Create project workflow orchestration.
+    def create_project_workflow(
+        self, project_type: str | None = None, initial_data: dict | None = None
+    ):
+        """Create new project workflow.
 
-        Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        # Delegate to adapter which handles all UI coordination
-        return self.project_workflow_adapter.create_project_workflow(
-            setup_detector_callback=self.setup_detector,
-            set_active_weight_callback=self.set_active_weight,
-            set_openvino_usage_callback=self.set_openvino_usage,
-            update_openvino_status_callback=self.update_openvino_status,
-            get_active_weight_name=lambda: self.active_weight_name,
-            get_use_openvino=lambda: self.use_openvino,
-            apply_wizard_overrides_callback=self._apply_wizard_detector_overrides,
-            view_suppress_guide_check=lambda: getattr(
-                self.view, "suppress_post_creation_guide", False
-            ),
-            **kwargs,
+        return self.project_orchestrator.create_project_workflow(
+            project_type=project_type, initial_data=initial_data
         )
 
     def _apply_wizard_detector_overrides(self, wizard_metadata: dict) -> None:
@@ -1296,27 +1179,13 @@ class MainViewModel:
         log.info(event_name, params=normalized_params)
 
     def _show_post_creation_guide(self, wizard_metadata: dict):
-        """
-        Display a contextual onboarding message after project creation.
+        """Display a contextual onboarding message after project creation.
 
-        Phase 5: Refactored to use ProjectWorkflowService for guide generation.
+        Facade - delegates to UIStateController (Sprint 28).
         """
-        # Check view-level suppression flag
-        if getattr(self.view, "suppress_post_creation_guide", False):
-            log.info("controller.post_creation_guide.skipped", reason="view_flag")
-            return
-
-        # Generate guide content via service
-        guide = self.project_workflow_service.generate_post_creation_guide(
-            wizard_metadata=wizard_metadata,
-            check_suppression=True,
+        return self.ui_state_controller._show_post_creation_guide(
+            wizard_metadata=wizard_metadata
         )
-
-        # Display guide if generated
-        if guide:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO, {"title": guide["title"], "message": guide["message"]}
-            )
 
     def _restore_detector_settings(self, saved_detector_config: dict) -> None:
         """
@@ -1329,33 +1198,19 @@ class MainViewModel:
         """
         self.detector_coordinator.restore_detector_settings(saved_detector_config)
 
-    def _setup_zones_from_project(self) -> None:
-        """
-        Set up zones from project data.
+    def _setup_zones_from_project(self):
+        """Setup zones from project.
 
-        Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        self.project_workflow_adapter.setup_zones_from_project(
-            setup_detector_zones_callback=self.setup_detector_zones,
-        )
+        return self.project_orchestrator._setup_zones_from_project()
 
-    def open_project_workflow(self, project_path: Path | str):
-        """
-        Load project and configure everything automatically.
+    def open_project_workflow(self, project_path: str | None = None):
+        """Open existing project workflow.
 
-        Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        return self.project_workflow_adapter.open_project_workflow(
-            project_path=project_path,
-            setup_detector_callback=self.setup_detector,
-            set_active_weight_callback=self.set_active_weight,
-            set_openvino_usage_callback=self.set_openvino_usage,
-            update_openvino_status_callback=self.update_openvino_status,
-            setup_zones_callback=self._setup_zones_from_project,
-            restore_detector_callback=self._restore_detector_settings,
-            get_active_weight_name=lambda: self.active_weight_name,
-            get_use_openvino=lambda: self.use_openvino,
-        )
+        return self.project_orchestrator.open_project_workflow(project_path=project_path)
 
     def setup_detector(self, temp_animal_method: str | None = None) -> bool:
         """
@@ -1386,41 +1241,11 @@ class MainViewModel:
         return success
 
     def setup_detector_zones(self):
+        """Load zone data from project and sets it on the detector instance.
+
+        Facade - delegates to UIStateController (Sprint 28).
         """
-        Load zone data from project and sets it on the detector instance.
-
-        Sprint 7: Delegates to DetectorCoordinator.
-        """
-        # Delegate to DetectorCoordinator (all params None = load from project)
-        success = self.detector_coordinator.configure_zones(
-            zones_data=None,
-            video_width=None,
-            video_height=None,
-        )
-
-        if not success:
-            log.warning("main_view_model.setup_detector_zones.failed")
-            return
-
-        # UI logic: notify if no arena polygon defined
-        zone_data = self.project_manager.get_zone_data()
-        if not zone_data.polygon:
-            if self.project_manager.get_project_type() == "pre-recorded":
-                self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
-                first_video = self.project_manager.get_next_video()
-                if first_video:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
-                    )
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Configuração Necessária",
-                        "message": "Erro: A área de processamento principal (aquário) não foi "
-                        "definida. Por favor, defina-a na aba 'Configuração de Zonas' "
-                        "antes de continuar.",
-                    },
-                )
+        return self.ui_state_controller.setup_detector_zones()
 
     # --- New Methods for Weight Management ---
 
@@ -1458,78 +1283,34 @@ class MainViewModel:
     def add_new_weight(
         self, path: Path | str, set_as_default: bool, weight_type: str | None = None
     ):
-        """Add a new weight with type classification."""
-        path = Path(path) if isinstance(path, str) else path
-        try:
-            self.weight_manager.add_weight(path, set_as_default, weight_type)
-            new_name = path.name
-            # Refresh UI on success
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_WEIGHTS_LIST, {"weights": self.get_all_weight_names()}
-            )
-            self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": new_name})
-            self.set_active_weight(new_name)  # This will also trigger conversion check
-        except (ValueError, FileNotFoundError, OSError) as e:
-            log.error("controller.add_weight.failed", error=str(e), path=str(path))
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro ao Adicionar Peso", "message": str(e)},
-            )
+        """Add a new weight with type classification.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.add_new_weight(
+            path=path, set_as_default=set_as_default, weight_type=weight_type
+        )
 
     def delete_weight(self, name: str):
         """Delete a model weight from the catalog.
 
-        Args:
-            name: Name of the weight to delete.
+        Facade - delegates to UIStateController (Sprint 28).
         """
-        try:
-            self.weight_manager.delete_weight(name)
-            # Refresh UI on success
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_WEIGHTS_LIST, {"weights": self.get_all_weight_names()}
-            )
-            default_name, _ = self._safe_get_default_weight()
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": default_name}
-            )
-            self.set_active_weight(default_name, None)
-        except (ValueError, OSError) as e:
-            log.error("controller.delete_weight.failed", error=str(e), name=name)
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro ao Excluir Peso", "message": str(e)},
-            )
+        return self.ui_state_controller.delete_weight(name=name)
 
     def set_active_weight(self, name: str | None, dialog=None):
         """Set the active model weight and update UI accordingly.
 
-        Args:
-            name: Name of the weight to set as active.
-            dialog: Optional dialog to update with OpenVINO status.
+        Facade - delegates to UIStateController (Sprint 28).
         """
-        candidate = name or ""
-        available = set(self.get_all_weight_names())
-
-        if candidate and candidate in available:
-            self.active_weight_name = candidate
-            log.info("controller.active_weight.set", name=candidate)
-            self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": candidate})
-            self.update_openvino_status(dialog)
-            if self.use_openvino:
-                self.convert_active_weight_to_openvino(dialog)
-        else:
-            if candidate:
-                log.warning("controller.active_weight.not_found", name=name)
-            self.active_weight_name = ""
-            self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": ""})
-            self.update_openvino_status(dialog)
-
-        if not self._using_project_overrides:
-            self._global_model_defaults["active_weight"] = self.active_weight_name or None
+        return self.ui_state_controller.set_active_weight(name=name, dialog=dialog)
 
     def manage_weights(self):
-        """Open the weight management dialog."""
-        self.ui_event_bus.publish_event(Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG)
+        """Open the weight management dialog.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.manage_weights()
 
     def load_new_weight(
         self,
@@ -1537,116 +1318,43 @@ class MainViewModel:
         weight_type: str | None = None,
         choice: str | None = None,
     ):
-        """Handle the 'Load New Weight' button click."""
-        if filepath is not None:
-            filepath = Path(filepath) if isinstance(filepath, str) else filepath
-        if filepath is None:
-            self.ui_event_bus.publish_event(Events.UI_REQUEST_WEIGHT_FILE)
-            return
+        """Handle the 'Load New Weight' button click.
 
-        # Classify weight type by filename
-        filename = os.path.basename(filepath)
-        if weight_type is None:
-            weight_type = self.classify_weight_type(filename)
-
-        # If type cannot be determined, ask user
-        if weight_type is None:
-            self.ui_event_bus.publish_event(Events.UI_REQUEST_WEIGHT_TYPE)
-            return
-
-        # Ask user what to do with the new weight
-        if choice is None:
-            self.ui_event_bus.publish_event(
-                Events.UI_REQUEST_WEIGHT_ACTION, {"weight_type": weight_type}
-            )
-            return
-
-        if choice == "cancel":
-            return
-        elif choice == "yes":
-            # Add as new default for this type
-            self.add_new_weight(path=filepath, set_as_default=True, weight_type=weight_type)
-        else:  # 'no'
-            # Add as an alternative
-            self.add_new_weight(path=filepath, set_as_default=False, weight_type=weight_type)
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.load_new_weight(
+            filepath=filepath, weight_type=weight_type, choice=choice
+        )
 
     def set_openvino_usage(self, use_openvino: bool, dialog=None):
         """Enable or disable OpenVINO inference mode.
 
-        Args:
-            use_openvino: True to enable OpenVINO, False to use PyTorch.
-            dialog: Optional dialog to update with status.
+        Facade - delegates to UIStateController (Sprint 28).
         """
-        self.use_openvino = bool(use_openvino)
-        log.info("controller.openvino_usage.set", enabled=self.use_openvino)
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": self.use_openvino}
+        return self.ui_state_controller.set_openvino_usage(
+            use_openvino=use_openvino, dialog=dialog
         )
-        if self.use_openvino and self.active_weight_name:
-            # Trigger conversion if switching to OpenVINO and model isn't converted
-            self.convert_active_weight_to_openvino(dialog)
-        self.update_openvino_status(dialog)
-
-        if not self._using_project_overrides:
-            self._global_model_defaults["use_openvino"] = self.use_openvino
 
     def convert_active_weight_to_openvino(self, dialog):
+        """Convert the active weight to OpenVINO format.
+
+        Facade - delegates to UIStateController (Sprint 28).
         """
-        Convert the active weight to OpenVINO format.
-
-        Delegates conversion logic to ModelService (Phase 2.1).
-        MainViewModel only handles UI updates and status feedback.
-        """
-        if not self.active_weight_name:
-            return
-
-        if self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": f"Convertendo {self.active_weight_name} para OpenVINO..."},
-            )
-
-        try:
-            # Delegate conversion to ModelService
-            self.model_service.convert_to_openvino(self.active_weight_name)
-            self.update_openvino_status(dialog)
-            if self.ui_event_bus:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS,
-                    {"message": "Verificação de conversão concluída. Pronto."},
-                )
-        except OpenVINOExportError as e:
-            log.error(
-                "controller.convert_openvino.failed",
-                error=str(e),
-                weight_name=self.active_weight_name,
-            )
-            self.update_openvino_status(dialog)
-            if self.ui_event_bus:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {"title": "Erro na Conversão OpenVINO", "message": str(e)},
-                )
-                self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS,
-                    {"message": "Erro na conversão OpenVINO."},
-                )
+        return self.ui_state_controller.convert_active_weight_to_openvino(dialog=dialog)
 
     def update_openvino_status(self, dialog=None):
-        """Update the status label in the GUI based on the current state."""
-        status = self.get_openvino_status()
-        if dialog:
-            dialog.update_openvino_status_label(status)
-        self.ui_event_bus.publish_event(Events.UI_UPDATE_OPENVINO_STATUS, {"status": status})
+        """Update the status label in the GUI based on the current state.
 
-    @property
-    def are_project_overrides_active(self) -> bool:
-        """Check if project-specific model overrides are currently active.
-
-        Returns:
-            True if using project overrides, False if using global settings.
+        Facade - delegates to UIStateController (Sprint 28).
         """
-        return bool(self._using_project_overrides)
+        return self.ui_state_controller.update_openvino_status(dialog=dialog)
+
+    def are_project_overrides_active(self) -> bool:
+        """Check if project overrides are active.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.are_project_overrides_active()
 
     def get_global_model_defaults(self) -> dict:
         """Get global model default settings.
@@ -1667,80 +1375,25 @@ class MainViewModel:
         return project_data
 
     def _ensure_project_overrides_record(self) -> dict:
-        project_data = self._get_project_data_dict()
-        overrides = project_data.get("model_overrides")
-        if not isinstance(overrides, dict):
-            overrides = {"active_weight": None, "use_openvino": None}
-            project_data["model_overrides"] = overrides
-        return overrides
+        """Ensure project overrides record exists.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator._ensure_project_overrides_record()
 
     def has_project_override_settings(self) -> bool:
-        """Check if project has any non-empty model override settings.
+        """Check if project has override settings.
 
-        Returns:
-            True if project has model overrides, False otherwise.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        if not getattr(self.project_manager, "project_path", None):
-            return False
-        overrides = self._ensure_project_overrides_record()
-        return any(value not in (None, "", "inherit") for value in overrides.values())
+        return self.project_orchestrator.has_project_override_settings()
 
     def get_calibration_scope_info(self) -> dict:
         """Get calibration scope information for UI display.
 
-        Returns:
-            Dictionary with scope, project status, labels, and detail messages.
+        Facade - delegates to CalibrationOrchestrator (Sprint 32).
         """
-        project_path = getattr(self.project_manager, "project_path", None)
-        project_loaded = bool(project_path)
-        project_name = None
-        if project_loaded and hasattr(self.project_manager, "get_project_name"):
-            try:
-                project_name = self.project_manager.get_project_name()
-            except Exception:  # pragma: no cover - defensive
-                project_name = None
-
-        overrides_active = self.has_project_override_settings()
-        inheriting_globals = project_loaded and not overrides_active
-        scope = "project" if project_loaded and self._using_project_overrides else "global"
-
-        # Check if in single-video analysis mode
-        is_single_video_mode = False
-        if hasattr(self, "gui") and self.gui:
-            is_single_video_mode = bool(getattr(self.gui, "pending_single_video_path", None))
-
-        if scope == "project":
-            label = f"Escopo: Projeto ({project_name})" if project_name else "Escopo: Projeto"
-            if overrides_active:
-                detail = (
-                    "Este projeto usa overrides salvos. Ajustes nesta janela são "
-                    "persistidos apenas neste projeto."
-                )
-            else:
-                detail = (
-                    "Este projeto está herdando os padrões globais. Ao salvar "
-                    "aqui, os valores se tornam overrides específicos."
-                )
-        else:
-            label = "Escopo: Configuração Global"
-            if project_loaded:
-                detail = (
-                    "Alterações atualizam o padrão global. Use a ação de cópia para "
-                    "fixar estes valores no projeto atual."
-                )
-            else:
-                detail = "Nenhum projeto carregado; ajustes atualizam os padrões globais."
-
-        return {
-            "scope": scope,
-            "project_loaded": project_loaded,
-            "project_name": project_name,
-            "overrides_active": overrides_active,
-            "inheriting_globals": inheriting_globals,
-            "is_single_video_mode": is_single_video_mode,
-            "label": label,
-            "detail": detail,
-        }
+        return self.calibration_orchestrator.get_calibration_scope_info()
 
     def get_current_detector_parameters(self) -> dict[str, float]:
         """
@@ -1777,194 +1430,72 @@ class MainViewModel:
         reset_overrides: bool = False,
         scope: str = "global",
     ) -> bool:
+        """Apply detector threshold updates and persist them when possible.
+
+        Facade - delegates to UIStateController (Sprint 28).
         """
-        Apply detector threshold updates and persist them when possible.
-
-        Sprint 7: Delegates to DetectorCoordinator.
-        """
-        try:
-            success = self.detector_coordinator.update_detector_parameters(
-                params=params,
-                reset_overrides=reset_overrides,
-                scope=scope,
-            )
-
-            if success:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS,
-                    {"message": "Parâmetros do detector atualizados."},
-                )
-
-            return success
-        except ValueError as e:
-            log.error("controller.detector.update.validation_failed", error=str(e))
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro de Validação", "message": str(e)},
-            )
-            return False
-
-    def _persist_project_model_settings(self, weight: str | None, use_openvino: bool) -> dict:
-        """
-        Persist model settings to project configuration.
-
-        Phase 2.1: Uses ProjectService for data structure management,
-        but delegates actual persistence to ProjectManager to maintain
-        backward compatibility with existing test mocks.
-        """
-        project_data = self._get_project_data_dict()
-        overrides = self._ensure_project_overrides_record()
-
-        # Update overrides (business logic extracted to helper)
-        overrides["active_weight"] = weight
-        overrides["use_openvino"] = use_openvino
-        project_data["active_weight"] = weight
-        project_data["use_openvino"] = bool(use_openvino)
-
-        # Update in-memory state
-        self.project_manager.project_data = project_data
-
-        # Delegate persistence to ProjectManager (maintains test compatibility)
-        if getattr(self.project_manager, "project_path", None):
-            self.project_manager.save_project()
-
-        return overrides
-
-    def copy_global_model_settings_to_project(self) -> tuple[str | None, bool] | None:
-        """Copy global model settings to current project as overrides.
-
-        Returns:
-            Tuple of (weight_name, use_openvino) if successful, None otherwise.
-        """
-        if not getattr(self.project_manager, "project_path", None):
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Nenhum Projeto",
-                    "message": "Abra um projeto antes de copiar configurações globais.",
-                },
-            )
-            return None
-
-        defaults = self.get_global_model_defaults()
-        weight = defaults.get("active_weight") or (self.active_weight_name or None)
-        use_openvino = bool(defaults.get("use_openvino", False))
-
-        overrides = self._persist_project_model_settings(weight, use_openvino)
-
-        message = "Configurações globais aplicadas ao projeto."
-        self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": message})
-        self.refresh_project_views(reason=message, append_summary=True)
-
-        return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
-
-    def save_current_calibration_to_project(self) -> tuple[str | None, bool] | None:
-        """Save current model settings as project-specific overrides.
-
-        Returns:
-            Tuple of (weight_name, use_openvino) if successful, None otherwise.
-        """
-        if not getattr(self.project_manager, "project_path", None):
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Nenhum Projeto",
-                    "message": "Abra um projeto antes de salvar overrides de calibração.",
-                },
-            )
-            return None
-
-        overrides = self._persist_project_model_settings(
-            self.active_weight_name or None,
-            bool(self.use_openvino),
+        return self.ui_state_controller.update_detector_parameters(
+            params=params, reset_overrides=reset_overrides, scope=scope
         )
 
-        # Garantir que o estado em memória reflita os overrides recém-salvos
-        self.apply_project_model_overrides(overrides)
+    def _persist_project_model_settings(self, weight: str | None, use_openvino: bool) -> dict:
+        """Persist model settings to project configuration.
 
-        message = "Overrides do projeto atualizados a partir desta calibração."
-        self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": message})
-        self.refresh_project_views(reason=message, append_summary=True)
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
+        """
+        return self.project_orchestrator._persist_project_model_settings(
+            weight=weight, use_openvino=use_openvino
+        )
 
-        return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
+    def copy_global_model_settings_to_project(self) -> None:
+        """Copy global model settings to project.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.copy_global_model_settings_to_project()
+
+    def save_current_calibration_to_project(self) -> None:
+        """Save current calibration to project.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.save_current_calibration_to_project()
 
     def _apply_model_settings(
         self, weight_name: str | None, use_openvino: bool, dialog=None
     ) -> None:
-        if weight_name:
-            self.set_active_weight(weight_name, dialog)
-        else:
-            self.set_active_weight("", dialog)
-        self.set_openvino_usage(bool(use_openvino), dialog)
+        """Apply model settings (weight and OpenVINO) to the detector.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
+        """
+        return self.project_orchestrator._apply_model_settings(
+            weight_name=weight_name, use_openvino=use_openvino, dialog=dialog
+        )
 
     def resolve_project_model_settings(
-        self, overrides: dict | None = None
-    ) -> tuple[str | None, bool]:
-        """Resolve model settings considering project overrides and global defaults.
+        self,
+        model_type: str,
+        model_key: str,
+        field_name: str,
+        default_value=None,
+    ):
+        """Resolve project model settings with fallback.
 
-        Args:
-            overrides: Optional override dictionary to merge with project overrides.
-
-        Returns:
-            Tuple of (resolved_weight, resolved_openvino).
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        project_data = getattr(self.project_manager, "project_data", {}) or {}
-        base_overrides = project_data.get("model_overrides") or {}
-        if overrides is not None:
-            merged_overrides = base_overrides.copy()
-            merged_overrides.update(overrides)
-        else:
-            merged_overrides = base_overrides
-
-        weight_override = merged_overrides.get("active_weight")
-        if isinstance(weight_override, str):
-            weight_override = weight_override.strip() or None
-
-        openvino_override = merged_overrides.get("use_openvino")
-        if isinstance(openvino_override, str):
-            lowered = openvino_override.strip().lower()
-            if lowered in {"", "inherit", "auto"}:
-                openvino_override = None
-            else:
-                openvino_override = lowered in {"true", "1", "yes", "on"}
-
-        resolved_weight = weight_override
-        if not resolved_weight:
-            resolved_weight = project_data.get("active_weight") or None
-        if not resolved_weight:
-            resolved_weight = self._global_model_defaults.get("active_weight")
-        if not resolved_weight:
-            default_weight, _ = self._safe_get_default_weight()
-            resolved_weight = default_weight
-
-        available_weights = set(self.get_all_weight_names())
-        if resolved_weight and resolved_weight not in available_weights:
-            log.warning(
-                "controller.project_overrides.weight_missing",
-                weight=resolved_weight,
-                available=list(available_weights),
-            )
-            fallback_weight = self._global_model_defaults.get("active_weight")
-            if fallback_weight and fallback_weight in available_weights:
-                resolved_weight = fallback_weight
-            else:
-                default_weight, _ = self._safe_get_default_weight()
-                resolved_weight = default_weight if default_weight else None
-
-        if openvino_override is None:
-            if project_data.get("use_openvino") is not None:
-                resolved_openvino = bool(project_data.get("use_openvino"))
-            else:
-                resolved_openvino = bool(self._global_model_defaults.get("use_openvino", False))
-        else:
-            resolved_openvino = bool(openvino_override)
-
-        return resolved_weight, resolved_openvino
+        return self.project_orchestrator.resolve_project_model_settings(
+            model_type=model_type,
+            model_key=model_key,
+            field_name=field_name,
+            default_value=default_value,
+        )
 
     def apply_project_model_overrides(
         self, overrides: dict | None = None
     ) -> tuple[str | None, bool]:
         """Apply project-specific model overrides to current settings.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
 
         Args:
             overrides: Optional override dictionary to use instead of stored overrides.
@@ -1972,31 +1503,14 @@ class MainViewModel:
         Returns:
             Tuple of (resolved_weight, resolved_openvino).
         """
-        if not getattr(self.project_manager, "project_data", None):
-            return self.active_weight_name or None, bool(self.use_openvino)
-
-        resolved_weight, resolved_openvino = self.resolve_project_model_settings(overrides)
-
-        self._using_project_overrides = True
-        self._apply_model_settings(resolved_weight, resolved_openvino)
-
-        updated = False
-        if self.project_manager.project_data.get("active_weight") != resolved_weight:
-            self.project_manager.project_data["active_weight"] = resolved_weight
-            updated = True
-        if self.project_manager.project_data.get("use_openvino") != resolved_openvino:
-            self.project_manager.project_data["use_openvino"] = resolved_openvino
-            updated = True
-
-        if updated and getattr(self.project_manager, "project_path", None):
-            self.project_manager.save_project()
-
-        return resolved_weight, resolved_openvino
+        return self.project_orchestrator.apply_project_model_overrides(overrides=overrides)
 
     def save_project_model_overrides(
         self, active_weight_override: str | None, use_openvino_override: bool | None
     ) -> tuple[str | None, bool]:
         """Save model settings as project overrides and apply them.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
 
         Args:
             active_weight_override: Weight name to save as override.
@@ -2005,70 +1519,35 @@ class MainViewModel:
         Returns:
             Tuple of (resolved_weight, resolved_openvino).
         """
-        if not getattr(self.project_manager, "project_path", None):
-            log.warning("controller.project_overrides.no_project_loaded")
-            return self.active_weight_name or None, self.use_openvino
-
-        overrides = self.project_manager.project_data.setdefault(
-            "model_overrides",
-            {"active_weight": None, "use_openvino": None},
+        return self.project_orchestrator.save_project_model_overrides(
+            active_weight_override=active_weight_override,
+            use_openvino_override=use_openvino_override,
         )
-        overrides["active_weight"] = active_weight_override or None
-        overrides["use_openvino"] = use_openvino_override
-
-        resolved_weight, resolved_openvino = self.apply_project_model_overrides(overrides)
-
-        self.project_manager.project_data["model_overrides"] = overrides
-        self.project_manager.save_project()
-
-        return resolved_weight, resolved_openvino
 
     def _restore_global_model_defaults(self) -> None:
-        target_weight = self._global_model_defaults.get("active_weight")
-        target_openvino = bool(self._global_model_defaults.get("use_openvino", False))
-        self._using_project_overrides = False
-        self._apply_model_settings(target_weight, target_openvino)
+        """Restore global model defaults after closing a project.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
+        """
+        return self.project_orchestrator._restore_global_model_defaults()
 
     @contextmanager
     def global_calibration_session(self):
         """Context manager for global calibration mode.
 
-        Temporarily disables project overrides and saves changes to global defaults.
-        Restores project overrides on exit if they were active before.
-
-        Yields:
-            None
+        Facade - delegates to CalibrationOrchestrator (Sprint 32).
         """
-        previous_flag = self._using_project_overrides
-        self._using_project_overrides = False
-        try:
+        with self.calibration_orchestrator.global_calibration_session():
             yield
-        finally:
-            self._global_model_defaults["active_weight"] = self.active_weight_name or None
-            self._global_model_defaults["use_openvino"] = self.use_openvino
-            self._using_project_overrides = previous_flag
-            if previous_flag and getattr(self.project_manager, "project_path", None):
-                self.apply_project_model_overrides()
 
     @contextmanager
     def project_calibration_session(self):
-        """Context manager for project-specific calibration mode.
+        """Project calibration context manager.
 
-        Enables project override mode and saves changes to project settings.
-        Maintains override state on exit if project has overrides.
-
-        Yields:
-            None
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        previous_flag = self._using_project_overrides
-        self._using_project_overrides = True
-        try:
+        with self.project_orchestrator.project_calibration_session():
             yield
-        finally:
-            if self.has_project_override_settings():
-                self._using_project_overrides = True
-            else:
-                self._using_project_overrides = previous_flag
 
     def run_aquarium_detection(
         self,
@@ -2078,521 +1557,92 @@ class MainViewModel:
     ):
         """Run the aquarium detection model on the specified or first project video.
 
+        Facade - delegates to AnalysisOrchestrator (Sprint 25).
+
         Args:
             video_path: Path to video file, if None uses next project video
             stabilization_frames: Number of frames to analyze for stabilization
             temp_aquarium_method: Temporary override for aquarium detection method
                 ('det' or 'seg'). If None, uses global self.settings.
         """
-        if video_path is not None:
-            video_path = Path(video_path) if isinstance(video_path, str) else video_path
-        log.info("controller.aquarium_detection.start")
-        self.ui_event_bus.publish_event(
-            Events.UI_SET_STATUS,
-            {"message": "Detectando aquário, por favor aguarde..."},
+        return self.analysis_orchestrator.run_aquarium_detection(
+            video_path=video_path,
+            stabilization_frames=stabilization_frames,
+            temp_aquarium_method=temp_aquarium_method,
         )
-        self._publish_processing_mode(
-            source="calibration.aquarium.start",
-            force=True,
-            mode_override=ProcessingMode.SINGLE_SUBJECT,
-        )
-
-        try:
-            if video_path is None:
-                video_path = self.project_manager.get_next_video()
-
-            if not video_path:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Aviso",
-                        "message": "Nenhum vídeo foi encontrado para a detecção.",
-                    },
-                )
-                return
-
-            self.project_manager.set_active_zone_video(video_path)
-
-            # Display the first frame of the video as a preview background
-            self.ui_event_bus.publish_event(
-                Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": video_path}
-            )
-
-            # Use selected aquarium method and get appropriate weight
-            # Use temporary override if provided, otherwise use global settings
-            aquarium_method = temp_aquarium_method or self.settings.model_selection.aquarium_method
-            model_path = self.weight_manager.get_weight_path_by_method(aquarium_method, "aquarium")
-
-            if not model_path:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro",
-                        "message": f"Não foi possível encontrar um modelo {aquarium_method} para "
-                        "detecção do aquário.",
-                    },
-                )
-                return
-
-            detector = AquariumDetector(model_path=model_path, mode=aquarium_method)
-            polygons = detector.detect_aquariums(
-                video_path, stabilization_frames=stabilization_frames
-            )
-
-            if not polygons:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Detecção Automática Falhou",
-                        "message": "Não foi possível identificar uma área de aquário estável "
-                        "no vídeo. Isso pode ocorrer devido a reflexos, pouca luz ou "
-                        "movimento excessivo da câmera.\n\nPor favor, defina a área "
-                        "do aquário manualmente utilizando a ferramenta 'Desenhar "
-                        "Polígono Principal'.",
-                    },
-                )
-                return
-
-            main_polygon = polygons[0]
-            log.info(
-                "controller.aquarium_detection.success",
-                polygon_points=len(main_polygon),
-            )
-            # The view will handle drawing this polygon interactively
-            self.ui_event_bus.publish_event(
-                Events.UI_SETUP_INTERACTIVE_POLYGON, {"polygon": main_polygon}
-            )
-
-        except Exception as e:
-            log.error("controller.aquarium_detection.error", exc_info=True)
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro na Detecção",
-                    "message": f"Ocorreu um erro ao detectar o aquário: {e}",
-                },
-            )
-        finally:
-            self._publish_processing_mode(
-                source="calibration.aquarium.complete",
-                force=True,
-            )
-            self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
 
     def apply_roi_template(self, template: dict[str, Any]) -> None:
-        """Aplica um template de ROI ao vídeo ativo."""
-        pm = self.project_manager
-        active_video = pm.get_active_zone_video()
-        if not active_video:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Vídeo não selecionado",
-                    "message": "Selecione um vídeo na lista antes de aplicar o template.",
-                },
-            )
-            return
+        """Aplica um template de ROI ao vídeo ativo.
 
-        template_name = template.get("name") or template.get("display_name") or "Template"
-        try:
-            template_zone = pm.load_roi_template(
-                template_name,
-                location=template.get("location"),
-                file_path=template.get("file"),
-            )
-            pm.save_zone_data(template_zone, video_path=active_video, persist=bool(pm.project_path))
-            pm.set_active_zone_video(active_video)
-            self.setup_detector_zones()
-            self.ui_event_bus.publish_event(Events.UI_REDRAW_ZONES)
-            self.ui_event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST)
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Template Aplicado",
-                    "message": f"As zonas foram atualizadas com o template '{template_name}'.",
-                },
-            )
-        except FileNotFoundError as exc:
-            log.error(
-                "controller.roi_templates.file_missing", template=template_name, error=str(exc)
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Arquivo não encontrado",
-                    "message": "O arquivo associado ao template não foi encontrado.",
-                },
-            )
-        except Exception as exc:
-            log.error(
-                "controller.roi_templates.apply_failed", error=str(exc), template=template_name
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR, {"title": "Erro ao aplicar template", "message": str(exc)}
-            )
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.apply_roi_template(template=template)
 
     def set_main_arena_polygon(self, points: list) -> bool:
-        """Salva polígono com validações robustas."""
-        try:
-            # Validação 1: Pontos válidos
-            if not points or len(points) < 3:
-                log.error(
-                    "controller.polygon.invalid_points",
-                    count=len(points) if points else 0,
-                )
-                return False
+        """Salva polígono com validações robustas.
 
-            # Validação 2: Projeto existe
-            if not self.project_manager.project_path:
-                log.error("controller.polygon.no_project")
-                # Para single video workflow, cria projeto temporário
-                if (
-                    hasattr(self.view, "pending_single_video_path")
-                    and self.view.pending_single_video_path
-                ):
-                    import tempfile
-
-                    temp_dir = tempfile.mkdtemp(prefix="zebtrack_temp_")
-                    self.project_manager.project_path = temp_dir
-                    self.project_manager.project_data = {
-                        "project_name": "Temporary Single Video Project",
-                        "project_type": "single_video",
-                        "detection_zones": {},
-                    }
-                    log.warning("controller.polygon.created_temp_project", path=temp_dir)
-                else:
-                    return False
-
-            # Validação 3: Estrutura de dados
-            if "detection_zones" not in self.project_manager.project_data:
-                self.project_manager.save_zone_data(ZoneData(), persist=False)
-                log.info("controller.polygon.initialized_detection_zones")
-
-            # Salva
-            self.project_manager.update_main_polygon(points)
-
-            # Força atualização visual
-            self.ui_event_bus.publish_event(Events.UI_REDRAW_ZONES, {})
-
-            log.info("controller.polygon.saved", points=len(points))
-            return True
-
-        except Exception as e:
-            log.error("controller.polygon.save_error", error=str(e))
-            return False
+        Facade - delegates to ZoneArenaOrchestrator (Sprint 30).
+        """
+        return self.zone_arena_orchestrator.set_main_arena_polygon(points=points)
 
     def save_manual_arena(self, polygon_points: list[list[int]]):
-        """
-        Save the manually adjusted arena and updates the detector.
+        """Save the manually adjusted arena and updates the detector.
 
-        Delegates to ProjectService for persistence (Phase 2.1).
-        MainViewModel handles UI coordination and detector updates.
+        Facade - delegates to ZoneArenaOrchestrator (Sprint 30).
         """
-        log.info("controller.arena.save_manual", points_count=len(polygon_points))
-        self.update_main_arena(polygon_points)
+        return self.zone_arena_orchestrator.save_manual_arena(polygon_points=polygon_points)
 
     def update_main_arena(self, polygon_points: list[list[int]]):
+        """Update the main arena polygon in the project's zone data.
+
+        Facade - delegates to UIStateController (Sprint 28).
         """
-        Update the main arena polygon in the project's zone data.
-
-        Phase 2.1: Logic simplified but maintains compatibility with existing tests.
-        ProjectService methods available for future direct usage.
-        """
-        log.info("controller.zone.update_arena", points=len(polygon_points))
-
-        # Update in-memory zone data
-        zone_data = self.project_manager.get_zone_data()
-        zone_data.polygon = polygon_points
-        self.project_manager.save_zone_data(zone_data)
-
-        # After updating, we need to reload the zones in the detector
-        self.setup_detector_zones()
-        log.info("controller.zone.update_arena.success")
+        return self.ui_state_controller.update_main_arena(polygon_points=polygon_points)
 
     def add_roi_polygon(self, roi_points: list[list[int]], name: str, color: tuple[int, int, int]):
-        """Adiciona ROI com validação de sobreposição."""
-        try:
-            log.info("controller.zone.add_roi", name=name, points=len(roi_points))
+        """Adiciona ROI com validação de sobreposição.
 
-            # Critical Fix #4: Add project validation before saving ROI
-            if not self.project_manager.project_path:
-                log.error("controller.zone.add_roi.no_project", name=name)
-                return False
+        Facade - delegates to ZoneArenaOrchestrator (Sprint 30).
+        """
+        return self.zone_arena_orchestrator.add_roi_polygon(
+            roi_points=roi_points, name=name, color=color
+        )
 
-            zone_data = self.project_manager.get_zone_data()
+    def can_remove_project_asset(self, asset_type: AssetType, video_name: str) -> tuple[bool, str]:
+        """Check if project asset can be removed.
 
-            # Validação 1: Verifica se está dentro da arena principal
-            if zone_data.polygon and len(zone_data.polygon) >= 3:
-                import cv2
-                import numpy as np
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.can_remove_project_asset(
+            asset_type=asset_type, video_name=video_name
+        )
 
-                arena_poly = np.array(zone_data.polygon, dtype=np.float32)
+    def delete_project_asset(self, asset_type: AssetType, video_name: str) -> bool:
+        """Delete project asset.
 
-                # First pass: adjust points that are slightly outside (likely from
-                # snapping)
-                adjusted_points = []
-                # Calculate arena centroid once (convert to native Python float)
-                centroid_x = float(np.mean(arena_poly[:, 0]))
-                centroid_y = float(np.mean(arena_poly[:, 1]))
-
-                for point in roi_points:
-                    px, py = float(point[0]), float(point[1])
-                    # True returns signed distance
-                    result = cv2.pointPolygonTest(arena_poly, (px, py), True)
-
-                    # If point is slightly outside (within 3 pixels), nudge it inside
-                    if -3.0 <= result < 0:
-                        # Move point toward centroid by 3 pixels
-                        dx = centroid_x - px
-                        dy = centroid_y - py
-                        length = float(np.sqrt(dx * dx + dy * dy))
-                        if length > 0:
-                            px += (dx / length) * 3.0
-                            py += (dy / length) * 3.0
-
-                    # Ensure values are native Python float, not numpy types
-                    adjusted_points.append([float(px), float(py)])
-
-                # Second pass: validate adjusted points
-                points_outside = 0
-                for point in adjusted_points:
-                    result = cv2.pointPolygonTest(arena_poly, tuple(point), False)
-                    if result < 0:  # Ponto está fora
-                        points_outside += 1
-
-                # If adjustment worked, use adjusted points
-                if points_outside == 0:
-                    roi_points = adjusted_points
-
-                if points_outside > 0:
-                    outside_percent = (points_outside / len(roi_points)) * 100
-                    log.warning(
-                        "controller.roi.outside_arena",
-                        name=name,
-                        points_outside=points_outside,
-                        percent=outside_percent,
-                    )
-
-                    if not self.view.ask_ok_cancel(
-                        "ROI Fora da Arena",
-                        (
-                            f"A ROI '{name}' tem {points_outside} pontos "
-                            f"({outside_percent:.1f}%) "
-                            "fora da arena principal.\n\nDeseja continuar mesmo assim?"
-                        ),
-                    ):
-                        return False
-
-            # Validação 2: Verifica sobreposição com outras ROIs
-            for i, existing_roi in enumerate(zone_data.roi_polygons):
-                if len(existing_roi) >= 3:
-                    # Calcula sobreposição simples verificando pontos
-                    overlapping_points = 0
-
-                    existing_poly = np.array(existing_roi, dtype=np.int32)
-
-                    for point in roi_points:
-                        result = cv2.pointPolygonTest(existing_poly, tuple(point), False)
-                        if result >= 0:  # Ponto está dentro ou na borda
-                            overlapping_points += 1
-
-                    if overlapping_points > 0:
-                        overlap_percent = (overlapping_points / len(roi_points)) * 100
-
-                        if overlap_percent > 20:  # Mais de 20% de sobreposição
-                            existing_name = (
-                                zone_data.roi_names[i]
-                                if i < len(zone_data.roi_names)
-                                else f"ROI_{i + 1}"
-                            )
-                            log.warning(
-                                "controller.roi.overlap",
-                                name=name,
-                                existing=existing_name,
-                                percent=overlap_percent,
-                            )
-
-                            if not self.view.ask_ok_cancel(
-                                "ROIs Sobrepostas",
-                                f"A nova ROI '{name}' tem {overlap_percent:.1f}% de "
-                                f"sobreposição com '{existing_name}'.\n\n"
-                                "Deseja continuar?",
-                            ):
-                                return False
-
-            # Adiciona a ROI após validações
-            zone_data.roi_polygons.append(roi_points)
-            zone_data.roi_names.append(name)
-            zone_data.roi_colors.append(color)
-
-            # Save the project and reload the zones in the active detector
-            self.project_manager.save_zone_data(zone_data)
-            self.setup_detector_zones()
-            log.info("controller.zone.add_roi.success", name=name)
-            return True
-
-        except Exception as e:
-            log.error("controller.zone.add_roi.error", name=name, error=str(e))
-            return False
-
-    def can_remove_project_asset(
-        self, video_path: Path | str, asset: str
-    ) -> tuple[bool, str | None]:
-        """Validate whether a project asset can be safely removed."""
-        video_path = Path(video_path) if isinstance(video_path, str) else video_path
-
-        try:
-            asset_type = cast(AssetType, asset)
-            return self.project_manager.can_remove_asset(str(video_path), asset_type)
-        except Exception as exc:  # pragma: no cover - defensive logging
-            log.error(
-                "controller.project_asset.can_remove_failed",
-                asset=asset,
-                video=video_path,
-                error=str(exc),
-            )
-            return False, "Não foi possível validar a remoção solicitada."
-
-    def delete_project_asset(
-        self,
-        video_path: Path | str,
-        asset: str,
-        *,
-        delete_source: bool = True,
-    ) -> bool:
-        """Remove a project asset (arena, ROIs, trajetória, sumário ou vídeo)."""
-        video_path = Path(video_path) if isinstance(video_path, str) else video_path
-
-        try:
-            asset_type = cast(AssetType, asset)
-            removed = self.project_manager.remove_asset(
-                str(video_path),
-                asset_type,
-                delete_files=delete_source,
-            )
-            log.info(
-                "controller.project_asset.removal_result",
-                asset=asset,
-                video=video_path,
-                removed=removed,
-                delete_source=delete_source,
-            )
-            return removed
-        except Exception as exc:  # pragma: no cover - defensive logging
-            log.error(
-                "controller.project_asset.remove_failed",
-                asset=asset,
-                video=video_path,
-                error=str(exc),
-                exc_info=True,
-            )
-            return False
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.delete_project_asset(
+            asset_type=asset_type, video_name=video_name
+        )
 
     def run_live_calibration(self, temp_aquarium_method: str | None = None):
         """Record a short clip from the live camera and runs aquarium detection.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
 
         Args:
             temp_aquarium_method: Temporary override for aquarium detection method
                 ('det' or 'seg'). If None, uses global self.settings.
         """
-        log.info("controller.live_calibration.start")
-        if not self.view.camera or not self.view.camera.is_opened():
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro", "message": "A câmera não está disponível ou aberta."},
-            )
-            return
-
-        temp_video_path = None
-        self._publish_processing_mode(
-            source="calibration.live.start",
-            force=True,
-            mode_override=ProcessingMode.SINGLE_SUBJECT,
+        return self.recording_session_orchestrator.run_live_calibration(
+            temp_aquarium_method=temp_aquarium_method
         )
-        try:
-            # 1. Create a temporary file for the calibration video
-            temp_video_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-            temp_video_path = temp_video_file.name
-            temp_video_file.close()
-
-            # 2. Record a short clip
-            w, h = self.view.camera.actual_width, self.view.camera.actual_height
-            fps = self.settings.video_processing.fps
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (w, h))
-
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": "Calibrando... Gravando um pequeno clipe."},
-            )
-
-            start_time = time.time()
-            while time.time() - start_time < 5:  # Record for 5 seconds
-                ret, frame = self.view.camera.get_frame()
-                if not ret:
-                    break
-                writer.write(frame)
-            writer.release()
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": "Calibração: Analisando o clipe..."},
-            )
-
-            # 3. Run detection on the clip using selected aquarium method
-            # Use temporary override if provided, otherwise use global settings
-            aquarium_method = temp_aquarium_method or self.settings.model_selection.aquarium_method
-            model_path = self.weight_manager.get_weight_path_by_method(aquarium_method, "aquarium")
-
-            if not model_path:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro",
-                        "message": f"Não foi possível encontrar um modelo {aquarium_method} para "
-                        "detecção do aquário.",
-                    },
-                )
-                return
-
-            detector = AquariumDetector(model_path=model_path, mode=aquarium_method)
-            polygons = detector.detect_aquariums(temp_video_path)
-
-            if not polygons:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Detecção Falhou",
-                        "message": "Nenhum aquário foi detectado. Por favor, desenhe a área manualmente.",  # noqa: E501
-                    },
-                )
-                return
-
-            main_polygon = polygons[0]
-            self.ui_event_bus.publish_event(
-                Events.UI_SETUP_INTERACTIVE_POLYGON, {"polygon": main_polygon}
-            )
-
-        except Exception as e:
-            log.error("controller.live_calibration.error", exc_info=True)
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro na Calibração", "message": f"Ocorreu um erro: {e}"},
-            )
-        finally:
-            # 4. Clean up the temporary file
-            if temp_video_path and os.path.exists(temp_video_path):
-                os.remove(temp_video_path)
-            self._publish_processing_mode(
-                source="calibration.live.complete",
-                force=True,
-            )
-            self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
 
     def _handle_external_trigger(self, context: dict, arduino_enabled: bool) -> bool:
-        """
-        Handle external trigger setup for recording.
+        """Handle external trigger setup for recording.
 
-        Sprint 15: Extracted from start_recording() to reduce complexity (~40 lines → ~15 lines).
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
 
         Args:
             context: Recording context with session details
@@ -2601,39 +1651,9 @@ class MainViewModel:
         Returns:
             bool: True if waiting for trigger (stop processing), False if proceed
         """
-        project_data = self.project_manager.project_data or {}
-        external_trigger_requested = bool(project_data.get("external_trigger_mode"))
-
-        if external_trigger_requested and not arduino_enabled:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Trigger Externo Indisponível",
-                    "message": "O modo de trigger externo exige um Arduino configurado.",
-                },
-            )
-            return True
-
-        if external_trigger_requested and arduino_enabled:
-            self._pending_external_trigger = context
-            port = context.get("arduino_port", "")
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
-                {
-                    "folder_name": context["folder_name"],
-                    "day": context["day"],
-                    "group": context["group"],
-                    "cobaia": context["cobaia"],
-                    "port": port,
-                },
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": f"Aguardando sinal externo... (porta {port})"},
-            )
-            return True
-
-        return False
+        return self.recording_session_orchestrator._handle_external_trigger(
+            context=context, arduino_enabled=arduino_enabled
+        )
 
     def start_recording(
         self,
@@ -2641,139 +1661,31 @@ class MainViewModel:
         group: str | None = None,
         cobaia: str | None = None,
     ):
+        """Start a recording session (live mode) with zone validation.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        Start a recording session (live mode) with zone validation.
-
-        Sprint 15: Simplified by extracting external trigger logic.
-        """
-        log.info("controller.recording.start")
-
-        self.project_manager.set_active_zone_video(None)
-        self._clear_external_trigger_wait()
-
-        if not self._ensure_zones_before_recording():
-            return
-
-        if not self.detector and not self.setup_detector():
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro", "message": "Falha ao configurar detector."},
-            )
-            return
-
-        self.setup_detector_zones()
-
-        # Get recording details
-        if not all((day, group, cobaia)):
-            details = self.view.ask_recording_details_unified()
-            if not details:
-                log.warning("controller.recording.cancelled_by_user")
-                return
-            day, group, cobaia = details["day"], details["group"], details["cobaia"]
-
-        # Save session details
-        self.project_manager.save_last_session_details(day, group)
-
-        # Create output folder
-        folder_name = f"D{day}_G{group}_S{cobaia}"
-        output_folder = os.path.join(self.project_manager.project_path, folder_name)
-        os.makedirs(output_folder, exist_ok=True)
-
-        # Setup Arduino if needed
-        project_data = self.project_manager.project_data or {}
-        arduino_enabled = bool(project_data.get("use_arduino") and self.setup_arduino())
-
-        # Build recording context
-        context = {
-            "day": day,
-            "group": group,
-            "cobaia": cobaia,
-            "folder_name": folder_name,
-            "output_folder": output_folder,
-            "arduino_enabled": arduino_enabled,
-            "arduino_port": (project_data.get("arduino_port") or "").strip(),
-        }
-
-        # Handle external trigger (may wait for signal)
-        if self._handle_external_trigger(context, arduino_enabled):
-            return
-
-        # Start recording immediately
-        self._pending_external_trigger = None
-        self._schedule_recording(context, project_data, trigger_source="manual")
+        return self.recording_session_orchestrator.start_recording(
+            day=day, group=group, cobaia=cobaia
+        )
 
     def start_live_camera_analysis(self, camera_index: int | None = None):
-        """
-        Start a live camera analysis session.
+        """Start a live camera analysis session.
 
-        Delegates to LiveCameraService for thread management and coordination.
-        Shows a dialog to configure the session if camera_index is not provided.
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
 
         Args:
             camera_index: Optional camera index. If provided, uses this camera directly
                          without showing the configuration dialog. If None, shows dialog.
         """
-        log.info("controller.live_analysis.start", camera_index=camera_index)
-
-        # Get configuration from dialog or use defaults
-        if camera_index is not None:
-            # Use camera directly with default settings
-            if hasattr(self.settings, "live_analysis"):
-                duration_s = self.settings.live_analysis.default_duration_s
-            else:
-                duration_s = 300
-            experiment_id = f"camera_{camera_index}"
-            analysis_interval_frames = 1
-            display_interval_frames = 1
-            record_video = True
-        else:
-            # Show configuration dialog
-            from zebtrack.ui.dialogs import LiveAnalysisDialog
-
-            dialog = LiveAnalysisDialog(self.view.root, settings_obj=self.settings)
-
-            if not dialog.result:
-                log.info("controller.live_analysis.cancelled")
-                return
-
-            config = dialog.result
-            camera_index = config["camera_index"]
-            duration_s = config["duration_s"]
-            experiment_id = config["experiment_id"]
-            analysis_interval_frames = config.get("analysis_interval_frames", 1)
-            display_interval_frames = config.get("display_interval_frames", 1)
-            record_video = config.get("record_video", True)
-
-        # Delegate to LiveCameraService
-        success = self.live_camera_service.start_session(
-            camera_index=camera_index,
-            duration_s=duration_s,
-            experiment_id=experiment_id,
-            analysis_interval_frames=analysis_interval_frames,
-            display_interval_frames=display_interval_frames,
-            record_video=record_video,
+        return self.recording_session_orchestrator.start_live_camera_analysis(
+            camera_index=camera_index
         )
 
-        if success and self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": f"Analisando câmera {camera_index} por {duration_s}s..."},
-            )
-        elif not success and self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro na Análise",
-                    "message": "Falha ao iniciar análise de câmera.",
-                },
-            )
+    def start_live_camera_analysis_from_config(self, config: dict) -> bool:
+        """Start live camera analysis with full configuration.
 
-    def start_live_camera_analysis_from_config(self, config: dict):
-        """
-        Start live camera analysis with full configuration from SingleVideoConfigDialog.
-
-        This method extracts all parameters from the config dictionary and delegates
-        to LiveCameraService, ensuring intervals and other settings are respected.
+        Facade - delegates to LiveCameraCoordinator (Sprint 33).
 
         Args:
             config: Configuration dictionary from SingleVideoConfigDialog containing:
@@ -2781,163 +1693,18 @@ class MainViewModel:
                 - analysis_interval_frames: int - Analyze every N frames
                 - display_interval_frames: int - Display every N frames
                 - (other dialog parameters)
+
+        Returns:
+            True if session started successfully, False otherwise
         """
-        log.info("controller.live_analysis.start_from_config", config_keys=list(config.keys()))
-
-        # Extract configuration with defaults
-        camera_index = config["camera_index"]
-
-        # Duration: use from config (user-editable), fallback to setting or default
-        duration_s = config.get("duration_s")
-        if duration_s is None:
-            if hasattr(self.settings, "live_analysis"):
-                duration_s = self.settings.live_analysis.default_duration_s
-            else:
-                duration_s = 300.0  # 5 minutes default
-
-        # Experiment ID
-        experiment_id = config.get("experiment_id") or f"camera_{camera_index}"
-
-        # ✅ CRITICAL: Extract intervals from config (not hardcoded defaults!)
-        analysis_interval_frames = config.get("analysis_interval_frames", 1)
-        display_interval_frames = config.get("display_interval_frames", 1)
-
-        # Video recording (optional)
-        record_video = config.get("record_video", True)
-
-        log.info(
-            "controller.live_analysis.extracted_config",
-            camera_index=camera_index,
-            duration_s=duration_s,
-            analysis_interval=analysis_interval_frames,
-            display_interval=display_interval_frames,
-            record_video=record_video,
-        )
-
-        # ✅ SINGLE VIDEO ANALYSIS: Ensure default arena if none defined
-        # This allows detection to work without manual zone configuration
-        # NOTE: Only for single video analysis, not for live projects
-        zone_data = self.project_manager.get_zone_data() if self.project_manager else None
-
-        log.info(
-            "controller.live_analysis.checking_zones",
-            has_zone_data=zone_data is not None,
-            has_polygon=bool(zone_data.polygon) if zone_data else False,
-        )
-
-        if not zone_data or not zone_data.polygon:
-            import math
-
-            from zebtrack.core.detector import ZoneData
-
-            log.info("controller.live_analysis.creating_default_arena", reason="no_arena_defined")
-
-            # Open camera temporarily to get dimensions
-            from zebtrack.io.camera import Camera
-
-            temp_settings = self.settings.model_copy(deep=True)
-            temp_settings.camera.index = camera_index
-            temp_settings.camera.desired_width = 1280
-            temp_settings.camera.desired_height = 720
-            temp_camera = Camera(settings_obj=temp_settings)
-
-            if temp_camera.is_opened():
-                w = temp_camera.actual_width
-                h = temp_camera.actual_height
-                temp_camera.release()
-
-                # Create default arena: centered square occupying 1/6 of total frame area
-                # Formula: side = sqrt(total_area / 6) = sqrt(w*h / 6)
-                area_ratio = 6.0
-                side = math.sqrt((w * h) / area_ratio)
-                cx, cy = w / 2, h / 2
-                half = side / 2
-
-                default_arena = [
-                    [cx - half, cy - half],
-                    [cx + half, cy - half],
-                    [cx + half, cy + half],
-                    [cx - half, cy + half],
-                ]
-
-                zone_data = ZoneData(polygon=default_arena)
-
-                # Save to project_manager so detector can use it
-                if self.project_manager:
-                    self.project_manager.save_zone_data(zone_data, video_path=None, persist=False)
-
-                log.info(
-                    "controller.live_analysis.default_arena_created",
-                    width=w,
-                    height=h,
-                    side=side,
-                    area_ratio=area_ratio,
-                    reason="no_arena_defined_for_single_video_analysis",
-                )
-            else:
-                log.error(
-                    "controller.live_analysis.default_arena_failed",
-                    reason="camera_not_opened",
-                )
-        else:
-            log.info(
-                "controller.live_analysis.using_existing_zones",
-                has_polygon=bool(zone_data.polygon),
-                num_rois=len(zone_data.roi_polygons) if zone_data else 0,
-            )
-
-        # Delegate to LiveCameraService with complete configuration
-        success = self.live_camera_service.start_session(
-            camera_index=camera_index,
-            duration_s=duration_s,
-            experiment_id=experiment_id,
-            analysis_interval_frames=analysis_interval_frames,
-            display_interval_frames=display_interval_frames,
-            record_video=record_video,
-        )
-
-        # UI feedback
-        if success and self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {
-                    "message": (
-                        f"Analisando câmera {camera_index} "
-                        f"(análise: {analysis_interval_frames}f, "
-                        f"exibição: {display_interval_frames}f)"
-                    )
-                },
-            )
-        elif not success and self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro na Análise",
-                    "message": f"Falha ao iniciar análise de câmera {camera_index}.",
-                },
-            )
+        return self.live_camera_coordinator.start_session_from_config(config=config)
 
     def stop_recording(self):
+        """Stop the current recording session.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        Stop the current recording session.
-
-        Sprint 15: Updated to use RecordingCoordinator instead of RecordingService directly.
-        """
-        log.info("controller.recording.stop")
-
-        if self._pending_external_trigger:
-            self._clear_external_trigger_wait()
-
-        # Delegate to RecordingCoordinator (Sprint 15)
-        self.recording_coordinator.stop_recording()
-
-        # Update UI on main thread
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_BUTTON_STATE, {"button_name": "start_rec", "state": "normal"}
-        )
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_BUTTON_STATE, {"button_name": "stop_rec", "state": "disabled"}
-        )
+        return self.recording_session_orchestrator.stop_recording()
 
     def start_live_project_session(
         self,
@@ -2946,11 +1713,9 @@ class MainViewModel:
         subject: str,
         duration_s: float | None = None,
     ) -> bool:
-        """
-        Start a live recording session for a Live project.
+        """Start a live recording session for a Live project.
 
-        This method replaces the legacy thread-based system in gui.py,
-        using LiveCameraService for unified camera management.
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
 
         Args:
             day: Day number (from project grid)
@@ -2961,141 +1726,16 @@ class MainViewModel:
         Returns:
             True if session started successfully, False otherwise
         """
-        pm = self.project_manager
-
-        # Validate project type
-        if pm.get_project_type() != "live":
-            log.error("start_live_project_session.wrong_project_type")
-            return False
-
-        # Extract project configuration
-        project_data = pm.project_data
-        camera_index = project_data.get("camera_index", 0)
-
-        # Duration: use parameter, project default, or fallback
-        if duration_s is None:
-            duration_s = project_data.get("recording_duration_s", 300.0)
-
-        # Intervals
-        analysis_interval_frames = project_data.get("analysis_interval_frames", 1)
-        display_interval_frames = project_data.get("display_interval_frames", 1)
-
-        # Experiment ID for this session
-        experiment_id = f"day{day}_{group}_{subject}"
-
-        log.info(
-            "controller.live_project_session.start",
-            project=pm.get_project_name(),
-            experiment_id=experiment_id,
-            camera_index=camera_index,
-            duration_s=duration_s,
+        return self.recording_session_orchestrator.start_live_project_session(
+            day=day, group=group, subject=subject, duration_s=duration_s
         )
-
-        # Delegate to LiveCameraService (unified system)
-        success = self.live_camera_service.start_session(
-            camera_index=camera_index,
-            duration_s=duration_s,
-            experiment_id=experiment_id,
-            analysis_interval_frames=analysis_interval_frames,
-            display_interval_frames=display_interval_frames,
-            record_video=True,  # Projects always record
-        )
-
-        return success
 
     def _ensure_zones_before_recording(self) -> bool:
-        """Ensure project zones are defined (live or non-live) before starting recording.
+        """Ensure project zones are defined before starting recording.
 
-        Returns True if recording can proceed, False if it should be cancelled.
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 33).
         """
-        # Enhanced zone validation for Live projects
-        if self.project_manager.project_path:
-            project_type = self.project_manager.get_project_type()
-            zone_data = self.project_manager.get_zone_data()
-
-            if project_type == "live" and (not zone_data or not zone_data.polygon):
-                log.info("controller.recording.live_zone_validation.start")
-
-                # For Live projects, prompt for automatic calibration
-                response = self.view.ask_ok_cancel(
-                    "Calibração Necessária",
-                    "Deseja fazer calibração automática do aquário?\n"
-                    "(Recomendado para projetos ao vivo)",
-                )
-
-                if response:
-                    # Run auto-calibration
-                    self.run_live_calibration()
-
-                    # Check if calibration was successful
-                    zone_data = self.project_manager.get_zone_data()
-                    if not zone_data or not zone_data.polygon:
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SHOW_ERROR,
-                            {
-                                "title": "Calibração Falhou",
-                                "message": "Não foi possível detectar o aquário.\nPor favor, desenhe manualmente.",  # noqa: E501
-                            },
-                        )
-                        # Switch to zones tab
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SELECT_TAB, {"tab_name": "zone_tab"}
-                        )
-                        return False
-                    else:
-                        log.info("controller.recording.live_zone_validation.success")
-                else:
-                    # User declined calibration
-                    self.ui_event_bus.publish_event(
-                        Events.UI_SHOW_ERROR,
-                        {
-                            "title": "Zonas Obrigatórias",
-                            "message": "Projetos ao vivo requerem definição de zonas.\n"
-                            "Defina o polígono principal antes de gravar.",
-                        },
-                    )
-                    return False
-
-            elif not zone_data or not zone_data.polygon:
-                # Generic validation for non-Live projects (preserve existing behavior)
-                log.warning("controller.recording.no_main_arena")
-
-                response = self.view.ask_ok_cancel(
-                    "Arena Principal Não Definida",
-                    "O polígono principal do aquário não foi definido.\n\n"
-                    "É recomendado definir a arena antes de iniciar gravação.\n"
-                    "Deseja definir agora?",
-                )
-
-                if response:
-                    # Muda para aba de zonas e inicia câmera para calibração
-                    self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
-
-                    self.ui_event_bus.publish_event(
-                        Events.UI_SHOW_INFO,
-                        {
-                            "title": "Defina a Arena Principal",
-                            "message": "Por favor:\n"
-                            "1. Use a câmera ao vivo para calibrar\n"
-                            "2. Use 'Detectar Aquário (Auto)' ou\n"
-                            "3. Desenhe manualmente o polígono principal\n"
-                            "4. Depois volte para iniciar a gravação",
-                        },
-                    )
-                    return False
-                else:
-                    # Continua sem arena definida (usando padrão)
-                    if not self.view.ask_ok_cancel(
-                        "Continuar Sem Arena?",
-                        "Deseja continuar a gravação sem arena definida?\n"
-                        "(A arena padrão será o frame completo)",
-                    ):
-                        log.info("controller.recording.cancelled_no_arena")
-                        return False
-
-                    log.info("controller.recording.proceeding_without_arena")
-
-        return True
+        return self.recording_session_orchestrator._ensure_zones_before_recording()
 
     # --- New Refactored Workflows ---
 
@@ -3154,25 +1794,11 @@ class MainViewModel:
         threading.Thread(target=_await_shutdown, name="CancelAnalysisJoin", daemon=True).start()
 
     def _show_cancel_feedback(self) -> None:
-        """Update UI immediately after a cancellation request."""
-        if self._cancel_feedback_displayed:
-            return
+        """Update UI immediately after a cancellation request.
 
-        self._cancel_feedback_displayed = True
-
-        # Switch back to zone view and clear progress indicators right away
-        self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
-        self.ui_coordinator.set_status(
-            self.view,
-            "Cancelamento solicitado. Finalizando tarefas em segundo plano...",
-        )
-
-        # Provide immediate dialog feedback so the user knows reports won't be generated
-        self.ui_coordinator.show_info(
-            self.view,
-            "Análise cancelada",
-            "A análise de vídeo foi cancelada. Nenhum relatório será gerado.",
-        )
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._show_cancel_feedback()
 
     def start_single_video_workflow(self, video_path: Path | str, config: dict):
         """Prepare the UI for zone definition in the single video workflow."""
@@ -3280,171 +1906,20 @@ class MainViewModel:
             return without_data
 
     def _validate_zones_with_ui(self) -> bool:
+        """Validate that zones are defined, with UI dialogs for user interaction.
+
+        Facade - delegates to UIStateController (Sprint 28).
         """
-        Validate that zones are defined, with UI dialogs for user interaction.
-
-        Sprint 13: Extracted from start_project_processing_workflow().
-        Handles complex zone validation including:
-        - Main arena validation with user dialogs
-        - Default arena creation if user chooses
-        - ROI warning (optional)
-
-        Returns:
-            bool: True if zones are valid/created, False if user cancelled
-        """
-        zone_data = self.project_manager.get_zone_data()
-
-        # Check if main arena is defined
-        if not zone_data or not zone_data.polygon:
-            log.warning("workflow.project_processing.no_main_arena")
-
-            response = self.view.ask_ok_cancel(
-                "Arena Principal Não Definida",
-                "O polígono principal do aquário não foi definido.\n\n"
-                "É necessário definir a arena principal para análise precisa.\n"
-                "Deseja definir agora antes de processar?",
-            )
-
-            if response:
-                # Switch to zone tab and guide user
-                self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
-
-                # Load frame from first video if available
-                first_video = self.project_manager.get_next_video()
-                if first_video:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
-                    )
-
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Defina a Arena Principal",
-                        "message": "Por favor:\n"
-                        "1. Use 'Detectar Aquário (Auto)' ou\n"
-                        "2. Desenhe manualmente o polígono principal\n"
-                        "3. Depois volte para adicionar vídeos",
-                    },
-                )
-                return False
-            else:
-                # Offer default arena as fallback
-                if not self.view.ask_ok_cancel(
-                    "Usar Arena Padrão?",
-                    "Deseja usar o frame completo como arena?\n"
-                    "(Não recomendado para análise precisa)",
-                ):
-                    log.info("workflow.project_processing.cancelled_no_arena")
-                    return False
-
-                # Create default arena based on first video
-                first_video = self.project_manager.get_next_video()
-                if first_video:
-                    import cv2
-
-                    cap = cv2.VideoCapture(first_video)
-                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    cap.release()
-
-                    default_arena = [[0, 0], [width, 0], [width, height], [0, height]]
-
-                    success = self.set_main_arena_polygon(default_arena)
-                    if success:
-                        log.info(
-                            "workflow.project_processing.default_arena_created",
-                            size=f"{width}x{height}",
-                        )
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SHOW_INFO,
-                            {
-                                "title": "Arena Padrão Criada",
-                                "message": f"Arena padrão criada ({width}x{height})\n"
-                                "Recomenda-se ajustar manualmente depois.",
-                            },
-                        )
-                    else:
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SHOW_ERROR,
-                            {"title": "Erro", "message": "Não foi possível criar arena padrão"},
-                        )
-                        return False
-                else:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_SHOW_ERROR,
-                        {"title": "Erro", "message": "Nenhum vídeo encontrado no projeto"},
-                    )
-                    return False
-
-        # Warn about missing ROIs (optional but informative)
-        if not zone_data.roi_polygons:
-            if not self.view.ask_ok_cancel(
-                "Nenhuma ROI Definida",
-                "Nenhuma Área de Interesse (ROI) foi definida.\n\n"
-                "A análise usará apenas a arena principal.\n"
-                "Para análises detalhadas, considere definir ROIs.\n\n"
-                "Deseja continuar?",
-            ):
-                log.info("workflow.project_processing.cancelled_by_user_no_roi")
-                return False
-
-        log.info(
-            "workflow.project_processing.zones_validated",
-            has_main_arena=bool(zone_data.polygon),
-            roi_count=len(zone_data.roi_polygons),
-        )
-
-        return True
+        return self.ui_state_controller._validate_zones_with_ui()
 
     def _handle_validation_error(self, validation_result) -> bool:
+        """Handle validation errors by showing appropriate UI messages.
+
+        Facade - delegates to UIStateController (Sprint 28).
         """
-        Handle validation errors by showing appropriate UI messages.
-
-        Sprint 13: Consolidated error handling from 3 workflow methods.
-        Reduces duplication of error code -> UI event mapping.
-
-        Args:
-            validation_result: ValidationResult from ProcessingCoordinator
-
-        Returns:
-            bool: True if validation passed, False if error was shown
-        """
-        if validation_result.is_valid:
-            return True
-
-        # Map error codes to appropriate UI events
-        error_code = validation_result.error_code
-        error_message = validation_result.error_message
-
-        if error_code == "processing_already_active":
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Análise em Andamento",
-                    "message": error_message,
-                },
-            )
-        elif error_code == "no_project_loaded":
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro", "message": error_message},
-            )
-        elif error_code == "no_videos_in_project":
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Processamento",
-                    "message": error_message,
-                },
-            )
-        else:
-            # Generic error handling
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro de Validação", "message": error_message},
-            )
-
-        return False
+        return self.ui_state_controller._handle_validation_error(
+            validation_result=validation_result
+        )
 
     def start_single_video_processing(
         self, video_path: Path | str, config: dict, zone_data: ZoneData
@@ -3452,245 +1927,19 @@ class MainViewModel:
         """
         Start the actual processing for a single video after zone setup.
 
-        Sprint 11: Added validation check for processing already active.
-        Sprint 13: Simplified using _handle_validation_error().
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
         """
-        video_path = Path(video_path) if isinstance(video_path, str) else video_path
-        log.info("workflow.single_video.processing_start", video=video_path)
-
-        # Sprint 11: Validate processing can start (basic check only)
-        # Sprint 13: Use consolidated error handling
-        validation_result = self.processing_coordinator.validate_can_start_processing(
-            check_project_loaded=False,  # Not required for single video
-            check_zones=False,  # Already handled by caller
-            check_videos_exist=False,  # Not required for single video
+        return self.video_processing_orchestrator.start_single_video_processing(
+            video_path=video_path, config=config, zone_data=zone_data
         )
-
-        if not self._handle_validation_error(validation_result):
-            return
-
-        self.project_manager.set_active_zone_video(video_path)
-
-        # Register the single video in project_manager for display in UI
-        # This allows the video to appear in Main Control and Reports tabs
-        video_entry = self.project_manager.find_video_entry(path=video_path)
-        if not video_entry:
-            log.info("workflow.single_video.registering_video", video=video_path)
-            video_name = os.path.splitext(os.path.basename(video_path))[0]
-
-            # Prepare metadata for single video - use config if available
-            metadata = {}
-            if config:
-                # Extract metadata from config if provided
-                for key in ["group", "group_display_name", "day", "subject"]:
-                    if key in config:
-                        metadata[key] = config[key]
-
-            # Set defaults for missing metadata to ensure proper tree display
-            if "group" not in metadata:
-                metadata["group"] = "single_video"
-            if "group_display_name" not in metadata:
-                metadata["group_display_name"] = "Vídeo Único"
-            if "day" not in metadata:
-                metadata["day"] = "1"
-            if "subject" not in metadata:
-                metadata["subject"] = "1"
-
-            # Include zone information in the video entry
-            video_data = {
-                "path": video_path,
-                "status": "processing",
-                "has_arena": bool(zone_data and zone_data.polygon),
-                "has_rois": bool(zone_data and zone_data.roi_polygons),
-            }
-            if metadata:
-                video_data["metadata"] = metadata
-
-            self.project_manager.add_video_batch(
-                [video_data],
-                save_project=False,  # Don't save to disk for single video workflow
-            )
-
-        # Save the zone data for this video so it can be retrieved later
-        if zone_data and (zone_data.polygon or zone_data.roi_polygons):
-            log.info(
-                "workflow.single_video.saving_zones",
-                video=video_path,
-                has_arena=bool(zone_data.polygon),
-                roi_count=len(zone_data.roi_polygons),
-            )
-            self.project_manager.save_zone_data(zone_data, video_path)
-
-        # Refresh views so the video appears in Main Control and Reports tabs
-        # Ensures the user sees the registered video before processing starts
-        self.refresh_project_views(reason="Single video registered", immediate=True)
-
-        # 1. Update the detector with the newly created zone data
-        # We need to know the video dimensions to set up the zones correctly
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro", "message": f"Não foi possível abrir o vídeo: {video_path}"},
-            )
-            return
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        cap.release()
-        self.detector.set_zones(zone_data, width, height)
-        log.info(
-            "controller.single_video.zones_set",
-            count=len(zone_data.roi_polygons) + (1 if zone_data.polygon else 0),
-        )
-
-        # Inform detector that aquarium region is defined
-        if self.detector:
-            has_aquarium = bool(zone_data and zone_data.polygon)
-            self.detector.set_aquarium_region_defined(has_aquarium)
-            log.info(
-                "controller.single_video.aquarium_status",
-                defined=has_aquarium,
-                plugin=self.detector.plugin.get_name(),
-            )
-
-        # 2. Prepare the environment for _process_videos
-        scanned_files = ProjectManager.scan_input_paths([video_path])
-        if not scanned_files:
-            self.view.show_error("Erro", "Não foi possível identificar um arquivo de vídeo válido.")
-            return
-        video_to_process = scanned_files[0]
-
-        video_name = os.path.splitext(os.path.basename(video_path))[0]
-        output_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_results")
-        self._prepare_results_directory(output_dir)
-
-        # 3. Create and start the processing worker
-        self.cancel_event.clear()
-
-        callbacks = self._create_processing_callbacks([video_to_process])
-        context = self._create_processing_context(
-            [video_to_process], output_dir, single_video_config=config
-        )
-
-        self._cancel_feedback_displayed = False
-        self.processing_worker = ProcessingWorker(context, callbacks)
-        self.processing_thread = self.processing_worker.start_in_thread()
-
-        # Update processing state in StateManager
-        self.state_manager.update_processing_state(
-            source="controller.start_single_video_analysis",
-            is_processing=True,
-            current_video=os.path.basename(video_path),
-            processing_start_time=datetime.now(),
-        )
-
-        # 4. Switch to analysis view mode immediately
-        self._activate_analysis_view_mode()
-
-        # Permanecer na tela principal para exibir a barra de progresso
-        # self.view._create_welcome_frame()
-        if self.ui_event_bus:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Análise Iniciada",
-                    "message": "A análise do vídeo foi iniciada em segundo plano.\n"
-                    "Você será notificado quando terminar. Os resultados serão salvos em:\n"
-                    f"{output_dir}",
-                },
-            )
 
     def start_project_processing_workflow(self):
         """
         Adiciona vídeos com validação robusta de zonas.
 
-        Sprint 11: Basic validations delegated to ProcessingCoordinator.
-        Complex UI interactions (zone setup dialogs) remain in ViewModel.
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
         """
-        log.info("workflow.project_processing.start")
-
-        # Sprint 11: Delegate basic validations to ProcessingCoordinator
-        # Sprint 13: Use consolidated error handling
-        validation_result = self.processing_coordinator.validate_can_start_processing(
-            check_project_loaded=True,
-            check_zones=False,  # Zone validation is complex with UI, handled below
-            check_videos_exist=False,
-        )
-
-        if not self._handle_validation_error(validation_result):
-            return
-
-        # Sprint 13: Validate zones with UI interaction
-        if not self._validate_zones_with_ui():
-            return
-
-        # 1. Ask user to select files or folders
-        paths = self.view.ask_open_filenames(
-            "Selecione Vídeos ou Pastas para Adicionar ao Projeto",
-            [
-                ("Todos os arquivos", "*.*"),
-                ("Arquivos de vídeo", "*.mp4 *.avi *.mov"),
-                ("Pastas", "*/"),
-            ],
-        )
-        if not paths:
-            return
-
-        # 2. Scan the inputs
-        scanned_videos = self.project_manager.scan_input_paths(paths)
-        if not scanned_videos:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Nenhum Vídeo Encontrado",
-                    "message": "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados.",  # noqa: E501
-                },
-            )
-            return
-
-        # 3. Sprint 13: Handle mixed data scenario
-        videos_to_process = self._handle_mixed_data_scenario(scanned_videos)
-        if videos_to_process is None:
-            return  # User cancelled or videos already added
-
-        if not videos_to_process:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Processamento Concluído",
-                    "message": "Nenhum novo vídeo para processar.",
-                },
-            )
-            return
-
-        # 4. Add the batch to the project
-        self.project_manager.add_video_batch(scanned_videos)
-
-        # 5. Process the videos that need it using worker
-        self.cancel_event.clear()
-
-        callbacks = self._create_processing_callbacks(videos_to_process)
-        context = self._create_processing_context(
-            videos_to_process, self.project_manager.project_path
-        )
-
-        self._cancel_feedback_displayed = False
-        self.processing_worker = ProcessingWorker(context, callbacks)
-        self.processing_thread = self.processing_worker.start_in_thread()
-
-        self._activate_analysis_view_mode()
-
-        # 6. Update statuses in project file
-        for video in videos_to_process:
-            self.project_manager.update_video_status(video["path"], "complete")
-
-        self.ui_event_bus.publish_event(
-            Events.UI_SHOW_INFO,
-            {
-                "title": "Sucesso",
-                "message": f"{len(videos_to_process)} vídeo(s) foram processados e adicionados ao projeto.",  # noqa: E501
-            },
-        )
+        return self.video_processing_orchestrator.start_project_processing_workflow()
 
     def process_pending_project_videos(
         self,
@@ -3699,237 +1948,10 @@ class MainViewModel:
         """
         Processa vídeos já adicionados ao projeto que possuem dados pendentes.
 
-        Sprint 11: Basic validations delegated to ProcessingCoordinator.
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
         """
-        log.info(
-            "workflow.project_processing.resume_requested",
-            targeted=len(video_paths or []),
-        )
-
-        # Sprint 11: Delegate validations to ProcessingCoordinator
-        # Sprint 13: Use consolidated error handling
-        validation_result = self.processing_coordinator.validate_can_start_processing(
-            check_project_loaded=True,
-            check_zones=False,  # Not required for pending videos
-            check_videos_exist=True,  # Must have videos in project
-        )
-
-        if not self._handle_validation_error(validation_result):
-            return
-
-        # Get all videos (validation already confirmed they exist)
-        all_videos = self.project_manager.get_all_videos() or []
-
-        # Sprint 14: Inline _gather_candidate_entries() logic
-        skip_dialog = bool(video_paths)
-
-        # Delegate selection logic to VideoSelectionService
-        selection_result = self.video_selection_service.select_candidates(
-            all_videos=all_videos,
-            target_paths=video_paths,
-        )
-
-        # Handle targeted selection mode
-        if selection_result.selection_mode == "targeted":
-            # UI: Show info if no valid targets provided
-            if not video_paths:  # Should not happen but defensive
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": "Nenhum vídeo selecionado para processamento.",
-                    },
-                )
-                return
-
-            # UI: Show warning if targets are missing from project
-            if selection_result.has_missing:
-                sample = [
-                    os.path.basename(path) for path in selection_result.missing_targets[:5]
-                ]
-                if len(selection_result.missing_targets) > 5:
-                    sample.append(f"... (+{len(selection_result.missing_targets) - 5})")
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Vídeos fora do projeto",
-                        "message": "Alguns itens selecionados não pertencem ao projeto atual:\n"
-                        + "\n".join(sample),
-                    },
-                )
-
-            # UI: Show info if no candidates found
-            if selection_result.candidate_count == 0:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": "Nenhum dos vídeos selecionados pertence ao projeto ativo.",
-                    },
-                )
-                return
-
-        # Handle pending selection mode
-        else:  # selection_mode == "pending"
-            # UI: Show info if no pending videos
-            if selection_result.candidate_count == 0:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": "Nenhum vídeo pendente para ser processado.",
-                    },
-                )
-                return
-
-        candidate_entries = selection_result.candidate_entries
-
-        # Sprint 14: Inline _scan_and_validate_candidate_paths() logic
-        # Extract paths from candidate entries
-        candidate_paths = [
-            video.get("path")
-            for video in candidate_entries
-            if isinstance(video.get("path"), str) and video.get("path")
-        ]
-
-        # UI: Show error if no valid paths
-        if not candidate_paths:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro",
-                    "message": "Não foi possível localizar caminhos válidos para os vídeos selecionados.",  # noqa: E501
-                },
-            )
-            return
-
-        # Delegate scan logic to VideoValidationService
-        scan_result = self.video_validation_service.scan_and_validate_paths(
-            candidate_paths, self.project_manager
-        )
-
-        # UI: Show warning if files are missing
-        if scan_result.has_missing:
-            sample_names = [os.path.basename(path) for path in scan_result.missing_files[:5]]
-            if len(scan_result.missing_files) > 5:
-                sample_names.append(f"... (+{len(scan_result.missing_files) - 5})")
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Vídeos Não Encontrados",
-                    "message": "Alguns vídeos foram ignorados porque não foram localizados:\n"
-                    + "\n".join(sample_names),
-                },
-            )
-            log.warning(
-                "workflow.project_processing.missing_sources",
-                missing=len(scan_result.missing_files),
-            )
-
-        # Extract results from service
-        info_by_norm = scan_result.info_by_norm
-
-        # Sprint 12: Use VideoClassificationService for classification
-        classification_result = self.video_classification_service.classify_videos(
-            candidate_entries, info_by_norm
-        )
-        ready_with_trajectory = classification_result.ready_with_trajectory
-        ready_with_zones = classification_result.ready_with_zones
-        arena_only = classification_result.arena_only
-        without_arena = classification_result.without_arena
-        data_changed = classification_result.data_changed
-
-        if data_changed:
-            self.project_manager.save_project()
-
-        if not (ready_with_trajectory or ready_with_zones or arena_only):
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Processamento",
-                    "message": "Nenhum vídeo elegível foi encontrado com dados suficientes para análise.",  # noqa: E501
-                },
-            )
-            return
-
-        eligible_videos = self._select_eligible_videos(
-            skip_dialog, ready_with_trajectory, ready_with_zones, arena_only, without_arena
-        )
-        if eligible_videos is None:
-            return
-
-        zones_updated = False
-        for video_info in eligible_videos:
-            if video_info.get("has_arena") or video_info.get("has_rois"):
-                try:
-                    zone_data = ProjectManager.load_zones_from_parquet(video_info)
-                except Exception as exc:  # pragma: no cover - defensive
-                    log.warning(
-                        "workflow.project_processing.zone_load_failed",
-                        video=os.path.basename(video_info.get("path", "")),
-                        error=str(exc),
-                    )
-                    zone_data = None
-                if zone_data and (zone_data.polygon or zone_data.roi_polygons):
-                    self.project_manager.save_zone_data(
-                        zone_data, video_info["path"], persist=False
-                    )
-                    zones_updated = True
-
-        if zones_updated:
-            self.project_manager.save_project()
-
-        self.cancel_event.clear()
-
-        # For project-based processing, single_video_config must be None
-        # to ensure hierarchical directory structure (group/day/subject)
-        # is used instead of single video fallback path
-        callbacks = self._create_processing_callbacks(eligible_videos)
-        context = self._create_processing_context(
-            eligible_videos,
-            self.project_manager.project_path,
-            single_video_config=None,  # None = project mode, uses metadata for paths
-        )
-
-        self._cancel_feedback_displayed = False
-        self.processing_worker = ProcessingWorker(context, callbacks)
-        self.processing_thread = self.processing_worker.start_in_thread()
-
-        self._activate_analysis_view_mode()
-
-        for video_info in eligible_videos:
-            path_value = video_info.get("path")
-            if path_value:
-                self.project_manager.update_video_status(path_value, "complete")
-
-        self.ui_event_bus.publish_event(
-            Events.UI_SET_STATUS,
-            {"message": f"Processando {len(eligible_videos)} vídeo(s) com dados existentes..."},
-        )
-        display_names = [
-            os.path.basename(video_info.get("path", "")) or "(arquivo desconhecido)"
-            for video_info in eligible_videos
-        ]
-        preview_lines = [f"• {name}" for name in display_names[:5]]
-        if len(display_names) > 5:
-            preview_lines.append(f"• ... (+{len(display_names) - 5} restante(s))")
-
-        message = (
-            f"O processamento de {len(eligible_videos)} vídeo(s) foi iniciado em segundo plano."
-        )
-        if preview_lines:
-            message += "\n\nFila:\n" + "\n".join(preview_lines)
-
-        self.ui_event_bus.publish_event(
-            Events.UI_SHOW_INFO, {"title": "Processamento Iniciado", "message": message}
-        )
-
-        log.info(
-            "workflow.project_processing.resume_started",
-            total=len(eligible_videos),
-            with_trajectory=len(ready_with_trajectory),
-            with_zones=len(ready_with_zones),
-            targeted=bool(video_paths),
+        return self.video_processing_orchestrator.process_pending_project_videos(
+            video_paths=video_paths
         )
 
     def generate_parquet_summaries(self, video_paths: list[str]) -> None:
@@ -4004,25 +2026,13 @@ class MainViewModel:
         arena_polygon: list[list[int]] | list | None,
         calibration_data: dict | None,
     ) -> tuple[Calibration | None, tuple[float, float] | None]:
-        """Calculate calibration and pixel/cm ratio for tracking outputs."""
-        pixel_per_cm_ratio = None
-        cal = None
+        """Calculate calibration and pixel/cm ratio for tracking outputs.
 
-        calibration_source = calibration_data or (
-            self.project_manager.project_data.get("calibration")
-            if self.project_manager and self.project_manager.project_data
-            else None
+        Facade - delegates to CalibrationOrchestrator (Sprint 32).
+        """
+        return self.calibration_orchestrator._build_calibration_context(
+            arena_polygon=arena_polygon, calibration_data=calibration_data
         )
-
-        if calibration_source:
-            width_cm = calibration_source.get("aquarium_width_cm")
-            height_cm = calibration_source.get("aquarium_height_cm")
-            if width_cm and height_cm and arena_polygon:
-                polygon_array = np.array(arena_polygon)
-                cal = Calibration(polygon_array, width_cm, height_cm)
-                pixel_per_cm_ratio = cal.pixel_per_cm_ratio
-
-        return cal, pixel_per_cm_ratio
 
     def _tracking_cancelled(self, experiment_id: str, frame_num: int, log_key: str) -> bool:
         """Handle cancel-event checks during tracking loop."""
@@ -4033,219 +2043,65 @@ class MainViewModel:
         return True
 
     def _resolve_single_animal_mode(self, single_video_config: dict | None) -> bool | None:
-        """Derive whether single-animal tracking mode should be active."""
+        """Derive whether single-animal tracking mode should be active.
 
-        def _coerce_to_int(value):
-            if value is None:
-                return None
-            try:
-                return int(value)
-            except (TypeError, ValueError):
-                return None
-
-        if single_video_config:
-            count = _coerce_to_int(single_video_config.get("animals_per_aquarium"))
-            if count is not None:
-                enabled = count == 1
-                log.debug(
-                    "controller.single_animal_mode.resolved_single_video",
-                    animals_per_aquarium=count,
-                    enabled=enabled,
-                )
-                return enabled
-
-        project_data = getattr(self.project_manager, "project_data", {}) or {}
-        calibration = project_data.get("calibration") or {}
-        count = _coerce_to_int(calibration.get("animals_per_aquarium"))
-        if count is not None:
-            enabled = count == 1
-            log.debug(
-                "controller.single_animal_mode.resolved_project",
-                animals_per_aquarium=count,
-                enabled=enabled,
-            )
-            return enabled
-
-        return None
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
+        """
+        return self.processing_config_orchestrator._resolve_single_animal_mode(
+            single_video_config=single_video_config
+        )
 
     def _resolve_single_subject_tracker_preference(
         self, single_video_config: dict | None
     ) -> bool | None:
-        """
-        Resolve single-subject tracker preference from project or single video config.
+        """Resolve single-subject tracker preference from project or single video config.
 
-        Args:
-            single_video_config: Optional single video configuration dict
-
-        Returns:
-            bool | None: Tracker preference or None if not set
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
         """
-        log.info(
-            "controller.resolve_tracker.entry",
-            has_config=single_video_config is not None,
-            config_keys=list(single_video_config.keys()) if single_video_config else [],
+        return self.processing_config_orchestrator._resolve_single_subject_tracker_preference(
+            single_video_config=single_video_config
         )
-
-        # Check directly in single_video_config first
-        if single_video_config:
-            # Explicit use_single_subject_tracker takes priority
-            if "use_single_subject_tracker" in single_video_config:
-                pref = bool(single_video_config["use_single_subject_tracker"])
-                log.info(
-                    "controller.resolve_tracker.explicit",
-                    use_single_subject=pref,
-                    source="single_video_config",
-                )
-                return pref
-
-            # Derive from animals_per_aquarium
-            animals_per_aquarium = single_video_config.get("animals_per_aquarium")
-            if animals_per_aquarium is not None:
-                pref = int(animals_per_aquarium) == 1
-                log.info(
-                    "controller.resolve_tracker.from_animals",
-                    use_single_subject=pref,
-                    animals_per_aquarium=animals_per_aquarium,
-                    source="single_video_config",
-                )
-                return pref
-
-        # Try to get project type from single video config or project manager
-        project_type = None
-        if single_video_config:
-            project_type = single_video_config.get("project_type")
-
-        if not project_type:
-            project_data = getattr(self.project_manager, "project_data", {})
-            if project_data:
-                project_type = project_data.get("project_type")
-
-        # Delegate to detector service
-        return self.detector_service._resolve_single_subject_tracker_preference(project_type)
 
     def _configure_single_subject_tracker(self, enabled: bool) -> None:
-        """
-        Configure single-subject tracking mode.
+        """Configure single-subject tracking mode.
 
-        Sprint 7: Delegates to DetectorCoordinator.
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
         """
-        self.detector_coordinator.set_single_subject_mode(bool(enabled))
-        self._publish_processing_mode(
-            source="tracker_configuration",
-            force=True,
-        )
+        self.processing_config_orchestrator._configure_single_subject_tracker(enabled=enabled)
 
     def _determine_processing_intervals(self, single_video_config: dict | None) -> tuple[int, int]:
-        analysis_interval_frames = 10
-        display_interval_frames = 10
+        """Determine analysis and display intervals from config.
 
-        if single_video_config:
-            analysis_interval_frames = single_video_config.get(
-                "analysis_interval_frames", analysis_interval_frames
-            )
-            display_interval_frames = single_video_config.get(
-                "display_interval_frames", display_interval_frames
-            )
-            log.info(
-                "controller.processing.intervals_single_video",
-                analysis_interval=analysis_interval_frames,
-                display_interval=display_interval_frames,
-                config_keys=list(single_video_config.keys()),
-                animals_per_aquarium=single_video_config.get("animals_per_aquarium"),
-                use_single_subject_tracker=single_video_config.get("use_single_subject_tracker"),
-            )
-        else:
-            project_data = getattr(self.project_manager, "project_data", {}) or {}
-            analysis_interval_frames = project_data.get(
-                "analysis_interval_frames", analysis_interval_frames
-            )
-            display_interval_frames = project_data.get(
-                "display_interval_frames", display_interval_frames
-            )
-
-        return int(analysis_interval_frames), int(display_interval_frames)
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
+        """
+        return self.processing_config_orchestrator._determine_processing_intervals(
+            single_video_config=single_video_config
+        )
 
     @contextmanager
     def _temporary_single_animal_mode(self, single_video_config: dict | None) -> Iterator[bool]:
-        log.info(
-            "controller.temporary_mode.entry",
-            has_config=single_video_config is not None,
-            config_keys=list(single_video_config.keys()) if single_video_config else [],
-        )
+        """Temporarily set single-animal/single-subject mode for processing scope.
 
-        previous_mode = self.settings.video_processing.single_animal_per_aquarium
-        resolved_mode = self._resolve_single_animal_mode(single_video_config)
-
-        previous_tracker_pref = self.settings.tracking.use_single_subject_tracker
-        resolved_tracker_pref = self._resolve_single_subject_tracker_preference(single_video_config)
-        if resolved_tracker_pref is None:
-            resolved_tracker_pref = previous_tracker_pref
-
-        if resolved_mode is not None and resolved_mode != previous_mode:
-            self.settings.video_processing.single_animal_per_aquarium = resolved_mode
-            log.info(
-                "controller.processing.single_animal_mode",
-                enabled=resolved_mode,
-                previous=previous_mode,
-                scope="single_video" if single_video_config else "project",
-            )
-
-        tracker_changed = resolved_tracker_pref != previous_tracker_pref
-        if tracker_changed:
-            self.settings.tracking.use_single_subject_tracker = resolved_tracker_pref
-            log.info(
-                "controller.processing.single_subject_tracker",
-                enabled=resolved_tracker_pref,
-                previous=previous_tracker_pref,
-                scope="single_video" if single_video_config else "project",
-            )
-
-        self._configure_single_subject_tracker(self.settings.tracking.use_single_subject_tracker)
-        self._publish_processing_mode(
-            source="processing.temporary_mode.enter",
-            force=True,
-        )
-
-        try:
-            yield self.settings.video_processing.single_animal_per_aquarium
-        finally:
-            if self.settings.video_processing.single_animal_per_aquarium != previous_mode:
-                self.settings.video_processing.single_animal_per_aquarium = previous_mode
-                log.info(
-                    "controller.processing.single_animal_mode_restored",
-                    restored=previous_mode,
-                )
-
-            if tracker_changed:
-                self.settings.tracking.use_single_subject_tracker = previous_tracker_pref
-                log.info(
-                    "controller.processing.single_subject_tracker_restored",
-                    restored=previous_tracker_pref,
-                )
-
-            self._configure_single_subject_tracker(
-                self.settings.tracking.use_single_subject_tracker
-            )
-            self._publish_processing_mode(
-                source="processing.temporary_mode.exit",
-                force=True,
-            )
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
+        """
+        with self.processing_config_orchestrator._temporary_single_animal_mode(
+            single_video_config=single_video_config
+        ) as result:
+            yield result
 
     def _activate_analysis_view_mode(self) -> None:
-        """Ensure the analysis tab is active so frames scale correctly."""
-        if self.ui_event_bus:
-            self.ui_event_bus.publish_event(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW)
-        else:
-            self.ui_coordinator.update_view(self.view, "start_analysis_view_mode")
+        """Ensure the analysis tab is active so frames scale correctly.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._activate_analysis_view_mode()
 
     def _prepare_processing_ui(self, total_videos: int) -> None:
-        # Phase 4: Use UICoordinator for UI updates
-        self.ui_coordinator.show_progress_bar(self.view)
-        self.ui_coordinator.schedule_after(
-            0,
-            lambda: self.view.set_status(f"Iniciando processamento para {total_videos} vídeos..."),
-        )
-        self.project_manager.set_active_zone_video(None)
+        """Prepare processing UI.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._prepare_processing_ui(total_videos=total_videos)
 
     def _finalize_processing(
         self,
@@ -4254,25 +2110,15 @@ class MainViewModel:
         videos_to_process: list[dict],
         final_output_dir: str,
     ) -> None:
-        # Phase 4: Use UICoordinator for UI updates
-        self.project_manager.set_active_zone_video(None)
-        self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
-        self.ui_coordinator.hide_progress_bar(self.view)
+        """Finalize processing.
 
-        if was_cancelled:
-            self.ui_coordinator.show_info(
-                self.view, "Cancelado", "A análise de vídeo foi cancelada."
-            )
-        elif videos_to_process:
-            msg = f"Análise concluída. Resultados salvos em:\n{final_output_dir}"
-            self.ui_coordinator.show_info(self.view, "Sucesso", msg)
-
-        self.ui_coordinator.set_status(self.view, "Pronto.")
-        self._publish_processing_mode(
-            source="processing.finalize",
-            force=True,
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._finalize_processing(
+            was_cancelled=was_cancelled,
+            videos_to_process=videos_to_process,
+            final_output_dir=final_output_dir,
         )
-        self.refresh_project_views()
 
     def _build_metadata_context(
         self,
@@ -4312,293 +2158,39 @@ class MainViewModel:
     ) -> list[dict] | None:
         """Select eligible videos for processing (either skip dialog or show it).
 
-        Returns list of eligible videos or None if user cancelled.
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
         """
-        eligible_videos: list[dict] = []
-
-        if skip_dialog:
-            eligible_videos.extend(ready_with_trajectory)
-            eligible_videos.extend(ready_with_zones)
-
-            if arena_only:
-                skipped_names = [
-                    os.path.basename(info.get("path", "")) or "(desconhecido)"
-                    for info in arena_only[:5]
-                ]
-                if len(arena_only) > 5:
-                    skipped_names.append(f"... (+{len(arena_only) - 5})")
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Processamento",
-                        "message": "Alguns vídeos selecionados foram ignorados porque não "
-                        "possuem ROIs desenhadas:\n"
-                        + "\n".join(f"• {name}" for name in skipped_names),
-                    },
-                )
-
-            if not eligible_videos:
-                if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_SHOW_INFO,
-                        {
-                            "title": "Processamento",
-                            "message": "Nenhum dos vídeos selecionados contém arena e ROIs "
-                            "suficientes para gerar trajetórias.",
-                        },
-                    )
-                return None
-        else:
-            dialog_result = self.view.show_pending_videos_dialog(
-                ready_with_trajectory=ready_with_trajectory,
-                ready_with_zones=ready_with_zones,
-                arena_only=arena_only,
-                without_arena=without_arena,
-            )
-
-            if not dialog_result or not dialog_result.get("confirmed"):
-                log.info("workflow.project_processing.resume_cancelled_by_user")
-                return None
-
-            include_arena_only = bool(dialog_result.get("include_arena_only"))
-
-            eligible_videos.extend(ready_with_trajectory)
-            eligible_videos.extend(ready_with_zones)
-            if include_arena_only:
-                eligible_videos.extend(arena_only)
-            elif arena_only:
-                log.info(
-                    "workflow.project_processing.skip_arena_only",
-                    skipped=len(arena_only),
-                )
-
-            if not eligible_videos:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": "Nenhum vídeo foi selecionado para processamento neste momento.",
-                    },
-                )
-                return None
-
-        return eligible_videos
+        return self.video_processing_orchestrator._select_eligible_videos(
+            skip_dialog=skip_dialog,
+            ready_with_trajectory=ready_with_trajectory,
+            ready_with_zones=ready_with_zones,
+            arena_only=arena_only,
+            without_arena=without_arena,
+        )
 
     def _generate_parquet_summaries_worker(self, target_videos: list[dict], settings_obj) -> None:
         """Worker method to generate parquet summaries for a list of videos.
 
-        Separated to reduce complexity in the public API method.
+        Facade - delegates to AnalysisOrchestrator (Sprint 25).
         """
-        completed: list[str] = []
-        skipped: list[str] = []
-        details: list[str] = []
-        data_changed = False
-
-        for video in target_videos:
-            # Reuse the same logic previously extracted inlined; keep small and focused
-            state = None
-            try:
-                # Simplified wrapper calling existing logic for each video. Defer to the
-                # per-video helper implemented earlier.
-                state, info_msg, _ppath, changed = self._process_summary_video(
-                    video,
-                    settings_obj,
-                )
-            except Exception as exc:  # pragma: no cover - defensive
-                state, info_msg, _ppath, changed = "failed", str(exc), None, False
-
-            if state == "completed":
-                completed.append(info_msg or "(desconhecido)")
-                data_changed = data_changed or bool(changed)
-            else:
-                skipped.append(info_msg.split(":")[0] if info_msg else "(desconhecido)")
-                details.append(f"• {info_msg}")
-
-        if data_changed:
-            self.project_manager.save_project()
-
-        def finalize() -> None:
-            if completed:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Sumários Gerados",
-                        "message": "Sumários parquet atualizados para "
-                        f"{len(completed)} vídeo(s).\n"
-                        + "\n".join(f"• {item}" for item in completed),
-                    },
-                )
-                status_msg = f"Σ Sumários atualizados: {len(completed)} vídeo(s)."
-            else:
-                status_msg = "Nenhum sumário foi atualizado."
-
-            if details:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Vídeos ignorados",
-                        "message": "Alguns sumários não puderam ser gerados:\n"
-                        + "\n".join(details),
-                    },
-                )
-
-            self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": status_msg})
-            self.refresh_project_views(reason=status_msg, append_summary=True)
-            self.processing_thread = None
-
-        self.root.after(0, finalize)
+        return self.analysis_orchestrator._generate_parquet_summaries_worker(
+            target_videos=target_videos,
+            settings_obj=settings_obj,
+        )
 
     def _process_summary_video(
         self,
         video: dict,
         settings_obj,
     ) -> tuple[str, str | None, str | None, bool]:
-        """Process a single video for summary generation. Extracted from the main method."""
-        path = video.get("path")
-        if not isinstance(path, str) or not path:
-            return "skipped", "Caminho do vídeo não definido.", None, False
+        """Process a single video for summary generation.
 
-        experiment_id = os.path.splitext(os.path.basename(path))[0]
-        metadata_hint = dict(video.get("metadata") or {})
-        results_path = self.project_manager.resolve_results_directory(
-            experiment_id, video_path=path, metadata=metadata_hint
+        Facade - delegates to AnalysisOrchestrator (Sprint 25).
+        """
+        return self.analysis_orchestrator._process_summary_video(
+            video=video,
+            settings_obj=settings_obj,
         )
-        results_dir = str(results_path)
-
-        parquet_info = video.get("parquet_files") or {}
-        trajectory_path = parquet_info.get("trajectory")
-        if trajectory_path and not os.path.exists(trajectory_path):
-            trajectory_path = None
-
-        if not trajectory_path:
-            candidates = [
-                os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet"),
-                os.path.join(os.path.dirname(path), f"3_CoordMovimento_{experiment_id}.parquet"),
-            ]
-            for candidate in candidates:
-                if os.path.exists(candidate):
-                    trajectory_path = candidate
-                    break
-
-        if not trajectory_path:
-            return (
-                "skipped",
-                f"{experiment_id}: arquivo de trajetória ausente.",
-                None,
-                False,
-            )
-
-        try:
-            trajectory_df = pd.read_parquet(trajectory_path)
-        except Exception as exc:  # pragma: no cover - I/O defensive
-            return (
-                "skipped",
-                f"{experiment_id}: falha ao ler trajetória ({exc}).",
-                None,
-                False,
-            )
-
-        if trajectory_df.empty:
-            return (
-                "skipped",
-                f"{experiment_id}: trajetória vazia, sumário não gerado.",
-                None,
-                False,
-            )
-
-        self.project_manager.set_active_zone_video(path)
-        try:
-            zone_data = self.project_manager.get_zone_data(video_path=path)
-
-            arena_polygon_px = list(zone_data.polygon or [])
-
-            if not arena_polygon_px:
-                cap = cv2.VideoCapture(path)
-                if not cap.isOpened():
-                    return (
-                        "skipped",
-                        f"{experiment_id}: não foi possível abrir o vídeo.",
-                        None,
-                        False,
-                    )
-                frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                cap.release()
-                arena_polygon_px = [
-                    [0, 0],
-                    [frame_width, 0],
-                    [frame_width, frame_height],
-                    [0, frame_height],
-                ]
-
-            calib_data = self.project_manager.project_data.get("calibration", {})
-            width_cm = calib_data.get("aquarium_width_cm")
-            height_cm = calib_data.get("aquarium_height_cm")
-            if not width_cm or not height_cm:
-                return "skipped", f"{experiment_id}: calibração incompleta (px/cm).", None, False
-
-            cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
-            _, video_height_px = cal.target_dims_px
-            pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
-            arena_polygon_warped = cal.transform_points(arena_polygon_px)
-
-            roi_polygons = list(zone_data.roi_polygons or [])
-            roi_names = list(zone_data.roi_names or [])
-            roi_colors_list = list(zone_data.roi_colors or [])
-
-            rois: list[ROI] = []
-            for idx, roi_points in enumerate(roi_polygons):
-                warped_points = cal.transform_points(roi_points)
-                roi_polygon_px = [(float(x), float(y)) for x, y in warped_points]
-                roi_name = roi_names[idx] if idx < len(roi_names) else f"ROI {idx + 1}"
-                rois.append(
-                    ROI(
-                        name=roi_name,
-                        geometry=Polygon(roi_polygon_px),
-                        coordinate_space="px",
-                    )
-                )
-
-            roi_colors = {
-                (roi_names[i] if i < len(roi_names) else f"ROI {i + 1}"): roi_colors_list[i]
-                for i in range(len(roi_colors_list))
-            }
-
-            metadata = self.project_manager.get_metadata_for_experiment(experiment_id) or {
-                "experiment_id": experiment_id,
-                "video_name": experiment_id,
-            }
-
-            reporter = Reporter(
-                trajectory_df=trajectory_df,
-                metadata=metadata,
-                pixelcm_x=pixelcm_x,
-                pixelcm_y=pixelcm_y,
-                video_height_px=video_height_px,
-                arena_polygon_px=arena_polygon_warped,
-                rois=rois,
-                fps=settings_obj.video_processing.fps,
-                roi_colors=roi_colors,
-                video_path=path,
-                calibration=cal,
-                sharp_turn_threshold=settings_obj.video_processing.sharp_turn_threshold_deg_s,
-                freezing_threshold=settings_obj.video_processing.freezing_velocity_threshold,
-                freezing_duration=settings_obj.video_processing.freezing_min_duration_s,
-                smoothing_window_length=settings_obj.trajectory_smoothing.window_length,
-                smoothing_polyorder=settings_obj.trajectory_smoothing.polyorder,
-            )
-
-            os.makedirs(results_dir, exist_ok=True)
-            parquet_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
-            reporter.export_summary_data(parquet_path, format="parquet")
-
-            video.setdefault("parquet_files", {})["summary"] = parquet_path
-            video["has_complete_data"] = True
-            return "completed", experiment_id, parquet_path, True
-        except Exception as exc:  # pragma: no cover - defensive
-            return "failed", f"{experiment_id}: erro inesperado ({exc}).", None, False
-        finally:
-            self.project_manager.set_active_zone_video(None)
 
     def _make_progress_callback(
         self,
@@ -4607,67 +2199,13 @@ class MainViewModel:
         total_videos: int,
         experiment_id: str,
     ):
-        def progress_callback(
-            progress_fraction,
-            status_message,
-            frame=None,
-            stats=None,
-            detections=None,
-        ):
-            if self.cancel_event.is_set():
-                return
+        """Create a progress callback for video processing.
 
-            overall_progress = f"Processando {index + 1}/{total_videos}: {experiment_id}"
-            step_status = f"Etapa: {status_message}"
-            # Phase 4: Use UICoordinator for UI updates
-            self.ui_coordinator.set_status(self.view, f"{overall_progress} - {step_status}")
-            self.ui_coordinator.update_progress(self.view, progress_fraction)
-            self.ui_coordinator.update_view(
-                self.view, "update_analysis_progress", progress_fraction, step_status
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
-                {
-                    "payload": {
-                        "index": index,
-                        "total": total_videos,
-                        "experiment_id": experiment_id,
-                        "step": status_message,
-                    }
-                },
-            )
-
-            if stats:
-                if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats}
-                    )
-
-            processing_report = self._publish_processing_mode(
-                source="analysis_progress",
-                force=False,
-            )
-
-            if detections is not None:
-                if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_UPDATE_DETECTION_OVERLAY,
-                        {"detections": detections, "report": processing_report},
-                    )
-
-            # Publish frame for display in analysis view
-            if frame is not None:
-                if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_DISPLAY_FRAME,
-                        {"frame": frame},
-                    )
-
-            if frame is not None:
-                if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
-
-        return progress_callback
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
+        """
+        return self.video_processing_orchestrator._make_progress_callback(
+            index=index, total_videos=total_videos, experiment_id=experiment_id
+        )
 
     # Phase 7.2b: Removed 4 auxiliary methods (75 lines) -
     # migrated to VideoProcessingService:
@@ -4724,31 +2262,14 @@ class MainViewModel:
         )
 
     def _register_project_outputs(
-        self,
-        *,
-        video_path: str,
-        results_dir: str,
-        trajectory_path: str,
-        summary_parquet: str,
-        summary_excel: str,
-        report_path: str,
+        self, project_path: str, video_file: str
     ) -> None:
-        """Delegate to VideoProcessingService._register_project_outputs, then refresh views.
+        """Register project outputs.
 
-        Phase 3: Refactored to delegate to service layer.
-        The refresh_project_views call remains here as it's a MainViewModel responsibility.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        self.video_processing_service._register_project_outputs(
-            video_path=video_path,
-            results_dir=results_dir,
-            trajectory_path=trajectory_path,
-            summary_parquet=summary_parquet,
-            summary_excel=summary_excel,
-            report_path=report_path,
-        )
-        self.refresh_project_views(
-            reason="processing_progress",
-            append_summary=True,
+        return self.project_orchestrator._register_project_outputs(
+            project_path=project_path, video_file=video_file
         )
 
     def _run_analysis_pipeline(
@@ -4937,133 +2458,10 @@ class MainViewModel:
         """
         Create thread-safe callbacks for the processing worker.
 
-        All callbacks schedule UI updates via root.after() to ensure thread safety.
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
         """
-
-        def on_started():
-            """Call when processing starts."""
-            # Phase 4: Use UICoordinator for UI updates
-            self.ui_coordinator.show_progress_bar(self.view)
-            self.ui_coordinator.set_status(
-                self.view,
-                f"Iniciando processamento para {len(videos_to_process)} vídeos...",
-            )
-            self.project_manager.set_active_zone_video(None)
-            self._publish_processing_mode(source="worker.started", force=True)
-
-        def on_progress(fraction: float, message: str, stats: dict | None):
-            """Call with progress updates."""
-            if self.cancel_event.is_set():
-                return
-
-            # Phase 4: Use UICoordinator for UI updates
-            self.ui_coordinator.set_status(self.view, message)
-            self.ui_coordinator.update_progress(self.view, fraction)
-            self.ui_coordinator.update_view(
-                self.view, "update_analysis_progress", fraction, message
-            )
-
-            if stats:
-                # Update processing state in StateManager
-                self.state_manager.update_processing_state(
-                    source="controller.processing_progress",
-                    current_frame=stats.get("current_frame", 0),
-                    total_frames=stats.get("total_frames", 0),
-                )
-
-                self.ui_event_bus.publish_event(Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats})
-
-        def on_frame_processed(frame, detections, processing_info):
-            """Call when a frame is ready for display."""
-            if frame is not None:
-                # Phase 4: Use UICoordinator for frame display
-                self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
-
-            if detections is not None and processing_info:
-                self.ui_event_bus.publish_event(
-                    Events.UI_UPDATE_DETECTION_OVERLAY,
-                    {"detections": detections, "report": processing_info},
-                )
-
-        def on_video_completed(index: int, total: int, experiment_id: str, success: bool):
-            """Call when a single video completes."""
-            log.info(
-                "controller.video_completed",
-                index=index,
-                total=total,
-                experiment_id=experiment_id,
-                success=success,
-            )
-
-        def on_error(error: Exception, context: str):
-            """Call when an error occurs."""
-            log.error("controller.processing.worker_error", context=context, error=str(error))
-            self.root.after(
-                0,
-                lambda: self.view.show_error("Erro na Análise", f"{context}: {error}"),
-            )
-
-        def _on_processing_fatal_error(exc, context, recovery_info):
-            log.error(
-                "controller.processing.fatal_error",
-                context=context,
-                error=str(exc),
-                affected_videos=len(recovery_info["affected_videos"]),
-            )
-            self.ui_coordinator.schedule(
-                lambda: self.view.show_error(
-                    "Erro Crítico de Processamento",
-                    f"{context}\n\nErro: {exc}\n\n"
-                    f"Vídeos afetados: {len(recovery_info['affected_videos'])}\n"
-                    f"Verifique os logs para detalhes.",
-                )
-            )
-            self.state_manager.update_processing_state(
-                source="worker.fatal_error", is_processing=False, error=str(exc)
-            )
-            self.ui_coordinator.set_status(self.view, "Processamento falhou")
-
-        def on_completed(was_cancelled: bool, output_dir: str, summary: dict | None = None):
-            """Call when all processing completes."""
-            # Phase 4: Use UICoordinator for UI updates
-            self.project_manager.set_active_zone_video(None)
-            self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
-            self.ui_coordinator.hide_progress_bar(self.view)
-
-            # Update processing state in StateManager
-            self.state_manager.update_processing_state(
-                source="controller.processing_completed",
-                is_processing=False,
-                cancel_requested=was_cancelled,
-                current_video=None,
-            )
-
-            if was_cancelled:
-                if self._cancel_feedback_displayed:
-                    self._cancel_feedback_displayed = False
-                else:
-                    self.ui_coordinator.show_info(
-                        self.view, "Cancelado", "A análise de vídeo foi cancelada."
-                    )
-            elif videos_to_process:
-                msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
-                self.ui_coordinator.show_info(self.view, "Sucesso", msg)
-                self._cancel_feedback_displayed = False
-            else:
-                self._cancel_feedback_displayed = False
-
-            self.ui_coordinator.set_status(self.view, "Pronto.")
-            self._publish_processing_mode(source="worker.completed", force=True)
-            self.refresh_project_views()
-
-        return ProcessingCallbacks(
-            on_started=on_started,
-            on_progress=on_progress,
-            on_frame_processed=on_frame_processed,
-            on_video_completed=on_video_completed,
-            on_error=on_error,
-            on_completed=on_completed,
-            on_fatal_error=_on_processing_fatal_error,
+        return self.video_processing_orchestrator._create_processing_callbacks(
+            videos_to_process=videos_to_process
         )
 
     def _create_processing_context(
@@ -5072,18 +2470,14 @@ class MainViewModel:
         output_base_dir: str,
         single_video_config: dict | None = None,
     ) -> ProcessingContext:
-        """Create the processing context with all necessary configuration."""
-        return ProcessingContext(
+        """Create the processing context with all necessary configuration.
+
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
+        """
+        return self.video_processing_orchestrator._create_processing_context(
             videos_to_process=videos_to_process,
             output_base_dir=output_base_dir,
-            cancel_event=self.cancel_event,
             single_video_config=single_video_config,
-            analysis_interval_frames=10,  # Will be updated by worker
-            display_interval_frames=10,  # Will be updated by worker
-            process_single_video_func=self._process_single_video,
-            apply_project_settings_func=self.apply_project_settings_to_batch,
-            determine_intervals_func=self._determine_processing_intervals,
-            retry_strategy=self.settings.video_processing.batch_retry_strategy,
         )
 
     def _process_videos(
@@ -5124,156 +2518,22 @@ class MainViewModel:
         Prepare for and launches the diagnostic test in a background thread.
 
         Now shows a progress dialog during execution.
+
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
         """
-        log.info("controller.diagnostic.start", config=config)
-
-        # Close the CalibrationDialog if passed
-        parent_dialog = config.pop("parent_dialog", None)
-        if parent_dialog:
-            parent_dialog.destroy()
-
-        self.view.set_status("Iniciando diagnóstico do modelo...")
-        self.view.update_idletasks()
-
-        model_to_test = config["model_to_test"]
-        active_weight_details = self.weight_manager.get_weight_details(self.active_weight_name)
-        log.info(
-            "controller.diagnostic.active_weight",
-            active_weight_name=self.active_weight_name,
-            pytorch_path=(active_weight_details.get("path") if active_weight_details else None),
-            openvino_path=(
-                active_weight_details.get("openvino_path") if active_weight_details else None
-            ),
-        )
-        if not active_weight_details:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro", "message": "Nenhum peso ativo selecionado."},
-            )
-            return
-
-        # --- Pre-flight checks (OpenVINO conversion) ---
-        if model_to_test in ["OpenVINO", "Ambos"]:
-            ov_path = active_weight_details.get("openvino_path")
-            # Validate that the OpenVINO directory exists AND contains .xml files
-            if not _is_valid_openvino_directory(ov_path):
-                log.warning(
-                    "diagnostic.openvino.invalid_directory",
-                    path=ov_path,
-                    exists=os.path.exists(ov_path) if ov_path else False,
-                )
-                # Clean up corrupted/empty directory if it exists
-                if ov_path and os.path.exists(ov_path) and os.path.isdir(ov_path):
-                    try:
-                        shutil.rmtree(ov_path, ignore_errors=True)
-                        log.info("diagnostic.openvino.corrupted_directory_removed", path=ov_path)
-                    except Exception as e:
-                        log.warning(
-                            "diagnostic.openvino.cleanup_failed", path=ov_path, error=str(e)
-                        )
-
-                if self.view.ask_ok_cancel(
-                    "Converter Modelo?",
-                    (
-                        "O modelo OpenVINO não foi encontrado ou está incompleto. "
-                        "Deseja convertê-lo agora?"
-                    ),
-                ):
-                    self.convert_active_weight_to_openvino(dialog=None)
-                    # Refresh details after conversion
-                    active_weight_details = self.weight_manager.get_weight_details(
-                        self.active_weight_name
-                    )
-                    if not _is_valid_openvino_directory(active_weight_details.get("openvino_path")):
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SHOW_ERROR,
-                            {"title": "Erro", "message": "A conversão para OpenVINO falhou."},
-                        )
-                        return
-                else:
-                    log.warning("diagnostic.openvino.conversion_skipped")
-                    # If user skips conversion, modify config to only run YOLO if
-                    # possible
-                    if model_to_test == "Ambos":
-                        config["model_to_test"] = "YOLO (PyTorch)"
-                    else:  # model_to_test was 'OpenVINO'
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SET_STATUS, {"message": "Diagnóstico cancelado."}
-                        )
-                        return
-
-        # --- Create and show progress dialog ---
-        from zebtrack.ui.dialogs import DiagnosticProgressDialog
-
-        progress_dialog = DiagnosticProgressDialog(self.root)
-        config["progress_dialog"] = progress_dialog
-
-        # --- Launch background thread ---
-        self.cancel_event.clear()
-        self._publish_processing_mode(
-            source="diagnostic.start",
-            force=True,
-            mode_override=ProcessingMode.SINGLE_SUBJECT,
-        )
-        thread = threading.Thread(
-            target=self._diagnostic_processing_thread,
-            args=(config, active_weight_details),
-            daemon=True,
-        )
-        thread.start()
+        return self.model_diagnostics_orchestrator.run_model_diagnostic(config=config)
 
     def _diagnostic_processing_thread(self, config: dict, weight_details: dict):
         """
         Run actual diagnostic processing logic in a background thread.
 
         Updates progress dialog during execution.
+
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
         """
-        video_path = config["video_path"]
-        frames_to_analyze = config["frames_to_analyze"]
-        conf_threshold = config["confidence_threshold"]
-        model_to_test = config["model_to_test"]
-        progress_dialog = config.get("progress_dialog")
-        results: dict[str, list] = {}
-
-        try:
-            self._update_diagnostic_progress(progress_dialog, "Carregando modelos...")
-
-            yolo_model = self._initialize_diagnostic_yolo_model(
-                model_to_test, weight_details, results, progress_dialog
-            )
-
-            openvino_model = self._initialize_diagnostic_openvino_model(
-                model_to_test, weight_details, results, progress_dialog
-            )
-
-            self._run_diagnostic_frame_loop(
-                video_path,
-                frames_to_analyze,
-                conf_threshold,
-                yolo_model,
-                openvino_model,
-                results,
-                progress_dialog,
-            )
-
-            self._finish_progress_dialog(progress_dialog)
-
-            # --- Schedule report generation on main thread ---
-            self.root.after(0, self._finish_diagnostic_and_save_report, config, results)
-        except DiagnosticAbortError:
-            pass
-        except Exception as e:
-            log.error("diagnostic.thread.load_error", exc_info=True)
-            self._finish_progress_dialog(progress_dialog)
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {"title": "Erro ao Carregar Modelo", "message": f"Falha: {e}"},
-            )
-        finally:
-            self._publish_processing_mode(
-                source="diagnostic.thread_exit",
-                force=True,
-            )
+        return self.model_diagnostics_orchestrator._diagnostic_processing_thread(
+            config=config, weight_details=weight_details
+        )
 
     def _update_diagnostic_progress(
         self,
@@ -5282,20 +2542,25 @@ class MainViewModel:
         current: int | None = None,
         total: int | None = None,
     ) -> None:
-        """Thread-safe progress dialog update helper."""
-        if not progress_dialog:
-            return
+        """Thread-safe progress dialog update helper.
 
-        if current is None or total is None:
-            self.root.after(0, progress_dialog.update_progress, message)
-            return
-
-        self.root.after(0, progress_dialog.update_progress, message, current, total)
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._update_diagnostic_progress(
+            progress_dialog=progress_dialog,
+            message=message,
+            current=current,
+            total=total,
+        )
 
     def _finish_progress_dialog(self, progress_dialog) -> None:
-        """Safely close the diagnostic progress dialog."""
-        if progress_dialog:
-            self.root.after(0, progress_dialog.finish)
+        """Safely close the diagnostic progress dialog.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._finish_progress_dialog(
+            progress_dialog=progress_dialog
+        )
 
     def _initialize_diagnostic_yolo_model(
         self,
@@ -5304,35 +2569,16 @@ class MainViewModel:
         results: dict[str, list],
         progress_dialog,
     ) -> Any | None:
-        """Set up YOLO model for diagnostics."""
-        if model_to_test not in ["YOLO (PyTorch)", "Ambos"]:
-            return None
+        """Set up YOLO model for diagnostics.
 
-        bus = self.ui_event_bus
-
-        if not ULTRALYTICS_AVAILABLE:
-            log.error("diagnostic.yolo.unavailable")
-            self._finish_progress_dialog(progress_dialog)
-            if bus:
-                bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro",
-                        "message": "YOLO não está disponível (ultralytics não instalado)",
-                    },
-                )
-            raise DiagnosticAbortError from None
-
-        if YOLO is None:  # Defensive guard for type checkers.
-            raise DiagnosticAbortError from None
-
-        yolo_ctor = cast(Any, YOLO)
-        yolo_model = yolo_ctor(weight_details["path"])
-        if hasattr(yolo_model, "set_context"):
-            yolo_model.set_context("diagnostic")
-            log.info("diagnostic.thread.yolo_context_set", context="diagnostic")
-        results["YOLO (PyTorch)"] = []
-        return yolo_model
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
+        """
+        return self.model_diagnostics_orchestrator._initialize_diagnostic_yolo_model(
+            model_to_test=model_to_test,
+            weight_details=weight_details,
+            results=results,
+            progress_dialog=progress_dialog,
+        )
 
     def _initialize_diagnostic_openvino_model(
         self,
@@ -5341,71 +2587,16 @@ class MainViewModel:
         results: dict[str, list],
         progress_dialog,
     ) -> Any | None:
-        """Set up OpenVINO model for diagnostics."""
-        if model_to_test not in ["OpenVINO", "Ambos"]:
-            return None
+        """Set up OpenVINO model for diagnostics.
 
-        ov_path = weight_details.get("openvino_path")
-        bus = self.ui_event_bus
-
-        if not _is_valid_openvino_directory(ov_path):
-            log.error(
-                "diagnostic.thread.openvino_invalid",
-                path=ov_path,
-                exists=os.path.exists(ov_path) if ov_path else False,
-            )
-            self._finish_progress_dialog(progress_dialog)
-            if bus:
-                bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro de Modelo",
-                        "message": (
-                            "O diretório do modelo OpenVINO não contém arquivos "
-                            ".xml necessários. Por favor, reconverta o modelo."
-                        ),
-                    },
-                )
-            raise DiagnosticAbortError from None
-
-        plugin_class = DETECTOR_PLUGINS.get("OpenVINO")
-        if not plugin_class:
-            log.error("diagnostic.thread.openvino_plugin_missing")
-            self._finish_progress_dialog(progress_dialog)
-            if bus:
-                bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro de Plugin",
-                        "message": "Plugin OpenVINO não encontrado para diagnóstico.",
-                    },
-                )
-            raise DiagnosticAbortError from None
-
-        openvino_model = plugin_class(ov_path)
-        if not hasattr(openvino_model, "predict"):
-            log.error(
-                "diagnostic.thread.missing_predict_method",
-                plugin_class=str(plugin_class),
-            )
-            self._finish_progress_dialog(progress_dialog)
-            if bus:
-                bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro de Plugin",
-                        "message": "O plugin OpenVINO não possui o método predict necessário.",
-                    },
-                )
-            raise DiagnosticAbortError from None
-
-        if hasattr(openvino_model, "set_context"):
-            openvino_model.set_context("diagnostic")
-            log.info("diagnostic.thread.openvino_context_set", context="diagnostic")
-
-        results["OpenVINO"] = []
-        log.info("diagnostic.thread.openvino_loaded", path=ov_path)
-        return openvino_model
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
+        """
+        return self.model_diagnostics_orchestrator._initialize_diagnostic_openvino_model(
+            model_to_test=model_to_test,
+            weight_details=weight_details,
+            results=results,
+            progress_dialog=progress_dialog,
+        )
 
     def _run_diagnostic_frame_loop(
         self,
@@ -5417,219 +2608,37 @@ class MainViewModel:
         results: dict[str, list],
         progress_dialog,
     ) -> None:
-        """Process video frames for the diagnostic routine."""
-        cap = cv2.VideoCapture(video_path)
-        bus = self.ui_event_bus
+        """Process video frames for the diagnostic routine.
 
-        if not cap.isOpened():
-            self._finish_progress_dialog(progress_dialog)
-            if bus:
-                bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro",
-                        "message": f"Não foi possível abrir o vídeo: {video_path}",
-                    },
-                )
-            raise DiagnosticAbortError from None
-
-        try:
-            for frame_count in range(frames_to_analyze):
-                if self.cancel_event.is_set() or (
-                    progress_dialog and getattr(progress_dialog, "user_cancelled", False)
-                ):
-                    log.info("diagnostic.thread.cancelled_by_user")
-                    self._finish_progress_dialog(progress_dialog)
-                    return
-
-                ret, frame = cap.read()
-                if not ret:
-                    break
-
-                status_msg = f"Analisando frame {frame_count + 1}/{frames_to_analyze}..."
-                self._update_diagnostic_progress(
-                    progress_dialog,
-                    status_msg,
-                    frame_count + 1,
-                    frames_to_analyze,
-                )
-
-                if bus:
-                    bus.publish_event(Events.UI_SET_STATUS, {"message": status_msg})
-
-                if yolo_model is not None:
-                    preds = yolo_model.predict(frame, conf=conf_threshold, verbose=False)
-                    results.setdefault("YOLO (PyTorch)", []).append(preds[0])
-
-                if openvino_model is not None:
-                    try:
-                        log.debug(
-                            "diagnostic.thread.openvino_predict_start",
-                            frame=frame_count + 1,
-                        )
-                        preds = openvino_model.predict(frame, conf_threshold)
-                        log.debug(
-                            "diagnostic.thread.openvino_predict_success",
-                            frame=frame_count + 1,
-                            detections=len(preds),
-                        )
-                        results.setdefault("OpenVINO", []).append(preds)
-                    except Exception as exc:  # pragma: no cover - plugin specific
-                        log.error(
-                            "diagnostic.thread.openvino_predict_error",
-                            frame=frame_count + 1,
-                            exc_info=True,
-                        )
-                        self._finish_progress_dialog(progress_dialog)
-                        if bus:
-                            bus.publish_event(
-                                Events.UI_SHOW_ERROR,
-                                {
-                                    "title": "Erro de Inferência OpenVINO",
-                                    "message": (
-                                        f"Falha na inferência do frame {frame_count + 1}: {exc}"
-                                    ),
-                                },
-                            )
-                        raise DiagnosticAbortError from None
-        finally:
-            cap.release()
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
+        """
+        return self.model_diagnostics_orchestrator._run_diagnostic_frame_loop(
+            video_path=video_path,
+            frames_to_analyze=frames_to_analyze,
+            conf_threshold=conf_threshold,
+            yolo_model=yolo_model,
+            openvino_model=openvino_model,
+            results=results,
+            progress_dialog=progress_dialog,
+        )
 
     def _finish_diagnostic_and_save_report(self, config, results):
-        """Format and saves the report. Runs on the main UI thread."""
-        report_str = self._format_diagnostic_report(config, results)
-        save_path = self.view.ask_save_filename(
-            title="Salvar Relatório de Diagnóstico",
-            defaultextension=".txt",
-            initialfile="diagnostic_report.txt",
-            filetypes=[("Arquivos de Texto", "*.txt")],
-        )
+        """Format and saves the report. Runs on the main UI thread.
 
-        if save_path:
-            try:
-                with open(save_path, "w", encoding="utf-8") as f:
-                    f.write(report_str)
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Sucesso",
-                        "message": f"Relatório de diagnóstico salvo em:\n{save_path}",
-                    },
-                )
-            except OSError as e:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro ao Salvar",
-                        "message": f"Não foi possível salvar o arquivo: {e}",
-                    },
-                )
-
-        self._publish_processing_mode(
-            source="diagnostic.complete",
-            force=True,
-        )
-        self.ui_event_bus.publish_event(
-            Events.UI_SET_STATUS, {"message": "Diagnóstico concluído. Pronto."}
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
+        """
+        return self.model_diagnostics_orchestrator._finish_diagnostic_and_save_report(
+            config=config, results=results
         )
 
     def _format_diagnostic_report(self, config, results) -> str:
-        """Format the collected diagnostic data into a string."""
-        report_lines = [
-            "Relatório de Diagnóstico do Modelo",
-            "-----------------------------------",
-            f"- Vídeo: {config['video_path']}",
-            f"- Frames Analisados: {config['frames_to_analyze']}",
-            f"- Limiar de Confiança: {config['confidence_threshold']}",
-            "-----------------------------------",
-            "",
-        ]
+        """Format the collected diagnostic data into a string.
 
-        for model_name, preds_list in results.items():
-            report_lines.append(f"--- [ RESULTADOS {model_name.upper()} ] ---")
-            report_lines.append("")
-
-            for i, preds in enumerate(preds_list):
-                frame_num = i + 1
-                report_lines.append(f"Frame {frame_num}:")
-
-                detections = []
-                mask_only_detections = []
-
-                # Handle ultralytics results object
-                if hasattr(preds, "boxes") or hasattr(preds, "masks"):
-                    # Processa boxes com suas máscaras
-                    if preds.boxes is not None:
-                        for j, box in enumerate(preds.boxes):
-                            class_id = int(box.cls)
-                            class_name = preds.names.get(class_id, "desconhecido")
-                            conf = float(box.conf)
-                            bbox = [int(coord) for coord in box.xyxy[0]]
-
-                            # Verifica se tem máscara
-                            has_mask = (
-                                preds.masks is not None
-                                and preds.masks.xy is not None
-                                and j < len(preds.masks.xy)
-                            )
-                            mask_info = (
-                                f", Máscara: {len(preds.masks.xy[j])} pontos" if has_mask else ""
-                            )
-
-                            detections.append(
-                                f"  - Classe {class_id} ('{class_name}'), "
-                                f"Conf: {conf:.2f}, BBox: {bbox}{mask_info}"
-                            )
-
-                    # Processa máscaras sem boxes (órfãs)
-                    if preds.masks is not None and preds.masks.xy is not None:
-                        num_boxes = len(preds.boxes) if preds.boxes else 0
-                        for j in range(num_boxes, len(preds.masks.xy)):
-                            mask = preds.masks.xy[j]
-                            x_min = int(mask[:, 0].min())
-                            y_min = int(mask[:, 1].min())
-                            x_max = int(mask[:, 0].max())
-                            y_max = int(mask[:, 1].max())
-                            area = (x_max - x_min) * (y_max - y_min)
-
-                            mask_only_detections.append(
-                                f"  - [MÁSCARA SEM BOX] Provável Aquário, "
-                                f"BBox aprox: [{x_min}, {y_min}, {x_max}, {y_max}], "
-                                f"Área: {area}, Pontos: {len(mask)}"
-                            )
-
-                # Handle OpenVINO plugin format
-                elif isinstance(preds, list):
-                    for det in preds:
-                        class_id = det["class_id"]
-                        class_name = det["class_name"]
-                        conf = det["confidence"]
-                        bbox = det["box"]
-                        mask_info = (
-                            f", Máscara: {det.get('mask_points', 0)} pontos"
-                            if det.get("has_mask")
-                            else ""
-                        )
-
-                        detections.append(
-                            f"  - Classe {class_id} ('{class_name}'), "
-                            f"Conf: {conf:.2f}, BBox: {bbox}{mask_info}"
-                        )
-
-                # Adiciona detecções ao relatório
-                if detections:
-                    report_lines.extend(detections)
-                if mask_only_detections:
-                    report_lines.append("  Máscaras sem bounding box (possíveis aquários):")
-                    report_lines.extend(mask_only_detections)
-                if not detections and not mask_only_detections:
-                    report_lines.append("  - Nenhuma detecção encontrada.")
-
-                report_lines.append("")
-
-            report_lines.append("")  # Spacer between models
-
-        return "\n".join(report_lines)
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
+        """
+        return self.model_diagnostics_orchestrator._format_diagnostic_report(
+            config=config, results=results
+        )
 
 
 # -----------------------------------------------------------------------------
