@@ -7,7 +7,6 @@ logic should live here instead of in the UI layer.
 """
 
 import os
-import subprocess
 import sys
 import threading
 import time
@@ -190,7 +189,6 @@ class WizardService:
 
         # NOTE: Windows PnP camera name mapping disabled due to unreliable index correlation
         # between DirectShow and PnP device enumeration. Using resolution-based descriptions instead.
-        camera_names = {}  # Force using resolution-based descriptions
 
         with cls.suppress_opencv_logs():
             for i in range(6):  # Scan indices 0-5 instead of 0-9

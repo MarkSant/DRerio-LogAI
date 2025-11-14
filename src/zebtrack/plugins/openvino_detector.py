@@ -225,7 +225,7 @@ class OpenVINOPlugin(DetectorPlugin):
 
     def _preprocess(self, frame: np.ndarray) -> np.ndarray:
         """Prepares a frame for OpenVINO inference using letterboxing."""
-        n, c, h, w = self.input_layer.shape
+        _, _, h, w = self.input_layer.shape
         letterboxed_frame, _, _ = _letterbox(frame, new_shape=(w, h), auto=False)
         rgb_frame = cv2.cvtColor(letterboxed_frame, cv2.COLOR_BGR2RGB)
         input_tensor = rgb_frame.transpose(2, 0, 1) / 255.0

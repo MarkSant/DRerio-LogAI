@@ -855,7 +855,7 @@ class CanvasManager:
             if len(det) < 6:
                 continue
             # Only the first 6 elements are used for annotation; any extra elements are ignored.
-            x1, y1, x2, y2, conf, track_id = det[:6]
+            x1, y1, x2, y2, _, track_id = det[:6]
             if track_id is None or str(track_id).strip() != selected:
                 continue
             try:
