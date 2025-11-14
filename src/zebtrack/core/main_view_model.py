@@ -1367,7 +1367,7 @@ class MainViewModel:
             temp_animal_method: Temporary override for animal detection method
                 ('det' or 'seg'). If None, uses global self.settings.
         """
-        success, error = self.detector_coordinator.setup_detector(
+        success, _ = self.detector_coordinator.setup_detector(
             animal_method=temp_animal_method,
             use_openvino=self.use_openvino,
             active_weight_name=self.active_weight_name,
@@ -3754,8 +3754,6 @@ class MainViewModel:
 
         # Extract results from service
         info_by_norm = scan_result.info_by_norm
-        missing_files = scan_result.missing_files
-        scanned_videos = scan_result.scanned_videos
 
         # Sprint 12: Use VideoClassificationService for classification
         classification_result = self.video_classification_service.classify_videos(
@@ -4466,7 +4464,7 @@ class MainViewModel:
                 return "skipped", f"{experiment_id}: calibração incompleta (px/cm).", None, False
 
             cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
-            video_width_px, video_height_px = cal.target_dims_px
+            _, video_height_px = cal.target_dims_px
             pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
             arena_polygon_warped = cal.transform_points(arena_polygon_px)
 

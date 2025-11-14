@@ -35,7 +35,6 @@ if TYPE_CHECKING:
     from zebtrack.core.project_service import ProjectService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.ui.event_bus import EventBus
-    from zebtrack.ui.events import Events
 
 log = structlog.get_logger()
 
@@ -223,7 +222,7 @@ class ProjectCoordinator(BaseCoordinator):
                 project_path_obj = self.project_service.get_project_path(project_name)
 
             # Create project via service
-            project_data = self.project_service.create_project_directory(
+            self.project_service.create_project_directory(
                 project_path=project_path_obj,
                 project_name=project_name,
                 project_type=project_type,

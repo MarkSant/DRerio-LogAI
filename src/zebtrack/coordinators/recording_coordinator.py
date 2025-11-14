@@ -27,7 +27,6 @@ from zebtrack.coordinators.base import (
     CoordinatorError,
     CoordinatorValidationError,
 )
-from zebtrack.core.state_manager import StateCategory
 
 if TYPE_CHECKING:
     from zebtrack.core.recording_service import RecordingService
