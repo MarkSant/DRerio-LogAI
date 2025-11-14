@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
 
-import numpy as np
 import structlog
 
 try:
@@ -58,6 +57,7 @@ from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
 from zebtrack.orchestrators.analysis_orchestrator import AnalysisOrchestrator
+from zebtrack.orchestrators.calibration_orchestrator import CalibrationOrchestrator
 from zebtrack.orchestrators.model_diagnostics_orchestrator import ModelDiagnosticsOrchestrator
 from zebtrack.orchestrators.processing_config_orchestrator import ProcessingConfigOrchestrator
 from zebtrack.orchestrators.project_orchestrator import ProjectOrchestrator
@@ -603,6 +603,9 @@ class MainViewModel:
 
         # Sprint 31: Processing Config Orchestrator
         self.processing_config_orchestrator = ProcessingConfigOrchestrator(self)
+
+        # Sprint 32: Calibration Orchestrator
+        self.calibration_orchestrator = CalibrationOrchestrator(self)
 
     def run(self):
         """Start the Tkinter main event loop.
@@ -1394,59 +1397,9 @@ class MainViewModel:
     def get_calibration_scope_info(self) -> dict:
         """Get calibration scope information for UI display.
 
-        Returns:
-            Dictionary with scope, project status, labels, and detail messages.
+        Facade - delegates to CalibrationOrchestrator (Sprint 32).
         """
-        project_path = getattr(self.project_manager, "project_path", None)
-        project_loaded = bool(project_path)
-        project_name = None
-        if project_loaded and hasattr(self.project_manager, "get_project_name"):
-            try:
-                project_name = self.project_manager.get_project_name()
-            except Exception:  # pragma: no cover - defensive
-                project_name = None
-
-        overrides_active = self.has_project_override_settings()
-        inheriting_globals = project_loaded and not overrides_active
-        scope = "project" if project_loaded and self._using_project_overrides else "global"
-
-        # Check if in single-video analysis mode
-        is_single_video_mode = False
-        if hasattr(self, "gui") and self.gui:
-            is_single_video_mode = bool(getattr(self.gui, "pending_single_video_path", None))
-
-        if scope == "project":
-            label = f"Escopo: Projeto ({project_name})" if project_name else "Escopo: Projeto"
-            if overrides_active:
-                detail = (
-                    "Este projeto usa overrides salvos. Ajustes nesta janela são "
-                    "persistidos apenas neste projeto."
-                )
-            else:
-                detail = (
-                    "Este projeto está herdando os padrões globais. Ao salvar "
-                    "aqui, os valores se tornam overrides específicos."
-                )
-        else:
-            label = "Escopo: Configuração Global"
-            if project_loaded:
-                detail = (
-                    "Alterações atualizam o padrão global. Use a ação de cópia para "
-                    "fixar estes valores no projeto atual."
-                )
-            else:
-                detail = "Nenhum projeto carregado; ajustes atualizam os padrões globais."
-
-        return {
-            "scope": scope,
-            "project_loaded": project_loaded,
-            "project_name": project_name,
-            "overrides_active": overrides_active,
-            "inheriting_globals": inheriting_globals,
-            "is_single_video_mode": is_single_video_mode,
-            "label": label,
-            "detail": detail,
-        }
+        return self.calibration_orchestrator.get_calibration_scope_info()
 
     def get_current_detector_parameters(self) -> dict[str, float]:
         """
@@ -1630,22 +1583,10 @@ class MainViewModel:
     def global_calibration_session(self):
         """Context manager for global calibration mode.
 
-        Temporarily disables project overrides and saves changes to global defaults.
-        Restores project overrides on exit if they were active before.
-
-        Yields:
-            None
+        Facade - delegates to CalibrationOrchestrator (Sprint 32).
         """
-        previous_flag = self._using_project_overrides
-        self._using_project_overrides = False
-        try:
+        with self.calibration_orchestrator.global_calibration_session():
             yield
-        finally:
-            self._global_model_defaults["active_weight"] = self.active_weight_name or None
-            self._global_model_defaults["use_openvino"] = self.use_openvino
-            self._using_project_overrides = previous_flag
-            if previous_flag and getattr(self.project_manager, "project_path", None):
-                self.apply_project_model_overrides()
 
     @contextmanager
     def project_calibration_session(self):
@@ -2352,25 +2293,13 @@ class MainViewModel:
         arena_polygon: list[list[int]] | list | None,
         calibration_data: dict | None,
     ) -> tuple[Calibration | None, tuple[float, float] | None]:
-        """Calculate calibration and pixel/cm ratio for tracking outputs."""
-        pixel_per_cm_ratio = None
-        cal = None
+        """Calculate calibration and pixel/cm ratio for tracking outputs.
 
-        calibration_source = calibration_data or (
-            self.project_manager.project_data.get("calibration")
-            if self.project_manager and self.project_manager.project_data
-            else None
+        Facade - delegates to CalibrationOrchestrator (Sprint 32).
+        """
+        return self.calibration_orchestrator._build_calibration_context(
+            arena_polygon=arena_polygon, calibration_data=calibration_data
         )
-
-        if calibration_source:
-            width_cm = calibration_source.get("aquarium_width_cm")
-            height_cm = calibration_source.get("aquarium_height_cm")
-            if width_cm and height_cm and arena_polygon:
-                polygon_array = np.array(arena_polygon)
-                cal = Calibration(polygon_array, width_cm, height_cm)
-                pixel_per_cm_ratio = cal.pixel_per_cm_ratio
-
-        return cal, pixel_per_cm_ratio
 
     def _tracking_cancelled(self, experiment_id: str, frame_num: int, log_key: str) -> bool:
         """Handle cancel-event checks during tracking loop."""
