@@ -664,7 +664,7 @@ class AnalysisCoordinator:
 
             # Create calibration object
             cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
-            video_width_px, video_height_px = cal.target_dims_px
+            _, video_height_px = cal.target_dims_px
             pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
             arena_polygon_warped = cal.transform_points(arena_polygon_px)
 

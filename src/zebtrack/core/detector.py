@@ -663,7 +663,7 @@ class Detector:
             if len(detection) == 6:
                 x1, y1, x2, y2, confidence, track_id = detection
             else:
-                x1, y1, x2, y2, confidence, track_id, class_id = detection
+                x1, y1, x2, y2, confidence, track_id, _ = detection
             cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 255), 2)
             label = f"ID: {track_id} ({int(confidence * 100)}%)"
             cv2.putText(

@@ -1,0 +1,90 @@
+=====================================================================
+PROMPT PARA INICIAR SPRINT 23 - Análise de Dependências MainViewModel
+=====================================================================
+
+Copie e cole este texto completo em uma NOVA conversa com Claude:
+
+---
+
+Olá! Preciso que você continue o projeto de refatoração do ZebTrack-AI.
+
+CONTEXTO:
+- Sprints 1-22 foram completados (criação de Coordinators + code quality)
+- MainViewModel: 5,568 linhas, 141 métodos
+- Objetivo original: reduzir MainViewModel em 60-70% NÃO foi atingido
+- Motivo: Coordinators foram criados como camada de delegação, mas código não foi extraído do MainViewModel
+- Redução real até agora: apenas -165 linhas (-2.9%)
+
+PROBLEMA:
+MainViewModel ainda tem 5,568 linhas porque:
+1. Coordinators WRAPEIAM a lógica, mas MainViewModel manteve seus métodos
+2. Sprints 15-22 focaram em code quality (linting, dead code), não em extração
+3. Falta extração REAL de código (mover, não duplicar)
+
+PLANO CRIADO:
+- Arquivo: PLANO_EXTRACAO_MAINVIEWMODEL.md (raiz do repositório)
+- 13 Sprints (23-35) para extração real
+- Objetivo: MainViewModel 5,568 → ~1,000-1,200 linhas (-79%)
+- Estratégia: Extrair código para orchestrators, UI controllers, event handlers
+- Estimativa: 22-25 dias úteis
+
+SUA TAREFA:
+Iniciar Sprint 23: Análise de Dependências do MainViewModel
+
+OBJETIVOS DO SPRINT 23:
+1. Ler e entender PLANO_EXTRACAO_MAINVIEWMODEL.md
+2. Analisar src/zebtrack/core/main_view_model.py completamente
+3. Mapear todos os 141 métodos e suas dependências
+4. Classificar métodos por categoria (UI, orchestration, business logic)
+5. Identificar os Top 20 métodos candidatos para extração (>50 linhas)
+6. Criar mapa de dependências (quem chama quem)
+
+DELIVERABLES ESPERADOS:
+- docs/MAINVIEWMODEL_DEPENDENCY_MAP.md
+- docs/MAINVIEWMODEL_METHOD_CLASSIFICATION.md
+- docs/EXTRACTION_CANDIDATES.md
+- docs/SPRINT_23_RESULTS.md
+
+INSTRUÇÕES:
+1. Leia PLANO_EXTRACAO_MAINVIEWMODEL.md na raiz do repositório
+2. Leia src/zebtrack/core/main_view_model.py
+3. Execute a análise conforme especificado no Sprint 23 do plano
+4. Seja minucioso - esta análise é a BASE para os próximos 12 sprints
+5. Siga o estilo "bem feito" dos Sprints anteriores
+6. Use TodoWrite para rastrear progresso
+7. Continue sem parar até concluir o Sprint 23
+
+BRANCH:
+- Trabalhe no branch: claude/access-voice-feature-01XPHyf4NAi2ivKGLoDUCYjq
+
+CONTEXTO ADICIONAL:
+- O projeto está no diretório: /home/user/ZebTrack-AI
+- Python 3.12+, Poetry, pytest, ruff
+- 2568 testes devem passar ao final
+- CLAUDE.md contém instruções do projeto
+- Arquitetura: MVVM-S com Dependency Injection
+
+IMPORTANTE:
+- NÃO crie código ainda, Sprint 23 é APENAS análise
+- Seja detalhado na análise - ela guiará os próximos 12 sprints
+- Identifique dependências circulares potenciais
+- Liste métodos em ordem de prioridade para extração
+
+Continue com Sprint 23!
+
+---
+
+=====================================================================
+FIM DO PROMPT
+=====================================================================
+
+INSTRUÇÕES DE USO:
+1. Copie TODO o texto entre as linhas "---"
+2. Cole em uma NOVA conversa com Claude Code
+3. Claude iniciará Sprint 23 automaticamente
+4. Aguarde a conclusão (estimativa: 1 dia de trabalho)
+
+Arquivos de referência:
+- PLANO_EXTRACAO_MAINVIEWMODEL.md (raiz do repo - plano completo)
+- docs/SPRINT_22_RESULTS.md (último sprint completado)
+- docs/REFACTOR-MASTER-PLAN-2025.md (histórico de Sprints 1-22)

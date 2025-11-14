@@ -144,6 +144,11 @@ class MainViewModel:
         hardware_coordinator: HardwareCoordinator | None = None,
         analysis_coordinator: AnalysisCoordinator | None = None,
         video_orchestrator: VideoOrchestrator | None = None,
+        project_coordinator=None,  # Sprint 3: Project lifecycle coordinator
+        recording_coordinator=None,  # Sprint 4: Recording workflow coordinator
+        live_camera_coordinator=None,  # Sprint 4: Live camera coordinator
+        detector_coordinator=None,  # Sprint 5: Detector setup coordinator
+        processing_coordinator=None,  # Sprint 6: Video processing coordinator
         test_sync_event: threading.Event | None = None,
     ):
         """Initialize MainViewModel with dependency injection.
@@ -166,6 +171,11 @@ class MainViewModel:
             hardware_coordinator: Hardware coordinator (Phase 2, optional - created if None)
             analysis_coordinator: Analysis coordinator (Phase 2, optional - created if None)
             video_orchestrator: Video orchestrator (Phase 2, optional - created if None)
+            project_coordinator: Project coordinator (Sprint 3, optional)
+            recording_coordinator: Recording coordinator (Sprint 4, optional - created if None)
+            live_camera_coordinator: Live camera coordinator (Sprint 4, optional - created if None)
+            detector_coordinator: Detector coordinator (Sprint 5, optional - created if None)
+            processing_coordinator: Processing coordinator (Sprint 6, optional - created if None)
             test_sync_event: Test synchronization event (for tests only)
         """
         self.root = root
@@ -198,6 +208,15 @@ class MainViewModel:
             if analysis_service is not None
             else AnalysisService(settings_obj=self.settings)
         )
+
+        # Sprint 12: Helper services for processing workflows
+        from zebtrack.core.video_classification_service import VideoClassificationService
+        from zebtrack.core.video_selection_service import VideoSelectionService
+        from zebtrack.core.video_validation_service import VideoValidationService
+
+        self.video_classification_service = VideoClassificationService()
+        self.video_selection_service = VideoSelectionService()
+        self.video_validation_service = VideoValidationService()
 
         # New state variables for model management (must exist before view)
         default_weight, _ = self._safe_get_default_weight()
@@ -380,45 +399,67 @@ class MainViewModel:
             hardware_coordinator=hardware_coordinator,
             analysis_coordinator=analysis_coordinator,
             video_orchestrator=video_orchestrator,
+            recording_coordinator=recording_coordinator,
+            live_camera_coordinator=live_camera_coordinator,
+            detector_coordinator=detector_coordinator,
+            processing_coordinator=processing_coordinator,
+            project_coordinator=project_coordinator,  # Sprint 11: Fix missing parameter
         )
+
+    def _inject_or_create(self, attr_name: str, injected, factory_fn):
+        """
+        Helper to inject coordinator or create with factory.
+
+        Sprint 16: Reduces boilerplate in _init_coordinators().
+        """
+        if injected is not None:
+            setattr(self, attr_name, injected)
+            log.info(f"main_view_model.{attr_name}.injected")
+        else:
+            setattr(self, attr_name, factory_fn())
+            log.info(f"main_view_model.{attr_name}.created_internally")
 
     def _init_coordinators(
         self,
         hardware_coordinator: HardwareCoordinator | None,
         analysis_coordinator: AnalysisCoordinator | None,
         video_orchestrator: VideoOrchestrator | None,
+        recording_coordinator=None,
+        live_camera_coordinator=None,
+        detector_coordinator=None,
+        processing_coordinator=None,
+        project_coordinator=None,  # Sprint 11: Added missing parameter
     ) -> None:
-        """Initialize coordinators for hardware, video, and analysis.
+        """
+        Initialize coordinators for hardware, video, analysis, recording, live camera,
+        detector, and processing.
 
+        Sprint 16: Simplified using _inject_or_create() helper.
         Task 2.2: REFACTOR-VIEWMODEL-001
         Task 2.3: Accept injected coordinators or create them for backward compatibility
-
-        Args:
-            hardware_coordinator: Injected hardware coordinator (or None to create)
-            analysis_coordinator: Injected analysis coordinator (or None to create)
-            video_orchestrator: Injected video orchestrator (or None to create)
+        Sprint 4: Added recording_coordinator and live_camera_coordinator
+        Sprint 5: Added detector_coordinator
+        Sprint 6: Added processing_coordinator
         """
         # Hardware coordinator (detector, Arduino, zones)
-        if hardware_coordinator is not None:
-            self.hardware_coordinator = hardware_coordinator
-            log.info("main_view_model.hardware_coordinator.injected")
-        else:
-            self.hardware_coordinator = HardwareCoordinator(
+        self._inject_or_create(
+            "hardware_coordinator",
+            hardware_coordinator,
+            lambda: HardwareCoordinator(
                 state_manager=self.state_manager,
                 ui_event_bus=self.ui_event_bus,
                 settings_obj=self.settings,
                 project_manager=self.project_manager,
                 detector_service=self.detector_service,
                 arduino_manager_cls=self._arduino_manager_cls,
-            )
-            log.info("main_view_model.hardware_coordinator.created_internally")
+            ),
+        )
 
         # Video orchestrator (batch processing, video workflows)
-        if video_orchestrator is not None:
-            self.video_orchestrator = video_orchestrator
-            log.info("main_view_model.video_orchestrator.injected")
-        else:
-            self.video_orchestrator = VideoOrchestrator(
+        self._inject_or_create(
+            "video_orchestrator",
+            video_orchestrator,
+            lambda: VideoOrchestrator(
                 root=self.root,
                 state_manager=self.state_manager,
                 ui_event_bus=self.ui_event_bus,
@@ -428,18 +469,15 @@ class MainViewModel:
                 video_processing_service=self.video_processing_service,
                 analysis_service=self.analysis_service,
                 recorder=self.recorder,
-            )
-            log.info("main_view_model.video_orchestrator.created_internally")
-
-        # Set view on coordinator (both injected and internally created)
+            ),
+        )
         self.video_orchestrator.set_view(self.view)
 
         # Analysis coordinator (reports, summaries, analysis pipeline)
-        if analysis_coordinator is not None:
-            self.analysis_coordinator = analysis_coordinator
-            log.info("main_view_model.analysis_coordinator.injected")
-        else:
-            self.analysis_coordinator = AnalysisCoordinator(
+        self._inject_or_create(
+            "analysis_coordinator",
+            analysis_coordinator,
+            lambda: AnalysisCoordinator(
                 root=self.root,
                 ui_event_bus=self.ui_event_bus,
                 ui_coordinator=self.ui_coordinator,
@@ -447,11 +485,81 @@ class MainViewModel:
                 project_manager=self.project_manager,
                 analysis_service=self.analysis_service,
                 video_processing_service=self.video_processing_service,
-            )
-            log.info("main_view_model.analysis_coordinator.created_internally")
-
-        # Set view on coordinator (both injected and internally created)
+            ),
+        )
         self.analysis_coordinator.set_view(self.view)
+
+        # Project coordinator (Sprint 3: project lifecycle workflows)
+        if project_coordinator is not None:
+            self.project_coordinator = project_coordinator
+            log.info("main_view_model.project_coordinator.injected")
+        else:
+            # If not injected, create lazily when needed (backward compatibility)
+            self.project_coordinator = None
+            log.warning(
+                "main_view_model.project_coordinator.not_injected",
+                message="ProjectCoordinator not injected - will use legacy workflow",
+            )
+
+        # Recording coordinator (Sprint 4: recording workflow orchestration)
+        from zebtrack.coordinators.recording_coordinator import RecordingCoordinator
+
+        self._inject_or_create(
+            "recording_coordinator",
+            recording_coordinator,
+            lambda: RecordingCoordinator(
+                state_manager=self.state_manager,
+                recording_service=self.recording_service,
+                arduino_manager=self.arduino_manager,
+                event_bus=self.ui_event_bus,
+            ),
+        )
+
+        # Live camera coordinator (Sprint 4: live camera analysis orchestration)
+        from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
+
+        self._inject_or_create(
+            "live_camera_coordinator",
+            live_camera_coordinator,
+            lambda: LiveCameraCoordinator(
+                state_manager=self.state_manager,
+                live_camera_service=self.live_camera_service,
+                camera=None,  # Camera initialized lazily when needed
+                event_bus=self.ui_event_bus,
+            ),
+        )
+
+        # Detector coordinator (Sprint 5: detector setup and configuration)
+        from zebtrack.coordinators.detector_coordinator import DetectorCoordinator
+
+        self._inject_or_create(
+            "detector_coordinator",
+            detector_coordinator,
+            lambda: DetectorCoordinator(
+                state_manager=self.state_manager,
+                detector_service=self.detector_service,
+                model_service=self.model_service,
+                weight_manager=self.weight_manager,
+                event_bus=self.ui_event_bus,
+            ),
+        )
+
+        # Processing coordinator (Sprint 6: video processing orchestration)
+        from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
+
+        self._inject_or_create(
+            "processing_coordinator",
+            processing_coordinator,
+            lambda: ProcessingCoordinator(
+                state_manager=self.state_manager,
+                video_orchestrator=self.video_orchestrator,
+                video_processing_service=self.video_processing_service,
+                analysis_service=self.analysis_service,
+                project_manager=self.project_manager,
+                recorder_factory=self.recorder,
+                event_bus=self.ui_event_bus,
+            ),
+        )
 
         # Project workflow adapter (P2-T2: project create/open/close workflows)
         self.project_workflow_adapter = ProjectWorkflowAdapter(
@@ -846,16 +954,6 @@ class MainViewModel:
             "kwargs_get",
         ),
         Events.ZONE_APPLY_ROI_TEMPLATE: ("apply_roi_template", ["template"], "kwargs_get"),
-        Events.ZONE_SAVE_ROI_TEMPLATE: ("save_roi_template", [], "no_params"),
-        Events.ZONE_IMPORT_AND_APPLY_ROI_TEMPLATE: (
-            "import_and_apply_roi_template",
-            [],
-            "no_params",
-        ),
-        Events.ZONE_RENAME_SELECTED_ROI: ("rename_selected_roi", [], "no_params"),
-        Events.ZONE_CHANGE_ROI_COLOR: ("change_roi_color", [], "no_params"),
-        Events.ZONE_REMOVE_SELECTED_ROI: ("remove_selected_roi", [], "no_params"),
-        Events.ZONE_APPLY_ROI_SETTINGS: ("apply_roi_settings", [], "no_params"),
         # Calibration events
         Events.CALIBRATION_RUN_LIVE: (
             "run_live_calibration",
@@ -1096,15 +1194,22 @@ class MainViewModel:
         *,
         trigger_source: str,
     ) -> None:
-        """Delegate to RecordingService (Phase 2.2)."""
+        """
+        Schedule a recording session via RecordingCoordinator.
+
+        Sprint 15: Updated to use RecordingCoordinator instead of RecordingService directly.
+        """
         # Inject camera dimensions into context
         camera_width = getattr(self.view.camera, "actual_width", None)
         camera_height = getattr(self.view.camera, "actual_height", None)
         context["camera_width"] = camera_width
         context["camera_height"] = camera_height
 
-        self.recording_service.schedule_recording(
-            context, project_data, trigger_source=trigger_source
+        # Delegate to RecordingCoordinator (Sprint 15)
+        self.recording_coordinator.start_recording(
+            context=context,
+            project_data=project_data,
+            trigger_source=trigger_source,
         )
 
     def close_project(self):
@@ -1217,12 +1322,12 @@ class MainViewModel:
         """
         Restore detector settings from saved configuration.
 
-        Phase 6: Delegates to DetectorService.
+        Sprint 7: Delegates to DetectorCoordinator.
 
         Args:
             saved_detector_config: Saved detector configuration from project
         """
-        self.detector_service.restore_detector_settings(saved_detector_config)
+        self.detector_coordinator.restore_detector_settings(saved_detector_config)
 
     def _setup_zones_from_project(self) -> None:
         """
@@ -1256,24 +1361,18 @@ class MainViewModel:
         """
         Initialize the detector instance based on the animal method selection.
 
-        Task 2.2: Delegates to HardwareCoordinator.
+        Sprint 7: Delegates to DetectorCoordinator.
 
         Args:
             temp_animal_method: Temporary override for animal detection method
                 ('det' or 'seg'). If None, uses global self.settings.
         """
-        return self.hardware_coordinator.setup_detector(
-            temp_animal_method=temp_animal_method,
+        success, _ = self.detector_coordinator.setup_detector(
+            animal_method=temp_animal_method,
             use_openvino=self.use_openvino,
             active_weight_name=self.active_weight_name,
         )
-
-    def _is_arduino_connected(self) -> bool:
-        """Check whether there is an active Arduino connection.
-
-        Task 2.2: Delegates to HardwareCoordinator.
-        """
-        return self.hardware_coordinator.is_arduino_connected()
+        return success
 
     def setup_arduino(self) -> bool:
         """Ensure the Arduino connection is ready when the project requests it.
@@ -1290,9 +1389,38 @@ class MainViewModel:
         """
         Load zone data from project and sets it on the detector instance.
 
-        Task 2.2: Delegates to HardwareCoordinator.
+        Sprint 7: Delegates to DetectorCoordinator.
         """
-        self.hardware_coordinator.setup_detector_zones()
+        # Delegate to DetectorCoordinator (all params None = load from project)
+        success = self.detector_coordinator.configure_zones(
+            zones_data=None,
+            video_width=None,
+            video_height=None,
+        )
+
+        if not success:
+            log.warning("main_view_model.setup_detector_zones.failed")
+            return
+
+        # UI logic: notify if no arena polygon defined
+        zone_data = self.project_manager.get_zone_data()
+        if not zone_data.polygon:
+            if self.project_manager.get_project_type() == "pre-recorded":
+                self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+                first_video = self.project_manager.get_next_video()
+                if first_video:
+                    self.ui_event_bus.publish_event(
+                        Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
+                    )
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Configuração Necessária",
+                        "message": "Erro: A área de processamento principal (aquário) não foi "
+                        "definida. Por favor, defina-a na aba 'Configuração de Zonas' "
+                        "antes de continuar.",
+                    },
+                )
 
     # --- New Methods for Weight Management ---
 
@@ -1618,11 +1746,11 @@ class MainViewModel:
         """
         Return detector thresholds, falling back to saved or default values.
 
-        Phase 6: Delegates to DetectorService.
+        Sprint 7: Delegates to DetectorCoordinator.
 
         Returns parameters with long-form names for backward compatibility.
         """
-        params = self.detector_service.get_detector_parameters()
+        params = self.detector_coordinator.get_detector_parameters()
         # Normalize conf_threshold to confidence_threshold for backward compatibility
         if "conf_threshold" in params:
             params["confidence_threshold"] = params.pop("conf_threshold")
@@ -1632,11 +1760,11 @@ class MainViewModel:
         """
         Return detector thresholds defined in config.yaml without overrides.
 
-        Phase 6: Delegates to DetectorService.
+        Sprint 7: Delegates to DetectorCoordinator.
 
         Returns parameters with long-form names for backward compatibility.
         """
-        params = self.detector_service.get_factory_detector_parameters()
+        params = self.detector_coordinator.get_factory_detector_parameters()
         # Normalize conf_threshold to confidence_threshold for backward compatibility
         if "conf_threshold" in params:
             params["confidence_threshold"] = params.pop("conf_threshold")
@@ -1652,10 +1780,10 @@ class MainViewModel:
         """
         Apply detector threshold updates and persist them when possible.
 
-        Phase 6: Delegates to DetectorService.
+        Sprint 7: Delegates to DetectorCoordinator.
         """
         try:
-            success = self.detector_service.update_tracking_parameters(
+            success = self.detector_coordinator.update_detector_parameters(
                 params=params,
                 reset_overrides=reset_overrides,
                 scope=scope,
@@ -2103,48 +2231,6 @@ class MainViewModel:
                 Events.UI_SHOW_ERROR, {"title": "Erro ao aplicar template", "message": str(exc)}
             )
 
-    def save_roi_template(self) -> None:
-        """Salva as zonas atuais como um novo template."""
-        # This will be handled by the GUI, which will then call the
-        # appropriate project manager method.
-        # This method is a placeholder to satisfy the event mapping.
-        pass
-
-    def import_and_apply_roi_template(self) -> None:
-        """Importa um template de ROI e o aplica ao vídeo ativo."""
-        # This will be handled by the GUI, which will then call the
-        # appropriate project manager method.
-        # This method is a placeholder to satisfy the event mapping.
-        pass
-
-    def rename_selected_roi(self) -> None:
-        """Renomeia a ROI selecionada."""
-        # This will be handled by the GUI, which will then call the
-        # appropriate project manager method.
-        # This method is a placeholder to satisfy the event mapping.
-        pass
-
-    def change_roi_color(self) -> None:
-        """Altera a cor da ROI selecionada."""
-        # This will be handled by the GUI, which will then call the
-        # appropriate project manager method.
-        # This method is a placeholder to satisfy the event mapping.
-        pass
-
-    def remove_selected_roi(self) -> None:
-        """Remove a ROI selecionada."""
-        # This will be handled by the GUI, which will then call the
-        # appropriate project manager method.
-        # This method is a placeholder to satisfy the event mapping.
-        pass
-
-    def apply_roi_settings(self) -> None:
-        """Aplica as configurações de ROI."""
-        # This will be handled by the GUI, which will then call the
-        # appropriate project manager method.
-        # This method is a placeholder to satisfy the event mapping.
-        pass
-
     def set_main_arena_polygon(self, points: list) -> bool:
         """Salva polígono com validações robustas."""
         try:
@@ -2502,76 +2588,102 @@ class MainViewModel:
             )
             self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
 
+    def _handle_external_trigger(self, context: dict, arduino_enabled: bool) -> bool:
+        """
+        Handle external trigger setup for recording.
+
+        Sprint 15: Extracted from start_recording() to reduce complexity (~40 lines → ~15 lines).
+
+        Args:
+            context: Recording context with session details
+            arduino_enabled: Whether Arduino is available
+
+        Returns:
+            bool: True if waiting for trigger (stop processing), False if proceed
+        """
+        project_data = self.project_manager.project_data or {}
+        external_trigger_requested = bool(project_data.get("external_trigger_mode"))
+
+        if external_trigger_requested and not arduino_enabled:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Trigger Externo Indisponível",
+                    "message": "O modo de trigger externo exige um Arduino configurado.",
+                },
+            )
+            return True
+
+        if external_trigger_requested and arduino_enabled:
+            self._pending_external_trigger = context
+            port = context.get("arduino_port", "")
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
+                {
+                    "folder_name": context["folder_name"],
+                    "day": context["day"],
+                    "group": context["group"],
+                    "cobaia": context["cobaia"],
+                    "port": port,
+                },
+            )
+            self.ui_event_bus.publish_event(
+                Events.UI_SET_STATUS,
+                {"message": f"Aguardando sinal externo... (porta {port})"},
+            )
+            return True
+
+        return False
+
     def start_recording(
         self,
         day: int | None = None,
         group: str | None = None,
         cobaia: str | None = None,
     ):
-        """Start a recording session (live mode) with zone validation."""
+        """
+        Start a recording session (live mode) with zone validation.
+
+        Sprint 15: Simplified by extracting external trigger logic.
+        """
         log.info("controller.recording.start")
 
-        # Live recordings rely on project-wide zones, not per-video ones
         self.project_manager.set_active_zone_video(None)
-
-        # Reset any previous waiting state before starting a new session
         self._clear_external_trigger_wait()
 
-        # Enhanced zone validation for Live projects
         if not self._ensure_zones_before_recording():
             return
 
-        # Ensure detector is set up before recording
-        if not self.detector:
-            if not self.setup_detector():
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {"title": "Erro", "message": "Falha ao configurar detector."},
-                )
-                return
+        if not self.detector and not self.setup_detector():
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro", "message": "Falha ao configurar detector."},
+            )
+            return
 
-        # Apply zones to detector
         self.setup_detector_zones()
 
-        # 1. Get recording details
+        # Get recording details
         if not all((day, group, cobaia)):
-            # Details not provided, ask user with the new unified dialog
             details = self.view.ask_recording_details_unified()
             if not details:
                 log.warning("controller.recording.cancelled_by_user")
                 return
-            day, group, cobaia = (
-                details["day"],
-                details["group"],
-                details["cobaia"],
-            )
-        else:
-            log.info(
-                "controller.recording.details_from_grid",
-                day=day,
-                group=group,
-                cobaia=cobaia,
-            )
+            day, group, cobaia = details["day"], details["group"], details["cobaia"]
 
-        # 2. Save the selected day and group for "Smart State Retention"
+        # Save session details
         self.project_manager.save_last_session_details(day, group)
 
-        # 3. Create output folder with the new naming convention
+        # Create output folder
         folder_name = f"D{day}_G{group}_S{cobaia}"
         output_folder = os.path.join(self.project_manager.project_path, folder_name)
         os.makedirs(output_folder, exist_ok=True)
 
+        # Setup Arduino if needed
         project_data = self.project_manager.project_data or {}
+        arduino_enabled = bool(project_data.get("use_arduino") and self.setup_arduino())
 
-        arduino_enabled = False
-        if project_data.get("use_arduino"):
-            arduino_enabled = self.setup_arduino()
-            if not arduino_enabled:
-                log.warning(
-                    "controller.recording.arduino_unavailable",
-                    port=project_data.get("arduino_port"),
-                )
-
+        # Build recording context
         context = {
             "day": day,
             "group": group,
@@ -2579,55 +2691,14 @@ class MainViewModel:
             "folder_name": folder_name,
             "output_folder": output_folder,
             "arduino_enabled": arduino_enabled,
+            "arduino_port": (project_data.get("arduino_port") or "").strip(),
         }
 
-        arduino_port = (project_data.get("arduino_port") or "").strip()
-        if arduino_port:
-            context["arduino_port"] = arduino_port
-
-        external_trigger_requested = bool(project_data.get("external_trigger_mode"))
-        if external_trigger_requested and not arduino_enabled:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Trigger Externo Indisponível",
-                    "message": "O modo de trigger externo exige um Arduino configurado e "
-                    "conectado. Verifique o hardware e tente novamente.",
-                },
-            )
+        # Handle external trigger (may wait for signal)
+        if self._handle_external_trigger(context, arduino_enabled):
             return
 
-        external_trigger_active = external_trigger_requested and arduino_enabled
-
-        if external_trigger_active:
-            self._pending_external_trigger = context
-            waiting_message = "Aguardando sinal externo do Arduino para iniciar..."
-            if arduino_port:
-                waiting_message = f"{waiting_message} (porta {arduino_port})"
-
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
-                {
-                    "folder_name": folder_name,
-                    "day": day,
-                    "group": group,
-                    "cobaia": cobaia,
-                    "port": arduino_port,
-                },
-            )
-
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_BUTTON_STATE,
-                {"button_name": "start_rec", "state": "disabled"},
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_BUTTON_STATE,
-                {"button_name": "stop_rec", "state": "disabled"},
-            )
-            self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": waiting_message})
-            self.log_arduino_event("Modo trigger externo habilitado. Aguardando sinal do Arduino.")
-            return
-
+        # Start recording immediately
         self._pending_external_trigger = None
         self._schedule_recording(context, project_data, trigger_source="manual")
 
@@ -2847,14 +2918,18 @@ class MainViewModel:
             )
 
     def stop_recording(self):
-        """Stop the current recording session (delegates to RecordingService - Phase 2.2)."""
+        """
+        Stop the current recording session.
+
+        Sprint 15: Updated to use RecordingCoordinator instead of RecordingService directly.
+        """
         log.info("controller.recording.stop")
 
         if self._pending_external_trigger:
             self._clear_external_trigger_wait()
 
-        # Delegate to RecordingService
-        self.recording_service.stop_session()
+        # Delegate to RecordingCoordinator (Sprint 15)
+        self.recording_coordinator.stop_recording()
 
         # Update UI on main thread
         self.ui_event_bus.publish_event(
@@ -3150,12 +3225,249 @@ class MainViewModel:
             {"video_path": video_path, "config": config},
         )
 
+    def _handle_mixed_data_scenario(self, scanned_videos: list[dict]) -> list[dict] | None:
+        """
+        Handle the scenario where some videos have data and some don't.
+
+        Sprint 13: Extracted from start_project_processing_workflow().
+        Handles user interaction for deciding which videos to process.
+
+        Args:
+            scanned_videos: List of scanned video info dictionaries
+
+        Returns:
+            list[dict] | None: Videos to process, or None if all should be skipped/added only
+        """
+        with_data = [v for v in scanned_videos if v["has_data"]]
+        without_data = [v for v in scanned_videos if not v["has_data"]]
+
+        if with_data and without_data:
+            # Mixed case: some have data, some don't
+            msg = (
+                f"{len(with_data)} vídeo(s) já possuem dados de análise.\n"
+                f"{len(without_data)} vídeo(s) precisam ser processados.\n\n"
+                "Deseja reprocessar os vídeos que já possuem dados?"
+            )
+            if self.view.ask_ok_cancel("Dados Mistos Encontrados", msg):
+                # User wants to re-process everything
+                return scanned_videos
+            else:
+                # User wants to skip re-processing
+                return without_data
+
+        elif with_data and not without_data:
+            # All selected videos have data
+            if self.view.ask_ok_cancel(
+                "Dados Encontrados",
+                "Todos os vídeos selecionados já possuem dados de análise. "
+                "Deseja reprocessá-los todos?",
+            ):
+                return with_data
+            else:
+                # User doesn't want to reprocess - add to project but don't process
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Processamento Ignorado",
+                        "message": "Nenhum novo vídeo foi processado.",
+                    },
+                )
+                # Still add them to the project for reporting purposes
+                self.project_manager.add_video_batch(scanned_videos)
+                return None  # Signal: don't process, already handled
+        else:
+            # No videos have data, process all of them
+            return without_data
+
+    def _validate_zones_with_ui(self) -> bool:
+        """
+        Validate that zones are defined, with UI dialogs for user interaction.
+
+        Sprint 13: Extracted from start_project_processing_workflow().
+        Handles complex zone validation including:
+        - Main arena validation with user dialogs
+        - Default arena creation if user chooses
+        - ROI warning (optional)
+
+        Returns:
+            bool: True if zones are valid/created, False if user cancelled
+        """
+        zone_data = self.project_manager.get_zone_data()
+
+        # Check if main arena is defined
+        if not zone_data or not zone_data.polygon:
+            log.warning("workflow.project_processing.no_main_arena")
+
+            response = self.view.ask_ok_cancel(
+                "Arena Principal Não Definida",
+                "O polígono principal do aquário não foi definido.\n\n"
+                "É necessário definir a arena principal para análise precisa.\n"
+                "Deseja definir agora antes de processar?",
+            )
+
+            if response:
+                # Switch to zone tab and guide user
+                self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+
+                # Load frame from first video if available
+                first_video = self.project_manager.get_next_video()
+                if first_video:
+                    self.ui_event_bus.publish_event(
+                        Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
+                    )
+
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Defina a Arena Principal",
+                        "message": "Por favor:\n"
+                        "1. Use 'Detectar Aquário (Auto)' ou\n"
+                        "2. Desenhe manualmente o polígono principal\n"
+                        "3. Depois volte para adicionar vídeos",
+                    },
+                )
+                return False
+            else:
+                # Offer default arena as fallback
+                if not self.view.ask_ok_cancel(
+                    "Usar Arena Padrão?",
+                    "Deseja usar o frame completo como arena?\n"
+                    "(Não recomendado para análise precisa)",
+                ):
+                    log.info("workflow.project_processing.cancelled_no_arena")
+                    return False
+
+                # Create default arena based on first video
+                first_video = self.project_manager.get_next_video()
+                if first_video:
+                    import cv2
+
+                    cap = cv2.VideoCapture(first_video)
+                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    cap.release()
+
+                    default_arena = [[0, 0], [width, 0], [width, height], [0, height]]
+
+                    success = self.set_main_arena_polygon(default_arena)
+                    if success:
+                        log.info(
+                            "workflow.project_processing.default_arena_created",
+                            size=f"{width}x{height}",
+                        )
+                        self.ui_event_bus.publish_event(
+                            Events.UI_SHOW_INFO,
+                            {
+                                "title": "Arena Padrão Criada",
+                                "message": f"Arena padrão criada ({width}x{height})\n"
+                                "Recomenda-se ajustar manualmente depois.",
+                            },
+                        )
+                    else:
+                        self.ui_event_bus.publish_event(
+                            Events.UI_SHOW_ERROR,
+                            {"title": "Erro", "message": "Não foi possível criar arena padrão"},
+                        )
+                        return False
+                else:
+                    self.ui_event_bus.publish_event(
+                        Events.UI_SHOW_ERROR,
+                        {"title": "Erro", "message": "Nenhum vídeo encontrado no projeto"},
+                    )
+                    return False
+
+        # Warn about missing ROIs (optional but informative)
+        if not zone_data.roi_polygons:
+            if not self.view.ask_ok_cancel(
+                "Nenhuma ROI Definida",
+                "Nenhuma Área de Interesse (ROI) foi definida.\n\n"
+                "A análise usará apenas a arena principal.\n"
+                "Para análises detalhadas, considere definir ROIs.\n\n"
+                "Deseja continuar?",
+            ):
+                log.info("workflow.project_processing.cancelled_by_user_no_roi")
+                return False
+
+        log.info(
+            "workflow.project_processing.zones_validated",
+            has_main_arena=bool(zone_data.polygon),
+            roi_count=len(zone_data.roi_polygons),
+        )
+
+        return True
+
+    def _handle_validation_error(self, validation_result) -> bool:
+        """
+        Handle validation errors by showing appropriate UI messages.
+
+        Sprint 13: Consolidated error handling from 3 workflow methods.
+        Reduces duplication of error code -> UI event mapping.
+
+        Args:
+            validation_result: ValidationResult from ProcessingCoordinator
+
+        Returns:
+            bool: True if validation passed, False if error was shown
+        """
+        if validation_result.is_valid:
+            return True
+
+        # Map error codes to appropriate UI events
+        error_code = validation_result.error_code
+        error_message = validation_result.error_message
+
+        if error_code == "processing_already_active":
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Análise em Andamento",
+                    "message": error_message,
+                },
+            )
+        elif error_code == "no_project_loaded":
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro", "message": error_message},
+            )
+        elif error_code == "no_videos_in_project":
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Processamento",
+                    "message": error_message,
+                },
+            )
+        else:
+            # Generic error handling
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro de Validação", "message": error_message},
+            )
+
+        return False
+
     def start_single_video_processing(
         self, video_path: Path | str, config: dict, zone_data: ZoneData
     ):
-        """Start the actual processing for a single video after zone setup."""
+        """
+        Start the actual processing for a single video after zone setup.
+
+        Sprint 11: Added validation check for processing already active.
+        Sprint 13: Simplified using _handle_validation_error().
+        """
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
         log.info("workflow.single_video.processing_start", video=video_path)
+
+        # Sprint 11: Validate processing can start (basic check only)
+        # Sprint 13: Use consolidated error handling
+        validation_result = self.processing_coordinator.validate_can_start_processing(
+            check_project_loaded=False,  # Not required for single video
+            check_zones=False,  # Already handled by caller
+            check_videos_exist=False,  # Not required for single video
+        )
+
+        if not self._handle_validation_error(validation_result):
+            return
 
         self.project_manager.set_active_zone_video(video_path)
 
@@ -3289,128 +3601,28 @@ class MainViewModel:
             )
 
     def start_project_processing_workflow(self):
-        """Adiciona vídeos com validação robusta de zonas."""
+        """
+        Adiciona vídeos com validação robusta de zonas.
+
+        Sprint 11: Basic validations delegated to ProcessingCoordinator.
+        Complex UI interactions (zone setup dialogs) remain in ViewModel.
+        """
         log.info("workflow.project_processing.start")
 
-        if self.processing_thread and self.processing_thread.is_alive():
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Análise em Andamento",
-                    "message": "Uma análise de vídeo já está em andamento. "
-                    "Por favor, aguarde ou cancele a análise atual.",
-                },
-            )
-            return
-
-        # Validação 1: Projeto existe
-        if not self.project_manager.project_path:
-            if self.ui_event_bus:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR, {"title": "Erro", "message": "Nenhum projeto carregado"}
-                )
-            return
-
-        # Validação 2: Zonas definidas
-        zone_data = self.project_manager.get_zone_data()
-        if not zone_data or not zone_data.polygon:
-            log.warning("workflow.project_processing.no_main_arena")
-
-            response = self.view.ask_ok_cancel(
-                "Arena Principal Não Definida",
-                "O polígono principal do aquário não foi definido.\n\n"
-                "É necessário definir a arena principal para análise precisa.\n"
-                "Deseja definir agora antes de processar?",
-            )
-
-            if response:
-                # Muda para aba de zonas
-                self.ui_event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
-
-                # Carrega frame do primeiro vídeo se disponível
-                first_video = self.project_manager.get_next_video()
-                if first_video:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": first_video}
-                    )
-
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Defina a Arena Principal",
-                        "message": "Por favor:\n"
-                        "1. Use 'Detectar Aquário (Auto)' ou\n"
-                        "2. Desenhe manualmente o polígono principal\n"
-                        "3. Depois volte para adicionar vídeos",
-                    },
-                )
-                return
-            else:
-                # Oferece arena padrão como fallback
-                if not self.view.ask_ok_cancel(
-                    "Usar Arena Padrão?",
-                    "Deseja usar o frame completo como arena?\n"
-                    "(Não recomendado para análise precisa)",
-                ):
-                    log.info("workflow.project_processing.cancelled_no_arena")
-                    return
-
-                # Cria arena padrão baseada no primeiro vídeo
-                first_video = self.project_manager.get_next_video()
-                if first_video:
-                    import cv2
-
-                    cap = cv2.VideoCapture(first_video)
-                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    cap.release()
-
-                    default_arena = [[0, 0], [width, 0], [width, height], [0, height]]
-
-                    success = self.set_main_arena_polygon(default_arena)
-                    if success:
-                        log.info(
-                            "workflow.project_processing.default_arena_created",
-                            size=f"{width}x{height}",
-                        )
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SHOW_INFO,
-                            {
-                                "title": "Arena Padrão Criada",
-                                "message": f"Arena padrão criada ({width}x{height})\n"
-                                "Recomenda-se ajustar manualmente depois.",
-                            },
-                        )
-                    else:
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SHOW_ERROR,
-                            {"title": "Erro", "message": "Não foi possível criar arena padrão"},
-                        )
-                        return
-                else:
-                    self.ui_event_bus.publish_event(
-                        Events.UI_SHOW_ERROR,
-                        {"title": "Erro", "message": "Nenhum vídeo encontrado no projeto"},
-                    )
-                    return
-
-        # Validação 3: Aviso sobre ROIs (opcional, mas informativo)
-        if not zone_data.roi_polygons:
-            if not self.view.ask_ok_cancel(
-                "Nenhuma ROI Definida",
-                "Nenhuma Área de Interesse (ROI) foi definida.\n\n"
-                "A análise usará apenas a arena principal.\n"
-                "Para análises detalhadas, considere definir ROIs.\n\n"
-                "Deseja continuar?",
-            ):
-                log.info("workflow.project_processing.cancelled_by_user_no_roi")
-                return
-
-        log.info(
-            "workflow.project_processing.zones_validated",
-            has_main_arena=bool(zone_data.polygon),
-            roi_count=len(zone_data.roi_polygons),
+        # Sprint 11: Delegate basic validations to ProcessingCoordinator
+        # Sprint 13: Use consolidated error handling
+        validation_result = self.processing_coordinator.validate_can_start_processing(
+            check_project_loaded=True,
+            check_zones=False,  # Zone validation is complex with UI, handled below
+            check_videos_exist=False,
         )
+
+        if not self._handle_validation_error(validation_result):
+            return
+
+        # Sprint 13: Validate zones with UI interaction
+        if not self._validate_zones_with_ui():
+            return
 
         # 1. Ask user to select files or folders
         paths = self.view.ask_open_filenames(
@@ -3436,46 +3648,10 @@ class MainViewModel:
             )
             return
 
-        # 3. Handle mixed data scenario
-        videos_to_process = []
-        with_data = [v for v in scanned_videos if v["has_data"]]
-        without_data = [v for v in scanned_videos if not v["has_data"]]
-
-        if with_data and without_data:
-            # The complex case: some have data, some don't
-            msg = (
-                f"{len(with_data)} vídeo(s) já possuem dados de análise.\n"
-                f"{len(without_data)} vídeo(s) precisam ser processados.\n\n"
-                "Deseja reprocessar os vídeos que já possuem dados?"
-            )
-            if self.view.ask_ok_cancel("Dados Mistos Encontrados", msg):
-                # User wants to re-process everything
-                videos_to_process = scanned_videos
-            else:
-                # User wants to skip re-processing
-                videos_to_process = without_data
-        elif with_data and not without_data:
-            # All selected videos have data
-            if self.view.ask_ok_cancel(
-                "Dados Encontrados",
-                "Todos os vídeos selecionados já possuem dados de análise. "
-                "Deseja reprocessá-los todos?",
-            ):
-                videos_to_process = with_data
-            else:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento Ignorado",
-                        "message": "Nenhum novo vídeo foi processado.",
-                    },
-                )
-                # Still add them to the project for reporting purposes
-                self.project_manager.add_video_batch(scanned_videos)
-                return
-        else:
-            # No videos have data, process all of them
-            videos_to_process = without_data
+        # 3. Sprint 13: Handle mixed data scenario
+        videos_to_process = self._handle_mixed_data_scenario(scanned_videos)
+        if videos_to_process is None:
+            return  # User cancelled or videos already added
 
         if not videos_to_process:
             self.ui_event_bus.publish_event(
@@ -3516,68 +3692,152 @@ class MainViewModel:
             },
         )
 
-    def process_pending_project_videos(  # noqa: C901
+    def process_pending_project_videos(
         self,
         video_paths: list[str] | None = None,
     ) -> None:
-        """Processa vídeos já adicionados ao projeto que possuem dados pendentes."""
+        """
+        Processa vídeos já adicionados ao projeto que possuem dados pendentes.
+
+        Sprint 11: Basic validations delegated to ProcessingCoordinator.
+        """
         log.info(
             "workflow.project_processing.resume_requested",
             targeted=len(video_paths or []),
         )
 
-        if self.processing_thread and self.processing_thread.is_alive():
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Análise em Andamento",
-                    "message": "Um processamento já está ativo. Aguarde a conclusão ou "
-                    "cancele a análise atual antes de iniciar um novo lote.",
-                },
-            )
+        # Sprint 11: Delegate validations to ProcessingCoordinator
+        # Sprint 13: Use consolidated error handling
+        validation_result = self.processing_coordinator.validate_can_start_processing(
+            check_project_loaded=True,
+            check_zones=False,  # Not required for pending videos
+            check_videos_exist=True,  # Must have videos in project
+        )
+
+        if not self._handle_validation_error(validation_result):
             return
 
-        if not self.project_manager.project_path:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR, {"title": "Erro", "message": "Nenhum projeto carregado"}
-            )
-            return
-
+        # Get all videos (validation already confirmed they exist)
         all_videos = self.project_manager.get_all_videos() or []
-        if not all_videos:
-            if self.ui_event_bus:
+
+        # Sprint 14: Inline _gather_candidate_entries() logic
+        skip_dialog = bool(video_paths)
+
+        # Delegate selection logic to VideoSelectionService
+        selection_result = self.video_selection_service.select_candidates(
+            all_videos=all_videos,
+            target_paths=video_paths,
+        )
+
+        # Handle targeted selection mode
+        if selection_result.selection_mode == "targeted":
+            # UI: Show info if no valid targets provided
+            if not video_paths:  # Should not happen but defensive
                 self.ui_event_bus.publish_event(
                     Events.UI_SHOW_INFO,
                     {
                         "title": "Processamento",
-                        "message": "Nenhum vídeo cadastrado no projeto atualmente.",
+                        "message": "Nenhum vídeo selecionado para processamento.",
                     },
                 )
+                return
+
+            # UI: Show warning if targets are missing from project
+            if selection_result.has_missing:
+                sample = [
+                    os.path.basename(path) for path in selection_result.missing_targets[:5]
+                ]
+                if len(selection_result.missing_targets) > 5:
+                    sample.append(f"... (+{len(selection_result.missing_targets) - 5})")
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_WARNING,
+                    {
+                        "title": "Vídeos fora do projeto",
+                        "message": "Alguns itens selecionados não pertencem ao projeto atual:\n"
+                        + "\n".join(sample),
+                    },
+                )
+
+            # UI: Show info if no candidates found
+            if selection_result.candidate_count == 0:
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Processamento",
+                        "message": "Nenhum dos vídeos selecionados pertence ao projeto ativo.",
+                    },
+                )
+                return
+
+        # Handle pending selection mode
+        else:  # selection_mode == "pending"
+            # UI: Show info if no pending videos
+            if selection_result.candidate_count == 0:
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Processamento",
+                        "message": "Nenhum vídeo pendente para ser processado.",
+                    },
+                )
+                return
+
+        candidate_entries = selection_result.candidate_entries
+
+        # Sprint 14: Inline _scan_and_validate_candidate_paths() logic
+        # Extract paths from candidate entries
+        candidate_paths = [
+            video.get("path")
+            for video in candidate_entries
+            if isinstance(video.get("path"), str) and video.get("path")
+        ]
+
+        # UI: Show error if no valid paths
+        if not candidate_paths:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro",
+                    "message": "Não foi possível localizar caminhos válidos para os vídeos selecionados.",  # noqa: E501
+                },
+            )
             return
 
-        videos_by_norm: dict[str, dict] = {}
-        for video in all_videos:
-            path_value = video.get("path")
-            if isinstance(path_value, str) and path_value:
-                videos_by_norm[os.path.normpath(path_value)] = video
-        skip_dialog = bool(video_paths)
-        candidate_entries = self._gather_candidate_entries(video_paths, all_videos)
-        if candidate_entries is None:
-            return
-
-        info_by_norm, missing_files, scanned_videos = self._scan_and_validate_candidate_paths(
-            candidate_entries
+        # Delegate scan logic to VideoValidationService
+        scan_result = self.video_validation_service.scan_and_validate_paths(
+            candidate_paths, self.project_manager
         )
-        if info_by_norm is None:
-            return
 
-        (
-            ready_with_trajectory,
-            ready_with_zones,
-            arena_only,
-            without_arena,
-            data_changed,
-        ) = self._classify_candidate_videos(candidate_entries, info_by_norm)
+        # UI: Show warning if files are missing
+        if scan_result.has_missing:
+            sample_names = [os.path.basename(path) for path in scan_result.missing_files[:5]]
+            if len(scan_result.missing_files) > 5:
+                sample_names.append(f"... (+{len(scan_result.missing_files) - 5})")
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Vídeos Não Encontrados",
+                    "message": "Alguns vídeos foram ignorados porque não foram localizados:\n"
+                    + "\n".join(sample_names),
+                },
+            )
+            log.warning(
+                "workflow.project_processing.missing_sources",
+                missing=len(scan_result.missing_files),
+            )
+
+        # Extract results from service
+        info_by_norm = scan_result.info_by_norm
+
+        # Sprint 12: Use VideoClassificationService for classification
+        classification_result = self.video_classification_service.classify_videos(
+            candidate_entries, info_by_norm
+        )
+        ready_with_trajectory = classification_result.ready_with_trajectory
+        ready_with_zones = classification_result.ready_with_zones
+        arena_only = classification_result.arena_only
+        without_arena = classification_result.without_arena
+        data_changed = classification_result.data_changed
 
         if data_changed:
             self.project_manager.save_project()
@@ -3867,9 +4127,9 @@ class MainViewModel:
         """
         Configure single-subject tracking mode.
 
-        Phase 6: Delegates to DetectorService.
+        Sprint 7: Delegates to DetectorCoordinator.
         """
-        self.detector_service.set_single_subject_mode(bool(enabled))
+        self.detector_coordinator.set_single_subject_mode(bool(enabled))
         self._publish_processing_mode(
             source="tracker_configuration",
             force=True,
@@ -4041,137 +4301,6 @@ class MainViewModel:
 
         return metadata_context
 
-    def _gather_candidate_entries(
-        self,
-        video_paths: list[str] | None,
-        all_videos: list[dict],
-    ) -> list[dict] | None:
-        """Return a list of candidate video entries to process.
-
-        Returns None if the calling function should abort (due to user cancel or invalid selection).
-        """
-        videos_by_norm: dict[str, dict] = {}
-        for video in all_videos:
-            path_value = video.get("path")
-            if isinstance(path_value, str) and path_value:
-                videos_by_norm[os.path.normpath(path_value)] = video
-
-        if video_paths:
-            normalized_targets: list[str] = []
-            raw_lookup: dict[str, str] = {}
-            for raw_path in video_paths:
-                if not isinstance(raw_path, str) or not raw_path:
-                    continue
-                norm_path = os.path.normpath(raw_path)
-                normalized_targets.append(norm_path)
-                raw_lookup.setdefault(norm_path, raw_path)
-
-            if not normalized_targets:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": "Nenhum vídeo selecionado para processamento.",
-                    },
-                )
-                return None
-
-            candidate_entries = [
-                videos_by_norm[norm_path]
-                for norm_path in normalized_targets
-                if norm_path in videos_by_norm
-            ]
-
-            missing_targets = [
-                norm_path for norm_path in normalized_targets if norm_path not in videos_by_norm
-            ]
-            if missing_targets:
-                sample = [os.path.basename(raw_lookup[norm]) for norm in missing_targets[:5]]
-                if len(missing_targets) > 5:
-                    sample.append(f"... (+{len(missing_targets) - 5})")
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Vídeos fora do projeto",
-                        "message": "Alguns itens selecionados não pertencem ao projeto atual:\n"
-                        + "\n".join(sample),
-                    },
-                )
-
-            if not candidate_entries:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": "Nenhum dos vídeos selecionados pertence ao projeto ativo.",
-                    },
-                )
-                return None
-
-            return candidate_entries
-        else:
-            candidate_entries = [
-                video
-                for video in all_videos
-                if video.get("status") not in {"processed", "complete"}
-            ]
-            if not candidate_entries:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": "Nenhum vídeo pendente para ser processado.",
-                    },
-                )
-                return None
-            return candidate_entries
-
-    def _classify_candidate_videos(
-        self, candidate_entries: list[dict], info_by_norm: dict
-    ) -> tuple[list[dict], list[dict], list[dict], list[dict], bool]:
-        """Given candidate entries and a lookup, classify them into buckets.
-
-        Returns (ready_with_trajectory, ready_with_zones, arena_only, without_arena, data_changed).
-        """
-        ready_with_trajectory: list[dict] = []
-        ready_with_zones: list[dict] = []
-        arena_only: list[dict] = []
-        without_arena: list[dict] = []
-
-        data_changed = False
-
-        for video in candidate_entries:
-            path = video.get("path")
-            if not isinstance(path, str) or not path:
-                continue
-
-            info = info_by_norm.get(os.path.normpath(path))
-            if not info:
-                continue
-
-            for key in ("has_arena", "has_rois", "has_trajectory", "has_complete_data"):
-                new_value = info.get(key, False)
-                if video.get(key) != new_value:
-                    video[key] = new_value
-                    data_changed = True
-
-            if info.get("has_arena"):
-                if info.get("has_trajectory"):
-                    ready_with_trajectory.append(info)
-                elif info.get("has_rois"):
-                    ready_with_zones.append(info)
-                else:
-                    arena_only.append(info)
-            else:
-                without_arena.append(info)
-
-        return (
-            ready_with_trajectory,
-            ready_with_zones,
-            arena_only,
-            without_arena,
-            data_changed,
-        )
 
     def _select_eligible_videos(
         self,
@@ -4254,55 +4383,6 @@ class MainViewModel:
                 return None
 
         return eligible_videos
-
-    def _scan_and_validate_candidate_paths(self, candidate_entries: list[dict]):
-        """Scan candidate paths and return (info_by_norm, missing_files, scanned_videos).
-
-        Returns (None, None, None) if there are no valid candidate paths.
-        """
-        candidate_paths = [
-            video.get("path")
-            for video in candidate_entries
-            if isinstance(video.get("path"), str) and video.get("path")
-        ]
-        if not candidate_paths:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro",
-                    "message": "Não foi possível localizar caminhos válidos para os vídeos selecionados.",  # noqa: E501
-                },
-            )
-            return None, None, None
-
-        scanned_videos = ProjectManager.scan_input_paths(candidate_paths)
-        info_by_norm = {
-            os.path.normpath(info["path"]): info
-            for info in scanned_videos
-            if isinstance(info.get("path"), str)
-        }
-
-        missing_files = [
-            path for path in candidate_paths if os.path.normpath(path) not in info_by_norm
-        ]
-        if missing_files:
-            sample_names = [os.path.basename(path) for path in missing_files[:5]]
-            if len(missing_files) > 5:
-                sample_names.append(f"... (+{len(missing_files) - 5})")
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Vídeos Não Encontrados",
-                    "message": "Alguns vídeos foram ignorados porque não foram localizados:\n"
-                    + "\n".join(sample_names),
-                },
-            )
-            log.warning(
-                "workflow.project_processing.missing_sources",
-                missing=len(missing_files),
-            )
-
-        return info_by_norm, missing_files, scanned_videos
 
     def _generate_parquet_summaries_worker(self, target_videos: list[dict], settings_obj) -> None:
         """Worker method to generate parquet summaries for a list of videos.
@@ -4458,7 +4538,7 @@ class MainViewModel:
                 return "skipped", f"{experiment_id}: calibração incompleta (px/cm).", None, False
 
             cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
-            video_width_px, video_height_px = cal.target_dims_px
+            _, video_height_px = cal.target_dims_px
             pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
             arena_polygon_warped = cal.transform_points(arena_polygon_px)
 
@@ -4519,22 +4599,6 @@ class MainViewModel:
             return "failed", f"{experiment_id}: erro inesperado ({exc}).", None, False
         finally:
             self.project_manager.set_active_zone_video(None)
-
-    def _schedule_analysis_metadata_update(self, metadata: dict) -> None:
-        """Delegate to VideoProcessingService._schedule_analysis_metadata_update.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        self.video_processing_service._schedule_analysis_metadata_update(metadata)
-
-    def _notify_task_status_start(self, *, index: int, total: int, experiment_id: str) -> None:
-        """Delegate to VideoProcessingService._notify_task_status_start.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        self.video_processing_service._notify_task_status_start(
-            index=index, total=total, experiment_id=experiment_id
-        )
 
     def _make_progress_callback(
         self,
@@ -4611,45 +4675,6 @@ class MainViewModel:
     # - _resolve_results_path
     # - _ensure_arena_polygon
     # - _load_trajectory_dataframe
-
-    def _collect_params_from_single_video(self, config: dict, experiment_id: str):
-        """Delegate to VideoProcessingService._collect_params_from_single_video.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        return self.video_processing_service._collect_params_from_single_video(
-            config, experiment_id
-        )
-
-    def _collect_params_from_project(
-        self, metadata_context: dict | None, experiment_id: str, video_path: Path | str
-    ):
-        """Delegate to VideoProcessingService._collect_params_from_project.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        return self.video_processing_service._collect_params_from_project(
-            metadata_context, experiment_id, video_path
-        )
-
-    def _collect_analysis_parameters(
-        self,
-        *,
-        single_video_config: dict | None,
-        metadata_context: dict | None,
-        experiment_id: str,
-        video_path: str,
-    ) -> tuple[dict, float | None, float | None, float, float, float, int, int]:
-        """Delegate to VideoProcessingService._collect_analysis_parameters.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        return self.video_processing_service._collect_analysis_parameters(
-            single_video_config=single_video_config,
-            metadata_context=metadata_context,
-            experiment_id=experiment_id,
-            video_path=video_path,
-        )
 
     def _prepare_calibration_context(
         self,
@@ -4907,41 +4932,6 @@ class MainViewModel:
         Phase 3: Refactored to delegate to service layer.
         """
         self.video_processing_service._prepare_results_directory(results_dir)
-
-    def _snapshot_results_dir(self, results_path: Path) -> set[str]:
-        """Delegate to VideoProcessingService._snapshot_results_dir.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        return self.video_processing_service._snapshot_results_dir(results_path)
-
-    def _cleanup_cancelled_results(self, results_dir: str, baseline_items: set[str]) -> None:
-        """Delegate to VideoProcessingService._cleanup_cancelled_results.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        self.video_processing_service._cleanup_cancelled_results(results_dir, baseline_items)
-
-    def _compose_analysis_view_metadata(
-        self,
-        *,
-        experiment_id: str,
-        video_path: str,
-        metadata_context: dict | None,
-        single_video_config: dict | None,
-        analysis_profile: dict | None,
-    ) -> dict:
-        """Delegate to VideoProcessingService._compose_analysis_view_metadata.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        return self.video_processing_service._compose_analysis_view_metadata(
-            experiment_id=experiment_id,
-            video_path=video_path,
-            metadata_context=metadata_context,
-            single_video_config=single_video_config,
-            analysis_profile=analysis_profile,
-        )
 
     def _create_processing_callbacks(self, videos_to_process: list[dict]) -> ProcessingCallbacks:
         """
