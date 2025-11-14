@@ -60,6 +60,7 @@ from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
 from zebtrack.orchestrators.analysis_orchestrator import AnalysisOrchestrator
+from zebtrack.orchestrators.project_orchestrator import ProjectOrchestrator
 from zebtrack.orchestrators.recording_session_orchestrator import RecordingSessionOrchestrator
 from zebtrack.orchestrators.video_processing_orchestrator import VideoProcessingOrchestrator
 from zebtrack.plugins import DETECTOR_PLUGINS
@@ -586,6 +587,9 @@ class MainViewModel:
 
         # Sprint 26: Recording Session Orchestrator
         self.recording_session_orchestrator = RecordingSessionOrchestrator(self)
+
+        # Sprint 27: Project Orchestrator
+        self.project_orchestrator = ProjectOrchestrator(self)
 
     def run(self):
         """Start the Tkinter main event loop.
@@ -1129,39 +1133,22 @@ class MainViewModel:
             trigger_source=trigger_source,
         )
 
-    def close_project(self):
-        """
-        Close the current project.
+    def close_project(self) -> None:
+        """Close current project.
 
-        Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        # Delegate to adapter which handles all UI coordination
-        new_project_manager = self.project_workflow_adapter.close_project(
-            restore_global_defaults_callback=self._restore_global_model_defaults,
-            settings_obj=self.settings,
-        )
-        # Update reference to new project manager
-        self.project_manager = new_project_manager
+        return self.project_orchestrator.close_project()
 
-    def create_project_workflow(self, **kwargs):
-        """
-        Create project workflow orchestration.
+    def create_project_workflow(
+        self, project_type: str | None = None, initial_data: dict | None = None
+    ):
+        """Create new project workflow.
 
-        Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        # Delegate to adapter which handles all UI coordination
-        return self.project_workflow_adapter.create_project_workflow(
-            setup_detector_callback=self.setup_detector,
-            set_active_weight_callback=self.set_active_weight,
-            set_openvino_usage_callback=self.set_openvino_usage,
-            update_openvino_status_callback=self.update_openvino_status,
-            get_active_weight_name=lambda: self.active_weight_name,
-            get_use_openvino=lambda: self.use_openvino,
-            apply_wizard_overrides_callback=self._apply_wizard_detector_overrides,
-            view_suppress_guide_check=lambda: getattr(
-                self.view, "suppress_post_creation_guide", False
-            ),
-            **kwargs,
+        return self.project_orchestrator.create_project_workflow(
+            project_type=project_type, initial_data=initial_data
         )
 
     def _apply_wizard_detector_overrides(self, wizard_metadata: dict) -> None:
@@ -1246,33 +1233,19 @@ class MainViewModel:
         """
         self.detector_coordinator.restore_detector_settings(saved_detector_config)
 
-    def _setup_zones_from_project(self) -> None:
-        """
-        Set up zones from project data.
+    def _setup_zones_from_project(self):
+        """Setup zones from project.
 
-        Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        self.project_workflow_adapter.setup_zones_from_project(
-            setup_detector_zones_callback=self.setup_detector_zones,
-        )
+        return self.project_orchestrator._setup_zones_from_project()
 
-    def open_project_workflow(self, project_path: Path | str):
-        """
-        Load project and configure everything automatically.
+    def open_project_workflow(self, project_path: str | None = None):
+        """Open existing project workflow.
 
-        Phase 2, Task P2-T2: Delegates to ProjectWorkflowAdapter.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        return self.project_workflow_adapter.open_project_workflow(
-            project_path=project_path,
-            setup_detector_callback=self.setup_detector,
-            set_active_weight_callback=self.set_active_weight,
-            set_openvino_usage_callback=self.set_openvino_usage,
-            update_openvino_status_callback=self.update_openvino_status,
-            setup_zones_callback=self._setup_zones_from_project,
-            restore_detector_callback=self._restore_detector_settings,
-            get_active_weight_name=lambda: self.active_weight_name,
-            get_use_openvino=lambda: self.use_openvino,
-        )
+        return self.project_orchestrator.open_project_workflow(project_path=project_path)
 
     def setup_detector(self, temp_animal_method: str | None = None) -> bool:
         """
@@ -1556,14 +1529,12 @@ class MainViewModel:
             dialog.update_openvino_status_label(status)
         self.ui_event_bus.publish_event(Events.UI_UPDATE_OPENVINO_STATUS, {"status": status})
 
-    @property
     def are_project_overrides_active(self) -> bool:
-        """Check if project-specific model overrides are currently active.
+        """Check if project overrides are active.
 
-        Returns:
-            True if using project overrides, False if using global settings.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        return bool(self._using_project_overrides)
+        return self.project_orchestrator.are_project_overrides_active()
 
     def get_global_model_defaults(self) -> dict:
         """Get global model default settings.
@@ -1584,23 +1555,18 @@ class MainViewModel:
         return project_data
 
     def _ensure_project_overrides_record(self) -> dict:
-        project_data = self._get_project_data_dict()
-        overrides = project_data.get("model_overrides")
-        if not isinstance(overrides, dict):
-            overrides = {"active_weight": None, "use_openvino": None}
-            project_data["model_overrides"] = overrides
-        return overrides
+        """Ensure project overrides record exists.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator._ensure_project_overrides_record()
 
     def has_project_override_settings(self) -> bool:
-        """Check if project has any non-empty model override settings.
+        """Check if project has override settings.
 
-        Returns:
-            True if project has model overrides, False otherwise.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        if not getattr(self.project_manager, "project_path", None):
-            return False
-        overrides = self._ensure_project_overrides_record()
-        return any(value not in (None, "", "inherit") for value in overrides.values())
+        return self.project_orchestrator.has_project_override_settings()
 
     def get_calibration_scope_info(self) -> dict:
         """Get calibration scope information for UI display.
@@ -1747,63 +1713,19 @@ class MainViewModel:
 
         return overrides
 
-    def copy_global_model_settings_to_project(self) -> tuple[str | None, bool] | None:
-        """Copy global model settings to current project as overrides.
+    def copy_global_model_settings_to_project(self) -> None:
+        """Copy global model settings to project.
 
-        Returns:
-            Tuple of (weight_name, use_openvino) if successful, None otherwise.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        if not getattr(self.project_manager, "project_path", None):
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Nenhum Projeto",
-                    "message": "Abra um projeto antes de copiar configurações globais.",
-                },
-            )
-            return None
+        return self.project_orchestrator.copy_global_model_settings_to_project()
 
-        defaults = self.get_global_model_defaults()
-        weight = defaults.get("active_weight") or (self.active_weight_name or None)
-        use_openvino = bool(defaults.get("use_openvino", False))
+    def save_current_calibration_to_project(self) -> None:
+        """Save current calibration to project.
 
-        overrides = self._persist_project_model_settings(weight, use_openvino)
-
-        message = "Configurações globais aplicadas ao projeto."
-        self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": message})
-        self.refresh_project_views(reason=message, append_summary=True)
-
-        return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
-
-    def save_current_calibration_to_project(self) -> tuple[str | None, bool] | None:
-        """Save current model settings as project-specific overrides.
-
-        Returns:
-            Tuple of (weight_name, use_openvino) if successful, None otherwise.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        if not getattr(self.project_manager, "project_path", None):
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Nenhum Projeto",
-                    "message": "Abra um projeto antes de salvar overrides de calibração.",
-                },
-            )
-            return None
-
-        overrides = self._persist_project_model_settings(
-            self.active_weight_name or None,
-            bool(self.use_openvino),
-        )
-
-        # Garantir que o estado em memória reflita os overrides recém-salvos
-        self.apply_project_model_overrides(overrides)
-
-        message = "Overrides do projeto atualizados a partir desta calibração."
-        self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": message})
-        self.refresh_project_views(reason=message, append_summary=True)
-
-        return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
+        return self.project_orchestrator.save_current_calibration_to_project()
 
     def _apply_model_settings(
         self, weight_name: str | None, use_openvino: bool, dialog=None
@@ -1815,68 +1737,22 @@ class MainViewModel:
         self.set_openvino_usage(bool(use_openvino), dialog)
 
     def resolve_project_model_settings(
-        self, overrides: dict | None = None
-    ) -> tuple[str | None, bool]:
-        """Resolve model settings considering project overrides and global defaults.
+        self,
+        model_type: str,
+        model_key: str,
+        field_name: str,
+        default_value=None,
+    ):
+        """Resolve project model settings with fallback.
 
-        Args:
-            overrides: Optional override dictionary to merge with project overrides.
-
-        Returns:
-            Tuple of (resolved_weight, resolved_openvino).
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        project_data = getattr(self.project_manager, "project_data", {}) or {}
-        base_overrides = project_data.get("model_overrides") or {}
-        if overrides is not None:
-            merged_overrides = base_overrides.copy()
-            merged_overrides.update(overrides)
-        else:
-            merged_overrides = base_overrides
-
-        weight_override = merged_overrides.get("active_weight")
-        if isinstance(weight_override, str):
-            weight_override = weight_override.strip() or None
-
-        openvino_override = merged_overrides.get("use_openvino")
-        if isinstance(openvino_override, str):
-            lowered = openvino_override.strip().lower()
-            if lowered in {"", "inherit", "auto"}:
-                openvino_override = None
-            else:
-                openvino_override = lowered in {"true", "1", "yes", "on"}
-
-        resolved_weight = weight_override
-        if not resolved_weight:
-            resolved_weight = project_data.get("active_weight") or None
-        if not resolved_weight:
-            resolved_weight = self._global_model_defaults.get("active_weight")
-        if not resolved_weight:
-            default_weight, _ = self._safe_get_default_weight()
-            resolved_weight = default_weight
-
-        available_weights = set(self.get_all_weight_names())
-        if resolved_weight and resolved_weight not in available_weights:
-            log.warning(
-                "controller.project_overrides.weight_missing",
-                weight=resolved_weight,
-                available=list(available_weights),
-            )
-            fallback_weight = self._global_model_defaults.get("active_weight")
-            if fallback_weight and fallback_weight in available_weights:
-                resolved_weight = fallback_weight
-            else:
-                default_weight, _ = self._safe_get_default_weight()
-                resolved_weight = default_weight if default_weight else None
-
-        if openvino_override is None:
-            if project_data.get("use_openvino") is not None:
-                resolved_openvino = bool(project_data.get("use_openvino"))
-            else:
-                resolved_openvino = bool(self._global_model_defaults.get("use_openvino", False))
-        else:
-            resolved_openvino = bool(openvino_override)
-
-        return resolved_weight, resolved_openvino
+        return self.project_orchestrator.resolve_project_model_settings(
+            model_type=model_type,
+            model_key=model_key,
+            field_name=field_name,
+            default_value=default_value,
+        )
 
     def apply_project_model_overrides(
         self, overrides: dict | None = None
@@ -1969,23 +1845,12 @@ class MainViewModel:
 
     @contextmanager
     def project_calibration_session(self):
-        """Context manager for project-specific calibration mode.
+        """Project calibration context manager.
 
-        Enables project override mode and saves changes to project settings.
-        Maintains override state on exit if project has overrides.
-
-        Yields:
-            None
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        previous_flag = self._using_project_overrides
-        self._using_project_overrides = True
-        try:
+        with self.project_orchestrator.project_calibration_session():
             yield
-        finally:
-            if self.has_project_override_settings():
-                self._using_project_overrides = True
-            else:
-                self._using_project_overrides = previous_flag
 
     def run_aquarium_detection(
         self,
@@ -2265,58 +2130,23 @@ class MainViewModel:
             log.error("controller.zone.add_roi.error", name=name, error=str(e))
             return False
 
-    def can_remove_project_asset(
-        self, video_path: Path | str, asset: str
-    ) -> tuple[bool, str | None]:
-        """Validate whether a project asset can be safely removed."""
-        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+    def can_remove_project_asset(self, asset_type: AssetType, video_name: str) -> tuple[bool, str]:
+        """Check if project asset can be removed.
 
-        try:
-            asset_type = cast(AssetType, asset)
-            return self.project_manager.can_remove_asset(str(video_path), asset_type)
-        except Exception as exc:  # pragma: no cover - defensive logging
-            log.error(
-                "controller.project_asset.can_remove_failed",
-                asset=asset,
-                video=video_path,
-                error=str(exc),
-            )
-            return False, "Não foi possível validar a remoção solicitada."
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.can_remove_project_asset(
+            asset_type=asset_type, video_name=video_name
+        )
 
-    def delete_project_asset(
-        self,
-        video_path: Path | str,
-        asset: str,
-        *,
-        delete_source: bool = True,
-    ) -> bool:
-        """Remove a project asset (arena, ROIs, trajetória, sumário ou vídeo)."""
-        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+    def delete_project_asset(self, asset_type: AssetType, video_name: str) -> bool:
+        """Delete project asset.
 
-        try:
-            asset_type = cast(AssetType, asset)
-            removed = self.project_manager.remove_asset(
-                str(video_path),
-                asset_type,
-                delete_files=delete_source,
-            )
-            log.info(
-                "controller.project_asset.removal_result",
-                asset=asset,
-                video=video_path,
-                removed=removed,
-                delete_source=delete_source,
-            )
-            return removed
-        except Exception as exc:  # pragma: no cover - defensive logging
-            log.error(
-                "controller.project_asset.remove_failed",
-                asset=asset,
-                video=video_path,
-                error=str(exc),
-                exc_info=True,
-            )
-            return False
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.delete_project_asset(
+            asset_type=asset_type, video_name=video_name
+        )
 
     def run_live_calibration(self, temp_aquarium_method: str | None = None):
         """Record a short clip from the live camera and runs aquarium detection.
@@ -3514,31 +3344,14 @@ class MainViewModel:
         )
 
     def _register_project_outputs(
-        self,
-        *,
-        video_path: str,
-        results_dir: str,
-        trajectory_path: str,
-        summary_parquet: str,
-        summary_excel: str,
-        report_path: str,
+        self, project_path: str, video_file: str
     ) -> None:
-        """Delegate to VideoProcessingService._register_project_outputs, then refresh views.
+        """Register project outputs.
 
-        Phase 3: Refactored to delegate to service layer.
-        The refresh_project_views call remains here as it's a MainViewModel responsibility.
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
         """
-        self.video_processing_service._register_project_outputs(
-            video_path=video_path,
-            results_dir=results_dir,
-            trajectory_path=trajectory_path,
-            summary_parquet=summary_parquet,
-            summary_excel=summary_excel,
-            report_path=report_path,
-        )
-        self.refresh_project_views(
-            reason="processing_progress",
-            append_summary=True,
+        return self.project_orchestrator._register_project_outputs(
+            project_path=project_path, video_file=video_file
         )
 
     def _run_analysis_pipeline(
