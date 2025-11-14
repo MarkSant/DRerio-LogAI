@@ -1384,13 +1384,6 @@ class MainViewModel:
         )
         return success
 
-    def _is_arduino_connected(self) -> bool:
-        """Check whether there is an active Arduino connection.
-
-        Task 2.2: Delegates to HardwareCoordinator.
-        """
-        return self.hardware_coordinator.is_arduino_connected()
-
     def setup_arduino(self) -> bool:
         """Ensure the Arduino connection is ready when the project requests it.
 
