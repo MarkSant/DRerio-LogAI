@@ -1,9 +1,9 @@
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
-**Versão:** 2.3
+**Versão:** 2.4
 **Data:** 2025-01-13 (atualizado: 2025-01-13)
-**Status:** 🚀 EM ANDAMENTO (Sprint 16 COMPLETO - Coordinator Init Simplification)
+**Status:** 🚀 EM ANDAMENTO (Sprint 17 COMPLETO - Dead Code Removal)
 **Prioridade:** 🔴 CRÍTICA
 
 ---
@@ -224,10 +224,24 @@
   - No functional changes
   - Following "bem feito" approach
 
+**Sprint 17: Dead Code Removal** ✅ **COMPLETO**
+- ✅ **Phase 1: Remove Unused Wrapper Methods**
+  - Removed _schedule_analysis_metadata_update() (7 lines)
+  - Removed _notify_task_status_start() (9 lines)
+  - Removed _compose_analysis_view_metadata() (20 lines)
+  - All were unused legacy delegates to VideoProcessingService
+  - **Commit:** 20ef8b0
+  - **Impacto:** -37 linhas (-0.6%)
+
+- ✅ **Analysis: Dead Code Identification**
+  - Found 64 methods with 0 direct calls
+  - Identified safe-to-remove vs. callbacks/event handlers
+  - Focused on genuinely unused code with zero value
+
 **Próximos Sprints:**
-- ⏳ Sprint 17: Method consolidation and inline helpers
-- ⏳ Sprint 18-19: UI component extraction
-- ⏳ Sprint 20-21: ProjectManager refactoring
+- ⏳ Sprint 18: Continue dead code removal and consolidation
+- ⏳ Sprint 19-20: UI component extraction
+- ⏳ Sprint 21-22: ProjectManager refactoring
 
 ---
 
