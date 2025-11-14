@@ -1,9 +1,9 @@
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
-**Versão:** 2.6
+**Versão:** 2.7
 **Data:** 2025-01-14 (atualizado: 2025-01-14)
-**Status:** 🚀 EM ANDAMENTO (Sprint 19 COMPLETO - Dead Code Removal Phase 3)
+**Status:** 🚀 EM ANDAMENTO (Sprint 20 COMPLETO - Code Quality Improvements)
 **Prioridade:** 🔴 CRÍTICA
 
 ---
@@ -281,10 +281,29 @@
 - ✅ **Cumulative Total (Sprints 15-19):** -163 lines (5,733 → 5,570, -2.8%)
 - ✅ **Documentação:** docs/SPRINT_19_RESULTS.md
 
+**Sprint 20: Code Quality Improvements** ✅ **COMPLETO**
+- ✅ **Phase 1: MainViewModel & Coordinators** (-2 lines, 7 issues fixed)
+  - Fixed RUF059: unused unpacked variables (3 issues)
+  - Fixed F841: unused variable assignments (2 issues)
+  - Fixed F401: unused imports (2 issues)
+  - Files: main_view_model.py, project_coordinator.py, recording_coordinator.py
+  - **Commit:** 0338259
+
+- ✅ **Phase 2: Codebase-wide Cleanup** (-2 lines, 10 issues fixed)
+  - Fixed RUF059 in 7 files: analysis_coordinator, detector, video_orchestrator, openvino_detector, byte_tracker, canvas_manager
+  - Fixed F401: removed `subprocess` import (wizard_service.py)
+  - Fixed F841: removed `camera_names` variable (wizard_service.py)
+  - **Commit:** a1bcbc6
+
+- ✅ **Sprint 20 Total:** -4 lines, 17 linting issues fixed across 10 files
+- ✅ **Result:** Zero F401/F841/RUF059 warnings in entire codebase ✨
+- ✅ **Cumulative Total (Sprints 15-20):** -167 lines (5,733 → 5,568, -2.9%)
+- ✅ **Documentação:** docs/SPRINT_20_RESULTS.md
+
 **Próximos Sprints:**
-- ⏳ Sprint 20: Continue simplification and consolidation
-- ⏳ Sprint 21-22: UI component extraction
-- ⏳ Sprint 23-24: ProjectManager refactoring
+- ⏳ Sprint 21: Continue quality improvements or UI extraction
+- ⏳ Sprint 22-23: UI component extraction
+- ⏳ Sprint 24-25: ProjectManager refactoring
 
 ---
 
