@@ -73,6 +73,7 @@ def mock_state_manager():
     """Create mock StateManager."""
     manager = MagicMock()
     manager.get_state.return_value = {}
+    manager.prefer_unified_state_api = True
     return manager
 
 

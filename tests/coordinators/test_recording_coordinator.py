@@ -14,15 +14,16 @@ Test Coverage (Sprint 4 - Target: 40 tests):
 Total: 40 tests
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
+import pytest
+
+from zebtrack.coordinators.base import CoordinatorValidationError
 from zebtrack.coordinators.recording_coordinator import (
     RecordingCoordinator,
     RecordingCoordinatorError,
 )
-from zebtrack.coordinators.base import CoordinatorValidationError
-from zebtrack.core.state_manager import StateManager, StateCategory
+from zebtrack.core.state_manager import StateCategory, StateManager
 
 
 @pytest.fixture
@@ -97,9 +98,7 @@ class TestRecordingCoordinatorInitialization:
         assert coordinator.arduino_manager is mock_arduino_manager
         assert coordinator.event_bus is mock_event_bus
 
-    def test_init_without_arduino(
-        self, mock_state_manager, mock_recording_service
-    ):
+    def test_init_without_arduino(self, mock_state_manager, mock_recording_service):
         """Should initialize without Arduino."""
         coordinator = RecordingCoordinator(
             state_manager=mock_state_manager,
@@ -113,9 +112,7 @@ class TestRecordingCoordinatorInitialization:
         """Should pass validation when all dependencies present."""
         assert recording_coordinator.validate_dependencies() is True
 
-    def test_validate_dependencies_fails_without_recording_service(
-        self, mock_state_manager
-    ):
+    def test_validate_dependencies_fails_without_recording_service(self, mock_state_manager):
         """Should fail validation without recording_service."""
         coordinator = RecordingCoordinator(
             state_manager=mock_state_manager,
@@ -133,9 +130,7 @@ class TestRecordingCoordinatorInitialization:
 class TestRecordingStart:
     """Test start_recording method."""
 
-    def test_start_recording_success(
-        self, recording_coordinator, mock_state_manager
-    ):
+    def test_start_recording_success(self, recording_coordinator, mock_state_manager):
         """Should start recording successfully."""
         result = recording_coordinator.start_recording(
             output_path="/path/to/output",
@@ -145,9 +140,7 @@ class TestRecordingStart:
         assert result is True
         mock_state_manager.update_recording_state.assert_called()
 
-    def test_start_recording_with_duration(
-        self, recording_coordinator, mock_state_manager
-    ):
+    def test_start_recording_with_duration(self, recording_coordinator, mock_state_manager):
         """Should start recording with duration."""
         result = recording_coordinator.start_recording(
             output_path="/path/to/output",
@@ -160,9 +153,7 @@ class TestRecordingStart:
         call_kwargs = mock_state_manager.update_recording_state.call_args[1]
         assert call_kwargs["duration"] == 60
 
-    def test_start_recording_updates_state(
-        self, recording_coordinator, mock_state_manager
-    ):
+    def test_start_recording_updates_state(self, recording_coordinator, mock_state_manager):
         """Should update state after starting recording."""
         recording_coordinator.start_recording(
             output_path="/path/to/output",
@@ -176,9 +167,7 @@ class TestRecordingStart:
         assert call_kwargs["output_path"] == "/path/to/output"
         assert call_kwargs["experiment_id"] == "exp_001"
 
-    def test_start_recording_publishes_event(
-        self, recording_coordinator, mock_event_bus
-    ):
+    def test_start_recording_publishes_event(self, recording_coordinator, mock_event_bus):
         """Should publish RECORDING_STARTED event."""
         recording_coordinator.start_recording(
             output_path="/path/to/output",
@@ -190,9 +179,7 @@ class TestRecordingStart:
         assert event_name == "RECORDING_STARTED"
         assert event_data["output_path"] == "/path/to/output"
 
-    def test_start_recording_already_recording(
-        self, recording_coordinator, mock_state_manager
-    ):
+    def test_start_recording_already_recording(self, recording_coordinator, mock_state_manager):
         """Should raise error if already recording."""
         # Setup state as already recording
         mock_state = Mock()
@@ -223,9 +210,7 @@ class TestRecordingStart:
                 experiment_id=None,
             )
 
-    def test_start_recording_invalid_dependencies(
-        self, mock_state_manager
-    ):
+    def test_start_recording_invalid_dependencies(self, mock_state_manager):
         """Should raise validation error if dependencies invalid."""
         coordinator = RecordingCoordinator(
             state_manager=mock_state_manager,
@@ -247,9 +232,7 @@ class TestRecordingStart:
 class TestRecordingStop:
     """Test stop_recording method."""
 
-    def test_stop_recording_success(
-        self, recording_coordinator, mock_state_manager
-    ):
+    def test_stop_recording_success(self, recording_coordinator, mock_state_manager):
         """Should stop recording successfully."""
         # Setup state as recording
         mock_state = Mock()
@@ -261,9 +244,7 @@ class TestRecordingStop:
         assert result is True
         mock_state_manager.update_recording_state.assert_called()
 
-    def test_stop_recording_updates_state(
-        self, recording_coordinator, mock_state_manager
-    ):
+    def test_stop_recording_updates_state(self, recording_coordinator, mock_state_manager):
         """Should update state to not recording."""
         mock_state = Mock()
         mock_state.is_recording = True
@@ -289,9 +270,7 @@ class TestRecordingStop:
         event_name = mock_event_bus.publish_event.call_args[0][0]
         assert event_name == "RECORDING_STOPPED"
 
-    def test_stop_recording_not_recording(
-        self, recording_coordinator, mock_state_manager
-    ):
+    def test_stop_recording_not_recording(self, recording_coordinator, mock_state_manager):
         """Should return False if not recording."""
         # State already not recording
         mock_state = Mock()
@@ -325,9 +304,7 @@ class TestRecordingStop:
 class TestArduinoTrigger:
     """Test trigger_recording method."""
 
-    def test_trigger_recording_enter(
-        self, recording_coordinator, mock_event_bus
-    ):
+    def test_trigger_recording_enter(self, recording_coordinator, mock_event_bus):
         """Should trigger recording on zone enter."""
         result = recording_coordinator.trigger_recording(
             zone_name="zone1",
@@ -337,9 +314,7 @@ class TestArduinoTrigger:
         assert result is True
         mock_event_bus.publish_event.assert_called_once()
 
-    def test_trigger_recording_exit(
-        self, recording_coordinator, mock_event_bus
-    ):
+    def test_trigger_recording_exit(self, recording_coordinator, mock_event_bus):
         """Should trigger recording on zone exit."""
         result = recording_coordinator.trigger_recording(
             zone_name="zone1",
@@ -348,9 +323,7 @@ class TestArduinoTrigger:
 
         assert result is True
 
-    def test_trigger_recording_without_arduino(
-        self, mock_state_manager, mock_recording_service
-    ):
+    def test_trigger_recording_without_arduino(self, mock_state_manager, mock_recording_service):
         """Should return False if no Arduino manager."""
         coordinator = RecordingCoordinator(
             state_manager=mock_state_manager,
@@ -371,9 +344,7 @@ class TestArduinoTrigger:
 
         assert result is False
 
-    def test_trigger_recording_publishes_event(
-        self, recording_coordinator, mock_event_bus
-    ):
+    def test_trigger_recording_publishes_event(self, recording_coordinator, mock_event_bus):
         """Should publish RECORDING_TRIGGERED event."""
         recording_coordinator.trigger_recording(
             zone_name="zone1",
@@ -386,9 +357,7 @@ class TestArduinoTrigger:
         assert event_data["zone_name"] == "zone1"
         assert event_data["trigger_type"] == "enter"
 
-    def test_trigger_recording_handles_errors(
-        self, recording_coordinator, mock_event_bus
-    ):
+    def test_trigger_recording_handles_errors(self, recording_coordinator, mock_event_bus):
         """Should handle errors gracefully."""
         mock_event_bus.publish_event.side_effect = Exception("Error")
 
@@ -405,9 +374,7 @@ class TestArduinoTrigger:
 class TestRecordingStateQueries:
     """Test recording state query methods."""
 
-    def test_is_recording_returns_true(
-        self, recording_coordinator, mock_state_manager
-    ):
+    def test_is_recording_returns_true(self, recording_coordinator, mock_state_manager):
         """Should return True when recording."""
         mock_state = Mock()
         mock_state.is_recording = True
@@ -415,9 +382,7 @@ class TestRecordingStateQueries:
 
         assert recording_coordinator.is_recording() is True
 
-    def test_is_recording_returns_false(
-        self, recording_coordinator, mock_state_manager
-    ):
+    def test_is_recording_returns_false(self, recording_coordinator, mock_state_manager):
         """Should return False when not recording."""
         mock_state = Mock()
         mock_state.is_recording = False
@@ -425,9 +390,7 @@ class TestRecordingStateQueries:
 
         assert recording_coordinator.is_recording() is False
 
-    def test_get_recording_info_when_recording(
-        self, recording_coordinator, mock_state_manager
-    ):
+    def test_get_recording_info_when_recording(self, recording_coordinator, mock_state_manager):
         """Should return recording info when recording."""
         mock_state = Mock()
         mock_state.is_recording = True
@@ -444,9 +407,7 @@ class TestRecordingStateQueries:
         assert info["experiment_id"] == "exp_001"
         assert info["duration"] == 60
 
-    def test_get_recording_info_when_not_recording(
-        self, recording_coordinator, mock_state_manager
-    ):
+    def test_get_recording_info_when_not_recording(self, recording_coordinator, mock_state_manager):
         """Should return None when not recording."""
         mock_state = Mock()
         mock_state.is_recording = False
@@ -456,9 +417,7 @@ class TestRecordingStateQueries:
 
         assert info is None
 
-    def test_repr_shows_recording_state(
-        self, recording_coordinator, mock_state_manager
-    ):
+    def test_repr_shows_recording_state(self, recording_coordinator, mock_state_manager):
         """Should show recording state in repr."""
         mock_state = Mock()
         mock_state.is_recording = True
@@ -479,9 +438,7 @@ class TestRecordingStateQueries:
 class TestRecordingCoordinatorIntegration:
     """Integration tests with real StateManager."""
 
-    def test_full_recording_workflow(
-        self, mock_recording_service, mock_arduino_manager
-    ):
+    def test_full_recording_workflow(self, mock_recording_service, mock_arduino_manager):
         """Test complete recording workflow."""
         # Create real StateManager
         state_manager = StateManager(enable_history=True)
@@ -493,11 +450,14 @@ class TestRecordingCoordinatorIntegration:
         )
 
         # Start recording
-        assert coordinator.start_recording(
-            output_path="/path/to/output",
-            experiment_id="int_001",
-            duration=60,
-        ) is True
+        assert (
+            coordinator.start_recording(
+                output_path="/path/to/output",
+                experiment_id="int_001",
+                duration=60,
+            )
+            is True
+        )
         assert coordinator.is_recording() is True
 
         # Get info
@@ -508,9 +468,7 @@ class TestRecordingCoordinatorIntegration:
         assert coordinator.stop_recording() is True
         assert coordinator.is_recording() is False
 
-    def test_state_history_tracks_changes(
-        self, mock_recording_service
-    ):
+    def test_state_history_tracks_changes(self, mock_recording_service):
         """Should track state changes in history."""
         state_manager = StateManager(enable_history=True)
         coordinator = RecordingCoordinator(
@@ -531,9 +489,7 @@ class TestRecordingCoordinatorIntegration:
         # Verify source includes coordinator name
         assert any("RecordingCoordinator" in h.source for h in history)
 
-    def test_arduino_trigger_workflow(
-        self, mock_recording_service, mock_arduino_manager
-    ):
+    def test_arduino_trigger_workflow(self, mock_recording_service, mock_arduino_manager):
         """Test Arduino trigger workflow."""
         state_manager = StateManager(enable_history=True)
         coordinator = RecordingCoordinator(
@@ -549,26 +505,31 @@ class TestRecordingCoordinatorIntegration:
         )
 
         # Trigger zone enter
-        assert coordinator.trigger_recording(
-            zone_name="zone1",
-            trigger_type="enter",
-        ) is True
+        assert (
+            coordinator.trigger_recording(
+                zone_name="zone1",
+                trigger_type="enter",
+            )
+            is True
+        )
 
         # Trigger zone exit
-        assert coordinator.trigger_recording(
-            zone_name="zone1",
-            trigger_type="exit",
-        ) is True
+        assert (
+            coordinator.trigger_recording(
+                zone_name="zone1",
+                trigger_type="exit",
+            )
+            is True
+        )
 
-    def test_error_recovery_reverts_state(
-        self, mock_state_manager, mock_recording_service
-    ):
+    def test_error_recovery_reverts_state(self, mock_state_manager, mock_recording_service):
         """Should revert state on start error."""
         # Setup to cause error
         mock_state_manager.update_recording_state.side_effect = [
             None,  # First call succeeds (sets recording=True)
-            Exception("Error"),  # Second call fails
+            Exception("Error"),  # Second call fails when reverting
         ]
+        mock_recording_service.schedule_recording.side_effect = Exception("Start failure")
 
         coordinator = RecordingCoordinator(
             state_manager=mock_state_manager,

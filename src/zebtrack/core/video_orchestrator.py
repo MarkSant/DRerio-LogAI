@@ -294,9 +294,7 @@ class VideoOrchestrator:
             return
 
         # Scan and validate video files
-        info_by_norm, _, _ = self._scan_and_validate_candidate_paths(
-            candidate_entries
-        )
+        info_by_norm, _, _ = self._scan_and_validate_candidate_paths(candidate_entries)
         if info_by_norm is None:
             return
 

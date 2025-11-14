@@ -45,17 +45,46 @@ class RecordingSessionOrchestrator:
         self.root = main_view_model.root
         self.settings = main_view_model.settings
         self.project_manager = main_view_model.project_manager
-        self.recording_service = main_view_model.recording_service
-        self.live_camera_service = main_view_model.live_camera_service
         self.detector_service = main_view_model.detector_service
         self.ui_event_bus = main_view_model.ui_event_bus
         self.weight_manager = main_view_model.weight_manager
-        self.recording_coordinator = main_view_model.recording_coordinator
 
         # Move instance variable from MainViewModel
         self._pending_external_trigger: dict | None = None
 
     # ========== Phase 1: State Management (87 lines) ==========
+
+    @property
+    def recording_service(self):
+        return self.main_view_model.recording_service
+
+    @recording_service.setter
+    def recording_service(self, value):
+        self.main_view_model.recording_service = value
+
+    @property
+    def live_camera_service(self):
+        return self.main_view_model.live_camera_service
+
+    @live_camera_service.setter
+    def live_camera_service(self, value):
+        self.main_view_model.live_camera_service = value
+
+    @property
+    def recording_coordinator(self):
+        return self.main_view_model.recording_coordinator
+
+    @recording_coordinator.setter
+    def recording_coordinator(self, value):
+        self.main_view_model.recording_coordinator = value
+
+    @property
+    def _pending_external_trigger(self):
+        return self.main_view_model._pending_external_trigger
+
+    @_pending_external_trigger.setter
+    def _pending_external_trigger(self, value):
+        self.main_view_model._pending_external_trigger = value
 
     @property
     def is_recording(self) -> bool:
@@ -185,8 +214,25 @@ class RecordingSessionOrchestrator:
         context["camera_width"] = camera_width
         context["camera_height"] = camera_height
 
-        # Delegate to RecordingCoordinator (Sprint 15)
-        self.recording_coordinator.start_recording(
+        coordinator = self.recording_coordinator
+        if coordinator is not None:
+            try:
+                coordinator.start_recording(
+                    context=context,
+                    project_data=project_data,
+                    trigger_source=trigger_source,
+                )
+                return
+            except Exception as exc:  # pragma: no cover - defensive fallback
+                log.warning(
+                    "controller.recording.coordinator_start_failed",
+                    error=str(exc),
+                )
+
+        if self.recording_service is None:  # pragma: no cover - should not occur
+            raise RuntimeError("RecordingService not available for scheduling")
+
+        self.recording_service.schedule_recording(
             context=context,
             project_data=project_data,
             trigger_source=trigger_source,
@@ -270,8 +316,10 @@ class RecordingSessionOrchestrator:
 
         if event_code == 1:
             if self._pending_external_trigger:
-                self.main_view_model.log_arduino_event("Sinal externo recebido. Iniciando gravação...")  # noqa: E501
-                self.trigger_recording(event_code)
+                self.main_view_model.log_arduino_event(
+                    "Sinal externo recebido. Iniciando gravação..."
+                )  # noqa: E501
+                self.main_view_model.trigger_recording(event_code)
             else:
                 log.warning("controller.arduino.event.unexpected_start")
         elif event_code == 0:
@@ -423,7 +471,9 @@ class RecordingSessionOrchestrator:
 
         # Setup Arduino if needed
         project_data = self.project_manager.project_data or {}
-        arduino_enabled = bool(project_data.get("use_arduino") and self.main_view_model.setup_arduino())  # noqa: E501
+        arduino_enabled = bool(
+            project_data.get("use_arduino") and self.main_view_model.setup_arduino()
+        )  # noqa: E501
 
         # Build recording context
         context = {
@@ -455,8 +505,19 @@ class RecordingSessionOrchestrator:
         if self._pending_external_trigger:
             self._clear_external_trigger_wait()
 
-        # Delegate to RecordingCoordinator (Sprint 15)
-        self.recording_coordinator.stop_recording()
+        coordinator = self.recording_coordinator
+        if coordinator is not None:
+            try:
+                coordinator.stop_recording()
+            except Exception as exc:  # pragma: no cover - defensive fallback
+                log.warning("controller.recording.coordinator_stop_failed", error=str(exc))
+
+        recording_service = self.recording_service
+        if recording_service is not None:
+            try:
+                recording_service.stop_session()
+            except Exception as exc:  # pragma: no cover - defensive fallback
+                log.warning("controller.recording.service_stop_failed", error=str(exc))
 
         # Update UI on main thread
         self.ui_event_bus.publish_event(

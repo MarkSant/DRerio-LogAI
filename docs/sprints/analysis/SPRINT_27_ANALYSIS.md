@@ -1,5 +1,11 @@
 # Sprint 27: Project Management Methods - Detailed Analysis
 
+> This file now lives under `docs/sprints/analysis/` and acts as the
+> long-form reference. For a condensed brief see
+> [`overview/SPRINT_27_SUMMARY.md`](../overview/SPRINT_27_SUMMARY.md).
+
+<!-- markdownlint-disable MD056 MD032 MD022 MD029 MD026 -->
+
 **Current Status**: MainViewModel is 4,305 lines after Sprint 26
 **Goal**: Extract project lifecycle/management methods to ProjectOrchestrator
 **Target**: ~400 lines reduction

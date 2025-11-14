@@ -504,9 +504,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             if source_type == "camera":
                 duration_s = float(self.duration_var.get())
                 if duration_s < 10 or duration_s > 3600:
-                    raise ValueError(
-                        "A duração da gravação deve estar entre 10s e 3600s (1 hora)."
-                    )
+                    raise ValueError("A duração da gravação deve estar entre 10s e 3600s (1 hora).")
 
             if num_aquariums <= 0 or animals_per_aquarium <= 0:
                 raise ValueError("Os valores devem ser positivos.")

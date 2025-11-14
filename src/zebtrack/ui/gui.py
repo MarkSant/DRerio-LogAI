@@ -2916,7 +2916,6 @@ class ApplicationGUI:
 
             self._render_progress_grid()  # Refresh grid after starting a recording
 
-
     def _prompt_for_weight_type(self):
         """Prompts user to select weight type. Delegates to WidgetFactory."""
         return self.widget_factory.prompt_for_weight_type()

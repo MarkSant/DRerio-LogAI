@@ -304,9 +304,7 @@ class ProjectOrchestrator:
             return None
 
         defaults = self.main_view_model.get_global_model_defaults()
-        weight = defaults.get("active_weight") or (
-            self.main_view_model.active_weight_name or None
-        )
+        weight = defaults.get("active_weight") or (self.main_view_model.active_weight_name or None)
         use_openvino = bool(defaults.get("use_openvino", False))
 
         overrides = self._persist_project_model_settings(weight, use_openvino)

@@ -196,9 +196,7 @@ class VideoSelectionService:
         """
         # Select videos that are not yet processed
         candidate_entries = [
-            video
-            for video in all_videos
-            if video.get("status") not in {"processed", "complete"}
+            video for video in all_videos if video.get("status") not in {"processed", "complete"}
         ]
 
         result = VideoSelectionResult(

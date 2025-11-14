@@ -1,5 +1,11 @@
 # Sprint 27: ProjectOrchestrator Extraction - RECOMMENDATION
 
+> Relocated to `docs/sprints/plans/` as the canonical recommendation deck for
+> Sprint 27. A concise roll-up lives at
+> [`overview/SPRINT_27_SUMMARY.md`](../overview/SPRINT_27_SUMMARY.md).
+
+<!-- markdownlint-disable MD022 MD029 MD032 MD026 MD009 MD031 -->
+
 ## Executive Summary
 
 ✅ **RECOMMENDATION: PROCEED with extraction of 385 lines (14 methods)**

@@ -271,9 +271,7 @@ class ModelDiagnosticsOrchestrator:
 
         Facade - delegates to UIStateController (Sprint 28).
         """
-        return self.ui_state_controller._finish_progress_dialog(
-            progress_dialog=progress_dialog
-        )
+        return self.ui_state_controller._finish_progress_dialog(progress_dialog=progress_dialog)
 
     def _initialize_diagnostic_yolo_model(
         self,

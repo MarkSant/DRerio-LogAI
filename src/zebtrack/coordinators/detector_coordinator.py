@@ -286,9 +286,9 @@ class DetectorCoordinator(BaseCoordinator):
         # Delegate to service
         try:
             success = self.detector_service.configure_zones(
-                zone_data=zones_data,
-                width=video_width,
-                height=video_height,
+                zones_data=zones_data,
+                video_width=video_width,
+                video_height=video_height,
             )
 
             if success:

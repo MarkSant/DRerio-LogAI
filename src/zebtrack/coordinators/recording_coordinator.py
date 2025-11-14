@@ -18,6 +18,7 @@ Related:
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -27,6 +28,7 @@ from zebtrack.coordinators.base import (
     CoordinatorError,
     CoordinatorValidationError,
 )
+from zebtrack.core.state_manager import StateCategory
 
 if TYPE_CHECKING:
     from zebtrack.core.recording_service import RecordingService
@@ -136,10 +138,13 @@ class RecordingCoordinator(BaseCoordinator):
 
     def start_recording(
         self,
-        context: dict[str, Any],
-        project_data: dict[str, Any],
+        context: dict[str, Any] | None = None,
+        project_data: dict[str, Any] | None = None,
         *,
         trigger_source: str = "manual",
+        output_path: str | Path | None = None,
+        experiment_id: str | None = None,
+        duration: int | float | None = None,
     ) -> bool:
         """
         Start a recording session by delegating to RecordingService.
@@ -147,15 +152,12 @@ class RecordingCoordinator(BaseCoordinator):
         Sprint 15: Completed implementation - delegates to RecordingService.
 
         Args:
-            context: Recording context with session details:
-                - day, group, cobaia: Experiment identifiers
-                - folder_name: Session folder name
-                - output_folder: Full path to output folder
-                - arduino_enabled: Whether Arduino is active
-                - arduino_port: Arduino port (if enabled)
-                - camera_width, camera_height: Camera dimensions (added by ViewModel)
+            context: Recording context with session details. Optional for backward compatibility.
             project_data: Project configuration dictionary
             trigger_source: Source of the recording trigger (manual/external)
+            output_path: Legacy parameter for recording destination when context is omitted
+            experiment_id: Legacy parameter for experiment identifier when context is omitted
+            duration: Optional recording duration (seconds) used when context is omitted
 
         Returns:
             True if recording started successfully, False otherwise
@@ -171,8 +173,41 @@ class RecordingCoordinator(BaseCoordinator):
                 operation="start_recording",
             )
 
+        project_data = project_data or {}
+
+        if context is None:
+            if output_path is None:
+                raise ValueError("output_path is required when context is not provided")
+            if experiment_id is None:
+                raise ValueError("experiment_id is required when context is not provided")
+
+            inferred_folder = experiment_id or Path(str(output_path)).stem
+            context = {
+                "output_folder": str(output_path),
+                "folder_name": inferred_folder,
+                "experiment_id": experiment_id,
+                "duration": duration,
+            }
+        else:
+            # Copy to avoid mutating caller-provided dict
+            context = dict(context)
+
         self._validate_not_none(context, "context")
-        self._validate_not_none(project_data, "project_data")
+
+        effective_output = context.get("output_folder") or output_path
+        effective_experiment = context.get("experiment_id") or experiment_id
+        effective_duration = (
+            context.get("duration") if context.get("duration") is not None else duration
+        )
+
+        if effective_output is None:
+            raise ValueError("Recording context must include 'output_folder'")
+        if effective_experiment is None:
+            raise ValueError("Recording context must include 'experiment_id'")
+
+        # Normalize folder name for legacy callers
+        context.setdefault("folder_name", effective_experiment)
+        context.setdefault("output_folder", str(effective_output))
 
         output_folder = context.get("output_folder")
         folder_name = context.get("folder_name")
@@ -183,22 +218,35 @@ class RecordingCoordinator(BaseCoordinator):
             trigger_source=trigger_source,
         )
 
+        state_prepared = False
+
         try:
             # Check if already recording
             recording_state = self.state_manager.get_recording_state()
             if recording_state and recording_state.is_recording:
-                log.warning("recording_coordinator.already_recording")
-                return False
+                raise RecordingCoordinatorError(
+                    "Recording already in progress",
+                    coordinator="RecordingCoordinator",
+                )
 
-            # Delegate to RecordingService (Sprint 15: completed)
-            self.recording_service.start_session(
+            # Optimistically update state so UI reflects immediate transition
+            pre_state_update: dict[str, Any] = {
+                "is_recording": True,
+                "output_path": str(effective_output),
+                "experiment_id": effective_experiment,
+            }
+            if effective_duration is not None:
+                pre_state_update["duration"] = effective_duration
+
+            self._update_state(StateCategory.RECORDING, **pre_state_update)
+            state_prepared = True
+
+            # Delegate to RecordingService scheduler so countdown logic still runs
+            self.recording_service.schedule_recording(
                 context=context,
                 project_data=project_data,
                 trigger_source=trigger_source,
             )
-
-            # Note: RecordingService updates StateManager directly,
-            # so we don't need to update state here
 
             # Publish event
             self._publish_event(
@@ -206,7 +254,9 @@ class RecordingCoordinator(BaseCoordinator):
                 {
                     "folder_name": folder_name,
                     "output_folder": output_folder,
+                    "output_path": str(effective_output),
                     "trigger_source": trigger_source,
+                    "duration": effective_duration,
                 },
             )
 
@@ -224,6 +274,26 @@ class RecordingCoordinator(BaseCoordinator):
                 error=str(e),
                 exc_info=True,
             )
+
+            if state_prepared:
+                try:
+                    self._update_state(
+                        StateCategory.RECORDING,
+                        is_recording=False,
+                    )
+                except Exception as revert_error:
+                    log.error(
+                        "recording_coordinator.start_recording.revert_failed",
+                        error=str(revert_error),
+                        exc_info=True,
+                    )
+                    raise RecordingCoordinatorError(
+                        "Failed to revert recording state after start error",
+                        context={
+                            "folder_name": folder_name,
+                            "trigger_source": trigger_source,
+                        },
+                    ) from revert_error
 
             raise RecordingCoordinatorError(
                 f"Failed to start recording: {e!s}",
@@ -251,8 +321,14 @@ class RecordingCoordinator(BaseCoordinator):
             # Delegate to RecordingService (Sprint 15: completed)
             self.recording_service.stop_session()
 
-            # Note: RecordingService updates StateManager directly,
-            # so we don't need to update state here
+            # Update state to reflect stop immediately
+            self._update_state(
+                StateCategory.RECORDING,
+                is_recording=False,
+                output_path=None,
+                experiment_id=None,
+                duration=None,
+            )
 
             # Publish event
             self._publish_event("RECORDING_STOPPED", {})

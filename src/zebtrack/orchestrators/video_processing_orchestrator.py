@@ -458,9 +458,7 @@ class VideoProcessingOrchestrator:
 
         # Refresh views so the video appears in Main Control and Reports tabs
         # Ensures the user sees the registered video before processing starts
-        self.main_view_model.refresh_project_views(
-            reason="Single video registered", immediate=True
-        )
+        self.main_view_model.refresh_project_views(reason="Single video registered", immediate=True)
 
         # 1. Update the detector with the newly created zone data
         # We need to know the video dimensions to set up the zones correctly
@@ -687,9 +685,7 @@ class VideoProcessingOrchestrator:
 
             # UI: Show warning if targets are missing from project
             if selection_result.has_missing:
-                sample = [
-                    os.path.basename(path) for path in selection_result.missing_targets[:5]
-                ]
+                sample = [os.path.basename(path) for path in selection_result.missing_targets[:5]]
                 if len(selection_result.missing_targets) > 5:
                     sample.append(f"... (+{len(selection_result.missing_targets) - 5})")
                 self.ui_event_bus.publish_event(

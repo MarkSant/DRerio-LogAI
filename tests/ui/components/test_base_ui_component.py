@@ -13,12 +13,42 @@ Test Coverage:
 - Error handling
 """
 
-import pytest
-from tkinter import Tk, Frame
-from unittest.mock import Mock, MagicMock, patch, call
+from copy import deepcopy
+from tkinter import Frame
+from unittest.mock import Mock, patch
 
-from zebtrack.ui.components.base_component import BaseUIComponent, UIComponentError
+import pytest
+
 from zebtrack.settings import Settings
+from zebtrack.ui.components.base_component import BaseUIComponent, UIComponentError
+
+MINIMAL_SETTINGS_DATA = {
+    "camera": {
+        "index": 0,
+        "desired_width": 1280,
+        "desired_height": 720,
+        "max_reconnect_attempts": 3,
+        "reconnect_timeout_seconds": 5.0,
+        "max_frame_lag_ms": 100.0,
+    },
+    "arduino": {
+        "port": "COM3",
+        "baud_rate": 115200,
+    },
+    "yolo_model": {
+        "path": "tests/fixtures/models/mock.pt",
+        "confidence_threshold": 0.25,
+        "nms_threshold": 0.45,
+    },
+    "video_processing": {
+        "fps": 30,
+        "processing_interval": 10,
+        "processing_offset": 0,
+    },
+    "reproducibility": {
+        "seed": 42,
+    },
+}
 
 
 class ConcreteUIComponent(BaseUIComponent):
@@ -64,8 +94,8 @@ def mock_event_bus():
 
 @pytest.fixture
 def settings_obj():
-    """Provide a Settings object."""
-    return Settings()
+    """Provide a validated Settings object for UI tests."""
+    return Settings.model_validate(deepcopy(MINIMAL_SETTINGS_DATA))
 
 
 class TestBaseUIComponentInitialization:
@@ -133,9 +163,7 @@ class TestBaseUIComponentInitialization:
                 settings_obj=settings_obj,
             )
 
-            mock_logger.info.assert_called_once_with(
-                "component.initialized", has_event_bus=True
-            )
+            mock_logger.info.assert_called_once_with("component.initialized", has_event_bus=True)
 
 
 class TestBaseUIComponentAbstractMethods:
@@ -163,6 +191,7 @@ class TestBaseUIComponentAbstractMethods:
         class IncompleteComponent(BaseUIComponent):
             def bind_events(self):
                 pass
+
             # Missing setup_widgets
 
         with pytest.raises(TypeError):
@@ -181,6 +210,7 @@ class TestBaseUIComponentAbstractMethods:
         class IncompleteComponent(BaseUIComponent):
             def setup_widgets(self):
                 pass
+
             # Missing bind_events
 
         with pytest.raises(TypeError):
@@ -234,9 +264,7 @@ class TestBaseUIComponentLifecycle:
 
         assert not component.setup_called  # Should not be called again
 
-    def test_hide_makes_component_invisible(
-        self, tk_parent, mock_controller, settings_obj
-    ):
+    def test_hide_makes_component_invisible(self, tk_parent, mock_controller, settings_obj):
         """Should hide the component."""
         component = ConcreteUIComponent(
             parent=tk_parent,
@@ -300,13 +328,9 @@ class TestBaseUIComponentEventBus:
 
         component._emit_event("TEST_EVENT", {"key": "value"})
 
-        mock_event_bus.publish_event.assert_called_once_with(
-            "TEST_EVENT", {"key": "value"}
-        )
+        mock_event_bus.publish_event.assert_called_once_with("TEST_EVENT", {"key": "value"})
 
-    def test_emit_event_without_event_bus(
-        self, tk_parent, mock_controller, settings_obj
-    ):
+    def test_emit_event_without_event_bus(self, tk_parent, mock_controller, settings_obj):
         """Should handle missing event_bus gracefully."""
         component = ConcreteUIComponent(
             parent=tk_parent,
@@ -337,9 +361,7 @@ class TestBaseUIComponentEventBus:
 class TestBaseUIComponentUIThreadScheduling:
     """Test UI thread scheduling."""
 
-    def test_schedule_on_ui_calls_parent_after(
-        self, tk_parent, mock_controller, settings_obj
-    ):
+    def test_schedule_on_ui_calls_parent_after(self, tk_parent, mock_controller, settings_obj):
         """Should schedule function on UI thread via parent.after()."""
         component = ConcreteUIComponent(
             parent=tk_parent,
@@ -355,9 +377,7 @@ class TestBaseUIComponentUIThreadScheduling:
 
             mock_after.assert_called_once_with(0, mock_func, "arg1", kwarg1="kwarg1")
 
-    def test_schedule_on_ui_without_arguments(
-        self, tk_parent, mock_controller, settings_obj
-    ):
+    def test_schedule_on_ui_without_arguments(self, tk_parent, mock_controller, settings_obj):
         """Should schedule function without arguments."""
         component = ConcreteUIComponent(
             parent=tk_parent,
@@ -465,9 +485,7 @@ class TestBaseUIComponentErrors:
 class TestBaseUIComponentRepr:
     """Test string representation."""
 
-    def test_repr_shows_useful_debug_info(
-        self, tk_parent, mock_controller, settings_obj
-    ):
+    def test_repr_shows_useful_debug_info(self, tk_parent, mock_controller, settings_obj):
         """Should show visibility and initialization state."""
         component = ConcreteUIComponent(
             parent=tk_parent,

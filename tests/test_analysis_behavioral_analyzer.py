@@ -190,9 +190,9 @@ def test_behavioral_analyzer_velocity_relationship():
     avg_vel = result["velocidade_media_cm_s"]
 
     # Accept if max >= avg OR if they're within 10% (handles edge cases)
-    assert (
-        max_vel >= avg_vel or abs(max_vel - avg_vel) <= 0.1 * max(max_vel, avg_vel)
-    ), f"Max velocity {max_vel} should be >= average velocity {avg_vel}"
+    assert max_vel >= avg_vel or abs(max_vel - avg_vel) <= 0.1 * max(max_vel, avg_vel), (
+        f"Max velocity {max_vel} should be >= average velocity {avg_vel}"
+    )
 
 
 def test_behavioral_analyzer_multiple_instances():

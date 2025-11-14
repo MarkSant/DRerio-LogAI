@@ -352,7 +352,9 @@ class ProcessingCoordinator(BaseCoordinator):
         if validate_zones:
             zone_validation = self._validate_zones(prompt_if_missing=prompt_for_arena)
             if not zone_validation:
-                log.warning("processing_coordinator.start_project_processing.zone_validation_failed")
+                log.warning(
+                    "processing_coordinator.start_project_processing.zone_validation_failed"
+                )
                 return False
 
         # Update state
@@ -627,12 +629,22 @@ class ProcessingCoordinator(BaseCoordinator):
         """
         processing_state = self.state_manager.get_state(StateCategory.PROCESSING)
 
+        start_time = processing_state.get("processing_start_time")
+        if start_time is None:
+            start_time = processing_state.get("start_time")
+
+        is_cancelled = processing_state.get("cancel_requested")
+        if is_cancelled is None:
+            is_cancelled = processing_state.get("is_cancelled", False)
+
         return {
             "is_processing": processing_state.get("is_processing", False),
             "processing_type": processing_state.get("processing_type"),
             "current_video": processing_state.get("current_video"),
-            "is_cancelled": processing_state.get("is_cancelled", False),
-            "start_time": processing_state.get("start_time"),
+            "is_cancelled": is_cancelled,
+            "start_time": start_time,
+            "last_success": processing_state.get("last_success"),
+            "last_error": processing_state.get("last_error"),
         }
 
     def on_processing_complete(

@@ -28,6 +28,7 @@ from zebtrack.coordinators.base import (
     CoordinatorError,
     CoordinatorValidationError,
 )
+from zebtrack.core.project_manager import ProjectInvalidError
 from zebtrack.core.state_manager import StateCategory
 
 if TYPE_CHECKING:
@@ -216,10 +217,15 @@ class ProjectCoordinator(BaseCoordinator):
         try:
             # Step 1: Create project directory and configuration
             if project_path:
-                project_path_obj = Path(project_path)
+                # Preserve caller-provided path string to maintain display formatting
+                project_path_obj: Path | str = project_path
             else:
                 # Generate project path if not provided
                 project_path_obj = self.project_service.get_project_path(project_name)
+
+            project_path_str = (
+                project_path_obj if isinstance(project_path_obj, str) else str(project_path_obj)
+            )
 
             # Create project via service
             self.project_service.create_project_directory(
@@ -233,12 +239,12 @@ class ProjectCoordinator(BaseCoordinator):
             )
 
             # Step 2: Load project into manager
-            self.project_manager.load_project(str(project_path_obj))
+            self.project_manager.load_project(project_path_str)
 
             # Step 3: Update state
             self._update_state(
                 StateCategory.PROJECT,
-                project_path=str(project_path_obj),
+                project_path=project_path_str,
                 project_name=project_name,
                 experiment_id=experiment_id,
                 project_type=project_type,
@@ -263,7 +269,7 @@ class ProjectCoordinator(BaseCoordinator):
                 "PROJECT_CREATED",
                 {
                     "project_name": project_name,
-                    "project_path": str(project_path_obj),
+                    "project_path": project_path_str,
                     "project_type": project_type,
                 },
             )
@@ -271,7 +277,7 @@ class ProjectCoordinator(BaseCoordinator):
             log.info(
                 "project_coordinator.create_from_wizard.success",
                 project_name=project_name,
-                project_path=str(project_path_obj),
+                project_path=project_path_str,
             )
 
             return True
@@ -522,9 +528,17 @@ class ProjectCoordinator(BaseCoordinator):
         )
 
         try:
-            # Step 1: Save project if needed
-            if self.project_manager.is_project_loaded():
+            # Step 1: Persist project state (ProjectManager handles loaded check)
+            try:
                 self.project_manager.save_project()
+            except ProjectInvalidError:
+                log.debug(
+                    "project_coordinator.close_project.skip_save",
+                    reason="project_not_loaded",
+                )
+            except Exception:
+                # Re-raise to outer handler so we return False
+                raise
 
             # Step 2: Create new empty project manager
             # Note: ProjectManager needs to be replaced with a fresh instance

@@ -139,9 +139,22 @@ class LiveCameraService:
         self._last_detections = []  # ✅ Reset cached detections for new session
 
         # Create preview window FIRST (so we can show status updates)
-        log.info("live_camera_service.about_to_create_preview_window", camera_index=camera_index)
-        self._create_preview_window(camera_index, duration_s)
-        log.info("live_camera_service.preview_window_creation_complete", camera_index=camera_index)
+        if not getattr(self.controller, "_disable_live_preview_window", False):
+            log.info(
+                "live_camera_service.about_to_create_preview_window",
+                camera_index=camera_index,
+            )
+            self._create_preview_window(camera_index, duration_s)
+            log.info(
+                "live_camera_service.preview_window_creation_complete",
+                camera_index=camera_index,
+            )
+        else:
+            log.info(
+                "live_camera_service.preview_window.skip",
+                camera_index=camera_index,
+                reason="controller_requested_skip",
+            )
 
         # Show initialization status
         if self.preview_window:
@@ -215,8 +228,12 @@ class LiveCameraService:
         log.info(
             "live_camera_service.detector_diagnostic_debug",
             has_detector_service=self.detector_service is not None,
-            has_detector=self.detector_service.detector is not None if self.detector_service else False,
-            detector_type=type(self.detector_service.detector).__name__ if (self.detector_service and self.detector_service.detector) else "None",
+            has_detector=self.detector_service.detector is not None
+            if self.detector_service
+            else False,
+            detector_type=type(self.detector_service.detector).__name__
+            if (self.detector_service and self.detector_service.detector)
+            else "None",
         )
 
         if self.detector_service and self.detector_service.detector:
@@ -244,7 +261,9 @@ class LiveCameraService:
             log.warning(
                 "live_camera_service.detector_not_available",
                 has_detector_service=self.detector_service is not None,
-                has_detector=self.detector_service.detector is not None if self.detector_service else False,
+                has_detector=self.detector_service.detector is not None
+                if self.detector_service
+                else False,
             )
 
         # Show thread startup status
@@ -768,7 +787,9 @@ class LiveCameraService:
 
             if df.empty:
                 log.warning("live_camera_service.empty_trajectory")
-                self._show_completion_message(output_dir, analysis_success=False, reason="no_detections")
+                self._show_completion_message(
+                    output_dir, analysis_success=False, reason="no_detections"
+                )
                 return
 
             # Generate basic metrics summary

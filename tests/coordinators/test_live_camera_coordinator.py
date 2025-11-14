@@ -103,9 +103,7 @@ class TestLiveCameraCoordinatorInitialization:
         assert coordinator.event_bus is mock_event_bus
         assert coordinator._active_session_id is None
 
-    def test_init_without_camera(
-        self, mock_state_manager, mock_live_camera_service
-    ):
+    def test_init_without_camera(self, mock_state_manager, mock_live_camera_service):
         """Should initialize without camera."""
         coordinator = LiveCameraCoordinator(
             state_manager=mock_state_manager,
@@ -115,9 +113,7 @@ class TestLiveCameraCoordinatorInitialization:
 
         assert coordinator.camera is None
 
-    def test_init_without_event_bus(
-        self, mock_state_manager, mock_live_camera_service
-    ):
+    def test_init_without_event_bus(self, mock_state_manager, mock_live_camera_service):
         """Should initialize without event bus."""
         coordinator = LiveCameraCoordinator(
             state_manager=mock_state_manager,
@@ -131,9 +127,7 @@ class TestLiveCameraCoordinatorInitialization:
         """Should pass validation when all dependencies present."""
         assert live_camera_coordinator.validate_dependencies() is True
 
-    def test_validate_dependencies_fails_without_live_camera_service(
-        self, mock_state_manager
-    ):
+    def test_validate_dependencies_fails_without_live_camera_service(self, mock_state_manager):
         """Should fail validation without live_camera_service."""
         coordinator = LiveCameraCoordinator(
             state_manager=mock_state_manager,
@@ -142,9 +136,7 @@ class TestLiveCameraCoordinatorInitialization:
 
         assert coordinator.validate_dependencies() is False
 
-    def test_validate_dependencies_fails_without_state_manager(
-        self, mock_live_camera_service
-    ):
+    def test_validate_dependencies_fails_without_state_manager(self, mock_live_camera_service):
         """Should fail validation without state_manager."""
         coordinator = LiveCameraCoordinator(
             state_manager=None,
@@ -162,9 +154,7 @@ class TestLiveCameraCoordinatorInitialization:
 class TestLiveSessionStart:
     """Test start_live_session method."""
 
-    def test_start_session_success(
-        self, live_camera_coordinator, mock_live_camera_service
-    ):
+    def test_start_session_success(self, live_camera_coordinator, mock_live_camera_service):
         """Should start session successfully."""
         result = live_camera_coordinator.start_live_session(
             camera_index=0,
@@ -210,9 +200,7 @@ class TestLiveSessionStart:
         call_kwargs = mock_live_camera_service.start_session.call_args[1]
         assert call_kwargs["experiment_id"].startswith("live_session_")
 
-    def test_start_session_updates_state(
-        self, live_camera_coordinator, mock_state_manager
-    ):
+    def test_start_session_updates_state(self, live_camera_coordinator, mock_state_manager):
         """Should update state after starting session."""
         live_camera_coordinator.start_live_session(
             camera_index=0,
@@ -227,9 +215,7 @@ class TestLiveSessionStart:
         assert call_kwargs["camera_index"] == 0
         assert call_kwargs["experiment_id"] == "live_001"
 
-    def test_start_session_publishes_event(
-        self, live_camera_coordinator, mock_event_bus
-    ):
+    def test_start_session_publishes_event(self, live_camera_coordinator, mock_event_bus):
         """Should publish LIVE_SESSION_STARTED event."""
         live_camera_coordinator.start_live_session(
             camera_index=0,
@@ -242,9 +228,7 @@ class TestLiveSessionStart:
         assert event_name == "LIVE_SESSION_STARTED"
         assert event_data["experiment_id"] == "live_001"
 
-    def test_start_session_sets_active_session_id(
-        self, live_camera_coordinator
-    ):
+    def test_start_session_sets_active_session_id(self, live_camera_coordinator):
         """Should set active session ID."""
         live_camera_coordinator.start_live_session(
             camera_index=0,
@@ -255,9 +239,7 @@ class TestLiveSessionStart:
         assert live_camera_coordinator._active_session_id == "live_001"
         assert live_camera_coordinator.is_session_active() is True
 
-    def test_start_session_already_active(
-        self, live_camera_coordinator
-    ):
+    def test_start_session_already_active(self, live_camera_coordinator):
         """Should raise error if session already active."""
         # Start first session
         live_camera_coordinator.start_live_session(
@@ -276,9 +258,7 @@ class TestLiveSessionStart:
 
         assert "already active" in str(exc_info.value).lower()
 
-    def test_start_session_invalid_camera_index_negative(
-        self, live_camera_coordinator
-    ):
+    def test_start_session_invalid_camera_index_negative(self, live_camera_coordinator):
         """Should raise error for negative camera index."""
         with pytest.raises(LiveCameraCoordinatorError) as exc_info:
             live_camera_coordinator.start_live_session(
@@ -288,9 +268,7 @@ class TestLiveSessionStart:
 
         assert "validation error" in str(exc_info.value).lower()
 
-    def test_start_session_invalid_duration_zero(
-        self, live_camera_coordinator
-    ):
+    def test_start_session_invalid_duration_zero(self, live_camera_coordinator):
         """Should raise error for zero duration."""
         with pytest.raises(LiveCameraCoordinatorError) as exc_info:
             live_camera_coordinator.start_live_session(
@@ -300,9 +278,7 @@ class TestLiveSessionStart:
 
         assert "validation error" in str(exc_info.value).lower()
 
-    def test_start_session_invalid_duration_negative(
-        self, live_camera_coordinator
-    ):
+    def test_start_session_invalid_duration_negative(self, live_camera_coordinator):
         """Should raise error for negative duration."""
         with pytest.raises(LiveCameraCoordinatorError) as exc_info:
             live_camera_coordinator.start_live_session(
@@ -312,9 +288,7 @@ class TestLiveSessionStart:
 
         assert "validation error" in str(exc_info.value).lower()
 
-    def test_start_session_service_fails(
-        self, live_camera_coordinator, mock_live_camera_service
-    ):
+    def test_start_session_service_fails(self, live_camera_coordinator, mock_live_camera_service):
         """Should handle service failure and revert state."""
         mock_live_camera_service.start_session.return_value = False
 
@@ -332,9 +306,7 @@ class TestLiveSessionStart:
         self, live_camera_coordinator, mock_live_camera_service
     ):
         """Should handle service exception and clean up."""
-        mock_live_camera_service.start_session.side_effect = Exception(
-            "Camera error"
-        )
+        mock_live_camera_service.start_session.side_effect = Exception("Camera error")
 
         with pytest.raises(LiveCameraCoordinatorError) as exc_info:
             live_camera_coordinator.start_live_session(
@@ -345,9 +317,7 @@ class TestLiveSessionStart:
         assert "failed to start live session" in str(exc_info.value).lower()
         assert live_camera_coordinator._active_session_id is None
 
-    def test_start_session_invalid_dependencies(
-        self, mock_state_manager
-    ):
+    def test_start_session_invalid_dependencies(self, mock_state_manager):
         """Should raise validation error if dependencies invalid."""
         coordinator = LiveCameraCoordinator(
             state_manager=mock_state_manager,
@@ -360,9 +330,7 @@ class TestLiveSessionStart:
                 duration_s=60.0,
             )
 
-    def test_start_session_with_zones(
-        self, live_camera_coordinator, mock_live_camera_service
-    ):
+    def test_start_session_with_zones(self, live_camera_coordinator, mock_live_camera_service):
         """Should start session with zone configurations."""
         zones = [{"name": "zone1", "type": "roi"}]
 
@@ -397,9 +365,7 @@ class TestLiveSessionStart:
 class TestLiveSessionStop:
     """Test stop_live_session method."""
 
-    def test_stop_session_success(
-        self, live_camera_coordinator, mock_live_camera_service
-    ):
+    def test_stop_session_success(self, live_camera_coordinator, mock_live_camera_service):
         """Should stop session successfully."""
         # Start session first
         live_camera_coordinator.start_live_session(
@@ -413,9 +379,7 @@ class TestLiveSessionStop:
         assert result is True
         mock_live_camera_service.stop_session.assert_called_once()
 
-    def test_stop_session_updates_state(
-        self, live_camera_coordinator, mock_state_manager
-    ):
+    def test_stop_session_updates_state(self, live_camera_coordinator, mock_state_manager):
         """Should update state to inactive."""
         # Start session
         live_camera_coordinator.start_live_session(
@@ -431,9 +395,7 @@ class TestLiveSessionStop:
         last_call_kwargs = mock_state_manager.update_processing_state.call_args[1]
         assert last_call_kwargs["is_live_session_active"] is False
 
-    def test_stop_session_publishes_event(
-        self, live_camera_coordinator, mock_event_bus
-    ):
+    def test_stop_session_publishes_event(self, live_camera_coordinator, mock_event_bus):
         """Should publish LIVE_SESSION_STOPPED event."""
         # Start session
         live_camera_coordinator.start_live_session(
@@ -449,9 +411,7 @@ class TestLiveSessionStop:
         last_event = mock_event_bus.publish_event.call_args[0]
         assert last_event[0] == "LIVE_SESSION_STOPPED"
 
-    def test_stop_session_clears_active_session_id(
-        self, live_camera_coordinator
-    ):
+    def test_stop_session_clears_active_session_id(self, live_camera_coordinator):
         """Should clear active session ID."""
         live_camera_coordinator.start_live_session(
             camera_index=0,
@@ -464,17 +424,13 @@ class TestLiveSessionStop:
         assert live_camera_coordinator._active_session_id is None
         assert live_camera_coordinator.is_session_active() is False
 
-    def test_stop_session_no_active_session(
-        self, live_camera_coordinator
-    ):
+    def test_stop_session_no_active_session(self, live_camera_coordinator):
         """Should return False if no active session."""
         result = live_camera_coordinator.stop_live_session()
 
         assert result is False
 
-    def test_stop_session_service_fails(
-        self, live_camera_coordinator, mock_live_camera_service
-    ):
+    def test_stop_session_service_fails(self, live_camera_coordinator, mock_live_camera_service):
         """Should still update state even if service fails."""
         live_camera_coordinator.start_live_session(
             camera_index=0,
@@ -529,18 +485,14 @@ class TestLiveSessionStop:
 class TestCameraInitialization:
     """Test initialize_camera method."""
 
-    def test_initialize_camera_success(
-        self, live_camera_coordinator, mock_event_bus
-    ):
+    def test_initialize_camera_success(self, live_camera_coordinator, mock_event_bus):
         """Should initialize camera successfully."""
         result = live_camera_coordinator.initialize_camera(camera_index=0)
 
         assert result is True
         mock_event_bus.publish_event.assert_called()
 
-    def test_initialize_camera_with_dimensions(
-        self, live_camera_coordinator, mock_event_bus
-    ):
+    def test_initialize_camera_with_dimensions(self, live_camera_coordinator, mock_event_bus):
         """Should initialize camera with custom dimensions."""
         result = live_camera_coordinator.initialize_camera(
             camera_index=0,
@@ -553,9 +505,7 @@ class TestCameraInitialization:
         assert event_data["width"] == 1920
         assert event_data["height"] == 1080
 
-    def test_initialize_camera_publishes_event(
-        self, live_camera_coordinator, mock_event_bus
-    ):
+    def test_initialize_camera_publishes_event(self, live_camera_coordinator, mock_event_bus):
         """Should publish CAMERA_INITIALIZED event."""
         live_camera_coordinator.initialize_camera(camera_index=0)
 
@@ -564,34 +514,29 @@ class TestCameraInitialization:
         assert event_name == "CAMERA_INITIALIZED"
         assert event_data["camera_index"] == 0
 
-    def test_initialize_camera_invalid_index_negative(
-        self, live_camera_coordinator
-    ):
+    def test_initialize_camera_invalid_index_negative(self, live_camera_coordinator):
         """Should raise error for negative camera index."""
         with pytest.raises(LiveCameraCoordinatorError) as exc_info:
             live_camera_coordinator.initialize_camera(camera_index=-1)
 
-        assert "validation error" in str(exc_info.value).lower() or "must be >= 0" in str(exc_info.value).lower()
+        assert (
+            "validation error" in str(exc_info.value).lower()
+            or "must be >= 0" in str(exc_info.value).lower()
+        )
 
-    def test_initialize_camera_invalid_index_type(
-        self, live_camera_coordinator
-    ):
+    def test_initialize_camera_invalid_index_type(self, live_camera_coordinator):
         """Should raise error for invalid camera index type."""
         with pytest.raises((LiveCameraCoordinatorError, TypeError)):
             live_camera_coordinator.initialize_camera(camera_index="invalid")
 
-    def test_initialize_camera_exception_handling(
-        self, live_camera_coordinator, mock_event_bus
-    ):
+    def test_initialize_camera_exception_handling(self, live_camera_coordinator, mock_event_bus):
         """Should handle exceptions during initialization."""
         mock_event_bus.publish_event.side_effect = Exception("Event error")
 
         with pytest.raises(LiveCameraCoordinatorError):
             live_camera_coordinator.initialize_camera(camera_index=0)
 
-    def test_initialize_camera_default_dimensions(
-        self, live_camera_coordinator, mock_event_bus
-    ):
+    def test_initialize_camera_default_dimensions(self, live_camera_coordinator, mock_event_bus):
         """Should initialize with None dimensions if not specified."""
         live_camera_coordinator.initialize_camera(camera_index=0)
 
@@ -599,9 +544,7 @@ class TestCameraInitialization:
         assert event_data["width"] is None
         assert event_data["height"] is None
 
-    def test_initialize_camera_multiple_times(
-        self, live_camera_coordinator
-    ):
+    def test_initialize_camera_multiple_times(self, live_camera_coordinator):
         """Should allow reinitializing camera."""
         live_camera_coordinator.initialize_camera(camera_index=0)
         result = live_camera_coordinator.initialize_camera(camera_index=1)
@@ -617,18 +560,14 @@ class TestCameraInitialization:
 class TestCameraRelease:
     """Test release_camera method."""
 
-    def test_release_camera_success(
-        self, live_camera_coordinator, mock_event_bus
-    ):
+    def test_release_camera_success(self, live_camera_coordinator, mock_event_bus):
         """Should release camera successfully."""
         result = live_camera_coordinator.release_camera()
 
         assert result is True
         mock_event_bus.publish_event.assert_called()
 
-    def test_release_camera_publishes_event(
-        self, live_camera_coordinator, mock_event_bus
-    ):
+    def test_release_camera_publishes_event(self, live_camera_coordinator, mock_event_bus):
         """Should publish CAMERA_RELEASED event."""
         live_camera_coordinator.release_camera()
 
@@ -636,9 +575,7 @@ class TestCameraRelease:
         event_name = mock_event_bus.publish_event.call_args[0][0]
         assert event_name == "CAMERA_RELEASED"
 
-    def test_release_camera_sets_camera_to_none(
-        self, live_camera_coordinator
-    ):
+    def test_release_camera_sets_camera_to_none(self, live_camera_coordinator):
         """Should set camera to None."""
         live_camera_coordinator.camera = Mock()
 
@@ -646,9 +583,7 @@ class TestCameraRelease:
 
         assert live_camera_coordinator.camera is None
 
-    def test_release_camera_when_no_camera(
-        self, live_camera_coordinator
-    ):
+    def test_release_camera_when_no_camera(self, live_camera_coordinator):
         """Should handle releasing when no camera."""
         live_camera_coordinator.camera = None
 
@@ -656,9 +591,7 @@ class TestCameraRelease:
 
         assert result is True
 
-    def test_release_camera_handles_exceptions(
-        self, live_camera_coordinator, mock_event_bus
-    ):
+    def test_release_camera_handles_exceptions(self, live_camera_coordinator, mock_event_bus):
         """Should handle exceptions gracefully."""
         mock_event_bus.publish_event.side_effect = Exception("Event error")
 
@@ -675,9 +608,7 @@ class TestCameraRelease:
 class TestSessionStateQueries:
     """Test session state query methods."""
 
-    def test_is_session_active_returns_true(
-        self, live_camera_coordinator
-    ):
+    def test_is_session_active_returns_true(self, live_camera_coordinator):
         """Should return True when session active."""
         live_camera_coordinator.start_live_session(
             camera_index=0,
@@ -686,15 +617,11 @@ class TestSessionStateQueries:
 
         assert live_camera_coordinator.is_session_active() is True
 
-    def test_is_session_active_returns_false(
-        self, live_camera_coordinator
-    ):
+    def test_is_session_active_returns_false(self, live_camera_coordinator):
         """Should return False when no session."""
         assert live_camera_coordinator.is_session_active() is False
 
-    def test_get_session_info_when_active(
-        self, live_camera_coordinator, mock_state_manager
-    ):
+    def test_get_session_info_when_active(self, live_camera_coordinator, mock_state_manager):
         """Should return session info when active."""
         # Setup state
         mock_state = Mock()
@@ -715,17 +642,13 @@ class TestSessionStateQueries:
         assert info["is_active"] is True
         assert info["session_id"] == "live_001"
 
-    def test_get_session_info_when_not_active(
-        self, live_camera_coordinator
-    ):
+    def test_get_session_info_when_not_active(self, live_camera_coordinator):
         """Should return None when no active session."""
         info = live_camera_coordinator.get_session_info()
 
         assert info is None
 
-    def test_get_active_session_id_when_active(
-        self, live_camera_coordinator
-    ):
+    def test_get_active_session_id_when_active(self, live_camera_coordinator):
         """Should return session ID when active."""
         live_camera_coordinator.start_live_session(
             camera_index=0,
@@ -737,17 +660,13 @@ class TestSessionStateQueries:
 
         assert session_id == "live_001"
 
-    def test_get_active_session_id_when_not_active(
-        self, live_camera_coordinator
-    ):
+    def test_get_active_session_id_when_not_active(self, live_camera_coordinator):
         """Should return None when no active session."""
         session_id = live_camera_coordinator.get_active_session_id()
 
         assert session_id is None
 
-    def test_repr_shows_session_state(
-        self, live_camera_coordinator
-    ):
+    def test_repr_shows_session_state(self, live_camera_coordinator):
         """Should show session state in repr."""
         live_camera_coordinator.start_live_session(
             camera_index=0,
@@ -761,9 +680,7 @@ class TestSessionStateQueries:
         assert "session_active=True" in repr_str
         assert "session_id=live_001" in repr_str
 
-    def test_repr_shows_no_session(
-        self, live_camera_coordinator
-    ):
+    def test_repr_shows_no_session(self, live_camera_coordinator):
         """Should show no session in repr."""
         repr_str = repr(live_camera_coordinator)
 
@@ -779,9 +696,7 @@ class TestSessionStateQueries:
 class TestLiveCameraCoordinatorIntegration:
     """Integration tests with real StateManager."""
 
-    def test_full_session_workflow(
-        self, mock_live_camera_service
-    ):
+    def test_full_session_workflow(self, mock_live_camera_service):
         """Test complete session workflow."""
         # Create real StateManager
         state_manager = StateManager(enable_history=True)
@@ -792,11 +707,14 @@ class TestLiveCameraCoordinatorIntegration:
         )
 
         # Start session
-        assert coordinator.start_live_session(
-            camera_index=0,
-            duration_s=60.0,
-            experiment_id="int_001",
-        ) is True
+        assert (
+            coordinator.start_live_session(
+                camera_index=0,
+                duration_s=60.0,
+                experiment_id="int_001",
+            )
+            is True
+        )
         assert coordinator.is_session_active() is True
 
         # Get info
@@ -807,9 +725,7 @@ class TestLiveCameraCoordinatorIntegration:
         assert coordinator.stop_live_session() is True
         assert coordinator.is_session_active() is False
 
-    def test_state_history_tracks_changes(
-        self, mock_live_camera_service
-    ):
+    def test_state_history_tracks_changes(self, mock_live_camera_service):
         """Should track state changes in history."""
         state_manager = StateManager(enable_history=True)
         coordinator = LiveCameraCoordinator(
@@ -831,9 +747,7 @@ class TestLiveCameraCoordinatorIntegration:
         # Verify source includes coordinator name
         assert any("LiveCameraCoordinator" in h.source for h in history)
 
-    def test_multiple_session_lifecycle(
-        self, mock_live_camera_service
-    ):
+    def test_multiple_session_lifecycle(self, mock_live_camera_service):
         """Test multiple consecutive sessions."""
         state_manager = StateManager(enable_history=True)
         coordinator = LiveCameraCoordinator(
@@ -858,9 +772,7 @@ class TestLiveCameraCoordinatorIntegration:
         assert coordinator.get_active_session_id() == "multi_002"
         coordinator.stop_live_session()
 
-    def test_camera_lifecycle_with_session(
-        self, mock_live_camera_service
-    ):
+    def test_camera_lifecycle_with_session(self, mock_live_camera_service):
         """Test camera initialization and release with session."""
         state_manager = StateManager(enable_history=True)
         coordinator = LiveCameraCoordinator(
@@ -886,9 +798,7 @@ class TestLiveCameraCoordinatorIntegration:
         assert coordinator.camera is None
         assert not coordinator.is_session_active()
 
-    def test_error_recovery_on_start_failure(
-        self, mock_live_camera_service
-    ):
+    def test_error_recovery_on_start_failure(self, mock_live_camera_service):
         """Should recover from start failure."""
         state_manager = StateManager(enable_history=True)
         coordinator = LiveCameraCoordinator(
@@ -911,14 +821,15 @@ class TestLiveCameraCoordinatorIntegration:
 
         # Should be able to start new session after failure
         mock_live_camera_service.start_session.return_value = True
-        assert coordinator.start_live_session(
-            camera_index=0,
-            duration_s=60.0,
-        ) is True
+        assert (
+            coordinator.start_live_session(
+                camera_index=0,
+                duration_s=60.0,
+            )
+            is True
+        )
 
-    def test_concurrent_camera_and_session_management(
-        self, mock_live_camera_service
-    ):
+    def test_concurrent_camera_and_session_management(self, mock_live_camera_service):
         """Test managing camera and session together."""
         state_manager = StateManager(enable_history=True)
         coordinator = LiveCameraCoordinator(
@@ -948,9 +859,7 @@ class TestLiveCameraCoordinatorIntegration:
         assert coordinator.camera is None
         assert not coordinator.is_session_active()
 
-    def test_experiment_id_generation_uniqueness(
-        self, mock_live_camera_service
-    ):
+    def test_experiment_id_generation_uniqueness(self, mock_live_camera_service):
         """Should generate unique experiment IDs."""
         state_manager = StateManager(enable_history=True)
         coordinator = LiveCameraCoordinator(
@@ -981,9 +890,7 @@ class TestLiveCameraCoordinatorIntegration:
         assert first_id.startswith("live_session_")
         assert second_id.startswith("live_session_")
 
-    def test_validation_prevents_invalid_operations(
-        self
-    ):
+    def test_validation_prevents_invalid_operations(self):
         """Should validate dependencies before operations."""
         coordinator = LiveCameraCoordinator(
             state_manager=None,  # Invalid

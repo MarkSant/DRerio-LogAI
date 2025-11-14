@@ -99,8 +99,8 @@ class LiveCameraCoordinator(BaseCoordinator):
         self,
         state_manager: StateManager,
         live_camera_service: LiveCameraService,
-        project_manager: ProjectManager,
-        settings: Settings,
+        project_manager: ProjectManager | None = None,
+        settings: Settings | None = None,
         camera: Camera | None = None,
         event_bus: EventBus | None = None,
     ):
@@ -109,8 +109,8 @@ class LiveCameraCoordinator(BaseCoordinator):
         Args:
             state_manager: StateManager for state tracking
             live_camera_service: LiveCameraService for camera operations
-            project_manager: ProjectManager for zone data and project state
-            settings: Settings configuration object
+            project_manager: Optional ProjectManager for zone data and project state
+            settings: Optional Settings configuration object
             camera: Optional Camera hardware instance
             event_bus: Optional EventBus for event publishing
         """

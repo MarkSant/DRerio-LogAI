@@ -196,9 +196,7 @@ class TestProjectCreationFromWizard:
         setup_detector.assert_called_once()
         setup_zones.assert_called_once()
 
-    def test_create_from_wizard_updates_state(
-        self, project_coordinator, mock_state_manager
-    ):
+    def test_create_from_wizard_updates_state(self, project_coordinator, mock_state_manager):
         """Should update state after creating project."""
         wizard_data = {
             "project_name": "test_project",
@@ -214,9 +212,7 @@ class TestProjectCreationFromWizard:
         assert call_kwargs["experiment_id"] == "exp_001"
         assert call_kwargs["is_loaded"] is True
 
-    def test_create_from_wizard_publishes_event(
-        self, project_coordinator, mock_event_bus
-    ):
+    def test_create_from_wizard_publishes_event(self, project_coordinator, mock_event_bus):
         """Should publish PROJECT_CREATED event."""
         wizard_data = {
             "project_name": "test_project",
@@ -429,9 +425,7 @@ class TestProjectLoading:
         event_name = mock_event_bus.publish_event.call_args[0][0]
         assert event_name == "PROJECT_LOADED"
 
-    def test_load_project_with_callbacks(
-        self, project_coordinator, mock_project_manager
-    ):
+    def test_load_project_with_callbacks(self, project_coordinator, mock_project_manager):
         """Should call setup callbacks when provided."""
         mock_project_manager.load_project.return_value = {
             "project_name": "loaded_project",
@@ -453,13 +447,9 @@ class TestProjectLoading:
         setup_zones.assert_called_once()
         restore_detector.assert_called_once()
 
-    def test_load_project_not_found(
-        self, project_coordinator, mock_project_manager
-    ):
+    def test_load_project_not_found(self, project_coordinator, mock_project_manager):
         """Should raise error if project not found."""
-        mock_project_manager.load_project.side_effect = FileNotFoundError(
-            "Project not found"
-        )
+        mock_project_manager.load_project.side_effect = FileNotFoundError("Project not found")
 
         with pytest.raises(ProjectCoordinatorError) as exc_info:
             project_coordinator.load_project("/nonexistent/project")
@@ -471,9 +461,7 @@ class TestProjectLoading:
         with pytest.raises(ValueError):
             project_coordinator.load_project(None)
 
-    def test_load_project_empty_data_returns_false(
-        self, project_coordinator, mock_project_manager
-    ):
+    def test_load_project_empty_data_returns_false(self, project_coordinator, mock_project_manager):
         """Should raise error if project data empty."""
         mock_project_manager.load_project.return_value = None
 
@@ -491,9 +479,7 @@ class TestProjectLoading:
 class TestProjectClosing:
     """Test close_project method."""
 
-    def test_close_project_success(
-        self, project_coordinator, mock_project_manager
-    ):
+    def test_close_project_success(self, project_coordinator, mock_project_manager):
         """Should close project successfully."""
         mock_project_manager.is_project_loaded.return_value = True
 
@@ -502,9 +488,7 @@ class TestProjectClosing:
         assert result is True
         mock_project_manager.save_project.assert_called_once()
 
-    def test_close_project_updates_state(
-        self, project_coordinator, mock_state_manager
-    ):
+    def test_close_project_updates_state(self, project_coordinator, mock_state_manager):
         """Should update state to reflect no project loaded."""
         project_coordinator.close_project()
 
@@ -515,9 +499,7 @@ class TestProjectClosing:
         assert call_kwargs["project_name"] is None
         assert call_kwargs["is_loaded"] is False
 
-    def test_close_project_publishes_event(
-        self, project_coordinator, mock_event_bus
-    ):
+    def test_close_project_publishes_event(self, project_coordinator, mock_event_bus):
         """Should publish PROJECT_CLOSED event."""
         project_coordinator.close_project()
 
@@ -553,9 +535,7 @@ class TestProjectClosing:
 class TestProjectInformation:
     """Test project information query methods."""
 
-    def test_get_current_project_info_when_loaded(
-        self, project_coordinator, mock_state_manager
-    ):
+    def test_get_current_project_info_when_loaded(self, project_coordinator, mock_state_manager):
         """Should return project info when project loaded."""
         mock_state = Mock()
         mock_state.is_loaded = True
@@ -584,9 +564,7 @@ class TestProjectInformation:
 
         assert info is None
 
-    def test_is_project_loaded_returns_true(
-        self, project_coordinator, mock_state_manager
-    ):
+    def test_is_project_loaded_returns_true(self, project_coordinator, mock_state_manager):
         """Should return True when project loaded."""
         mock_state = Mock()
         mock_state.is_loaded = True
@@ -594,9 +572,7 @@ class TestProjectInformation:
 
         assert project_coordinator.is_project_loaded() is True
 
-    def test_is_project_loaded_returns_false(
-        self, project_coordinator, mock_state_manager
-    ):
+    def test_is_project_loaded_returns_false(self, project_coordinator, mock_state_manager):
         """Should return False when no project loaded."""
         mock_state = Mock()
         mock_state.is_loaded = False
@@ -623,10 +599,7 @@ class TestProjectInformation:
 
     def test_validate_project_structure_nonexistent(self, project_coordinator):
         """Should return False for nonexistent path."""
-        assert (
-            project_coordinator.validate_project_structure("/nonexistent/path")
-            is False
-        )
+        assert project_coordinator.validate_project_structure("/nonexistent/path") is False
 
 
 # =============================================================================
@@ -649,9 +622,7 @@ class TestProjectCoordinatorRepr:
         assert "current_project=None" in repr_str
         assert "project_loaded=False" in repr_str
 
-    def test_repr_with_loaded_project(
-        self, project_coordinator, mock_state_manager
-    ):
+    def test_repr_with_loaded_project(self, project_coordinator, mock_state_manager):
         """Should show loaded project name."""
         mock_state = Mock()
         mock_state.is_loaded = True
@@ -673,9 +644,7 @@ class TestProjectCoordinatorRepr:
 class TestProjectCoordinatorIntegration:
     """Integration tests with real StateManager."""
 
-    def test_full_workflow_create_load_close(
-        self, mock_project_manager, mock_project_service
-    ):
+    def test_full_workflow_create_load_close(self, mock_project_manager, mock_project_service):
         """Test complete project workflow."""
         # Create real StateManager
         state_manager = StateManager(enable_history=True)
@@ -702,9 +671,7 @@ class TestProjectCoordinatorIntegration:
         assert coordinator.close_project() is True
         assert coordinator.is_project_loaded() is False
 
-    def test_state_history_tracks_changes(
-        self, mock_project_manager, mock_project_service
-    ):
+    def test_state_history_tracks_changes(self, mock_project_manager, mock_project_service):
         """Should track state changes in history."""
         state_manager = StateManager(enable_history=True)
         coordinator = ProjectCoordinator(

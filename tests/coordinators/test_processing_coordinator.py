@@ -69,6 +69,7 @@ def mock_state_manager():
     """Create mock StateManager."""
     manager = MagicMock()
     manager.get_state.return_value = {}
+    manager.prefer_unified_state_api = True
     return manager
 
 
@@ -172,9 +173,7 @@ class TestProjectProcessingWorkflow:
         mock_video_orchestrator,
     ):
         """Test project processing start without zone validation."""
-        success = processing_coordinator.start_project_processing_workflow(
-            validate_zones=False
-        )
+        success = processing_coordinator.start_project_processing_workflow(validate_zones=False)
 
         assert success is True
         mock_video_orchestrator.start_project_processing_workflow.assert_called_once()

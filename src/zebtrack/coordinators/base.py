@@ -148,7 +148,16 @@ class BaseCoordinator(ABC):
         """
         source = f"{self.__class__.__name__}.{self._get_caller_method()}"
 
-        # Dispatch to appropriate state update method
+        # Prefer the unified API when available to simplify mocking and testing
+        prefer_unified = getattr(self.state_manager, "prefer_unified_state_api", False)
+
+        if prefer_unified:
+            unified_updater = getattr(self.state_manager, "update_state", None)
+            if callable(unified_updater):
+                unified_updater(category, source=source, **kwargs)
+                return
+
+        # Fallback: dispatch to category-specific updater if unified API is unavailable
         if hasattr(self.state_manager, f"update_{category.name.lower()}_state"):
             update_method = getattr(self.state_manager, f"update_{category.name.lower()}_state")
             update_method(source=source, **kwargs)
@@ -180,7 +189,7 @@ class BaseCoordinator(ABC):
         else:
             log.debug(
                 "event.no_bus",
-                event=event_name,
+                event_name=event_name,
                 coordinator=self.__class__.__name__,
             )
 
@@ -247,33 +256,45 @@ class BaseCoordinator(ABC):
 class CoordinatorError(Exception):
     """Base exception for coordinator errors."""
 
-    def __init__(self, message: str, coordinator: str | None = None, **context):
+    def __init__(
+        self,
+        message: str,
+        coordinator: str | None = None,
+        context: dict[str, Any] | None = None,
+        **extra_context,
+    ):
         """
         Initialize coordinator error.
 
         Args:
             message: Error message
             coordinator: Name of the coordinator that raised the error
-            **context: Additional context for debugging
+            context: Optional context dictionary
+            **extra_context: Additional context for debugging
         """
         super().__init__(message)
         self.coordinator = coordinator
-        self.context = context
+        merged_context = {**(context or {}), **extra_context}
+        self.context = merged_context
 
         # Log error with full context
+        log_context = dict(merged_context)
+        log_context.pop("coordinator", None)
         log.error(
             "coordinator.error",
             message=message,
             coordinator=coordinator,
-            **context,
+            **log_context,
         )
 
 
 class CoordinatorValidationError(CoordinatorError):
     """Raised when coordinator validation fails."""
+
     pass
 
 
 class CoordinatorDependencyError(CoordinatorError):
     """Raised when required dependencies are missing or invalid."""
+
     pass

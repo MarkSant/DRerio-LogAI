@@ -245,9 +245,9 @@ class BaseUIComponent(ABC):
         """
         if self.event_bus:
             self.event_bus.publish_event(event_name, data or {})
-            self._log.debug("component.event.emitted", event=event_name)
+            self._log.debug("component.event.emitted", event_name=event_name)
         else:
-            self._log.debug("component.event.no_bus", event=event_name)
+            self._log.debug("component.event.no_bus", event_name=event_name)
 
     def _schedule_on_ui(self, func, *args, **kwargs):
         """
@@ -295,8 +295,7 @@ class BaseUIComponent(ABC):
     def __repr__(self) -> str:
         """String representation for debugging."""
         return (
-            f"<{self.__class__.__name__}"
-            f"(visible={self._visible}, initialized={self._initialized})>"
+            f"<{self.__class__.__name__}(visible={self._visible}, initialized={self._initialized})>"
         )
 
 

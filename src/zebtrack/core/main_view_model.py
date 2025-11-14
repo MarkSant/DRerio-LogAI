@@ -184,6 +184,8 @@ class MainViewModel:
         self.video_processing_service = video_processing_service
         self.project_workflow_service = project_workflow_service
         self.ui_coordinator = ui_coordinator
+        # Ensure coordinator attributes exist before orchestrators access them
+        self.recording_coordinator = recording_coordinator
 
         # Live camera service will be initialized after recording_service
         self._live_camera_service_param = live_camera_service
@@ -211,10 +213,17 @@ class MainViewModel:
 
         # New state variables for model management (must exist before view)
         default_weight, _ = self._safe_get_default_weight()
-        self.active_weight_name = default_weight if default_weight is not None else ""
-        if self.active_weight_name is None:
+        if isinstance(default_weight, str):
+            self.active_weight_name = default_weight
+        elif default_weight is None:
             self.active_weight_name = ""
             log.warning("controller.init.no_default_weight")
+        else:
+            self.active_weight_name = ""
+            log.warning(
+                "controller.init.default_weight.invalid_type",
+                received_type=type(default_weight).__name__,
+            )
 
         # Hardware detection and auto-configuration (Phase 7)
         log.info("controller.init.hardware_detection_start")
@@ -295,9 +304,12 @@ class MainViewModel:
         self.report_results_paths = {}
         # Note: is_recording now managed by StateManager via @property
         self.timed_recording_job = None
+        self._pending_external_trigger: dict | None = None
 
         # Recording service (Phase 2.2) - will be fully initialized after arduino_manager
-        self.recording_service: RecordingService | None = recording_service
+        self._recording_service: RecordingService | None = None
+        self.recording_service = recording_service
+        self.recording_session_orchestrator: RecordingSessionOrchestrator | None = None
 
         # Live camera service - initialized later or from parameter
         self.live_camera_service = None
@@ -347,7 +359,6 @@ class MainViewModel:
             event_bus=self.ui_event_bus if self._use_event_bus else None,
             settings_obj=self.settings,
         )
-        self._publish_processing_mode(source="init", force=True)
 
         # Update GPU hardware display in UI (Phase 7)
         self.view.update_gpu_hardware_display(hardware_summary)
@@ -365,6 +376,10 @@ class MainViewModel:
         self.pending_single_video_analysis = None
         self.processing_worker: ProcessingWorker | None = None
         self._cancel_feedback_displayed = False
+
+        # Orchestrators that must exist before service initialization
+        if self.recording_session_orchestrator is None:
+            self.recording_session_orchestrator = RecordingSessionOrchestrator(self)
 
         # Initialize services (Phase 2.2 + Phase 3 + Phase 7.2)
         # Recording service initialization (setup callbacks if service was injected)
@@ -395,6 +410,8 @@ class MainViewModel:
             processing_coordinator=processing_coordinator,
             project_coordinator=project_coordinator,  # Sprint 11: Fix missing parameter
         )
+
+        self._publish_processing_mode(source="init", force=True)
 
     def _inject_or_create(self, attr_name: str, injected, factory_fn):
         """
@@ -581,7 +598,8 @@ class MainViewModel:
         self.analysis_orchestrator = AnalysisOrchestrator(self)
 
         # Sprint 26: Recording Session Orchestrator
-        self.recording_session_orchestrator = RecordingSessionOrchestrator(self)
+        if self.recording_session_orchestrator is None:
+            self.recording_session_orchestrator = RecordingSessionOrchestrator(self)
 
         # Sprint 27: Project Orchestrator
         self.project_orchestrator = ProjectOrchestrator(self)
@@ -642,6 +660,17 @@ class MainViewModel:
         Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
         self.recording_session_orchestrator.is_recording = value
+
+    @property
+    def recording_service(self) -> RecordingService | None:
+        return self._recording_service
+
+    @recording_service.setter
+    def recording_service(self, value: RecordingService | None) -> None:
+        self._recording_service = value
+        coordinator = getattr(self, "recording_coordinator", None)
+        if coordinator is not None:
+            coordinator.recording_service = value
 
     @property
     def detector(self) -> Detector | None:
@@ -793,6 +822,11 @@ class MainViewModel:
         if self.processing_thread is not None and self.processing_thread.is_alive():
             log.info("controller.shutdown.join_processing_thread")
             self.processing_thread.join()
+
+        capture_thread = getattr(self, "capture_thread", None)
+        if capture_thread is not None and capture_thread.is_alive():
+            log.info("controller.shutdown.join_capture_thread")
+            capture_thread.join()
 
         # Release camera resources
         if hasattr(self, "camera") and self.camera:
@@ -1082,18 +1116,14 @@ class MainViewModel:
 
         Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        return self.recording_session_orchestrator.on_arduino_event(
-            event_code=event_code
-        )
+        return self.recording_session_orchestrator.on_arduino_event(event_code=event_code)
 
     def trigger_recording(self, event_code: int | None = None):
         """Trigger recording via external event.
 
         Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
         """
-        return self.recording_session_orchestrator.trigger_recording(
-            event_code=event_code
-        )
+        return self.recording_session_orchestrator.trigger_recording(event_code=event_code)
 
     def _schedule_recording(
         self,
@@ -1119,16 +1149,9 @@ class MainViewModel:
         """
         return self.project_orchestrator.close_project()
 
-    def create_project_workflow(
-        self, project_type: str | None = None, initial_data: dict | None = None
-    ):
-        """Create new project workflow.
-
-        Facade - delegates to ProjectOrchestrator (Sprint 27).
-        """
-        return self.project_orchestrator.create_project_workflow(
-            project_type=project_type, initial_data=initial_data
-        )
+    def create_project_workflow(self, **wizard_data):
+        """Create new project workflow with backward-compatible signature."""
+        return self.project_orchestrator.create_project_workflow(**wizard_data)
 
     def _apply_wizard_detector_overrides(self, wizard_metadata: dict) -> None:
         """Apply detector parameter overrides captured during the wizard flow."""
@@ -1183,9 +1206,7 @@ class MainViewModel:
 
         Facade - delegates to UIStateController (Sprint 28).
         """
-        return self.ui_state_controller._show_post_creation_guide(
-            wizard_metadata=wizard_metadata
-        )
+        return self.ui_state_controller._show_post_creation_guide(wizard_metadata=wizard_metadata)
 
     def _restore_detector_settings(self, saved_detector_config: dict) -> None:
         """
@@ -1331,9 +1352,7 @@ class MainViewModel:
 
         Facade - delegates to UIStateController (Sprint 28).
         """
-        return self.ui_state_controller.set_openvino_usage(
-            use_openvino=use_openvino, dialog=dialog
-        )
+        return self.ui_state_controller.set_openvino_usage(use_openvino=use_openvino, dialog=dialog)
 
     def convert_active_weight_to_openvino(self, dialog):
         """Convert the active weight to OpenVINO format.
@@ -1349,11 +1368,9 @@ class MainViewModel:
         """
         return self.ui_state_controller.update_openvino_status(dialog=dialog)
 
+    @property
     def are_project_overrides_active(self) -> bool:
-        """Check if project overrides are active.
-
-        Facade - delegates to ProjectOrchestrator (Sprint 27).
-        """
+        """Whether project overrides are currently active."""
         return self.project_orchestrator.are_project_overrides_active()
 
     def get_global_model_defaults(self) -> dict:
@@ -1672,15 +1689,103 @@ class MainViewModel:
     def start_live_camera_analysis(self, camera_index: int | None = None):
         """Start a live camera analysis session.
 
-        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        Delegates to RecordingSessionOrchestrator when available. Older tests/mock setups
+        instantiate MainViewModel as a simple Mock without orchestrators, so we keep a
+        lightweight fallback that calls LiveCameraService directly in that scenario.
 
         Args:
             camera_index: Optional camera index. If provided, uses this camera directly
                          without showing the configuration dialog. If None, shows dialog.
         """
-        return self.recording_session_orchestrator.start_live_camera_analysis(
-            camera_index=camera_index
+        orchestrator = getattr(self, "recording_session_orchestrator", None)
+        if isinstance(orchestrator, RecordingSessionOrchestrator):
+            return orchestrator.start_live_camera_analysis(camera_index=camera_index)
+
+        log.warning(
+            "controller.live_analysis.orchestrator_missing",
+            message="RecordingSessionOrchestrator not initialized; using direct service fallback.",
         )
+        return MainViewModel._start_live_camera_analysis_direct(  # type: ignore[misc]
+            self,
+            camera_index=camera_index,
+        )
+
+    def _start_live_camera_analysis_direct(self, camera_index: int | None = None):
+        """Fallback implementation used when orchestrator is unavailable."""
+        log.info("controller.live_analysis.fallback", camera_index=camera_index)
+
+        if camera_index is not None:
+            if hasattr(self.settings, "live_analysis"):
+                duration_s = getattr(self.settings.live_analysis, "default_duration_s", 300)
+            else:
+                duration_s = 300
+            experiment_id = f"camera_{camera_index}"
+            analysis_interval_frames = 1
+            display_interval_frames = 1
+            record_video = True
+        else:
+            from zebtrack.ui.dialogs import LiveAnalysisDialog
+
+            dialog = LiveAnalysisDialog(self.view.root, settings_obj=self.settings)
+            if not dialog.result:
+                log.info("controller.live_analysis.cancelled")
+                return False
+
+            config = dialog.result
+            camera_index = config["camera_index"]
+            duration_s = config["duration_s"]
+            experiment_id = config["experiment_id"]
+            analysis_interval_frames = config.get("analysis_interval_frames", 1)
+            display_interval_frames = config.get("display_interval_frames", 1)
+            record_video = config.get("record_video", True)
+
+        live_camera_service = getattr(self, "live_camera_service", None)
+        if live_camera_service is None:
+            log.error("controller.live_analysis.no_service")
+            return False
+
+        view_root = getattr(getattr(self, "view", None), "root", None)
+        disable_preview = view_root is None or not hasattr(view_root, "tk")
+        previous_flag = getattr(self, "_disable_live_preview_window", None)
+        if disable_preview:
+            setattr(self, "_disable_live_preview_window", True)
+
+        try:
+            success = live_camera_service.start_session(
+                camera_index=camera_index,
+                duration_s=duration_s,
+                experiment_id=experiment_id,
+                analysis_interval_frames=analysis_interval_frames,
+                display_interval_frames=display_interval_frames,
+                record_video=record_video,
+            )
+        finally:
+            if disable_preview:
+                if previous_flag is None:
+                    # Remove artificial attribute so real controllers stay clean
+                    try:
+                        delattr(self, "_disable_live_preview_window")
+                    except AttributeError:
+                        pass
+                else:
+                    setattr(self, "_disable_live_preview_window", previous_flag)
+
+        ui_event_bus = getattr(self, "ui_event_bus", None)
+        if success and ui_event_bus:
+            ui_event_bus.publish_event(
+                Events.UI_SET_STATUS,
+                {"message": f"Analisando câmera {camera_index} por {duration_s}s..."},
+            )
+        elif not success and ui_event_bus:
+            ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro na Análise",
+                    "message": "Falha ao iniciar análise de câmera.",
+                },
+            )
+
+        return success
 
     def start_live_camera_analysis_from_config(self, config: dict) -> bool:
         """Start live camera analysis with full configuration.
@@ -2147,7 +2252,6 @@ class MainViewModel:
 
         return metadata_context
 
-
     def _select_eligible_videos(
         self,
         skip_dialog: bool,
@@ -2261,9 +2365,7 @@ class MainViewModel:
             cancel_event=cancel_event,
         )
 
-    def _register_project_outputs(
-        self, project_path: str, video_file: str
-    ) -> None:
+    def _register_project_outputs(self, project_path: str, video_file: str) -> None:
         """Register project outputs.
 
         Facade - delegates to ProjectOrchestrator (Sprint 27).
@@ -2558,9 +2660,7 @@ class MainViewModel:
 
         Facade - delegates to UIStateController (Sprint 28).
         """
-        return self.ui_state_controller._finish_progress_dialog(
-            progress_dialog=progress_dialog
-        )
+        return self.ui_state_controller._finish_progress_dialog(progress_dialog=progress_dialog)
 
     def _initialize_diagnostic_yolo_model(
         self,

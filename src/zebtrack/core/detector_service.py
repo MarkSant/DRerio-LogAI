@@ -223,7 +223,14 @@ class DetectorService:
             return False, error_msg
 
     def configure_zones(
-        self, zone_data: ZoneData | None = None, width: int | None = None, height: int | None = None
+        self,
+        zones_data: ZoneData | None = None,
+        *legacy_dimensions: int,
+        video_width: int | None = None,
+        video_height: int | None = None,
+        zone_data: ZoneData | None = None,
+        width: int | None = None,
+        height: int | None = None,
     ) -> bool:
         """
         Configure detection zones on the detector instance.
@@ -231,9 +238,12 @@ class DetectorService:
         Phase 6: Extracted from controller.setup_detector_zones()
 
         Args:
-            zone_data: Zone configuration. If None, loads from project
-            width: Frame width. If None, uses camera settings
-            height: Frame height. If None, uses camera settings
+            zones_data: Preferred zone configuration input. If None, falls back to zone_data
+            video_width: Preferred frame width. If None, falls back to width
+            video_height: Preferred frame height. If None, falls back to height
+            zone_data: Backward-compatible zone configuration parameter
+            width: Backward-compatible frame width parameter
+            height: Backward-compatible frame height parameter
 
         Returns:
             bool: True if zones were configured successfully
@@ -242,22 +252,34 @@ class DetectorService:
             log.warning("detector_service.configure_zones.no_detector")
             return False
 
+        # Resolve preferred parameters while maintaining backward compatibility
+        if legacy_dimensions:
+            if len(legacy_dimensions) >= 1 and video_width is None:
+                video_width = legacy_dimensions[0]
+            if len(legacy_dimensions) >= 2 and video_height is None:
+                video_height = legacy_dimensions[1]
+
+        resolved_zone_data = zones_data if zones_data is not None else zone_data
+
         # Load zone data from project if not provided
-        if zone_data is None:
-            zone_data = self.project_manager.get_zone_data()
+        if resolved_zone_data is None:
+            resolved_zone_data = self.project_manager.get_zone_data()
 
         # Use camera settings if dimensions not provided
-        if width is None:
-            width = self.settings.camera.desired_width
-        if height is None:
-            height = self.settings.camera.desired_height
+        resolved_width = video_width if video_width is not None else width
+        if resolved_width is None:
+            resolved_width = self.settings.camera.desired_width
+
+        resolved_height = video_height if video_height is not None else height
+        if resolved_height is None:
+            resolved_height = self.settings.camera.desired_height
 
         # Set zones on detector
-        self.detector.set_zones(zone_data, width, height)
-        log.info("detector_service.zones.configured", count=len(zone_data.roi_polygons))
+        self.detector.set_zones(resolved_zone_data, resolved_width, resolved_height)
+        log.info("detector_service.zones.configured", count=len(resolved_zone_data.roi_polygons))
 
         # Inform detector about aquarium region status
-        has_aquarium = bool(zone_data and zone_data.polygon)
+        has_aquarium = bool(resolved_zone_data and resolved_zone_data.polygon)
         self.detector.set_aquarium_region_defined(has_aquarium)
         log.info(
             "detector_service.aquarium_status.updated",

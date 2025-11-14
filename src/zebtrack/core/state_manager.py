@@ -143,6 +143,11 @@ class ProjectState:
     """Immutable snapshot of project-related state."""
 
     project_path: Path | None = None
+    project_name: str | None = None
+    experiment_id: str | None = None
+    project_type: str | None = None
+    video_file: str | None = None
+    is_loaded: bool = False
     project_data: dict[str, Any] = field(default_factory=dict)
     metadata: Any | None = None  # DataFrame
     active_zone_video: str | None = None
@@ -152,6 +157,11 @@ class ProjectState:
         """Create a deep copy of project state."""
         return ProjectState(
             project_path=self.project_path,
+            project_name=self.project_name,
+            experiment_id=self.experiment_id,
+            project_type=self.project_type,
+            video_file=self.video_file,
+            is_loaded=self.is_loaded,
             project_data=copy.deepcopy(self.project_data),
             metadata=self.metadata.copy() if self.metadata is not None else None,
             active_zone_video=self.active_zone_video,
@@ -164,25 +174,51 @@ class DetectorState:
     """Immutable snapshot of detector-related state."""
 
     detector_initialized: bool = False
+    animal_method: str | None = None
     active_weight_name: str = ""
     use_openvino: bool = False
     detector_plugin_name: str | None = None
     zones_configured: bool = False
+    zones_count: int = 0
     zone_data: Any | None = None  # ZoneData
     frame_width: int | None = None
     frame_height: int | None = None
+    tracking_parameters_updated: bool = False
+    track_threshold: float | None = None
+    match_threshold: float | None = None
+    track_buffer: int | None = None
+    tracking_state_reset: bool = False
+    single_subject_mode: bool = False
+    settings_restored: bool = False
+    detector_parameters_updated: bool = False
+    last_update_scope: str | None = None
+    conf_threshold: float | None = None
+    nms_threshold: float | None = None
 
     def copy(self) -> DetectorState:
         """Create a deep copy of detector state."""
         return DetectorState(
             detector_initialized=self.detector_initialized,
+            animal_method=self.animal_method,
             active_weight_name=self.active_weight_name,
             use_openvino=self.use_openvino,
             detector_plugin_name=self.detector_plugin_name,
             zones_configured=self.zones_configured,
+            zones_count=self.zones_count,
             zone_data=copy.deepcopy(self.zone_data),
             frame_width=self.frame_width,
             frame_height=self.frame_height,
+            tracking_parameters_updated=self.tracking_parameters_updated,
+            track_threshold=self.track_threshold,
+            match_threshold=self.match_threshold,
+            track_buffer=self.track_buffer,
+            tracking_state_reset=self.tracking_state_reset,
+            single_subject_mode=self.single_subject_mode,
+            settings_restored=self.settings_restored,
+            detector_parameters_updated=self.detector_parameters_updated,
+            last_update_scope=self.last_update_scope,
+            conf_threshold=self.conf_threshold,
+            nms_threshold=self.nms_threshold,
         )
 
 
@@ -196,6 +232,8 @@ class RecordingState:
     arduino_connected: bool = False
     arduino_port: str | None = None
     timed_recording_active: bool = False
+    experiment_id: str | None = None
+    duration: int | float | None = None
 
     def copy(self) -> RecordingState:
         """Create a deep copy of recording state."""
@@ -206,6 +244,8 @@ class RecordingState:
             arduino_connected=self.arduino_connected,
             arduino_port=self.arduino_port,
             timed_recording_active=self.timed_recording_active,
+            experiment_id=self.experiment_id,
+            duration=self.duration,
         )
 
 
@@ -215,22 +255,36 @@ class ProcessingState:
 
     is_processing: bool = False
     processing_mode: str = "MULTI_TRACK"  # ProcessingMode enum
+    processing_type: str | None = None
     current_video: str | None = None
     current_frame: int = 0
     total_frames: int = 0
     processing_start_time: datetime | None = None
     cancel_requested: bool = False
+    is_live_session_active: bool = False
+    camera_index: int | None = None
+    experiment_id: str | None = None
+    duration_s: float | None = None
+    last_success: bool | None = None
+    last_error: str | None = None
 
     def copy(self) -> ProcessingState:
         """Create a deep copy of processing state."""
         return ProcessingState(
             is_processing=self.is_processing,
             processing_mode=self.processing_mode,
+            processing_type=self.processing_type,
             current_video=self.current_video,
             current_frame=self.current_frame,
             total_frames=self.total_frames,
             processing_start_time=self.processing_start_time,
             cancel_requested=self.cancel_requested,
+            is_live_session_active=self.is_live_session_active,
+            camera_index=self.camera_index,
+            experiment_id=self.experiment_id,
+            duration_s=self.duration_s,
+            last_success=self.last_success,
+            last_error=self.last_error,
         )
 
 
@@ -464,6 +518,9 @@ class StateManager:
         self._observer_timeout_seconds = 5
 
         log.info("state_manager.initialized", history_enabled=enable_history)
+
+        # Hint for coordinators to prefer unified state update API when available
+        self.prefer_unified_state_api = True
 
     # ==================== Observer Management ====================
 
@@ -800,6 +857,94 @@ class StateManager:
                 "_timestamp": datetime.now().isoformat(),
             }
             return convert_paths_to_strings(state_dict)
+
+    # ==================== Unified State Helpers ====================
+
+    def get_state(self, category: StateCategory) -> dict[str, Any]:
+        """Return the current state for a specific category as a plain dict."""
+
+        getter_map: dict[StateCategory, Callable[[], Any]] = {
+            StateCategory.PROJECT: self.get_project_state,
+            StateCategory.DETECTOR: self.get_detector_state,
+            StateCategory.RECORDING: self.get_recording_state,
+            StateCategory.PROCESSING: self.get_processing_state,
+            StateCategory.UI: self.get_ui_state,
+        }
+
+        getter = getter_map.get(category)
+        if getter is None:
+            log.warning(
+                "state_manager.get_state.unsupported_category",
+                category=category.name,
+            )
+            return {}
+
+        snapshot = getter()
+        if dataclasses.is_dataclass(snapshot):
+            state_dict = dataclasses.asdict(snapshot)
+        elif isinstance(snapshot, dict):
+            state_dict = copy.deepcopy(snapshot)
+        else:
+            state_dict = copy.deepcopy(getattr(snapshot, "__dict__", {}))
+
+        if category == StateCategory.DETECTOR:
+            state_dict.setdefault(
+                "is_detector_initialized",
+                state_dict.get("detector_initialized", False),
+            )
+
+        return state_dict
+
+    def update_state(
+        self,
+        category: StateCategory,
+        *,
+        source: str = "unknown",
+        **kwargs: Any,
+    ) -> None:
+        """Unified entry point to update state using StateCategory semantics."""
+
+        dispatcher: dict[StateCategory, Callable[..., None]] = {
+            StateCategory.PROJECT: self.update_project_state,
+            StateCategory.DETECTOR: self.update_detector_state,
+            StateCategory.RECORDING: self.update_recording_state,
+            StateCategory.PROCESSING: self.update_processing_state,
+            StateCategory.UI: self.update_ui_state,
+        }
+
+        update_method = dispatcher.get(category)
+        if update_method is None:
+            log.warning(
+                "state_manager.update_state.unsupported_category",
+                category=category.name,
+                source=source,
+            )
+            return
+
+        normalized_kwargs = self._normalize_state_kwargs(category, kwargs)
+        update_method(source=source, **normalized_kwargs)
+
+    def _normalize_state_kwargs(
+        self,
+        category: StateCategory,
+        updates: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Normalize legacy keys before forwarding to category updaters."""
+
+        if not updates:
+            return {}
+
+        if category == StateCategory.DETECTOR:
+            alias_map = {
+                "is_detector_initialized": "detector_initialized",
+            }
+            normalized: dict[str, Any] = {}
+            for key, value in updates.items():
+                canonical_key = alias_map.get(key, key)
+                normalized[canonical_key] = value
+            return normalized
+
+        return dict(updates)
 
     # ==================== Project State Updates ====================
 
