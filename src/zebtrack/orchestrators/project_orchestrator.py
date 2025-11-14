@@ -49,6 +49,7 @@ class ProjectOrchestrator:
         self.settings = main_view_model.settings
         self.ui_event_bus = main_view_model.ui_event_bus
         self.project_workflow_adapter = main_view_model.project_workflow_adapter
+        self.project_workflow_service = main_view_model.project_workflow_service
         self.video_processing_service = main_view_model.video_processing_service
         self.video_processing_orchestrator = main_view_model.video_processing_orchestrator
 
@@ -321,66 +322,15 @@ class ProjectOrchestrator:
     ) -> tuple[str | None, bool]:
         """Resolve model settings considering project overrides and global defaults.
 
+        Delegates to ProjectWorkflowService to avoid duplication (Sprint 34 consolidation).
+
         Args:
             overrides: Optional override dictionary to merge with project overrides.
 
         Returns:
             Tuple of (resolved_weight, resolved_openvino).
         """
-        project_data = getattr(self.project_manager, "project_data", {}) or {}
-        base_overrides = project_data.get("model_overrides") or {}
-        if overrides is not None:
-            merged_overrides = base_overrides.copy()
-            merged_overrides.update(overrides)
-        else:
-            merged_overrides = base_overrides
-
-        weight_override = merged_overrides.get("active_weight")
-        if isinstance(weight_override, str):
-            weight_override = weight_override.strip() or None
-
-        openvino_override = merged_overrides.get("use_openvino")
-        if isinstance(openvino_override, str):
-            lowered = openvino_override.strip().lower()
-            if lowered in {"", "inherit", "auto"}:
-                openvino_override = None
-            else:
-                openvino_override = lowered in {"true", "1", "yes", "on"}
-
-        resolved_weight = weight_override
-        if not resolved_weight:
-            resolved_weight = project_data.get("active_weight") or None
-        if not resolved_weight:
-            resolved_weight = self.main_view_model._global_model_defaults.get("active_weight")
-        if not resolved_weight:
-            default_weight, _ = self.main_view_model._safe_get_default_weight()
-            resolved_weight = default_weight
-
-        available_weights = set(self.main_view_model.get_all_weight_names())
-        if resolved_weight and resolved_weight not in available_weights:
-            logger.warning(
-                "controller.project_overrides.weight_missing",
-                weight=resolved_weight,
-                available=list(available_weights),
-            )
-            fallback_weight = self.main_view_model._global_model_defaults.get("active_weight")
-            if fallback_weight and fallback_weight in available_weights:
-                resolved_weight = fallback_weight
-            else:
-                default_weight, _ = self.main_view_model._safe_get_default_weight()
-                resolved_weight = default_weight if default_weight else None
-
-        if openvino_override is None:
-            if project_data.get("use_openvino") is not None:
-                resolved_openvino = bool(project_data.get("use_openvino"))
-            else:
-                resolved_openvino = bool(
-                    self.main_view_model._global_model_defaults.get("use_openvino", False)
-                )
-        else:
-            resolved_openvino = bool(openvino_override)
-
-        return resolved_weight, resolved_openvino
+        return self.project_workflow_service.resolve_project_model_settings(overrides)
 
     def save_current_calibration_to_project(self) -> tuple[str | None, bool] | None:
         """Save current model settings as project-specific overrides.
@@ -470,7 +420,7 @@ class ProjectOrchestrator:
     ) -> tuple[str | None, bool]:
         """Apply project-specific model overrides to current settings.
 
-        Extracted from MainViewModel in Sprint 34.
+        Delegates to ProjectWorkflowService to avoid duplication (Sprint 34 consolidation).
 
         Args:
             overrides: Optional override dictionary to use instead of stored overrides.
@@ -478,28 +428,12 @@ class ProjectOrchestrator:
         Returns:
             Tuple of (resolved_weight, resolved_openvino).
         """
-        if not getattr(self.project_manager, "project_data", None):
-            return self.main_view_model.active_weight_name or None, bool(
-                self.main_view_model.use_openvino
-            )
-
-        resolved_weight, resolved_openvino = self.resolve_project_model_settings(overrides)
-
-        self.main_view_model._using_project_overrides = True
-        self._apply_model_settings(resolved_weight, resolved_openvino)
-
-        updated = False
-        if self.project_manager.project_data.get("active_weight") != resolved_weight:
-            self.project_manager.project_data["active_weight"] = resolved_weight
-            updated = True
-        if self.project_manager.project_data.get("use_openvino") != resolved_openvino:
-            self.project_manager.project_data["use_openvino"] = resolved_openvino
-            updated = True
-
-        if updated and getattr(self.project_manager, "project_path", None):
-            self.project_manager.save_project()
-
-        return resolved_weight, resolved_openvino
+        # Delegate to ProjectWorkflowService with callbacks for setting values
+        return self.project_workflow_service.apply_project_model_overrides(
+            overrides=overrides,
+            active_weight_setter=lambda w: self.main_view_model.set_active_weight(w),
+            use_openvino_setter=lambda v: self.main_view_model.set_openvino_usage(v),
+        )
 
     def save_project_model_overrides(
         self, active_weight_override: str | None, use_openvino_override: bool | None
