@@ -4587,22 +4587,6 @@ class MainViewModel:
         finally:
             self.project_manager.set_active_zone_video(None)
 
-    def _schedule_analysis_metadata_update(self, metadata: dict) -> None:
-        """Delegate to VideoProcessingService._schedule_analysis_metadata_update.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        self.video_processing_service._schedule_analysis_metadata_update(metadata)
-
-    def _notify_task_status_start(self, *, index: int, total: int, experiment_id: str) -> None:
-        """Delegate to VideoProcessingService._notify_task_status_start.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        self.video_processing_service._notify_task_status_start(
-            index=index, total=total, experiment_id=experiment_id
-        )
-
     def _make_progress_callback(
         self,
         *,
@@ -4988,27 +4972,6 @@ class MainViewModel:
         Phase 3: Refactored to delegate to service layer.
         """
         self.video_processing_service._cleanup_cancelled_results(results_dir, baseline_items)
-
-    def _compose_analysis_view_metadata(
-        self,
-        *,
-        experiment_id: str,
-        video_path: str,
-        metadata_context: dict | None,
-        single_video_config: dict | None,
-        analysis_profile: dict | None,
-    ) -> dict:
-        """Delegate to VideoProcessingService._compose_analysis_view_metadata.
-
-        Phase 3: Refactored to delegate to service layer.
-        """
-        return self.video_processing_service._compose_analysis_view_metadata(
-            experiment_id=experiment_id,
-            video_path=video_path,
-            metadata_context=metadata_context,
-            single_video_config=single_video_config,
-            analysis_profile=analysis_profile,
-        )
 
     def _create_processing_callbacks(self, videos_to_process: list[dict]) -> ProcessingCallbacks:
         """
