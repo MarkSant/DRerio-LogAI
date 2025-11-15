@@ -41,7 +41,7 @@ start_project_processing_workflow(self)          # 8 lines
 process_pending_project_videos(self, videos)     # 13 lines
 ```
 
-**Why extract first**: 
+**Why extract first**:
 - All delegate to existing orchestrators/adapters
 - Minimal internal state
 - Clear input/output contracts
@@ -230,7 +230,7 @@ def apply_project_model_overrides(self, overrides=None):
        update_openvino_status: Callable
        setup_detector_zones: Callable
        restore_detector_settings: Callable
-   
+
    class ProjectCallbacks(Protocol):
        refresh_project_views: Callable
        get_global_model_defaults: Callable

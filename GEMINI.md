@@ -1,0 +1,58 @@
+# Gemini Project Context: ZebTrack-AI
+
+This document provides essential context for the Gemini AI assistant to effectively collaborate on the ZebTrack-AI project.
+
+## 1. Project Overview
+
+ZebTrack-AI is a Python-based application for real-time zebrafish tracking and behavioral analysis. It utilizes computer vision models (like YOLO via Ultralytics and OpenVINO) for detection and tracking. The application has a GUI built with Tkinter and a sophisticated architecture involving services, state management, and dependency injection.
+
+## 2. Core Technologies
+
+- **Programming Language:** Python 3.11+
+- **Dependency Management:** Poetry (`poetry.lock`, `pyproject.toml`)
+- **Testing Framework:** Pytest (`pytest.ini`, `tests/`)
+- **Linter & Formatter:** Ruff (`.ruff_cache`, configured in `pyproject.toml`)
+- **Pre-commit Hooks:** Managed via `.pre-commit-config.yaml` to enforce standards before commits.
+- **GUI Framework:** Tkinter (with ttkbootstrap)
+- **Computer Vision:** Ultralytics (YOLO), OpenVINO, OpenCV.
+
+## 3. Development Workflow
+
+### Setup
+To set up the development environment, run:
+```bash
+poetry install
+```
+
+### Running Tests
+The project has a comprehensive test suite. Run all tests using:
+```bash
+poetry run pytest
+```
+For specific tests, you can pass the file path, e.g., `poetry run pytest tests/test_state_manager.py`.
+
+### Linting and Formatting
+Code quality is maintained with Ruff. To check for issues, run:
+```bash
+poetry run ruff check .
+```
+To automatically fix issues, run:
+```bash
+poetry run ruff check . --fix
+```
+
+## 4. Key Architectural Concepts
+
+- **State Management:** The application uses a central `StateManager` to manage application state immutably. See `docs/STATE_MANAGEMENT_GUIDE.md`.
+- **Dependency Injection:** Services are injected into components to promote loose coupling. See `docs/DEPENDENCY_INJECTION_GUIDE.md`.
+- **Event Bus:** A system for cross-component communication.
+- **Service Layer:** Business logic is encapsulated in services (e.g., `DetectorService`, `ArduinoManager`).
+
+## 5. Important Rules & Conventions
+
+1.  **Adhere to Existing Patterns:** Before adding new code, analyze the surrounding files to understand and replicate the existing architectural and styling patterns.
+2.  **Test Everything:** All new features, bug fixes, or refactors must be accompanied by corresponding tests. The project relies heavily on `pytest` and `pytest-mock`.
+3.  **Imports:** Follow the existing import structure (standard library, third-party, then project-specific imports, sorted alphabetically).
+4.  **Immutability:** Respect the immutable state management pattern. Do not mutate state objects directly.
+5.  **Configuration:** Application settings are managed via `config.yaml`. Do not hardcode configuration values.
+6.  **Documentation:** Refer to the `docs/` directory for in-depth information on architecture, developer guides, and decision logs.
