@@ -24,6 +24,12 @@ To set up the development environment, run:
 poetry install
 ```
 
+### Running the Application
+To run the main application GUI, use the script defined in `pyproject.toml`:
+```bash
+poetry run zebtrack
+```
+
 ### Running Tests
 The project has a comprehensive test suite. Run all tests using:
 ```bash
