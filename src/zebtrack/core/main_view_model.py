@@ -807,8 +807,9 @@ class MainViewModel:
             if hasattr(self.view, "stop_event_bus_polling"):
                 try:
                     self.view.stop_event_bus_polling()
-                except Exception:
-                    log.warning("controller.event_bus.stop_failed", exc_info=True)
+                except (RuntimeError, OSError) as e:
+                    # Expected errors during cleanup (e.g., already stopped, thread issues)
+                    log.warning("controller.event_bus.stop_failed", error=str(e), exc_info=True)
             self.join_threads()
             self.root.destroy()
 
@@ -846,8 +847,9 @@ class MainViewModel:
         if self.arduino_manager:
             try:
                 self.arduino_manager.shutdown()
-            except Exception:
-                log.warning("controller.arduino.shutdown_failed", exc_info=True)
+            except (OSError, RuntimeError) as e:
+                # Expected errors: serial port issues, already closed
+                log.warning("controller.arduino.shutdown_failed", error=str(e), exc_info=True)
             self.arduino_manager = None
         self.arduino = None
 
@@ -1276,8 +1278,9 @@ class MainViewModel:
             return None, None
         try:
             result = manager.get_default_weight()
-        except Exception:
-            log.warning("controller.default_weight.safe_get_failed", exc_info=True)
+        except (FileNotFoundError, OSError, KeyError, ValueError) as e:
+            # Expected errors: weight file not found, I/O issues, malformed config
+            log.warning("controller.default_weight.safe_get_failed", error=str(e), exc_info=True)
             return None, None
         if isinstance(result, tuple):
             if not result:
@@ -1890,8 +1893,9 @@ class MainViewModel:
 
                 if not finished:
                     log.warning("controller.analysis.cancel_wait_timeout")
-            except Exception:  # pragma: no cover - defensive
-                log.error("controller.analysis.cancel_failed", exc_info=True)
+            except RuntimeError as e:  # pragma: no cover - defensive
+                # Expected error: thread already stopped or joined
+                log.error("controller.analysis.cancel_failed", error=str(e), exc_info=True)
             finally:
                 if self.processing_thread and not self.processing_thread.is_alive():
                     self.processing_thread = None
@@ -2243,11 +2247,13 @@ class MainViewModel:
                 video_path,
             )
             metadata_context.update(derived_metadata)
-        except Exception:  # pragma: no cover - defensive fallback
+        except (KeyError, ValueError, FileNotFoundError) as e:  # pragma: no cover - defensive fallback
+            # Expected errors: malformed metadata, invalid values, missing project file
             log.debug(
                 "controller.processing.metadata_derive_failed",
                 experiment=experiment_id,
                 video_path=video_path,
+                error=str(e),
             )
 
         return metadata_context

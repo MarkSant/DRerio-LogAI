@@ -59,12 +59,23 @@ class CameraSettings(BaseModel):
         extra="forbid",
     )
 
-    index: int = Field(..., description="The index of the camera device (e.g., 0, 1).")
+    index: int = Field(
+        ...,
+        ge=0,
+        le=10,
+        description="The index of the camera device (e.g., 0, 1). Valid range: 0-10.",
+    )
     desired_width: int = Field(
-        ..., description="The width (pixels) used for defining detection zones."
+        ...,
+        gt=0,
+        le=7680,
+        description="The width (pixels) used for defining detection zones. Valid range: 1-7680 (8K max).",
     )
     desired_height: int = Field(
-        ..., description="The height (pixels) used for defining detection zones."
+        ...,
+        gt=0,
+        le=4320,
+        description="The height (pixels) used for defining detection zones. Valid range: 1-4320 (8K max).",
     )
     max_reconnect_attempts: int = Field(
         10,
@@ -129,11 +140,17 @@ class ArduinoSettings(BaseModel):
 
     port: str = Field(
         ...,
+        min_length=1,
         description=(
             "The serial port the Arduino is connected to (e.g., 'COM5' or '/dev/ttyACM0')."
         ),
     )
-    baud_rate: int = Field(..., description="The baud rate for serial communication.")
+    baud_rate: int = Field(
+        ...,
+        ge=300,
+        le=2000000,
+        description="The baud rate for serial communication. Valid range: 300-2000000.",
+    )
 
 
 class RecorderSettings(BaseModel):
@@ -162,7 +179,58 @@ class YOLOModelSettings(BaseModel):
         extra="forbid",
     )
 
-    path: str = Field(..., description="Path to the YOLO model weights file (e.g., 'model.pt').")
+    path: str = Field(
+        ...,
+        min_length=1,
+        description="Path to the YOLO model weights file (e.g., 'model.pt').",
+    )
+
+    @field_validator("path")
+    @classmethod
+    def validate_model_path_exists(cls, v: str) -> str:
+        """Validate that model file exists and is readable.
+
+        Note: If model file doesn't exist, logs warning but allows configuration
+        to load (useful for development/testing). Application will fail at
+        detection time if model is truly missing.
+        """
+        path_obj = Path(v)
+
+        # If not absolute, try relative to project root
+        if not path_obj.is_absolute():
+            # Try to resolve relative to settings file location (project root)
+            project_root = Path(__file__).parent.parent
+            path_obj = project_root / v
+
+        if not path_obj.exists():
+            log.warning(
+                "yolo_model.path.not_found",
+                path=v,
+                resolved_path=str(path_obj),
+                message="Model file not found. Detection will fail until model is available.",
+            )
+            # Return original path (don't fail configuration load)
+            return v
+
+        if not path_obj.is_file():
+            log.warning(
+                "yolo_model.path.not_file",
+                path=v,
+                message="Model path exists but is not a file",
+            )
+            return v
+
+        # Validate file extension (common model formats)
+        if path_obj.suffix not in [".pt", ".onnx", ".xml"]:
+            log.warning(
+                "yolo_model.path.unusual_extension",
+                path=v,
+                extension=path_obj.suffix,
+                expected=[".pt", ".onnx", ".xml"],
+            )
+
+        # Return absolute path for consistency when file exists
+        return str(path_obj.resolve())
     confidence_threshold: float = Field(
         ...,
         gt=0,
@@ -207,15 +275,24 @@ class VideoProcessingSettings(BaseModel):
 
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
-    fps: int = Field(..., description="Frames Per Second (FPS) for saving output videos.")
+    fps: int = Field(
+        ...,
+        gt=0,
+        le=120,
+        description="Frames Per Second (FPS) for saving output videos. Valid range: 1-120.",
+    )
     processing_interval: int = Field(
-        ..., description="Process 1 frame every N frames to optimize performance."
+        ...,
+        ge=1,
+        le=1000,
+        description="Process 1 frame every N frames to optimize performance. Valid range: 1-1000.",
     )
     processing_offset: int = Field(
         ...,
+        ge=0,
         description=(
             "Frame offset for processing. E.g., offset=1 and interval=10 processes "
-            "frames 1, 11, 21, ..."
+            "frames 1, 11, 21, ... Must be non-negative."
         ),
     )
     sharp_turn_threshold_deg_s: float = 200.0

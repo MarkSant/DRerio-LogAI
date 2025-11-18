@@ -80,22 +80,106 @@ class LiveCameraService:
         self.root = root
 
         # Threading infrastructure
+        self._lock = threading.Lock()  # Protects all shared state below
         self.frame_queue = queue.Queue(maxsize=30)
         self.video_queue = queue.Queue(maxsize=30)
         self.exit_event = threading.Event()
         self.capture_thread: threading.Thread | None = None
         self.processing_thread: threading.Thread | None = None
 
-        # Active session state
-        self.camera: Camera | None = None
-        self.preview_window: LivePreviewWindow | None = None
+        # Active session state (protected by self._lock)
+        self._camera: Camera | None = None
+        self._preview_window: LivePreviewWindow | None = None
         self.analysis_interval_frames = 1
         self.display_interval_frames = 1
-        self.is_capturing_for_video = False
-        self.timer_id: str | None = None  # ✅ Session timer ID
-        self.current_output_dir: Path | None = None  # ✅ Current session output directory
-        self._analysis_completed = False  # ✅ Flag to prevent duplicate post-analysis
-        self._last_detections: list = []  # ✅ Cache last detections for persistent overlay
+        self._is_capturing_for_video = False
+        self._timer_id: str | None = None
+        self._current_output_dir: Path | None = None
+        self._analysis_completed = False
+        self._last_detections: list = []
+
+    # Thread-safe properties for shared state
+    @property
+    def camera(self) -> Camera | None:
+        """Thread-safe access to camera instance."""
+        with self._lock:
+            return self._camera
+
+    @camera.setter
+    def camera(self, value: Camera | None) -> None:
+        """Thread-safe setter for camera instance."""
+        with self._lock:
+            self._camera = value
+
+    @property
+    def preview_window(self) -> LivePreviewWindow | None:
+        """Thread-safe access to preview window."""
+        with self._lock:
+            return self._preview_window
+
+    @preview_window.setter
+    def preview_window(self, value: LivePreviewWindow | None) -> None:
+        """Thread-safe setter for preview window."""
+        with self._lock:
+            self._preview_window = value
+
+    @property
+    def is_capturing_for_video(self) -> bool:
+        """Thread-safe access to video capture flag."""
+        with self._lock:
+            return self._is_capturing_for_video
+
+    @is_capturing_for_video.setter
+    def is_capturing_for_video(self, value: bool) -> None:
+        """Thread-safe setter for video capture flag."""
+        with self._lock:
+            self._is_capturing_for_video = value
+
+    @property
+    def timer_id(self) -> str | None:
+        """Thread-safe access to timer ID."""
+        with self._lock:
+            return self._timer_id
+
+    @timer_id.setter
+    def timer_id(self, value: str | None) -> None:
+        """Thread-safe setter for timer ID."""
+        with self._lock:
+            self._timer_id = value
+
+    @property
+    def current_output_dir(self) -> Path | None:
+        """Thread-safe access to output directory."""
+        with self._lock:
+            return self._current_output_dir
+
+    @current_output_dir.setter
+    def current_output_dir(self, value: Path | None) -> None:
+        """Thread-safe setter for output directory."""
+        with self._lock:
+            self._current_output_dir = value
+
+    @property
+    def analysis_completed(self) -> bool:
+        """Thread-safe access to analysis completed flag."""
+        with self._lock:
+            return self._analysis_completed
+
+    @analysis_completed.setter
+    def analysis_completed(self, value: bool) -> None:
+        """Thread-safe setter for analysis completed flag."""
+        with self._lock:
+            self._analysis_completed = value
+
+    def get_last_detections(self) -> list:
+        """Thread-safe getter for last detections (returns a copy)."""
+        with self._lock:
+            return list(self._last_detections)
+
+    def set_last_detections(self, detections: list) -> None:
+        """Thread-safe setter for last detections."""
+        with self._lock:
+            self._last_detections = list(detections)
 
     def start_session(
         self,
@@ -135,8 +219,8 @@ class LiveCameraService:
         self.analysis_interval_frames = analysis_interval_frames
         self.display_interval_frames = display_interval_frames
         self.is_capturing_for_video = record_video
-        self._analysis_completed = False  # ✅ Reset flag for new session
-        self._last_detections = []  # ✅ Reset cached detections for new session
+        self.analysis_completed = False  # Reset flag for new session
+        self.set_last_detections([])  # Reset cached detections for new session
 
         # Create preview window FIRST (so we can show status updates)
         if not getattr(self.controller, "_disable_live_preview_window", False):
@@ -621,8 +705,8 @@ class LiveCameraService:
                     if detector:
                         detections, _command = detector.detect(frame, "live")
 
-                        # ✅ Cache detections for persistent overlay on non-analyzed frames
-                        self._last_detections = detections
+                        # Cache detections for persistent overlay on non-analyzed frames
+                        self.set_last_detections(detections)
 
                         # Record detections
                         if self.controller.recorder and self.controller.recorder.start_time:
@@ -638,9 +722,9 @@ class LiveCameraService:
                                     num_detections=len(detections),
                                 )
                 else:
-                    # ✅ Use cached detections for overlay on non-analyzed frames
+                    # Use cached detections for overlay on non-analyzed frames
                     # This makes bounding boxes persist instead of flickering
-                    detections = self._last_detections
+                    detections = self.get_last_detections()
 
                 # ✅ ALWAYS draw overlay when displaying (with current or cached detections)
                 detector = self.detector_service.detector
@@ -909,12 +993,13 @@ class LiveCameraService:
             False to propagate exceptions
         """
         try:
-            # ✅ FIX: Trigger post-analysis on context manager exit
+            # FIX: Trigger post-analysis on context manager exit
             # This handles cases where session ends via exception or context exit
             if self.current_output_dir:
                 self._on_session_complete(self.current_output_dir)
             else:
                 self.stop_session()
-        except Exception as e:
+        except (RuntimeError, OSError) as e:
+            # Expected errors: camera already released, thread already stopped
             log.warning("live_camera_service.cleanup.failed", error=str(e))
         return False  # Don't suppress exceptions

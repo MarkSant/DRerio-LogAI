@@ -135,7 +135,7 @@ yolo_model:
         override_yaml = textwrap.dedent(
             """
             camera:
-              index: 99
+              index: 9
             yolo_model:
               confidence_threshold: 0.8
             recorder:
@@ -155,7 +155,7 @@ yolo_model:
                 settings = load_settings()
 
                 # Check that the override value was applied
-                self.assertEqual(settings.camera.index, 99)
+                self.assertEqual(settings.camera.index, 9)
                 # Check that a non-overridden value from the base is still present
                 self.assertEqual(settings.arduino.port, "COM5")
                 # Check that a nested value was overridden
@@ -348,7 +348,7 @@ roi_min_bbox_overlap_ratio: 1.5
         base_yaml = self.mock_yaml_content
         override_yaml = """
 camera:
-  index: 42
+  index: 8
 """
 
         def mock_open_side_effect(path, *args, **kwargs):
@@ -359,7 +359,7 @@ camera:
         with patch("pathlib.Path.is_file", side_effect=[True, True]):
             with patch("builtins.open", side_effect=mock_open_side_effect):
                 settings = reload_settings()
-                self.assertEqual(settings.camera.index, 42)
+                self.assertEqual(settings.camera.index, 8)
 
     def test_export_schema(self):
         """Test that export_schema() generates valid JSON Schema."""

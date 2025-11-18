@@ -5,6 +5,7 @@ These models provide type-safe, validated data structures for wizard steps,
 replacing plain dictionaries with validated models that ensure data integrity.
 """
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -118,7 +119,7 @@ class CalibrationData(BaseModel):
 class ModelSelectionData(BaseModel):
     """Model selection step data with validation."""
 
-    detector_name: str = Field(description="Name of the detector to use")
+    detector_name: str = Field(min_length=1, description="Name of the detector to use")
     confidence_threshold: float | None = Field(
         default=None, ge=0.0, le=1.0, description="Detection confidence threshold"
     )
@@ -132,6 +133,26 @@ class ModelSelectionData(BaseModel):
         default=None, ge=0.0, le=1.0, description="Track matching threshold"
     )
 
+    @field_validator("detector_name")
+    @classmethod
+    def validate_detector_name(cls, v: str) -> str:
+        """Validate detector name against available plugins."""
+        try:
+            from zebtrack.plugins import DETECTOR_PLUGINS
+
+            available_detectors = list(DETECTOR_PLUGINS.keys())
+
+            if v not in available_detectors:
+                raise ValueError(
+                    f"Detector '{v}' não encontrado.\n"
+                    f"Detectores disponíveis: {', '.join(sorted(available_detectors))}"
+                )
+        except ImportError:
+            # If plugins module not available, skip validation (e.g., during testing)
+            pass
+
+        return v
+
 
 class FileSelectionData(BaseModel):
     """File selection step data with validation."""
@@ -141,9 +162,55 @@ class FileSelectionData(BaseModel):
     @field_validator("video_files")
     @classmethod
     def validate_video_files(cls, v):
-        """Ensure all video files are non-empty strings."""
+        """Validate video file paths: existence, format, and readability."""
+        VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv", ".webm", ".m4v"}
+
+        # Check for empty strings
         if any(not vf.strip() for vf in v):
             raise ValueError("Caminhos de vídeo não podem estar vazios")
+
+        missing_files = []
+        invalid_formats = []
+        not_files = []
+
+        for video_path in v:
+            path = Path(video_path)
+
+            # Check if file exists
+            if not path.exists():
+                missing_files.append(str(path))
+                continue
+
+            # Check if it's a file (not directory or special file)
+            if not path.is_file():
+                not_files.append(str(path))
+                continue
+
+            # Check file extension
+            if path.suffix.lower() not in VIDEO_EXTENSIONS:
+                invalid_formats.append(f"{path.name} ({path.suffix})")
+
+        # Build comprehensive error message
+        errors = []
+        if missing_files:
+            errors.append(
+                "Arquivos não encontrados:\n  - " + "\n  - ".join(missing_files[:5])
+                + (f"\n  ... e mais {len(missing_files) - 5}" if len(missing_files) > 5 else "")
+            )
+
+        if not_files:
+            errors.append("Caminhos não são arquivos:\n  - " + "\n  - ".join(not_files[:5]))
+
+        if invalid_formats:
+            errors.append(
+                "Formatos de vídeo inválidos:\n  - "
+                + "\n  - ".join(invalid_formats[:5])
+                + f"\n\nFormatos aceitos: {', '.join(sorted(VIDEO_EXTENSIONS))}"
+            )
+
+        if errors:
+            raise ValueError("\n\n".join(errors))
+
         return v
 
 

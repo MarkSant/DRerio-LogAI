@@ -899,8 +899,65 @@ class ProjectManager:
         )
         log_context.info("project.create.start")
 
+        # Validate numeric bounds to prevent division by zero and invalid states
+        if num_aquariums < 1:
+            raise ValueError("num_aquariums must be >= 1")
+        if num_aquariums > 1000:
+            raise ValueError("num_aquariums must be <= 1000 (unrealistic)")
+
+        if animals_per_aquarium < 1:
+            raise ValueError("animals_per_aquarium must be >= 1")
+        if animals_per_aquarium > 1000:
+            raise ValueError("animals_per_aquarium must be <= 1000 (unrealistic)")
+
+        if aquarium_width_cm <= 0:
+            raise ValueError("aquarium_width_cm must be > 0 (prevents division by zero in calibration)")
+        if aquarium_width_cm > 500:
+            raise ValueError("aquarium_width_cm must be <= 500 cm (unrealistic)")
+
+        if aquarium_height_cm <= 0:
+            raise ValueError(
+                "aquarium_height_cm must be > 0 (prevents division by zero in calibration)"
+            )
+        if aquarium_height_cm > 500:
+            raise ValueError("aquarium_height_cm must be <= 500 cm (unrealistic)")
+
+        if analysis_interval_frames < 1:
+            raise ValueError("analysis_interval_frames must be >= 1 (prevents modulo errors)")
+        if analysis_interval_frames > 100:
+            raise ValueError("analysis_interval_frames must be <= 100")
+
+        if display_interval_frames < 1:
+            raise ValueError("display_interval_frames must be >= 1 (prevents modulo errors)")
+        if display_interval_frames > 100:
+            raise ValueError("display_interval_frames must be <= 100")
+
+        if camera_index < 0:
+            raise ValueError("camera_index must be >= 0")
+        if camera_index > 100:
+            raise ValueError("camera_index must be <= 100 (unrealistic)")
+
         if project_type == "pre-recorded" and not video_files:
             raise ValueError("Pre-recorded projects require a list of video files.")
+
+        # Validate video files exist and are readable
+        if project_type == "pre-recorded" and video_files:
+            missing_files = []
+            for video_info in video_files:
+                # video_info can be either a string path or a dict with 'path' key
+                video_path = video_info.get("path") if isinstance(video_info, dict) else video_info
+                if isinstance(video_path, str):
+                    path_obj = Path(video_path)
+                    if not path_obj.exists():
+                        missing_files.append(str(video_path))
+                    elif not path_obj.is_file():
+                        raise ValueError(f"Video path is not a file: {video_path}")
+
+            if missing_files:
+                raise ValueError(
+                    f"Video files not found:\n  - " + "\n  - ".join(missing_files[:10])
+                    + (f"\n  ... and {len(missing_files) - 10} more" if len(missing_files) > 10 else "")
+                )
 
         try:
             os.makedirs(self.project_path, exist_ok=True)

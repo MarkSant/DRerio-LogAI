@@ -55,12 +55,9 @@ from __future__ import annotations
 
 import copy
 import dataclasses
-import platform
-import signal
 import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
@@ -70,48 +67,6 @@ from typing import Any, Protocol
 import structlog
 
 log = structlog.get_logger().bind(component="state_manager")
-
-
-# Task 1.2: Timeout context manager for observer callbacks
-@contextmanager
-def timeout(seconds: int):
-    """
-    Context manager for timeout of callbacks.
-
-    WARNING: Uses signal.SIGALRM which only works on Unix systems and
-    is not thread-safe. On Windows or when in a thread, this gracefully
-    degrades to no timeout.
-
-    Args:
-        seconds: Timeout in seconds
-
-    Raises:
-        TimeoutError: If the context block exceeds the timeout
-    """
-    # Check if we can use signal-based timeout
-    # SIGALRM only works on Unix and only in the main thread
-    can_use_signal = (
-        platform.system() != "Windows"
-        and hasattr(signal, "SIGALRM")
-        and threading.current_thread() is threading.main_thread()
-    )
-
-    if can_use_signal:
-
-        def timeout_handler(signum, frame):
-            raise TimeoutError("Observer callback exceeded timeout")
-
-        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(seconds)
-        try:
-            yield
-        finally:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, old_handler)
-    else:
-        # No timeout protection on Windows or in threads
-        # Just execute the block normally
-        yield
 
 
 class StateCategory(Enum):
@@ -705,23 +660,16 @@ class StateManager:
             # Snapshot observers - creating list copies for thread-safe iteration
             category_observers = list(self._observers[category])
             global_observers = list(self._global_observers)
-            observer_timeout = self._observer_timeout_seconds
 
         # Step 2: Notify OUTSIDE the lock (prevents deadlock)
-        # Task 1.2: With timeout protection for slow observers
+        # Note: Observers are expected to be fast and non-blocking.
+        # Slow observers may delay state updates. Consider moving heavy
+        # operations to background threads in observer implementations.
+
         # Notify category-specific observers
         for observer in category_observers:
             try:
-                with timeout(observer_timeout):
-                    observer(category, key, old_value, new_value)
-            except TimeoutError:
-                log.error(
-                    "state.observer.timeout",
-                    category=category.name,
-                    key=key,
-                    timeout_seconds=observer_timeout,
-                    observer=getattr(observer, "__name__", repr(observer)),
-                )
+                observer(category, key, old_value, new_value)
             except Exception as e:
                 log.error(
                     "state.observer.callback_failed",
@@ -735,16 +683,7 @@ class StateManager:
         # Notify global observers
         for observer in global_observers:
             try:
-                with timeout(observer_timeout):
-                    observer(category, key, old_value, new_value)
-            except TimeoutError:
-                log.error(
-                    "state.observer.timeout",
-                    category=category.name,
-                    key=key,
-                    timeout_seconds=observer_timeout,
-                    observer=getattr(observer, "__name__", repr(observer)),
-                )
+                observer(category, key, old_value, new_value)
             except Exception as e:
                 log.error(
                     "state.observer.callback_failed",
