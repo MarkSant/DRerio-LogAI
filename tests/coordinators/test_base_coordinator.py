@@ -12,16 +12,17 @@ Test Coverage:
 - Abstract method enforcement
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 
 from zebtrack.coordinators.base import (
     BaseCoordinator,
+    CoordinatorDependencyError,
     CoordinatorError,
     CoordinatorValidationError,
-    CoordinatorDependencyError,
 )
-from zebtrack.core.state_manager import StateManager, StateCategory
+from zebtrack.core.state_manager import StateCategory, StateManager
 
 
 class ConcreteCoordinator(BaseCoordinator):

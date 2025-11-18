@@ -852,6 +852,85 @@ class ProjectManager:
             log.error("settings.snapshot.save_error", error=str(e))
             return False
 
+    def _validate_project_parameters(
+        self,
+        num_aquariums: int,
+        animals_per_aquarium: int,
+        aquarium_width_cm: float,
+        aquarium_height_cm: float,
+        analysis_interval_frames: int,
+        display_interval_frames: int,
+        camera_index: int,
+        project_type: str,
+        video_files: list | None,
+    ) -> None:
+        """Validate project creation parameters.
+
+        Phase 3.3: Extracted from create_new_project to reduce complexity (C901).
+        Validation bounds match Pydantic models in ui/wizard/models.py.
+
+        Args:
+            num_aquariums: Number of aquariums/arenas
+            animals_per_aquarium: Number of animals per aquarium
+            aquarium_width_cm: Aquarium width in cm (0 = no calibration)
+            aquarium_height_cm: Aquarium height in cm (0 = no calibration)
+            analysis_interval_frames: Detection interval in frames
+            display_interval_frames: Overlay update interval in frames
+            camera_index: Camera device index
+            project_type: Type of project ("Pre-recorded" or "Live")
+            video_files: Optional list of video files
+
+        Raises:
+            ValueError: If any parameter is invalid.
+        """
+        # Validate aquarium count
+        if num_aquariums < 1:
+            raise ValueError("num_aquariums deve ser >= 1")
+        if num_aquariums > 100:
+            raise ValueError("num_aquariums deve ser <= 100 (limite prático)")
+
+        # Validate animals per aquarium
+        if animals_per_aquarium < 1:
+            raise ValueError("animals_per_aquarium deve ser >= 1")
+        if animals_per_aquarium > 100:
+            raise ValueError("animals_per_aquarium deve ser <= 100 (limite prático)")
+
+        # Phase 1.2: Calibration dimensions - 0 means "no calibration", which is valid
+        if aquarium_width_cm < 0:
+            raise ValueError("aquarium_width_cm deve ser >= 0 (0 = sem calibração)")
+        if aquarium_width_cm > 500:
+            raise ValueError("aquarium_width_cm deve ser <= 500 cm (valor irreal)")
+
+        if aquarium_height_cm < 0:
+            raise ValueError("aquarium_height_cm deve ser >= 0 (0 = sem calibração)")
+        if aquarium_height_cm > 500:
+            raise ValueError("aquarium_height_cm deve ser <= 500 cm (valor irreal)")
+
+        # Validate frame intervals
+        if analysis_interval_frames < 1:
+            raise ValueError("analysis_interval_frames deve ser >= 1")
+        if analysis_interval_frames > 30:
+            raise ValueError("analysis_interval_frames deve ser <= 30")
+
+        if display_interval_frames < 1:
+            raise ValueError("display_interval_frames deve ser >= 1")
+        if display_interval_frames > 30:
+            raise ValueError("display_interval_frames deve ser <= 30")
+
+        # Validate camera index
+        if camera_index < 0:
+            raise ValueError("camera_index deve ser >= 0")
+        if camera_index > 10:
+            raise ValueError("camera_index deve ser <= 10 (limite de dispositivos)")
+
+        # Validate project type (case-insensitive)
+        valid_types = ["Pre-recorded", "Live"]
+        if not any(project_type.lower() == vt.lower() for vt in valid_types):
+            raise ValueError(
+                f"project_type deve ser um de: {', '.join(valid_types)}\n"
+                f"Recebido: {project_type}"
+            )
+
     def create_new_project(
         self,
         project_path: Path | str,
@@ -899,46 +978,18 @@ class ProjectManager:
         )
         log_context.info("project.create.start")
 
-        # Validate numeric bounds to prevent division by zero and invalid states
-        if num_aquariums < 1:
-            raise ValueError("num_aquariums must be >= 1")
-        if num_aquariums > 1000:
-            raise ValueError("num_aquariums must be <= 1000 (unrealistic)")
-
-        if animals_per_aquarium < 1:
-            raise ValueError("animals_per_aquarium must be >= 1")
-        if animals_per_aquarium > 1000:
-            raise ValueError("animals_per_aquarium must be <= 1000 (unrealistic)")
-
-        # Calibration dimensions: 0 means "no calibration", which is valid
-        # Only validate if calibration is being used (non-zero values)
-        if aquarium_width_cm < 0:
-            raise ValueError("aquarium_width_cm must be >= 0")
-        if aquarium_width_cm > 500:
-            raise ValueError("aquarium_width_cm must be <= 500 cm (unrealistic)")
-
-        if aquarium_height_cm < 0:
-            raise ValueError("aquarium_height_cm must be >= 0")
-        if aquarium_height_cm > 500:
-            raise ValueError("aquarium_height_cm must be <= 500 cm (unrealistic)")
-
-        if analysis_interval_frames < 1:
-            raise ValueError("analysis_interval_frames must be >= 1 (prevents modulo errors)")
-        if analysis_interval_frames > 100:
-            raise ValueError("analysis_interval_frames must be <= 100")
-
-        if display_interval_frames < 1:
-            raise ValueError("display_interval_frames must be >= 1 (prevents modulo errors)")
-        if display_interval_frames > 100:
-            raise ValueError("display_interval_frames must be <= 100")
-
-        if camera_index < 0:
-            raise ValueError("camera_index must be >= 0")
-        if camera_index > 100:
-            raise ValueError("camera_index must be <= 100 (unrealistic)")
-
-        if project_type == "pre-recorded" and not video_files:
-            raise ValueError("Pre-recorded projects require a list of video files.")
+        # Phase 3: Validate all parameters (extracted to reduce complexity)
+        self._validate_project_parameters(
+            num_aquariums=num_aquariums,
+            animals_per_aquarium=animals_per_aquarium,
+            aquarium_width_cm=aquarium_width_cm,
+            aquarium_height_cm=aquarium_height_cm,
+            analysis_interval_frames=analysis_interval_frames,
+            display_interval_frames=display_interval_frames,
+            camera_index=camera_index,
+            project_type=project_type,
+            video_files=video_files,
+        )
 
         # Note: Video file existence is NOT validated during project creation to allow:
         # 1. Projects with placeholder paths (used in tests and workflows)

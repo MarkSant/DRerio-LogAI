@@ -3,17 +3,16 @@
 Comprehensive test coverage for detector setup and configuration orchestration.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
+from zebtrack.coordinators.base import CoordinatorValidationError
 from zebtrack.coordinators.detector_coordinator import (
     DetectorCoordinator,
     DetectorCoordinatorError,
 )
-from zebtrack.coordinators.base import CoordinatorValidationError
 from zebtrack.core.state_manager import StateCategory, StateManager
-
 
 # =============================================================================
 # FIXTURES

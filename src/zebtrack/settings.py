@@ -69,13 +69,19 @@ class CameraSettings(BaseModel):
         ...,
         gt=0,
         le=7680,
-        description="The width (pixels) used for defining detection zones. Valid range: 1-7680 (8K max).",
+        description=(
+            "The width (pixels) used for defining detection zones. "
+            "Valid range: 1-7680 (8K max)."
+        ),
     )
     desired_height: int = Field(
         ...,
         gt=0,
         le=4320,
-        description="The height (pixels) used for defining detection zones. Valid range: 1-4320 (8K max).",
+        description=(
+            "The height (pixels) used for defining detection zones. "
+            "Valid range: 1-4320 (8K max)."
+        ),
     )
     max_reconnect_attempts: int = Field(
         10,

@@ -2176,7 +2176,8 @@ class MainViewModel:
                 video_path,
             )
             metadata_context.update(derived_metadata)
-        except (KeyError, ValueError, FileNotFoundError) as e:  # pragma: no cover - defensive fallback
+        # pragma: no cover - defensive fallback
+        except (KeyError, ValueError, FileNotFoundError) as e:
             # Expected errors: malformed metadata, invalid values, missing project file
             log.debug(
                 "controller.processing.metadata_derive_failed",

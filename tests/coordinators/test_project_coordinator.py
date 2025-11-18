@@ -15,16 +15,17 @@ Test Coverage (Sprint 3 - Target: 80 tests):
 Total: 80 tests planned
 """
 
-import pytest
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch, call
+from unittest.mock import Mock, patch
 
+import pytest
+
+from zebtrack.coordinators.base import CoordinatorValidationError
 from zebtrack.coordinators.project_coordinator import (
     ProjectCoordinator,
     ProjectCoordinatorError,
 )
-from zebtrack.coordinators.base import CoordinatorValidationError
-from zebtrack.core.state_manager import StateManager, StateCategory
+from zebtrack.core.state_manager import StateCategory, StateManager
 
 
 @pytest.fixture

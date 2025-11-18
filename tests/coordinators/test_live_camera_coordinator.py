@@ -15,16 +15,16 @@ Test Coverage (Sprint 4 - Target: 60+ tests):
 Total: 70 tests
 """
 
-import pytest
-import datetime
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock
 
+import pytest
+
+from zebtrack.coordinators.base import CoordinatorValidationError
 from zebtrack.coordinators.live_camera_coordinator import (
     LiveCameraCoordinator,
     LiveCameraCoordinatorError,
 )
-from zebtrack.coordinators.base import CoordinatorValidationError
-from zebtrack.core.state_manager import StateManager, StateCategory
+from zebtrack.core.state_manager import StateCategory, StateManager
 
 
 @pytest.fixture

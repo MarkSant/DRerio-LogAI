@@ -178,7 +178,9 @@ def test_run_aquarium_detection_emits_polygon_on_success(monkeypatch):
 
     orchestrator.run_aquarium_detection()
 
-    polygon_events = [evt for evt in vm.ui_event_bus.events if evt[0] == Events.UI_SETUP_INTERACTIVE_POLYGON]
+    polygon_events = [
+        evt for evt in vm.ui_event_bus.events if evt[0] == Events.UI_SETUP_INTERACTIVE_POLYGON
+    ]
     assert polygon_events, "expected polygon event on success"
     assert captured["init"]["model_path"] == "weights/best.pt"
     assert captured["detect"]["video_path"] == Path("/tmp/video.mp4")

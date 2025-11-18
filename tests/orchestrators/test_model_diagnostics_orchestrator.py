@@ -117,7 +117,9 @@ def test_initialize_openvino_model_missing_plugin(diagnostics_orchestrator, tmp_
     assert error_events
 
 
-def test_initialize_openvino_model_requires_predict_method(diagnostics_orchestrator, tmp_path, monkeypatch):
+def test_initialize_openvino_model_requires_predict_method(
+    diagnostics_orchestrator, tmp_path, monkeypatch
+):
     orchestrator, main_vm = diagnostics_orchestrator
     ov_dir = tmp_path / "ov_model"
     ov_dir.mkdir()

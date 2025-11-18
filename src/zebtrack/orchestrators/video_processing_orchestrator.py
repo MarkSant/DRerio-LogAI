@@ -753,7 +753,10 @@ class VideoProcessingOrchestrator:
                 Events.UI_SHOW_ERROR,
                 {
                     "title": "Erro",
-                    "message": "Não foi possível localizar caminhos válidos para os vídeos selecionados.",
+                    "message": (
+                        "Não foi possível localizar caminhos válidos "
+                        "para os vídeos selecionados."
+                    ),
                 },
             )
             return None

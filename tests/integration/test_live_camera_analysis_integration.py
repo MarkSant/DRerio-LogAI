@@ -57,12 +57,52 @@ def mock_recorder():
 
 @pytest.fixture
 def mock_settings():
-    """Create mock settings."""
+    """Create mock settings with proper attribute values for Camera and LiveCameraService.
+
+    Phase 3.4: Fixed to provide actual values instead of Mock objects
+    to prevent TypeError in comparisons (e.g., max_reconnect_attempts > 0).
+    Also configures model_copy() to return a copy with real values.
+    """
     settings = Mock()
+
+    # Live analysis settings
     settings.live_analysis.default_duration_s = 5
     settings.live_analysis.max_duration_s = 300
     settings.live_analysis.auto_stop_on_limit = True
+
+    # Camera settings (used by Camera class)
+    settings.camera.index = 0
+    settings.camera.desired_width = 640
+    settings.camera.desired_height = 480
+    settings.camera.max_reconnect_attempts = 3  # Must be int, not Mock
+    settings.camera.reconnect_timeout_seconds = 5.0
+    settings.camera.max_frame_lag_ms = 1000.0
+
+    # Video processing settings
     settings.video_processing.fps = 30.0
+
+    # Logging settings (used by structlog in threads)
+    settings.logging.level = "INFO"
+    settings.logging.file_path = "analysis.log"
+
+    # Configure model_copy() to return a settings object with same real values
+    # This is called by LiveCameraService to create a temporary copy
+    def model_copy_side_effect(**kwargs):
+        copy_mock = Mock()
+        # Apply any overrides from kwargs
+        copy_mock.camera.index = kwargs.get("camera_index", 0)
+        copy_mock.camera.desired_width = 1280  # LiveCameraService forces this
+        copy_mock.camera.desired_height = 720  # LiveCameraService forces this
+        copy_mock.camera.max_reconnect_attempts = 3
+        copy_mock.camera.reconnect_timeout_seconds = 5.0
+        copy_mock.camera.max_frame_lag_ms = 1000.0
+        copy_mock.video_processing.fps = 30.0
+        copy_mock.logging.level = "INFO"
+        copy_mock.logging.file_path = "analysis.log"
+        return copy_mock
+
+    settings.model_copy.side_effect = model_copy_side_effect
+
     return settings
 
 
@@ -136,31 +176,84 @@ def mock_main_view_model(mock_camera, mock_detector, mock_recorder, mock_setting
     controller.setup_detector_zones = Mock()
 
     # Phase 2.3: Mock RecordingSessionOrchestrator since start_live_camera_analysis delegates to it
+    import structlog
+
     from zebtrack.orchestrators.recording_session_orchestrator import RecordingSessionOrchestrator
     from zebtrack.ui.events import Events
 
+    log = structlog.get_logger()
+
     def mock_start_live_camera_analysis(camera_index=None):
-        """Mock implementation that calls live_camera_service and handles errors."""
+        """Mock implementation that calls live_camera_service and handles errors.
+
+        Phase 3.4: Updated to check return value from start_session() and publish
+        error event when it returns False, mimicking RecordingSessionOrchestrator.
+        Also checks if dialog was cancelled (dialog.result = None).
+        """
+        # If no camera_index provided, need to show dialog (will be mocked in tests)
+        if camera_index is None:
+            from zebtrack.ui.dialogs import LiveAnalysisDialog
+
+            dialog = LiveAnalysisDialog(controller.view.root, settings_obj=controller.settings)
+
+            # Mimic RecordingSessionOrchestrator dialog cancellation check (lines 626-628)
+            if not dialog.result:
+                log.info("controller.live_analysis.cancelled")
+                return
+
+            config = dialog.result
+            camera_index = config["camera_index"]
+            duration_s = config["duration_s"]
+            experiment_id = config["experiment_id"]
+            analysis_interval_frames = config.get("analysis_interval_frames", 1)
+            display_interval_frames = config.get("display_interval_frames", 1)
+            record_video = config.get("record_video", True)
+        else:
+            # Use defaults when camera_index is provided directly
+            duration_s = 5
+            experiment_id = "test"
+            analysis_interval_frames = 1
+            display_interval_frames = 30
+            record_video = True
+
         try:
-            return live_camera_service.start_session(
-                camera_index=camera_index or 0,
-                duration_s=5,
-                experiment_id="test",
-                analysis_interval_frames=1,
-                display_interval_frames=30,
-                record_video=True,
+            success = live_camera_service.start_session(
+                camera_index=camera_index,
+                duration_s=duration_s,
+                experiment_id=experiment_id,
+                analysis_interval_frames=analysis_interval_frames,
+                display_interval_frames=display_interval_frames,
+                record_video=record_video,
             )
+
+            # Mimic RecordingSessionOrchestrator error handling (lines 653-660)
+            if not success and controller.ui_event_bus:
+                controller.ui_event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Erro na Análise",
+                        "message": "Falha ao iniciar análise de câmera.",
+                    },
+                )
+
+            return success
+
         except Exception as e:
             # Mimic error handling from real RecordingSessionOrchestrator
             if controller.ui_event_bus:
                 controller.ui_event_bus.publish_event(
                     Events.UI_SHOW_ERROR,
-                    {"title": "Erro na Análise", "message": f"Falha ao iniciar análise de câmera: {e}"},
+                    {
+                        "title": "Erro na Análise",
+                        "message": f"Falha ao iniciar análise de câmera: {e}",
+                    },
                 )
             return False
 
     recording_session_orchestrator = Mock(spec=RecordingSessionOrchestrator)
-    recording_session_orchestrator.start_live_camera_analysis.side_effect = mock_start_live_camera_analysis
+    recording_session_orchestrator.start_live_camera_analysis.side_effect = (
+        mock_start_live_camera_analysis
+    )
     controller.recording_session_orchestrator = recording_session_orchestrator
 
     return controller
@@ -364,7 +457,11 @@ def test_live_camera_analysis_camera_unavailable(mock_main_view_model):
 
 
 def test_live_camera_analysis_detector_setup_fails(mock_main_view_model):
-    """Test error handling when detector setup fails."""
+    """Test error handling when detector setup fails.
+
+    Phase 3.4: Fixed to properly configure detector_service.detector,
+    which is what LiveCameraService actually checks.
+    """
     from zebtrack.core.main_view_model import MainViewModel
 
     with patch("zebtrack.ui.dialogs.LiveAnalysisDialog") as mock_dialog_class:
@@ -380,7 +477,9 @@ def test_live_camera_analysis_detector_setup_fails(mock_main_view_model):
         mock_dialog_class.return_value = mock_dialog
 
         controller = mock_main_view_model
-        controller.detector = None  # No detector
+        # Phase 3.4: Set detector_service.detector to None (not controller.detector)
+        # because LiveCameraService checks detector_service.detector
+        controller.detector_service.detector = None
         controller.setup_detector.return_value = False  # Setup fails
 
         MainViewModel.start_live_camera_analysis(controller)

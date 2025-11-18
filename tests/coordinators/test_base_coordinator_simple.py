@@ -14,11 +14,11 @@ from unittest.mock import Mock
 
 from zebtrack.coordinators.base import (
     BaseCoordinator,
+    CoordinatorDependencyError,
     CoordinatorError,
     CoordinatorValidationError,
-    CoordinatorDependencyError,
 )
-from zebtrack.core.state_manager import StateManager, StateCategory
+from zebtrack.core.state_manager import StateCategory, StateManager
 
 
 class ConcreteCoordinator(BaseCoordinator):
@@ -65,7 +65,7 @@ def test_cannot_instantiate_base_coordinator():
 
     try:
         BaseCoordinator(state_manager=state_manager)
-        assert False, "Should have raised TypeError"
+        raise AssertionError("Should have raised TypeError")
     except TypeError as e:
         assert "abstract" in str(e).lower()
         print("✓ test_cannot_instantiate_base_coordinator passed")
@@ -150,7 +150,7 @@ def test_validate_not_none_raises():
 
     try:
         coordinator._validate_not_none(None, "test_param")
-        assert False, "Should have raised ValueError"
+        raise AssertionError("Should have raised ValueError")
     except ValueError as e:
         assert "test_param" in str(e)
         assert "cannot be None" in str(e)
@@ -175,7 +175,7 @@ def test_validate_type_raises():
 
     try:
         coordinator._validate_type(42, str, "test_param")
-        assert False, "Should have raised TypeError"
+        raise AssertionError("Should have raised TypeError")
     except TypeError as e:
         assert "test_param" in str(e)
         assert "str" in str(e)
