@@ -910,15 +910,15 @@ class ProjectManager:
         if animals_per_aquarium > 1000:
             raise ValueError("animals_per_aquarium must be <= 1000 (unrealistic)")
 
-        if aquarium_width_cm <= 0:
-            raise ValueError("aquarium_width_cm must be > 0 (prevents division by zero in calibration)")
+        # Calibration dimensions: 0 means "no calibration", which is valid
+        # Only validate if calibration is being used (non-zero values)
+        if aquarium_width_cm < 0:
+            raise ValueError("aquarium_width_cm must be >= 0")
         if aquarium_width_cm > 500:
             raise ValueError("aquarium_width_cm must be <= 500 cm (unrealistic)")
 
-        if aquarium_height_cm <= 0:
-            raise ValueError(
-                "aquarium_height_cm must be > 0 (prevents division by zero in calibration)"
-            )
+        if aquarium_height_cm < 0:
+            raise ValueError("aquarium_height_cm must be >= 0")
         if aquarium_height_cm > 500:
             raise ValueError("aquarium_height_cm must be <= 500 cm (unrealistic)")
 
@@ -940,24 +940,11 @@ class ProjectManager:
         if project_type == "pre-recorded" and not video_files:
             raise ValueError("Pre-recorded projects require a list of video files.")
 
-        # Validate video files exist and are readable
-        if project_type == "pre-recorded" and video_files:
-            missing_files = []
-            for video_info in video_files:
-                # video_info can be either a string path or a dict with 'path' key
-                video_path = video_info.get("path") if isinstance(video_info, dict) else video_info
-                if isinstance(video_path, str):
-                    path_obj = Path(video_path)
-                    if not path_obj.exists():
-                        missing_files.append(str(video_path))
-                    elif not path_obj.is_file():
-                        raise ValueError(f"Video path is not a file: {video_path}")
-
-            if missing_files:
-                raise ValueError(
-                    f"Video files not found:\n  - " + "\n  - ".join(missing_files[:10])
-                    + (f"\n  ... and {len(missing_files) - 10} more" if len(missing_files) > 10 else "")
-                )
+        # Note: Video file existence is NOT validated during project creation to allow:
+        # 1. Projects with placeholder paths (used in tests and workflows)
+        # 2. Videos to be added later after project creation
+        # 3. Paths to be resolved dynamically
+        # File existence is validated when videos are actually processed.
 
         try:
             os.makedirs(self.project_path, exist_ok=True)

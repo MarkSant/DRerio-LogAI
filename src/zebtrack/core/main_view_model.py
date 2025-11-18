@@ -276,10 +276,8 @@ class MainViewModel:
                 cuda_available=hardware_summary["cuda_available"],
             )
 
-        self._global_model_defaults = {
-            "active_weight": self.active_weight_name or None,
-            "use_openvino": self.use_openvino,
-        }
+        # Phase 2.4: Removed _global_model_defaults dictionary
+        # Now access via get_global_model_defaults() which uses StateManager
         self._using_project_overrides = False
 
         # Core runtime attributes
@@ -649,6 +647,8 @@ class MainViewModel:
         if self._use_event_bus:
             log.info("controller.bind_events.start")
             self._register_event_handlers()
+            # Phase 2.3: Orchestrators register their own event handlers
+            self.video_processing_orchestrator.register_event_handlers()
             log.info("controller.bind_events.complete")
 
     # ==================== Phase 2, Step 4: State Manager Properties ====================  # noqa: E501
@@ -680,6 +680,23 @@ class MainViewModel:
         coordinator = getattr(self, "recording_coordinator", None)
         if coordinator is not None:
             coordinator.recording_service = value
+
+    @property
+    def _global_model_defaults(self) -> dict:
+        """Phase 2.4: Backward-compatible proxy to StateManager.
+
+        WARNING: This is a read-only property. Direct assignment like
+        `_global_model_defaults["key"] = value` will NOT persist to StateManager.
+        Use StateManager.update_detector_state() instead.
+
+        Returns:
+            Dictionary with active_weight and use_openvino from StateManager.
+        """
+        detector_state = self.state_manager.get_detector_state()
+        return {
+            "active_weight": detector_state.active_weight_name,
+            "use_openvino": detector_state.use_openvino,
+        }
 
     @property
     def detector(self) -> Detector | None:
@@ -894,11 +911,7 @@ class MainViewModel:
         Events.WIZARD_CREATE_PROJECT: ("create_project_workflow", None, "kwargs_all"),
         Events.PROJECT_OPEN: ("open_project_workflow", ["project_path"], "positional"),
         Events.PROJECT_CLOSE: ("close_project", [], "no_params"),
-        Events.PROJECT_PROCESS_VIDEOS: (
-            "process_pending_project_videos",
-            ["video_paths"],
-            "kwargs_get",
-        ),
+        # Events.PROJECT_PROCESS_VIDEOS - Phase 2.3: Moved to VideoProcessingOrchestrator
         Events.PROJECT_GENERATE_SUMMARIES: (
             "generate_parquet_summaries",
             ["video_paths"],
@@ -914,18 +927,9 @@ class MainViewModel:
             ["video_path", "asset"],
             "positional",
         ),
-        # Video processing events
-        Events.VIDEO_ANALYZE_SINGLE: (
-            "start_single_video_workflow",
-            ["video_path", "config"],
-            "positional",
-        ),
-        Events.VIDEO_START_SINGLE_PROCESSING: (
-            "start_single_video_processing",
-            ["video_path", "config", "zone_data"],
-            "positional",
-        ),
-        Events.VIDEO_CANCEL_ANALYSIS: ("cancel_current_analysis", [], "no_params"),
+        # Video processing events - Phase 2.3: Moved to VideoProcessingOrchestrator
+        # Events.VIDEO_ANALYZE_SINGLE, VIDEO_START_SINGLE_PROCESSING, VIDEO_CANCEL_ANALYSIS
+        # Events.PROJECT_PROCESS_VIDEOS - now handled by VideoProcessingOrchestrator
         # Model & weight events
         Events.MODEL_SET_WEIGHT: ("set_active_weight", ["name", "dialog"], "kwargs_get"),
         Events.MODEL_SET_OPENVINO: (
@@ -1388,12 +1392,15 @@ class MainViewModel:
     def get_global_model_defaults(self) -> dict:
         """Get global model default settings.
 
+        Phase 2.4: Now reads from StateManager as single source of truth.
+
         Returns:
             Dictionary with 'active_weight' and 'use_openvino' keys.
         """
+        detector_state = self.state_manager.get_detector_state()
         return {
-            "active_weight": self._global_model_defaults.get("active_weight"),
-            "use_openvino": self._global_model_defaults.get("use_openvino", False),
+            "active_weight": detector_state.active_weight_name or None,
+            "use_openvino": detector_state.use_openvino,
         }
 
     def _get_project_data_dict(self) -> dict:
@@ -1701,103 +1708,16 @@ class MainViewModel:
     def start_live_camera_analysis(self, camera_index: int | None = None):
         """Start a live camera analysis session.
 
-        Delegates to RecordingSessionOrchestrator when available. Older tests/mock setups
-        instantiate MainViewModel as a simple Mock without orchestrators, so we keep a
-        lightweight fallback that calls LiveCameraService directly in that scenario.
+        Phase 2.3: Simplified to always delegate to RecordingSessionOrchestrator.
+        Removed fallback since orchestrator is always initialized in __init__.
 
         Args:
             camera_index: Optional camera index. If provided, uses this camera directly
                          without showing the configuration dialog. If None, shows dialog.
         """
-        orchestrator = getattr(self, "recording_session_orchestrator", None)
-        if isinstance(orchestrator, RecordingSessionOrchestrator):
-            return orchestrator.start_live_camera_analysis(camera_index=camera_index)
-
-        log.warning(
-            "controller.live_analysis.orchestrator_missing",
-            message="RecordingSessionOrchestrator not initialized; using direct service fallback.",
+        return self.recording_session_orchestrator.start_live_camera_analysis(
+            camera_index=camera_index
         )
-        return MainViewModel._start_live_camera_analysis_direct(  # type: ignore[misc]
-            self,
-            camera_index=camera_index,
-        )
-
-    def _start_live_camera_analysis_direct(self, camera_index: int | None = None):
-        """Fallback implementation used when orchestrator is unavailable."""
-        log.info("controller.live_analysis.fallback", camera_index=camera_index)
-
-        if camera_index is not None:
-            if hasattr(self.settings, "live_analysis"):
-                duration_s = getattr(self.settings.live_analysis, "default_duration_s", 300)
-            else:
-                duration_s = 300
-            experiment_id = f"camera_{camera_index}"
-            analysis_interval_frames = 1
-            display_interval_frames = 1
-            record_video = True
-        else:
-            from zebtrack.ui.dialogs import LiveAnalysisDialog
-
-            dialog = LiveAnalysisDialog(self.view.root, settings_obj=self.settings)
-            if not dialog.result:
-                log.info("controller.live_analysis.cancelled")
-                return False
-
-            config = dialog.result
-            camera_index = config["camera_index"]
-            duration_s = config["duration_s"]
-            experiment_id = config["experiment_id"]
-            analysis_interval_frames = config.get("analysis_interval_frames", 1)
-            display_interval_frames = config.get("display_interval_frames", 1)
-            record_video = config.get("record_video", True)
-
-        live_camera_service = getattr(self, "live_camera_service", None)
-        if live_camera_service is None:
-            log.error("controller.live_analysis.no_service")
-            return False
-
-        view_root = getattr(getattr(self, "view", None), "root", None)
-        disable_preview = view_root is None or not hasattr(view_root, "tk")
-        previous_flag = getattr(self, "_disable_live_preview_window", None)
-        if disable_preview:
-            setattr(self, "_disable_live_preview_window", True)
-
-        try:
-            success = live_camera_service.start_session(
-                camera_index=camera_index,
-                duration_s=duration_s,
-                experiment_id=experiment_id,
-                analysis_interval_frames=analysis_interval_frames,
-                display_interval_frames=display_interval_frames,
-                record_video=record_video,
-            )
-        finally:
-            if disable_preview:
-                if previous_flag is None:
-                    # Remove artificial attribute so real controllers stay clean
-                    try:
-                        delattr(self, "_disable_live_preview_window")
-                    except AttributeError:
-                        pass
-                else:
-                    setattr(self, "_disable_live_preview_window", previous_flag)
-
-        ui_event_bus = getattr(self, "ui_event_bus", None)
-        if success and ui_event_bus:
-            ui_event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": f"Analisando câmera {camera_index} por {duration_s}s..."},
-            )
-        elif not success and ui_event_bus:
-            ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro na Análise",
-                    "message": "Falha ao iniciar análise de câmera.",
-                },
-            )
-
-        return success
 
     def start_live_camera_analysis_from_config(self, config: dict) -> bool:
         """Start live camera analysis with full configuration.

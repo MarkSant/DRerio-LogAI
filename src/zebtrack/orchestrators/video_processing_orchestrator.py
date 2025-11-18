@@ -66,6 +66,44 @@ class VideoProcessingOrchestrator:
         self.video_validation_service = main_view_model.video_validation_service
         self.video_classification_service = main_view_model.video_classification_service
 
+    def register_event_handlers(self) -> None:
+        """Subscribe to video processing events.
+
+        Phase 2.3: Orchestrators now subscribe directly to their events
+        instead of MainViewModel acting as a central dispatcher.
+        """
+        if not self.ui_event_bus:
+            return
+
+        bus = self.ui_event_bus
+        log.info("video_processing_orchestrator.register_handlers.start")
+
+        # Video processing events
+        bus.subscribe(
+            Events.VIDEO_ANALYZE_SINGLE,
+            lambda data: self.main_view_model.start_single_video_workflow(
+                data.get("video_path"), data.get("config")
+            ),
+        )
+        bus.subscribe(
+            Events.VIDEO_START_SINGLE_PROCESSING,
+            lambda data: self.start_single_video_processing(
+                data.get("video_path"), data.get("config"), data.get("zone_data")
+            ),
+        )
+        bus.subscribe(
+            Events.VIDEO_CANCEL_ANALYSIS,
+            lambda data: self.main_view_model.cancel_current_analysis(),
+        )
+
+        # Project video processing events
+        bus.subscribe(
+            Events.PROJECT_PROCESS_VIDEOS,
+            lambda data: self.process_pending_project_videos(data.get("video_paths")),
+        )
+
+        log.info("video_processing_orchestrator.register_handlers.complete", count=4)
+
     def select_eligible_videos(
         self,
         skip_dialog: bool,
@@ -632,98 +670,76 @@ class VideoProcessingOrchestrator:
             },
         )
 
-    def process_pending_project_videos(
-        self,
-        video_paths: list[str] | None = None,
-    ) -> None:
-        """Processa vídeos já adicionados ao projeto que possuem dados pendentes.
+    def _handle_targeted_selection_errors(
+        self, selection_result, video_paths: list[str] | None
+    ) -> bool:
+        """Handle UI feedback for targeted selection mode errors.
 
-        Extracted from MainViewModel.process_pending_project_videos in Sprint 24.
-
-        Sprint 11: Basic validations delegated to ProcessingCoordinator.
+        Returns:
+            False if processing should stop, True otherwise.
         """
-        log.info(
-            "workflow.project_processing.resume_requested",
-            targeted=len(video_paths or []),
-        )
+        # UI: Show info if no valid targets provided
+        if not video_paths:  # Should not happen but defensive
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Processamento",
+                    "message": "Nenhum vídeo selecionado para processamento.",
+                },
+            )
+            return False
 
-        # Sprint 11: Delegate validations to ProcessingCoordinator
-        # Sprint 13: Use consolidated error handling
-        validation_result = self.processing_coordinator.validate_can_start_processing(
-            check_project_loaded=True,
-            check_zones=False,  # Not required for pending videos
-            check_videos_exist=True,  # Must have videos in project
-        )
+        # UI: Show warning if targets are missing from project
+        if selection_result.has_missing:
+            sample = [os.path.basename(path) for path in selection_result.missing_targets[:5]]
+            if len(selection_result.missing_targets) > 5:
+                sample.append(f"... (+{len(selection_result.missing_targets) - 5})")
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Vídeos fora do projeto",
+                    "message": "Alguns itens selecionados não pertencem ao projeto atual:\n"
+                    + "\n".join(sample),
+                },
+            )
 
-        if not self.main_view_model._handle_validation_error(validation_result):
-            return
+        # UI: Show info if no candidates found
+        if selection_result.candidate_count == 0:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Processamento",
+                    "message": "Nenhum dos vídeos selecionados pertence ao projeto ativo.",
+                },
+            )
+            return False
 
-        # Get all videos (validation already confirmed they exist)
-        all_videos = self.project_manager.get_all_videos() or []
+        return True
 
-        # Sprint 14: Inline _gather_candidate_entries() logic
-        skip_dialog = bool(video_paths)
+    def _handle_pending_selection_errors(self, selection_result) -> bool:
+        """Handle UI feedback for pending selection mode errors.
 
-        # Delegate selection logic to VideoSelectionService
-        selection_result = self.video_selection_service.select_candidates(
-            all_videos=all_videos,
-            target_paths=video_paths,
-        )
+        Returns:
+            False if processing should stop, True otherwise.
+        """
+        # UI: Show info if no pending videos
+        if selection_result.candidate_count == 0:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Processamento",
+                    "message": "Nenhum vídeo pendente para ser processado.",
+                },
+            )
+            return False
+        return True
 
-        # Handle targeted selection mode
-        if selection_result.selection_mode == "targeted":
-            # UI: Show info if no valid targets provided
-            if not video_paths:  # Should not happen but defensive
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": "Nenhum vídeo selecionado para processamento.",
-                    },
-                )
-                return
+    def _extract_and_validate_candidate_paths(self, candidate_entries) -> list[str] | None:
+        """Extract and validate video paths from candidate entries.
 
-            # UI: Show warning if targets are missing from project
-            if selection_result.has_missing:
-                sample = [os.path.basename(path) for path in selection_result.missing_targets[:5]]
-                if len(selection_result.missing_targets) > 5:
-                    sample.append(f"... (+{len(selection_result.missing_targets) - 5})")
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Vídeos fora do projeto",
-                        "message": "Alguns itens selecionados não pertencem ao projeto atual:\n"
-                        + "\n".join(sample),
-                    },
-                )
-
-            # UI: Show info if no candidates found
-            if selection_result.candidate_count == 0:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": "Nenhum dos vídeos selecionados pertence ao projeto ativo.",
-                    },
-                )
-                return
-
-        # Handle pending selection mode
-        else:  # selection_mode == "pending"
-            # UI: Show info if no pending videos
-            if selection_result.candidate_count == 0:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento",
-                        "message": "Nenhum vídeo pendente para ser processado.",
-                    },
-                )
-                return
-
-        candidate_entries = selection_result.candidate_entries
-
-        # Sprint 14: Inline _scan_and_validate_candidate_paths() logic
+        Returns:
+            List of valid paths, or None if error occurred.
+        """
         # Extract paths from candidate entries
         candidate_paths = [
             video.get("path")
@@ -737,17 +753,15 @@ class VideoProcessingOrchestrator:
                 Events.UI_SHOW_ERROR,
                 {
                     "title": "Erro",
-                    "message": "Não foi possível localizar caminhos válidos para os vídeos selecionados.",  # noqa: E501
+                    "message": "Não foi possível localizar caminhos válidos para os vídeos selecionados.",
                 },
             )
-            return
+            return None
 
-        # Delegate scan logic to VideoValidationService
-        scan_result = self.video_validation_service.scan_and_validate_paths(
-            candidate_paths, self.project_manager
-        )
+        return candidate_paths
 
-        # UI: Show warning if files are missing
+    def _handle_missing_files_warning(self, scan_result) -> None:
+        """Show warning UI if scanned files are missing."""
         if scan_result.has_missing:
             sample_names = [os.path.basename(path) for path in scan_result.missing_files[:5]]
             if len(scan_result.missing_files) > 5:
@@ -765,12 +779,91 @@ class VideoProcessingOrchestrator:
                 missing=len(scan_result.missing_files),
             )
 
+    def _load_zones_for_eligible_videos(self, eligible_videos: list) -> None:
+        """Load zone data from parquet files for eligible videos."""
+        zones_updated = False
+        for video_info in eligible_videos:
+            if video_info.get("has_arena") or video_info.get("has_rois"):
+                try:
+                    zone_data = ProjectManager.load_zones_from_parquet(video_info)
+                except Exception as exc:  # pragma: no cover - defensive
+                    log.warning(
+                        "workflow.project_processing.zone_load_failed",
+                        video=os.path.basename(video_info.get("path", "")),
+                        error=str(exc),
+                    )
+                    zone_data = None
+
+                if zone_data and (zone_data.polygon or zone_data.roi_polygons):
+                    self.project_manager.save_zone_data(
+                        zone_data, video_info["path"], persist=False
+                    )
+                    zones_updated = True
+
+        if zones_updated:
+            self.project_manager.save_project()
+
+    def process_pending_project_videos(
+        self,
+        video_paths: list[str] | None = None,
+    ) -> None:
+        """Processa vídeos já adicionados ao projeto que possuem dados pendentes.
+
+        Extracted from MainViewModel.process_pending_project_videos in Sprint 24.
+        Sprint 11: Basic validations delegated to ProcessingCoordinator.
+        Phase 2: Complexity reduced by extracting helper methods.
+        """
+        log.info(
+            "workflow.project_processing.resume_requested",
+            targeted=len(video_paths or []),
+        )
+
+        # Validate preconditions
+        validation_result = self.processing_coordinator.validate_can_start_processing(
+            check_project_loaded=True,
+            check_zones=False,
+            check_videos_exist=True,
+        )
+        if not self.main_view_model._handle_validation_error(validation_result):
+            return
+
+        # Get all videos and prepare selection
+        all_videos = self.project_manager.get_all_videos() or []
+        skip_dialog = bool(video_paths)
+
+        # Delegate selection logic to VideoSelectionService
+        selection_result = self.video_selection_service.select_candidates(
+            all_videos=all_videos,
+            target_paths=video_paths,
+        )
+
+        # Handle selection mode specific errors
+        if selection_result.selection_mode == "targeted":
+            if not self._handle_targeted_selection_errors(selection_result, video_paths):
+                return
+        else:  # pending mode
+            if not self._handle_pending_selection_errors(selection_result):
+                return
+
+        # Extract and validate paths
+        candidate_paths = self._extract_and_validate_candidate_paths(
+            selection_result.candidate_entries
+        )
+        if candidate_paths is None:
+            return
+
+        # Scan and validate file existence
+        scan_result = self.video_validation_service.scan_and_validate_paths(
+            candidate_paths, self.project_manager
+        )
+        self._handle_missing_files_warning(scan_result)
+
         # Extract results from service
         info_by_norm = scan_result.info_by_norm
 
         # Sprint 12: Use VideoClassificationService for classification
         classification_result = self.video_classification_service.classify_videos(
-            candidate_entries, info_by_norm
+            selection_result.candidate_entries, info_by_norm
         )
         ready_with_trajectory = classification_result.ready_with_trajectory
         ready_with_zones = classification_result.ready_with_zones
@@ -797,26 +890,8 @@ class VideoProcessingOrchestrator:
         if eligible_videos is None:
             return
 
-        zones_updated = False
-        for video_info in eligible_videos:
-            if video_info.get("has_arena") or video_info.get("has_rois"):
-                try:
-                    zone_data = ProjectManager.load_zones_from_parquet(video_info)
-                except Exception as exc:  # pragma: no cover - defensive
-                    log.warning(
-                        "workflow.project_processing.zone_load_failed",
-                        video=os.path.basename(video_info.get("path", "")),
-                        error=str(exc),
-                    )
-                    zone_data = None
-                if zone_data and (zone_data.polygon or zone_data.roi_polygons):
-                    self.project_manager.save_zone_data(
-                        zone_data, video_info["path"], persist=False
-                    )
-                    zones_updated = True
-
-        if zones_updated:
-            self.project_manager.save_project()
+        # Load zone data for eligible videos
+        self._load_zones_for_eligible_videos(eligible_videos)
 
         self.cancel_event.clear()
 

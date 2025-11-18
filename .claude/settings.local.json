@@ -31,7 +31,10 @@
       "Bash(test:*)",
       "Bash(git tag:*)",
       "Bash(Select-Object -First 100)",
-      "Bash(del \"c:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\test_debug.py\")"
+      "Bash(del \"c:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\test_debug.py\")",
+      "Bash(python:*)",
+      "Bash(Select-Object -First 290)",
+      "Bash(Select-Object -Last 15)"
     ],
     "deny": [],
     "ask": []

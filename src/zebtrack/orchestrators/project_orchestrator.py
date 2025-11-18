@@ -472,10 +472,11 @@ class ProjectOrchestrator:
         """Restore global model defaults after closing a project.
 
         Extracted from MainViewModel in Sprint 34.
+        Phase 2.4: Now reads from StateManager as single source of truth.
         """
-        target_weight = self.main_view_model._global_model_defaults.get("active_weight")
-        target_openvino = bool(
-            self.main_view_model._global_model_defaults.get("use_openvino", False)
-        )
+        state_manager = self.main_view_model.state_manager
+        detector_state = state_manager.get_detector_state()
+        target_weight = detector_state.active_weight_name
+        target_openvino = detector_state.use_openvino
         self.main_view_model._using_project_overrides = False
         self._apply_model_settings(target_weight, target_openvino)

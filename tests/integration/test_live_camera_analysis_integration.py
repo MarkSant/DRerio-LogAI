@@ -135,6 +135,34 @@ def mock_main_view_model(mock_camera, mock_detector, mock_recorder, mock_setting
     controller.setup_detector = Mock(return_value=True)
     controller.setup_detector_zones = Mock()
 
+    # Phase 2.3: Mock RecordingSessionOrchestrator since start_live_camera_analysis delegates to it
+    from zebtrack.orchestrators.recording_session_orchestrator import RecordingSessionOrchestrator
+    from zebtrack.ui.events import Events
+
+    def mock_start_live_camera_analysis(camera_index=None):
+        """Mock implementation that calls live_camera_service and handles errors."""
+        try:
+            return live_camera_service.start_session(
+                camera_index=camera_index or 0,
+                duration_s=5,
+                experiment_id="test",
+                analysis_interval_frames=1,
+                display_interval_frames=30,
+                record_video=True,
+            )
+        except Exception as e:
+            # Mimic error handling from real RecordingSessionOrchestrator
+            if controller.ui_event_bus:
+                controller.ui_event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {"title": "Erro na Análise", "message": f"Falha ao iniciar análise de câmera: {e}"},
+                )
+            return False
+
+    recording_session_orchestrator = Mock(spec=RecordingSessionOrchestrator)
+    recording_session_orchestrator.start_live_camera_analysis.side_effect = mock_start_live_camera_analysis
+    controller.recording_session_orchestrator = recording_session_orchestrator
+
     return controller
 
 

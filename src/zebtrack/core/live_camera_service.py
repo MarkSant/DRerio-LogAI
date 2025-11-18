@@ -999,7 +999,8 @@ class LiveCameraService:
                 self._on_session_complete(self.current_output_dir)
             else:
                 self.stop_session()
-        except (RuntimeError, OSError) as e:
-            # Expected errors: camera already released, thread already stopped
-            log.warning("live_camera_service.cleanup.failed", error=str(e))
-        return False  # Don't suppress exceptions
+        except Exception as e:
+            # Context managers should always clean up gracefully
+            # Log but don't raise - prevents masking original exception
+            log.warning("live_camera_service.cleanup.failed", error=str(e), exc_info=True)
+        return False  # Don't suppress exceptions from context body
