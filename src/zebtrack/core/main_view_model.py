@@ -140,6 +140,7 @@ class MainViewModel:
         live_camera_coordinator=None,  # Sprint 4: Live camera coordinator
         detector_coordinator=None,  # Sprint 5: Detector setup coordinator
         processing_coordinator=None,  # Sprint 6: Video processing coordinator
+        view=None,  # Phase 2: ApplicationGUI instance (optional - will be created if None)
         test_sync_event: threading.Event | None = None,
     ):
         """Initialize MainViewModel with dependency injection.
@@ -352,22 +353,30 @@ class MainViewModel:
 
         self._active_processing_mode = ProcessingMode.MULTI_TRACK
 
-        # Create view after core state is ready so it can reflect it
-        self.view = ApplicationGUI(
-            root,
-            self,
-            event_bus=self.ui_event_bus if self._use_event_bus else None,
-            settings_obj=self.settings,
-        )
+        # Phase 2: Inversion of Control - view can be injected or created
+        if view is not None:
+            # View was injected (testable pattern)
+            self.view = view
+        else:
+            # Create view after core state is ready so it can reflect it (legacy pattern)
+            self.view = ApplicationGUI(
+                root,
+                self,
+                event_bus=self.ui_event_bus if self._use_event_bus else None,
+                settings_obj=self.settings,
+            )
 
         # Update GPU hardware display in UI (Phase 7)
-        self.view.update_gpu_hardware_display(hardware_summary)
+        # Only call if view was created internally (has update method)
+        if hasattr(self.view, "update_gpu_hardware_display"):
+            self.view.update_gpu_hardware_display(hardware_summary)
 
         # Update OpenVINO status if it was recommended but not available due to missing conversion
         if recommended_backend == "openvino" and not self.use_openvino:
-            self.view.update_openvino_status_display(
-                "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
-            )
+            if hasattr(self.view, "update_openvino_status_display"):
+                self.view.update_openvino_status_display(
+                    "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
+                )
 
         # Initialize core threading primitives first
         self.program_exit_event = threading.Event()
