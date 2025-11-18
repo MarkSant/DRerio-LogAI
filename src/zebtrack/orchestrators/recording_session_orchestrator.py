@@ -318,7 +318,7 @@ class RecordingSessionOrchestrator:
             if self._pending_external_trigger:
                 self.main_view_model.log_arduino_event(
                     "Sinal externo recebido. Iniciando gravação..."
-                )  # noqa: E501
+                )
                 self.main_view_model.trigger_recording(event_code)
             else:
                 log.warning("controller.arduino.event.unexpected_start")
@@ -473,7 +473,7 @@ class RecordingSessionOrchestrator:
         project_data = self.project_manager.project_data or {}
         arduino_enabled = bool(
             project_data.get("use_arduino") and self.main_view_model.setup_arduino()
-        )  # noqa: E501
+        )
 
         # Build recording context
         context = {

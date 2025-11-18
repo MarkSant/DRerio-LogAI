@@ -34,7 +34,8 @@
       "Bash(del \"c:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\test_debug.py\")",
       "Bash(python:*)",
       "Bash(Select-Object -First 290)",
-      "Bash(Select-Object -Last 15)"
+      "Bash(Select-Object -Last 15)",
+      "Bash(Select-Object -Last 50)"
     ],
     "deny": [],
     "ask": []
