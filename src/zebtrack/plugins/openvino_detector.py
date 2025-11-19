@@ -299,7 +299,18 @@ def _letterbox(
     Standard letterboxing function from ultralytics.
     Resizes and pads image while meeting stride-multiple constraints.
     """
+    # Task 1.5: Validate image to prevent division by zero
+    if img is None or img.size == 0:
+        raise ValueError("Image cannot be None or empty")
+
+    if len(img.shape) < 2:
+        raise ValueError(f"Image must have at least 2 dimensions, got {len(img.shape)}")
+
     shape = img.shape[:2]
+
+    if shape[0] == 0 or shape[1] == 0:
+        raise ValueError(f"Image dimensions cannot be zero: height={shape[0]}, width={shape[1]}")
+
     if isinstance(new_shape, int):
         new_shape = (new_shape, new_shape)
 
