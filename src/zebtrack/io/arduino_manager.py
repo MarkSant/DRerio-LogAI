@@ -115,11 +115,15 @@ class ArduinoManager:
         self._notify_log("Arduino desconectado.")
 
     def is_connected(self) -> bool:
-        """Checks whether the Arduino is connected and serial port is open."""
-        if not self.arduino:
-            return False
-        serial_conn = getattr(self.arduino, "ser", None)
-        return bool(serial_conn and getattr(serial_conn, "is_open", False))
+        """Checks whether the Arduino is connected and serial port is open.
+
+        Task 1.2: Thread-safe access to arduino instance.
+        """
+        with self._lock:  # Protect access to self.arduino from concurrent threads
+            if not self.arduino:
+                return False
+            serial_conn = getattr(self.arduino, "ser", None)
+            return bool(serial_conn and getattr(serial_conn, "is_open", False))
 
     def current_port(self) -> str | None:
         """Returns the serial port in use, if any."""
