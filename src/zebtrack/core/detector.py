@@ -240,6 +240,16 @@ class Detector:
 
     def detect(self, frame: np.ndarray, project_type: str):
         """Process a single frame for object detection and state tracking."""
+        # Task 1.3: Frame validation to prevent crashes with invalid input
+        if frame is None or not isinstance(frame, np.ndarray):
+            raise ValueError("Frame must be a valid numpy array")
+
+        if frame.size == 0:
+            raise ValueError("Frame cannot be empty")
+
+        if len(frame.shape) != 3 or frame.shape[2] != 3:
+            raise ValueError(f"Frame must be HxWx3 (BGR image), got shape {frame.shape}")
+
         if not self._zones_configured:
             raise RuntimeError(
                 "Must call set_zones() before detect(). "
