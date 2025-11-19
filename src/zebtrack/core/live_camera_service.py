@@ -815,19 +815,23 @@ class LiveCameraService:
             )
 
     def _on_session_complete(self, output_dir: Path):
-        """Handle session completion and trigger post-processing analysis."""
-        # ✅ Prevent duplicate analysis if already completed
-        if self._analysis_completed:
-            log.info(
-                "live_camera_service.analysis_already_completed",
-                output_dir=str(output_dir),
-            )
-            return
+        """Handle session completion and trigger post-processing analysis.
 
+        Task 1.4: Thread-safe check-and-set pattern to prevent race conditions.
+        """
+        # Task 1.4: Atomic check-and-set of _analysis_completed flag
+        with self._lock:
+            if self._analysis_completed:
+                log.info(
+                    "live_camera_service.analysis_already_completed",
+                    output_dir=str(output_dir),
+                )
+                return
+            # Mark as completed atomically to prevent duplicate calls
+            self._analysis_completed = True
+
+        # Continue processing outside lock to avoid blocking other threads
         log.info("live_camera_service.session_complete", output_dir=str(output_dir))
-
-        # Mark as completed to prevent duplicate calls
-        self._analysis_completed = True
 
         # Stop threads and cleanup
         self.stop_session()
