@@ -414,6 +414,12 @@ class Recorder:
                     path=self._parquet_filename,
                     exc_info=e,
                 )
+                # Task 2.1: Log failure to create empty parquet
+                # Not critical since no data to lose, but warns user
+                log.warning(
+                    "recorder.empty_parquet.failed",
+                    message="Could not create empty Parquet file, but no data was lost",
+                )
             finally:
                 self.detection_data.clear()
                 self._parquet_columns = []
@@ -450,6 +456,33 @@ class Recorder:
                     path=parquet_path,
                     exc_info=e,
                 )
+                # Task 2.1: Backup data to JSON when Parquet save fails
+                # This prevents data loss and allows recovery
+                backup_path = parquet_path.replace(".parquet", "_BACKUP.json")
+                try:
+                    import json
+
+                    with open(backup_path, "w", encoding="utf-8") as f:
+                        json.dump(self.detection_data, f, indent=2, default=str)
+                    log.warning(
+                        "recorder.backup.saved",
+                        path=backup_path,
+                        rows=len(self.detection_data),
+                        message=(
+                            "Detection data backed up to JSON. "
+                            "You can manually convert this to Parquet if needed."
+                        ),
+                    )
+                except Exception as backup_error:
+                    log.critical(
+                        "recorder.backup.failed",
+                        backup_path=backup_path,
+                        error=str(backup_error),
+                        message="Failed to save backup - DATA MAY BE LOST",
+                        exc_info=True,
+                    )
+                # Re-raise original error after backup attempt
+                raise
             finally:
                 self.detection_data.clear()
                 self._parquet_columns = []
