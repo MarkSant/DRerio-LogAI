@@ -638,9 +638,11 @@ class VideoProcessingService:
                 arena_polygon=arena_polygon,
             )
 
-        except Exception as e:
+        # Task 2.5: Specific exception handling instead of generic Exception
+        except (FileNotFoundError, PermissionError) as e:
+            # File system errors: missing video, no write permissions, etc.
             log.error(
-                "controller.tracking.error",
+                "controller.tracking.filesystem_error",
                 video=experiment_id,
                 error=str(e),
                 exc_info=True,
@@ -648,10 +650,102 @@ class VideoProcessingService:
             self.ui_event_bus.publish_event(
                 Events.UI_SHOW_ERROR,
                 {
-                    "title": "Erro de Rastreamento",
+                    "title": "Erro de Acesso ao Arquivo",
                     "message": (
-                        f"Ocorreu um erro inesperado ao gerar a trajetória "
-                        f"para {experiment_id}:\n{e}"
+                        f"Erro ao acessar arquivos para {experiment_id}:\n"
+                        f"{e}\n\n"
+                        f"Verifique:\n"
+                        f"• O vídeo existe e está acessível\n"
+                        f"• Você tem permissão de escrita no diretório\n"
+                        f"• O disco não está cheio"
+                    ),
+                },
+            )
+            return False, None
+        except OSError as e:
+            # I/O errors: disk full, network drive disconnected, etc.
+            log.error(
+                "controller.tracking.io_error",
+                video=experiment_id,
+                error=str(e),
+                exc_info=True,
+            )
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro de I/O",
+                    "message": (
+                        f"Erro de entrada/saída para {experiment_id}:\n"
+                        f"{e}\n\n"
+                        f"Possíveis causas:\n"
+                        f"• Disco cheio\n"
+                        f"• Dispositivo de rede desconectado\n"
+                        f"• Hardware com problemas"
+                    ),
+                },
+            )
+            return False, None
+        except cv2.error as e:
+            # OpenCV errors: corrupted video, unsupported codec, etc.
+            log.error(
+                "controller.tracking.opencv_error",
+                video=experiment_id,
+                error=str(e),
+                exc_info=True,
+            )
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro no Vídeo",
+                    "message": (
+                        f"Erro ao processar vídeo {experiment_id}:\n"
+                        f"{e}\n\n"
+                        f"Possíveis causas:\n"
+                        f"• Vídeo corrompido\n"
+                        f"• Codec não suportado\n"
+                        f"• Formato de vídeo inválido"
+                    ),
+                },
+            )
+            return False, None
+        except (ValueError, TypeError) as e:
+            # Data validation errors: invalid parameters, wrong data types
+            log.error(
+                "controller.tracking.validation_error",
+                video=experiment_id,
+                error=str(e),
+                exc_info=True,
+            )
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro de Validação",
+                    "message": (
+                        f"Dados inválidos para {experiment_id}:\n"
+                        f"{e}\n\n"
+                        f"Verifique a configuração do experimento."
+                    ),
+                },
+            )
+            return False, None
+        except Exception as e:
+            # Fallback for truly unexpected errors
+            # Task 2.5: This should be rare - log with high severity
+            log.critical(
+                "controller.tracking.unexpected_error",
+                video=experiment_id,
+                error=str(e),
+                error_type=type(e).__name__,
+                exc_info=True,
+            )
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro Inesperado de Rastreamento",
+                    "message": (
+                        f"Erro inesperado ({type(e).__name__}) ao processar {experiment_id}:\n"
+                        f"{e}\n\n"
+                        f"Por favor, reporte este erro aos desenvolvedores."
                     ),
                 },
             )
