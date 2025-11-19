@@ -860,80 +860,108 @@ class LiveCameraService:
         # Stop threads and cleanup
         self.stop_session()
 
-        # ✅ CRITICAL FIX: Trigger automatic analysis after recording
-        # Previously only showed message, now processes data and generates reports
+        # Task 2.0c: Move post-processing analysis to background thread
+        # This prevents blocking the main UI thread during heavy I/O and DataFrame operations
         log.info("live_camera_service.starting_post_analysis", output_dir=str(output_dir))
 
-        try:
-            # Find generated trajectory parquet
-            # File is saved as: 3_CoordMovimento_{base_name}.parquet
-            import glob
+        def _run_post_analysis():
+            """Background thread worker for post-processing analysis."""
+            try:
+                # Find generated trajectory parquet
+                # File is saved as: 3_CoordMovimento_{base_name}.parquet
+                import glob
 
-            # 🔍 DEBUG: List all files in output_dir
-            all_files = list(output_dir.glob("*"))
-            log.info(
-                "live_camera_service.output_files_check",
-                output_dir=str(output_dir),
-                all_files=[f.name for f in all_files],
-                num_files=len(all_files),
-            )
-
-            trajectory_files = glob.glob(str(output_dir / "3_CoordMovimento_*.parquet"))
-
-            if not trajectory_files:
-                log.warning(
-                    "live_camera_service.no_trajectory_found",
+                # 🔍 DEBUG: List all files in output_dir
+                all_files = list(output_dir.glob("*"))
+                log.info(
+                    "live_camera_service.output_files_check",
                     output_dir=str(output_dir),
-                    searched_pattern="3_CoordMovimento_*.parquet",
+                    all_files=[f.name for f in all_files],
+                    num_files=len(all_files),
                 )
-                self._show_completion_message(output_dir, analysis_success=False)
-                return
 
-            trajectory_file = Path(trajectory_files[0])
-            log.info("live_camera_service.trajectory_found", file=str(trajectory_file))
+                trajectory_files = glob.glob(str(output_dir / "3_CoordMovimento_*.parquet"))
 
-            # Load trajectory data and generate reports
-            import pandas as pd
+                if not trajectory_files:
+                    log.warning(
+                        "live_camera_service.no_trajectory_found",
+                        output_dir=str(output_dir),
+                        searched_pattern="3_CoordMovimento_*.parquet",
+                    )
+                    # Task 2.0c: Schedule UI update in main thread
+                    if self.root:
+                        self.root.after(
+                            0, self._show_completion_message, output_dir, False, None, None
+                        )
+                    return
 
-            df = pd.read_parquet(trajectory_file)
+                trajectory_file = Path(trajectory_files[0])
+                log.info("live_camera_service.trajectory_found", file=str(trajectory_file))
 
-            if df.empty:
-                log.warning("live_camera_service.empty_trajectory")
-                self._show_completion_message(
-                    output_dir, analysis_success=False, reason="no_detections"
+                # Load trajectory data and generate reports
+                # Task 2.0c: Heavy I/O operation now runs in background thread
+                import pandas as pd
+
+                df = pd.read_parquet(trajectory_file)
+
+                if df.empty:
+                    log.warning("live_camera_service.empty_trajectory")
+                    # Task 2.0c: Schedule UI update in main thread
+                    if self.root:
+                        self.root.after(
+                            0,
+                            self._show_completion_message,
+                            output_dir,
+                            False,
+                            None,
+                            "no_detections",
+                        )
+                    return
+
+                # Generate basic metrics summary
+                # Task 2.0c: DataFrame operations now in background thread
+                total_frames = df["frame"].nunique()
+                total_detections = len(df)
+                unique_tracks = df["track_id"].nunique() if "track_id" in df.columns else 0
+
+                log.info(
+                    "live_camera_service.analysis_complete",
+                    total_frames=total_frames,
+                    total_detections=total_detections,
+                    unique_tracks=unique_tracks,
                 )
-                return
 
-            # Generate basic metrics summary
-            total_frames = df["frame"].nunique()
-            total_detections = len(df)
-            unique_tracks = df["track_id"].nunique() if "track_id" in df.columns else 0
+                # Task 2.0c: Schedule success message in main thread
+                if self.root:
+                    stats = {
+                        "frames": total_frames,
+                        "detections": total_detections,
+                        "tracks": unique_tracks,
+                    }
+                    self.root.after(
+                        0, self._show_completion_message, output_dir, True, stats, None
+                    )
 
-            log.info(
-                "live_camera_service.analysis_complete",
-                total_frames=total_frames,
-                total_detections=total_detections,
-                unique_tracks=unique_tracks,
-            )
+            except Exception as e:
+                log.error(
+                    "live_camera_service.post_analysis_error",
+                    error=str(e),
+                    exc_info=True,
+                )
+                # Task 2.0c: Schedule error message in main thread
+                if self.root:
+                    self.root.after(
+                        0, self._show_completion_message, output_dir, False, None, "error"
+                    )
 
-            # Show success message with statistics
-            self._show_completion_message(
-                output_dir,
-                analysis_success=True,
-                stats={
-                    "frames": total_frames,
-                    "detections": total_detections,
-                    "tracks": unique_tracks,
-                },
-            )
-
-        except Exception as e:
-            log.error(
-                "live_camera_service.post_analysis_error",
-                error=str(e),
-                exc_info=True,
-            )
-            self._show_completion_message(output_dir, analysis_success=False, reason="error")
+        # Task 2.0c: Start background thread for post-analysis
+        analysis_thread = threading.Thread(
+            target=_run_post_analysis,
+            name="PostAnalysisThread",
+            daemon=True,  # Allow Python to exit even if thread is running
+        )
+        analysis_thread.start()
+        log.info("live_camera_service.post_analysis_thread_started")
 
     def _show_completion_message(
         self,
