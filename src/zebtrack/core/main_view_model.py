@@ -128,62 +128,17 @@ class MainViewModel:
         """Initialize MainViewModel with dependency injection.
 
         Task 3.2: Simplified constructor using config object pattern.
+        Task 3.1: Ultra-lean __init__ delegates all setup to helper methods (34 lines).
 
         Args:
             dependencies: MainViewModelDependencies containing all required services
             view: ApplicationGUI instance (optional, will be created if None)
         """
-        # Extract core dependencies from config object
-        self.root = dependencies.root
-        self.settings = dependencies.settings_obj
+        # Extract and assign all dependencies from config object
+        self._extract_dependencies(dependencies)
 
-        # Test synchronization support (for tests only)
-        self._test_sync_event = dependencies.test_sync_event
-
-        # Phase 2, Step 4: Injected dependencies from config
-        self.state_manager = dependencies.state_manager
-        self.project_manager = dependencies.project_manager
-        self.weight_manager = dependencies.weight_manager
-        self.model_service = dependencies.model_service
-        self.detector_service = dependencies.detector_service
-        self.video_processing_service = dependencies.video_processing_service
-        self.project_workflow_service = dependencies.project_workflow_service
-        self.ui_coordinator = dependencies.ui_coordinator
-
-        # Ensure coordinator attributes exist before orchestrators access them
-        self.recording_coordinator = dependencies.recording_coordinator
-
-        # Live camera service will be initialized after recording_service
-        self._live_camera_service_param = dependencies.live_camera_service
-
-        # Register test observer if sync event provided
-        if self._test_sync_event is not None:
-            self.state_manager.subscribe_all(self._on_state_change_for_test)
-
-        # Service layer dependencies (Phase 1, Step 3)
-        self.project_service = ProjectService()
-        self.analysis_service = (
-            dependencies.analysis_service
-            if dependencies.analysis_service is not None
-            else AnalysisService(settings_obj=self.settings)
-        )
-
-        # Sprint 12: Helper services for processing workflows
-        from zebtrack.core.video_classification_service import VideoClassificationService
-        from zebtrack.core.video_selection_service import VideoSelectionService
-        from zebtrack.core.video_validation_service import VideoValidationService
-
-        self.video_classification_service = VideoClassificationService()
-        self.video_selection_service = VideoSelectionService()
-        self.video_validation_service = VideoValidationService()
-
-        # Recording service (Phase 2.2) - will be fully initialized after arduino_manager
-        self._recording_service = None
-        self.recording_service = dependencies.recording_service
-        self.recording_session_orchestrator = None  # Will be created in _init_orchestrators
-
-        # Live camera service - initialized later or from parameter
-        self.live_camera_service = None
+        # Initialize all service layer components
+        self._init_services(dependencies)
 
         # Initialize hardware and models
         self._init_hardware_and_models()
@@ -201,6 +156,62 @@ class MainViewModel:
         self._subscribe_to_state()
 
         log.info("main_view_model.initialized", source="init")
+
+    def _extract_dependencies(self, dependencies: MainViewModelDependencies):
+        """Extract and assign all injected dependencies from config object.
+
+        Task 3.1: Extracted from __init__ to reduce complexity (was 37 lines inline).
+        """
+        # Core dependencies
+        self.root = dependencies.root
+        self.settings = dependencies.settings_obj
+        self._test_sync_event = dependencies.test_sync_event
+
+        # Service dependencies
+        self.state_manager = dependencies.state_manager
+        self.project_manager = dependencies.project_manager
+        self.weight_manager = dependencies.weight_manager
+        self.model_service = dependencies.model_service
+        self.detector_service = dependencies.detector_service
+        self.video_processing_service = dependencies.video_processing_service
+        self.project_workflow_service = dependencies.project_workflow_service
+        self.ui_coordinator = dependencies.ui_coordinator
+        self.recording_coordinator = dependencies.recording_coordinator
+
+        # Deferred initialization parameters
+        self._live_camera_service_param = dependencies.live_camera_service
+
+        # Register test observer if sync event provided
+        if self._test_sync_event is not None:
+            self.state_manager.subscribe_all(self._on_state_change_for_test)
+
+    def _init_services(self, dependencies: MainViewModelDependencies):
+        """Initialize all service layer components.
+
+        Task 3.1: Extracted from __init__ to reduce complexity (was 24 lines inline).
+        """
+        # Core services
+        self.project_service = ProjectService()
+        self.analysis_service = (
+            dependencies.analysis_service
+            if dependencies.analysis_service is not None
+            else AnalysisService(settings_obj=self.settings)
+        )
+
+        # Video processing helper services
+        from zebtrack.core.video_classification_service import VideoClassificationService
+        from zebtrack.core.video_selection_service import VideoSelectionService
+        from zebtrack.core.video_validation_service import VideoValidationService
+
+        self.video_classification_service = VideoClassificationService()
+        self.video_selection_service = VideoSelectionService()
+        self.video_validation_service = VideoValidationService()
+
+        # Recording and live camera services (deferred initialization)
+        self._recording_service = None
+        self.recording_service = dependencies.recording_service
+        self.recording_session_orchestrator = None  # Created in _init_orchestrators
+        self.live_camera_service = None  # Initialized later
 
     def _init_hardware_and_models(self):
         """Initialize hardware detection and model configuration."""
