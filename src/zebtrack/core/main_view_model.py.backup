@@ -418,10 +418,10 @@ class MainViewModel:
         # Recording service initialization (setup callbacks if service was injected)
         if self.recording_service is None:
             # Create recording service if not injected (for backward compatibility)
-            self.recording_session_orchestrator._init_recording_service()
+            self._init_recording_service()
         else:
             # Service was injected, just setup UI callbacks
-            self.recording_session_orchestrator._setup_recording_service_callbacks()
+            self._setup_recording_service_callbacks()
 
         # Task 2.2/2.3: Initialize or use injected coordinators (REFACTOR-VIEWMODEL-001)
         self._init_coordinators(
@@ -661,9 +661,9 @@ class MainViewModel:
         )
         self.video_orchestrator.set_arena_callback(self.set_main_arena_polygon)
         self.video_orchestrator.set_analysis_view_mode_callback(self._activate_analysis_view_mode)
-        self.video_orchestrator.set_refresh_callback(self.ui_state_controller.refresh_project_views)
+        self.video_orchestrator.set_refresh_callback(self.refresh_project_views)
         self.video_orchestrator.set_publish_processing_mode_callback(self._publish_processing_mode)
-        self.analysis_coordinator.set_refresh_callback(self.ui_state_controller.refresh_project_views)
+        self.analysis_coordinator.set_refresh_callback(self.refresh_project_views)
 
         log.info("main_view_model.coordinators_initialized")
 
@@ -722,6 +722,22 @@ class MainViewModel:
 
     # ==================== Phase 2, Step 4: State Manager Properties ====================  # noqa: E501
     # Backward-compatible properties that delegate to StateManager
+
+    @property
+    def is_recording(self) -> bool:
+        """Check if currently recording.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator.is_recording
+
+    @is_recording.setter
+    def is_recording(self, value: bool) -> None:
+        """Set recording state.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        self.recording_session_orchestrator.is_recording = value
 
     @property
     def recording_service(self) -> RecordingService | None:
@@ -841,7 +857,18 @@ class MainViewModel:
             self.ui_event_bus.publish_event(
                 Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": new_value}
             )
-            self.ui_state_controller.update_openvino_status()
+            self.update_openvino_status()
+
+    def _on_recording_state_changed(
+        self, category: StateCategory, key: str, old_value, new_value
+    ) -> None:
+        """Handle recording state changes.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator._on_recording_state_changed(
+            category=category, key=key, old_value=old_value, new_value=new_value
+        )
 
     def _on_processing_state_changed(
         self, category: StateCategory, key: str, old_value: Any, new_value: Any
@@ -853,7 +880,7 @@ class MainViewModel:
             else:  # Processamento terminou
                 self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
         elif key == "cancel_requested" and new_value:
-            self.ui_state_controller._show_cancel_feedback()  # Mostrar feedback de cancelamento imediatamente
+            self._show_cancel_feedback()  # Mostrar feedback de cancelamento imediatamente
 
     def get_openvino_status(self) -> str:
         """
@@ -920,6 +947,125 @@ class MainViewModel:
                 log.warning("controller.arduino.shutdown_failed", error=str(e), exc_info=True)
             self.arduino_manager = None
         self.arduino = None
+
+    def _schedule_on_ui(self, func, *args, **kwargs):
+        """Schedule a function to run on the UI thread.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._schedule_on_ui(func, *args, **kwargs)
+
+    def _setup_recording_service_callbacks(self) -> None:
+        """Setup callbacks for recording service.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator._setup_recording_service_callbacks()
+
+    def _init_recording_service(self) -> None:
+        """Initialize recording service.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator._init_recording_service()
+
+    # Phase 7.1: Generic event dispatcher mapping (consolidates 32 handlers into declarative config)
+    _EVENT_METHOD_MAPPING: ClassVar[dict] = {
+        # Recording events
+        Events.RECORDING_START: ("start_recording", ["day", "group", "cobaia"], "kwargs_get"),
+        Events.RECORDING_STOP: ("stop_recording", [], "no_params"),
+        Events.RECORDING_TRIGGER: ("trigger_recording", ["event_code"], "kwargs_get"),
+        # Project events
+        Events.PROJECT_CREATE: ("create_project_workflow", None, "kwargs_all"),
+        Events.WIZARD_CREATE_PROJECT: ("create_project_workflow", None, "kwargs_all"),
+        Events.PROJECT_OPEN: ("open_project_workflow", ["project_path"], "positional"),
+        Events.PROJECT_CLOSE: ("close_project", [], "no_params"),
+        # Events.PROJECT_PROCESS_VIDEOS - Phase 2.3: Moved to VideoProcessingOrchestrator
+        Events.PROJECT_GENERATE_SUMMARIES: (
+            "generate_parquet_summaries",
+            ["video_paths"],
+            "positional",
+        ),
+        Events.PROJECT_APPLY_SETTINGS: (
+            "apply_project_settings_to_batch",
+            ["videos"],
+            "positional",
+        ),
+        Events.PROJECT_DELETE_ASSET: (
+            "delete_project_asset",
+            ["video_path", "asset"],
+            "positional",
+        ),
+        # Video processing events - Phase 2.3: Moved to VideoProcessingOrchestrator
+        # Events.VIDEO_ANALYZE_SINGLE, VIDEO_START_SINGLE_PROCESSING, VIDEO_CANCEL_ANALYSIS
+        # Events.PROJECT_PROCESS_VIDEOS - now handled by VideoProcessingOrchestrator
+        # Model & weight events
+        Events.MODEL_SET_WEIGHT: ("set_active_weight", ["name", "dialog"], "kwargs_get"),
+        Events.MODEL_SET_OPENVINO: (
+            "set_openvino_usage",
+            ["use_openvino", "dialog"],
+            "positional_optional",
+        ),
+        Events.MODEL_CONVERT_OPENVINO: (
+            "convert_active_weight_to_openvino",
+            ["dialog"],
+            "kwargs_get",
+        ),
+        Events.MODEL_UPDATE_OPENVINO_STATUS: ("update_openvino_status", ["dialog"], "kwargs_get"),
+        Events.MODEL_ADD_WEIGHT: (
+            "add_new_weight",
+            ["path", "set_as_default", "weight_type"],
+            "positional_optional",
+        ),
+        Events.MODEL_DELETE_WEIGHT: ("delete_weight", ["name"], "positional"),
+        Events.MODEL_RUN_DIAGNOSTIC: ("run_model_diagnostic", ["config"], "positional"),
+        Events.MODEL_LOAD_NEW_WEIGHT: ("load_new_weight", [], "no_params"),
+        Events.MODEL_MANAGE_WEIGHTS: ("manage_weights", [], "no_params"),
+        # Detector & zone events
+        Events.DETECTOR_SETUP: ("setup_detector", ["temp_animal_method"], "kwargs_get"),
+        Events.DETECTOR_SETUP_ZONES: ("setup_detector_zones", [], "no_params"),
+        Events.DETECTOR_UPDATE_PARAMETERS: (
+            "update_detector_parameters",
+            ["conf_threshold", "nms_threshold", "track_threshold", "match_threshold"],
+            "kwargs_get",
+        ),
+        Events.ZONE_SET_ARENA_POLYGON: ("set_main_arena_polygon", ["points"], "positional"),
+        Events.ZONE_SAVE_MANUAL_ARENA: ("save_manual_arena", ["polygon_points"], "positional"),
+        Events.ZONE_UPDATE_ARENA: ("update_main_arena", ["polygon_points"], "positional"),
+        Events.ZONE_AUTO_DETECT: (
+            "run_aquarium_detection",
+            ["video_path", "stabilization_frames"],
+            "kwargs_get",
+        ),
+        Events.ZONE_APPLY_ROI_TEMPLATE: ("apply_roi_template", ["template"], "kwargs_get"),
+        # Calibration events
+        Events.CALIBRATION_RUN_LIVE: (
+            "run_live_calibration",
+            ["temp_aquarium_method"],
+            "kwargs_get",
+        ),
+        Events.CALIBRATION_COPY_TO_PROJECT: (
+            "copy_global_model_settings_to_project",
+            [],
+            "no_params",
+        ),
+        Events.CALIBRATION_SAVE_TO_PROJECT: (
+            "save_current_calibration_to_project",
+            [],
+            "no_params",
+        ),
+        # Arduino events
+        Events.ARDUINO_SETUP: ("setup_arduino", [], "no_params"),
+        Events.ARDUINO_LOG_EVENT: ("log_arduino_event", ["message"], "positional"),
+        # Report events
+        Events.REPORT_GENERATE: (
+            "generate_report",
+            ["videos", "report_type"],
+            "positional_optional",
+        ),
+        # Application events
+        Events.APP_CLOSE: ("on_close", [], "no_params"),
+    }
 
     def _create_event_dispatcher(self, event_name: str):
         """Create event-specific dispatcher closures.
@@ -1071,6 +1217,52 @@ class MainViewModel:
             total_services=len(services_to_update) + len(orchestrators_to_update)
         )
 
+    def _determine_processing_mode(self) -> ProcessingMode:
+        """Inspect current detector/settings state to infer active mode.
+
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
+        """
+        return self.processing_config_orchestrator._determine_processing_mode()
+
+    def _publish_processing_mode(
+        self,
+        *,
+        source: str,
+        force: bool = False,
+        mode_override: ProcessingMode | None = None,
+    ) -> ProcessingReport:
+        """Notify the GUI about the current processing mode when it changes.
+
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
+        """
+        return self.processing_config_orchestrator._publish_processing_mode(
+            source=source, force=force, mode_override=mode_override
+        )
+
+    def refresh_project_views(
+        self,
+        reason: str | None = None,
+        *,
+        append_summary: bool = False,
+        immediate: bool = False,
+    ) -> None:
+        """Request a refresh of project-related UI components on the main thread.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.refresh_project_views(
+            reason=reason,
+            append_summary=append_summary,
+            immediate=immediate,
+        )
+
+    def _clear_external_trigger_wait(self) -> None:
+        """Clear external trigger wait state.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator._clear_external_trigger_wait()
+
     def log_arduino_event(self, message: str):
         """Task 2.2: Delegates to HardwareCoordinator."""
         self.hardware_coordinator.log_arduino_event(message)
@@ -1082,6 +1274,44 @@ class MainViewModel:
     def on_arduino_command_sent(self, command: int, success: bool, source: str):
         """Task 2.2: Delegates to HardwareCoordinator."""
         self.hardware_coordinator.on_arduino_command_sent(command, success, source)
+
+    def on_arduino_event(self, event_code: int) -> None:
+        """Handle Arduino event.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator.on_arduino_event(event_code=event_code)
+
+    def trigger_recording(self, event_code: int | None = None):
+        """Trigger recording via external event.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator.trigger_recording(event_code=event_code)
+
+    def _schedule_recording(
+        self,
+        context: dict,
+        project_data: dict,
+        *,
+        trigger_source: str,
+    ) -> None:
+        """Schedule recording after delay.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator._schedule_recording(
+            context=context,
+            project_data=project_data,
+            trigger_source=trigger_source,
+        )
+
+    def close_project(self) -> None:
+        """Close current project.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.close_project()
 
     def create_project_workflow(self, **wizard_data):
         """Create new project workflow with backward-compatible signature."""
@@ -1118,7 +1348,7 @@ class MainViewModel:
             return
 
         try:
-            success = self.ui_state_controller.update_detector_parameters(normalized_params, scope="project")
+            success = self.update_detector_parameters(normalized_params, scope="project")
         except Exception as exc:  # pragma: no cover - defensive guard
             log.warning(
                 "controller.wizard.detector_params.apply_failed",
@@ -1135,6 +1365,13 @@ class MainViewModel:
         )
         log.info(event_name, params=normalized_params)
 
+    def _show_post_creation_guide(self, wizard_metadata: dict):
+        """Display a contextual onboarding message after project creation.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._show_post_creation_guide(wizard_metadata=wizard_metadata)
+
     def _restore_detector_settings(self, saved_detector_config: dict) -> None:
         """
         Restore detector settings from saved configuration.
@@ -1145,6 +1382,20 @@ class MainViewModel:
             saved_detector_config: Saved detector configuration from project
         """
         self.detector_coordinator.restore_detector_settings(saved_detector_config)
+
+    def _setup_zones_from_project(self):
+        """Setup zones from project.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator._setup_zones_from_project()
+
+    def open_project_workflow(self, project_path: str | None = None):
+        """Open existing project workflow.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.open_project_workflow(project_path=project_path)
 
     def setup_detector(self, temp_animal_method: str | None = None) -> bool:
         """
@@ -1173,6 +1424,15 @@ class MainViewModel:
         self.arduino = self.hardware_coordinator.arduino
         self.arduino_manager = self.hardware_coordinator.arduino_manager
         return success
+
+    def setup_detector_zones(self):
+        """Load zone data from project and sets it on the detector instance.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.setup_detector_zones()
+
+    # --- New Methods for Weight Management ---
 
     def _safe_get_default_weight(self) -> tuple[str | None, dict | None]:
         manager = getattr(self, "weight_manager", None)
@@ -1206,6 +1466,74 @@ class MainViewModel:
         """Classify weight type from filename - delegates to weight manager."""
         return self.weight_manager._classify_weight_type(filename)
 
+    def add_new_weight(
+        self, path: Path | str, set_as_default: bool, weight_type: str | None = None
+    ):
+        """Add a new weight with type classification.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.add_new_weight(
+            path=path, set_as_default=set_as_default, weight_type=weight_type
+        )
+
+    def delete_weight(self, name: str):
+        """Delete a model weight from the catalog.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.delete_weight(name=name)
+
+    def set_active_weight(self, name: str | None, dialog=None):
+        """Set the active model weight and update UI accordingly.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.set_active_weight(name=name, dialog=dialog)
+
+    def manage_weights(self):
+        """Open the weight management dialog.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.manage_weights()
+
+    def load_new_weight(
+        self,
+        filepath: Path | str | None = None,
+        weight_type: str | None = None,
+        choice: str | None = None,
+    ):
+        """Handle the 'Load New Weight' button click.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.load_new_weight(
+            filepath=filepath, weight_type=weight_type, choice=choice
+        )
+
+    def set_openvino_usage(self, use_openvino: bool, dialog=None):
+        """Enable or disable OpenVINO inference mode.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.set_openvino_usage(use_openvino=use_openvino, dialog=dialog)
+
+    def convert_active_weight_to_openvino(self, dialog):
+        """Convert the active weight to OpenVINO format.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.convert_active_weight_to_openvino(dialog=dialog)
+
+    def update_openvino_status(self, dialog=None):
+        """Update the status label in the GUI based on the current state.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.update_openvino_status(dialog=dialog)
+
+    @property
     def are_project_overrides_active(self) -> bool:
         """Whether project overrides are currently active."""
         return self.project_orchestrator.are_project_overrides_active()
@@ -1230,6 +1558,27 @@ class MainViewModel:
             project_data = {} if not project_data else dict(project_data)
             self.project_manager.project_data = project_data
         return project_data
+
+    def _ensure_project_overrides_record(self) -> dict:
+        """Ensure project overrides record exists.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator._ensure_project_overrides_record()
+
+    def has_project_override_settings(self) -> bool:
+        """Check if project has override settings.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.has_project_override_settings()
+
+    def get_calibration_scope_info(self) -> dict:
+        """Get calibration scope information for UI display.
+
+        Facade - delegates to CalibrationOrchestrator (Sprint 32).
+        """
+        return self.calibration_orchestrator.get_calibration_scope_info()
 
     def get_current_detector_parameters(self) -> dict[str, float]:
         """
@@ -1259,8 +1608,252 @@ class MainViewModel:
             params["confidence_threshold"] = params.pop("conf_threshold")
         return params
 
+    def update_detector_parameters(
+        self,
+        params: dict[str, float],
+        *,
+        reset_overrides: bool = False,
+        scope: str = "global",
+    ) -> bool:
+        """Apply detector threshold updates and persist them when possible.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.update_detector_parameters(
+            params=params, reset_overrides=reset_overrides, scope=scope
+        )
+
+    def _persist_project_model_settings(self, weight: str | None, use_openvino: bool) -> dict:
+        """Persist model settings to project configuration.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
+        """
+        return self.project_orchestrator._persist_project_model_settings(
+            weight=weight, use_openvino=use_openvino
+        )
+
+    def copy_global_model_settings_to_project(self) -> None:
+        """Copy global model settings to project.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.copy_global_model_settings_to_project()
+
+    def save_current_calibration_to_project(self) -> None:
+        """Save current calibration to project.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.save_current_calibration_to_project()
+
+    def _apply_model_settings(
+        self, weight_name: str | None, use_openvino: bool, dialog=None
+    ) -> None:
+        """Apply model settings (weight and OpenVINO) to the detector.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
+        """
+        return self.project_orchestrator._apply_model_settings(
+            weight_name=weight_name, use_openvino=use_openvino, dialog=dialog
+        )
+
+    def resolve_project_model_settings(
+        self,
+        model_type: str,
+        model_key: str,
+        field_name: str,
+        default_value=None,
+    ):
+        """Resolve project model settings with fallback.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.resolve_project_model_settings(
+            model_type=model_type,
+            model_key=model_key,
+            field_name=field_name,
+            default_value=default_value,
+        )
+
+    def apply_project_model_overrides(
+        self, overrides: dict | None = None
+    ) -> tuple[str | None, bool]:
+        """Apply project-specific model overrides to current settings.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
+
+        Args:
+            overrides: Optional override dictionary to use instead of stored overrides.
+
+        Returns:
+            Tuple of (resolved_weight, resolved_openvino).
+        """
+        return self.project_orchestrator.apply_project_model_overrides(overrides=overrides)
+
+    def save_project_model_overrides(
+        self, active_weight_override: str | None, use_openvino_override: bool | None
+    ) -> tuple[str | None, bool]:
+        """Save model settings as project overrides and apply them.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
+
+        Args:
+            active_weight_override: Weight name to save as override.
+            use_openvino_override: OpenVINO preference to save as override.
+
+        Returns:
+            Tuple of (resolved_weight, resolved_openvino).
+        """
+        return self.project_orchestrator.save_project_model_overrides(
+            active_weight_override=active_weight_override,
+            use_openvino_override=use_openvino_override,
+        )
+
+    def _restore_global_model_defaults(self) -> None:
+        """Restore global model defaults after closing a project.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 34).
+        """
+        return self.project_orchestrator._restore_global_model_defaults()
+
     @contextmanager
+    def global_calibration_session(self):
+        """Context manager for global calibration mode.
+
+        Facade - delegates to CalibrationOrchestrator (Sprint 32).
+        """
+        with self.calibration_orchestrator.global_calibration_session():
+            yield
+
     @contextmanager
+    def project_calibration_session(self):
+        """Project calibration context manager.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        with self.project_orchestrator.project_calibration_session():
+            yield
+
+    def run_aquarium_detection(
+        self,
+        video_path: Path | str | None = None,
+        stabilization_frames: int = 10,
+        temp_aquarium_method: str | None = None,
+    ):
+        """Run the aquarium detection model on the specified or first project video.
+
+        Facade - delegates to AnalysisOrchestrator (Sprint 25).
+
+        Args:
+            video_path: Path to video file, if None uses next project video
+            stabilization_frames: Number of frames to analyze for stabilization
+            temp_aquarium_method: Temporary override for aquarium detection method
+                ('det' or 'seg'). If None, uses global self.settings.
+        """
+        return self.analysis_orchestrator.run_aquarium_detection(
+            video_path=video_path,
+            stabilization_frames=stabilization_frames,
+            temp_aquarium_method=temp_aquarium_method,
+        )
+
+    def apply_roi_template(self, template: dict[str, Any]) -> None:
+        """Aplica um template de ROI ao vídeo ativo.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.apply_roi_template(template=template)
+
+    def set_main_arena_polygon(self, points: list) -> bool:
+        """Salva polígono com validações robustas.
+
+        Facade - delegates to ZoneArenaOrchestrator (Sprint 30).
+        """
+        return self.zone_arena_orchestrator.set_main_arena_polygon(points=points)
+
+    def save_manual_arena(self, polygon_points: list[list[int]]):
+        """Save the manually adjusted arena and updates the detector.
+
+        Facade - delegates to ZoneArenaOrchestrator (Sprint 30).
+        """
+        return self.zone_arena_orchestrator.save_manual_arena(polygon_points=polygon_points)
+
+    def update_main_arena(self, polygon_points: list[list[int]]):
+        """Update the main arena polygon in the project zone data.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller.update_main_arena(polygon_points=polygon_points)
+
+    def add_roi_polygon(self, roi_points: list[list[int]], name: str, color: tuple[int, int, int]):
+        """Adiciona ROI com validação de sobreposição.
+
+        Facade - delegates to ZoneArenaOrchestrator (Sprint 30).
+        """
+        return self.zone_arena_orchestrator.add_roi_polygon(
+            roi_points=roi_points, name=name, color=color
+        )
+
+    def can_remove_project_asset(self, asset_type: AssetType, video_name: str) -> tuple[bool, str]:
+        """Check if project asset can be removed.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.can_remove_project_asset(
+            asset_type=asset_type, video_name=video_name
+        )
+
+    def delete_project_asset(self, asset_type: AssetType, video_name: str) -> bool:
+        """Delete project asset.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator.delete_project_asset(
+            asset_type=asset_type, video_name=video_name
+        )
+
+    def run_live_calibration(self, temp_aquarium_method: str | None = None):
+        """Record a short clip from the live camera and runs aquarium detection.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+
+        Args:
+            temp_aquarium_method: Temporary override for aquarium detection method
+                ('det' or 'seg'). If None, uses global self.settings.
+        """
+        return self.recording_session_orchestrator.run_live_calibration(
+            temp_aquarium_method=temp_aquarium_method
+        )
+
+    def _handle_external_trigger(self, context: dict, arduino_enabled: bool) -> bool:
+        """Handle external trigger setup for recording.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+
+        Args:
+            context: Recording context with session details
+            arduino_enabled: Whether Arduino is available
+
+        Returns:
+            bool: True if waiting for trigger (stop processing), False if proceed
+        """
+        return self.recording_session_orchestrator._handle_external_trigger(
+            context=context, arduino_enabled=arduino_enabled
+        )
+
+    def start_recording(
+        self,
+        day: int | None = None,
+        group: str | None = None,
+        cobaia: str | None = None,
+    ):
+        """Start a recording session (live mode) with zone validation.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator.start_recording(
+            day=day, group=group, cobaia=cobaia
+        )
+
     def start_live_camera_analysis(self, camera_index: int | None = None):
         """Start a live camera analysis session.
 
@@ -1274,6 +1867,63 @@ class MainViewModel:
         return self.recording_session_orchestrator.start_live_camera_analysis(
             camera_index=camera_index
         )
+
+    def start_live_camera_analysis_from_config(self, config: dict) -> bool:
+        """Start live camera analysis with full configuration.
+
+        Facade - delegates to LiveCameraCoordinator (Sprint 33).
+
+        Args:
+            config: Configuration dictionary from SingleVideoConfigDialog containing:
+                - camera_index: int - Camera device index
+                - analysis_interval_frames: int - Analyze every N frames
+                - display_interval_frames: int - Display every N frames
+                - (other dialog parameters)
+
+        Returns:
+            True if session started successfully, False otherwise
+        """
+        return self.live_camera_coordinator.start_session_from_config(config=config)
+
+    def stop_recording(self):
+        """Stop the current recording session.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+        """
+        return self.recording_session_orchestrator.stop_recording()
+
+    def start_live_project_session(
+        self,
+        day: int,
+        group: str,
+        subject: str,
+        duration_s: float | None = None,
+    ) -> bool:
+        """Start a live recording session for a Live project.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 26).
+
+        Args:
+            day: Day number (from project grid)
+            group: Group identifier
+            subject: Subject/animal identifier
+            duration_s: Optional duration override (uses project default if None)
+
+        Returns:
+            True if session started successfully, False otherwise
+        """
+        return self.recording_session_orchestrator.start_live_project_session(
+            day=day, group=group, subject=subject, duration_s=duration_s
+        )
+
+    def _ensure_zones_before_recording(self) -> bool:
+        """Ensure project zones are defined before starting recording.
+
+        Facade - delegates to RecordingSessionOrchestrator (Sprint 33).
+        """
+        return self.recording_session_orchestrator._ensure_zones_before_recording()
+
+    # --- New Refactored Workflows ---
 
     def cancel_current_analysis(self) -> None:
         """Request cancellation for the currently running analysis workflow."""
@@ -1307,7 +1957,7 @@ class MainViewModel:
                 "disabled",
             )
 
-        self.ui_state_controller._show_cancel_feedback()
+        self._show_cancel_feedback()
 
         def _await_shutdown() -> None:
             """Wait for the worker (or legacy thread) to acknowledge cancellation."""
@@ -1329,6 +1979,13 @@ class MainViewModel:
                     self.processing_thread = None
 
         threading.Thread(target=_await_shutdown, name="CancelAnalysisJoin", daemon=True).start()
+
+    def _show_cancel_feedback(self) -> None:
+        """Update UI immediately after a cancellation request.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._show_cancel_feedback()
 
     def start_single_video_workflow(self, video_path: Path | str, config: dict):
         """Prepare the UI for zone definition in the single video workflow."""
@@ -1435,6 +2092,55 @@ class MainViewModel:
             # No videos have data, process all of them
             return without_data
 
+    def _validate_zones_with_ui(self) -> bool:
+        """Validate that zones are defined, with UI dialogs for user interaction.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._validate_zones_with_ui()
+
+    def _handle_validation_error(self, validation_result) -> bool:
+        """Handle validation errors by showing appropriate UI messages.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._handle_validation_error(
+            validation_result=validation_result
+        )
+
+    def start_single_video_processing(
+        self, video_path: Path | str, config: dict, zone_data: ZoneData
+    ):
+        """
+        Start the actual processing for a single video after zone setup.
+
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
+        """
+        return self.video_processing_orchestrator.start_single_video_processing(
+            video_path=video_path, config=config, zone_data=zone_data
+        )
+
+    def start_project_processing_workflow(self):
+        """
+        Adiciona vídeos com validação robusta de zonas.
+
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
+        """
+        return self.video_processing_orchestrator.start_project_processing_workflow()
+
+    def process_pending_project_videos(
+        self,
+        video_paths: list[str] | None = None,
+    ) -> None:
+        """
+        Processa vídeos já adicionados ao projeto que possuem dados pendentes.
+
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
+        """
+        return self.video_processing_orchestrator.process_pending_project_videos(
+            video_paths=video_paths
+        )
+
     def generate_parquet_summaries(self, video_paths: list[str]) -> None:
         """Regera arquivos de sumário em Parquet para os vídeos selecionados.
 
@@ -1502,6 +2208,19 @@ class MainViewModel:
 
         return zone_data, arena_polygon
 
+    def _build_calibration_context(
+        self,
+        arena_polygon: list[list[int]] | list | None,
+        calibration_data: dict | None,
+    ) -> tuple[Calibration | None, tuple[float, float] | None]:
+        """Calculate calibration and pixel/cm ratio for tracking outputs.
+
+        Facade - delegates to CalibrationOrchestrator (Sprint 32).
+        """
+        return self.calibration_orchestrator._build_calibration_context(
+            arena_polygon=arena_polygon, calibration_data=calibration_data
+        )
+
     def _tracking_cancelled(self, experiment_id: str, frame_num: int, log_key: str) -> bool:
         """Handle cancel-event checks during tracking loop."""
         if not self.cancel_event.is_set():
@@ -1510,7 +2229,84 @@ class MainViewModel:
         log.info(log_key, frame=frame_num, video=experiment_id)
         return True
 
+    def _resolve_single_animal_mode(self, single_video_config: dict | None) -> bool | None:
+        """Derive whether single-animal tracking mode should be active.
+
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
+        """
+        return self.processing_config_orchestrator._resolve_single_animal_mode(
+            single_video_config=single_video_config
+        )
+
+    def _resolve_single_subject_tracker_preference(
+        self, single_video_config: dict | None
+    ) -> bool | None:
+        """Resolve single-subject tracker preference from project or single video config.
+
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
+        """
+        return self.processing_config_orchestrator._resolve_single_subject_tracker_preference(
+            single_video_config=single_video_config
+        )
+
+    def _configure_single_subject_tracker(self, enabled: bool) -> None:
+        """Configure single-subject tracking mode.
+
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
+        """
+        self.processing_config_orchestrator._configure_single_subject_tracker(enabled=enabled)
+
+    def _determine_processing_intervals(self, single_video_config: dict | None) -> tuple[int, int]:
+        """Determine analysis and display intervals from config.
+
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
+        """
+        return self.processing_config_orchestrator._determine_processing_intervals(
+            single_video_config=single_video_config
+        )
+
     @contextmanager
+    def _temporary_single_animal_mode(self, single_video_config: dict | None) -> Iterator[bool]:
+        """Temporarily set single-animal/single-subject mode for processing scope.
+
+        Facade - delegates to ProcessingConfigOrchestrator (Sprint 31).
+        """
+        with self.processing_config_orchestrator._temporary_single_animal_mode(
+            single_video_config=single_video_config
+        ) as result:
+            yield result
+
+    def _activate_analysis_view_mode(self) -> None:
+        """Ensure the analysis tab is active so frames scale correctly.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._activate_analysis_view_mode()
+
+    def _prepare_processing_ui(self, total_videos: int) -> None:
+        """Prepare processing UI.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._prepare_processing_ui(total_videos=total_videos)
+
+    def _finalize_processing(
+        self,
+        *,
+        was_cancelled: bool,
+        videos_to_process: list[dict],
+        final_output_dir: str,
+    ) -> None:
+        """Finalize processing.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._finalize_processing(
+            was_cancelled=was_cancelled,
+            videos_to_process=videos_to_process,
+            final_output_dir=final_output_dir,
+        )
+
     def _build_metadata_context(
         self,
         *,
@@ -1540,6 +2336,72 @@ class MainViewModel:
             )
 
         return metadata_context
+
+    def _select_eligible_videos(
+        self,
+        skip_dialog: bool,
+        ready_with_trajectory: list[dict],
+        ready_with_zones: list[dict],
+        arena_only: list[dict],
+        without_arena: list[dict],
+    ) -> list[dict] | None:
+        """Select eligible videos for processing (either skip dialog or show it).
+
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
+        """
+        return self.video_processing_orchestrator._select_eligible_videos(
+            skip_dialog=skip_dialog,
+            ready_with_trajectory=ready_with_trajectory,
+            ready_with_zones=ready_with_zones,
+            arena_only=arena_only,
+            without_arena=without_arena,
+        )
+
+    def _generate_parquet_summaries_worker(self, target_videos: list[dict], settings_obj) -> None:
+        """Worker method to generate parquet summaries for a list of videos.
+
+        Facade - delegates to AnalysisOrchestrator (Sprint 25).
+        """
+        return self.analysis_orchestrator._generate_parquet_summaries_worker(
+            target_videos=target_videos,
+            settings_obj=settings_obj,
+        )
+
+    def _process_summary_video(
+        self,
+        video: dict,
+        settings_obj,
+    ) -> tuple[str, str | None, str | None, bool]:
+        """Process a single video for summary generation.
+
+        Facade - delegates to AnalysisOrchestrator (Sprint 25).
+        """
+        return self.analysis_orchestrator._process_summary_video(
+            video=video,
+            settings_obj=settings_obj,
+        )
+
+    def _make_progress_callback(
+        self,
+        *,
+        index: int,
+        total_videos: int,
+        experiment_id: str,
+    ):
+        """Create a progress callback for video processing.
+
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
+        """
+        return self.video_processing_orchestrator._make_progress_callback(
+            index=index, total_videos=total_videos, experiment_id=experiment_id
+        )
+
+    # Phase 7.2b: Removed 4 auxiliary methods (75 lines) -
+    # migrated to VideoProcessingService:
+    # - _display_initial_frame
+    # - _resolve_results_path
+    # - _ensure_arena_polygon
+    # - _load_trajectory_dataframe
 
     def _prepare_calibration_context(
         self,
@@ -1586,6 +2448,15 @@ class MainViewModel:
             results_dir=results_dir,
             progress_callback=progress_callback,
             cancel_event=cancel_event,
+        )
+
+    def _register_project_outputs(self, project_path: str, video_file: str) -> None:
+        """Register project outputs.
+
+        Facade - delegates to ProjectOrchestrator (Sprint 27).
+        """
+        return self.project_orchestrator._register_project_outputs(
+            project_path=project_path, video_file=video_file
         )
 
     def _run_analysis_pipeline(
@@ -1770,6 +2641,32 @@ class MainViewModel:
         """
         self.video_processing_service._prepare_results_directory(results_dir)
 
+    def _create_processing_callbacks(self, videos_to_process: list[dict]) -> ProcessingCallbacks:
+        """
+        Create thread-safe callbacks for the processing worker.
+
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
+        """
+        return self.video_processing_orchestrator._create_processing_callbacks(
+            videos_to_process=videos_to_process
+        )
+
+    def _create_processing_context(
+        self,
+        videos_to_process: list[dict],
+        output_base_dir: str,
+        single_video_config: dict | None = None,
+    ) -> ProcessingContext:
+        """Create the processing context with all necessary configuration.
+
+        Facade - delegates to VideoProcessingOrchestrator (Sprint 24).
+        """
+        return self.video_processing_orchestrator._create_processing_context(
+            videos_to_process=videos_to_process,
+            output_base_dir=output_base_dir,
+            single_video_config=single_video_config,
+        )
+
     def _process_videos(
         self,
         videos_to_process: list[dict],
@@ -1802,6 +2699,131 @@ class MainViewModel:
         Task 2.2: Delegates to AnalysisCoordinator.
         """
         self.analysis_coordinator.generate_report(videos, report_type)
+
+    def run_model_diagnostic(self, config: dict):
+        """
+        Prepare for and launches the diagnostic test in a background thread.
+
+        Now shows a progress dialog during execution.
+
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
+        """
+        return self.model_diagnostics_orchestrator.run_model_diagnostic(config=config)
+
+    def _diagnostic_processing_thread(self, config: dict, weight_details: dict):
+        """
+        Run actual diagnostic processing logic in a background thread.
+
+        Updates progress dialog during execution.
+
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
+        """
+        return self.model_diagnostics_orchestrator._diagnostic_processing_thread(
+            config=config, weight_details=weight_details
+        )
+
+    def _update_diagnostic_progress(
+        self,
+        progress_dialog,
+        message: str,
+        current: int | None = None,
+        total: int | None = None,
+    ) -> None:
+        """Thread-safe progress dialog update helper.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._update_diagnostic_progress(
+            progress_dialog=progress_dialog,
+            message=message,
+            current=current,
+            total=total,
+        )
+
+    def _finish_progress_dialog(self, progress_dialog) -> None:
+        """Safely close the diagnostic progress dialog.
+
+        Facade - delegates to UIStateController (Sprint 28).
+        """
+        return self.ui_state_controller._finish_progress_dialog(progress_dialog=progress_dialog)
+
+    def _initialize_diagnostic_yolo_model(
+        self,
+        model_to_test: str,
+        weight_details: dict,
+        results: dict[str, list],
+        progress_dialog,
+    ) -> Any | None:
+        """Set up YOLO model for diagnostics.
+
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
+        """
+        return self.model_diagnostics_orchestrator._initialize_diagnostic_yolo_model(
+            model_to_test=model_to_test,
+            weight_details=weight_details,
+            results=results,
+            progress_dialog=progress_dialog,
+        )
+
+    def _initialize_diagnostic_openvino_model(
+        self,
+        model_to_test: str,
+        weight_details: dict,
+        results: dict[str, list],
+        progress_dialog,
+    ) -> Any | None:
+        """Set up OpenVINO model for diagnostics.
+
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
+        """
+        return self.model_diagnostics_orchestrator._initialize_diagnostic_openvino_model(
+            model_to_test=model_to_test,
+            weight_details=weight_details,
+            results=results,
+            progress_dialog=progress_dialog,
+        )
+
+    def _run_diagnostic_frame_loop(
+        self,
+        video_path: str,
+        frames_to_analyze: int,
+        conf_threshold: float,
+        yolo_model,
+        openvino_model,
+        results: dict[str, list],
+        progress_dialog,
+    ) -> None:
+        """Process video frames for the diagnostic routine.
+
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
+        """
+        return self.model_diagnostics_orchestrator._run_diagnostic_frame_loop(
+            video_path=video_path,
+            frames_to_analyze=frames_to_analyze,
+            conf_threshold=conf_threshold,
+            yolo_model=yolo_model,
+            openvino_model=openvino_model,
+            results=results,
+            progress_dialog=progress_dialog,
+        )
+
+    def _finish_diagnostic_and_save_report(self, config, results):
+        """Format and saves the report. Runs on the main UI thread.
+
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
+        """
+        return self.model_diagnostics_orchestrator._finish_diagnostic_and_save_report(
+            config=config, results=results
+        )
+
+    def _format_diagnostic_report(self, config, results) -> str:
+        """Format the collected diagnostic data into a string.
+
+        Facade - delegates to ModelDiagnosticsOrchestrator (Sprint 29).
+        """
+        return self.model_diagnostics_orchestrator._format_diagnostic_report(
+            config=config, results=results
+        )
 
 
 # -----------------------------------------------------------------------------
