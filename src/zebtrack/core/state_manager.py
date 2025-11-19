@@ -919,6 +919,62 @@ class StateManager:
 
         return dict(updates)
 
+    # Task 3.3: Generic state update method to eliminate duplication
+    def _update_state_generic(
+        self,
+        category: StateCategory,
+        state_object: Any,
+        category_name: str,
+        source: str,
+        **kwargs: Any,
+    ) -> None:
+        """Generic state update implementation to eliminate code duplication.
+
+        Task 3.3: Replaces duplicated logic across 5 update_*_state methods.
+
+        Args:
+            category: StateCategory enum value (PROJECT, DETECTOR, etc.)
+            state_object: State object to update (self._state.project, etc.)
+            category_name: Category name for logging ("project", "detector", etc.)
+            source: Identifier of component making the change
+            **kwargs: State fields to update
+
+        Pattern:
+            All update_*_state methods follow this pattern:
+            1. Collect notifications list
+            2. Lock, iterate kwargs, check attribute exists, compare values, setattr
+            3. Unlock, send notifications
+
+        This method extracts that common logic to avoid ~40 lines duplication per method.
+        """
+        # Collect notifications to send (deadlock prevention pattern)
+        notifications = []
+
+        with self._lock:
+            for key, new_value in kwargs.items():
+                if not hasattr(state_object, key):
+                    log.warning(
+                        f"state_manager.unknown_{category_name}_key",
+                        key=key,
+                        source=source,
+                    )
+                    continue
+
+                old_value = getattr(state_object, key)
+                if old_value != new_value:
+                    setattr(state_object, key, new_value)
+                    # Queue notification instead of sending immediately
+                    notifications.append((category, key, old_value, new_value, source))
+                    log.debug(
+                        f"state_manager.{category_name}_updated",
+                        key=key,
+                        source=source,
+                    )
+
+        # Send notifications OUTSIDE the lock (prevents deadlock)
+        for category, key, old_value, new_value, src in notifications:
+            self._notify_observers(category, key, old_value, new_value, src)
+
     # ==================== Project State Updates ====================
 
     def update_project_state(
@@ -929,37 +985,19 @@ class StateManager:
         """
         Update project-related state fields.
 
+        Task 3.3: Refactored to use _update_state_generic() (-34 lines duplication).
+
         Args:
             source: Identifier of the component making the change
             **kwargs: State fields to update (e.g., project_path=Path(...))
         """
-        # Collect notifications to send (Task 1.1 - deadlock fix)
-        notifications = []
-
-        with self._lock:
-            for key, new_value in kwargs.items():
-                if not hasattr(self._state.project, key):
-                    log.warning(
-                        "state_manager.unknown_project_key",
-                        key=key,
-                        source=source,
-                    )
-                    continue
-
-                old_value = getattr(self._state.project, key)
-                if old_value != new_value:
-                    setattr(self._state.project, key, new_value)
-                    # Queue notification instead of sending immediately
-                    notifications.append((StateCategory.PROJECT, key, old_value, new_value, source))
-                    log.debug(
-                        "state_manager.project_updated",
-                        key=key,
-                        source=source,
-                    )
-
-        # Send notifications OUTSIDE the lock (prevents deadlock)
-        for category, key, old_value, new_value, src in notifications:
-            self._notify_observers(category, key, old_value, new_value, src)
+        self._update_state_generic(
+            category=StateCategory.PROJECT,
+            state_object=self._state.project,
+            category_name="project",
+            source=source,
+            **kwargs,
+        )
 
     # ==================== Detector State Updates ====================
 
@@ -971,38 +1009,19 @@ class StateManager:
         """
         Update detector-related state fields.
 
+        Task 3.3: Refactored to use _update_state_generic() (-34 lines duplication).
+
         Args:
             source: Identifier of the component making the change
             **kwargs: State fields to update (e.g., detector_initialized=True)
         """
-        # Collect notifications to send (Task 1.1 - deadlock fix)
-        notifications = []
-
-        with self._lock:
-            for key, new_value in kwargs.items():
-                if not hasattr(self._state.detector, key):
-                    log.warning(
-                        "state_manager.unknown_detector_key",
-                        key=key,
-                        source=source,
-                    )
-                    continue
-
-                old_value = getattr(self._state.detector, key)
-                if old_value != new_value:
-                    setattr(self._state.detector, key, new_value)
-                    # Queue notification instead of sending immediately
-                    notification = (StateCategory.DETECTOR, key, old_value, new_value, source)
-                    notifications.append(notification)
-                    log.debug(
-                        "state_manager.detector_updated",
-                        key=key,
-                        source=source,
-                    )
-
-        # Send notifications OUTSIDE the lock (prevents deadlock)
-        for category, key, old_value, new_value, src in notifications:
-            self._notify_observers(category, key, old_value, new_value, src)
+        self._update_state_generic(
+            category=StateCategory.DETECTOR,
+            state_object=self._state.detector,
+            category_name="detector",
+            source=source,
+            **kwargs,
+        )
 
     # ==================== Recording State Updates ====================
 
@@ -1014,38 +1033,19 @@ class StateManager:
         """
         Update recording-related state fields.
 
+        Task 3.3: Refactored to use _update_state_generic() (-34 lines duplication).
+
         Args:
             source: Identifier of the component making the change
             **kwargs: State fields to update (e.g., is_recording=True)
         """
-        # Collect notifications to send (Task 1.1 - deadlock fix)
-        notifications = []
-
-        with self._lock:
-            for key, new_value in kwargs.items():
-                if not hasattr(self._state.recording, key):
-                    log.warning(
-                        "state_manager.unknown_recording_key",
-                        key=key,
-                        source=source,
-                    )
-                    continue
-
-                old_value = getattr(self._state.recording, key)
-                if old_value != new_value:
-                    setattr(self._state.recording, key, new_value)
-                    # Queue notification instead of sending immediately
-                    notification = (StateCategory.RECORDING, key, old_value, new_value, source)
-                    notifications.append(notification)
-                    log.debug(
-                        "state_manager.recording_updated",
-                        key=key,
-                        source=source,
-                    )
-
-        # Send notifications OUTSIDE the lock (prevents deadlock)
-        for category, key, old_value, new_value, src in notifications:
-            self._notify_observers(category, key, old_value, new_value, src)
+        self._update_state_generic(
+            category=StateCategory.RECORDING,
+            state_object=self._state.recording,
+            category_name="recording",
+            source=source,
+            **kwargs,
+        )
 
     # ==================== Processing State Updates ====================
 
@@ -1057,38 +1057,19 @@ class StateManager:
         """
         Update processing-related state fields.
 
+        Task 3.3: Refactored to use _update_state_generic() (-34 lines duplication).
+
         Args:
             source: Identifier of the component making the change
             **kwargs: State fields to update (e.g., is_processing=True)
         """
-        # Collect notifications to send (Task 1.1 - deadlock fix)
-        notifications = []
-
-        with self._lock:
-            for key, new_value in kwargs.items():
-                if not hasattr(self._state.processing, key):
-                    log.warning(
-                        "state_manager.unknown_processing_key",
-                        key=key,
-                        source=source,
-                    )
-                    continue
-
-                old_value = getattr(self._state.processing, key)
-                if old_value != new_value:
-                    setattr(self._state.processing, key, new_value)
-                    # Queue notification instead of sending immediately
-                    notification = (StateCategory.PROCESSING, key, old_value, new_value, source)
-                    notifications.append(notification)
-                    log.debug(
-                        "state_manager.processing_updated",
-                        key=key,
-                        source=source,
-                    )
-
-        # Send notifications OUTSIDE the lock (prevents deadlock)
-        for category, key, old_value, new_value, src in notifications:
-            self._notify_observers(category, key, old_value, new_value, src)
+        self._update_state_generic(
+            category=StateCategory.PROCESSING,
+            state_object=self._state.processing,
+            category_name="processing",
+            source=source,
+            **kwargs,
+        )
 
     # ==================== UI State Updates ====================
 
@@ -1100,37 +1081,19 @@ class StateManager:
         """
         Update UI-related state fields.
 
+        Task 3.3: Refactored to use _update_state_generic() (-34 lines duplication).
+
         Args:
             source: Identifier of the component making the change
             **kwargs: State fields to update (e.g., canvas_view_mode="analysis")
         """
-        # Collect notifications to send (Task 1.1 - deadlock fix)
-        notifications = []
-
-        with self._lock:
-            for key, new_value in kwargs.items():
-                if not hasattr(self._state.ui, key):
-                    log.warning(
-                        "state_manager.unknown_ui_key",
-                        key=key,
-                        source=source,
-                    )
-                    continue
-
-                old_value = getattr(self._state.ui, key)
-                if old_value != new_value:
-                    setattr(self._state.ui, key, new_value)
-                    # Queue notification instead of sending immediately
-                    notifications.append((StateCategory.UI, key, old_value, new_value, source))
-                    log.debug(
-                        "state_manager.ui_updated",
-                        key=key,
-                        source=source,
-                    )
-
-        # Send notifications OUTSIDE the lock (prevents deadlock)
-        for category, key, old_value, new_value, src in notifications:
-            self._notify_observers(category, key, old_value, new_value, src)
+        self._update_state_generic(
+            category=StateCategory.UI,
+            state_object=self._state.ui,
+            category_name="ui",
+            source=source,
+            **kwargs,
+        )
 
     # ==================== State History ====================
 
