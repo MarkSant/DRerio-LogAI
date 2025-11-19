@@ -1534,9 +1534,12 @@ class ApplicationGUI:
         return self.project_view_manager._determine_status_tag(complete_count, total_count)
 
     def _build_processing_report_artifact_id(self, parent_id: str, artifact_path: str) -> str:
-        """Create a stable item id for report artifacts while avoiding duplicates."""
+        """Create a stable item id for report artifacts while avoiding duplicates.
+
+        Task 2.0a: Replaced SHA1 with BLAKE2b for security.
+        """
         digest_source = f"{parent_id}|{artifact_path}".encode("utf-8", "ignore")
-        digest = hashlib.sha1(digest_source).hexdigest()[:16]
+        digest = hashlib.blake2b(digest_source, digest_size=8).hexdigest()
         return f"file_{digest}"
 
     def _sort_key_for_reports(self, value):

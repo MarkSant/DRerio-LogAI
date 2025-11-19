@@ -114,6 +114,8 @@ class WidgetFactory:
         """
         Create a stable item id for report artifacts while avoiding duplicates.
 
+        Task 2.0a: Replaced SHA1 with BLAKE2b for security.
+
         Args:
             parent_id: Parent item ID
             artifact_path: Path to artifact file
@@ -122,7 +124,7 @@ class WidgetFactory:
             Unique file identifier string
         """
         digest_source = f"{parent_id}|{artifact_path}".encode("utf-8", "ignore")
-        digest = hashlib.sha1(digest_source).hexdigest()[:16]
+        digest = hashlib.blake2b(digest_source, digest_size=8).hexdigest()
         return f"file_{digest}"
 
     def format_roi_template_display(self, template: dict[str, Any]) -> str:
