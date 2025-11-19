@@ -97,6 +97,7 @@ class LiveCameraService:
         self._current_output_dir: Path | None = None
         self._analysis_completed = False
         self._last_detections: list = []
+        self._saved_detector_context: str | None = None  # Task 2.0b: Store original detector context
 
     # Thread-safe properties for shared state
     @property
@@ -328,6 +329,9 @@ class LiveCameraService:
                 old_context=old_context,
             )
 
+            # Task 2.0b: Save original context for restoration in stop_session()
+            self._saved_detector_context = old_context
+
             # Set diagnostic mode
             self.detector_service.detector.set_context("diagnostic")
 
@@ -342,6 +346,8 @@ class LiveCameraService:
                 reason="accept_all_classes_for_single_video_analysis",
             )
         else:
+            # Task 2.0b: No detector, mark as None so we don't try to restore later
+            self._saved_detector_context = None
             log.warning(
                 "live_camera_service.detector_not_available",
                 has_detector_service=self.detector_service is not None,
@@ -460,6 +466,24 @@ class LiveCameraService:
         if self.camera:
             self.camera.release()
             self.camera = None
+
+        # Task 2.0b: Restore detector context to original state
+        if hasattr(self, "_saved_detector_context") and self._saved_detector_context:
+            if self.detector_service and self.detector_service.detector:
+                try:
+                    self.detector_service.detector.set_context(self._saved_detector_context)
+                    log.info(
+                        "live_camera_service.detector_context_restored",
+                        restored_context=self._saved_detector_context,
+                    )
+                except Exception as e:
+                    log.warning(
+                        "live_camera_service.detector_context_restore_failed",
+                        saved_context=self._saved_detector_context,
+                        error=str(e),
+                    )
+            # Clear saved context
+            self._saved_detector_context = None
 
         # Update state
         self.state_manager.update_processing_state(
