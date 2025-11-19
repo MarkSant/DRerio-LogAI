@@ -25,13 +25,23 @@ from zebtrack.analysis.roi import ROI
 
 # Task 2.2: Coordinator imports (REFACTOR-VIEWMODEL-001)
 from zebtrack.core.analysis_coordinator import AnalysisCoordinator
+
+# Phase 1 Service imports (REFACTOR-VIEWMODEL-PHASE-1)
+from zebtrack.core.application_bootstrapper import ApplicationBootstrapper
+from zebtrack.core.batch_configuration_service import BatchConfigurationService
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.core.dependency_container import MainViewModelDependencies
 from zebtrack.core.detector_service import DetectorService
 from zebtrack.core.hardware_coordinator import HardwareCoordinator
 from zebtrack.core.model_service import ModelService
+
+# Phase 2 imports (REFACTOR-VIEWMODEL-PHASE-2: Facade Removal)
+from zebtrack.core.orchestrator_registry import OrchestratorRegistry
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
+from zebtrack.core.thread_coordinator import ThreadCoordinator
+from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
+from zebtrack.ui.components.event_dispatcher import EventDispatcher
 from zebtrack.core.processing_worker import (
     ProcessingCallbacks,
     ProcessingContext,
@@ -212,6 +222,20 @@ class MainViewModel:
         self.recording_service = dependencies.recording_service
         self.recording_session_orchestrator = None  # Created in _init_orchestrators
         self.live_camera_service = None  # Initialized later
+
+        # Phase 1 Services (REFACTOR-VIEWMODEL-PHASE-1)
+        # Initialize services created during Phase 1 refactoring
+        self.batch_configuration_service = BatchConfigurationService(
+            project_manager=self.project_manager,
+            settings_obj=self.settings,
+        )
+        self.thread_coordinator = ThreadCoordinator()
+        self.dialog_coordinator = DialogCoordinator(
+            ui_coordinator=self.ui_coordinator,
+            event_bus=dependencies.event_bus,
+            state_manager=self.state_manager,
+        )
+        self.event_dispatcher = EventDispatcher(event_bus=dependencies.event_bus)
 
     def _init_hardware_and_models(self):
         """Initialize hardware detection and model configuration."""
@@ -438,6 +462,21 @@ class MainViewModel:
 
         # Sprint 32: Calibration Orchestrator
         self.calibration_orchestrator = CalibrationOrchestrator(self)
+
+        # Phase 2: Create OrchestratorRegistry for direct access (REFACTOR-VIEWMODEL-PHASE-2)
+        # This registry allows callers to access orchestrators directly without facade methods
+        self.orchestrators = OrchestratorRegistry(
+            recording_session_orchestrator=self.recording_session_orchestrator,
+            project_orchestrator=self.project_orchestrator,
+            ui_state_controller=self.ui_state_controller,
+            video_processing_orchestrator=self.video_processing_orchestrator,
+            analysis_orchestrator=self.analysis_orchestrator,
+            processing_config_orchestrator=self.processing_config_orchestrator,
+            model_diagnostics_orchestrator=self.model_diagnostics_orchestrator,
+            zone_arena_orchestrator=self.zone_arena_orchestrator,
+            calibration_orchestrator=self.calibration_orchestrator,
+            live_camera_coordinator=self.live_camera_coordinator,
+        )
 
     def _subscribe_to_state(self):
         """Subscribe to state manager updates."""
