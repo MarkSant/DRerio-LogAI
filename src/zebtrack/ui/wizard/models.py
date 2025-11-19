@@ -162,8 +162,25 @@ class FileSelectionData(BaseModel):
     @field_validator("video_files")
     @classmethod
     def validate_video_files(cls, v):
-        """Validate video file paths: existence, format, and readability."""
+        """Validate video file paths: existence, format, and readability.
+
+        Task 2.4: Added path traversal security checks.
+        """
         VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv", ".webm", ".m4v"}
+
+        # Task 2.4: Blocked sensitive system directories (Linux/Mac/Windows)
+        FORBIDDEN_DIRS = {
+            "/etc",
+            "/sys",
+            "/proc",
+            "/dev",
+            "/root",
+            "/boot",
+            "C:\\Windows",
+            "C:\\Windows\\System32",
+            "C:\\Program Files",
+            "C:\\ProgramData",
+        }
 
         # Check for empty strings
         if any(not vf.strip() for vf in v):
@@ -172,9 +189,30 @@ class FileSelectionData(BaseModel):
         missing_files = []
         invalid_formats = []
         not_files = []
+        forbidden_paths = []
 
         for video_path in v:
             path = Path(video_path)
+
+            # Task 2.4: Resolve path to absolute and follow symlinks
+            # This prevents bypasses using .. or symlinks
+            try:
+                resolved_path = path.resolve(strict=False)
+            except (OSError, RuntimeError) as e:
+                # Path resolution failed (e.g., circular symlink, invalid path)
+                forbidden_paths.append(f"{video_path} (path resolution failed: {e})")
+                continue
+
+            # Task 2.4: Check if resolved path is in forbidden system directories
+            resolved_str = str(resolved_path)
+            if any(
+                resolved_str.startswith(forbidden_dir) for forbidden_dir in FORBIDDEN_DIRS
+            ):
+                forbidden_paths.append(f"{video_path} → {resolved_str} (sistema)")
+                continue
+
+            # Use resolved path for all subsequent checks
+            path = resolved_path
 
             # Check if file exists
             if not path.exists():
@@ -192,6 +230,15 @@ class FileSelectionData(BaseModel):
 
         # Build comprehensive error message
         errors = []
+
+        # Task 2.4: Report forbidden paths FIRST (security priority)
+        if forbidden_paths:
+            errors.append(
+                "⚠️ SEGURANÇA: Caminhos bloqueados (diretórios do sistema):\n  - "
+                + "\n  - ".join(forbidden_paths[:5])
+                + (f"\n  ... e mais {len(forbidden_paths) - 5}" if len(forbidden_paths) > 5 else "")
+            )
+
         if missing_files:
             errors.append(
                 "Arquivos não encontrados:\n  - " + "\n  - ".join(missing_files[:5])
