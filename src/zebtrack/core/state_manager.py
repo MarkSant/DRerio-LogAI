@@ -53,6 +53,7 @@ see docs/ARCHITECTURE.md section 4.1.
 
 from __future__ import annotations
 
+import concurrent.futures
 import copy
 import dataclasses
 import threading
@@ -600,6 +601,60 @@ class StateManager:
                 observer=getattr(observer, "__name__", repr(observer)),
             )
 
+    def _call_observer_with_timeout(
+        self,
+        observer: Callable,
+        category: StateCategory,
+        key: str,
+        old_value: Any,
+        new_value: Any,
+        timeout_seconds: float = 5.0,
+    ) -> None:
+        """
+        Call observer with timeout protection.
+
+        Task 2.3: Prevent hanging observers from freezing the application.
+
+        Args:
+            observer: Observer callback to invoke
+            category: State category that changed
+            key: State key that changed
+            old_value: Previous value
+            new_value: New value
+            timeout_seconds: Maximum time to wait for observer (default: 5s)
+
+        Logs:
+            - observer.timeout: If observer exceeds timeout
+            - observer.callback_failed: If observer raises exception
+        """
+        observer_name = getattr(observer, "__name__", repr(observer))
+
+        # Execute observer in thread pool with timeout
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(observer, category, key, old_value, new_value)
+            try:
+                future.result(timeout=timeout_seconds)
+            except concurrent.futures.TimeoutError:
+                # Task 2.3: Observer exceeded timeout - log and continue
+                log.error(
+                    "state.observer.timeout",
+                    category=category.name,
+                    key=key,
+                    observer=observer_name,
+                    timeout=timeout_seconds,
+                    message=f"Observer took longer than {timeout_seconds}s and was terminated",
+                )
+            except Exception as e:
+                # Observer raised exception - log and continue
+                log.error(
+                    "state.observer.callback_failed",
+                    category=category.name,
+                    key=key,
+                    error=str(e),
+                    observer=observer_name,
+                    exc_info=True,
+                )
+
     def _notify_observers(
         self,
         category: StateCategory,
@@ -662,37 +717,16 @@ class StateManager:
             global_observers = list(self._global_observers)
 
         # Step 2: Notify OUTSIDE the lock (prevents deadlock)
-        # Note: Observers are expected to be fast and non-blocking.
-        # Slow observers may delay state updates. Consider moving heavy
-        # operations to background threads in observer implementations.
+        # Task 2.3: All observers now executed with 5-second timeout protection
+        # This prevents hanging observers from freezing the entire application
 
-        # Notify category-specific observers
+        # Notify category-specific observers with timeout
         for observer in category_observers:
-            try:
-                observer(category, key, old_value, new_value)
-            except Exception as e:
-                log.error(
-                    "state.observer.callback_failed",
-                    category=category.name,
-                    key=key,
-                    error=str(e),
-                    observer=getattr(observer, "__name__", repr(observer)),
-                    exc_info=True,
-                )
+            self._call_observer_with_timeout(observer, category, key, old_value, new_value)
 
-        # Notify global observers
+        # Notify global observers with timeout
         for observer in global_observers:
-            try:
-                observer(category, key, old_value, new_value)
-            except Exception as e:
-                log.error(
-                    "state.observer.callback_failed",
-                    category=category.name,
-                    key=key,
-                    error=str(e),
-                    observer=getattr(observer, "__name__", repr(observer)),
-                    exc_info=True,
-                )
+            self._call_observer_with_timeout(observer, category, key, old_value, new_value)
 
     # ==================== State Snapshots ====================
 
