@@ -27,6 +27,7 @@ from zebtrack.analysis.roi import ROI
 from zebtrack.core.analysis_coordinator import AnalysisCoordinator
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import Detector, ZoneData
+from zebtrack.core.dependency_container import MainViewModelDependencies
 from zebtrack.core.detector_service import DetectorService
 from zebtrack.core.hardware_coordinator import HardwareCoordinator
 from zebtrack.core.model_service import ModelService
@@ -104,6 +105,9 @@ class MainViewModel:
     Phase 2, Step 4: Integrated with centralized StateManager
     for predictable state flow.
 
+    Phase 3, Task 3.2: Constructor simplified to use MainViewModelDependencies
+    config object pattern (reduces 26 parameters → 1).
+
     This class now focuses on:
     - UI-facing state management (via StateManager)
     - Command handling via event bus
@@ -118,78 +122,39 @@ class MainViewModel:
 
     def __init__(
         self,
-        root,
-        event_bus: EventBus | None,
-        state_manager: StateManager,
-        ui_coordinator: UICoordinator,
-        settings_obj: Settings,
-        project_manager: ProjectManager,
-        project_workflow_service: ProjectWorkflowService,
-        weight_manager: WeightManager,
-        model_service: ModelService,
-        detector_service: DetectorService,
-        video_processing_service: VideoProcessingService,
-        analysis_service: AnalysisService | None = None,
-        recording_service: RecordingService | None = None,
-        live_camera_service=None,
-        hardware_coordinator: HardwareCoordinator | None = None,
-        analysis_coordinator: AnalysisCoordinator | None = None,
-        video_orchestrator: VideoOrchestrator | None = None,
-        project_coordinator=None,  # Sprint 3: Project lifecycle coordinator
-        recording_coordinator=None,  # Sprint 4: Recording workflow coordinator
-        live_camera_coordinator=None,  # Sprint 4: Live camera coordinator
-        detector_coordinator=None,  # Sprint 5: Detector setup coordinator
-        processing_coordinator=None,  # Sprint 6: Video processing coordinator
+        dependencies: MainViewModelDependencies,
         view=None,  # Phase 2: ApplicationGUI instance (optional - will be created if None)
-        test_sync_event: threading.Event | None = None,
     ):
         """Initialize MainViewModel with dependency injection.
 
+        Task 3.2: Simplified constructor using config object pattern.
+
         Args:
-            root: Tkinter root window
-            event_bus: Event bus for UI events
-            state_manager: Centralized state manager
-            ui_coordinator: UI coordinator for scheduling
-            settings_obj: Settings instance (injected)
-            project_manager: Project manager
-            project_workflow_service: Project workflow service
-            weight_manager: Weight manager
-            model_service: Model service
-            detector_service: Detector service
-            video_processing_service: Video processing service
-            analysis_service: Analysis service (optional, will be created if None)
-            recording_service: Recording service (optional, will be created later)
-            live_camera_service: Live camera service (optional)
-            hardware_coordinator: Hardware coordinator (Phase 2, optional - created if None)
-            analysis_coordinator: Analysis coordinator (Phase 2, optional - created if None)
-            video_orchestrator: Video orchestrator (Phase 2, optional - created if None)
-            project_coordinator: Project coordinator (Sprint 3, optional)
-            recording_coordinator: Recording coordinator (Sprint 4, optional - created if None)
-            live_camera_coordinator: Live camera coordinator (Sprint 4, optional - created if None)
-            detector_coordinator: Detector coordinator (Sprint 5, optional - created if None)
-            processing_coordinator: Processing coordinator (Sprint 6, optional - created if None)
-            test_sync_event: Test synchronization event (for tests only)
+            dependencies: MainViewModelDependencies containing all required services
+            view: ApplicationGUI instance (optional, will be created if None)
         """
-        self.root = root
-        self.settings = settings_obj
+        # Extract core dependencies from config object
+        self.root = dependencies.root
+        self.settings = dependencies.settings_obj
 
-        # Test synchronization support (Phase 1.1)
-        self._test_sync_event = test_sync_event
+        # Test synchronization support (for tests only)
+        self._test_sync_event = dependencies.test_sync_event
 
-        # Phase 2, Step 4: Injected dependencies
-        self.state_manager = state_manager
-        self.project_manager = project_manager
-        self.weight_manager = weight_manager
-        self.model_service = model_service
-        self.detector_service = detector_service
-        self.video_processing_service = video_processing_service
-        self.project_workflow_service = project_workflow_service
-        self.ui_coordinator = ui_coordinator
+        # Phase 2, Step 4: Injected dependencies from config
+        self.state_manager = dependencies.state_manager
+        self.project_manager = dependencies.project_manager
+        self.weight_manager = dependencies.weight_manager
+        self.model_service = dependencies.model_service
+        self.detector_service = dependencies.detector_service
+        self.video_processing_service = dependencies.video_processing_service
+        self.project_workflow_service = dependencies.project_workflow_service
+        self.ui_coordinator = dependencies.ui_coordinator
+
         # Ensure coordinator attributes exist before orchestrators access them
-        self.recording_coordinator = recording_coordinator
+        self.recording_coordinator = dependencies.recording_coordinator
 
         # Live camera service will be initialized after recording_service
-        self._live_camera_service_param = live_camera_service
+        self._live_camera_service_param = dependencies.live_camera_service
 
         # Register test observer if sync event provided
         if self._test_sync_event is not None:
@@ -198,8 +163,8 @@ class MainViewModel:
         # Service layer dependencies (Phase 1, Step 3)
         self.project_service = ProjectService()
         self.analysis_service = (
-            analysis_service
-            if analysis_service is not None
+            dependencies.analysis_service
+            if dependencies.analysis_service is not None
             else AnalysisService(settings_obj=self.settings)
         )
 
@@ -212,19 +177,44 @@ class MainViewModel:
         self.video_selection_service = VideoSelectionService()
         self.video_validation_service = VideoValidationService()
 
+        # Recording service (Phase 2.2) - will be fully initialized after arduino_manager
+        self._recording_service = None
+        self.recording_service = dependencies.recording_service
+        self.recording_session_orchestrator = None  # Will be created in _init_orchestrators
+
+        # Live camera service - initialized later or from parameter
+        self.live_camera_service = None
+
+        # Initialize hardware and models
+        self._init_hardware_and_models()
+
+        # Initialize runtime state
+        self._init_runtime_state(dependencies.event_bus)
+
+        # Initialize view
+        self._init_view(view)
+
+        # Initialize orchestrators
+        self._init_orchestrators(dependencies)
+
+        # Subscribe to state changes
+        self._subscribe_to_state()
+
+        log.info("main_view_model.initialized", source="init")
+
+    def _init_hardware_and_models(self):
+        """Initialize hardware detection and model configuration."""
         # New state variables for model management (must exist before view)
         default_weight, _ = self._safe_get_default_weight()
-        if isinstance(default_weight, str):
-            self.active_weight_name = default_weight
-        elif default_weight is None:
-            self.active_weight_name = ""
-            log.warning("controller.init.no_default_weight")
-        else:
-            self.active_weight_name = ""
-            log.warning(
-                "controller.init.default_weight.invalid_type",
-                received_type=type(default_weight).__name__,
+
+        # ✅ Raise exception if no valid weight is available
+        if not isinstance(default_weight, str) or not default_weight:
+            raise RuntimeError(
+                "No valid detector weight available. Cannot initialize application. "
+                "Please ensure at least one .pt or .onnx file is in the 'models/' directory."
             )
+
+        self.active_weight_name = default_weight
 
         # Hardware detection and auto-configuration (Phase 7)
         log.info("controller.init.hardware_detection_start")
@@ -280,6 +270,12 @@ class MainViewModel:
         # Now access via get_global_model_defaults() which uses StateManager
         self._using_project_overrides = False
 
+        # Store for UI update later
+        self._hardware_summary = hardware_summary
+        self._recommended_backend = recommended_backend
+
+    def _init_runtime_state(self, event_bus):
+        """Initialize runtime attributes and threading primitives."""
         # Core runtime attributes
         # Note: detector is now managed by detector_service (Phase 6)
         # Access via self.detector property which delegates to service
@@ -304,14 +300,6 @@ class MainViewModel:
         # Note: is_recording now managed by StateManager via @property
         self.timed_recording_job = None
         self._pending_external_trigger: dict | None = None
-
-        # Recording service (Phase 2.2) - will be fully initialized after arduino_manager
-        self._recording_service: RecordingService | None = None
-        self.recording_service = recording_service
-        self.recording_session_orchestrator: RecordingSessionOrchestrator | None = None
-
-        # Live camera service - initialized later or from parameter
-        self.live_camera_service = None
 
         # Initialize recording state in StateManager
         self.state_manager.update_recording_state(
@@ -351,6 +339,15 @@ class MainViewModel:
 
         self._active_processing_mode = ProcessingMode.MULTI_TRACK
 
+        # Initialize core threading primitives first
+        self.processing_thread: threading.Thread | None = None
+        self.cancel_event = threading.Event()
+        self.pending_single_video_analysis = None
+        self.processing_worker: ProcessingWorker | None = None
+        self._cancel_feedback_displayed = False
+
+    def _init_view(self, view):
+        """Initialize the view and update it with initial state."""
         # Phase 2: Inversion of Control - view can be injected or created
         if view is not None:
             # View was injected (testable pattern)
@@ -358,7 +355,7 @@ class MainViewModel:
         else:
             # Create view after core state is ready so it can reflect it (legacy pattern)
             self.view = ApplicationGUI(
-                root,
+                self.root,
                 self,
                 event_bus=self.ui_event_bus if self._use_event_bus else None,
                 settings_obj=self.settings,
@@ -367,23 +364,17 @@ class MainViewModel:
         # Update GPU hardware display in UI (Phase 7)
         # Only call if view was created internally (has update method)
         if hasattr(self.view, "update_gpu_hardware_display"):
-            self.view.update_gpu_hardware_display(hardware_summary)
+            self.view.update_gpu_hardware_display(self._hardware_summary)
 
         # Update OpenVINO status if it was recommended but not available due to missing conversion
-        if recommended_backend == "openvino" and not self.use_openvino:
+        if self._recommended_backend == "openvino" and not self.use_openvino:
             if hasattr(self.view, "update_openvino_status_display"):
                 self.view.update_openvino_status_display(
                     "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
                 )
 
-        # Initialize core threading primitives first
-        self.program_exit_event = threading.Event()
-        self.processing_thread: threading.Thread | None = None
-        self.cancel_event = threading.Event()
-        self.pending_single_video_analysis = None
-        self.processing_worker: ProcessingWorker | None = None
-        self._cancel_feedback_displayed = False
-
+    def _init_orchestrators(self, dependencies: "MainViewModelDependencies"):
+        """Initialize all orchestrators and coordinators."""
         # Orchestrators that must exist before service initialization
         if self.recording_session_orchestrator is None:
             self.recording_session_orchestrator = RecordingSessionOrchestrator(self)
@@ -397,7 +388,49 @@ class MainViewModel:
             # Service was injected, just setup UI callbacks
             self._setup_recording_service_callbacks()
 
-        # Phase 4: Subscribe to StateManager changes for MVVM flow
+        # Task 2.2/2.3: Initialize or use injected coordinators (REFACTOR-VIEWMODEL-001)
+        self._init_coordinators(
+            hardware_coordinator=dependencies.hardware_coordinator,
+            analysis_coordinator=dependencies.analysis_coordinator,
+            video_orchestrator=dependencies.video_orchestrator,
+            recording_coordinator=dependencies.recording_coordinator,
+            live_camera_coordinator=dependencies.live_camera_coordinator,
+            detector_coordinator=dependencies.detector_coordinator,
+            processing_coordinator=dependencies.processing_coordinator,
+            project_coordinator=dependencies.project_coordinator,
+        )
+
+        # Sprint 24: Video Processing Orchestrator
+        self.video_processing_orchestrator = VideoProcessingOrchestrator(self)
+
+        # Sprint 25: Analysis Orchestrator
+        self.analysis_orchestrator = AnalysisOrchestrator(self)
+
+        # Sprint 26: Recording Session Orchestrator
+        if self.recording_session_orchestrator is None:
+            self.recording_session_orchestrator = RecordingSessionOrchestrator(self)
+
+        # Sprint 27: Project Orchestrator
+        self.project_orchestrator = ProjectOrchestrator(self)
+
+        # Sprint 28: UI State Controller
+        self.ui_state_controller = UIStateController(self)
+
+        # Sprint 29: Model Diagnostics Orchestrator
+        self.model_diagnostics_orchestrator = ModelDiagnosticsOrchestrator(self)
+
+        # Sprint 30: Zone Arena Orchestrator
+        self.zone_arena_orchestrator = ZoneArenaOrchestrator(self)
+
+        # Sprint 31: Processing Config Orchestrator
+        self.processing_config_orchestrator = ProcessingConfigOrchestrator(self)
+
+        # Sprint 32: Calibration Orchestrator
+        self.calibration_orchestrator = CalibrationOrchestrator(self)
+
+    def _subscribe_to_state(self):
+        """Subscribe to state manager updates."""
+        # Phase 4: MVVM State Observer Callbacks
         self.state_manager.subscribe(StateCategory.PROJECT, self._on_project_state_changed)
         self.state_manager.subscribe(StateCategory.DETECTOR, self._on_detector_state_changed)
         self.state_manager.subscribe(StateCategory.RECORDING, self._on_recording_state_changed)
@@ -405,20 +438,6 @@ class MainViewModel:
 
         # NOTE: bind_events() foi movido para __main__.py na FASE 1
         # NÃO chamar self.bind_events() aqui para evitar dupla inscrição
-
-        # Task 2.2/2.3: Initialize or use injected coordinators (REFACTOR-VIEWMODEL-001)
-        self._init_coordinators(
-            hardware_coordinator=hardware_coordinator,
-            analysis_coordinator=analysis_coordinator,
-            video_orchestrator=video_orchestrator,
-            recording_coordinator=recording_coordinator,
-            live_camera_coordinator=live_camera_coordinator,
-            detector_coordinator=detector_coordinator,
-            processing_coordinator=processing_coordinator,
-            project_coordinator=project_coordinator,  # Sprint 11: Fix missing parameter
-        )
-
-        self._publish_processing_mode(source="init", force=True)
 
     def _inject_or_create(self, attr_name: str, injected, factory_fn):
         """
@@ -449,7 +468,7 @@ class MainViewModel:
         detector, and processing.
 
         Sprint 16: Simplified using _inject_or_create() helper.
-        Task 2.2: REFACTOR-VIEWMODEL-001
+        Task 2.2: Refactor ViewModel
         Task 2.3: Accept injected coordinators or create them for backward compatibility
         Sprint 4: Added recording_coordinator and live_camera_coordinator
         Sprint 5: Added detector_coordinator
@@ -1035,7 +1054,7 @@ class MainViewModel:
         return dispatcher
 
     def _register_event_handlers(self) -> None:
-        """Subscribe to all UI→Controller events when event bus is enabled.
+        """Subscribe to all UI->Controller events when event bus is enabled.
 
         Phase 7.1: Uses generic dispatcher to eliminate 32 individual handler methods.
         Each event is mapped to (method_name, params, mode) in _EVENT_METHOD_MAPPING.
@@ -1057,8 +1076,14 @@ class MainViewModel:
             self._handle_setup_zone_definition_for_single_video,
         )
 
+        # P0-ARCH001: Subscribe to PROJECT_MANAGER_REPLACED to update all cached references
+        bus.subscribe(
+            Events.PROJECT_MANAGER_REPLACED,
+            self._handle_project_manager_replaced,
+        )
+
         log.info(
-            "controller.register_event_handlers.complete", count=len(self._EVENT_METHOD_MAPPING) + 1
+            "controller.register_event_handlers.complete", count=len(self._EVENT_METHOD_MAPPING) + 2
         )
 
     def _handle_setup_zone_definition_for_single_video(self, data: dict):
@@ -1067,6 +1092,80 @@ class MainViewModel:
         config = data.get("config")
         if video_path and config:
             self.view.setup_zone_definition_for_single_video(video_path, config)
+
+    def _handle_project_manager_replaced(self, data: dict):
+        """Handle PROJECT_MANAGER_REPLACED event to update all cached references.
+
+        P0-ARCH001 Fix: Ensures all services and orchestrators receive the new
+        ProjectManager instance after close_project() to prevent state divergence.
+
+        Args:
+            data: Event payload containing old_manager and new_manager
+        """
+        new_manager = data.get("new_manager")
+        if not new_manager:
+            log.warning("main_view_model.project_manager_replaced.missing_new_manager")
+            return
+
+        # Update all services and orchestrators that cache ProjectManager
+        services_to_update = [
+            ("project_workflow_service", self.project_workflow_service),
+            ("detector_service", self.detector_service),
+            ("video_processing_service", self.video_processing_service),
+            ("live_camera_service", self.live_camera_service),
+            ("recording_service", self.recording_service),
+            ("video_orchestrator", self.video_orchestrator),
+            ("analysis_coordinator", self.analysis_coordinator),
+            ("hardware_coordinator", self.hardware_coordinator),
+            ("processing_coordinator", self.processing_coordinator),
+            ("zone_management_facade", self.zone_management_facade),
+        ]
+
+        # Update orchestrators that cache ProjectManager
+        orchestrators_to_update = [
+            ("video_processing_orchestrator", self.video_processing_orchestrator),
+            ("analysis_orchestrator", self.analysis_orchestrator),
+            ("calibration_orchestrator", self.calibration_orchestrator),
+            ("recording_session_orchestrator", self.recording_session_orchestrator),
+            ("processing_config_orchestrator", self.processing_config_orchestrator),
+        ]
+
+        updated_count = 0
+
+        # Call rebinding method on each service/orchestrator
+        for name, service in services_to_update + orchestrators_to_update:
+            if service and hasattr(service, "_on_project_manager_replaced"):
+                try:
+                    service._on_project_manager_replaced(data)
+                    updated_count += 1
+                except Exception as exc:
+                    log.error(
+                        "main_view_model.project_manager_replaced.service_update_failed",
+                        service=name,
+                        error=str(exc),
+                        exc_info=True
+                    )
+            elif service and hasattr(service, "project_manager"):
+                # Fallback: directly update if method doesn't exist
+                try:
+                    service.project_manager = new_manager
+                    updated_count += 1
+                    log.debug(
+                        "main_view_model.project_manager_replaced.direct_update",
+                        service=name
+                    )
+                except Exception as exc:
+                    log.error(
+                        "main_view_model.project_manager_replaced.direct_update_failed",
+                        service=name,
+                        error=str(exc)
+                    )
+
+        log.info(
+            "main_view_model.project_manager_replaced.complete",
+            services_updated=updated_count,
+            total_services=len(services_to_update) + len(orchestrators_to_update)
+        )
 
     def _determine_processing_mode(self) -> ProcessingMode:
         """Inspect current detector/settings state to infer active mode.
@@ -1629,7 +1728,7 @@ class MainViewModel:
         return self.zone_arena_orchestrator.save_manual_arena(polygon_points=polygon_points)
 
     def update_main_arena(self, polygon_points: list[list[int]]):
-        """Update the main arena polygon in the project's zone data.
+        """Update the main arena polygon in the project zone data.
 
         Facade - delegates to UIStateController (Sprint 28).
         """
@@ -1891,7 +1990,7 @@ class MainViewModel:
 
     def _handle_mixed_data_scenario(self, scanned_videos: list[dict]) -> list[dict] | None:
         """
-        Handle the scenario where some videos have data and some don't.
+        Handle the scenario where some videos have data and some do not.
 
         Sprint 13: Extracted from start_project_processing_workflow().
         Handles user interaction for deciding which videos to process.
