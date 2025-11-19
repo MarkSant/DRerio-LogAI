@@ -774,10 +774,10 @@ class LiveCameraService:
                             cv2.LINE_AA,
                         )
 
-                    if self.root:
+                    # Task 1.1: UI Update Thread Safety - Only update if both preview_window and root exist
+                    if self.preview_window and self.root:
                         self.root.after(0, self.preview_window.update_frame, frame, detections)
-                    else:
-                        self.preview_window.update_frame(frame, detections)
+                    # Do not update if root doesn't exist (prevents crashes in headless/test mode)
 
             except Exception as e:
                 log.error("live_camera_service.processing_error", error=str(e), exc_info=True)
