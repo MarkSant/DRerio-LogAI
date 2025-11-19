@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shutil
+import threading
 import unicodedata
 from datetime import datetime
 from pathlib import Path
@@ -72,6 +73,22 @@ ROI_TEMPLATE_VERSION = 1
 log = structlog.get_logger()
 
 
+# Task 2.2: Thread-safe decorator for ProjectManager methods
+def _threadsafe(method):
+    """Decorator to make ProjectManager methods thread-safe using instance lock.
+
+    Task 2.2: Prevents race conditions in concurrent load/save operations.
+    """
+    from functools import wraps
+
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return wrapper
+
+
 class ProjectManager:
     """Manages project lifecycle, configuration, and asset tracking.
 
@@ -94,6 +111,9 @@ class ProjectManager:
 
         # Settings dependency (injected)
         self.settings = settings_obj
+
+        # Task 2.2: Thread safety for concurrent load/save operations
+        self._lock = threading.RLock()
 
         # Phase 2 Task 2.3: Specialized managers for different responsibilities
         self.video_manager = VideoManager()
@@ -1282,11 +1302,13 @@ class ProjectManager:
 
         return loaded_data, migration_applied, migrated_fields
 
+    @_threadsafe
     def load_project(self, project_path: Path | str):
         """
         Load project data from a config file in the given directory.
 
         Phase 1, Step 3: Delegates file I/O to ProjectService.
+        Task 2.2: Thread-safe via @_threadsafe decorator.
         """
         project_path = Path(project_path) if isinstance(project_path, str) else project_path
         config_path = os.path.join(project_path, CONFIG_FILE_NAME)
@@ -1334,11 +1356,13 @@ class ProjectManager:
                 cause=e,
             ) from e
 
+    @_threadsafe
     def save_project(self) -> None:
         """
         Save the current project data to the config file with an integrity hash.
 
         Phase 1, Step 3: Delegates file I/O to ProjectService.
+        Task 2.2: Thread-safe via @_threadsafe decorator.
 
         Raises:
             ProjectInvalidError: If project path is not set or save operation fails.

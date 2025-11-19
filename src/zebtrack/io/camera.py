@@ -231,12 +231,36 @@ class Camera(FrameSource):
     def release(self) -> None:
         """
         Signals the reader thread to stop and releases the camera resource.
+
+        Task 1.6: Robust thread termination with timeout and forced cleanup.
         """
         self._stopped.set()
         self._thread.join(timeout=2)
-        if self.cap.isOpened():
-            self.cap.release()
-            log.info("camera.released")
+
+        # Task 1.6: Check if thread actually terminated
+        if self._thread.is_alive():
+            log.error(
+                "camera.release.thread_timeout",
+                message="Thread did not terminate after 2s, forcing camera close",
+            )
+
+            # Force close the capture to unblock thread stuck in read()
+            if self.cap.isOpened():
+                self.cap.release()
+
+            # Give thread more time to finish after forced close
+            self._thread.join(timeout=1)
+
+            if self._thread.is_alive():
+                log.critical(
+                    "camera.release.thread_zombie",
+                    message="Thread still alive after forced close - potential resource leak",
+                )
+        else:
+            # Thread terminated normally, safe to release capture
+            if self.cap.isOpened():
+                self.cap.release()
+                log.info("camera.released")
 
     def __enter__(self) -> "Camera":
         """Enter context manager - camera is already initialized."""

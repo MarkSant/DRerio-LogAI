@@ -120,15 +120,17 @@ class WizardCache:
 
     def _compute_hash(self, video_paths: list[str]) -> str:
         """
-        Compute MD5 hash of sorted video paths.
+        Compute BLAKE2b hash of sorted video paths.
+
+        Task 2.0a: Replaced MD5 with BLAKE2b for security.
 
         Args:
             video_paths: List of video file paths
 
         Returns:
-            str: Hex digest of MD5 hash
+            str: Hex digest of BLAKE2b hash (32 chars)
         """
         # Sort to make hash order-independent
         sorted_paths = sorted(video_paths)
         paths_str = "".join(sorted_paths)
-        return hashlib.md5(paths_str.encode("utf-8")).hexdigest()
+        return hashlib.blake2b(paths_str.encode("utf-8"), digest_size=16).hexdigest()

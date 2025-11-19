@@ -376,16 +376,18 @@ def main():
         # Create MainViewModel with all injected dependencies
         _t0 = time.perf_counter()
         from zebtrack.core.main_view_model import MainViewModel
+        from zebtrack.core.dependency_container import MainViewModelDependencies
 
         log.info("timing.import_mainviewmodel", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         _t0 = time.perf_counter()
-        controller = MainViewModel(
+
+        dependencies = MainViewModelDependencies(
             root=root,
+            settings_obj=settings_obj,
             event_bus=event_bus,
             state_manager=state_manager,
             ui_coordinator=ui_coordinator,
-            settings_obj=settings_obj,
             project_manager=project_manager,
             project_workflow_service=project_workflow_service,
             weight_manager=weight_manager,
@@ -394,11 +396,13 @@ def main():
             video_processing_service=video_processing_service,
             analysis_service=analysis_service,
             recording_service=None,  # Will be created by MainViewModel for now
-            hardware_coordinator=hardware_coordinator,  # Phase 2: Injected coordinator
-            analysis_coordinator=analysis_coordinator,  # Phase 2: Injected coordinator
-            video_orchestrator=video_orchestrator,  # Phase 2: Injected coordinator
-            project_coordinator=project_coordinator,  # Sprint 3: Project lifecycle coordinator
+            hardware_coordinator=hardware_coordinator,
+            analysis_coordinator=analysis_coordinator,
+            video_orchestrator=video_orchestrator,
+            project_coordinator=project_coordinator,
         )
+
+        controller = MainViewModel(dependencies=dependencies)
         log.info("timing.mainviewmodel_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # Set view reference in video_processing_service after view is created
