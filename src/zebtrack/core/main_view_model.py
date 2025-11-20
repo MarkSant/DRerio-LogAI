@@ -36,6 +36,11 @@ from zebtrack.core.detector_service import DetectorService
 from zebtrack.core.hardware_coordinator import HardwareCoordinator
 from zebtrack.core.model_service import ModelService
 
+# Phase 3: Super Coordinator imports (REFACTOR-MASTER-PLAN-2025 Phase 3)
+from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
+from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
+from zebtrack.coordinators.session_coordinator import SessionCoordinator
+
 # Phase 2 imports (REFACTOR-VIEWMODEL-PHASE-2: Facade Removal)
 from zebtrack.core.orchestrator_registry import OrchestratorRegistry
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
@@ -171,6 +176,7 @@ class MainViewModel:
         """Extract and assign all injected dependencies from config object.
 
         Task 3.1: Extracted from __init__ to reduce complexity (was 37 lines inline).
+        Phase 3: Added extraction of 4 super coordinators.
         """
         # Core dependencies
         self.root = dependencies.root
@@ -186,6 +192,14 @@ class MainViewModel:
         self.video_processing_service = dependencies.video_processing_service
         self.project_workflow_service = dependencies.project_workflow_service
         self.ui_coordinator = dependencies.ui_coordinator
+
+        # Phase 3: Extract super coordinators (NEW)
+        self._project_lifecycle_coordinator_param = dependencies.project_lifecycle_coordinator
+        self._hardware_coordinator_param = dependencies.hardware_coordinator
+        self._processing_coordinator_param = dependencies.processing_coordinator
+        self._session_coordinator_param = dependencies.session_coordinator
+
+        # Legacy coordinators (DEPRECATED - kept for backward compatibility during Phase 3)
         self.recording_coordinator = dependencies.recording_coordinator
 
         # Deferred initialization parameters
@@ -424,14 +438,19 @@ class MainViewModel:
             self.recording_session_orchestrator._setup_recording_service_callbacks()
 
         # Task 2.2/2.3: Initialize or use injected coordinators (REFACTOR-VIEWMODEL-001)
+        # Phase 3: Pass super coordinators
         self._init_coordinators(
+            # Phase 3: Super Coordinators (NEW)
+            project_lifecycle_coordinator=dependencies.project_lifecycle_coordinator,
             hardware_coordinator=dependencies.hardware_coordinator,
+            processing_coordinator=dependencies.processing_coordinator,
+            session_coordinator=dependencies.session_coordinator,
+            # Legacy coordinators (DEPRECATED - for backward compatibility)
             analysis_coordinator=dependencies.analysis_coordinator,
             video_orchestrator=dependencies.video_orchestrator,
             recording_coordinator=dependencies.recording_coordinator,
             live_camera_coordinator=dependencies.live_camera_coordinator,
             detector_coordinator=dependencies.detector_coordinator,
-            processing_coordinator=dependencies.processing_coordinator,
             project_coordinator=dependencies.project_coordinator,
         )
 
@@ -450,6 +469,9 @@ class MainViewModel:
 
         # Sprint 28: UI State Controller
         self.ui_state_controller = UIStateController(self)
+
+        # Phase 3: Setup coordinator callbacks AFTER all coordinators and orchestrators are initialized
+        self._setup_coordinator_callbacks()
 
         # Sprint 29: Model Diagnostics Orchestrator
         self.model_diagnostics_orchestrator = ModelDiagnosticsOrchestrator(self)
@@ -483,7 +505,8 @@ class MainViewModel:
         # Phase 4: MVVM State Observer Callbacks
         self.state_manager.subscribe(StateCategory.PROJECT, self._on_project_state_changed)
         self.state_manager.subscribe(StateCategory.DETECTOR, self._on_detector_state_changed)
-        self.state_manager.subscribe(StateCategory.RECORDING, self._on_recording_state_changed)
+        # Phase 4 TODO: Implement _on_recording_state_changed or delegate to SessionCoordinator
+        # self.state_manager.subscribe(StateCategory.RECORDING, self._on_recording_state_changed)
         self.state_manager.subscribe(StateCategory.PROCESSING, self._on_processing_state_changed)
 
         # NOTE: bind_events() foi movido para __main__.py na FASE 1
@@ -504,18 +527,25 @@ class MainViewModel:
 
     def _init_coordinators(
         self,
-        hardware_coordinator: HardwareCoordinator | None,
-        analysis_coordinator: AnalysisCoordinator | None,
-        video_orchestrator: VideoOrchestrator | None,
+        # Phase 3: Super Coordinators (NEW)
+        project_lifecycle_coordinator: ProjectLifecycleCoordinator | None = None,
+        hardware_coordinator: HardwareCoordinator | None = None,
+        processing_coordinator: ProcessingCoordinator | None = None,
+        session_coordinator: SessionCoordinator | None = None,
+        # Legacy coordinators (DEPRECATED - for backward compatibility during Phase 3)
+        analysis_coordinator: AnalysisCoordinator | None = None,
+        video_orchestrator: VideoOrchestrator | None = None,
         recording_coordinator=None,
         live_camera_coordinator=None,
         detector_coordinator=None,
-        processing_coordinator=None,
-        project_coordinator=None,  # Sprint 11: Added missing parameter
+        project_coordinator=None,
     ) -> None:
         """
         Initialize coordinators for hardware, video, analysis, recording, live camera,
         detector, and processing.
+
+        Phase 3: Updated to accept and initialize 4 super coordinators.
+        Legacy coordinators maintained for backward compatibility during migration.
 
         Sprint 16: Simplified using _inject_or_create() helper.
         Task 2.2: Refactor ViewModel
@@ -524,21 +554,70 @@ class MainViewModel:
         Sprint 5: Added detector_coordinator
         Sprint 6: Added processing_coordinator
         """
-        # Hardware coordinator (detector, Arduino, zones)
+        # =========================================================================
+        # Phase 3: SUPER COORDINATORS (NEW - replace legacy coordinators)
+        # =========================================================================
+
+        # 1. ProjectLifecycleCoordinator (consolidates ProjectOrchestrator + CalibrationOrchestrator)
+        self._inject_or_create(
+            "project_lifecycle_coordinator",
+            project_lifecycle_coordinator,
+            lambda: None,  # Must be injected from __main__.py
+        )
+
+        # 2. HardwareCoordinator (consolidates DetectorCoordinator + ModelDiagnosticsOrchestrator)
+        # NOTE: This REPLACES the legacy hardware_coordinator (which was actually DetectorCoordinator)
         self._inject_or_create(
             "hardware_coordinator",
             hardware_coordinator,
-            lambda: HardwareCoordinator(
+            lambda: None,  # Must be injected from __main__.py
+        )
+
+        # 3. ProcessingCoordinator (consolidates 5 orchestrators)
+        # NOTE: This REPLACES the legacy processing_coordinator
+        self._inject_or_create(
+            "processing_coordinator",
+            processing_coordinator,
+            lambda: None,  # Must be injected from __main__.py
+        )
+
+        # 4. SessionCoordinator (consolidates RecordingSessionOrchestrator + LiveCameraCoordinator + RecordingCoordinator)
+        self._inject_or_create(
+            "session_coordinator",
+            session_coordinator,
+            lambda: None,  # Must be injected from __main__.py
+        )
+
+        log.info(
+            "main_view_model.super_coordinators_initialized",
+            project_lifecycle=self.project_lifecycle_coordinator is not None,
+            hardware=self.hardware_coordinator is not None,
+            processing=self.processing_coordinator is not None,
+            session=self.session_coordinator is not None,
+        )
+
+        # =========================================================================
+        # LEGACY COORDINATORS (DEPRECATED - backward compatibility during Phase 3)
+        # =========================================================================
+        # NOTE: These are kept for gradual migration but marked as DEPRECATED
+        # Phase 4 will remove these completely
+
+        # Legacy detector coordinator (DEPRECATED - use hardware_coordinator)
+        from zebtrack.coordinators.detector_coordinator import DetectorCoordinator
+
+        self._inject_or_create(
+            "detector_coordinator",
+            detector_coordinator,
+            lambda: DetectorCoordinator(
                 state_manager=self.state_manager,
-                ui_event_bus=self.ui_event_bus,
-                settings_obj=self.settings,
-                project_manager=self.project_manager,
                 detector_service=self.detector_service,
-                arduino_manager_cls=self._arduino_manager_cls,
+                model_service=self.model_service,
+                weight_manager=self.weight_manager,
+                event_bus=self.ui_event_bus,
             ),
         )
 
-        # Video orchestrator (batch processing, video workflows)
+        # Legacy video orchestrator (DEPRECATED - use processing_coordinator)
         self._inject_or_create(
             "video_orchestrator",
             video_orchestrator,
@@ -556,7 +635,7 @@ class MainViewModel:
         )
         self.video_orchestrator.set_view(self.view)
 
-        # Analysis coordinator (reports, summaries, analysis pipeline)
+        # Legacy analysis coordinator (DEPRECATED - use processing_coordinator)
         self._inject_or_create(
             "analysis_coordinator",
             analysis_coordinator,
@@ -572,7 +651,7 @@ class MainViewModel:
         )
         self.analysis_coordinator.set_view(self.view)
 
-        # Project coordinator (Sprint 3: project lifecycle workflows)
+        # Legacy project coordinator (DEPRECATED - use project_lifecycle_coordinator)
         if project_coordinator is not None:
             self.project_coordinator = project_coordinator
             log.info("main_view_model.project_coordinator.injected")
@@ -584,7 +663,7 @@ class MainViewModel:
                 message="ProjectCoordinator not injected - will use legacy workflow",
             )
 
-        # Recording coordinator (Sprint 4: recording workflow orchestration)
+        # Legacy recording coordinator (DEPRECATED - use session_coordinator)
         from zebtrack.coordinators.recording_coordinator import RecordingCoordinator
 
         self._inject_or_create(
@@ -598,7 +677,7 @@ class MainViewModel:
             ),
         )
 
-        # Live camera coordinator (Sprint 4: live camera analysis orchestration)
+        # Legacy live camera coordinator (DEPRECATED - use session_coordinator)
         from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
 
         self._inject_or_create(
@@ -614,38 +693,6 @@ class MainViewModel:
             ),
         )
 
-        # Detector coordinator (Sprint 5: detector setup and configuration)
-        from zebtrack.coordinators.detector_coordinator import DetectorCoordinator
-
-        self._inject_or_create(
-            "detector_coordinator",
-            detector_coordinator,
-            lambda: DetectorCoordinator(
-                state_manager=self.state_manager,
-                detector_service=self.detector_service,
-                model_service=self.model_service,
-                weight_manager=self.weight_manager,
-                event_bus=self.ui_event_bus,
-            ),
-        )
-
-        # Processing coordinator (Sprint 6: video processing orchestration)
-        from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
-
-        self._inject_or_create(
-            "processing_coordinator",
-            processing_coordinator,
-            lambda: ProcessingCoordinator(
-                state_manager=self.state_manager,
-                video_orchestrator=self.video_orchestrator,
-                video_processing_service=self.video_processing_service,
-                analysis_service=self.analysis_service,
-                project_manager=self.project_manager,
-                recorder_factory=self.recorder,
-                event_bus=self.ui_event_bus,
-            ),
-        )
-
         # Project workflow adapter (P2-T2: project create/open/close workflows)
         self.project_workflow_adapter = ProjectWorkflowAdapter(
             project_workflow_service=self.project_workflow_service,
@@ -655,45 +702,78 @@ class MainViewModel:
             ui_event_bus=self.ui_event_bus,
         )
 
-        # Set callbacks for coordinators that need to call back to MainViewModel
-        self.hardware_coordinator.set_recording_callbacks(
-            self.trigger_recording, self.stop_recording
-        )
-        self.video_orchestrator.set_arena_callback(self.set_main_arena_polygon)
-        self.video_orchestrator.set_analysis_view_mode_callback(self._activate_analysis_view_mode)
-        self.video_orchestrator.set_refresh_callback(self.ui_state_controller.refresh_project_views)
-        self.video_orchestrator.set_publish_processing_mode_callback(self._publish_processing_mode)
-        self.analysis_coordinator.set_refresh_callback(self.ui_state_controller.refresh_project_views)
-
         log.info("main_view_model.coordinators_initialized")
 
-        # Sprint 24: Video Processing Orchestrator
-        self.video_processing_orchestrator = VideoProcessingOrchestrator(self)
+        # Phase 3 NOTE: Orchestrator creation removed from here - they are now created
+        # in _init_orchestrators() to avoid duplication. The orchestrators are:
+        # - VideoProcessingOrchestrator (Sprint 24)
+        # - AnalysisOrchestrator (Sprint 25)
+        # - RecordingSessionOrchestrator (Sprint 26)
+        # - ProjectOrchestrator (Sprint 27)
+        # - UIStateController (Sprint 28)
+        # - ModelDiagnosticsOrchestrator (Sprint 29)
+        # - ZoneArenaOrchestrator (Sprint 30)
+        # - ProcessingConfigOrchestrator (Sprint 31)
+        # - CalibrationOrchestrator (Sprint 32)
 
-        # Sprint 25: Analysis Orchestrator
-        self.analysis_orchestrator = AnalysisOrchestrator(self)
+    def _setup_coordinator_callbacks(self):
+        """Setup callbacks between coordinators and orchestrators.
 
-        # Sprint 26: Recording Session Orchestrator
-        if self.recording_session_orchestrator is None:
-            self.recording_session_orchestrator = RecordingSessionOrchestrator(self)
+        Phase 3: This method is called AFTER all coordinators and orchestrators
+        are initialized, to avoid circular dependencies during initialization.
+        """
+        # Phase 3: Recording callbacks now point to SessionCoordinator (super coordinator)
+        self.hardware_coordinator.set_recording_callbacks(
+            self.session_coordinator.trigger_recording,
+            self.session_coordinator.stop_recording,
+        )
 
-        # Sprint 27: Project Orchestrator
-        self.project_orchestrator = ProjectOrchestrator(self)
+        # Phase 4 TODO: Refactor legacy orchestrator callbacks
+        # The following callbacks reference methods that don't exist in MainViewModel.
+        # These need to be either:
+        # 1. Moved to appropriate super coordinators
+        # 2. Implemented if still needed
+        # 3. Removed if obsolete
+        #
+        # self.video_orchestrator.set_arena_callback(self.set_main_arena_polygon)
+        # self.video_orchestrator.set_analysis_view_mode_callback(self._activate_analysis_view_mode)
+        # self.video_orchestrator.set_refresh_callback(self.ui_state_controller.refresh_project_views)
+        # self.video_orchestrator.set_publish_processing_mode_callback(self._publish_processing_mode)
+        # self.analysis_coordinator.set_refresh_callback(self.ui_state_controller.refresh_project_views)
 
-        # Sprint 28: UI State Controller
-        self.ui_state_controller = UIStateController(self)
+    # =========================================================================
+    # Phase 3: Delegation Methods (TEMPORARY - for backward compatibility)
+    # =========================================================================
+    # These methods delegate to super coordinators/orchestrators.
+    # Phase 4 TODO: Remove these and refactor callers to use coordinators directly.
 
-        # Sprint 29: Model Diagnostics Orchestrator
-        self.model_diagnostics_orchestrator = ModelDiagnosticsOrchestrator(self)
+    def set_active_weight(self, name: str | None, dialog=None):
+        """Phase 3: Delegate to UIStateController."""
+        return self.ui_state_controller.set_active_weight(name, dialog)
 
-        # Sprint 30: Zone Arena Orchestrator
-        self.zone_arena_orchestrator = ZoneArenaOrchestrator(self)
+    def set_openvino_usage(self, use_openvino: bool, dialog=None):
+        """Phase 3: Delegate to UIStateController."""
+        return self.ui_state_controller.set_openvino_usage(use_openvino, dialog)
 
-        # Sprint 31: Processing Config Orchestrator
-        self.processing_config_orchestrator = ProcessingConfigOrchestrator(self)
+    def update_openvino_status(self, dialog=None):
+        """Phase 3: Delegate to UIStateController."""
+        return self.ui_state_controller.update_openvino_status(dialog)
 
-        # Sprint 32: Calibration Orchestrator
-        self.calibration_orchestrator = CalibrationOrchestrator(self)
+    def close_project(self):
+        """Phase 3: Delegate to ProjectLifecycleCoordinator."""
+        return self.project_lifecycle_coordinator.close_project()
+
+    def _setup_zones_from_project(self):
+        """Phase 3: Delegate to project_orchestrator (legacy)."""
+        return self.project_orchestrator._setup_zones_from_project()
+
+    def open_project_workflow(self, project_path):
+        """Phase 3: Delegate to project_orchestrator (legacy)."""
+        return self.project_orchestrator.open_project_workflow(project_path)
+
+    # =========================================================================
+    # Application Lifecycle
+    # =========================================================================
 
     def run(self):
         """Start the Tkinter main event loop.

@@ -310,66 +310,139 @@ def main():
         analysis_service = AnalysisService(settings_obj=settings_obj)
         log.info("timing.analysis_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
-        # ===== COORDINATORS (Phase 2 Refactoring) =====
-        # Create coordinators to encapsulate hardware and analysis logic
+        # ===== SUPER COORDINATORS (Phase 3 Consolidation) =====
+        # Four super coordinators replace 20 legacy coordinators/orchestrators
+        # Architecture: Zero MainViewModel dependency, pure dependency injection
 
         _t0 = time.perf_counter()
-        from zebtrack.coordinators.project_coordinator import ProjectCoordinator  # Sprint 3
-        from zebtrack.core.analysis_coordinator import AnalysisCoordinator
-        from zebtrack.core.hardware_coordinator import HardwareCoordinator
-        from zebtrack.core.video_orchestrator import VideoOrchestrator
+        from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
+        from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
+        from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
+        from zebtrack.coordinators.session_coordinator import SessionCoordinator
 
-        # Project coordinator (Sprint 3: project lifecycle workflows)
-        _t0_proj = time.perf_counter()
+        # Additional services needed by coordinators
         from zebtrack.core.project_service import ProjectService
+        from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 
         project_service = ProjectService()
-        project_coordinator = ProjectCoordinator(
+        project_workflow_adapter = ProjectWorkflowAdapter()
+
+        # 1. ProjectLifecycleCoordinator - Project & calibration workflows
+        _t0_proj = time.perf_counter()
+        project_lifecycle_coordinator = ProjectLifecycleCoordinator(
             state_manager=state_manager,
             project_manager=project_manager,
-            project_service=project_service,
+            project_workflow_service=project_workflow_service,
+            project_workflow_adapter=project_workflow_adapter,
+            settings_obj=settings_obj,
             event_bus=event_bus,
         )
         log.info(
-            "timing.project_coordinator_init",
+            "timing.project_lifecycle_coordinator",
             elapsed_ms=int((time.perf_counter() - _t0_proj) * 1000),
         )
 
-        # Hardware coordinator (detector, Arduino, zones)
+        # 2. HardwareCoordinator - Detector setup, zones, model diagnostics
+        _t0_hw = time.perf_counter()
         hardware_coordinator = HardwareCoordinator(
             state_manager=state_manager,
-            ui_event_bus=event_bus,
-            settings_obj=settings_obj,
+            detector_service=detector_service,
+            weight_manager=weight_manager,
+            model_service=model_service,
+            event_bus=event_bus,
+            cancel_event=cancel_event,
+            root=root,
+            view=None,  # Set after ApplicationGUI is created
+        )
+        log.info(
+            "timing.hardware_coordinator",
+            elapsed_ms=int((time.perf_counter() - _t0_hw) * 1000),
+        )
+
+        # 3. ProcessingCoordinator - Video processing, analysis, zones/arena management
+        _t0_proc = time.perf_counter()
+
+        # Import additional services for ProcessingCoordinator
+        from zebtrack.orchestrators.ui_state_controller import UIStateController
+        from zebtrack.core.video_classification_service import VideoClassificationService
+        from zebtrack.core.video_selection_service import VideoSelectionService
+        from zebtrack.core.video_validation_service import VideoValidationService
+
+        video_selection_service = VideoSelectionService(project_manager=project_manager)
+        video_validation_service = VideoValidationService()
+        video_classification_service = VideoClassificationService(project_manager=project_manager)
+        ui_state_controller = UIStateController(root=root, event_bus=event_bus)
+
+        processing_coordinator = ProcessingCoordinator(
+            state_manager=state_manager,
             project_manager=project_manager,
             detector_service=detector_service,
-        )
-
-        # Analysis coordinator (reports, summaries, analysis pipeline)
-        # Note: view will be set after ApplicationGUI is created in MainViewModel
-        analysis_coordinator = AnalysisCoordinator(
-            root=root,
-            ui_event_bus=event_bus,
-            ui_coordinator=ui_coordinator,
+            weight_manager=weight_manager,
             settings_obj=settings_obj,
-            project_manager=project_manager,
+            ui_coordinator=ui_coordinator,
+            ui_state_controller=ui_state_controller,
+            cancel_event=cancel_event,
+            video_selection_service=video_selection_service,
+            video_validation_service=video_validation_service,
+            video_classification_service=video_classification_service,
             analysis_service=analysis_service,
-            video_processing_service=video_processing_service,
+            recorder_factory=recorder_factory,
+            event_bus=event_bus,
+            view=None,  # Set after ApplicationGUI is created
+            root=root,
+            detector=None,  # Set after detector is initialized
+        )
+        log.info(
+            "timing.processing_coordinator",
+            elapsed_ms=int((time.perf_counter() - _t0_proc) * 1000),
         )
 
-        # Video orchestrator (batch processing, video workflows)
-        # Note: view will be set after ApplicationGUI is created in MainViewModel
-        video_orchestrator = VideoOrchestrator(
-            root=root,
+        # 4. SessionCoordinator - Recording sessions, live camera, Arduino triggers
+        _t0_sess = time.perf_counter()
+
+        # RecordingService and LiveCameraService will be created by SessionCoordinator
+        # Note: These are temporarily created here for backward compatibility
+        # In future sprints, they should be created directly by SessionCoordinator
+        from zebtrack.core.live_camera_service import LiveCameraService
+        from zebtrack.core.recording_service import RecordingService
+
+        # Create services (will be passed to SessionCoordinator)
+        # Note: controller parameter is temporary - will be removed in future refactoring
+        recording_service = RecordingService(
+            controller=None,  # Will be set by MainViewModel for backward compatibility
             state_manager=state_manager,
-            ui_event_bus=event_bus,
-            ui_coordinator=ui_coordinator,
-            settings_obj=settings_obj,
             project_manager=project_manager,
-            video_processing_service=video_processing_service,
-            analysis_service=analysis_service,
-            recorder=recorder_factory,
+            root=root,
         )
-        log.info("timing.coordinators_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+
+        live_camera_service = LiveCameraService(
+            controller=None,  # Will be set by MainViewModel for backward compatibility
+            state_manager=state_manager,
+            project_manager=project_manager,
+            recording_service=recording_service,
+            detector_service=detector_service,
+            root=root,
+        )
+
+        session_coordinator = SessionCoordinator(
+            state_manager=state_manager,
+            recording_service=recording_service,
+            live_camera_service=live_camera_service,
+            project_manager=project_manager,
+            detector_service=detector_service,
+            weight_manager=weight_manager,
+            settings_obj=settings_obj,
+            event_bus=event_bus,
+            arduino_manager=None,  # Will be set when Arduino is initialized
+            root=root,
+            view=None,  # Set after ApplicationGUI is created
+        )
+        log.info(
+            "timing.session_coordinator",
+            elapsed_ms=int((time.perf_counter() - _t0_sess) * 1000),
+        )
+
+        log.info("timing.all_coordinators_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         splash.update_status("Finalizando inicialização...")
 
@@ -395,11 +468,13 @@ def main():
             detector_service=detector_service,
             video_processing_service=video_processing_service,
             analysis_service=analysis_service,
-            recording_service=None,  # Will be created by MainViewModel for now
+            recording_service=recording_service,
+            live_camera_service=live_camera_service,
+            # Phase 3: Four super coordinators replace legacy coordinators
+            project_lifecycle_coordinator=project_lifecycle_coordinator,
             hardware_coordinator=hardware_coordinator,
-            analysis_coordinator=analysis_coordinator,
-            video_orchestrator=video_orchestrator,
-            project_coordinator=project_coordinator,
+            processing_coordinator=processing_coordinator,
+            session_coordinator=session_coordinator,
         )
 
         controller = MainViewModel(dependencies=dependencies)

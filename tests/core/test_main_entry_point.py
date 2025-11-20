@@ -165,42 +165,50 @@ class TestMainFunction:
         mock_controller.return_value = mock_controller_instance
 
         # Mock argparse to avoid CLI interference
-        with patch("sys.argv", ["zebtrack"]):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            stack.enter_context(patch("sys.argv", ["zebtrack"]))
+
             # Mock all service dependencies to avoid construction errors
-            with patch("zebtrack.core.state_manager.StateManager"):
-                with patch("zebtrack.core.ui_coordinator.UICoordinator"):
-                    with patch("zebtrack.ui.event_bus.EventBus"):
-                        with patch("zebtrack.core.weight_manager.WeightManager"):
-                            with patch("zebtrack.core.model_service.ModelService"):
-                                with patch("zebtrack.core.project_manager.ProjectManager"):
-                                    with patch(
-                                        "zebtrack.core.project_workflow_service."
-                                        "ProjectWorkflowService"
-                                    ):
-                                        with patch(
-                                            "zebtrack.core.detector_service.DetectorService"
-                                        ):
-                                            with patch("zebtrack.io.recorder.Recorder"):
-                                                with patch(
-                                                    "zebtrack.core."
-                                                    "video_processing_service."
-                                                    "VideoProcessingService"
-                                                ):
-                                                    with patch(
-                                                        "zebtrack.analysis."
-                                                        "analysis_service."
-                                                        "AnalysisService"
-                                                    ):
-                                                        # Mock splash screen
-                                                        with patch(
-                                                            "zebtrack.ui.splash_screen."
-                                                            "create_splash"
-                                                        ) as mock_splash:
-                                                            mock_splash.return_value = Mock()
-                                                            main()
-                                                            # Test verifies init
-                                                            # completes and run called
-                                                            mock_controller_instance.run.assert_called_once()
+            stack.enter_context(patch("zebtrack.core.state_manager.StateManager"))
+            stack.enter_context(patch("zebtrack.core.ui_coordinator.UICoordinator"))
+            stack.enter_context(patch("zebtrack.ui.event_bus.EventBus"))
+            stack.enter_context(patch("zebtrack.core.weight_manager.WeightManager"))
+            stack.enter_context(patch("zebtrack.core.model_service.ModelService"))
+            stack.enter_context(patch("zebtrack.core.project_manager.ProjectManager"))
+            stack.enter_context(patch("zebtrack.core.project_workflow_service.ProjectWorkflowService"))
+            stack.enter_context(patch("zebtrack.core.detector_service.DetectorService"))
+            stack.enter_context(patch("zebtrack.io.recorder.Recorder"))
+            stack.enter_context(patch("zebtrack.core.video_processing_service.VideoProcessingService"))
+            stack.enter_context(patch("zebtrack.analysis.analysis_service.AnalysisService"))
+
+            # Phase 3: Mock services needed by coordinators
+            stack.enter_context(patch("zebtrack.core.project_service.ProjectService"))
+            stack.enter_context(patch("zebtrack.ui.project_workflow_adapter.ProjectWorkflowAdapter"))
+
+            # Phase 3: Mock super coordinators
+            stack.enter_context(patch("zebtrack.coordinators.project_lifecycle_coordinator.ProjectLifecycleCoordinator"))
+            stack.enter_context(patch("zebtrack.coordinators.hardware_coordinator.HardwareCoordinator"))
+            stack.enter_context(patch("zebtrack.coordinators.processing_coordinator.ProcessingCoordinator"))
+            stack.enter_context(patch("zebtrack.coordinators.session_coordinator.SessionCoordinator"))
+
+            # Phase 3: Mock additional services
+            stack.enter_context(patch("zebtrack.orchestrators.ui_state_controller.UIStateController"))
+            stack.enter_context(patch("zebtrack.core.video_classification_service.VideoClassificationService"))
+            stack.enter_context(patch("zebtrack.core.video_selection_service.VideoSelectionService"))
+            stack.enter_context(patch("zebtrack.core.video_validation_service.VideoValidationService"))
+            stack.enter_context(patch("zebtrack.io.recorder_factory.RecorderFactory"))
+            stack.enter_context(patch("zebtrack.core.recording_service.RecordingService"))
+            stack.enter_context(patch("zebtrack.core.live_camera_service.LiveCameraService"))
+
+            # Mock splash screen
+            mock_splash = stack.enter_context(patch("zebtrack.ui.splash_screen.create_splash"))
+            mock_splash.return_value = Mock()
+
+            main()
+            # Test verifies init completes and run called
+            mock_controller_instance.run.assert_called_once()
 
     @patch("zebtrack.__main__.configure_logging")
     @patch("zebtrack.settings.load_settings")
@@ -566,35 +574,48 @@ class TestMainFunction:
         mock_controller_instance.run = Mock()
         mock_controller.return_value = mock_controller_instance
 
-        with patch("sys.argv", ["zebtrack"]):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            stack.enter_context(patch("sys.argv", ["zebtrack"]))
+
+            # Mock splash screen
+            mock_splash = stack.enter_context(patch("zebtrack.ui.splash_screen.create_splash"))
+            mock_splash.return_value = Mock()
+
             # Mock all service dependencies
-            with patch("zebtrack.ui.splash_screen.create_splash") as mock_splash:
-                mock_splash.return_value = Mock()
-                with patch("zebtrack.core.state_manager.StateManager"):
-                    with patch("zebtrack.core.ui_coordinator.UICoordinator"):
-                        with patch("zebtrack.ui.event_bus.EventBus"):
-                            with patch("zebtrack.core.weight_manager.WeightManager"):
-                                with patch("zebtrack.core.model_service.ModelService"):
-                                    with patch("zebtrack.core.project_manager.ProjectManager"):
-                                        with patch(
-                                            "zebtrack.core.project_workflow_service."
-                                            "ProjectWorkflowService"
-                                        ):
-                                            with patch(
-                                                "zebtrack.core.detector_service.DetectorService"
-                                            ):
-                                                with patch("zebtrack.io.recorder.Recorder"):
-                                                    with patch(
-                                                        "zebtrack.core."
-                                                        "video_processing_service."
-                                                        "VideoProcessingService"
-                                                    ):
-                                                        with patch(
-                                                            "zebtrack.analysis."
-                                                            "analysis_service."
-                                                            "AnalysisService"
-                                                        ):
-                                                            main()
+            stack.enter_context(patch("zebtrack.core.state_manager.StateManager"))
+            stack.enter_context(patch("zebtrack.core.ui_coordinator.UICoordinator"))
+            stack.enter_context(patch("zebtrack.ui.event_bus.EventBus"))
+            stack.enter_context(patch("zebtrack.core.weight_manager.WeightManager"))
+            stack.enter_context(patch("zebtrack.core.model_service.ModelService"))
+            stack.enter_context(patch("zebtrack.core.project_manager.ProjectManager"))
+            stack.enter_context(patch("zebtrack.core.project_workflow_service.ProjectWorkflowService"))
+            stack.enter_context(patch("zebtrack.core.detector_service.DetectorService"))
+            stack.enter_context(patch("zebtrack.io.recorder.Recorder"))
+            stack.enter_context(patch("zebtrack.core.video_processing_service.VideoProcessingService"))
+            stack.enter_context(patch("zebtrack.analysis.analysis_service.AnalysisService"))
+
+            # Phase 3: Mock services needed by coordinators
+            stack.enter_context(patch("zebtrack.core.project_service.ProjectService"))
+            stack.enter_context(patch("zebtrack.ui.project_workflow_adapter.ProjectWorkflowAdapter"))
+
+            # Phase 3: Mock super coordinators
+            stack.enter_context(patch("zebtrack.coordinators.project_lifecycle_coordinator.ProjectLifecycleCoordinator"))
+            stack.enter_context(patch("zebtrack.coordinators.hardware_coordinator.HardwareCoordinator"))
+            stack.enter_context(patch("zebtrack.coordinators.processing_coordinator.ProcessingCoordinator"))
+            stack.enter_context(patch("zebtrack.coordinators.session_coordinator.SessionCoordinator"))
+
+            # Phase 3: Mock additional services
+            stack.enter_context(patch("zebtrack.orchestrators.ui_state_controller.UIStateController"))
+            stack.enter_context(patch("zebtrack.core.video_classification_service.VideoClassificationService"))
+            stack.enter_context(patch("zebtrack.core.video_selection_service.VideoSelectionService"))
+            stack.enter_context(patch("zebtrack.core.video_validation_service.VideoValidationService"))
+            stack.enter_context(patch("zebtrack.io.recorder_factory.RecorderFactory"))
+            stack.enter_context(patch("zebtrack.core.recording_service.RecordingService"))
+            stack.enter_context(patch("zebtrack.core.live_camera_service.LiveCameraService"))
+
+            main()
 
         # Should call bind_events
         mock_controller_instance.bind_events.assert_called_once()
@@ -623,35 +644,48 @@ class TestMainFunction:
         mock_controller_instance.run = Mock()
         mock_controller.return_value = mock_controller_instance
 
-        with patch("sys.argv", ["zebtrack"]):
+        from contextlib import ExitStack
+
+        with ExitStack() as stack:
+            stack.enter_context(patch("sys.argv", ["zebtrack"]))
+
+            # Mock splash screen
+            mock_splash = stack.enter_context(patch("zebtrack.ui.splash_screen.create_splash"))
+            mock_splash.return_value = Mock()
+
             # Mock all service dependencies
-            with patch("zebtrack.ui.splash_screen.create_splash") as mock_splash:
-                mock_splash.return_value = Mock()
-                with patch("zebtrack.core.state_manager.StateManager"):
-                    with patch("zebtrack.core.ui_coordinator.UICoordinator"):
-                        with patch("zebtrack.ui.event_bus.EventBus"):
-                            with patch("zebtrack.core.weight_manager.WeightManager"):
-                                with patch("zebtrack.core.model_service.ModelService"):
-                                    with patch("zebtrack.core.project_manager.ProjectManager"):
-                                        with patch(
-                                            "zebtrack.core.project_workflow_service."
-                                            "ProjectWorkflowService"
-                                        ):
-                                            with patch(
-                                                "zebtrack.core.detector_service.DetectorService"
-                                            ):
-                                                with patch("zebtrack.io.recorder.Recorder"):
-                                                    with patch(
-                                                        "zebtrack.core."
-                                                        "video_processing_service."
-                                                        "VideoProcessingService"
-                                                    ):
-                                                        with patch(
-                                                            "zebtrack.analysis."
-                                                            "analysis_service."
-                                                            "AnalysisService"
-                                                        ):
-                                                            main()
+            stack.enter_context(patch("zebtrack.core.state_manager.StateManager"))
+            stack.enter_context(patch("zebtrack.core.ui_coordinator.UICoordinator"))
+            stack.enter_context(patch("zebtrack.ui.event_bus.EventBus"))
+            stack.enter_context(patch("zebtrack.core.weight_manager.WeightManager"))
+            stack.enter_context(patch("zebtrack.core.model_service.ModelService"))
+            stack.enter_context(patch("zebtrack.core.project_manager.ProjectManager"))
+            stack.enter_context(patch("zebtrack.core.project_workflow_service.ProjectWorkflowService"))
+            stack.enter_context(patch("zebtrack.core.detector_service.DetectorService"))
+            stack.enter_context(patch("zebtrack.io.recorder.Recorder"))
+            stack.enter_context(patch("zebtrack.core.video_processing_service.VideoProcessingService"))
+            stack.enter_context(patch("zebtrack.analysis.analysis_service.AnalysisService"))
+
+            # Phase 3: Mock services needed by coordinators
+            stack.enter_context(patch("zebtrack.core.project_service.ProjectService"))
+            stack.enter_context(patch("zebtrack.ui.project_workflow_adapter.ProjectWorkflowAdapter"))
+
+            # Phase 3: Mock super coordinators
+            stack.enter_context(patch("zebtrack.coordinators.project_lifecycle_coordinator.ProjectLifecycleCoordinator"))
+            stack.enter_context(patch("zebtrack.coordinators.hardware_coordinator.HardwareCoordinator"))
+            stack.enter_context(patch("zebtrack.coordinators.processing_coordinator.ProcessingCoordinator"))
+            stack.enter_context(patch("zebtrack.coordinators.session_coordinator.SessionCoordinator"))
+
+            # Phase 3: Mock additional services
+            stack.enter_context(patch("zebtrack.orchestrators.ui_state_controller.UIStateController"))
+            stack.enter_context(patch("zebtrack.core.video_classification_service.VideoClassificationService"))
+            stack.enter_context(patch("zebtrack.core.video_selection_service.VideoSelectionService"))
+            stack.enter_context(patch("zebtrack.core.video_validation_service.VideoValidationService"))
+            stack.enter_context(patch("zebtrack.io.recorder_factory.RecorderFactory"))
+            stack.enter_context(patch("zebtrack.core.recording_service.RecordingService"))
+            stack.enter_context(patch("zebtrack.core.live_camera_service.LiveCameraService"))
+
+            main()
 
         # Should call run
         mock_controller_instance.run.assert_called_once()

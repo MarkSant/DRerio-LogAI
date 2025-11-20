@@ -1,13 +1,11 @@
 {
   "permissions": {
     "allow": [
+      "Bash(git commit:*)",
       "Bash(poetry run python:*)",
       "Bash(poetry run pytest:*)",
-      "Bash(for:*)",
-      "Bash(do echo \"=== $orch ===\")",
-      "Bash(done)",
-      "Bash(git add:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nfeat(refactor): Complete Phase 2 - Remove all 86 facade methods\n\nPHASE 2 COMPLETE: Removed all 86 facade methods from MainViewModel,\ncompleting the facade removal phase of the refactoring plan.\n\nIMPACT:\n- Removed 86 facade methods (100%)\n- Reduced MainViewModel from 2,836 to 1,814 lines (-36%, -1,022 lines)\n- All facades now accessed via OrchestratorRegistry\n\nFACADES REMOVED BY BATCH:\n- Batch 1: UIStateController (23 facades, -216 lines)\n- Batch 2: RecordingSessionOrchestrator (15 facades, -258 lines)\n- Batch 3: ProjectOrchestrator (17 facades, -163 lines)\n- Batch 4: All remaining (31 facades, -385 lines)\n  - ProcessingConfigOrchestrator: 7\n  - VideoProcessingOrchestrator: 7  \n  - ModelDiagnosticsOrchestrator: 7\n  - CalibrationOrchestrator: 3\n  - AnalysisOrchestrator: 3\n  - ZoneArenaOrchestrator: 3\n  - LiveCameraCoordinator: 1\n\nINTERNAL USAGE UPDATES:\nUpdated 8 internal facade calls to use orchestrators directly:\n- refresh_project_views (2 calls)\n- update_openvino_status (1 call)\n- update_detector_parameters (1 call)\n- _show_cancel_feedback (2 calls)\n- _setup_recording_service_callbacks (1 call)\n- _init_recording_service (1 call)\n\nMIGRATION PATTERN:\nBEFORE (facade):\n  controller.close_project()\n\nAFTER (direct access):\n  controller.orchestrators.project.close_project()\n\nTESTING:\n- All 94 Phase 1+2 tests passing (7.25s)\n- MainViewModel compiles successfully\n- Zero breaking changes to external callers\n\nSCRIPTS CREATED:\n- extract_facades.py - Automated facade identification\n- check_facade_usage.py - Internal usage analysis  \n- remove_facades_simple.py - Batch 1 removal\n- remove_batch2.py - Batch 2 removal\n- remove_facades_batch.py - Generic batch removal\n- check_recording_facades.py - Recording facade analysis\n\nNEXT PHASE:\nPhase 3: Consolidate 20 components → 4 super coordinators\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(python:*)",
+      "Bash(test:*)"
     ],
     "deny": [],
     "ask": []
