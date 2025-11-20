@@ -8,7 +8,7 @@ from pathlib import Path
 main_vm_path = Path(__file__).parent / "src" / "zebtrack" / "core" / "main_view_model.py"
 
 # Ler o arquivo
-with open(main_vm_path, 'r', encoding='utf-8') as f:
+with open(main_vm_path, encoding='utf-8') as f:
     content = f.read()
 
 print("=" * 80)
@@ -76,7 +76,7 @@ for i, match in enumerate(reversed(matches)):
 with open(main_vm_path, 'w', encoding='utf-8') as f:
     f.write(content)
 
-print(f"\n" + "=" * 80)
+print("\n" + "=" * 80)
 print("RESUMO")
 print("=" * 80)
 print(f"Facades removidos: {removed_count}")

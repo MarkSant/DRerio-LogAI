@@ -5,11 +5,11 @@ by delegating to services. Part of the v4.0 refactoring plan.
 
 Available Coordinators:
     BaseCoordinator - Abstract base class for all coordinators
-    ProjectCoordinator - Project lifecycle management (Sprint 3)
-    RecordingCoordinator - Recording and Arduino management (Sprint 4)
-    LiveCameraCoordinator - Live camera analysis sessions (Sprint 4)
-    DetectorCoordinator - Detector setup and configuration (Sprint 5)
-    ProcessingCoordinator - Video processing workflows (Sprint 6)
+    DialogCoordinator - Dialog management (Phase 1)
+    HardwareCoordinator - Hardware management (Phase 3)
+    ProcessingCoordinator - Processing workflows (Phase 3)
+    ProjectLifecycleCoordinator - Project lifecycle (Phase 3)
+    SessionCoordinator - Session management (Phase 3)
 
 See:
     docs/REFACTOR-MASTER-PLAN-2025.md - Complete refactoring plan
@@ -21,40 +21,26 @@ from zebtrack.coordinators.base import (
     CoordinatorError,
     CoordinatorValidationError,
 )
-from zebtrack.coordinators.detector_coordinator import (
-    DetectorCoordinator,
-    DetectorCoordinatorError,
-)
-from zebtrack.coordinators.live_camera_coordinator import (
-    LiveCameraCoordinator,
-    LiveCameraCoordinatorError,
-)
+from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
+from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
 from zebtrack.coordinators.processing_coordinator import (
     ProcessingCoordinator,
     ProcessingCoordinatorError,
 )
-from zebtrack.coordinators.project_coordinator import (
-    ProjectCoordinator,
-    ProjectCoordinatorError,
+from zebtrack.coordinators.project_lifecycle_coordinator import (
+    ProjectLifecycleCoordinator,
 )
-from zebtrack.coordinators.recording_coordinator import (
-    RecordingCoordinator,
-    RecordingCoordinatorError,
-)
+from zebtrack.coordinators.session_coordinator import SessionCoordinator
 
 __all__ = [
     "BaseCoordinator",
     "CoordinatorDependencyError",
     "CoordinatorError",
     "CoordinatorValidationError",
-    "DetectorCoordinator",
-    "DetectorCoordinatorError",
-    "LiveCameraCoordinator",
-    "LiveCameraCoordinatorError",
+    "DialogCoordinator",
+    "HardwareCoordinator",
     "ProcessingCoordinator",
     "ProcessingCoordinatorError",
-    "ProjectCoordinator",
-    "ProjectCoordinatorError",
-    "RecordingCoordinator",
-    "RecordingCoordinatorError",
+    "ProjectLifecycleCoordinator",
+    "SessionCoordinator",
 ]

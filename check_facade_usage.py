@@ -20,7 +20,7 @@ UI_STATE_FACADES = [
 main_vm_path = Path(__file__).parent / "src" / "zebtrack" / "core" / "main_view_model.py"
 
 # Ler o arquivo
-with open(main_vm_path, 'r', encoding='utf-8') as f:
+with open(main_vm_path, encoding='utf-8') as f:
     content = f.read()
 
 print("Verificando uso interno dos facades no MainViewModel...\n")
@@ -52,11 +52,11 @@ for method in UI_STATE_FACADES:
     else:
         print(f"[?] {method}: metodo nao encontrado")
 
-print(f"\nResumo:")
+print("\nResumo:")
 print(f"  Facades seguros para remover: {len(not_used)}")
 print(f"  Facades com uso interno: {len(used_internally)}")
 
 if used_internally:
-    print(f"\nAVISO: Os seguintes facades TÊM uso interno:")
+    print("\nAVISO: Os seguintes facades TÊM uso interno:")
     for method, count in used_internally:
         print(f"  - {method}: {count} chamadas")

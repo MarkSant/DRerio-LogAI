@@ -5,7 +5,7 @@ plano de refatoração (PLANO_REFATORACAO_MAINVIEWMODEL.md).
 Responsável por rotear eventos do EventBus para orchestrators/services apropriados.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, ClassVar
+from typing import TYPE_CHECKING, Callable
 
 import structlog
 

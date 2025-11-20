@@ -15,7 +15,7 @@ orchestrator_name = sys.argv[1]
 
 main_vm_path = Path(__file__).parent / "src" / "zebtrack" / "core" / "main_view_model.py"
 
-with open(main_vm_path, 'r', encoding='utf-8') as f:
+with open(main_vm_path, encoding='utf-8') as f:
     lines = f.readlines()
 
 print(f"Removendo facades de {orchestrator_name}...")
@@ -54,7 +54,7 @@ for start, end, name in reversed(to_remove):
 with open(main_vm_path, 'w', encoding='utf-8') as f:
     f.writelines(lines)
 
-print(f"\n===== RESUMO =====")
+print("\n===== RESUMO =====")
 print(f"Orchestrator: {orchestrator_name}")
 print(f"Facades removidos: {removed_count}")
 print(f"Linhas no arquivo: {len(lines)}")

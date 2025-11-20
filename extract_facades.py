@@ -8,7 +8,7 @@ from pathlib import Path
 main_vm_path = Path(__file__).parent / "src" / "zebtrack" / "core" / "main_view_model.py"
 
 # Ler o arquivo
-with open(main_vm_path, 'r', encoding='utf-8') as f:
+with open(main_vm_path, encoding='utf-8') as f:
     lines = f.readlines()
 
 # Regex para identificar facades

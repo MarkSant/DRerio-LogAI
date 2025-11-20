@@ -38,6 +38,8 @@ import structlog
 from zebtrack.coordinators.base import BaseCoordinator, CoordinatorValidationError
 from zebtrack.core.processing_mode import ProcessingMode
 from zebtrack.core.state_manager import StateCategory
+from zebtrack.io.arduino import Arduino
+from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.ui.events import Events
 
@@ -54,6 +56,7 @@ if TYPE_CHECKING:
 
     from zebtrack.core.detector_service import DetectorService
     from zebtrack.core.model_service import ModelService
+    from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.weight_manager import WeightManager
     from zebtrack.ui.event_bus import EventBus
@@ -133,9 +136,11 @@ class HardwareCoordinator(BaseCoordinator):
         state_manager: StateManager,
         detector_service: DetectorService,
         weight_manager: WeightManager,
+        project_manager: ProjectManager,
         model_service: ModelService | None = None,
         event_bus: EventBus | None = None,
         cancel_event: Event | None = None,
+        arduino_manager_cls=None,
         # UI components (for callbacks - being phased out)
         root: Any = None,
         view: Any = None,
@@ -146,9 +151,11 @@ class HardwareCoordinator(BaseCoordinator):
             state_manager: StateManager for centralized state tracking
             detector_service: DetectorService for detector operations
             weight_manager: WeightManager for active weight resolution
+            project_manager: ProjectManager for accessing project settings (Arduino)
             model_service: ModelService for model/weight management (optional)
             event_bus: EventBus for UI notifications (optional)
             cancel_event: Threading event for cancellation (optional)
+            arduino_manager_cls: Class to use for Arduino management (dependency injection)
             root: Tkinter root window (legacy, being phased out)
             view: GUI view instance (legacy, being phased out)
 
@@ -163,7 +170,16 @@ class HardwareCoordinator(BaseCoordinator):
         self.detector_service = detector_service
         self.model_service = model_service
         self.weight_manager = weight_manager
+        self.project_manager = project_manager
         self.cancel_event = cancel_event
+
+        # Arduino management
+        self.arduino: Arduino | None = None
+        self.arduino_manager: ArduinoManager | None = None
+        self._arduino_manager_cls = arduino_manager_cls or ArduinoManager
+        self._pending_external_trigger = None
+        self._trigger_recording_callback: Callable[[int], None] | None = None
+        self._stop_recording_callback: Callable[[], None] | None = None
 
         # UI components (temporary - being phased out)
         self.root = root
@@ -177,6 +193,7 @@ class HardwareCoordinator(BaseCoordinator):
             has_model_service=model_service is not None,
             has_weight_manager=weight_manager is not None,
             has_cancel_event=cancel_event is not None,
+            has_project_manager=project_manager is not None,
         )
 
     def validate_dependencies(self) -> bool:
@@ -958,7 +975,183 @@ class HardwareCoordinator(BaseCoordinator):
         }
 
     # =============================================================================
-    # GROUP B: MODEL DIAGNOSTICS (ModelDiagnosticsOrchestrator)
+    # GROUP B: ARDUINO MANAGEMENT
+    # =============================================================================
+
+    def setup_arduino(self) -> bool:
+        """Ensure the Arduino connection is ready when the project requests it.
+
+        Returns:
+            True if Arduino is connected and ready, False otherwise
+        """
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+        use_arduino = bool(project_data.get("use_arduino"))
+        if not use_arduino:
+            log.debug("hardware_coordinator.arduino.disabled")
+            if self.arduino_manager:
+                self.arduino_manager.disconnect()
+                # Update StateManager: Arduino disconnected
+                self.state_manager.update_recording_state(
+                    source="hardware_coordinator.setup_arduino",
+                    arduino_connected=False,
+                    arduino_port=None,
+                )
+            return False
+
+        port = (project_data.get("arduino_port") or "").strip()
+        if not port:
+            log.warning("hardware_coordinator.arduino.no_port_configured")
+            return False
+
+        manager = self._get_arduino_manager()
+        if manager.is_connected() and manager.current_port() == port:
+            log.debug("hardware_coordinator.arduino.already_connected", port=port)
+            self.arduino = manager.arduino
+            return True
+
+        baud_rate = self.settings.arduino.baud_rate
+        if manager.connect(port, baud_rate):
+            self.arduino = manager.arduino
+            # Update StateManager: Arduino connected
+            self.state_manager.update_recording_state(
+                source="hardware_coordinator.setup_arduino",
+                arduino_connected=True,
+                arduino_port=port,
+            )
+            return True
+
+        # Update StateManager: Arduino connection failed
+        self.state_manager.update_recording_state(
+            source="hardware_coordinator.setup_arduino",
+            arduino_connected=False,
+            arduino_port=None,
+        )
+        return False
+
+    def is_arduino_connected(self) -> bool:
+        """Check whether there is an active Arduino connection.
+
+        Returns:
+            True if Arduino is connected, False otherwise
+        """
+        if not self.arduino_manager:
+            return False
+        return self.arduino_manager.is_connected()
+
+    def shutdown_arduino(self) -> None:
+        """Gracefully shutdown Arduino connection."""
+        if self.arduino_manager:
+            try:
+                self.arduino_manager.shutdown()
+            except OSError as exc:
+                log.error(
+                    "hardware_coordinator.arduino.shutdown_io_failed", error=str(exc), exc_info=True
+                )
+            except Exception as exc:  # pragma: no cover - unexpected errors
+                log.exception(
+                    "hardware_coordinator.arduino.shutdown_unexpected_error", error=str(exc)
+                )
+            self.arduino_manager = None
+        self.arduino = None
+
+    def _get_arduino_manager(self) -> ArduinoManager:
+        """Get or create ArduinoManager instance.
+
+        Returns:
+            ArduinoManager instance
+        """
+        if self.arduino_manager is None:
+            # Note: ArduinoManager expects controller, but we're passing self
+            # This works because HardwareCoordinator implements the required callbacks
+            self.arduino_manager = self._arduino_manager_cls(self)
+        return self.arduino_manager
+
+    def log_arduino_event(self, message: str) -> None:
+        """Log an Arduino event and publish to UI.
+
+        Args:
+            message: Event message to log
+        """
+        log.info("hardware_coordinator.arduino.log", message=message)
+        if self.event_bus:
+            self.event_bus.publish_event(Events.UI_APPEND_ARDUINO_LOG, {"message": message})
+
+    def on_arduino_status_change(self, connected: bool, port: str | None) -> None:
+        """Handle Arduino connection status change.
+
+        Args:
+            connected: True if connected, False if disconnected
+            port: Serial port name or None
+        """
+        log.info("hardware_coordinator.arduino.status", connected=connected, port=port)
+        if self.event_bus:
+            self.event_bus.publish_event(
+                Events.UI_UPDATE_ARDUINO_STATUS, {"connected": connected, "port": port}
+            )
+
+    def on_arduino_command_sent(self, command: int, success: bool, source: str) -> None:
+        """Handle Arduino command sent notification.
+
+        Args:
+            command: Command code sent
+            success: True if command sent successfully
+            source: Source of the command (for logging)
+        """
+        label_text = str(command) if success else f"{command} (falha)"
+        if self.event_bus:
+            self.event_bus.publish_event(
+                Events.UI_SET_STATUS, {"message": f"Comando Arduino: {label_text}"}
+            )
+
+    def on_arduino_event(self, event_code: int) -> None:
+        """Handle Arduino event received.
+
+        Called by ArduinoManager when events are received from Arduino.
+
+        Args:
+            event_code: Event code from Arduino (0=stop, 1=start, etc.)
+        """
+        log.info("hardware_coordinator.arduino.event_received", code=event_code)
+        self.log_arduino_event(f"Evento {event_code} recebido do Arduino.")
+
+        if event_code == 1:
+            # For recording trigger, we need session coordinator interaction
+            # We'll call the registered callback
+            if self._trigger_recording_callback:
+                self.log_arduino_event("Sinal externo recebido. Iniciando gravação...")
+                self._trigger_recording_callback(event_code)
+            else:
+                log.warning("hardware_coordinator.arduino.event.no_callback")
+        elif event_code == 0:
+            # For stop recording, check state via callback or direct check?
+            # The legacy code checked is_recording() but that state is now in SessionCoordinator
+            # or StateManager. We can check StateManager.
+            is_recording = self.state_manager.get_recording_state().get("is_recording", False)
+            if is_recording:
+                self.log_arduino_event("Sinal externo solicitando parada.")
+                if self._stop_recording_callback:
+                    self._stop_recording_callback()
+        else:
+            log.info("hardware_coordinator.arduino.event.ignored", code=event_code)
+
+    def set_recording_callbacks(
+        self,
+        trigger_callback: Callable[[int], None] | None,
+        stop_callback: Callable[[], None] | None,
+    ) -> None:
+        """Set callbacks for Arduino-triggered recording events.
+
+        Args:
+            trigger_callback: Function to call when Arduino triggers recording start.
+                             Accepts event_code (int) as parameter.
+            stop_callback: Function to call when Arduino triggers recording stop.
+                          No parameters.
+        """
+        self._trigger_recording_callback = trigger_callback
+        self._stop_recording_callback = stop_callback
+
+    # =============================================================================
+    # GROUP C: MODEL DIAGNOSTICS (ModelDiagnosticsOrchestrator)
     # =============================================================================
 
     def run_model_diagnostic(self, config: dict):

@@ -47,24 +47,28 @@ class DialogCoordinator:
         self.state_manager = state_manager
         self.log = structlog.get_logger()
 
-    def confirm_exit(self) -> bool:
+    def confirm_exit(self, view=None) -> bool:
         """Solicita confirmação do usuário para sair da aplicação.
+
+        Args:
+            view: View instance (opcional)
 
         Returns:
             True se usuário confirmou, False caso contrário
         """
         return self.ui_coordinator.ask_ok_cancel(
-            "Sair", "Deseja realmente sair?"
+            view, "Sair", "Deseja realmente sair?"
         )
 
     def handle_mixed_data_scenario(
-        self, scanned_videos: list[dict], project_manager
+        self, scanned_videos: list[dict], project_manager, view=None
     ) -> list[dict] | None:
         """Trata cenário onde alguns vídeos têm dados e outros não.
 
         Args:
             scanned_videos: Lista de informações de vídeos escaneados
             project_manager: Gerenciador de projeto para adicionar vídeos
+            view: View instance (opcional)
 
         Returns:
             Lista de vídeos para processar, ou None se todos devem ser
@@ -76,12 +80,12 @@ class DialogCoordinator:
         if with_data and without_data:
             # Caso misto: alguns têm dados, outros não
             return self._handle_mixed_case(
-                scanned_videos, with_data, without_data
+                scanned_videos, with_data, without_data, view
             )
         elif with_data and not without_data:
             # Todos os vídeos selecionados têm dados
             return self._handle_all_have_data(
-                scanned_videos, with_data, project_manager
+                scanned_videos, with_data, project_manager, view
             )
         else:
             # Nenhum vídeo tem dados, processar todos
@@ -92,6 +96,7 @@ class DialogCoordinator:
         scanned_videos: list[dict],
         with_data: list[dict],
         without_data: list[dict],
+        view=None,
     ) -> list[dict]:
         """Trata caso onde há mix de vídeos com e sem dados.
 
@@ -99,6 +104,7 @@ class DialogCoordinator:
             scanned_videos: Todos os vídeos escaneados
             with_data: Vídeos que já têm dados
             without_data: Vídeos sem dados
+            view: View instance
 
         Returns:
             Vídeos para processar
@@ -109,7 +115,7 @@ class DialogCoordinator:
             "Deseja reprocessar os vídeos que já possuem dados?"
         )
 
-        if self.ui_coordinator.ask_ok_cancel("Dados Mistos Encontrados", msg):
+        if self.ui_coordinator.ask_ok_cancel(view, "Dados Mistos Encontrados", msg):
             # Usuário quer reprocessar tudo
             self.log.info(
                 "dialog.mixed_data.reprocess_all",
@@ -132,6 +138,7 @@ class DialogCoordinator:
         scanned_videos: list[dict],
         with_data: list[dict],
         project_manager,
+        view=None,
     ) -> list[dict] | None:
         """Trata caso onde todos os vídeos já têm dados.
 
@@ -139,11 +146,13 @@ class DialogCoordinator:
             scanned_videos: Todos os vídeos escaneados
             with_data: Vídeos que têm dados (igual a scanned_videos neste caso)
             project_manager: Gerenciador de projeto
+            view: View instance
 
         Returns:
             Vídeos para processar, ou None se nenhum deve ser processado
         """
         if self.ui_coordinator.ask_ok_cancel(
+            view,
             "Dados Encontrados",
             "Todos os vídeos selecionados já possuem dados de análise. "
             "Deseja reprocessá-los todos?",
@@ -199,14 +208,15 @@ class DialogCoordinator:
         """
         self.ui_coordinator.show_error(title, message)
 
-    def ask_yes_no(self, title: str, message: str) -> bool:
+    def ask_yes_no(self, title: str, message: str, view=None) -> bool:
         """Solicita confirmação sim/não do usuário.
 
         Args:
             title: Título do diálogo
             message: Mensagem de confirmação
+            view: View instance (opcional)
 
         Returns:
             True se usuário confirmou, False caso contrário
         """
-        return self.ui_coordinator.ask_ok_cancel(title, message)
+        return self.ui_coordinator.ask_ok_cancel(view, title, message)

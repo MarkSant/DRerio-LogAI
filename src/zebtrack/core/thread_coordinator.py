@@ -34,7 +34,7 @@ class ThreadCoordinator:
         self.program_exit_event = threading.Event()
         self.processing_thread: threading.Thread | None = None
         self.capture_thread: threading.Thread | None = None
-        self.camera: "Camera | None" = None
+        self.camera: Camera | None = None
         self.log = structlog.get_logger()
 
     def register_processing_thread(self, thread: threading.Thread) -> None:

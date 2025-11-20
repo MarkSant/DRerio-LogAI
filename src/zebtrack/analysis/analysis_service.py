@@ -728,3 +728,69 @@ class AnalysisService:
         root_tk.after(0, lambda: controller.view.set_status("Pronto."))
         controller._publish_processing_mode(source="processing.finalize", force=True)
         controller.refresh_project_views()
+
+    def generate_report(
+        self,
+        videos: list[dict],
+        report_type: str,
+        output_path: str | Path,
+        project_manager=None,
+    ) -> bool:
+        """Generate analysis report (unified or individual).
+
+        Args:
+            videos: List of video info dictionaries
+            report_type: 'unified' or 'individual'
+            output_path: Destination file path
+            project_manager: Optional ProjectManager to resolve paths
+
+        Returns:
+            bool: True if successful
+        """
+        from zebtrack.analysis.reporter import Reporter
+
+        try:
+            dfs = []
+            for video in videos:
+                # Try to find summary parquet
+                summary_path = None
+                if "parquet_files" in video:
+                    summary_path = video["parquet_files"].get("summary")
+
+                if not summary_path and project_manager:
+                    # Try to resolve
+                    path = video.get("path")
+                    if path:
+                        exp_id = os.path.splitext(os.path.basename(path))[0]
+                        meta = dict(video.get("metadata") or {})
+                        res_dir = project_manager.resolve_results_directory(exp_id, video_path=path, metadata=meta)
+                        candidate = res_dir / f"{exp_id}_summary.parquet"
+                        if candidate.exists():
+                            summary_path = str(candidate)
+
+                if summary_path and os.path.exists(summary_path):
+                    try:
+                        df = pd.read_parquet(summary_path)
+                        dfs.append(df)
+                    except Exception as e:
+                        self.log.warning("analysis.report.read_failed", file=summary_path, error=str(e))
+
+            if not dfs:
+                self.log.warning("analysis.report.no_data")
+                return False
+
+            aggregated_df = pd.concat(dfs, ignore_index=True)
+
+            if report_type == "unified":
+                Reporter.export_project_report(aggregated_df, output_path)
+            else:
+                # TODO: Implement individual bulk export logic if needed
+                # For now, defaulting to unified as that seems to be the primary use case for list[videos]
+                Reporter.export_project_report(aggregated_df, output_path)
+
+            self.log.info("analysis.report.success", path=str(output_path))
+            return True
+
+        except Exception as e:
+            self.log.error("analysis.report.failed", error=str(e), exc_info=True)
+            return False

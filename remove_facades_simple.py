@@ -7,7 +7,7 @@ from pathlib import Path
 main_vm_path = Path(__file__).parent / "src" / "zebtrack" / "core" / "main_view_model.py"
 
 # Ler o arquivo
-with open(main_vm_path, 'r', encoding='utf-8') as f:
+with open(main_vm_path, encoding='utf-8') as f:
     lines = f.readlines()
 
 # PASSO 1: Atualizar chamadas internas
@@ -75,8 +75,8 @@ for start, end, name in reversed(to_remove):
 with open(main_vm_path, 'w', encoding='utf-8') as f:
     f.writelines(lines)
 
-print(f"\n===== RESUMO =====")
+print("\n===== RESUMO =====")
 print(f"Facades removidos: {removed_count}")
-print(f"Linhas antes: {len(open(main_vm_path.with_suffix('.py.backup'), 'r').readlines())}")
+print(f"Linhas antes: {len(open(main_vm_path.with_suffix('.py.backup')).readlines())}")
 print(f"Linhas depois: {len(lines)}")
-print(f"Linhas removidas: ~{len(open(main_vm_path.with_suffix('.py.backup'), 'r').readlines()) - len(lines)}")
+print(f"Linhas removidas: ~{len(open(main_vm_path.with_suffix('.py.backup')).readlines()) - len(lines)}")

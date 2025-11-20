@@ -55,7 +55,7 @@ class UIStateController:
         self.detector_service = main_view_model.detector_service
         self.model_service = main_view_model.model_service
         self.settings = main_view_model.settings
-        self.detector_coordinator = main_view_model.detector_coordinator
+        self.detector_coordinator = main_view_model.hardware_coordinator  # Mapped to HardwareCoordinator
         self.project_workflow_service = main_view_model.project_workflow_service
 
     # ========================================================================

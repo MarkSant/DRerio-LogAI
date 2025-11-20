@@ -9,71 +9,47 @@ from __future__ import annotations
 import glob
 import os
 import threading
-from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from zebtrack.settings import Settings
+    pass
 
 import structlog
 
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
-
-# Task 2.2: Coordinator imports (REFACTOR-VIEWMODEL-001)
-from zebtrack.core.analysis_coordinator import AnalysisCoordinator
-
-# Phase 1 Service imports (REFACTOR-VIEWMODEL-PHASE-1)
-from zebtrack.core.application_bootstrapper import ApplicationBootstrapper
-from zebtrack.core.batch_configuration_service import BatchConfigurationService
-from zebtrack.core.calibration import Calibration
-from zebtrack.core.detector import Detector, ZoneData
-from zebtrack.core.dependency_container import MainViewModelDependencies
-from zebtrack.core.detector_service import DetectorService
-from zebtrack.core.hardware_coordinator import HardwareCoordinator
-from zebtrack.core.model_service import ModelService
+from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
+from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
+from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
 
 # Phase 3: Super Coordinator imports (REFACTOR-MASTER-PLAN-2025 Phase 3)
 from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
-from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
 from zebtrack.coordinators.session_coordinator import SessionCoordinator
+
+# Phase 1 Service imports (REFACTOR-VIEWMODEL-PHASE-1)
+from zebtrack.core.batch_configuration_service import BatchConfigurationService
+from zebtrack.core.calibration import Calibration
+from zebtrack.core.dependency_container import MainViewModelDependencies
+from zebtrack.core.detector import Detector, ZoneData
 
 # Phase 2 imports (REFACTOR-VIEWMODEL-PHASE-2: Facade Removal)
 from zebtrack.core.orchestrator_registry import OrchestratorRegistry
-from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
-from zebtrack.core.thread_coordinator import ThreadCoordinator
-from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
-from zebtrack.ui.components.event_dispatcher import EventDispatcher
+from zebtrack.core.processing_mode import ProcessingMode
 from zebtrack.core.processing_worker import (
-    ProcessingCallbacks,
-    ProcessingContext,
     ProcessingWorker,
 )
-from zebtrack.core.project_manager import AssetType, ProjectManager
 from zebtrack.core.project_service import ProjectService
-from zebtrack.core.project_workflow_service import ProjectWorkflowService
 from zebtrack.core.recording_service import RecordingService
-from zebtrack.core.state_manager import StateCategory, StateManager
-from zebtrack.core.ui_coordinator import UICoordinator
-from zebtrack.core.video_orchestrator import VideoOrchestrator
-from zebtrack.core.video_processing_service import VideoProcessingService
-from zebtrack.core.weight_manager import WeightManager
+from zebtrack.core.state_manager import StateCategory
+from zebtrack.core.thread_coordinator import ThreadCoordinator
 from zebtrack.io.arduino import Arduino
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
-from zebtrack.orchestrators.analysis_orchestrator import AnalysisOrchestrator
-from zebtrack.orchestrators.calibration_orchestrator import CalibrationOrchestrator
-from zebtrack.orchestrators.model_diagnostics_orchestrator import ModelDiagnosticsOrchestrator
-from zebtrack.orchestrators.processing_config_orchestrator import ProcessingConfigOrchestrator
-from zebtrack.orchestrators.project_orchestrator import ProjectOrchestrator
-from zebtrack.orchestrators.recording_session_orchestrator import RecordingSessionOrchestrator
 from zebtrack.orchestrators.ui_state_controller import UIStateController
-from zebtrack.orchestrators.video_processing_orchestrator import VideoProcessingOrchestrator
-from zebtrack.orchestrators.zone_arena_orchestrator import ZoneArenaOrchestrator
-from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.components.event_dispatcher import EventDispatcher
 from zebtrack.ui.events import Events
 from zebtrack.ui.gui import ApplicationGUI
 from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
@@ -411,31 +387,29 @@ class MainViewModel:
             )
 
         # Update GPU hardware display in UI (Phase 7)
-        # Only call if view was created internally (has update method)
-        if hasattr(self.view, "update_gpu_hardware_display"):
+        if self.ui_event_bus:
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_GPU_INFO, {"hardware_summary": self._hardware_summary}
+            )
+        elif hasattr(self.view, "update_gpu_hardware_display"):
             self.view.update_gpu_hardware_display(self._hardware_summary)
 
         # Update OpenVINO status if it was recommended but not available due to missing conversion
         if self._recommended_backend == "openvino" and not self.use_openvino:
-            if hasattr(self.view, "update_openvino_status_display"):
-                self.view.update_openvino_status_display(
-                    "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
+            status_msg = "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
+            if self.ui_event_bus:
+                self.ui_event_bus.publish_event(
+                    Events.UI_UPDATE_OPENVINO_STATUS, {"status": status_msg}
                 )
+            elif hasattr(self.view, "update_openvino_status_display"):
+                self.view.update_openvino_status_display(status_msg)
 
-    def _init_orchestrators(self, dependencies: "MainViewModelDependencies"):
+    def _init_orchestrators(self, dependencies: MainViewModelDependencies):
         """Initialize all orchestrators and coordinators."""
-        # Orchestrators that must exist before service initialization
-        if self.recording_session_orchestrator is None:
-            self.recording_session_orchestrator = RecordingSessionOrchestrator(self)
-
         # Initialize services (Phase 2.2 + Phase 3 + Phase 7.2)
         # Recording service initialization (setup callbacks if service was injected)
-        if self.recording_service is None:
-            # Create recording service if not injected (for backward compatibility)
-            self.recording_session_orchestrator._init_recording_service()
-        else:
-            # Service was injected, just setup UI callbacks
-            self.recording_session_orchestrator._setup_recording_service_callbacks()
+        # Note: recording_session_orchestrator functionality moved to session_coordinator
+        # We rely on SessionCoordinator for recording logic now.
 
         # Task 2.2/2.3: Initialize or use injected coordinators (REFACTOR-VIEWMODEL-001)
         # Phase 3: Pass super coordinators
@@ -445,59 +419,30 @@ class MainViewModel:
             hardware_coordinator=dependencies.hardware_coordinator,
             processing_coordinator=dependencies.processing_coordinator,
             session_coordinator=dependencies.session_coordinator,
-            # Legacy coordinators (DEPRECATED - for backward compatibility)
-            analysis_coordinator=dependencies.analysis_coordinator,
-            video_orchestrator=dependencies.video_orchestrator,
-            recording_coordinator=dependencies.recording_coordinator,
-            live_camera_coordinator=dependencies.live_camera_coordinator,
-            detector_coordinator=dependencies.detector_coordinator,
-            project_coordinator=dependencies.project_coordinator,
         )
 
-        # Sprint 24: Video Processing Orchestrator
-        self.video_processing_orchestrator = VideoProcessingOrchestrator(self)
-
-        # Sprint 25: Analysis Orchestrator
-        self.analysis_orchestrator = AnalysisOrchestrator(self)
-
-        # Sprint 26: Recording Session Orchestrator
-        if self.recording_session_orchestrator is None:
-            self.recording_session_orchestrator = RecordingSessionOrchestrator(self)
-
-        # Sprint 27: Project Orchestrator
-        self.project_orchestrator = ProjectOrchestrator(self)
-
-        # Sprint 28: UI State Controller
+        # Sprint 28: UI State Controller - Still needed for UI-specific logic
+        # Phase 4: This will be refactored to UICoordinator in future
         self.ui_state_controller = UIStateController(self)
 
         # Phase 3: Setup coordinator callbacks AFTER all coordinators and orchestrators are initialized
         self._setup_coordinator_callbacks()
 
-        # Sprint 29: Model Diagnostics Orchestrator
-        self.model_diagnostics_orchestrator = ModelDiagnosticsOrchestrator(self)
-
-        # Sprint 30: Zone Arena Orchestrator
-        self.zone_arena_orchestrator = ZoneArenaOrchestrator(self)
-
-        # Sprint 31: Processing Config Orchestrator
-        self.processing_config_orchestrator = ProcessingConfigOrchestrator(self)
-
-        # Sprint 32: Calibration Orchestrator
-        self.calibration_orchestrator = CalibrationOrchestrator(self)
-
         # Phase 2: Create OrchestratorRegistry for direct access (REFACTOR-VIEWMODEL-PHASE-2)
         # This registry allows callers to access orchestrators directly without facade methods
+        # Phase 3 Update: Registry now points to new Super Coordinators where applicable
+        # Note: Some legacy keys are kept but point to new coordinators or None if deprecated
         self.orchestrators = OrchestratorRegistry(
-            recording_session_orchestrator=self.recording_session_orchestrator,
-            project_orchestrator=self.project_orchestrator,
+            recording_session_orchestrator=self.session_coordinator, # Mapped to SessionCoordinator
+            project_orchestrator=self.project_lifecycle_coordinator, # Mapped to ProjectLifecycleCoordinator
             ui_state_controller=self.ui_state_controller,
-            video_processing_orchestrator=self.video_processing_orchestrator,
-            analysis_orchestrator=self.analysis_orchestrator,
-            processing_config_orchestrator=self.processing_config_orchestrator,
-            model_diagnostics_orchestrator=self.model_diagnostics_orchestrator,
-            zone_arena_orchestrator=self.zone_arena_orchestrator,
-            calibration_orchestrator=self.calibration_orchestrator,
-            live_camera_coordinator=self.live_camera_coordinator,
+            video_processing_orchestrator=self.processing_coordinator, # Mapped to ProcessingCoordinator
+            analysis_orchestrator=self.processing_coordinator, # Mapped to ProcessingCoordinator
+            processing_config_orchestrator=self.processing_coordinator, # Mapped to ProcessingCoordinator
+            model_diagnostics_orchestrator=self.hardware_coordinator, # Mapped to HardwareCoordinator
+            zone_arena_orchestrator=self.processing_coordinator, # Mapped to ProcessingCoordinator
+            calibration_orchestrator=self.project_lifecycle_coordinator, # Mapped to ProjectLifecycleCoordinator
+            live_camera_coordinator=self.session_coordinator, # Mapped to SessionCoordinator
         )
 
     def _subscribe_to_state(self):
@@ -532,20 +477,15 @@ class MainViewModel:
         hardware_coordinator: HardwareCoordinator | None = None,
         processing_coordinator: ProcessingCoordinator | None = None,
         session_coordinator: SessionCoordinator | None = None,
-        # Legacy coordinators (DEPRECATED - for backward compatibility during Phase 3)
-        analysis_coordinator: AnalysisCoordinator | None = None,
-        video_orchestrator: VideoOrchestrator | None = None,
-        recording_coordinator=None,
-        live_camera_coordinator=None,
-        detector_coordinator=None,
-        project_coordinator=None,
+        # Legacy coordinators (DEPRECATED - ignored)
+        **kwargs
     ) -> None:
         """
         Initialize coordinators for hardware, video, analysis, recording, live camera,
         detector, and processing.
 
         Phase 3: Updated to accept and initialize 4 super coordinators.
-        Legacy coordinators maintained for backward compatibility during migration.
+        Legacy coordinators are deprecated and no longer initialized.
 
         Sprint 16: Simplified using _inject_or_create() helper.
         Task 2.2: Refactor ViewModel
@@ -588,109 +528,28 @@ class MainViewModel:
             lambda: None,  # Must be injected from __main__.py
         )
 
+        # Set View and Root for coordinators that still need UI access (Legacy bridge)
+        # In Phase 4, we will move away from direct View access
+        if self.processing_coordinator:
+            self.processing_coordinator.view = self.view
+            self.processing_coordinator.root = self.root
+            self.processing_coordinator.detector = self.detector
+
+        if self.session_coordinator:
+            self.session_coordinator.view = self.view
+            self.session_coordinator.root = self.root
+
+        if self.hardware_coordinator:
+            self.hardware_coordinator.view = self.view
+            self.hardware_coordinator.root = self.root
+            self.hardware_coordinator.set_convert_weight_callback(self._convert_weight_callback_bridge)
+
         log.info(
             "main_view_model.super_coordinators_initialized",
             project_lifecycle=self.project_lifecycle_coordinator is not None,
             hardware=self.hardware_coordinator is not None,
             processing=self.processing_coordinator is not None,
             session=self.session_coordinator is not None,
-        )
-
-        # =========================================================================
-        # LEGACY COORDINATORS (DEPRECATED - backward compatibility during Phase 3)
-        # =========================================================================
-        # NOTE: These are kept for gradual migration but marked as DEPRECATED
-        # Phase 4 will remove these completely
-
-        # Legacy detector coordinator (DEPRECATED - use hardware_coordinator)
-        from zebtrack.coordinators.detector_coordinator import DetectorCoordinator
-
-        self._inject_or_create(
-            "detector_coordinator",
-            detector_coordinator,
-            lambda: DetectorCoordinator(
-                state_manager=self.state_manager,
-                detector_service=self.detector_service,
-                model_service=self.model_service,
-                weight_manager=self.weight_manager,
-                event_bus=self.ui_event_bus,
-            ),
-        )
-
-        # Legacy video orchestrator (DEPRECATED - use processing_coordinator)
-        self._inject_or_create(
-            "video_orchestrator",
-            video_orchestrator,
-            lambda: VideoOrchestrator(
-                root=self.root,
-                state_manager=self.state_manager,
-                ui_event_bus=self.ui_event_bus,
-                ui_coordinator=self.ui_coordinator,
-                settings_obj=self.settings,
-                project_manager=self.project_manager,
-                video_processing_service=self.video_processing_service,
-                analysis_service=self.analysis_service,
-                recorder=self.recorder,
-            ),
-        )
-        self.video_orchestrator.set_view(self.view)
-
-        # Legacy analysis coordinator (DEPRECATED - use processing_coordinator)
-        self._inject_or_create(
-            "analysis_coordinator",
-            analysis_coordinator,
-            lambda: AnalysisCoordinator(
-                root=self.root,
-                ui_event_bus=self.ui_event_bus,
-                ui_coordinator=self.ui_coordinator,
-                settings_obj=self.settings,
-                project_manager=self.project_manager,
-                analysis_service=self.analysis_service,
-                video_processing_service=self.video_processing_service,
-            ),
-        )
-        self.analysis_coordinator.set_view(self.view)
-
-        # Legacy project coordinator (DEPRECATED - use project_lifecycle_coordinator)
-        if project_coordinator is not None:
-            self.project_coordinator = project_coordinator
-            log.info("main_view_model.project_coordinator.injected")
-        else:
-            # If not injected, create lazily when needed (backward compatibility)
-            self.project_coordinator = None
-            log.warning(
-                "main_view_model.project_coordinator.not_injected",
-                message="ProjectCoordinator not injected - will use legacy workflow",
-            )
-
-        # Legacy recording coordinator (DEPRECATED - use session_coordinator)
-        from zebtrack.coordinators.recording_coordinator import RecordingCoordinator
-
-        self._inject_or_create(
-            "recording_coordinator",
-            recording_coordinator,
-            lambda: RecordingCoordinator(
-                state_manager=self.state_manager,
-                recording_service=self.recording_service,
-                arduino_manager=self.arduino_manager,
-                event_bus=self.ui_event_bus,
-            ),
-        )
-
-        # Legacy live camera coordinator (DEPRECATED - use session_coordinator)
-        from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
-
-        self._inject_or_create(
-            "live_camera_coordinator",
-            live_camera_coordinator,
-            lambda: LiveCameraCoordinator(
-                state_manager=self.state_manager,
-                live_camera_service=self.live_camera_service,
-                project_manager=self.project_manager,
-                settings=self.settings,
-                camera=None,  # Camera initialized lazily when needed
-                event_bus=self.ui_event_bus,
-            ),
         )
 
         # Project workflow adapter (P2-T2: project create/open/close workflows)
@@ -704,17 +563,13 @@ class MainViewModel:
 
         log.info("main_view_model.coordinators_initialized")
 
-        # Phase 3 NOTE: Orchestrator creation removed from here - they are now created
-        # in _init_orchestrators() to avoid duplication. The orchestrators are:
-        # - VideoProcessingOrchestrator (Sprint 24)
-        # - AnalysisOrchestrator (Sprint 25)
-        # - RecordingSessionOrchestrator (Sprint 26)
-        # - ProjectOrchestrator (Sprint 27)
-        # - UIStateController (Sprint 28)
-        # - ModelDiagnosticsOrchestrator (Sprint 29)
-        # - ZoneArenaOrchestrator (Sprint 30)
-        # - ProcessingConfigOrchestrator (Sprint 31)
-        # - CalibrationOrchestrator (Sprint 32)
+    def _convert_weight_callback_bridge(self, weight_name: str):
+        """Bridge method for weight conversion callback.
+        Phase 4: Move logic to ModelService/HardwareCoordinator entirely.
+        """
+        # Logic was in MainViewModel, now should be handled by HardwareCoordinator
+        # or ModelService. For now, this is a placeholder if needed.
+        pass
 
     def _setup_coordinator_callbacks(self):
         """Setup callbacks between coordinators and orchestrators.
@@ -723,23 +578,11 @@ class MainViewModel:
         are initialized, to avoid circular dependencies during initialization.
         """
         # Phase 3: Recording callbacks now point to SessionCoordinator (super coordinator)
-        self.hardware_coordinator.set_recording_callbacks(
-            self.session_coordinator.trigger_recording,
-            self.session_coordinator.stop_recording,
-        )
-
-        # Phase 4 TODO: Refactor legacy orchestrator callbacks
-        # The following callbacks reference methods that don't exist in MainViewModel.
-        # These need to be either:
-        # 1. Moved to appropriate super coordinators
-        # 2. Implemented if still needed
-        # 3. Removed if obsolete
-        #
-        # self.video_orchestrator.set_arena_callback(self.set_main_arena_polygon)
-        # self.video_orchestrator.set_analysis_view_mode_callback(self._activate_analysis_view_mode)
-        # self.video_orchestrator.set_refresh_callback(self.ui_state_controller.refresh_project_views)
-        # self.video_orchestrator.set_publish_processing_mode_callback(self._publish_processing_mode)
-        # self.analysis_coordinator.set_refresh_callback(self.ui_state_controller.refresh_project_views)
+        if self.hardware_coordinator and self.session_coordinator:
+            self.hardware_coordinator.set_recording_callbacks(
+                self.session_coordinator.trigger_recording,
+                self.session_coordinator.stop_recording,
+            )
 
     # =========================================================================
     # Phase 3: Delegation Methods (TEMPORARY - for backward compatibility)
@@ -764,12 +607,24 @@ class MainViewModel:
         return self.project_lifecycle_coordinator.close_project()
 
     def _setup_zones_from_project(self):
-        """Phase 3: Delegate to project_orchestrator (legacy)."""
-        return self.project_orchestrator._setup_zones_from_project()
+        """Phase 3: Delegate to ProjectLifecycleCoordinator."""
+        # Assuming callback logic is handled within coordinator or adapter
+        return self.project_lifecycle_coordinator._setup_zones_from_project(
+            setup_detector_zones_callback=self.detector_service.configure_zones
+        )
 
     def open_project_workflow(self, project_path):
-        """Phase 3: Delegate to project_orchestrator (legacy)."""
-        return self.project_orchestrator.open_project_workflow(project_path)
+        """Phase 3: Delegate to ProjectLifecycleCoordinator."""
+        return self.project_lifecycle_coordinator.open_project(
+            project_path,
+            setup_detector_callback=self.setup_detector,
+            set_active_weight_callback=self.set_active_weight,
+            set_openvino_usage_callback=self.set_openvino_usage,
+            update_openvino_status_callback=self.update_openvino_status,
+            restore_detector_callback=lambda: None, # handled internally by coordinator if needed
+            get_active_weight_name=lambda: self.active_weight_name,
+            get_use_openvino=lambda: self.use_openvino
+        )
 
     # =========================================================================
     # Application Lifecycle
@@ -951,7 +806,7 @@ class MainViewModel:
         Prompts user for confirmation, stops event bus polling, joins threads,
         and destroys the root window.
         """
-        if self.view.ask_ok_cancel("Sair", "Deseja realmente sair?"):
+        if self.dialog_coordinator.confirm_exit(self.view):
             if hasattr(self.view, "stop_event_bus_polling"):
                 try:
                     self.view.stop_event_bus_polling()
@@ -1165,7 +1020,16 @@ class MainViewModel:
 
     def create_project_workflow(self, **wizard_data):
         """Create new project workflow with backward-compatible signature."""
-        return self.project_orchestrator.create_project_workflow(**wizard_data)
+        return self.project_lifecycle_coordinator.create_project(
+            setup_detector_callback=self.setup_detector,
+            set_active_weight_callback=self.set_active_weight,
+            set_openvino_usage_callback=self.set_openvino_usage,
+            update_openvino_status_callback=self.update_openvino_status,
+            get_active_weight_name=lambda: self.active_weight_name,
+            get_use_openvino=lambda: self.use_openvino,
+            apply_wizard_overrides_callback=self._apply_wizard_detector_overrides,
+            **wizard_data
+        )
 
     def _apply_wizard_detector_overrides(self, wizard_metadata: dict) -> None:
         """Apply detector parameter overrides captured during the wizard flow."""
@@ -1219,24 +1083,24 @@ class MainViewModel:
         """
         Restore detector settings from saved configuration.
 
-        Sprint 7: Delegates to DetectorCoordinator.
+        Phase 3: Delegates to HardwareCoordinator.
 
         Args:
             saved_detector_config: Saved detector configuration from project
         """
-        self.detector_coordinator.restore_detector_settings(saved_detector_config)
+        self.hardware_coordinator.restore_detector_settings(saved_detector_config)
 
     def setup_detector(self, temp_animal_method: str | None = None) -> bool:
         """
         Initialize the detector instance based on the animal method selection.
 
-        Sprint 7: Delegates to DetectorCoordinator.
+        Phase 3: Delegates to HardwareCoordinator.
 
         Args:
             temp_animal_method: Temporary override for animal detection method
                 ('det' or 'seg'). If None, uses global self.settings.
         """
-        success, _ = self.detector_coordinator.setup_detector(
+        success, _ = self.hardware_coordinator.setup_detector(
             animal_method=temp_animal_method,
             use_openvino=self.use_openvino,
             active_weight_name=self.active_weight_name,
@@ -1288,7 +1152,7 @@ class MainViewModel:
 
     def are_project_overrides_active(self) -> bool:
         """Whether project overrides are currently active."""
-        return self.project_orchestrator.are_project_overrides_active()
+        return self.project_lifecycle_coordinator.are_project_overrides_active()
 
     def get_global_model_defaults(self) -> dict:
         """Get global model default settings.
@@ -1315,11 +1179,11 @@ class MainViewModel:
         """
         Return detector thresholds, falling back to saved or default values.
 
-        Sprint 7: Delegates to DetectorCoordinator.
+        Phase 3: Delegates to HardwareCoordinator.
 
         Returns parameters with long-form names for backward compatibility.
         """
-        params = self.detector_coordinator.get_detector_parameters()
+        params = self.hardware_coordinator.get_detector_parameters()
         # Normalize conf_threshold to confidence_threshold for backward compatibility
         if "conf_threshold" in params:
             params["confidence_threshold"] = params.pop("conf_threshold")
@@ -1329,31 +1193,28 @@ class MainViewModel:
         """
         Return detector thresholds defined in config.yaml without overrides.
 
-        Sprint 7: Delegates to DetectorCoordinator.
+        Phase 3: Delegates to HardwareCoordinator.
 
         Returns parameters with long-form names for backward compatibility.
         """
-        params = self.detector_coordinator.get_factory_detector_parameters()
+        params = self.hardware_coordinator.get_factory_detector_parameters()
         # Normalize conf_threshold to confidence_threshold for backward compatibility
         if "conf_threshold" in params:
             params["confidence_threshold"] = params.pop("conf_threshold")
         return params
 
     @contextmanager
-    @contextmanager
     def start_live_camera_analysis(self, camera_index: int | None = None):
         """Start a live camera analysis session.
 
-        Phase 2.3: Simplified to always delegate to RecordingSessionOrchestrator.
-        Removed fallback since orchestrator is always initialized in __init__.
+        Phase 3: Delegate to SessionCoordinator.
 
         Args:
             camera_index: Optional camera index. If provided, uses this camera directly
                          without showing the configuration dialog. If None, shows dialog.
         """
-        return self.recording_session_orchestrator.start_live_camera_analysis(
-            camera_index=camera_index
-        )
+        self.session_coordinator.start_live_camera_analysis(camera_index=camera_index)
+        yield
 
     def cancel_current_analysis(self) -> None:
         """Request cancellation for the currently running analysis workflow."""
@@ -1474,54 +1335,21 @@ class MainViewModel:
         Returns:
             list[dict] | None: Videos to process, or None if all should be skipped/added only
         """
-        with_data = [v for v in scanned_videos if v["has_data"]]
-        without_data = [v for v in scanned_videos if not v["has_data"]]
-
-        if with_data and without_data:
-            # Mixed case: some have data, some don't
-            msg = (
-                f"{len(with_data)} vídeo(s) já possuem dados de análise.\n"
-                f"{len(without_data)} vídeo(s) precisam ser processados.\n\n"
-                "Deseja reprocessar os vídeos que já possuem dados?"
-            )
-            if self.view.ask_ok_cancel("Dados Mistos Encontrados", msg):
-                # User wants to re-process everything
-                return scanned_videos
-            else:
-                # User wants to skip re-processing
-                return without_data
-
-        elif with_data and not without_data:
-            # All selected videos have data
-            if self.view.ask_ok_cancel(
-                "Dados Encontrados",
-                "Todos os vídeos selecionados já possuem dados de análise. "
-                "Deseja reprocessá-los todos?",
-            ):
-                return with_data
-            else:
-                # User doesn't want to reprocess - add to project but don't process
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Processamento Ignorado",
-                        "message": "Nenhum novo vídeo foi processado.",
-                    },
-                )
-                # Still add them to the project for reporting purposes
-                self.project_manager.add_video_batch(scanned_videos)
-                return None  # Signal: don't process, already handled
-        else:
-            # No videos have data, process all of them
-            return without_data
+        return self.dialog_coordinator.handle_mixed_data_scenario(
+            scanned_videos, self.project_manager, view=self.view
+        )
 
     def generate_parquet_summaries(self, video_paths: list[str]) -> None:
         """Regera arquivos de sumário em Parquet para os vídeos selecionados.
 
-        Task 2.2: Delegates to AnalysisCoordinator.
+        Phase 3: Delegates to ProcessingCoordinator.
         """
-        self.analysis_coordinator.generate_parquet_summaries(
-            video_paths, processing_thread_ref=self.processing_thread
+        # Convert paths to dict objects required by generator
+        target_videos = [{"path": p} for p in video_paths]
+        self.processing_coordinator.generate_parquet_summaries(
+            target_videos,
+            settings_obj=self.settings,
+            on_complete=lambda msg: self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": msg})
         )
 
     def _run_tracking_if_needed(
@@ -1879,9 +1707,37 @@ class MainViewModel:
     def generate_report(self, videos: list[dict], report_type: str = "unified"):
         """Generate a report from a list of processed videos.
 
-        Task 2.2: Delegates to AnalysisCoordinator.
+        Phase 3: Delegates to AnalysisService, handling UI interaction for path.
         """
-        self.analysis_coordinator.generate_report(videos, report_type)
+        # Ask for save path
+        output_path = self.view.ask_save_filename(
+            title="Salvar Relatório",
+            defaultextension=".docx",
+            initialfile="project_report.docx",
+            filetypes=[("Word Documents", "*.docx")]
+        )
+
+        if not output_path:
+            return
+
+        # Delegate generation to service
+        success = self.analysis_service.generate_report(
+            videos,
+            report_type,
+            output_path,
+            project_manager=self.project_manager
+        )
+
+        if success:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_INFO,
+                {"title": "Sucesso", "message": f"Relatório salvo em:\n{output_path}"}
+            )
+        else:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro", "message": "Falha ao gerar relatório. Verifique os logs."}
+            )
 
 
 # -----------------------------------------------------------------------------

@@ -44,7 +44,6 @@ from zebtrack.core.processing_worker import (
     ProcessingWorker,
 )
 from zebtrack.core.project_manager import ProjectManager
-from zebtrack.core.state_manager import StateCategory
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
@@ -685,6 +684,146 @@ class ProcessingCoordinator(BaseCoordinator):
                 f"{output_dir}",
             },
         )
+
+    def start_project_processing_workflow(self):
+        """Adiciona vídeos com validação robusta de zonas.
+
+        Phase 3: Consolidated from VideoProcessingOrchestrator.start_project_processing_workflow
+        """
+        log.info("workflow.project_processing.start")
+
+        # Validate
+        validation_result = self.validate_can_start_processing(
+            check_project_loaded=True,
+            check_zones=False, # Handled by UI validation below
+            check_videos_exist=False,
+        )
+
+        if not validation_result.is_valid:
+            self._publish_event(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Validação Falhou",
+                    "message": validation_result.error_message,
+                },
+            )
+            return
+
+        # Validate zones via UIStateController
+        if self.ui_state_controller and hasattr(self.ui_state_controller, "_validate_zones_with_ui"):
+             if not self.ui_state_controller._validate_zones_with_ui():
+                 return
+
+        # Select files
+        if not self.view:
+             log.error("processing_coordinator.start_project_processing.no_view")
+             return
+
+        paths = self.view.ask_open_filenames(
+            "Selecione Vídeos ou Pastas para Adicionar ao Projeto",
+            [
+                ("Todos os arquivos", "*.*"),
+                ("Arquivos de vídeo", "*.mp4 *.avi *.mov"),
+                ("Pastas", "*/"),
+            ],
+        )
+        if not paths:
+            return
+
+        # Scan
+        scanned_videos = self.project_manager.scan_input_paths(paths)
+        if not scanned_videos:
+            self._publish_event(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Nenhum Vídeo Encontrado",
+                    "message": "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados.",
+                },
+            )
+            return
+
+        # Handle mixed data
+        videos_to_process = self._resolve_videos_to_process(scanned_videos)
+        if videos_to_process is None:
+            return
+
+        if not videos_to_process:
+            self._publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Processamento Concluído",
+                    "message": "Nenhum novo vídeo para processar.",
+                },
+            )
+            return
+
+        # Add to project
+        self.project_manager.add_video_batch(scanned_videos)
+
+        # Process
+        self.cancel_event.clear()
+
+        callbacks = self.create_processing_callbacks(videos_to_process)
+        context = self.create_processing_context(
+            videos_to_process, self.project_manager.project_path
+        )
+
+        self.processing_worker = ProcessingWorker(context, callbacks)
+        self.processing_thread = self.processing_worker.start_in_thread()
+
+        # Update statuses
+        for video in videos_to_process:
+            self.project_manager.update_video_status(video["path"], "complete")
+
+        # Activate view
+        self._publish_event(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW)
+
+        self._publish_event(
+            Events.UI_SHOW_INFO,
+            {
+                "title": "Sucesso",
+                "message": f"{len(videos_to_process)} vídeo(s) foram processados e adicionados ao projeto.",
+            },
+        )
+
+    def _resolve_videos_to_process(self, scanned_videos: list[dict]) -> list[dict] | None:
+        """Handle mixed data scenarios (videos with/without data)."""
+        with_data = [v for v in scanned_videos if v.get("has_data")]
+        without_data = [v for v in scanned_videos if not v.get("has_data")]
+
+        if with_data and without_data:
+            msg = (
+                f"{len(with_data)} vídeo(s) já possuem dados de análise.\n"
+                f"{len(without_data)} vídeo(s) precisam ser processados.\n\n"
+                "Deseja reprocessar os vídeos que já possuem dados?"
+            )
+            # Use ui_coordinator for dialog
+            if self.ui_coordinator.ask_ok_cancel(self.view, "Dados Mistos Encontrados", msg):
+                return scanned_videos
+            else:
+                return without_data
+
+        elif with_data and not without_data:
+            if self.ui_coordinator.ask_ok_cancel(
+                self.view,
+                "Dados Encontrados",
+                "Todos os vídeos selecionados já possuem dados de análise. "
+                "Deseja reprocessá-los todos?",
+            ):
+                return with_data
+            else:
+                self._publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Processamento Ignorado",
+                        "message": "Nenhum novo vídeo foi processado.",
+                    },
+                )
+                # Add to project anyway
+                self.project_manager.add_video_batch(scanned_videos)
+                return None
+        else:
+            return without_data
 
     def process_pending_project_videos(
         self,

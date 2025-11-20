@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-import sys
 import importlib
+import sys
+
 
 def check_import(module_name, display_name=None):
     if display_name is None:

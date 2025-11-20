@@ -184,6 +184,7 @@ class Events:
     UI_REFRESH_PROJECT_VIEWS = "ui:refresh_project_views"
     UI_UPDATE_ARDUINO_STATUS = "ui:update_arduino_status"
     UI_APPEND_ARDUINO_LOG = "ui:append_arduino_log"
+    UI_UPDATE_GPU_INFO = "ui:update_gpu_info"
     UI_UPDATE_OPENVINO_STATUS = "ui:update_openvino_status"
     UI_SETUP_INTERACTIVE_POLYGON = "ui:setup_interactive_polygon"
     UI_DISPLAY_VIDEO_FRAME = "ui:display_video_frame"

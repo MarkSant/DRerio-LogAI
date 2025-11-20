@@ -13,25 +13,13 @@ Os callers podem acessar orchestrators diretamente via registry:
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
-    from zebtrack.core.analysis_coordinator import AnalysisCoordinator
-    from zebtrack.orchestrators.analysis_orchestrator import AnalysisOrchestrator
-    from zebtrack.orchestrators.calibration_orchestrator import CalibrationOrchestrator
-    from zebtrack.orchestrators.model_diagnostics_orchestrator import (
-        ModelDiagnosticsOrchestrator,
+    from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
+    from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
+    from zebtrack.coordinators.project_lifecycle_coordinator import (
+        ProjectLifecycleCoordinator,
     )
-    from zebtrack.orchestrators.processing_config_orchestrator import (
-        ProcessingConfigOrchestrator,
-    )
-    from zebtrack.orchestrators.project_orchestrator import ProjectOrchestrator
-    from zebtrack.orchestrators.recording_session_orchestrator import (
-        RecordingSessionOrchestrator,
-    )
+    from zebtrack.coordinators.session_coordinator import SessionCoordinator
     from zebtrack.orchestrators.ui_state_controller import UIStateController
-    from zebtrack.orchestrators.video_processing_orchestrator import (
-        VideoProcessingOrchestrator,
-    )
-    from zebtrack.orchestrators.zone_arena_orchestrator import ZoneArenaOrchestrator
 
 
 class OrchestratorRegistry:
@@ -41,52 +29,47 @@ class OrchestratorRegistry:
     no MainViewModel. Isso permite que callers (GUI, event handlers)
     interajam diretamente com orchestrators.
 
+    Phase 3: Mapped to Super Coordinators.
+
     Attributes:
-        recording: RecordingSessionOrchestrator (15 facades removidos)
-        project: ProjectOrchestrator (17 facades removidos)
-        ui_state: UIStateController (23 facades removidos)
-        video_processing: VideoProcessingOrchestrator (7 facades removidos)
-        analysis: AnalysisOrchestrator (3 facades removidos)
-        processing_config: ProcessingConfigOrchestrator (7 facades removidos)
-        model_diagnostics: ModelDiagnosticsOrchestrator (7 facades removidos)
-        zone_arena: ZoneArenaOrchestrator (3 facades removidos)
-        calibration: CalibrationOrchestrator (3 facades removidos)
-        live_camera: LiveCameraCoordinator (1 facade removido)
-
-    Example:
-        # ANTES (facade no MainViewModel):
-        controller.close_project()
-
-        # DEPOIS (acesso direto):
-        controller.orchestrators.project.close_project()
+        recording: SessionCoordinator
+        project: ProjectLifecycleCoordinator
+        ui_state: UIStateController
+        video_processing: ProcessingCoordinator
+        analysis: ProcessingCoordinator
+        processing_config: ProcessingCoordinator
+        model_diagnostics: HardwareCoordinator
+        zone_arena: ProcessingCoordinator
+        calibration: ProjectLifecycleCoordinator
+        live_camera: SessionCoordinator
     """
 
     def __init__(
         self,
-        recording_session_orchestrator: "RecordingSessionOrchestrator",
-        project_orchestrator: "ProjectOrchestrator",
+        recording_session_orchestrator: "SessionCoordinator",
+        project_orchestrator: "ProjectLifecycleCoordinator",
         ui_state_controller: "UIStateController",
-        video_processing_orchestrator: "VideoProcessingOrchestrator",
-        analysis_orchestrator: "AnalysisOrchestrator",
-        processing_config_orchestrator: "ProcessingConfigOrchestrator",
-        model_diagnostics_orchestrator: "ModelDiagnosticsOrchestrator",
-        zone_arena_orchestrator: "ZoneArenaOrchestrator",
-        calibration_orchestrator: "CalibrationOrchestrator",
-        live_camera_coordinator: "LiveCameraCoordinator",
+        video_processing_orchestrator: "ProcessingCoordinator",
+        analysis_orchestrator: "ProcessingCoordinator",
+        processing_config_orchestrator: "ProcessingCoordinator",
+        model_diagnostics_orchestrator: "HardwareCoordinator",
+        zone_arena_orchestrator: "ProcessingCoordinator",
+        calibration_orchestrator: "ProjectLifecycleCoordinator",
+        live_camera_coordinator: "SessionCoordinator",
     ):
         """Initialize registry with all orchestrators.
 
         Args:
-            recording_session_orchestrator: Orchestrator para sessões de gravação
-            project_orchestrator: Orchestrator para workflows de projeto
+            recording_session_orchestrator: Mapped to SessionCoordinator
+            project_orchestrator: Mapped to ProjectLifecycleCoordinator
             ui_state_controller: Controller para estado da UI
-            video_processing_orchestrator: Orchestrator para processamento de vídeo
-            analysis_orchestrator: Orchestrator para análise
-            processing_config_orchestrator: Orchestrator para configuração de processamento
-            model_diagnostics_orchestrator: Orchestrator para diagnósticos de modelo
-            zone_arena_orchestrator: Orchestrator para gerenciamento de zonas
-            calibration_orchestrator: Orchestrator para calibração
-            live_camera_coordinator: Coordinator para câmera ao vivo
+            video_processing_orchestrator: Mapped to ProcessingCoordinator
+            analysis_orchestrator: Mapped to ProcessingCoordinator
+            processing_config_orchestrator: Mapped to ProcessingCoordinator
+            model_diagnostics_orchestrator: Mapped to HardwareCoordinator
+            zone_arena_orchestrator: Mapped to ProcessingCoordinator
+            calibration_orchestrator: Mapped to ProjectLifecycleCoordinator
+            live_camera_coordinator: Mapped to SessionCoordinator
         """
         # Atribuir com nomes curtos e descritivos
         self.recording = recording_session_orchestrator

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Script para remover facades do UIStateController do MainViewModel."""
 
-import re
 from pathlib import Path
 
 # Facades do UIStateController a remover
@@ -35,7 +34,7 @@ UI_STATE_FACADES = [
 main_vm_path = Path(__file__).parent / "src" / "zebtrack" / "core" / "main_view_model.py"
 
 # Ler o arquivo
-with open(main_vm_path, 'r', encoding='utf-8') as f:
+with open(main_vm_path, encoding='utf-8') as f:
     lines = f.readlines()
 
 # Encontrar e remover cada facade
@@ -81,7 +80,7 @@ for method_name, approx_line in UI_STATE_FACADES:
 with open(main_vm_path, 'w', encoding='utf-8') as f:
     f.writelines(lines)
 
-print(f"\nResumo:")
+print("\nResumo:")
 print(f"  Facades removidos: {removed_count}/{len(UI_STATE_FACADES)}")
 print(f"  Linhas removidas: {lines_removed}")
 print(f"  Arquivo atualizado: {main_vm_path}")

@@ -363,10 +363,10 @@ def main():
         _t0_proc = time.perf_counter()
 
         # Import additional services for ProcessingCoordinator
-        from zebtrack.orchestrators.ui_state_controller import UIStateController
         from zebtrack.core.video_classification_service import VideoClassificationService
         from zebtrack.core.video_selection_service import VideoSelectionService
         from zebtrack.core.video_validation_service import VideoValidationService
+        from zebtrack.orchestrators.ui_state_controller import UIStateController
 
         video_selection_service = VideoSelectionService(project_manager=project_manager)
         video_validation_service = VideoValidationService()
@@ -448,8 +448,8 @@ def main():
 
         # Create MainViewModel with all injected dependencies
         _t0 = time.perf_counter()
-        from zebtrack.core.main_view_model import MainViewModel
         from zebtrack.core.dependency_container import MainViewModelDependencies
+        from zebtrack.core.main_view_model import MainViewModel
 
         log.info("timing.import_mainviewmodel", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 

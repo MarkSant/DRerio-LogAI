@@ -5,7 +5,7 @@ from pathlib import Path
 
 main_vm_path = Path(__file__).parent / "src" / "zebtrack" / "core" / "main_view_model.py"
 
-with open(main_vm_path, 'r', encoding='utf-8') as f:
+with open(main_vm_path, encoding='utf-8') as f:
     lines = f.readlines()
 
 print("BATCH 2: Removendo facades RecordingSessionOrchestrator...")
@@ -44,6 +44,6 @@ for start, end, name in reversed(to_remove):
 with open(main_vm_path, 'w', encoding='utf-8') as f:
     f.writelines(lines)
 
-print(f"\n===== RESUMO BATCH 2 =====")
+print("\n===== RESUMO BATCH 2 =====")
 print(f"Facades removidos: {removed_count}")
 print(f"Linhas no arquivo: {len(lines)}")

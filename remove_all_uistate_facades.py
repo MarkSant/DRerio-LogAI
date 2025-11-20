@@ -8,7 +8,7 @@ from pathlib import Path
 main_vm_path = Path(__file__).parent / "src" / "zebtrack" / "core" / "main_view_model.py"
 
 # Ler o arquivo
-with open(main_vm_path, 'r', encoding='utf-8') as f:
+with open(main_vm_path, encoding='utf-8') as f:
     content = f.read()
 
 # Padrão para encontrar facades do UIStateController
@@ -36,6 +36,6 @@ for match in reversed(matches):  # Reverso para não afetar índices
 with open(main_vm_path, 'w', encoding='utf-8') as f:
     f.write(content)
 
-print(f"\n===== RESUMO =====")
+print("\n===== RESUMO =====")
 print(f"Facades do UIStateController removidos: {removed_count}")
 print(f"Arquivo atualizado: {main_vm_path}")

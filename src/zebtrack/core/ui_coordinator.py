@@ -215,6 +215,32 @@ class UICoordinator:
         """
         self.update_view(view, "show_error", title, message)
 
+    def ask_ok_cancel(self, view: Any, title: str, message: str) -> bool:
+        """
+        Ask user for confirmation (OK/Cancel).
+
+        Phase 4: Convenience method for confirmation dialogs.
+        Note: This is synchronous and must be called from UI thread logic
+        or properly synchronized.
+
+        Args:
+            view: View object with ask_ok_cancel method
+            title: Dialog title
+            message: Dialog message
+
+        Returns:
+            bool: True if OK, False if Cancel
+        """
+        if view and hasattr(view, "ask_ok_cancel"):
+            return view.ask_ok_cancel(title, message)
+
+        # Fallback if view not provided or method missing
+        if self.root:
+            from tkinter import messagebox
+            return messagebox.askokcancel(title, message, parent=self.root)
+
+        return False
+
     def show_info(self, view: Any, title: str, message: str) -> None:
         """
         Show info dialog in view.
