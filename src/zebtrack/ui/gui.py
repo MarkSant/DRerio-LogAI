@@ -44,7 +44,9 @@ from zebtrack.ui.components import (
     PolygonDrawingService,
     ProjectOverviewWidget,
     ProjectViewManager,
+    ROITemplateManager,
     StateSynchronizer,
+    TabBuilder,
     ValidationManager,
     VideoDisplayWidget,
     WidgetFactory,
@@ -200,6 +202,12 @@ class ApplicationGUI:
         # Phase 3 components
         self.drawing_state_manager = DrawingStateManager()
         self.polygon_drawing_service = PolygonDrawingService()
+
+        # Phase 4 components
+        self.roi_template_manager = ROITemplateManager(self)
+
+        # Phase 5 components
+        self.tab_builder = TabBuilder(self)
 
         # Create menu bar
         self.menu_manager.create_menu_bar()
@@ -683,122 +691,8 @@ class ApplicationGUI:
         pass
 
     def _create_main_controls_tab(self):
-        """Create the tab with the main project controls."""
-        self.main_controls_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.main_controls_frame, text="Controle Principal")
-
-        project_type = self.controller.project_manager.get_project_type()
-        self.process_video_btn = None
-
-        controls_container = ttk.Frame(self.main_controls_frame)
-        controls_container.pack(fill="x", pady=(0, 10))
-
-        if project_type == "live":
-            self.start_rec_btn = Button(
-                controls_container,
-                text="Iniciar Gravação",
-                command=lambda: self.event_dispatcher.publish_event(Events.RECORDING_START, {}),
-            )
-            self.start_rec_btn.pack(side="left", padx=5)
-            self.stop_rec_btn = Button(
-                controls_container,
-                text="Parar Gravação",
-                command=lambda: self.event_dispatcher.publish_event(Events.RECORDING_STOP, {}),
-                state="disabled",
-            )
-            self.stop_rec_btn.pack(side="left", padx=5)
-        elif project_type == "pre-recorded":
-            # Primary action: add/process new videos (legacy location)
-            ttk.Button(
-                controls_container,
-                text="Adicionar e Processar Novos Vídeos/Pastas...",
-                command=lambda: self.event_dispatcher.publish_event(
-                    Events.PROJECT_PROCESS_VIDEOS, {}
-                ),
-            ).pack(side="left", padx=5)
-
-            # Project-wide interval settings
-            intervals_frame = ttk.LabelFrame(
-                self.main_controls_frame, text="Intervalos de Processamento", padding=10
-            )
-            intervals_frame.pack(fill="x", pady=10, padx=10)
-
-            # Analysis interval
-            analysis_label_frame = ttk.Frame(intervals_frame)
-            analysis_label_frame.pack(fill="x", pady=2)
-            ttk.Label(analysis_label_frame, text="Intervalo de Análise (frames):").pack(side="left")
-            ttk.Entry(analysis_label_frame, textvariable=self.analysis_interval_var, width=10).pack(
-                side="right"
-            )
-
-            # Display interval
-            display_label_frame = ttk.Frame(intervals_frame)
-            display_label_frame.pack(fill="x", pady=2)
-            ttk.Label(display_label_frame, text="Intervalo de Exibição (frames):").pack(side="left")
-            ttk.Entry(display_label_frame, textvariable=self.display_interval_var, width=10).pack(
-                side="right"
-            )
-
-        Button(
-            controls_container,
-            text="Fechar Projeto",
-            command=lambda: self.event_dispatcher.publish_event(Events.PROJECT_CLOSE, {}),
-        ).pack(side="right", padx=5)
-
-        self._create_project_overview_panel(self.main_controls_frame)
-
-        model_status_frame = ttk.LabelFrame(
-            self.main_controls_frame,
-            text="Estado do Modelo de Detecção",
-            padding=10,
-        )
-        model_status_frame.pack(fill="x", pady=(10, 10))
-        ttk.Label(
-            model_status_frame,
-            textvariable=self._active_weight_display_var,
-        ).pack(anchor="w")
-        ttk.Label(
-            model_status_frame,
-            textvariable=self._openvino_display_var,
-        ).pack(anchor="w", pady=(4, 0))
-        button_row = ttk.Frame(model_status_frame)
-        button_row.pack(anchor="w", pady=(6, 0))
-        ttk.Button(
-            button_row,
-            text="Calibração Global...",
-            command=self._open_global_calibration_window,
-        ).pack(side="left", padx=(0, 6))
-        if getattr(self.controller.project_manager, "project_path", None):
-            ttk.Button(
-                button_row,
-                text="Calibração e Preferências do Projeto...",
-                command=self._open_project_calibration_window,
-            ).pack(side="left")
-
-        if project_type == "live":
-            self.external_trigger_notice_label = Label(
-                self.main_controls_frame,
-                textvariable=self.external_trigger_notice_var,
-                anchor="w",
-                justify="left",
-                wraplength=600,
-                padx=10,
-                pady=6,
-            )
-            self.external_trigger_notice_label.pack(fill="x", pady=(0, 8))
-            self._external_notice_default_bg = self.external_trigger_notice_label.cget("background")
-            self._external_notice_default_fg = self.external_trigger_notice_label.cget("foreground")
-
-            # Create Arduino dashboard widget
-            self.arduino_dashboard_widget = ArduinoDashboardWidget(
-                self.main_controls_frame,
-                event_bus=self.event_bus,
-                project_manager=self.controller.project_manager,
-            )
-            self.arduino_dashboard_widget.pack(fill="both", expand=False, pady=(0, 10))
-            self.clear_external_trigger_notice()
-
-        self._request_overview_refresh()
+        """Create the tab with the main project controls. Delegates to TabBuilder."""
+        return self.tab_builder.build_main_controls_tab()
 
     def _create_project_overview_panel(self, parent: ttk.Frame) -> None:
         """Create the project overview panel. Delegates to WidgetFactory."""
