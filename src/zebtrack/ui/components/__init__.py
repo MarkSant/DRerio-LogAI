@@ -22,6 +22,7 @@ from zebtrack.ui.components.drawing_state_manager import DrawingStateManager
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
 from zebtrack.ui.components.menu_manager import MenuManager
 from zebtrack.ui.components.polygon_drawing_service import PolygonDrawingService
+from zebtrack.ui.components.roi_template_manager import ROITemplateManager
 from zebtrack.ui.components.project_overview import ProjectOverviewWidget
 from zebtrack.ui.components.project_view_manager import ProjectViewManager
 from zebtrack.ui.components.state_synchronizer import StateSynchronizer
@@ -44,6 +45,7 @@ __all__ = [
     "EventDispatcher",
     "MenuManager",
     "PolygonDrawingService",
+    "ROITemplateManager",
     "ProjectOverviewWidget",
     "ProjectViewManager",
     "StateSynchronizer",

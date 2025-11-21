@@ -1795,217 +1795,25 @@ class ApplicationGUI:
             canvas_x, canvas_y, all_polygons, threshold=snap_threshold
         )
 
-    def _refresh_roi_templates(self, clear_selection: bool = False) -> None:  # noqa: C901
-        """Refresh template list. If clear_selection=True, always reset to blank."""
-        pm = getattr(self.controller, "project_manager", None)
-        if pm is None:
-            return
-
-        # Check if delete button exists, if not, create it dynamically
-        if (
-            not self.delete_template_btn
-            and hasattr(self, "roi_template_combobox")
-            and self.roi_template_combobox
-        ):
-            log.warning("gui.roi_templates.delete_button_missing_creating_now", has_combobox=True)
-            # Find the template actions frame and create the button
-            try:
-                # Get the parent of the combobox
-                template_selector = self.roi_template_combobox.master
-                template_frame = template_selector.master
-
-                # Look for or create template_actions frame
-                template_actions = None
-                for child in template_frame.winfo_children():
-                    if isinstance(child, ttk.Frame) and child != template_selector:
-                        # Check if this frame has buttons
-                        for grandchild in child.winfo_children():
-                            if isinstance(grandchild, ttk.Button):
-                                template_actions = child
-                                break
-                        if template_actions:
-                            break
-
-                if template_actions:
-                    # Create delete button
-                    self.delete_template_btn = ttk.Button(
-                        template_actions,
-                        text="🗑️ Deletar Template",
-                        command=self._on_delete_roi_template,
-                        state="disabled",
-                    )
-                    self.delete_template_btn.pack(side="left", padx=(4, 0))
-                    log.info("gui.roi_templates.delete_button_created_dynamically")
-                else:
-                    log.error("gui.roi_templates.could_not_find_template_actions_frame")
-            except Exception as e:
-                log.error("gui.roi_templates.failed_to_create_delete_button", error=str(e))
-
-        try:
-            templates = pm.list_roi_templates()
-        except Exception as exc:  # pragma: no cover - defensive
-            log.warning("gui.roi_templates.refresh_failed", error=str(exc))
-            templates = []
-
-        enriched: list[dict[str, Any]] = []
-        for template in templates:
-            if not isinstance(template, dict):
-                log.debug("gui.roi_templates.skipping_non_dict", template_type=type(template))
-                continue
-
-            # Validate template has a name
-            template_name = template.get("name", "").strip()
-            if not template_name:
-                log.warning("gui.roi_templates.skipping_empty_name", template_data=template)
-                continue
-
-            # Validate file existence for file-based templates
-            template_file = template.get("file")
-            if template_file:
-                from pathlib import Path
-
-                # Try to fix common path issues
-                original_file = str(template_file)
-                fixed_file = original_file
-
-                # Fix comma instead of dot in .zebtrack
-                if "\\,zebtrack\\" in fixed_file or "/,zebtrack/" in fixed_file:
-                    fixed_file = fixed_file.replace("\\,zebtrack\\", "\\.zebtrack\\")
-                    fixed_file = fixed_file.replace("/,zebtrack/", "/.zebtrack/")
-                    log.warning(
-                        "gui.roi_templates.fixing_path_comma",
-                        original=original_file,
-                        fixed=fixed_file,
-                    )
-                    template["file"] = fixed_file
-                    template_file = fixed_file
-
-                # Check if file exists
-                file_path = Path(template_file)
-                if not file_path.exists():
-                    log.warning(
-                        "gui.roi_templates.skipping_missing_file",
-                        name=template_name,
-                        file=template_file,
-                        file_exists=False,
-                    )
-                    continue
-
-                # Verify it's actually readable
-                try:
-                    if not file_path.is_file():
-                        log.warning(
-                            "gui.roi_templates.skipping_not_a_file",
-                            name=template_name,
-                            file=template_file,
-                        )
-                        continue
-                except Exception as e:
-                    log.warning(
-                        "gui.roi_templates.skipping_unreadable_file",
-                        name=template_name,
-                        file=template_file,
-                        error=str(e),
-                    )
-                    continue
-
-            entry = dict(template)
-            entry["display_name"] = self._format_roi_template_display(entry)
-            entry["identifier"] = self._build_roi_template_identifier(entry)
-
-            # Validate display_name is not empty
-            if not entry.get("display_name", "").strip():
-                log.warning(
-                    "gui.roi_templates.skipping_empty_display_name", name=template_name, entry=entry
-                )
-                continue
-
-            enriched.append(entry)
-
-        self._roi_templates_cache = enriched
-        # Filter out any empty display names (extra safety)
-        names = [
-            entry["display_name"] for entry in enriched if entry.get("display_name", "").strip()
-        ]
-
-        log.info(
-            "gui.roi_templates.refreshed",
-            total_templates=len(templates),
-            valid_templates=len(enriched),
-            display_names=names,
-        )
-
-        if self.roi_template_combobox:
-            self.roi_template_combobox.configure(values=names)
-
-        # If clear_selection is requested
-        if clear_selection:
-            # If there are no templates, disable the combobox
-            if not names and hasattr(self, "roi_template_combobox"):
-                self.roi_template_var.set("")
-                self.roi_template_combobox.configure(state="disabled")
-                log.info("gui.roi_templates.combobox_disabled_no_templates")
-            # If there's exactly one template, auto-select it
-            elif len(names) == 1 and hasattr(self, "roi_template_combobox"):
-                self.roi_template_combobox.configure(state="readonly")
-                # Set directly to the template, don't clear first
-                self.roi_template_var.set(names[0])
-                log.info("gui.roi_templates.auto_selected_single_template", template_name=names[0])
-            # If there are multiple templates, clear selection
-            else:
-                self.roi_template_var.set("")
-                if hasattr(self, "roi_template_combobox"):
-                    self.roi_template_combobox.configure(state="readonly")
-                log.info(
-                    "gui.roi_templates.combobox_enabled_multiple_templates",
-                    template_count=len(names),
-                    templates=names,
-                )
-
-            # Update button state after selection change
-            self._update_delete_template_button_state()
-            return
-
-        # Enable combobox if there are templates
-        if names and hasattr(self, "roi_template_combobox"):
-            self.roi_template_combobox.configure(state="readonly")
-        elif not names and hasattr(self, "roi_template_combobox"):
-            self.roi_template_combobox.configure(state="disabled")
-
-        # Auto-select if there's exactly one template available
-        if len(names) == 1 and not self.roi_template_var.get():
-            self.roi_template_var.set(names[0])
-            log.info("gui.roi_templates.auto_selected_on_refresh", template_name=names[0])
-            return
-
-        # If current selection is no longer valid, clear it
-        current_selection = self.roi_template_var.get()
-        if current_selection and current_selection not in names:
-            self.roi_template_var.set("")
-            log.info(
-                "gui.roi_templates.cleared_invalid_selection",
-                old_selection=current_selection,
-                valid_names=names,
-            )
-
-        # Update delete button state
-        self._update_delete_template_button_state()
+    def _refresh_roi_templates(self, clear_selection: bool = False) -> None:
+        """Refresh template list. Delegates to ROITemplateManager."""
+        return self.roi_template_manager.refresh_templates(clear_selection)
 
     def _on_save_roi_template(self) -> None:
-        """Save ROI template. Delegates to WidgetFactory."""
-        return self.widget_factory.save_roi_template()
+        """Save ROI template. Delegates to ROITemplateManager."""
+        return self.roi_template_manager.save_template()
 
     def _format_roi_template_display(self, template: dict[str, Any]) -> str:
-        """Format ROI template display. Delegates to WidgetFactory."""
-        return self.widget_factory.format_roi_template_display(template)
+        """Format ROI template display. Delegates to ROITemplateManager."""
+        return self.roi_template_manager._format_display_name(template)
 
     def _build_roi_template_identifier(self, template: dict[str, Any]) -> str:
-        """Build ROI template identifier. Delegates to WidgetFactory."""
-        return self.widget_factory.build_roi_template_identifier(template)
+        """Build ROI template identifier. Delegates to ROITemplateManager."""
+        return self.roi_template_manager._build_identifier(template)
 
     def _get_selected_roi_template(self) -> dict[str, Any] | None:
-        """Get selected template. Delegates to WidgetFactory."""
-        return self.widget_factory.get_selected_roi_template()
+        """Get selected template. Delegates to ROITemplateManager."""
+        return self.roi_template_manager.get_selected_template()
 
     def _get_zone_data_for_active_context(self) -> ZoneData:
         pm = getattr(self.controller, "project_manager", None)
@@ -2032,8 +1840,8 @@ class ApplicationGUI:
         return pm.get_zone_data()
 
     def _select_roi_template(self, metadata: dict[str, Any]) -> None:
-        """Select a template in the dropdown. Delegates to WidgetFactory."""
-        return self.widget_factory.select_roi_template(metadata)
+        """Select a template in the dropdown. Delegates to ROITemplateManager."""
+        return self.roi_template_manager.select_template_by_metadata(metadata)
 
     def _show_template_save_dialog(
         self,
@@ -2057,12 +1865,12 @@ class ApplicationGUI:
         return dialog.result
 
     def _on_delete_roi_template(self) -> None:
-        """Delete the currently selected template. Delegates to WidgetFactory."""
-        return self.widget_factory.delete_roi_template()
+        """Delete the currently selected template. Delegates to ROITemplateManager."""
+        return self.roi_template_manager.delete_template()
 
     def _on_import_roi_template(self) -> None:
-        """Import a template file into the library. Delegates to WidgetFactory."""
-        return self.widget_factory.import_roi_template()
+        """Import a template file into the library. Delegates to ROITemplateManager."""
+        return self.roi_template_manager.import_template()
 
     def _on_import_and_apply_roi_template(self) -> None:
         """Import a template file and immediately apply it to current video.
@@ -2072,215 +1880,22 @@ class ApplicationGUI:
         self.dialog_manager.import_and_apply_roi_template()
 
     def _update_delete_template_button_state(self) -> None:
-        """Update the delete template button state based on selection."""
-        if not self.delete_template_btn:
-            return
-
-        current_value = self.roi_template_var.get().strip()
-        if current_value and self._get_selected_roi_template():
-            self.delete_template_btn.config(state="normal")
-        else:
-            self.delete_template_btn.config(state="disabled")
+        """Update delete button state based on selection. Delegates to ROITemplateManager."""
+        return self.roi_template_manager._update_delete_button_state()
 
     def _on_roi_template_var_changed(self, *args) -> None:
         """Trace callback: Log whenever roi_template_var changes."""
-        current_value = self.roi_template_var.get()
-        import traceback
-
-        stack = "".join(traceback.format_stack()[-4:-1])  # Get calling context
-
-        log.info(
-            "gui.roi_template.var_changed",
-            new_value=repr(current_value),
-            new_value_length=len(current_value) if current_value else 0,
-            call_stack=stack,
-        )
-
-        # Update delete button state when selection changes
-        self._update_delete_template_button_state()
+        # We keep this trace as it might be useful for debugging, or we can delegate logging?
+        # For now, just delegate update state
+        self.roi_template_manager._update_delete_button_state()
 
     def _on_template_combobox_changed(self, event=None) -> None:
         """Log when template selection changes in combobox."""
-        current_value = self.roi_template_var.get()
-        cache_entries = self._roi_templates_cache if hasattr(self, "_roi_templates_cache") else []
-
-        log.info(
-            "gui.roi_template.combobox_selection_changed",
-            new_value=repr(current_value),
-            new_value_stripped=repr(current_value.strip()) if current_value else None,
-            new_value_length=len(current_value) if current_value else 0,
-            cache_size=len(cache_entries),
-            cache_display_names=[e.get("display_name") for e in cache_entries],
-        )
+        pass
 
     def _on_apply_roi_template(self) -> None:
-        pm = getattr(self.controller, "project_manager", None)
-        if pm is None:
-            return
-
-        # Detailed logging of current state
-        current_var_value = self.roi_template_var.get()
-        cache_entries = self._roi_templates_cache if hasattr(self, "_roi_templates_cache") else []
-
-        log.info(
-            "gui.roi_template.apply_attempt.initial_state",
-            selected_value_raw=repr(current_var_value),
-            selected_value_stripped=repr(current_var_value.strip()) if current_var_value else None,
-            selected_value_length=len(current_var_value) if current_var_value else 0,
-            cache_size=len(cache_entries),
-            cache_display_names=[e.get("display_name") for e in cache_entries],
-            cache_names=[e.get("name") for e in cache_entries],
-        )
-
-        selected_template = self._get_selected_roi_template()
-
-        log.info(
-            "gui.roi_template.apply_attempt.after_get",
-            template_found=selected_template is not None,
-            template_data=selected_template if selected_template else "NOT_FOUND",
-        )
-
-        if not selected_template:
-            # More detailed error message
-            if not current_var_value.strip() and cache_entries:
-                # There are templates available but none selected
-                error_msg = (
-                    "Por favor, CLIQUE no template no menu dropdown para selecioná-lo.\n\n"
-                    "Não basta apenas abrir o menu - você precisa clicar no nome do template.\n\n"
-                    f"Templates disponíveis: {len(cache_entries)}\n"
-                    f"  • {cache_entries[0].get('display_name') if cache_entries else 'N/A'}"
-                )
-                if len(cache_entries) == 1:
-                    # Auto-select the only available template
-                    self.roi_template_var.set(cache_entries[0].get("display_name", ""))
-                    log.info(
-                        "gui.roi_template.auto_selecting_on_apply",
-                        template=cache_entries[0].get("display_name"),
-                    )
-                    # Try again now that we've selected it
-                    self.root.after(100, self._on_apply_roi_template)
-                    return
-            else:
-                cache_info = (
-                    "\n".join(
-                        [
-                            (
-                                f"  - '{e.get('display_name')}' "
-                                f"(name: '{e.get('name')}', file: '{e.get('file')}')"
-                            )
-                            for e in cache_entries
-                        ]
-                    )
-                    if cache_entries
-                    else "  (vazio)"
-                )
-
-                error_msg = (
-                    f"Template não encontrado ou inválido.\n\n"
-                    f"Valor selecionado: '{current_var_value}'\n"
-                    f"Templates disponíveis:\n{cache_info}"
-                )
-
-            log.error(
-                "gui.roi_template.apply_failed_no_match",
-                selected_value=current_var_value,
-                available_display_names=[e.get("display_name") for e in cache_entries],
-            )
-
-            self.show_warning(
-                "Nenhum template selecionado",
-                error_msg,
-            )
-            return
-
-        active_video = pm.get_active_zone_video()
-        if not active_video:
-            pending_video = getattr(self, "pending_single_video_path", None)
-            if pending_video:
-                try:
-                    pm.set_active_zone_video(pending_video)
-                except Exception as exc:  # pragma: no cover - defensive
-                    log.warning(
-                        "gui.roi_templates.activate_pending_failed",
-                        error=str(exc),
-                        video=pending_video,
-                    )
-                active_video = pm.get_active_zone_video() or pending_video
-
-        if not active_video:
-            self.show_warning(
-                "Vídeo não selecionado",
-                "Selecione um vídeo na lista antes de aplicar o template.",
-            )
-            return
-
-        template_name = (
-            selected_template.get("name") or selected_template.get("display_name") or "Template"
-        )
-        template_location = selected_template.get("location")
-        template_file = selected_template.get("file")
-
-        try:
-            template_zone = pm.load_roi_template(
-                selected_template.get("name", ""),
-                location=template_location,
-                file_path=template_file,
-            )
-            pm.save_zone_data(
-                template_zone,
-                video_path=active_video,
-                persist=bool(pm.project_path),
-            )
-
-            if active_video:
-                pm.set_active_zone_video(active_video)
-
-            self.controller.setup_detector_zones()
-            log.info(
-                "gui.roi_templates.zone_applied",
-                video=active_video,
-                polygon_points=len(template_zone.polygon or []),
-                roi_count=len(template_zone.roi_polygons or []),
-            )
-        except FileNotFoundError as exc:
-            log.error(
-                "gui.roi_templates.file_missing",
-                template=template_name,
-                error=str(exc),
-            )
-            self.show_error(
-                "Arquivo não encontrado",
-                (
-                    "O arquivo associado ao template não foi encontrado. "
-                    "Remova ou importe novamente o template."
-                ),
-            )
-            self._refresh_roi_templates()
-            return
-        except Exception as exc:  # pragma: no cover - defensive
-            log.error(
-                "gui.roi_templates.apply_failed",
-                error=str(exc),
-                template=template_name,
-            )
-            self.show_error("Erro ao aplicar template", str(exc))
-            return
-
-        self.canvas_manager.redraw_zones_from_project_data()
-        self.update_zone_listbox()
-        self._refresh_zone_indicators()
-        self._enable_roi_button_if_arena_exists()
-        applied_zone = self._get_zone_data_for_active_context()
-        log.info(
-            "gui.roi_templates.post_refresh_state",
-            polygon_points=len(applied_zone.polygon or []),
-            roi_count=len(applied_zone.roi_polygons or []),
-        )
-        self.show_info(
-            "Template aplicado",
-            f"As zonas foram atualizadas com o template '{template_name}'.",
-        )
-        self.set_status(f"Template '{template_name}' aplicado ao vídeo em edição.")
+        """Apply template. Delegates to ROITemplateManager."""
+        return self.roi_template_manager.apply_template()
 
     def _on_canvas_click(self, event):
         """Handle canvas clicks during polygon drawing. Delegates to CanvasManager."""
