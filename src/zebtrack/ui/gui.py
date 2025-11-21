@@ -38,8 +38,10 @@ from zebtrack.ui.components import (
     CanvasManager,
     ConfigEditorWidget,
     DialogManager,
+    DrawingStateManager,
     EventDispatcher,
     MenuManager,
+    PolygonDrawingService,
     ProjectOverviewWidget,
     ProjectViewManager,
     StateSynchronizer,
@@ -51,7 +53,6 @@ from zebtrack.ui.components import (
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
     CenterPeripheryDialog,
-    ColorSelectionDialog,
     MissingMetadataDialog,
     SaveROITemplateDialog,
     StartRecordingDialog,
@@ -62,7 +63,7 @@ from zebtrack.ui.events import Events
 from zebtrack.ui.window_utils import (
     reset_geometry_if_not_maximized,
 )
-from zebtrack.utils import polygon_centroid, snap_point_to_axes
+from zebtrack.utils.geometry_service import GeometryService
 
 log = structlog.get_logger()
 
@@ -195,6 +196,10 @@ class ApplicationGUI:
         self.dialog_manager = DialogManager(self)
         self.widget_factory = WidgetFactory(self, settings_obj=self.settings)
         self.project_view_manager = ProjectViewManager(self)
+
+        # Phase 3 components
+        self.drawing_state_manager = DrawingStateManager()
+        self.polygon_drawing_service = PolygonDrawingService()
 
         # Create menu bar
         self.menu_manager.create_menu_bar()
@@ -935,26 +940,27 @@ class ApplicationGUI:
         # This tab is now for defining detection zones (main polygon, ROI polygons)
         # and will replace the old ROI analysis functionality.
         self.roi_data = {}  # This will be repurposed for the new zone data
-        self.drawing_mode = None
-        self.current_polygon_points = []
+        # Phase 3: Drawing state delegated to DrawingStateManager
+        # self.drawing_mode = None -> self.drawing_state_manager.mode
+        # self.current_polygon_points = [] -> self.drawing_state_manager.current_points
 
         # Coordinate system for polygon alignment
-        self._poly_pts_canvas = []  # Canvas coordinates for UI display
-        self._poly_pts_video = []  # Video coordinates for saving
+        # self._poly_pts_canvas = [] -> self.drawing_state_manager.canvas_points
+        # self._poly_pts_video = [] -> self.drawing_state_manager.video_points
         self._bg_scale = 1.0  # Scaling factor from video to canvas
         self._bg_offset = (0, 0)  # Offset of image in canvas
         self._bg_img_size = (0, 0)  # Original image dimensions
 
         # Undo/Redo system for drawing
-        self._drawing_history = []  # Stack of (canvas_pts, video_pts) states
-        self._drawing_redo_stack = []  # Stack for redo operations
+        # self._drawing_history = [] -> self.drawing_state_manager._history
+        # self._drawing_redo_stack = [] -> self.drawing_state_manager._redo_stack
 
-        # Interactive vertex editing during drawing
-        self._dragging_vertex_index = None  # Index of vertex being dragged
-        self._vertex_hover_index = None  # Index of vertex being hovered
-        self._vertex_hover_tolerance = 10  # Pixels tolerance for vertex hover detection
+        # Interactive vertex editing during drawing (moved to DrawingStateManager)
+        # self._dragging_vertex_index = None
+        # self._vertex_hover_index = None
+        # self._vertex_hover_tolerance = 10
 
-        self.current_circle_center = None
+        # self.current_circle_center = None
         self._canvas_bg_image = None  # Keep a reference to the image
         self._drawing_buttons_frame = None  # Frame for undo/redo buttons
 
@@ -1636,7 +1642,7 @@ class ApplicationGUI:
             )
             return
 
-        self.current_drawing_type = "arena"
+        self.drawing_state_manager.drawing_type = "arena"
 
         self._start_polygon_drawing()
 
@@ -1658,7 +1664,7 @@ class ApplicationGUI:
                 "adicionar Áreas de Interesse.",
             )
             return
-        self.current_drawing_type = "roi"
+        self.drawing_state_manager.drawing_type = "roi"
         self._start_polygon_drawing()
 
     def _start_polygon_drawing(self):
@@ -1675,56 +1681,49 @@ class ApplicationGUI:
 
     def _on_drawing_undo(self, event):
         """Undo last point added to polygon."""
-        if self.drawing_mode != "polygon" or not self._poly_pts_canvas:
+        if (
+            self.drawing_state_manager.mode != "polygon"
+            or not self.drawing_state_manager.has_points()
+        ):
             return "break"  # Prevent event propagation
 
-        # Save current state to redo stack before undoing
-        self._drawing_redo_stack.append(
-            (
-                self._poly_pts_canvas[-1],
-                self._poly_pts_video[-1],
-                self.current_polygon_points[-1],
+        success = self.drawing_state_manager.undo()
+
+        if success:
+            # Redraw the polygon
+            self.canvas_manager._redraw_polygon_in_progress()
+            self.set_status(
+                f"Último ponto desfeito. Pontos atuais: {self.drawing_state_manager.point_count()}"
             )
-        )
 
-        # Remove last point
-        self._poly_pts_canvas.pop()
-        self._poly_pts_video.pop()
-        self.current_polygon_points.pop()
-
-        # Redraw the polygon
-        self.canvas_manager._redraw_polygon_in_progress()
-
-        self.set_status(f"Último ponto desfeito. Pontos atuais: {len(self.current_polygon_points)}")
         return "break"
 
     def _on_drawing_redo(self, event):
         """Redo last undone point."""
-        if self.drawing_mode != "polygon" or not self._drawing_redo_stack:
+        if self.drawing_state_manager.mode != "polygon":
             return "break"
 
-        # Restore point from redo stack
-        canvas_pt, video_pt, current_pt = self._drawing_redo_stack.pop()
-        self._poly_pts_canvas.append(canvas_pt)
-        self._poly_pts_video.append(video_pt)
-        self.current_polygon_points.append(current_pt)
+        success = self.drawing_state_manager.redo()
 
-        # Redraw the polygon
-        self.canvas_manager._redraw_polygon_in_progress()
+        if success:
+            # Redraw the polygon
+            self.canvas_manager._redraw_polygon_in_progress()
+            self.set_status(
+                f"Ponto restaurado. Pontos atuais: {self.drawing_state_manager.point_count()}"
+            )
 
-        self.set_status(f"Ponto restaurado. Pontos atuais: {len(self.current_polygon_points)}")
         return "break"
 
     def _on_vertex_drag_motion(self, event):
         """Handle mouse motion while dragging a vertex."""
-        if self._dragging_vertex_index is None:
+        if self.drawing_state_manager.dragging_vertex_index is None:
             return
 
         canvas_x = float(event.x)
         canvas_y = float(event.y)
 
         # If drawing ROI, clamp position to arena
-        if self.current_drawing_type == "roi":
+        if self.drawing_state_manager.drawing_type == "roi":
             main_arena_poly = self._get_zone_data_for_active_context().polygon
             if main_arena_poly:
                 canvas_arena_poly = []
@@ -1732,56 +1731,32 @@ class ApplicationGUI:
                     canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
                     canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
 
-                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
-                result = cv2.pointPolygonTest(arena_array, (canvas_x, canvas_y), True)
+                # Use GeometryService to clamp
+                canvas_x, canvas_y = GeometryService.clamp_point_to_polygon(
+                    (canvas_x, canvas_y), canvas_arena_poly
+                )
 
-                if result < 0:
-                    # Clamp to nearest arena boundary
-                    min_dist = float("inf")
-                    closest_point = (canvas_x, canvas_y)
-
-                    for i in range(len(canvas_arena_poly)):
-                        p1 = canvas_arena_poly[i]
-                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
-
-                        edge_snap = self.canvas_manager._point_to_segment_distance(
-                            canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
-                        )
-
-                        if edge_snap and edge_snap["distance"] < min_dist:
-                            min_dist = edge_snap["distance"]
-                            closest_point = (edge_snap["x"], edge_snap["y"])
-
-                    canvas_x, canvas_y = closest_point
-
-        # Update vertex position
-        self.current_polygon_points[self._dragging_vertex_index] = (canvas_x, canvas_y)
-        self._poly_pts_canvas[self._dragging_vertex_index] = (canvas_x, canvas_y)
+        # Update vertex position via state manager
+        idx = self.drawing_state_manager.dragging_vertex_index
         video_pt = self.canvas_manager._canvas_to_video(canvas_x, canvas_y)
-        self._poly_pts_video[self._dragging_vertex_index] = video_pt
+
+        self.drawing_state_manager.current_points[idx] = (canvas_x, canvas_y)
+        self.drawing_state_manager.canvas_points[idx] = (canvas_x, canvas_y)
+        self.drawing_state_manager.video_points[idx] = video_pt
 
         # Redraw polygon
         self.canvas_manager._redraw_polygon_in_progress()
 
     def _on_vertex_drag_end(self, event):
         """Handle mouse release after dragging a vertex."""
-        if self._dragging_vertex_index is not None:
-            self._dragging_vertex_index = None
+        if self.drawing_state_manager.dragging_vertex_index is not None:
+            self.drawing_state_manager.dragging_vertex_index = None
             self.roi_canvas.config(cursor="crosshair")
 
     def _apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
         """
         Apply snapping to nearby vertices or edges of existing polygons.
-
-        Args:
-            canvas_x (float): X coordinate in canvas space
-            canvas_y (float): Y coordinate in canvas space
-            exclude_current_polygon (bool): If True, excludes the polygon
-                currently being edited.
-            snap_threshold (int): Maximum distance in pixels for snapping to occur
-
-        Returns:
-            tuple or None: (snapped_x, snapped_y) if snapping occurred, None otherwise
+        Delegates to GeometryService.
         """
         zone_data = self._get_zone_data_for_active_context()
         all_polygons = []
@@ -1815,61 +1790,10 @@ class ApplicationGUI:
             if not skip_this_roi:
                 all_polygons.append(canvas_polygon)
 
-        # Find closest point
-        closest_point = None
-        min_distance = snap_threshold
-
-        for polygon in all_polygons:
-            # Check snapping to vertices
-            for vertex in polygon:
-                dist = np.sqrt((canvas_x - vertex[0]) ** 2 + (canvas_y - vertex[1]) ** 2)
-                if dist < min_distance:
-                    min_distance = dist
-                    closest_point = vertex
-
-            # Check snapping to edges
-            for i in range(len(polygon)):
-                p1 = polygon[i]
-                p2 = polygon[(i + 1) % len(polygon)]
-
-                # Calculate distance from point to line segment
-                edge_snap = self.canvas_manager._point_to_segment_distance(
-                    canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
-                )
-
-                if edge_snap and edge_snap["distance"] < min_distance:
-                    min_distance = edge_snap["distance"]
-                    closest_point = (edge_snap["x"], edge_snap["y"])
-
-        anchors: list[tuple[float, float]] = [
-            tuple(vertex) for polygon in all_polygons for vertex in polygon
-        ]
-        axis_centers: list[tuple[float, float]] = []
-
-        if zone_data.polygon:
-            centroid = polygon_centroid(zone_data.polygon)
-            if centroid:
-                axis_centers.append(self.canvas_manager._video_to_canvas(*centroid))
-
-        for roi_polygon in zone_data.roi_polygons or []:
-            centroid = polygon_centroid(roi_polygon)
-            if centroid:
-                axis_centers.append(self.canvas_manager._video_to_canvas(*centroid))
-
-        axis_snap = snap_point_to_axes(
-            (canvas_x, canvas_y),
-            anchors=anchors,
-            centers=axis_centers,
-            threshold=float(snap_threshold),
+        # Use GeometryService for consolidated snapping (vertex, edge, and axis)
+        return GeometryService.apply_snapping(
+            canvas_x, canvas_y, all_polygons, threshold=snap_threshold
         )
-
-        if axis_snap is not None:
-            axis_dist = np.sqrt((canvas_x - axis_snap[0]) ** 2 + (canvas_y - axis_snap[1]) ** 2)
-            if axis_dist < min_distance:
-                closest_point = axis_snap
-                min_distance = axis_dist
-
-        return closest_point
 
     def _refresh_roi_templates(self, clear_selection: bool = False) -> None:  # noqa: C901
         """Refresh template list. If clear_selection=True, always reset to blank."""
@@ -2489,22 +2413,18 @@ class ApplicationGUI:
     def _on_canvas_double_click(self, event):
         """Finaliza o desenho do polígono e o envia para o controlador."""
         # Fix: Auto-detect drawing type if not set (for single video workflow)
-        if self.current_drawing_type is None and self.drawing_mode == "polygon":
+        if (
+            self.drawing_state_manager.drawing_type is None
+            and self.drawing_state_manager.mode == "polygon"
+        ):
             # If no main arena exists, assume we're drawing it
             zone_data = self._get_zone_data_for_active_context()
             if not zone_data.polygon:
-                self.current_drawing_type = "arena"
+                self.drawing_state_manager.drawing_type = "arena"
             else:
-                self.current_drawing_type = "roi"
+                self.drawing_state_manager.drawing_type = "roi"
 
-        if self.drawing_mode != "polygon" or len(self.current_polygon_points) < 3:
-            if self.current_polygon_points:
-                self.show_warning(
-                    "Polígono Incompleto",
-                    "Um polígono precisa de pelo menos 3 pontos. Você tem "
-                    f"{len(self.current_polygon_points)} pontos.",
-                )
-            self._stop_drawing()
+        if self.drawing_state_manager.mode != "polygon":
             return
 
         try:
@@ -2512,116 +2432,34 @@ class ApplicationGUI:
             self.roi_canvas.delete("elastic_line")
             self.roi_canvas.delete("drawing_aid")
 
-            if self.current_drawing_type == "arena":
-                # Salva o polígono no projeto
-                success = self.controller.set_main_arena_polygon(
-                    self._poly_pts_video  # Use video coordinates instead
+            video_points = self.drawing_state_manager.video_points
+
+            success = self.polygon_drawing_service.complete_polygon(
+                self.drawing_state_manager.drawing_type,
+                video_points,
+                self
+            )
+
+            if success:
+                status_message = (
+                    f"✓ {self.drawing_state_manager.drawing_type.title()} definida com sucesso!"
                 )
-
-                if success:
-                    # Agora redesenha tudo do zero com os dados salvos
-                    # Não chame _stop_drawing() ainda, pois ele limpa o canvas
-                    self.drawing_mode = None
-                    self.current_drawing_type = None
-                    self.roi_canvas.config(cursor="")
-
-                    # Unbind eventos
-                    self.roi_canvas.unbind("<Button-1>")
-                    self.roi_canvas.unbind("<Double-Button-1>")
-                    self.roi_canvas.unbind("<Motion>")
-
-                    # Limpa label de instrução
-                    if self.drawing_instruction_label:
-                        self.drawing_instruction_label.destroy()
-                        self.drawing_instruction_label = None
-
-                    # Força redesenho com dados salvos
-                    self.canvas_manager.redraw_zones_from_project_data()
-                    self.update_zone_listbox()
-
-                    status_message = "✓ Arena principal definida com sucesso!"
-                    self.set_status(status_message)
-                    self.show_info(
-                        "Sucesso",
-                        f"Arena principal criada com {len(self.current_polygon_points)} pontos.",
-                    )
-                    self._request_overview_refresh(reason=status_message, append_summary=True)
-                else:
-                    self.set_status("❌ Erro ao salvar arena principal.")
-                    self.show_error("Erro", "Não foi possível salvar a arena principal.")
-                    self._stop_drawing()
-
-            elif self.current_drawing_type == "roi":
-                roi_name = self.ask_string(
-                    "Nome da ROI", "Digite um nome para esta nova Área de Interesse:"
+                self.set_status(status_message)
+                self.show_info(
+                    "Sucesso",
+                    f"Zona criada com {len(video_points)} pontos.",
                 )
-                if not roi_name:
-                    self._stop_drawing()  # This now handles all cleanup
-                    return
-
-                # Selecionar cor da área
-                color_dialog = ColorSelectionDialog(self.root)
-                if not color_dialog.result:
-                    self._stop_drawing()  # This now handles all cleanup
-                    return
-
-                selected_color = color_dialog.result
-                roi_color = selected_color["rgb"]
-                color_name = selected_color["name"]
-
-                self.set_status(f"Salvando área de interesse '{roi_name}' ({color_name})...")
-                success = self.controller.add_roi_polygon(
-                    self._poly_pts_video,
-                    roi_name,
-                    roi_color,  # Use video coordinates
-                )
-
-                if success:
-                    # Limpa o estado de desenho manualmente para ROI também
-                    self.drawing_mode = None
-                    self.current_drawing_type = None
-                    self.roi_canvas.config(cursor="")
-
-                    # Unbind eventos
-                    self.roi_canvas.unbind("<Button-1>")
-                    self.roi_canvas.unbind("<Double-Button-1>")
-                    self.roi_canvas.unbind("<Motion>")
-
-                    # Limpa label de instrução
-                    if self.drawing_instruction_label:
-                        self.drawing_instruction_label.destroy()
-                        self.drawing_instruction_label = None
-
-                    # Força redesenho com dados salvos
-                    self.canvas_manager.redraw_zones_from_project_data()
-                    self.update_zone_listbox()
-
-                    status_message = (
-                        f"✓ Área de Interesse '{roi_name}' ({color_name}) adicionada com sucesso!"
-                    )
-                    self.set_status(status_message)
-                    self.show_info(
-                        "Sucesso",
-                        f"Área de interesse '{roi_name}' ({color_name}) criada com "
-                        f"{len(self.current_polygon_points)} pontos.",
-                    )
-                    self._request_overview_refresh(reason=status_message, append_summary=True)
-                else:
-                    self.set_status(f"❌ Erro ao salvar área de interesse '{roi_name}'.")
-                    self.show_error(
-                        "Erro",
-                        f"Não foi possível salvar a área de interesse '{roi_name}'.",
-                    )
-                    self._stop_drawing()
+                self._request_overview_refresh(reason=status_message, append_summary=True)
+                self._stop_drawing()
+            else:
+                self.set_status("❌ Erro ao salvar zona.")
+                self.show_error("Erro", "Não foi possível salvar a zona.")
+                self._stop_drawing()
 
         except Exception as e:
             self.set_status("❌ Erro durante salvamento.")
             self.show_error("Erro", str(e))
             self._stop_drawing()
-
-        finally:
-            # Limpa pontos temporários
-            self.current_polygon_points = []
 
     def update_zone_listbox(self, zone_data: ZoneData | None = None):
         """Update zone listbox. Delegates to CanvasManager."""

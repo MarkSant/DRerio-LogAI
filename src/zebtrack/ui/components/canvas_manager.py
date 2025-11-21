@@ -12,6 +12,8 @@ import structlog
 import ttkbootstrap as ttk
 from PIL import Image, ImageTk
 
+from zebtrack.utils.geometry_service import GeometryService
+
 log = structlog.get_logger()
 
 
@@ -486,8 +488,10 @@ class CanvasManager:
         # Clear existing drawing aids
         self.gui.roi_canvas.delete("drawing_aid")
 
+        current_points = self.gui.drawing_state_manager.current_points
+
         # Redraw all vertices
-        for canvas_x, canvas_y in self.gui.current_polygon_points:
+        for canvas_x, canvas_y in current_points:
             self.gui.roi_canvas.create_oval(
                 canvas_x - 2,
                 canvas_y - 2,
@@ -499,9 +503,9 @@ class CanvasManager:
             )
 
         # Redraw all edges
-        for i in range(len(self.gui.current_polygon_points) - 1):
-            p1 = self.gui.current_polygon_points[i]
-            p2 = self.gui.current_polygon_points[i + 1]
+        for i in range(len(current_points) - 1):
+            p1 = current_points[i]
+            p2 = current_points[i + 1]
             self.gui.roi_canvas.create_line(
                 p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
             )
@@ -1126,18 +1130,11 @@ class CanvasManager:
                 return False
 
         # Preserve drawing type before cleaning
-        preserved_drawing_type = self.gui.current_drawing_type
+        preserved_drawing_type = self.gui.drawing_state_manager.drawing_type
         self.gui._stop_drawing()  # Ensure clean state
-        self.gui.current_drawing_type = preserved_drawing_type  # Restore
+        self.gui.drawing_state_manager.drawing_type = preserved_drawing_type  # Restore
 
-        self.gui.drawing_mode = "polygon"
-        self.gui.current_polygon_points = []
-        self.gui._poly_pts_canvas = []  # Canvas coordinates for UI
-        self.gui._poly_pts_video = []  # Video coordinates for saving
-        self.gui._drawing_history = []  # Reset history
-        self.gui._drawing_redo_stack = []  # Reset redo stack
-        self.gui._dragging_vertex_index = None  # Reset dragging state
-        self.gui._vertex_hover_index = None  # Reset hover state
+        self.gui.drawing_state_manager.start_polygon_drawing()
 
         self.gui.roi_canvas.config(cursor="crosshair")
         self.gui.roi_canvas.bind("<Button-1>", self.gui._on_canvas_click)
@@ -1199,32 +1196,10 @@ class CanvasManager:
                     canvas_pt = self._video_to_canvas(point[0], point[1])
                     canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
 
-                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
-
-                # Test if point is inside arena
-                result = cv2.pointPolygonTest(arena_array, (canvas_x, canvas_y), True)
-
-                # If outside arena (result < 0), clamp to nearest arena boundary
-                if result < 0:
-                    # Find the closest point on the arena boundary
-                    min_dist = float("inf")
-                    closest_point = (canvas_x, canvas_y)
-
-                    # Check distance to each edge of the arena
-                    for i in range(len(canvas_arena_poly)):
-                        p1 = canvas_arena_poly[i]
-                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
-
-                        edge_snap = self._point_to_segment_distance(
-                            canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
-                        )
-
-                        if edge_snap and edge_snap["distance"] < min_dist:
-                            min_dist = edge_snap["distance"]
-                            closest_point = (edge_snap["x"], edge_snap["y"])
-
-                    # Update to clamped position
-                    canvas_x, canvas_y = closest_point
+                # Use GeometryService for clamping
+                canvas_x, canvas_y = GeometryService.clamp_point_to_polygon(
+                    (canvas_x, canvas_y), canvas_arena_poly
+                )
 
         # Clamp to canvas bounds for all zones (arena and ROI)
         canvas_width = self.gui.roi_canvas.winfo_width() or 800
@@ -1244,7 +1219,7 @@ class CanvasManager:
 
     def handle_canvas_click(self, event):
         """Handle single clicks on the canvas during polygon drawing."""
-        if self.gui.drawing_mode != "polygon":
+        if self.gui.drawing_state_manager.mode != "polygon":
             return
 
         # Get canvas coordinates directly from event
@@ -1252,12 +1227,12 @@ class CanvasManager:
         canvas_y = float(event.y)
 
         # Check if clicking on an existing vertex (for dragging)
-        if self.gui.current_polygon_points:
-            for i, (vx, vy) in enumerate(self.gui.current_polygon_points):
+        if self.gui.drawing_state_manager.has_points():
+            for i, (vx, vy) in enumerate(self.gui.drawing_state_manager.current_points):
                 dist = ((canvas_x - vx) ** 2 + (canvas_y - vy) ** 2) ** 0.5
-                if dist <= self.gui._vertex_hover_tolerance:
+                if dist <= self.gui.drawing_state_manager.vertex_hover_tolerance:
                     # Start dragging this vertex
-                    self.gui._dragging_vertex_index = i
+                    self.gui.drawing_state_manager.dragging_vertex_index = i
                     self.gui.roi_canvas.config(cursor="hand2")
                     return  # Don't add new point
 
@@ -1268,7 +1243,7 @@ class CanvasManager:
             canvas_x, canvas_y = snapped_point
 
         # If drawing an ROI, clamp the point inside the main arena
-        if self.gui.current_drawing_type == "roi":
+        if self.gui.drawing_state_manager.drawing_type == "roi":
             main_arena_poly = self.gui._get_zone_data_for_active_context().polygon
             if main_arena_poly:
                 # Convert main arena polygon from video coords to canvas coords
@@ -1277,48 +1252,21 @@ class CanvasManager:
                     canvas_pt = self._video_to_canvas(point[0], point[1])
                     canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
 
-                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
+                # Use GeometryService for clamping
+                canvas_x, canvas_y = GeometryService.clamp_point_to_polygon(
+                    (canvas_x, canvas_y), canvas_arena_poly
+                )
+                log.debug(
+                    "roi_click_clamped",
+                    original=(float(event.x), float(event.y)),
+                    clamped=(canvas_x, canvas_y),
+                )
 
-                # Test if click point is inside arena
-                result = cv2.pointPolygonTest(arena_array, (canvas_x, canvas_y), True)
-
-                # If outside arena (result < 0), clamp to nearest arena boundary
-                if result < 0:
-                    # Find the closest point on the arena boundary
-                    min_dist = float("inf")
-                    closest_point = (canvas_x, canvas_y)
-
-                    # Check distance to each edge of the arena
-                    for i in range(len(canvas_arena_poly)):
-                        p1 = canvas_arena_poly[i]
-                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
-
-                        edge_snap = self._point_to_segment_distance(
-                            canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
-                        )
-
-                        if edge_snap and edge_snap["distance"] < min_dist:
-                            min_dist = edge_snap["distance"]
-                            closest_point = (edge_snap["x"], edge_snap["y"])
-
-                    # Use the clamped point
-                    canvas_x, canvas_y = closest_point
-                    log.debug(
-                        "roi_click_clamped",
-                        original=(float(event.x), float(event.y)),
-                        clamped=(canvas_x, canvas_y),
-                    )
-
-        # Clear redo stack when adding a new point (standard undo/redo behavior)
-        self.gui._drawing_redo_stack = []
-
-        self.gui.current_polygon_points.append((canvas_x, canvas_y))
-
-        # Store both canvas and video coordinates
+        # Add point to state manager
         canvas_point = (canvas_x, canvas_y)
         video_point = self._canvas_to_video(canvas_x, canvas_y)
-        self.gui._poly_pts_canvas.append(canvas_point)
-        self.gui._poly_pts_video.append(video_point)
+
+        self.gui.drawing_state_manager.add_point(canvas_point, video_point, canvas_point)
 
         # Draw a small circle to mark the vertex
         self.gui.roi_canvas.create_oval(
@@ -1331,9 +1279,10 @@ class CanvasManager:
             tags=("temp_vertex", "drawing_aid"),
         )
         # Draw the fixed line segment if it's not the first point
-        if len(self.gui.current_polygon_points) > 1:
-            p1 = self.gui.current_polygon_points[-2]
-            p2 = self.gui.current_polygon_points[-1]
+        current_points = self.gui.drawing_state_manager.current_points
+        if len(current_points) > 1:
+            p1 = current_points[-2]
+            p2 = current_points[-1]
             self.gui.roi_canvas.create_line(
                 p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
             )
@@ -1400,8 +1349,8 @@ class CanvasManager:
             self.gui._drawing_buttons_frame.destroy()
             self.gui._drawing_buttons_frame = None
 
-        self.gui.drawing_mode = None
-        self.gui.current_drawing_type = None
+        self.gui.drawing_state_manager.mode = None
+        self.gui.drawing_state_manager.drawing_type = None
         self.gui.roi_canvas.config(cursor="")
         # Unbind all possible drawing events
         self.gui.roi_canvas.unbind("<Button-1>")
@@ -1420,9 +1369,7 @@ class CanvasManager:
         self.gui.roi_canvas.delete("snap_indicator")  # Clear snap indicators
 
         # Clear coordinate lists
-        self.gui.current_polygon_points = []
-        self.gui._poly_pts_canvas = []
-        self.gui._poly_pts_video = []
+        self.gui.drawing_state_manager.clear_points()
 
         self.gui.set_status("Pronto.")
 
