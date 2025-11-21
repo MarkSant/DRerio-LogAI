@@ -235,13 +235,16 @@ class ROITemplateManager:
 
     def _update_combobox_values(self, display_names: list[str]):
         """Atualiza valores do combobox."""
-        if hasattr(self.gui, 'roi_template_combobox') and self.gui.roi_template_combobox:
-            self.gui.roi_template_combobox['values'] = display_names
+        # Update path to access widget via zone_controls (Phase 6 fix)
+        combobox = self.gui.zone_controls.roi_template_combobox if self.gui.zone_controls else None
+
+        if combobox:
+            combobox['values'] = display_names
 
             if not display_names:
-                self.gui.roi_template_combobox.configure(state="disabled")
+                combobox.configure(state="disabled")
             else:
-                self.gui.roi_template_combobox.configure(state="readonly")
+                combobox.configure(state="readonly")
 
     def _handle_clear_selection(self, display_names: list[str]):
         """Lida com limpeza de seleção."""

@@ -155,8 +155,8 @@ class CanvasManager:
                 return
 
         # Get actual canvas dimensions after layout
-        canvas_width = self.gui.roi_canvas.winfo_width()
-        canvas_height = self.gui.roi_canvas.winfo_height()
+        canvas_width = self.gui.video_display.canvas.winfo_width()
+        canvas_height = self.gui.video_display.canvas.winfo_height()
 
         if canvas_width <= 1 or canvas_height <= 1:
             # Canvas not ready yet, try again
@@ -184,13 +184,13 @@ class CanvasManager:
         image = self._raw_bg_image.resize((new_width, new_height), Image.LANCZOS)
 
         # Clear canvas and display centered image
-        self.gui.roi_canvas.delete("all")
+        self.gui.video_display.canvas.delete("all")
         self._canvas_bg_image = ImageTk.PhotoImage(image)
 
         # Store positioning for later restoration in redraw_zones_from_project_data
         self._canvas_bg_position = (center_x, center_y, "center")
 
-        self.gui.roi_canvas.create_image(
+        self.gui.video_display.canvas.create_image(
             center_x,
             center_y,
             anchor="center",
@@ -201,7 +201,13 @@ class CanvasManager:
     def on_canvas_configure(self, event=None):
         """Handle canvas resize events to properly scale and center the image."""
         # Skip if this is not the main roi_canvas being resized
-        if event and hasattr(self.gui, "roi_canvas") and event.widget != self.gui.roi_canvas:
+        # NOTE: roi_canvas was removed from gui, using video_display.canvas
+        if (
+            event
+            and hasattr(self.gui, "video_display")
+            and self.gui.video_display
+            and event.widget != self.gui.video_display.canvas
+        ):
             return
 
         if not hasattr(self, "_raw_bg_image") or not self._raw_bg_image:
@@ -211,10 +217,10 @@ class CanvasManager:
                 return
 
         # Get the current canvas dimensions
-        if not hasattr(self.gui, "roi_canvas"):
+        if not hasattr(self.gui, "video_display") or not self.gui.video_display:
             return
-        canvas_width = self.gui.roi_canvas.winfo_width()
-        canvas_height = self.gui.roi_canvas.winfo_height()
+        canvas_width = self.gui.video_display.canvas.winfo_width()
+        canvas_height = self.gui.video_display.canvas.winfo_height()
 
         if canvas_width <= 1 or canvas_height <= 1:
             return
@@ -237,8 +243,8 @@ class CanvasManager:
             return
 
         # Get actual canvas dimensions after layout
-        canvas_width = self.gui.roi_canvas.winfo_width()
-        canvas_height = self.gui.roi_canvas.winfo_height()
+        canvas_width = self.gui.video_display.canvas.winfo_width()
+        canvas_height = self.gui.video_display.canvas.winfo_height()
 
         if canvas_width <= 1 or canvas_height <= 1:
             # Canvas not ready yet, try again
@@ -255,7 +261,7 @@ class CanvasManager:
         image = self.gui._original_image.resize((new_width, new_height), Image.LANCZOS)
 
         # Clear canvas and display centered image
-        self.gui.roi_canvas.delete("all")
+        self.gui.video_display.canvas.delete("all")
         self._canvas_bg_image = ImageTk.PhotoImage(image)
 
         # Center the image within the canvas
@@ -265,7 +271,7 @@ class CanvasManager:
         # Store positioning for later restoration in redraw_zones_from_project_data
         self._canvas_bg_position = (center_x, center_y, "center")
 
-        self.gui.roi_canvas.create_image(
+        self.gui.video_display.canvas.create_image(
             center_x,
             center_y,
             anchor="center",
@@ -402,7 +408,9 @@ class CanvasManager:
         - Shows visual feedback for vertices on arena boundary (ROI editing)
         """
         # Clear previous drawings
-        self.gui.roi_canvas.delete("interactive_polygon", "handle", "edit_clamp_indicator")
+        self.gui.video_display.canvas.delete(
+            "interactive_polygon", "handle", "edit_clamp_indicator"
+        )
 
         # Convert video coordinates to canvas coordinates for display
         canvas_points = []
@@ -412,7 +420,7 @@ class CanvasManager:
 
         # Draw the polygon itself using canvas coordinates
         flat_points = [coord for point in canvas_points for coord in point]
-        self.gui.interactive_polygon_item = self.gui.roi_canvas.create_polygon(
+        self.gui.interactive_polygon_item = self.gui.video_display.canvas.create_polygon(
             flat_points,
             fill="",
             outline="yellow",
@@ -449,7 +457,7 @@ class CanvasManager:
             handle_fill = "orange" if is_on_boundary else "darkgoldenrod"
             handle_outline = "red" if is_on_boundary else "yellow"
 
-            handle = self.gui.roi_canvas.create_rectangle(
+            handle = self.gui.video_display.canvas.create_rectangle(
                 x - 4,
                 y - 4,
                 x + 4,
@@ -462,7 +470,7 @@ class CanvasManager:
 
             # Draw an additional indicator circle for clamped vertices
             if is_on_boundary:
-                self.gui.roi_canvas.create_oval(
+                self.gui.video_display.canvas.create_oval(
                     x - 8,
                     y - 8,
                     x + 8,
@@ -473,11 +481,15 @@ class CanvasManager:
                 )
 
             # Bind events to each handle
-            self.gui.roi_canvas.tag_bind(
+            self.gui.video_display.canvas.tag_bind(
                 handle, "<ButtonPress-1>", lambda e, i=i: self.gui._on_handle_press(e, i)
             )
-            self.gui.roi_canvas.tag_bind(handle, "<B1-Motion>", self.gui._on_handle_drag)
-            self.gui.roi_canvas.tag_bind(handle, "<ButtonRelease-1>", self.gui._on_handle_release)
+            self.gui.video_display.canvas.tag_bind(
+                handle, "<B1-Motion>", self.gui._on_handle_drag
+            )
+            self.gui.video_display.canvas.tag_bind(
+                handle, "<ButtonRelease-1>", self.gui._on_handle_release
+            )
 
     def _redraw_polygon_in_progress(self):
         """Redraw the polygon vertices and edges after undo/redo.
@@ -486,13 +498,13 @@ class CanvasManager:
         when points are added, removed (undo), or restored (redo).
         """
         # Clear existing drawing aids
-        self.gui.roi_canvas.delete("drawing_aid")
+        self.gui.video_display.canvas.delete("drawing_aid")
 
         current_points = self.gui.drawing_state_manager.current_points
 
         # Redraw all vertices
         for canvas_x, canvas_y in current_points:
-            self.gui.roi_canvas.create_oval(
+            self.gui.video_display.canvas.create_oval(
                 canvas_x - 2,
                 canvas_y - 2,
                 canvas_x + 2,
@@ -506,7 +518,7 @@ class CanvasManager:
         for i in range(len(current_points) - 1):
             p1 = current_points[i]
             p2 = current_points[i + 1]
-            self.gui.roi_canvas.create_line(
+            self.gui.video_display.canvas.create_line(
                 p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
             )
 
@@ -554,7 +566,8 @@ class CanvasManager:
         """
         log.info("gui.redraw_zones.start")
 
-        canvas = self.gui.roi_canvas
+        # Use video_display.canvas (Phase 6 fix)
+        canvas = self.gui.video_display.canvas if self.gui.video_display else None
         if canvas is None:
             log.warning("gui.redraw_zones.no_canvas")
             return
@@ -1050,13 +1063,14 @@ class CanvasManager:
 
     def update_zone_listbox(self, zone_data=None):
         """Update zone listbox with visual color indicators."""
-        # Guard against missing zone_listbox
-        if not hasattr(self.gui, "zone_listbox") or self.gui.zone_listbox is None:
+        # Guard against missing zone_listbox (Phase 6 fix: use zone_controls)
+        listbox = self.gui.zone_controls.zone_listbox if self.gui.zone_controls else None
+        if not listbox:
             return
 
         # Clear list
-        for item in self.gui.zone_listbox.get_children():
-            self.gui.zone_listbox.delete(item)
+        for item in listbox.get_children():
+            listbox.delete(item)
 
         # Phase 4: Stop if zone_data is None (don't pull from controller)
         if zone_data is None:
@@ -1067,14 +1081,14 @@ class CanvasManager:
 
         # Main arena with emoji and color
         if zone_data.polygon:
-            self.gui.zone_listbox.insert(
+            listbox.insert(
                 "",
                 "end",
                 values=("🏠 Arena Principal", "Polígono", "Ciano"),
                 tags=("arena",),
             )
             # Configure text color for arena
-            self.gui.zone_listbox.tag_configure("arena", foreground="darkcyan")
+            listbox.tag_configure("arena", foreground="darkcyan")
 
         # Enable/disable ROI button based on arena existence
         self.gui._enable_roi_button_if_arena_exists(zone_data)
@@ -1102,7 +1116,7 @@ class CanvasManager:
                 color_hex = color_info[1]
 
             # Insert ROI with emoji
-            self.gui.zone_listbox.insert(
+            listbox.insert(
                 "",
                 "end",
                 values=(f"📍 {name}", "Área de Interesse", color_name),
@@ -1111,7 +1125,7 @@ class CanvasManager:
 
             # Configure text color for ROI
             try:
-                self.gui.zone_listbox.tag_configure(f"roi_{i}", foreground=color_hex)
+                listbox.tag_configure(f"roi_{i}", foreground=color_hex)
             except Exception:
                 pass  # Silent fallback if color not supported
 
@@ -1136,30 +1150,42 @@ class CanvasManager:
 
         self.gui.drawing_state_manager.start_polygon_drawing()
 
-        self.gui.roi_canvas.config(cursor="crosshair")
-        self.gui.roi_canvas.bind("<Button-1>", self.gui._on_canvas_click)
-        self.gui.roi_canvas.bind("<B1-Motion>", self.gui._on_vertex_drag_motion)
-        self.gui.roi_canvas.bind("<ButtonRelease-1>", self.gui._on_vertex_drag_end)
-        self.gui.roi_canvas.bind("<Double-Button-1>", self.gui._on_canvas_double_click)
-        self.gui.roi_canvas.bind("<Motion>", self.gui._on_canvas_motion)
+        self.gui.video_display.canvas.config(cursor="crosshair")
+        self.gui.video_display.canvas.bind("<Button-1>", self.gui._on_canvas_click)
+        self.gui.video_display.canvas.bind("<B1-Motion>", self.gui._on_vertex_drag_motion)
+        self.gui.video_display.canvas.bind("<ButtonRelease-1>", self.gui._on_vertex_drag_end)
+        self.gui.video_display.canvas.bind(
+            "<Double-Button-1>", self.gui._on_canvas_double_click
+        )
+        self.gui.video_display.canvas.bind("<Motion>", self.gui._on_canvas_motion)
 
         # Bind keyboard shortcuts for undo/redo
-        self.gui.roi_canvas.bind("<Control-z>", self.gui._on_drawing_undo)
-        self.gui.roi_canvas.bind("<Control-y>", self.gui._on_drawing_redo)
-        self.gui.roi_canvas.bind("<Control-Shift-Z>", self.gui._on_drawing_redo)  # Alternative
-        self.gui.roi_canvas.focus_set()  # Ensure canvas can receive keyboard events
+        self.gui.video_display.canvas.bind("<Control-z>", self.gui._on_drawing_undo)
+        self.gui.video_display.canvas.bind("<Control-y>", self.gui._on_drawing_redo)
+        self.gui.video_display.canvas.bind(
+            "<Control-Shift-Z>", self.gui._on_drawing_redo
+        )  # Alternative
+        self.gui.video_display.canvas.focus_set()  # Ensure canvas can receive keyboard events
 
         # Add a persistent instruction label
-        if not self.gui.drawing_instruction_label:
+        # Use zone_controls_frame (Phase 6 fix: use zone_controls.zone_controls_frame)
+        zc_frame = (
+            self.gui.zone_controls.zone_controls_frame if self.gui.zone_controls else None
+        )
+        zc_listbox = (
+            self.gui.zone_controls.zone_listbox if self.gui.zone_controls else None
+        )
+
+        if not self.gui.drawing_instruction_label and zc_frame and zc_listbox:
             self.gui.drawing_instruction_label = ttk.Label(
-                self.gui.zone_controls_frame,
+                zc_frame,
                 text="Clique para adicionar pontos.\nClique duplo para finalizar.\n"
                 "Ctrl+Z: Desfazer | Ctrl+Y: Refazer",
                 justify="center",
                 relief="solid",
                 padding=5,
             )
-            self.gui.drawing_instruction_label.pack(pady=5, before=self.gui.zone_listbox.master)
+            self.gui.drawing_instruction_label.pack(pady=5, before=zc_listbox.master)
 
         # Create floating undo/redo buttons over canvas
         self.gui._create_drawing_buttons()
@@ -1202,8 +1228,8 @@ class CanvasManager:
                 )
 
         # Clamp to canvas bounds for all zones (arena and ROI)
-        canvas_width = self.gui.roi_canvas.winfo_width() or 800
-        canvas_height = self.gui.roi_canvas.winfo_height() or 600
+        canvas_width = self.gui.video_display.canvas.winfo_width() or 800
+        canvas_height = self.gui.video_display.canvas.winfo_height() or 600
         canvas_x = max(0, min(canvas_x, canvas_width))
         canvas_y = max(0, min(canvas_y, canvas_height))
 
@@ -1233,7 +1259,7 @@ class CanvasManager:
                 if dist <= self.gui.drawing_state_manager.vertex_hover_tolerance:
                     # Start dragging this vertex
                     self.gui.drawing_state_manager.dragging_vertex_index = i
-                    self.gui.roi_canvas.config(cursor="hand2")
+                    self.gui.video_display.canvas.config(cursor="hand2")
                     return  # Don't add new point
 
         # Not over a vertex, proceed to add new point
@@ -1269,7 +1295,7 @@ class CanvasManager:
         self.gui.drawing_state_manager.add_point(canvas_point, video_point, canvas_point)
 
         # Draw a small circle to mark the vertex
-        self.gui.roi_canvas.create_oval(
+        self.gui.video_display.canvas.create_oval(
             canvas_x - 2,
             canvas_y - 2,
             canvas_x + 2,
@@ -1283,17 +1309,21 @@ class CanvasManager:
         if len(current_points) > 1:
             p1 = current_points[-2]
             p2 = current_points[-1]
-            self.gui.roi_canvas.create_line(
+            self.gui.video_display.canvas.create_line(
                 p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
             )
 
     def edit_selected_zone_vertices(self):
         """Enable interactive editing of the selected zone's vertices."""
-        selected = self.gui.zone_listbox.selection()
+        listbox = self.gui.zone_controls.zone_listbox if self.gui.zone_controls else None
+        if not listbox:
+            return
+
+        selected = listbox.selection()
         if not selected:
             return
 
-        item = self.gui.zone_listbox.item(selected[0])
+        item = listbox.item(selected[0])
         zone_name = item["values"][0]
 
         # Check if we are already in drawing mode
@@ -1351,22 +1381,22 @@ class CanvasManager:
 
         self.gui.drawing_state_manager.mode = None
         self.gui.drawing_state_manager.drawing_type = None
-        self.gui.roi_canvas.config(cursor="")
+        self.gui.video_display.canvas.config(cursor="")
         # Unbind all possible drawing events
-        self.gui.roi_canvas.unbind("<Button-1>")
-        self.gui.roi_canvas.unbind("<Double-Button-1>")
-        self.gui.roi_canvas.unbind("<Motion>")
-        self.gui.roi_canvas.unbind("<ButtonPress-1>")
-        self.gui.roi_canvas.unbind("<B1-Motion>")
-        self.gui.roi_canvas.unbind("<ButtonRelease-1>")
+        self.gui.video_display.canvas.unbind("<Button-1>")
+        self.gui.video_display.canvas.unbind("<Double-Button-1>")
+        self.gui.video_display.canvas.unbind("<Motion>")
+        self.gui.video_display.canvas.unbind("<ButtonPress-1>")
+        self.gui.video_display.canvas.unbind("<B1-Motion>")
+        self.gui.video_display.canvas.unbind("<ButtonRelease-1>")
         # Unbind keyboard shortcuts
-        self.gui.roi_canvas.unbind("<Control-z>")
-        self.gui.roi_canvas.unbind("<Control-y>")
-        self.gui.roi_canvas.unbind("<Control-Shift-Z>")
+        self.gui.video_display.canvas.unbind("<Control-z>")
+        self.gui.video_display.canvas.unbind("<Control-y>")
+        self.gui.video_display.canvas.unbind("<Control-Shift-Z>")
 
-        self.gui.roi_canvas.delete("elastic_line")
-        self.gui.roi_canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
-        self.gui.roi_canvas.delete("snap_indicator")  # Clear snap indicators
+        self.gui.video_display.canvas.delete("elastic_line")
+        self.gui.video_display.canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
+        self.gui.video_display.canvas.delete("snap_indicator")  # Clear snap indicators
 
         # Clear coordinate lists
         self.gui.drawing_state_manager.clear_points()
@@ -1377,10 +1407,11 @@ class CanvasManager:
         """Load the frame from the selected video to the main canvas."""
         import os
 
-        if not self.gui.video_selector_tree:
+        tree = self.gui.zone_controls.video_selector_tree if self.gui.zone_controls else None
+        if not tree:
             return
 
-        selection = self.gui.video_selector_tree.selection()
+        selection = tree.selection()
         if not selection:
             self.gui.show_warning(
                 "Nenhum Vídeo Selecionado",
@@ -1389,7 +1420,7 @@ class CanvasManager:
             return
 
         item_id = selection[0]
-        tags = self.gui.video_selector_tree.item(item_id, "tags")
+        tags = tree.item(item_id, "tags")
 
         if not tags or not tags[0]:
             self.gui.show_info(

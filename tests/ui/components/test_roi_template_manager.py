@@ -7,7 +7,9 @@ from zebtrack.ui.components.roi_template_manager import ROITemplateManager
 def mock_gui(tkinter_root):
     gui = MagicMock()
     gui.root = tkinter_root
-    gui.roi_template_combobox = MagicMock()
+    # Updated mock structure to reflect Phase 6 changes
+    gui.zone_controls = MagicMock()
+    gui.zone_controls.roi_template_combobox = MagicMock()
     return gui
 
 @pytest.fixture
@@ -34,10 +36,10 @@ def test_refresh_templates(manager, mock_pm, mock_gui):
         # Verify values set via item assignment
         # Note: display names include prefixes
         expected_values = ["📁 T1", "🌐 T2"]
-        mock_gui.roi_template_combobox.__setitem__.assert_any_call("values", expected_values)
+        mock_gui.zone_controls.roi_template_combobox.__setitem__.assert_any_call("values", expected_values)
 
         # Verify state configuration
-        mock_gui.roi_template_combobox.configure.assert_called_with(state="readonly")
+        mock_gui.zone_controls.roi_template_combobox.configure.assert_called_with(state="readonly")
 
 def test_apply_template(manager, mock_pm, mock_gui):
     manager._cache = [{"name": "T1", "display_name": "T1", "location": "project", "file": "t1.json"}]

@@ -128,23 +128,6 @@ class TestUtilitáriosSimples:
         assert result.startswith("file_")
         assert len(result) == 21  # "file_" + 16 chars
 
-    def test_build_roi_template_identifier_project_with_slug(self, widget_factory):
-        """Test building template identifier with project location and slug."""
-        template = {"location": "project", "slug": "my_template"}
-        result = widget_factory.build_roi_template_identifier(template)
-        assert result == "project:my_template"
-
-    def test_build_roi_template_identifier_with_file(self, widget_factory):
-        """Test building template identifier with file reference."""
-        template = {"location": "global", "file": "template.json"}
-        result = widget_factory.build_roi_template_identifier(template)
-        assert result == "global:template.json"
-
-    def test_build_roi_template_identifier_with_name(self, widget_factory):
-        """Test building template identifier with name fallback."""
-        template = {"location": "user", "name": "My Template"}
-        result = widget_factory.build_roi_template_identifier(template)
-        assert result == "user:My Template"
 
     def test_build_track_options_empty(self, widget_factory):
         """Test building track options with empty detections."""

@@ -1144,7 +1144,7 @@ class ApplicationGUI:
             return
 
         # Remove the old image
-        self.roi_canvas.delete("background_image")
+        self.video_display.canvas.delete("background_image")
 
         # Center the image in the new canvas size
         center_x = canvas_width // 2
@@ -1154,7 +1154,7 @@ class ApplicationGUI:
         self._canvas_bg_position = (center_x, center_y, "center")
 
         # Create the centered image
-        self.roi_canvas.create_image(
+        self.video_display.canvas.create_image(
             center_x,
             center_y,
             anchor="center",
@@ -1193,8 +1193,8 @@ class ApplicationGUI:
 
         # Bind motion and release to the entire canvas so events continue even
         # when mouse leaves the handle
-        self.roi_canvas.bind("<B1-Motion>", self._on_handle_drag_global)
-        self.roi_canvas.bind("<ButtonRelease-1>", self._on_handle_release_global)
+        self.video_display.canvas.bind("<B1-Motion>", self._on_handle_drag_global)
+        self.video_display.canvas.bind("<ButtonRelease-1>", self._on_handle_release_global)
 
     def _on_handle_drag(self, event):
         """Update polygon point and redraw. Delegates to CanvasManager."""
@@ -1211,8 +1211,8 @@ class ApplicationGUI:
     def _on_handle_release_global(self, event):
         """Global release handler (called from canvas binding)."""
         # Unbind global handlers
-        self.roi_canvas.unbind("<B1-Motion>")
-        self.roi_canvas.unbind("<ButtonRelease-1>")
+        self.video_display.canvas.unbind("<B1-Motion>")
+        self.video_display.canvas.unbind("<ButtonRelease-1>")
         self._handle_release_common()
 
     def _handle_release_common(self):
@@ -1278,10 +1278,14 @@ class ApplicationGUI:
 
     def _clear_interactive_polygon(self):
         """Clear all interactive elements from the canvas and hide buttons."""
-        self.roi_canvas.delete("interactive_polygon", "handle", "suggested_polygon")
+        self.video_display.canvas.delete("interactive_polygon", "handle", "suggested_polygon")
         try:
-            if self.interactive_buttons_frame and self.interactive_buttons_frame.winfo_exists():
-                self.interactive_buttons_frame.pack_forget()
+            if (
+                self.zone_controls
+                and self.zone_controls.interactive_buttons_frame
+                and self.zone_controls.interactive_buttons_frame.winfo_exists()
+            ):
+                self.zone_controls.interactive_buttons_frame.pack_forget()
         except Exception:
             # This can fail if the root window is already being destroyed.
             # It's safe to ignore in that case.
@@ -1335,14 +1339,15 @@ class ApplicationGUI:
 
     def _refresh_video_selector_tree(self) -> None:
         """Repopula a árvore mantendo seleção e filtros atuais sempre que possível."""
-        if not self.video_selector_tree:
+        tree = self.zone_controls.video_selector_tree if self.zone_controls else None
+        if not tree:
             return
 
         selected_tag = None
-        selection = self.video_selector_tree.selection()
+        selection = tree.selection()
         if selection:
             try:
-                tags = self.video_selector_tree.item(selection[0], "tags")
+                tags = tree.item(selection[0], "tags")
                 if tags:
                     selected_tag = tags[0]
             except Exception:
@@ -1355,21 +1360,22 @@ class ApplicationGUI:
             self._reselect_video_tree_item(selected_tag)
 
     def _reselect_video_tree_item(self, target_tag: str) -> None:
-        if not target_tag or not self.video_selector_tree:
+        tree = self.zone_controls.video_selector_tree if self.zone_controls else None
+        if not target_tag or not tree:
             return
 
         def _walk(node: str) -> bool:
-            for child in self.video_selector_tree.get_children(node):
-                tags = self.video_selector_tree.item(child, "tags")
+            for child in tree.get_children(node):
+                tags = tree.item(child, "tags")
                 if tags and tags[0] == target_tag:
                     # Ensure branch is visible before selecting
-                    parent = self.video_selector_tree.parent(child)
+                    parent = tree.parent(child)
                     while parent:
-                        self.video_selector_tree.item(parent, open=True)
-                        parent = self.video_selector_tree.parent(parent)
+                        tree.item(parent, open=True)
+                        parent = tree.parent(parent)
 
-                    self.video_selector_tree.selection_set(child)
-                    self.video_selector_tree.see(child)
+                    tree.selection_set(child)
+                    tree.see(child)
                     return True
 
                 if _walk(child):
@@ -1645,7 +1651,7 @@ class ApplicationGUI:
         """Handle mouse release after dragging a vertex."""
         if self.drawing_state_manager.dragging_vertex_index is not None:
             self.drawing_state_manager.dragging_vertex_index = None
-            self.roi_canvas.config(cursor="crosshair")
+            self.video_display.canvas.config(cursor="crosshair")
 
     def _apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
         """
@@ -1797,11 +1803,20 @@ class ApplicationGUI:
 
     def _on_canvas_motion(self, event):
         """Handle mouse movement for drawing elastic lines."""
-        if self.drawing_mode != "polygon":
+        # Delegate to DrawingStateManager to get current state
+        # Note: The original code accessed legacy attributes like self.drawing_mode
+        # which might be out of sync. We should use DrawingStateManager or CanvasManager.
+
+        # For this refactor step, we will just fix the canvas reference.
+        # The full migration of logic to CanvasManager is part of Phase 3 (already done?).
+        # It seems some legacy logic remained here.
+
+        if self.drawing_state_manager.mode != "polygon":
             return
 
-        self.roi_canvas.delete("elastic_line")
-        self.roi_canvas.delete("snap_indicator")  # Clear previous snap indicator
+        canvas = self.video_display.canvas
+        canvas.delete("elastic_line")
+        canvas.delete("snap_indicator")  # Clear previous snap indicator
 
         # Check for snapping
         canvas_x = float(event.x)
@@ -1812,10 +1827,12 @@ class ApplicationGUI:
         self._vertex_hover_index = None
         hover_color = "cyan"  # Default color
 
-        if self.current_polygon_points:
-            for i, (vx, vy) in enumerate(self.current_polygon_points):
+        current_points = self.drawing_state_manager.current_points
+
+        if current_points:
+            for i, (vx, vy) in enumerate(current_points):
                 dist = ((canvas_x - vx) ** 2 + (canvas_y - vy) ** 2) ** 0.5
-                if dist <= self._vertex_hover_tolerance:
+                if dist <= 10: # default tolerance
                     self._vertex_hover_index = i
                     hover_color = "orange"  # Change color when over vertex
                     # Use vertex position for display
@@ -1827,10 +1844,10 @@ class ApplicationGUI:
             display_x = snapped_point[0] if snapped_point else canvas_x
             display_y = snapped_point[1] if snapped_point else canvas_y
         else:
-            display_x, display_y = self.current_polygon_points[self._vertex_hover_index]
+            display_x, display_y = current_points[self._vertex_hover_index]
 
         # When drawing ROI, clamp the display indicator within the arena
-        if self.current_drawing_type == "roi":
+        if self.drawing_state_manager.drawing_type == "roi":
             main_arena_poly = self._get_zone_data_for_active_context().polygon
             if main_arena_poly:
                 # Convert arena to canvas coordinates
@@ -1872,14 +1889,14 @@ class ApplicationGUI:
             snapped_point is not None
             or self._vertex_hover_index is not None
             or (
-                self.current_drawing_type == "roi"
+                self.drawing_state_manager.drawing_type == "roi"
                 and self._get_zone_data_for_active_context().polygon
             )
         )
 
         if should_show_indicator:
             # Draw a small circle to indicate snap point (color changes when over vertex)
-            self.roi_canvas.create_oval(
+            canvas.create_oval(
                 display_x - 5,
                 display_y - 5,
                 display_x + 5,
@@ -1890,14 +1907,14 @@ class ApplicationGUI:
             )
 
         # If no points yet, only show snap indicator
-        if not self.current_polygon_points:
+        if not current_points:
             return
 
-        last_point = self.current_polygon_points[-1]
-        first_point = self.current_polygon_points[0]
+        last_point = current_points[-1]
+        first_point = current_points[0]
 
         # Line from last vertex to cursor (or snap point)
-        self.roi_canvas.create_line(
+        canvas.create_line(
             last_point[0],
             last_point[1],
             display_x,
@@ -1908,8 +1925,8 @@ class ApplicationGUI:
         )
         # Line from cursor (or snap point) to first vertex (if more than one
         # point exists)
-        if len(self.current_polygon_points) > 1:
-            self.roi_canvas.create_line(
+        if len(current_points) > 1:
+            canvas.create_line(
                 display_x,
                 display_y,
                 first_point[0],
@@ -2599,8 +2616,8 @@ class ApplicationGUI:
         self.canvas_view_mode = "analysis"
         self.notebook.select(self.analysis_tab_frame)
 
-        if self.toggle_view_btn:
-            self.toggle_view_btn.config(text="Ver Configuração de Zonas")
+        if self.zone_controls and self.zone_controls.toggle_view_btn:
+            self.zone_controls.toggle_view_btn.config(text="Ver Configuração de Zonas")
 
     def _switch_to_zones_view(self):
         """Switch to zone drawing view."""
@@ -2610,8 +2627,8 @@ class ApplicationGUI:
         self.canvas_view_mode = "zones"
         self.notebook.select(self.zone_tab_frame)
 
-        if self.toggle_view_btn:
-            self.toggle_view_btn.config(text="Ver Análise em Progresso")
+        if self.zone_controls and self.zone_controls.toggle_view_btn:
+            self.zone_controls.toggle_view_btn.config(text="Ver Análise em Progresso")
 
     def start_analysis_view_mode(self):
         """Start analysis - immediately switch to analysis view and enable toggle."""
@@ -2622,8 +2639,8 @@ class ApplicationGUI:
         self.state_synchronizer._set_analysis_metadata_defaults()
         self._reset_analysis_controls()
         self.show_progress_bar()
-        if self.toggle_view_btn:
-            self.toggle_view_btn.config(state="normal")
+        if self.zone_controls and self.zone_controls.toggle_view_btn:
+            self.zone_controls.toggle_view_btn.config(state="normal")
         if self.cancel_proc_btn:
             self.cancel_proc_btn.config(state="normal")
         self._switch_to_analysis_view()
@@ -2631,8 +2648,8 @@ class ApplicationGUI:
     def stop_analysis_view_mode(self):
         """Stop analysis - disable toggle and return to zones view."""
         self.analysis_active = False
-        if self.toggle_view_btn:
-            self.toggle_view_btn.config(state="disabled")
+        if self.zone_controls and self.zone_controls.toggle_view_btn:
+            self.zone_controls.toggle_view_btn.config(state="disabled")
         if self.cancel_proc_btn:
             self.cancel_proc_btn.config(state="disabled")
         self.hide_progress_bar()
@@ -2973,111 +2990,8 @@ class ApplicationGUI:
         return dialog.result
 
 
-# ==============================================================================
-# Backward Compatibility Properties for Component Migration
-# ==============================================================================
-# These properties allow legacy code to continue working while we gradually
-# migrate to the new component-based architecture. They map old attribute names
-# to the new component APIs.
-# TODO: Remove these after full migration is complete.
-
-
-def _add_compatibility_properties_to_application_gui():
-    """Add backward compatibility properties to ApplicationGUI class."""
-
-    @property
-    def roi_canvas(self):
-        """
-        Backward compatibility property: maps roi_canvas to video_display.canvas.
-
-        This allows existing drawing code to continue working during the gradual
-        migration to VideoDisplayWidget. Should be removed after migration is complete.
-        """
-        if hasattr(self, "video_display") and self.video_display:
-            return self.video_display.canvas
-        # Fallback to old widget if component not yet created
-        if hasattr(self, "_roi_canvas_widget"):
-            return self._roi_canvas_widget
-        return None
-
-    @property
-    def zone_listbox(self):
-        """Backward compatibility: map zone_listbox to zone_controls.zone_listbox."""
-        if hasattr(self, "zone_controls") and self.zone_controls:
-            return self.zone_controls.zone_listbox
-        return None
-
-    @property
-    def draw_roi_button(self):
-        """Backward compatibility: map draw_roi_button to zone_controls.draw_roi_button."""
-        if hasattr(self, "zone_controls") and self.zone_controls:
-            return self.zone_controls.draw_roi_button
-        return None
-
-    @property
-    def toggle_view_btn(self):
-        """Backward compatibility: map toggle_view_btn to zone_controls.toggle_view_btn."""
-        if hasattr(self, "zone_controls") and self.zone_controls:
-            return self.zone_controls.toggle_view_btn
-        return None
-
-    @property
-    def roi_template_combobox(self):
-        """
-        Backward compatibility property for roi_template_combobox.
-
-        Maps to zone_controls.roi_template_combobox.
-        """
-        if hasattr(self, "zone_controls") and self.zone_controls:
-            return self.zone_controls.roi_template_combobox
-        return None
-
-    @property
-    def video_selector_tree(self):
-        """Backward compatibility: map video_selector_tree to zone_controls.video_selector_tree."""
-        if hasattr(self, "zone_controls") and self.zone_controls:
-            return self.zone_controls.video_selector_tree
-        return None
-
-    @property
-    def interactive_buttons_frame(self):
-        """
-        Backward compatibility property for interactive_buttons_frame.
-
-        Maps to zone_controls.interactive_buttons_frame.
-        """
-        if hasattr(self, "zone_controls") and self.zone_controls:
-            return self.zone_controls.interactive_buttons_frame
-        return None
-
-    @property
-    def project_overview_tree(self):
-        """Backward compatibility: map project_overview_tree to widget."""
-        if hasattr(self, "project_overview_widget") and self.project_overview_widget:
-            return self.project_overview_widget.project_overview_tree
-        return None
-
-    @property
-    def project_status_vars(self):
-        """Backward compatibility: map project_status_vars to widget."""
-        if hasattr(self, "project_overview_widget") and self.project_overview_widget:
-            return self.project_overview_widget.project_status_vars
-        return {}
-
-    # Add properties to ApplicationGUI class
-    ApplicationGUI.roi_canvas = roi_canvas
-    ApplicationGUI.zone_listbox = zone_listbox
-    ApplicationGUI.draw_roi_button = draw_roi_button
-    ApplicationGUI.toggle_view_btn = toggle_view_btn
-    ApplicationGUI.roi_template_combobox = roi_template_combobox
-    ApplicationGUI.video_selector_tree = video_selector_tree
-    ApplicationGUI.interactive_buttons_frame = interactive_buttons_frame
-    ApplicationGUI.project_overview_tree = project_overview_tree
-    ApplicationGUI.project_status_vars = project_status_vars
-
-
-# Apply compatibility properties
-_add_compatibility_properties_to_application_gui()
+# Compatibility layer removed as part of Phase 6 cleanup.
+# All legacy properties have been migrated to direct component access.
 
 
 if __name__ == "__main__":

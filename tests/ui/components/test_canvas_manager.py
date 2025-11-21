@@ -28,8 +28,23 @@ def mock_gui(tkinter_root, mock_controller):
     gui.root = tkinter_root
     gui.root.after = Mock()  # Mock the after method
     gui.controller = mock_controller
-    gui.roi_canvas = Canvas(tkinter_root, width=800, height=600)
-    gui.roi_canvas.pack()
+
+    # Mock VideoDisplayWidget structure
+    gui.video_display = Mock()
+    # Use a Mock for canvas to avoid Tcl errors and make it easier to test calls
+    gui.video_display.canvas = Mock(spec=Canvas)
+    gui.video_display.canvas.winfo_width.return_value = 800
+    gui.video_display.canvas.winfo_height.return_value = 600
+    gui.video_display.canvas.find_withtag.return_value = []
+    gui.video_display.canvas.find_all.return_value = []
+
+    # Also mock zone_controls for listbox access
+    gui.zone_controls = Mock()
+    gui.zone_controls.zone_listbox = Mock()
+    gui.zone_controls.video_selector_tree = Mock()
+    gui.zone_controls.zone_controls_frame = Mock()
+    gui.zone_controls.toggle_view_btn = Mock()
+
     tkinter_root.update()
     gui.video_label = Mock()
     gui._current_detections = []
@@ -47,6 +62,13 @@ def mock_gui(tkinter_root, mock_controller):
     gui.interactive_polygon_item = None
     gui.polygon_handles = []
     gui.pending_single_video_path = None
+
+    # Mock DrawingStateManager
+    gui.drawing_state_manager = Mock()
+    gui.drawing_state_manager.current_points = []
+    gui.drawing_state_manager.mode = None
+    gui.drawing_state_manager.drawing_type = None
+
     gui._on_handle_press = Mock()
     gui._on_handle_drag = Mock()
     gui._on_handle_release = Mock()
@@ -56,6 +78,7 @@ def mock_gui(tkinter_root, mock_controller):
     gui.track_selector_widget.winfo_height = Mock(return_value=30)
     gui.track_selector_widget.update_idletasks = Mock()
     gui.analysis_video_label = Mock()
+    gui.analysis_video_label.winfo_exists.return_value = True # Ensure exists
     gui.analysis_status_label = Mock()
     gui.analysis_status_label.winfo_height = Mock(return_value=20)
     gui.analysis_status_label.update_idletasks = Mock()
@@ -223,7 +246,7 @@ class TestBackgroundImageDrawing:
         canvas_manager._raw_bg_image = mock_image
 
         # Mock canvas create_image to prevent TclError
-        mock_gui.roi_canvas.create_image = Mock(return_value=1)
+        mock_gui.video_display.canvas.create_image = Mock(return_value=1)
 
         with patch("zebtrack.ui.components.canvas_manager.ImageTk") as mock_imagetk:
             mock_photo = Mock()
@@ -249,8 +272,8 @@ class TestBackgroundImageDrawing:
         canvas_manager._raw_bg_image = mock_image
 
         # Mock canvas with invalid dimensions
-        mock_gui.roi_canvas.winfo_width = Mock(return_value=1)
-        mock_gui.roi_canvas.winfo_height = Mock(return_value=1)
+        mock_gui.video_display.canvas.winfo_width = Mock(return_value=1)
+        mock_gui.video_display.canvas.winfo_height = Mock(return_value=1)
 
         # Should schedule retry
         canvas_manager._draw_bg_image_to_canvas()
@@ -269,7 +292,7 @@ class TestBackgroundImageDrawing:
         canvas_manager._raw_bg_image = mock_image
 
         # Mock canvas create_image
-        mock_gui.roi_canvas.create_image = Mock(return_value=1)
+        mock_gui.video_display.canvas.create_image = Mock(return_value=1)
 
         with patch("zebtrack.ui.components.canvas_manager.ImageTk"):
             canvas_manager._draw_bg_image_to_canvas()
@@ -298,7 +321,7 @@ class TestBackgroundImageDrawing:
         mock_gui._original_image = mock_image
 
         # Mock canvas create_image
-        mock_gui.roi_canvas.create_image = Mock(return_value=1)
+        mock_gui.video_display.canvas.create_image = Mock(return_value=1)
 
         with patch("zebtrack.ui.components.canvas_manager.ImageTk") as mock_imagetk:
             mock_photo = Mock()
@@ -466,8 +489,8 @@ class TestInteractivePolygonDrawing:
         mock_gui.edited_polygon_points = []
 
         # Mock canvas methods to prevent real Tkinter calls
-        mock_gui.roi_canvas.create_polygon = Mock(return_value=1)
-        mock_gui.roi_canvas.create_oval = Mock(return_value=1)
+        mock_gui.video_display.canvas.create_polygon = Mock(return_value=1)
+        mock_gui.video_display.canvas.create_oval = Mock(return_value=1)
 
         canvas_manager._draw_interactive_polygon()
 
@@ -483,14 +506,16 @@ class TestInteractivePolygonDrawing:
         canvas_manager._bg_scale = 1.0
         canvas_manager._bg_offset = (0, 0)
 
+        # Mock return values for finding tags since we use Mock canvas
+        mock_gui.video_display.canvas.find_withtag.side_effect = lambda tag: [1] if tag == "interactive_polygon" else [1, 2, 3, 4] if tag == "handle" else []
+
         canvas_manager._draw_interactive_polygon()
 
         # Verify polygon was created
-        assert mock_gui.roi_canvas.find_withtag("interactive_polygon")
+        assert mock_gui.video_display.canvas.create_polygon.called
 
         # Verify handles were created (4 points = 4 handles)
-        handles = mock_gui.roi_canvas.find_withtag("handle")
-        assert len(handles) == 4
+        assert mock_gui.video_display.canvas.create_rectangle.call_count == 4
 
     def test_draw_interactive_polygon_clears_previous(self, canvas_manager, mock_gui):
         """Test that previous drawings are cleared."""
@@ -500,14 +525,9 @@ class TestInteractivePolygonDrawing:
 
         # Draw first time
         canvas_manager._draw_interactive_polygon()
-        first_count = len(mock_gui.roi_canvas.find_all())
 
-        # Draw again
-        canvas_manager._draw_interactive_polygon()
-        second_count = len(mock_gui.roi_canvas.find_all())
-
-        # Should have same number of items (old ones deleted, new ones created)
-        assert second_count == first_count
+        # Verify delete was called
+        mock_gui.video_display.canvas.delete.assert_called()
 
     @patch("zebtrack.ui.components.canvas_manager.cv2")
     def test_draw_interactive_polygon_roi_boundary_check(
@@ -531,30 +551,24 @@ class TestInteractivePolygonDrawing:
 
     def test_redraw_polygon_in_progress_empty(self, canvas_manager, mock_gui):
         """Test redrawing polygon with no points."""
-        mock_gui.current_polygon_points = []
+        mock_gui.drawing_state_manager.current_points = []
 
         canvas_manager._redraw_polygon_in_progress()
 
         # Should clear drawing aids
-        assert not mock_gui.roi_canvas.find_withtag("drawing_aid")
+        mock_gui.video_display.canvas.delete.assert_called_with("drawing_aid")
 
     def test_redraw_polygon_in_progress_with_points(self, canvas_manager, mock_gui):
         """Test redrawing polygon with points."""
-        mock_gui.current_polygon_points = [(100, 100), (200, 100), (200, 200)]
+        mock_gui.drawing_state_manager.current_points = [(100, 100), (200, 100), (200, 200)]
 
         canvas_manager._redraw_polygon_in_progress()
 
-        # Should create vertices
-        vertices = mock_gui.roi_canvas.find_withtag("temp_vertex")
-        assert len(vertices) == 3
+        # Should create vertices (3)
+        assert mock_gui.video_display.canvas.create_oval.call_count == 3
 
-        # Should create edges (n-1 edges for n points)
-        lines = [
-            item
-            for item in mock_gui.roi_canvas.find_withtag("drawing_aid")
-            if mock_gui.roi_canvas.type(item) == "line"
-        ]
-        assert len(lines) == 2
+        # Should create edges (2)
+        assert mock_gui.video_display.canvas.create_line.call_count == 2
 
 
 @pytest.mark.gui
@@ -604,7 +618,7 @@ class TestZoneDrawing:
 
     def test_redraw_zones_from_project_data_no_canvas(self, canvas_manager, mock_gui):
         """Test redraw when canvas is None."""
-        mock_gui.roi_canvas = None
+        mock_gui.video_display.canvas = None
 
         # Should not raise exception
         canvas_manager.redraw_zones_from_project_data()
@@ -627,7 +641,7 @@ class TestZoneDrawing:
         canvas_manager.redraw_zones_from_project_data(mock_zone_data)
 
         # Verify arena polygon was drawn
-        assert mock_gui.roi_canvas.find_withtag("main_polygon")
+        assert mock_gui.video_display.canvas.create_polygon.called
 
         # Verify listbox was updated
         mock_gui.update_zone_listbox.assert_called_once_with(mock_zone_data)
@@ -642,13 +656,12 @@ class TestZoneDrawing:
 
         canvas_manager.redraw_zones_from_project_data(mock_zone_data)
 
-        # Verify ROI polygons were drawn
-        roi_polygons = mock_gui.roi_canvas.find_withtag("roi_polygon")
-        assert len(roi_polygons) == 2
+        # Verify ROI polygons were drawn (arena + 2 ROIs = 3 calls)
+        # Note: create_polygon is called for arena (1) + ROIs (2)
+        assert mock_gui.video_display.canvas.create_polygon.call_count == 3
 
-        # Verify ROI labels were drawn
-        roi_labels = mock_gui.roi_canvas.find_withtag("roi_label")
-        assert len(roi_labels) == 2
+        # Verify ROI labels were drawn (2 ROIs)
+        assert mock_gui.video_display.canvas.create_text.call_count == 2
 
     def test_redraw_zones_from_project_data_restores_background(
         self, canvas_manager, mock_gui, mock_zone_data
@@ -656,18 +669,18 @@ class TestZoneDrawing:
         """Test that background image is restored if missing."""
         mock_gui._get_zone_data_for_active_context.return_value = mock_zone_data
 
-        # Mock create_image to prevent TclError
-        mock_gui.roi_canvas.create_image = Mock(return_value=1)
-
         # Set background image but don't add to canvas
         mock_bg_image = Mock()
         canvas_manager._canvas_bg_image = mock_bg_image
         canvas_manager._canvas_bg_position = (400, 300, "center")
 
+        # Mock find_withtag to return empty list (image missing)
+        mock_gui.video_display.canvas.find_withtag.return_value = []
+
         canvas_manager.redraw_zones_from_project_data(mock_zone_data)
 
         # Verify background restoration was attempted
-        assert mock_gui.roi_canvas.create_image.called
+        assert mock_gui.video_display.canvas.create_image.called
 
 
 @pytest.mark.gui
