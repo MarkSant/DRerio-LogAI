@@ -186,27 +186,30 @@ class DialogCoordinator:
             )
         else:
             self.ui_coordinator.show_info(
+                None,  # Phase 4: UICoordinator handles the view reference
                 "Processamento Ignorado",
                 "Nenhum novo vídeo foi processado.",
             )
 
-    def show_info(self, title: str, message: str) -> None:
+    def show_info(self, title: str, message: str, view=None) -> None:
         """Mostra diálogo informativo.
 
         Args:
             title: Título do diálogo
             message: Mensagem do diálogo
+            view: View instance (optional, managed by UICoordinator in Phase 4)
         """
-        self.ui_coordinator.show_info(title, message)
+        self.ui_coordinator.show_info(view, title, message)
 
-    def show_error(self, title: str, message: str) -> None:
+    def show_error(self, title: str, message: str, view=None) -> None:
         """Mostra diálogo de erro.
 
         Args:
             title: Título do diálogo
             message: Mensagem de erro
+            view: View instance (optional, managed by UICoordinator in Phase 4)
         """
-        self.ui_coordinator.show_error(title, message)
+        self.ui_coordinator.show_error(view, title, message)
 
     def ask_yes_no(self, title: str, message: str, view=None) -> bool:
         """Solicita confirmação sim/não do usuário.
@@ -220,3 +223,33 @@ class DialogCoordinator:
             True se usuário confirmou, False caso contrário
         """
         return self.ui_coordinator.ask_ok_cancel(view, title, message)
+
+    def ask_save_filename(self, title: str, defaultextension: str, initialfile: str, filetypes: list) -> str | None:
+        """Solicita nome de arquivo para salvar.
+
+        Note: This delegates to view via UICoordinator (or directly if bridge is needed).
+        Phase 4: Should use UICoordinator which holds View reference.
+
+        Args:
+            title: Dialog title
+            defaultextension: Default extension (e.g. ".docx")
+            initialfile: Initial filename
+            filetypes: List of (Description, Extension) tuples
+
+        Returns:
+            Selected path or None
+        """
+        # Since UICoordinator doesn't have a specific 'ask_save_filename' yet, we bridge it manually here
+        # or assume UICoordinator exposes 'view' for this specific sync operation.
+        # Ideally, UICoordinator should expose this method.
+
+        # Phase 4 Pragmatic approach: Use UICoordinator's view reference if available
+        view_ref = self.ui_coordinator.view
+        if view_ref and hasattr(view_ref, "ask_save_filename"):
+            return view_ref.ask_save_filename(
+                title=title,
+                defaultextension=defaultextension,
+                initialfile=initialfile,
+                filetypes=filetypes
+            )
+        return None

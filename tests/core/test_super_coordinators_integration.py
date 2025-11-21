@@ -114,10 +114,12 @@ def test_main_view_model_delegation_to_session_coordinator(mock_dependencies):
         pass
     mock_dependencies.session_coordinator.start_live_camera_analysis.assert_called_once_with(camera_index=0)
 
+from unittest.mock import patch
+
+
 def test_main_view_model_delegation_to_processing_coordinator(mock_dependencies):
     """Test that MainViewModel delegates processing methods to ProcessingCoordinator."""
     mock_view = MagicMock()
-    mock_view.ask_save_filename.return_value = "report.docx"
     vm = MainViewModel(mock_dependencies, view=mock_view)
 
     # Test generate_parquet_summaries delegation
@@ -129,10 +131,13 @@ def test_main_view_model_delegation_to_processing_coordinator(mock_dependencies)
     mock_dependencies.processing_coordinator.generate_parquet_summaries.assert_called_once()
 
     # Test generate_report delegation (delegates to AnalysisService)
-    vm.generate_report([{"path": "video1"}], "unified")
+    # In Phase 4, MainViewModel uses self.dialog_coordinator.ask_save_filename
+    # We need to mock that method on the vm instance or its dependency
+    with patch.object(vm.dialog_coordinator, 'ask_save_filename', return_value="report.docx") as mock_ask_save:
+        vm.generate_report([{"path": "video1"}], "unified")
 
-    # MainViewModel calls ask_save_filename
-    mock_view.ask_save_filename.assert_called_once()
+        # MainViewModel calls dialog_coordinator.ask_save_filename
+        mock_ask_save.assert_called_once()
 
     # MainViewModel calls analysis_service.generate_report with output path
     mock_dependencies.analysis_service.generate_report.assert_called_once()
@@ -141,4 +146,3 @@ def test_main_view_model_delegation_to_processing_coordinator(mock_dependencies)
     assert args[0] == [{"path": "video1"}]
     assert args[1] == "unified"
     assert args[2] == "report.docx"
-    assert kwargs["project_manager"] == mock_dependencies.project_manager

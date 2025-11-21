@@ -45,6 +45,7 @@ class UICoordinator:
         self,
         root: Tk | None = None,
         event_bus: EventBus | None = None,
+        view: Any | None = None,
     ):
         """
         Initialize UICoordinator.
@@ -52,10 +53,37 @@ class UICoordinator:
         Args:
             root: Tkinter root window for scheduling
             event_bus: Optional event bus for UI scheduling
+            view: Optional reference to the main ApplicationGUI (Phase 4)
         """
         self.root = root
         self.event_bus = event_bus
-        log.info("ui_coordinator.initialized", has_root=root is not None)
+        self.view = view
+        log.info("ui_coordinator.initialized", has_root=root is not None, has_view=view is not None)
+
+        if self.event_bus:
+            self._register_event_handlers()
+
+    def _register_event_handlers(self):
+        """Register handlers for UI events."""
+        from zebtrack.ui.events import Events
+
+        # Setup View Events
+        self.event_bus.subscribe(
+            Events.UI_SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO,
+            self._handle_setup_zone_definition,
+        )
+
+    def _handle_setup_zone_definition(self, data: dict):
+        """Handle request to setup single video zone definition."""
+        if not self.view:
+            log.warning("ui_coordinator.setup_zone_def.no_view")
+            return
+
+        video_path = data.get("video_path")
+        config = data.get("config")
+
+        if video_path and config:
+            self.update_view(self.view, "setup_zone_definition_for_single_video", video_path, config)
 
     def schedule(self, func: Callable, *args: Any, **kwargs: Any) -> None:
         """
@@ -162,23 +190,25 @@ class UICoordinator:
         Phase 4: Generic method for view updates.
 
         Args:
-            view: View object with methods to call
+            view: View object with methods to call (optional if self.view is set)
             method_name: Name of the method to call
             *args: Positional arguments for the method
             **kwargs: Keyword arguments for the method
         """
-        if view is None:
+        target_view = view if view is not None else self.view
+
+        if target_view is None:
             log.warning("ui_coordinator.update_view_no_view", method=method_name)
             return
 
         # Check if method exists before scheduling
         try:
-            method = getattr(view, method_name, None)
+            method = getattr(target_view, method_name, None)
             if method is None or not callable(method):
                 log.error(
                     "ui_coordinator.update_view_method_not_found",
                     method=method_name,
-                    view_type=type(view).__name__,
+                    view_type=type(target_view).__name__,
                 )
                 return
 
@@ -187,7 +217,7 @@ class UICoordinator:
             log.error(
                 "ui_coordinator.update_view_attribute_error",
                 method=method_name,
-                view_type=type(view).__name__,
+                view_type=type(target_view).__name__,
             )
 
     def set_status(self, view: Any, message: str) -> None:

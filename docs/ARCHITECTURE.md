@@ -24,7 +24,13 @@ A `ApplicationGUI` (View) é desacoplada e se comunica com o `MainViewModel` exc
 - **View**: A camada de UI, composta por componentes `ttk.Frame` modulares e reutilizáveis (`VideoDisplayWidget`, `ZoneControlsWidget`, etc.) que emitem eventos via `EventBus`. A `ApplicationGUI` atua como um contêiner para esses componentes.
 - **ViewModel**: O `MainViewModel` (controller) que orquestra as operações. Ele se inscreve em eventos do `EventBus` para responder a interações da UI e atualiza o `StateManager` para acionar atualizações reativas na View.
 - **Service Layer**: Serviços injetados via construtor (`DetectorService`, `VideoProcessingService`, `ProjectWorkflowService`, `WeightManager`, etc.) encapsulam lógica de domínio complexa e dependências externas.
-- **Coordinator/Adapter Layer** (Phase 2+): Coordenadores especializados (`AnalysisCoordinator`, `ProjectWorkflowAdapter`, `DialogManager`) que orquestram workflows complexos e reduzem a complexidade do `MainViewModel`.
+- **Coordinator Layer** (Phase 3 & 4): Camada de orquestração especializada que intermedeia entre o ViewModel e os Serviços.
+    - **ProjectLifecycleCoordinator**: Orquestra criação, carregamento e fechamento de projetos.
+    - **HardwareCoordinator**: Orquestra configuração de detectores, modelos e integração com Arduino.
+    - **ProcessingCoordinator**: Orquestra pipelines de processamento de vídeo e análise em lote.
+    - **SessionCoordinator**: Orquestra sessões de gravação ao vivo e câmeras.
+    - **UICoordinator**: Gerencia a camada de apresentação e atualizações de UI, desacoplando o ViewModel da View.
+    - **DialogCoordinator**: Gerencia interações síncronas com o usuário (confirmações, seleção de arquivos).
 
 Este padrão promove:
 
@@ -59,15 +65,13 @@ graph TB
     subgraph ViewModel["ViewModel Layer"]
         Controller[MainViewModel<br/>- Coordenação geral<br/>- Ouve o EventBus<br/>- Atualiza o StateManager]
 
-        subgraph Coordinators["🎯 Coordinators & Adapters (Phase 2+)"]
-            PWAdapter[🆕 ProjectWorkflowAdapter<br/>- Workflows de projeto<br/>- Orquestra create/open/close]
-            AnalysisCoord[🆕 AnalysisCoordinator<br/>- Pipeline de análise<br/>- Geração de relatórios<br/>- Sumários Parquet]
-        end
-
-        subgraph Facades["🏛️ Facades (Simplificação de APIs)"]
-            RecFacade[RecordingFacade<br/>- Gravação simplificada]
-            ZoneFacade[ZoneManagementFacade<br/>- Gerenciamento de Zonas/ROIs]
-            ArduinoFacade[ArduinoFacade<br/>- Controle Arduino]
+        subgraph SuperCoordinators["🎯 Super Coordinators (Phase 3+)"]
+            ProjCoord[ProjectLifecycleCoordinator]
+            HardCoord[HardwareCoordinator]
+            ProcCoord[ProcessingCoordinator]
+            SessCoord[SessionCoordinator]
+            UICoord[UICoordinator]
+            DialogCoord[DialogCoordinator]
         end
 
         StateManager[StateManager<br/>- Estado centralizado<br/>- Padrão Observable<br/>- Thread-safe]
@@ -107,34 +111,29 @@ graph TB
     %% Fluxo do Wizard
     WizardDialog -->|Dados via Adapter| PWAdapter
 
-    %% MainViewModel → Coordinators & Adapters (Delegação Phase 2+)
-    Controller -->|Delega workflows| PWAdapter
-    Controller -->|Delega análise| AnalysisCoord
+    %% MainViewModel → Super Coordinators (Delegação Phase 3)
+    Controller -->|Delega| ProjCoord
+    Controller -->|Delega| HardCoord
+    Controller -->|Delega| ProcCoord
+    Controller -->|Delega| SessCoord
+    Controller -->|Usa| UICoord
+    Controller -->|Usa| DialogCoord
 
     %% Coordinators → Services
-    PWAdapter -->|Usa| ProjectWorkflowService
-    PWAdapter -->|Usa| ProjectManager
-    PWAdapter -->|Publica eventos| EventBus
+    ProjCoord -->|Usa| ProjectWorkflowService
+    ProjCoord -->|Usa| ProjectManager
 
-    AnalysisCoord -->|Usa| AnalysisService
-    AnalysisCoord -->|Usa| VideoProcessingService
-    AnalysisCoord -->|Publica eventos| EventBus
+    ProcCoord -->|Usa| AnalysisService
+    ProcCoord -->|Usa| VideoProcessingService
 
-    %% MainViewModel → Facades (Delegação)
-    Controller -->|Delega gravação| RecFacade
-    Controller -->|Delega zonas| ZoneFacade
-    Controller -->|Delega Arduino| ArduinoFacade
+    HardCoord -->|Usa| Detector
+    HardCoord -->|Usa| ArduinoManager
 
-    %% Facades → StateManager & Services
-    RecFacade -->|Atualiza estado| StateManager
-    RecFacade -->|Usa| RecordingService
-    RecFacade -->|Usa| Recorder
+    SessCoord -->|Usa| RecordingService
 
-    ZoneFacade -->|Atualiza estado| StateManager
-    ZoneFacade -->|Usa| ProjectManager
-
-    ArduinoFacade -->|Atualiza estado| StateManager
-    ArduinoFacade -->|Usa| ArduinoManager
+    %% UI Decoupling (Phase 4)
+    UICoord -.->|Gerencia| AppGUI
+    DialogCoord -->|Usa| UICoord
 
     %% MainViewModel → Model (Orquestração direta)
     Controller -->|Orquestra| ProjectService

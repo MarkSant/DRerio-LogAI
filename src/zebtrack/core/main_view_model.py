@@ -51,7 +51,6 @@ from zebtrack.io.recorder import Recorder
 from zebtrack.orchestrators.ui_state_controller import UIStateController
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
 from zebtrack.ui.events import Events
-from zebtrack.ui.gui import ApplicationGUI
 from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 from zebtrack.utils.hardware_detection import get_hardware_summary, recommend_backend
 
@@ -372,37 +371,28 @@ class MainViewModel:
         self._cancel_feedback_displayed = False
 
     def _init_view(self, view):
-        """Initialize the view and update it with initial state."""
-        # Phase 2: Inversion of Control - view can be injected or created
-        if view is not None:
-            # View was injected (testable pattern)
-            self.view = view
-        else:
-            # Create view after core state is ready so it can reflect it (legacy pattern)
-            self.view = ApplicationGUI(
-                self.root,
-                self,
-                event_bus=self.ui_event_bus if self._use_event_bus else None,
-                settings_obj=self.settings,
-            )
+        """Initialize the view integration.
 
-        # Update GPU hardware display in UI (Phase 7)
+        Phase 4: View is no longer stored in MainViewModel.
+        It interacts solely through EventBus and Coordinators.
+        """
+        # Phase 4: View should be handled by UICoordinator or created in Composition Root
+        # We no longer store self.view
+        self._view_reference = view  # Temporary reference if absolutely needed for legacy bridging
+
+        # Update GPU hardware display in UI via EventBus
         if self.ui_event_bus:
             self.ui_event_bus.publish_event(
                 Events.UI_UPDATE_GPU_INFO, {"hardware_summary": self._hardware_summary}
             )
-        elif hasattr(self.view, "update_gpu_hardware_display"):
-            self.view.update_gpu_hardware_display(self._hardware_summary)
 
-        # Update OpenVINO status if it was recommended but not available due to missing conversion
+        # Update OpenVINO status via EventBus
         if self._recommended_backend == "openvino" and not self.use_openvino:
             status_msg = "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
             if self.ui_event_bus:
                 self.ui_event_bus.publish_event(
                     Events.UI_UPDATE_OPENVINO_STATUS, {"status": status_msg}
                 )
-            elif hasattr(self.view, "update_openvino_status_display"):
-                self.view.update_openvino_status_display(status_msg)
 
     def _init_orchestrators(self, dependencies: MainViewModelDependencies):
         """Initialize all orchestrators and coordinators."""
@@ -530,17 +520,18 @@ class MainViewModel:
 
         # Set View and Root for coordinators that still need UI access (Legacy bridge)
         # In Phase 4, we will move away from direct View access
+        # Note: View is now typically passed via UICoordinator or handled internally
         if self.processing_coordinator:
-            self.processing_coordinator.view = self.view
+            self.processing_coordinator.view = self._view_reference
             self.processing_coordinator.root = self.root
             self.processing_coordinator.detector = self.detector
 
         if self.session_coordinator:
-            self.session_coordinator.view = self.view
+            self.session_coordinator.view = self._view_reference
             self.session_coordinator.root = self.root
 
         if self.hardware_coordinator:
-            self.hardware_coordinator.view = self.view
+            self.hardware_coordinator.view = self._view_reference
             self.hardware_coordinator.root = self.root
             self.hardware_coordinator.set_convert_weight_callback(self._convert_weight_callback_bridge)
 
@@ -783,10 +774,11 @@ class MainViewModel:
     ):
         """Publica eventos de UI em resposta a mudanças no estado de Processamento."""
         if key == "is_processing":
+            # Phase 4: Use generic view update via UICoordinator (which holds view reference)
             if new_value:  # Processamento iniciou
-                self.ui_coordinator.update_view(self.view, "start_analysis_view_mode")
+                self.ui_coordinator.update_view(None, "start_analysis_view_mode")
             else:  # Processamento terminou
-                self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
+                self.ui_coordinator.update_view(None, "stop_analysis_view_mode")
         elif key == "cancel_requested" and new_value:
             self.ui_state_controller._show_cancel_feedback()  # Mostrar feedback de cancelamento imediatamente
 
@@ -806,10 +798,12 @@ class MainViewModel:
         Prompts user for confirmation, stops event bus polling, joins threads,
         and destroys the root window.
         """
-        if self.dialog_coordinator.confirm_exit(self.view):
-            if hasattr(self.view, "stop_event_bus_polling"):
+        if self.dialog_coordinator.confirm_exit(None): # Phase 4: UICoordinator has view
+            # Access view through UICoordinator if needed for stop_event_bus_polling
+            view = self.ui_coordinator.view
+            if view and hasattr(view, "stop_event_bus_polling"):
                 try:
-                    self.view.stop_event_bus_polling()
+                    view.stop_event_bus_polling()
                 except (RuntimeError, OSError) as e:
                     # Expected errors during cleanup (e.g., already stopped, thread issues)
                     log.warning("controller.event_bus.stop_failed", error=str(e), exc_info=True)
@@ -925,12 +919,6 @@ class MainViewModel:
             "controller.register_event_handlers.complete", count=len(self._EVENT_METHOD_MAPPING) + 2
         )
 
-    def _handle_setup_zone_definition_for_single_video(self, data: dict):
-        """Handle the special single video zone definition event."""
-        video_path = data.get("video_path")
-        config = data.get("config")
-        if video_path and config:
-            self.view.setup_zone_definition_for_single_video(video_path, config)
 
     def _handle_project_manager_replaced(self, data: dict):
         """Handle PROJECT_MANAGER_REPLACED event to update all cached references.
@@ -1234,7 +1222,7 @@ class MainViewModel:
         )
 
         # Provide immediate feedback to the user interface
-        self.ui_coordinator.set_status(self.view, "Cancelando análise em andamento...")
+        self.ui_coordinator.set_status(None, "Cancelando análise em andamento...") # Phase 4
         if self.ui_event_bus:
             self.ui_event_bus.publish_event(
                 Events.UI_UPDATE_BUTTON_STATE,
@@ -1242,7 +1230,7 @@ class MainViewModel:
             )
         else:
             self.ui_coordinator.update_view(
-                self.view,
+                None, # Phase 4
                 "update_button_state",
                 "cancel_processing",
                 "disabled",
@@ -1336,7 +1324,7 @@ class MainViewModel:
             list[dict] | None: Videos to process, or None if all should be skipped/added only
         """
         return self.dialog_coordinator.handle_mixed_data_scenario(
-            scanned_videos, self.project_manager, view=self.view
+            scanned_videos, self.project_manager, view=None # Phase 4
         )
 
     def generate_parquet_summaries(self, video_paths: list[str]) -> None:
@@ -1708,9 +1696,10 @@ class MainViewModel:
         """Generate a report from a list of processed videos.
 
         Phase 3: Delegates to AnalysisService, handling UI interaction for path.
+        Phase 4: Use DialogCoordinator for file dialog.
         """
-        # Ask for save path
-        output_path = self.view.ask_save_filename(
+        # Ask for save path via DialogCoordinator (Phase 4)
+        output_path = self.dialog_coordinator.ask_save_filename(
             title="Salvar Relatório",
             defaultextension=".docx",
             initialfile="project_report.docx",

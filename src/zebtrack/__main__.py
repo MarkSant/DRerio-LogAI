@@ -477,14 +477,48 @@ def main():
             session_coordinator=session_coordinator,
         )
 
-        controller = MainViewModel(dependencies=dependencies)
-        log.info("timing.mainviewmodel_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
+        # Phase 4: View creation is now explicit in Composition Root
+        # Create ApplicationGUI first (or alongside Controller)
+        from zebtrack.ui.gui import ApplicationGUI
 
-        # Set view reference in video_processing_service after view is created
-        video_processing_service.view = controller.view
+        # Create MainViewModel (without view initially)
+        controller = MainViewModel(dependencies=dependencies)
+
+        # Create View
+        # Note: ApplicationGUI still expects controller in constructor for legacy reasons
+        # We will refactor ApplicationGUI to remove this dependency in future steps
+        view = ApplicationGUI(
+            root=root,
+            controller=controller,
+            event_bus=event_bus,
+            settings_obj=settings_obj
+        )
+
+        # Wire up Coordinators with View
+        ui_coordinator.view = view
+        # For legacy bridge (will be removed)
+        controller._view_reference = view
+
+        # Update legacy service references to view
+        if hasattr(video_processing_service, "view"):
+            video_processing_service.view = view
+
+        # Also update super coordinators that might need view reference
+        if processing_coordinator:
+            processing_coordinator.view = view
+        if session_coordinator:
+            session_coordinator.view = view
+        if hardware_coordinator:
+            hardware_coordinator.view = view
+
+        log.info("timing.mainviewmodel_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # Bind events
         controller.bind_events()
+
+        # Phase 4: Ensure View is ready to receive events
+        if hasattr(view, "start_event_bus_polling"):
+             view.start_event_bus_polling()
 
         # Close splash and show main window
         splash.update_status("Pronto!")

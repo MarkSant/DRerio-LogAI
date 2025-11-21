@@ -222,5 +222,13 @@ class Events:
     UI_REQUEST_WEIGHT_ACTION = "ui:request_weight_action"
     UI_OPEN_MANAGE_WEIGHTS_DIALOG = "ui:open_manage_weights_dialog"
 
+    # Setup View
+    UI_SETUP_ZONE_DEFINITION_FOR_SINGLE_VIDEO = "ui:setup_zone_definition_for_single_video"
+
+    # Dialog Requests (for synchronous-like behavior via EventBus)
+    # Note: These might require a callback mechanism or separate response event
+    UI_REQUEST_SAVE_FILENAME = "ui:request_save_filename"
+    UI_REQUEST_CONFIRMATION = "ui:request_confirmation"
+
 
 __all__ = ["Events"]

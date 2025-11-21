@@ -45,10 +45,11 @@ class UIStateController:
         self.main_view_model = main_view_model
 
         # Cache frequently used attributes from MainViewModel
-        self.view = main_view_model.view
+        # Phase 4: Get view from UICoordinator or bridge if needed
+        self.ui_coordinator = main_view_model.ui_coordinator
+        self.view = self.ui_coordinator.view if self.ui_coordinator else None
         self.root = main_view_model.root
         self.state_manager = main_view_model.state_manager
-        self.ui_coordinator = main_view_model.ui_coordinator
         self.ui_event_bus = main_view_model.ui_event_bus
         self.project_manager = main_view_model.project_manager
         self.weight_manager = main_view_model.weight_manager
