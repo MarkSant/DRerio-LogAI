@@ -204,7 +204,9 @@ class ApplicationGUI:
         self.polygon_drawing_service = PolygonDrawingService()
 
         # Phase 4 components
-        self.roi_template_manager = ROITemplateManager(self)
+        self.roi_template_manager = ROITemplateManager(
+            self.controller.project_manager, self
+        )
 
         # Phase 5 components
         self.tab_builder = TabBuilder(self)

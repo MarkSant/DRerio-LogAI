@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from zebtrack.core.video_metadata_service import VideoMetadataService
+
 if TYPE_CHECKING:
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
@@ -37,6 +39,7 @@ class DialogCoordinator:
         event_bus: "EventBus | None",
         state_manager: "StateManager",
         project_manager: "ProjectManager | None" = None,
+        video_metadata_service: VideoMetadataService | None = None,
     ):
         """Inicializa o coordenador de diálogos.
 
@@ -45,11 +48,13 @@ class DialogCoordinator:
             event_bus: Bus de eventos (opcional)
             state_manager: Gerenciador de estado
             project_manager: Gerenciador de projetos (opcional, mas necessário para validação de zonas)
+            video_metadata_service: Serviço de metadados de vídeo (opcional)
         """
         self.ui_coordinator = ui_coordinator
         self.event_bus = event_bus
         self.state_manager = state_manager
         self.project_manager = project_manager
+        self.video_metadata_service = video_metadata_service or VideoMetadataService()
         self.log = structlog.get_logger()
 
     def confirm_exit(self) -> bool:
@@ -227,20 +232,21 @@ class DialogCoordinator:
                     return False
 
                 # Create default arena based on first video
-                # WARNING: This logic creates dependency on CV2 which might not be ideal in dialog coordinator
-                # But for now we move logic as is
                 first_video = self.project_manager.get_next_video()
                 if first_video:
                     try:
-                        import cv2
-                        cap = cv2.VideoCapture(first_video)
-                        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                        cap.release()
+                        # Use VideoMetadataService to get dimensions
+                        dimensions = self.video_metadata_service.get_video_dimensions(
+                            first_video
+                        )
+                        if not dimensions:
+                            self.show_error("Erro", "Não foi possível obter dimensões do vídeo")
+                            return False
 
+                        width, height = dimensions
                         default_arena = [[0, 0], [width, 0], [width, height], [0, height]]
 
-                        # We need to update project manager directly since we don't have controller ref
+                        # Update project manager with default arena
                         zone_data.polygon = default_arena
                         self.project_manager.save_zone_data(zone_data)
 
@@ -251,6 +257,7 @@ class DialogCoordinator:
 
                         if self.event_bus:
                             from zebtrack.ui.events import Events
+
                             self.event_bus.publish_event(
                                 Events.UI_SHOW_INFO,
                                 {
@@ -262,7 +269,9 @@ class DialogCoordinator:
                             # Trigger redraw
                             self.event_bus.publish_event(Events.UI_REDRAW_ZONES)
                     except Exception as e:
-                        self.show_error("Erro", f"Não foi possível criar arena padrão: {e}")
+                        self.show_error(
+                            "Erro", f"Não foi possível criar arena padrão: {e}"
+                        )
                         return False
                 else:
                     self.show_error("Erro", "Nenhum vídeo encontrado no projeto")

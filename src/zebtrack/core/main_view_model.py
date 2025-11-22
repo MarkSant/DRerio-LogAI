@@ -363,6 +363,10 @@ class MainViewModel:
             elif mode == "positional_optional":
                 args = [data.get(param) for param in param_names]
                 method(*args)
+            else:
+                raise NotImplementedError(
+                    f"Unknown event dispatcher mode '{mode}' for event '{event_name}'"
+                )
 
         return dispatcher
 
@@ -407,13 +411,21 @@ class MainViewModel:
             if service and hasattr(service, "_on_project_manager_replaced"):
                 try:
                     service._on_project_manager_replaced(data)
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.error(
+                        "main_view_model.project_manager_replaced.service_update_failed",
+                        service=name,
+                        error=str(e),
+                    )
             elif service and hasattr(service, "project_manager"):
                 try:
                     service.project_manager = new_manager
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.error(
+                        "main_view_model.project_manager_replaced.direct_update_failed",
+                        service=name,
+                        error=str(e),
+                    )
 
     def log_arduino_event(self, message: str):
         self.hardware_coordinator.log_arduino_event(message)

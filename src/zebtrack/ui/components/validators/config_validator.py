@@ -4,7 +4,6 @@ Configuration Validator.
 Handles validation of application configuration settings and UI form values.
 """
 
-from typing import Any
 from pydantic import ValidationError
 from zebtrack.settings import Settings
 

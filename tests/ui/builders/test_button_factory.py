@@ -2,9 +2,8 @@
 Tests for ButtonFactory builder.
 """
 
-import tkinter as tk
 from unittest.mock import Mock, patch
-import pytest
+
 from zebtrack.ui.builders.button_factory import ButtonFactory
 
 class TestButtonFactory:

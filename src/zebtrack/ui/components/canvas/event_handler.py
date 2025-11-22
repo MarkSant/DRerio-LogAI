@@ -6,9 +6,6 @@ polygon editing, and navigation.
 """
 
 import structlog
-from tkinter import ttk
-import numpy as np
-import cv2
 
 from zebtrack.utils.geometry_service import GeometryService
 

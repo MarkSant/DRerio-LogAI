@@ -1,7 +1,7 @@
 """Tests for CanvasManager component."""
 
 from tkinter import Canvas
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest

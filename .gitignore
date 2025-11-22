@@ -70,6 +70,7 @@ weights_config.json
 config.local.yaml
 *.local.yaml
 .claude/settings.local.json
+.mcp.json
 
 # Debug and temporary artifacts
 debug/

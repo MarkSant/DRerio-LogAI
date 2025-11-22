@@ -11,9 +11,8 @@ import cv2
 import numpy as np
 import structlog
 import ttkbootstrap as ttk
-from PIL import Image, ImageTk
+from PIL import Image
 
-from zebtrack.utils.geometry_service import GeometryService
 from zebtrack.ui.components.canvas.renderer import CanvasRenderer
 from zebtrack.ui.components.canvas.event_handler import CanvasEventHandler
 

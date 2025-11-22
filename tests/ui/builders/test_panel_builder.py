@@ -2,9 +2,8 @@
 Tests for PanelBuilder builder.
 """
 
-import tkinter as tk
 from unittest.mock import Mock, patch
-import pytest
+
 from zebtrack.ui.builders.panel_builder import PanelBuilder
 
 class TestPanelBuilder:

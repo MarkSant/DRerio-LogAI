@@ -81,7 +81,6 @@ class GeometryService:
             axis_dist = np.sqrt((canvas_x - axis_snap[0])**2 + (canvas_y - axis_snap[1])**2)
             if axis_dist < min_distance:
                 closest_point = axis_snap
-                min_distance = axis_dist
 
         return closest_point
 
