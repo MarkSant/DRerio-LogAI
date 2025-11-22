@@ -17,14 +17,33 @@ class ZoneControlBuilder:
     Builder for creating zone configuration and drawing widgets.
     """
 
-    def __init__(self, gui):
+    def __init__(self, gui, event_bus_v2=None):
         """
         Initialize ZoneControlBuilder.
 
         Args:
             gui: Reference to ApplicationGUI instance
+            event_bus_v2: EventBusV2 instance for v4.0 Event-Driven Architecture (optional)
         """
         self.gui = gui
+        self.event_bus_v2 = event_bus_v2
+
+    def _refresh_video_tree_dual_mode(self, filter_text: str | None = None):
+        """Refresh video tree using dual mode (OLD + NEW paths).
+
+        Args:
+            filter_text: Optional filter text for video tree
+        """
+        # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
+        self.gui._populate_video_selector_tree(filter_text)  # OLD PATH - will be removed in v4.0
+
+        if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+            self.event_bus_v2.publish(Event(
+                type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                data={'filter_text': filter_text},
+                source='ZoneControlBuilder._refresh_video_tree_dual_mode'
+            ))
 
     def create_zone_control_widgets(self) -> None:
         """
@@ -237,7 +256,7 @@ class ZoneControlBuilder:
             search_frame,
             text="🔄",
             width=3,
-            command=lambda: self.gui._populate_video_selector_tree(),
+            command=lambda: self._refresh_video_tree_dual_mode(),
         ).pack(side="left")
 
         tree_container = ttk.Frame(video_selector_frame)
@@ -292,7 +311,7 @@ class ZoneControlBuilder:
             foreground="gray",
         ).pack(anchor="w")
 
-        self.gui._populate_video_selector_tree()
+        self._refresh_video_tree_dual_mode()
 
         # --- Zone List ---
         zone_list_frame = ttk.LabelFrame(

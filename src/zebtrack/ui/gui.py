@@ -52,6 +52,7 @@ from zebtrack.ui.components import (
     WidgetFactory,
 )
 from zebtrack.ui.decorators import deprecated, public_api
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
     CenterPeripheryDialog,
@@ -179,6 +180,10 @@ class ApplicationGUI:
         self._event_bus_after_id: int | None = None
         self._event_bus_poll_interval_ms = 50
         self._event_bus_handlers: dict[str, Callable[[Any], None]] = {}
+
+        # Initialize Event Bus V2 for Event-Driven Architecture (v4.0)
+        self.event_bus_v2 = EventBusV2()
+
         self.root.title("DRerio LogAI")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 
@@ -189,30 +194,30 @@ class ApplicationGUI:
         # Initialize component managers (extracted from God Object)
         # Phase 1 components
         self.menu_manager = MenuManager(self)
-        self.canvas_manager = CanvasManager(self)
+        self.canvas_manager = CanvasManager(self, event_bus_v2=self.event_bus_v2)
         self.state_synchronizer = StateSynchronizer(self)
         self.event_dispatcher = EventDispatcher(self)
 
         # Phase 2 components (with dependency injection)
         self.validation_manager = ValidationManager(self, settings_obj=self.settings)
-        self.dialog_manager = DialogManager(self)
+        self.dialog_manager = DialogManager(self, event_bus_v2=self.event_bus_v2)
         self.widget_factory = WidgetFactory(self, settings_obj=self.settings)
-        self.project_view_manager = ProjectViewManager(self)
+        self.project_view_manager = ProjectViewManager(self, event_bus_v2=self.event_bus_v2)
 
         # Phase 3 components
         self.drawing_state_manager = DrawingStateManager()
-        self.polygon_drawing_service = PolygonDrawingService()
+        self.polygon_drawing_service = PolygonDrawingService(event_bus_v2=self.event_bus_v2)
 
         # Phase 4 components
         self.roi_template_manager = ROITemplateManager(
-            self.controller.project_manager, self
+            self.controller.project_manager, self, event_bus_v2=self.event_bus_v2
         )
 
         # Phase 5 components
         self.tab_builder = TabBuilder(self)
 
         # Phase 5 builders (zone control widgets, buttons, panels)
-        self.zone_control_builder = ZoneControlBuilder(self)
+        self.zone_control_builder = ZoneControlBuilder(self, event_bus_v2=self.event_bus_v2)
         self.button_factory = ButtonFactory(self)
         self.panel_builder = PanelBuilder(self)
 
@@ -926,17 +931,26 @@ class ApplicationGUI:
         )
 
     @deprecated(
-        reason="Use Event Bus instead",
+        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
         version="v3.1",
-        alternative="event_bus.publish(Events.UI_SETUP_INTERACTIVE_POLYGON, ...)",
+        alternative="event_bus_v2.publish(Event(UIEvents.POLYGON_EDIT_REQUESTED, {'polygon': polygon}))",
     )
     @public_api
     def setup_interactive_polygon(self, polygon: np.ndarray):
         """Set up interactive polygon for editing (PUBLIC API).
 
+        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
+
         Called by: CanvasManager when loading zones for editing
         """
-        return self.event_dispatcher.setup_interactive_polygon(polygon)
+        # LEGACY IMPLEMENTATION: This method is deprecated and will be removed in v4.0
+        # The actual implementation is now in CanvasManager._on_polygon_edit_requested()
+        # which is triggered by the POLYGON_EDIT_REQUESTED event.
+        # This method is kept only for backward compatibility during dual mode migration.
+        import structlog
+        log = structlog.get_logger()
+        log.warning("gui.setup_interactive_polygon.deprecated_call",
+                    message="This method is deprecated. Use Event Bus V2 (POLYGON_EDIT_REQUESTED) instead.")
 
     def _on_handle_press(self, event, handle_index):
         """Record which handle is being dragged and initial offset."""
@@ -1083,9 +1097,17 @@ class ApplicationGUI:
         """Format status token. Delegates to ValidationManager."""
         return self.validation_manager.format_status_token(has_parquet, symbol_key)
 
+    @deprecated(
+        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
+        version="v3.1",
+        alternative="event_bus_v2.publish(Event(UIEvents.VIDEO_TREE_REFRESH_REQUESTED, {'filter_text': filter_text}))",
+    )
     @public_api
     def _populate_video_selector_tree(self, filter_text: str | None = None):
-        """Populate video selector tree. Delegates to ProjectViewManager."""
+        """Populate video selector tree. Delegates to ProjectViewManager.
+
+        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
+        """
         return self.project_view_manager._populate_video_selector_tree(filter_text)
 
     def _refresh_video_selector_tree(self) -> None:
@@ -1141,6 +1163,11 @@ class ApplicationGUI:
             return
         self._populate_video_selector_tree(self.video_search_var.get())
 
+    @deprecated(
+        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
+        version="v3.1",
+        alternative="event_bus_v2.publish(Event(UIEvents.READINESS_SNAPSHOT_UPDATED, {...}))",
+    )
     @public_api
     def apply_pending_readiness_snapshot(
         self,
@@ -1151,6 +1178,8 @@ class ApplicationGUI:
         without_arena: list[dict],
     ) -> None:
         """Apply video readiness snapshot to UI (PUBLIC API).
+
+        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
 
         Called by: DialogManager after zone reuse operations
         """
@@ -1737,16 +1766,18 @@ class ApplicationGUI:
             self.canvas_manager.stop_drawing()
 
     @deprecated(
-        reason="Use Event Bus instead",
+        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
         version="v3.1",
-        alternative="event_bus.publish(Events.UI_UPDATE_ZONE_LIST, ...)",
+        alternative="event_bus_v2.publish(Event(UIEvents.ZONES_UPDATED, {'zone_data': zone_data}))",
     )
     @public_api
     def update_zone_listbox(self, zone_data: ZoneData | None = None):
         """Update zone listbox with current zones (PUBLIC API).
 
+        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
+
         Called by: DialogManager, Renderer, PolygonDrawingService,
-                   ROITemplateManager, ZoneControlBuilder
+                   ROITemplateManager
         """
         return self.canvas_manager.update_zone_listbox(zone_data)
 
