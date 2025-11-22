@@ -55,8 +55,10 @@ def create_test_controller(root, **overrides):
     Returns:
         MainViewModel instance with mocked dependencies
     """
-    from unittest.mock import patch
+    from unittest.mock import MagicMock
 
+    from zebtrack.core.application_bootstrapper import BootstrapResult
+    from zebtrack.core.dependency_container import MainViewModelDependencies
     from zebtrack.core.main_view_model import MainViewModel
     from zebtrack.core.project_workflow_service import ProjectWorkflowService
 
@@ -89,6 +91,15 @@ def create_test_controller(root, **overrides):
         "model_service": model_service,
         "detector_service": overrides.get("detector_service", MagicMock()),
         "video_processing_service": overrides.get("video_processing_service", MagicMock()),
+        "root": root,
+        "test_sync_event": overrides.get("test_sync_event", None),
+        # Add other dependencies required by MainViewModelDependencies
+        "project_lifecycle_coordinator": overrides.get("project_lifecycle_coordinator", MagicMock()),
+        "hardware_coordinator": overrides.get("hardware_coordinator", MagicMock()),
+        "processing_coordinator": overrides.get("processing_coordinator", MagicMock()),
+        "session_coordinator": overrides.get("session_coordinator", MagicMock()),
+        "recording_coordinator": overrides.get("recording_coordinator", MagicMock()),
+        "live_camera_service": overrides.get("live_camera_service", MagicMock()),
     }
 
     # Configure common mock behaviors
@@ -116,16 +127,109 @@ def create_test_controller(root, **overrides):
             "aquarium_height_cm": 10.0,
         }
 
-    # Mock ApplicationGUI to avoid Tkinter initialization issues in tests
-    with patch("zebtrack.core.main_view_model.ApplicationGUI") as MockGUI:
-        mock_view = MockGUI.return_value
+    # Create Dependencies Container
+    dependencies = MainViewModelDependencies(**defaults)
 
-        # Support test_sync_event if provided (for integration tests)
-        test_sync_event = overrides.get("test_sync_event", None)
-        if test_sync_event is not None:
-            controller = MainViewModel(root, test_sync_event=test_sync_event, **defaults)
-        else:
-            controller = MainViewModel(root, **defaults)
+    # Determine if we need real orchestrators (circular dependency handling)
+    use_real_project_orchestrator = overrides.get("use_real_project_orchestrator", False)
 
-        controller.view = mock_view  # Ensure view is the mock
-        return controller
+    if use_real_project_orchestrator:
+        # Create proxy
+        controller = MainViewModel.__new__(MainViewModel)
+
+        # Populate proxy with dependencies required by ProjectOrchestrator.__init__
+        controller.state_manager = state_manager
+        controller.project_manager = project_manager
+        controller.ui_coordinator = ui_coordinator
+        controller.root = root
+        controller.settings = settings_obj
+        controller.ui_event_bus = defaults["event_bus"]
+        controller.project_workflow_service = project_workflow_service
+        controller.video_processing_service = defaults["video_processing_service"]
+
+        # We also need project_workflow_adapter for ProjectOrchestrator
+        # If not provided, create a real one (or mock if preferred, but usually real for this flag)
+        project_workflow_adapter = overrides.get("project_workflow_adapter")
+        if not project_workflow_adapter:
+            from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
+            project_workflow_adapter = ProjectWorkflowAdapter(
+                project_workflow_service=project_workflow_service,
+                project_manager=project_manager,
+                detector_service=defaults["detector_service"],
+                state_manager=state_manager,
+                ui_event_bus=defaults["event_bus"],
+            )
+        controller.project_workflow_adapter = project_workflow_adapter
+
+        # Mock other things needed by ProjectOrchestrator.__init__ if any
+        # VideoProcessingOrchestrator is needed
+        video_processing_orchestrator = overrides.get("video_processing_orchestrator", MagicMock())
+        controller.video_processing_orchestrator = video_processing_orchestrator
+
+        # View is needed too? ProjectOrchestrator init accesses main_view_model.view
+        # We should set it to a mock
+        controller.view = MagicMock()
+
+        # Create Real ProjectOrchestrator
+        from zebtrack.orchestrators.project_orchestrator import ProjectOrchestrator
+        project_orchestrator = ProjectOrchestrator(controller)
+
+    else:
+        project_orchestrator = overrides.get("project_orchestrator", MagicMock())
+        project_workflow_adapter = overrides.get("project_workflow_adapter", MagicMock())
+        video_processing_orchestrator = overrides.get("video_processing_orchestrator", MagicMock())
+
+    # Create BootstrapResult Mock
+    bootstrap_result = BootstrapResult(
+        project_service=overrides.get("project_service", MagicMock()),
+        analysis_service=overrides.get("analysis_service", MagicMock()),
+        video_classification_service=overrides.get("video_classification_service", MagicMock()),
+        video_selection_service=overrides.get("video_selection_service", MagicMock()),
+        video_validation_service=overrides.get("video_validation_service", MagicMock()),
+        batch_configuration_service=overrides.get("batch_configuration_service", MagicMock()),
+        thread_coordinator=overrides.get("thread_coordinator", MagicMock()),
+        dialog_coordinator=overrides.get("dialog_coordinator", MagicMock()),
+        event_dispatcher=overrides.get("event_dispatcher", MagicMock()),
+        active_weight_name="best_seg.pt",
+        use_openvino=False,
+        hardware_summary={},
+        recommended_backend="CPU",
+        recorder=overrides.get("recorder", MagicMock()),
+        arduino_manager=overrides.get("arduino_manager", MagicMock()),
+        frame_queue=overrides.get("frame_queue", MagicMock()),
+        video_queue=overrides.get("video_queue", MagicMock()),
+        program_exit_event=overrides.get("program_exit_event", MagicMock()),
+        cancel_event=overrides.get("cancel_event", MagicMock()),
+        view=MagicMock(),  # Added missing view argument
+        video_processing_orchestrator=video_processing_orchestrator,
+        analysis_orchestrator=overrides.get("analysis_orchestrator", MagicMock()),
+        recording_session_orchestrator=overrides.get("recording_session_orchestrator", MagicMock()),
+        project_orchestrator=project_orchestrator,
+        ui_state_controller=overrides.get("ui_state_controller", MagicMock()),
+        model_diagnostics_orchestrator=overrides.get("model_diagnostics_orchestrator", MagicMock()),
+        zone_arena_orchestrator=overrides.get("zone_arena_orchestrator", MagicMock()),
+        processing_config_orchestrator=overrides.get("processing_config_orchestrator", MagicMock()),
+        calibration_orchestrator=overrides.get("calibration_orchestrator", MagicMock()),
+        legacy_coordinators={
+            "detector_coordinator": overrides.get("detector_coordinator", MagicMock()),
+            "video_orchestrator": overrides.get("video_orchestrator", MagicMock()),
+            "analysis_coordinator": overrides.get("analysis_coordinator", MagicMock()),
+            "project_coordinator": overrides.get("project_coordinator", MagicMock()),
+            "recording_coordinator": overrides.get("recording_coordinator", MagicMock()),
+            "live_camera_coordinator": overrides.get("live_camera_coordinator", MagicMock()),
+        },
+        orchestrators=overrides.get("orchestrators", MagicMock()),
+        project_workflow_adapter=project_workflow_adapter,
+    )
+
+    if use_real_project_orchestrator:
+        # Initialize the proxy
+        controller.__init__(dependencies, bootstrap_result)
+        # View might be overwritten by init, ensure it's set
+        if not hasattr(controller, 'view') or controller.view is None:
+             controller.view = MagicMock()
+    else:
+        controller = MainViewModel(dependencies, bootstrap_result)
+        controller.view = MagicMock()  # Manually assign mock view as it's no longer in init
+
+    return controller

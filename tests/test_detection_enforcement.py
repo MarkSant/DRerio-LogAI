@@ -31,6 +31,7 @@ def test_detection_mode_with_multiple_animals_blocked():
             settings_obj=mock_settings,
             project_manager=mock_pm,
             event_bus=mock_event_bus,
+            use_real_project_orchestrator=True,
         )
 
         # Try to create project with multiple animals per aquarium
@@ -89,7 +90,10 @@ def test_detection_mode_with_single_animal_allowed():
 
         # Create controller using factory with project_manager override
         controller = create_test_controller(
-            root=mock_root, settings_obj=mock_settings, project_manager=mock_pm
+            root=mock_root,
+            settings_obj=mock_settings,
+            project_manager=mock_pm,
+            use_real_project_orchestrator=True,
         )
 
         # Mock setup_detector to succeed
@@ -131,7 +135,10 @@ def test_segmentation_mode_with_multiple_animals_allowed():
 
         # Create controller using factory with project_manager override
         controller = create_test_controller(
-            root=mock_root, settings_obj=mock_settings, project_manager=mock_pm
+            root=mock_root,
+            settings_obj=mock_settings,
+            project_manager=mock_pm,
+            use_real_project_orchestrator=True,
         )
 
         # Mock setup_detector to succeed

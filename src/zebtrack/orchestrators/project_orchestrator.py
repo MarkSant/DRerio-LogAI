@@ -50,7 +50,6 @@ class ProjectOrchestrator:
         self.ui_event_bus = main_view_model.ui_event_bus
         self.project_workflow_adapter = main_view_model.project_workflow_adapter
         self.project_workflow_service = main_view_model.project_workflow_service
-        self.video_processing_service = main_view_model.video_processing_service
         self.video_processing_orchestrator = main_view_model.video_processing_orchestrator
 
     # ========================================================================

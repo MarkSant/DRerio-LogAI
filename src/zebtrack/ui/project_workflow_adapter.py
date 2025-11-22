@@ -135,7 +135,6 @@ class ProjectWorkflowAdapter:
             apply_wizard_overrides_callback: Callback to apply wizard detector overrides
             view_suppress_guide_check: Optional callback to check if guide suppression is enabled
             **kwargs: Additional arguments for project creation
-
         Returns:
             True if project created successfully, False otherwise
         """

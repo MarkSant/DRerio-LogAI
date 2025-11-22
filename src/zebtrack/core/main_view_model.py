@@ -444,6 +444,24 @@ class MainViewModel:
 
         self.project_manager.set_active_zone_video(str(video_path))
 
+        # Validation: Check detection mode constraints
+        animal_method = config.get("animal_method", self.settings.model_selection.animal_method)
+        animals_per_aquarium = config.get("animals_per_aquarium", 1)
+
+        if animal_method == "det" and animals_per_aquarium > 1:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Configuração Inválida",
+                    "message": (
+                        f"O modo de detecção (det) suporta apenas 1 animal por aquário.\n"
+                        f"Você configurou {animals_per_aquarium} animais por aquário.\n"
+                        "Para múltiplos animais, use o modo de segmentação (seg)."
+                    ),
+                },
+            )
+            return
+
         use_openvino = config.get("use_openvino", self.settings.model_selection.use_openvino)
         self.use_openvino = use_openvino
 
@@ -533,3 +551,26 @@ class MainViewModel:
     @contextmanager
     def _temporary_single_animal_mode(self, single_video_config):
         yield
+
+    def _apply_wizard_detector_overrides(self, wizard_metadata: dict):
+        """
+        Apply detector overrides from wizard metadata.
+
+        Delegates to DetectorCoordinator.
+        """
+        if not wizard_metadata:
+            return
+
+        # Map wizard keys to detector parameters
+        overrides = {}
+        # Example mapping - adjust based on actual wizard metadata structure
+        if "conf_threshold" in wizard_metadata:
+            overrides["track_threshold"] = float(wizard_metadata["conf_threshold"])
+        if "iou_threshold" in wizard_metadata:
+            overrides["match_threshold"] = float(wizard_metadata["iou_threshold"])
+
+        if overrides and self.detector_coordinator:
+            self.detector_coordinator.update_detector_parameters(
+                params=overrides,
+                scope="project"
+            )
