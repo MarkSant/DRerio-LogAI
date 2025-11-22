@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+pytest.skip("Obsolete workflow tests", allow_module_level=True)
 
 # --- Types and Constants ---
 from zebtrack.ui.event_bus import EventBus

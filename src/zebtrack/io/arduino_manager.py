@@ -37,7 +37,7 @@ class ArduinoManager:
         self.arduino: Arduino | None = None
         self._reader_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._port: str | None = None
         self._baud_rate: int | None = None
         self._last_command: int | None = None
