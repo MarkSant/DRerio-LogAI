@@ -32,6 +32,7 @@ except ImportError:  # pragma: no cover - optional dependency fallback
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.io.camera import Camera
+from zebtrack.ui.builders import ButtonFactory, PanelBuilder, ZoneControlBuilder
 from zebtrack.ui.components import (
     AnalysisDisplayWidget,
     ArduinoDashboardWidget,
@@ -48,10 +49,9 @@ from zebtrack.ui.components import (
     StateSynchronizer,
     TabBuilder,
     ValidationManager,
-    VideoDisplayWidget,
     WidgetFactory,
-    ZoneControlsWidget,
 )
+from zebtrack.ui.decorators import public_api
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
     CenterPeripheryDialog,
@@ -209,6 +209,11 @@ class ApplicationGUI:
         # Phase 5 components
         self.tab_builder = TabBuilder(self)
 
+        # Phase 5 builders (zone control widgets, buttons, panels)
+        self.zone_control_builder = ZoneControlBuilder(self)
+        self.button_factory = ButtonFactory(self)
+        self.panel_builder = PanelBuilder(self)
+
         # Create menu bar
         self.menu_manager.create_menu_bar()
 
@@ -284,16 +289,6 @@ class ApplicationGUI:
         self.analysis_display_widget: AnalysisDisplayWidget | None = None
         self._active_processing_mode = ProcessingMode.MULTI_TRACK
 
-        # Maintain backward compatibility aliases (will be removed later)
-        self.video_label: Label | None = None
-        self.progress_frame: ttk.Frame | None = None
-        self.progress_bar = None
-        self.progress_labels: dict[str, StringVar] = {}
-        self.cancel_proc_btn: ttk.Button | None = None
-        self.tracking_mode_var = StringVar(value="Modo de rastreamento: Multi-Track")
-        self.track_selector_var = StringVar(value="Todos")
-        self.track_selector_widget: ttk.Combobox | None = None
-        self.social_summary_var = StringVar(value="Interações sociais: aguardando dados.")
         self._available_track_options: tuple[str, ...] = ("Todos",)
         self._current_detections: list[tuple] = []
         self._last_analysis_frame = None
@@ -369,7 +364,7 @@ class ApplicationGUI:
         self.update_openvino_status_display(self.controller.get_openvino_status())
 
         self._configure_styles()
-        self._create_welcome_frame()
+        self.widget_factory.create_welcome_frame()
 
         log.info("gui.init.event_bus_setup", has_event_bus=self.event_bus is not None)
         if self.event_bus is not None:
@@ -387,15 +382,7 @@ class ApplicationGUI:
         # Subscribe to StateManager state changes for reactive UI updates
         self.state_synchronizer.subscribe_to_state_changes()
 
-    def _build_status_icon_legend(self, *, include_summary: bool = False) -> str:
-        """Build status icon legend. Delegates to WidgetFactory."""
-        return self.widget_factory.build_status_icon_legend_simple(include_summary=include_summary)
-
     # --- Event bus helpers -------------------------------------------------
-
-    def _poll_event_bus(self) -> None:
-        """Poll event bus. Delegates to EventDispatcher."""
-        return self.event_dispatcher.poll_event_bus()
 
     @staticmethod
     def _extract_setting(root: Any, path: tuple[str, ...], default: Any) -> Any:
@@ -416,10 +403,6 @@ class ApplicationGUI:
 
         return ValidationManager._deep_merge_dicts(base, override)
 
-    def _get_zone_summary_helper_text(self) -> str:
-        """Get zone summary helper text. Delegates to WidgetFactory."""
-        return self.widget_factory.get_zone_summary_helper_text()
-
     def _cleanup_single_analysis_button(self):
         """Destroys the single analysis button if it exists."""
         if (
@@ -437,25 +420,6 @@ class ApplicationGUI:
             except Exception:
                 pass
 
-    def _update_window_title(self, project_name: str | None = None):
-        """
-        Update the window title with optional project name.
-
-        Delegates to ProjectViewManager.
-
-        Args:
-            project_name: Name of the current project, or None for default title
-        """
-        return self.project_view_manager.update_window_title(project_name)
-
-    def _display_welcome_logo(self):
-        """Display the DRerio LogAI logo in the welcome frame. Delegates to WidgetFactory."""
-        return self.widget_factory.display_welcome_logo()
-
-    def _create_welcome_frame(self):
-        """Create welcome frame. Delegates to WidgetFactory."""
-        return self.widget_factory.create_welcome_frame()
-
     def _reset_analysis_widgets(self) -> None:
         """Encapsula a limpeza e destruição de widgets da aba de análise."""
         # Break the cleanup into smaller helpers to reduce cognitive complexity
@@ -464,14 +428,6 @@ class ApplicationGUI:
         self.state_synchronizer._reset_roi_and_visual_frames()
         self.state_synchronizer._destroy_notebook_and_main_controls()
         self.analysis_tab_frame = None
-
-    def _build_project_actions(self, parent) -> None:
-        """Create the project actions controls. Delegates to WidgetFactory."""
-        return self.widget_factory.build_project_actions(parent)
-
-    def _build_model_status(self, parent) -> None:
-        """Create the model status display. Delegates to WidgetFactory."""
-        return self.widget_factory.build_model_status(parent)
 
     def _initialize_theme(self) -> None:
         """Apply a modern ttkbootstrap theme if the library is available."""
@@ -578,10 +534,6 @@ class ApplicationGUI:
             self._ttkbootstrap_style = None
             self._ttkbootstrap_theme = None
 
-    def _configure_styles(self) -> None:
-        """Configure custom styles. Delegates to WidgetFactory."""
-        return self.widget_factory.configure_styles()
-
     def _open_global_calibration_window(self):
         with self.controller.global_calibration_session():
             CalibrationDialog(self.root, self.controller)
@@ -635,13 +587,13 @@ class ApplicationGUI:
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
 
         # Create the tabs
-        self._create_main_controls_tab()
+        self.tab_builder.build_main_controls_tab()
         if self.controller.project_manager.get_project_type() == "live":
-            self._create_progress_grid_tab()
+            self.widget_factory.create_progress_grid_tab()
         self._create_roi_analysis_tab()
-        self._create_processing_reports_tab()  # New unified tab
+        self.tab_builder.build_processing_reports_tab()  # New unified tab
         self._create_analysis_tab_widget()
-        self._create_configuration_tab_widget()
+        self.tab_builder.build_configuration_tab()
 
         # Status frame below the notebook
         project_type_str = self.controller.project_manager.get_project_type()
@@ -664,14 +616,6 @@ class ApplicationGUI:
         # Ensure analysis UI starts hidden
         self.hide_progress_bar()
 
-    def _create_configuration_tab_widget(self) -> None:
-        """Create the configuration tab. Delegates to TabBuilder."""
-        return self.tab_builder.build_configuration_tab()
-
-    def _reload_config_editor_values_widget(self) -> None:
-        """Load current settings into ConfigEditorWidget. Delegates to WidgetFactory."""
-        return self.widget_factory.reload_config_editor_values()
-
     def _on_reset_global_config_form_widget(self) -> None:
         """Reset ConfigEditorWidget form fields to reflect current settings object."""
         self._reload_config_editor_values_widget()
@@ -680,23 +624,11 @@ class ApplicationGUI:
             "Valores restaurados para refletir as configurações atuais.",
         )
 
-    def _on_save_global_config_from_widget(self, values: dict) -> None:
-        """Validate and save config from ConfigEditorWidget. Delegates to ValidationManager."""
-        return self.validation_manager.save_global_config_from_widget(values)
-
     def _on_roi_rule_change_widget(self, rule: str) -> None:
         """Handle ROI rule change from ConfigEditorWidget."""
         # This widget doesn't need conditional UI updates (unlike the zones tab)
         # But we keep this handler for future extensions
         pass
-
-    def _create_main_controls_tab(self):
-        """Create the tab with the main project controls. Delegates to TabBuilder."""
-        return self.tab_builder.build_main_controls_tab()
-
-    def _create_project_overview_panel(self, parent: ttk.Frame) -> None:
-        """Create the project overview panel. Delegates to WidgetFactory."""
-        return self.widget_factory.create_project_overview_panel(parent)
 
     def _navigate_to_processing_reports_tab(self) -> None:
         """Navigate to the Processing and Reports tab."""
@@ -713,10 +645,6 @@ class ApplicationGUI:
 
         log.warning("gui.navigate.processing_reports_tab_not_found")
 
-    def _get_status_meta(self, status_key: str) -> tuple[str, str]:
-        """Get status metadata. Delegates to ProjectViewManager."""
-        return self.project_view_manager._get_status_meta(status_key)
-
     def _request_overview_refresh(
         self,
         reason: str | None = None,
@@ -731,6 +659,7 @@ class ApplicationGUI:
             immediate=immediate,
         )
 
+    @public_api
     def refresh_project_views(
         self,
         reason: str | None = None,
@@ -738,20 +667,15 @@ class ApplicationGUI:
         append_summary: bool = False,
         immediate: bool = False,
     ) -> None:
-        """Refresh overview, pipeline, and reports panels. Delegates to ProjectViewManager."""
+        """Refresh overview, pipeline, and reports panels (PUBLIC API).
+
+        Called by: orchestrators, analysis_service, components
+        """
         return self.project_view_manager.refresh_project_views(
             reason=reason,
             append_summary=append_summary,
             immediate=immediate,
         )
-
-    def _refresh_project_overview(self) -> None:
-        """Refresh the project overview display. Delegates to ProjectViewManager."""
-        return self.project_view_manager._refresh_project_overview()
-
-    def _compose_overview_status_line(self, total: int, counts: Counter) -> str:
-        """Compose status line for overview. Delegates to ProjectViewManager."""
-        return self.project_view_manager._compose_overview_status_line(total, counts)
 
     def _update_project_overview_summary(
         self,
@@ -761,38 +685,6 @@ class ApplicationGUI:
     ) -> None:
         """Update project overview summary. Delegates to ProjectViewManager."""
         return self.project_view_manager._update_project_overview_summary(counts, total, videos)
-
-    def _update_project_overview_tree(self, project_manager, all_videos: list[dict]) -> None:
-        """Update the project overview tree. Delegates to ProjectViewManager."""
-        return self.project_view_manager._update_project_overview_tree(project_manager, all_videos)
-
-    def _prepare_overview_hierarchy_for_widget(self, all_videos: list[dict]) -> dict:
-        """Prepare hierarchy data for ProjectOverviewWidget. Delegates to ProjectViewManager."""
-        return self.project_view_manager._prepare_overview_hierarchy_for_widget(all_videos)
-
-    def _format_status_label(self, status_key: str) -> str:
-        """Format status label. Delegates to ProjectViewManager."""
-        return self.project_view_manager._format_status_label(status_key)
-
-    def _format_status_summary(self, counts: Counter) -> str:
-        """Format status summary. Delegates to ProjectViewManager."""
-        return self.project_view_manager._format_status_summary(counts)
-
-    def _format_status_ratio(self, symbol_key: str, completed: int, total: int) -> str:
-        """Format status ratio. Delegates to ProjectViewManager."""
-        return self.project_view_manager._format_status_ratio(symbol_key, completed, total)
-
-    def _summarize_batch_data(self, videos: list[dict]) -> str:
-        """Summarize batch data. Delegates to ProjectViewManager."""
-        return self.project_view_manager._summarize_batch_data(videos)
-
-    def _format_data_badges(self, video: dict) -> str:
-        """Format data badges. Delegates to ProjectViewManager."""
-        return self.project_view_manager._format_data_badges(video)
-
-    def _format_video_metadata(self, metadata: dict) -> str:
-        """Format video metadata. Delegates to ProjectViewManager."""
-        return self.project_view_manager._format_video_metadata(metadata)
 
     def _on_project_overview_tree_double_click(self, event) -> None:
         """Handle double-click events on the overview tree (legacy handler)."""
@@ -804,10 +696,6 @@ class ApplicationGUI:
         item_id = self.project_overview_tree.focus()
         if item_id:
             self._on_project_overview_tree_double_click_impl(item_id)
-
-    def _on_project_overview_tree_double_click_impl(self, item_id: str) -> None:
-        """Handle double-click on project overview tree. Delegates to ProjectViewManager."""
-        return self.project_view_manager.handle_project_overview_double_click(item_id)
 
     def _on_project_overview_right_click(self, event) -> None:
         """Handle right-click events on the overview tree (legacy handler)."""
@@ -821,33 +709,21 @@ class ApplicationGUI:
                 item_id, event.x_root, event.y_root
             )
 
+    @public_api
     def show_external_trigger_notice(self, session_label: str, **details):
-        """Show external trigger notice. Delegates to DialogManager."""
+        """Show external trigger notice (PUBLIC API).
+
+        Called by: RecordingService, LiveCameraService
+        """
         return self.dialog_manager.show_external_trigger_notice(session_label, **details)
 
+    @public_api
     def clear_external_trigger_notice(self):
-        """Clear external trigger notice. Delegates to DialogManager."""
+        """Clear external trigger notice (PUBLIC API).
+
+        Called by: RecordingService, LiveCameraService
+        """
         return self.dialog_manager.clear_external_trigger_notice()
-
-    def _create_roi_analysis_tab(self):
-        """Create the tab for ROI and detection zone configuration. Delegates to TabBuilder."""
-        return self.tab_builder.build_zone_tab()
-
-    def _subscribe_zone_component_events(self):
-        """Subscribe to events emitted by ZoneControlsWidget. Delegates to EventDispatcher."""
-        return self.event_dispatcher.subscribe_zone_component_events()
-
-    def _on_canvas_configure(self, event=None):
-        """Handle canvas configure. Delegates to CanvasManager."""
-        return self.canvas_manager.on_canvas_configure(event)
-
-    def _update_zone_summary_cards(self, all_videos=None) -> None:
-        """Update zone summary cards. Delegates to ProjectViewManager."""
-        return self.project_view_manager._update_zone_summary_cards(all_videos)
-
-    def _refresh_pipeline_video_table(self, all_videos=None) -> None:
-        """Refresh pipeline video table. Delegates to ProjectViewManager."""
-        return self.project_view_manager._refresh_pipeline_video_table(all_videos)
 
     def _pipeline_summary_exists(self, video_info: dict) -> bool:
         controller = getattr(self, "controller", None)
@@ -969,10 +845,6 @@ class ApplicationGUI:
                 state="normal" if all_have_trajectory else "disabled"
             )
 
-    def _trigger_batch_trajectory_processing(self, selection: Iterable[str] | None = None) -> None:
-        """Trigger batch trajectory processing. Delegates to ProjectViewManager."""
-        return self.project_view_manager.trigger_batch_trajectory_processing(selection)
-
     def _trigger_parquet_summaries(self) -> None:
         selections = self._get_selected_pipeline_video_paths()
         if not selections:
@@ -986,18 +858,6 @@ class ApplicationGUI:
             Events.PROJECT_GENERATE_SUMMARIES, {"video_paths": selections}
         )
         self._refresh_pipeline_video_table()
-
-    def _refresh_zone_indicators(self, videos=None) -> None:
-        """Refresh zone indicators. Delegates to ProjectViewManager."""
-        return self.project_view_manager._refresh_zone_indicators(videos)
-
-    def _create_analysis_tab_widget(self):
-        """Create the analysis tab. Delegates to TabBuilder."""
-        return self.tab_builder.build_analysis_tab()
-
-    def _create_scrollable_controls_frame(self, parent):
-        """Create a scrollable frame. Delegates to WidgetFactory."""
-        return self.widget_factory.create_scrollable_controls_frame(parent)
 
     def _on_frame_configure(self, event=None):
         """Update scroll region when frame size changes."""
@@ -1047,17 +907,12 @@ class ApplicationGUI:
             tags="background_image",
         )
 
-    def _on_roi_rule_change(self, event=None):
-        """Handle ROI inclusion rule change and update UI. Delegates to WidgetFactory."""
-        rule = self.roi_inclusion_rule_var.get()
-        return self.widget_factory.update_roi_rule_ui(rule)
-
-    def _on_apply_roi_settings(self):
-        """Apply ROI inclusion rule settings. Delegates to ValidationManager."""
-        return self.validation_manager.apply_roi_settings()
-
+    @public_api
     def setup_interactive_polygon(self, polygon: np.ndarray):
-        """Set up interactive polygon. Delegates to EventDispatcher."""
+        """Set up interactive polygon for editing (PUBLIC API).
+
+        Called by: CanvasManager when loading zones for editing
+        """
         return self.event_dispatcher.setup_interactive_polygon(polygon)
 
     def _on_handle_press(self, event, handle_index):
@@ -1080,10 +935,6 @@ class ApplicationGUI:
         # when mouse leaves the handle
         self.video_display.canvas.bind("<B1-Motion>", self._on_handle_drag_global)
         self.video_display.canvas.bind("<ButtonRelease-1>", self._on_handle_release_global)
-
-    def _on_handle_drag(self, event):
-        """Update polygon point and redraw. Delegates to CanvasManager."""
-        return self.canvas_manager.handle_vertex_drag(event)
 
     def _on_handle_drag_global(self, event):
         """Global drag handler for canvas-wide dragging."""
@@ -1183,24 +1034,12 @@ class ApplicationGUI:
         self._drag_offset = (0, 0)
         self.current_editing_zone = None
 
-    def _video_sort_key(self, value):
-        """Get video sort key. Delegates to ProjectViewManager."""
-        return self.project_view_manager._video_sort_key(value)
-
-    def _format_subject_label(self, value):
-        """Format subject label. Delegates to ProjectViewManager."""
-        return self.project_view_manager._format_subject_label(value)
-
     @staticmethod
     def _format_day_display(value):
         """Format day display. Delegates to ValidationManager."""
         from zebtrack.ui.components.validation_manager import ValidationManager
 
         return ValidationManager._format_day_display(value)
-
-    def _build_day_title(self, day_value, metadata: dict | None = None) -> str:
-        """Build day title. Delegates to ProjectViewManager."""
-        return self.project_view_manager._build_day_title(day_value, metadata)
 
     def _build_video_hierarchy_data(
         self,
@@ -1275,6 +1114,7 @@ class ApplicationGUI:
             return
         self._populate_video_selector_tree(self.video_search_var.get())
 
+    @public_api
     def apply_pending_readiness_snapshot(
         self,
         *,
@@ -1283,17 +1123,16 @@ class ApplicationGUI:
         arena_only: list[dict],
         without_arena: list[dict],
     ) -> None:
-        """Apply readiness snapshot. Delegates to ProjectViewManager."""
+        """Apply video readiness snapshot to UI (PUBLIC API).
+
+        Called by: DialogManager after zone reuse operations
+        """
         return self.project_view_manager.apply_pending_readiness_snapshot(
             ready_with_trajectory=ready_with_trajectory,
             ready_with_zones=ready_with_zones,
             arena_only=arena_only,
             without_arena=without_arena,
         )
-
-    def _load_selected_video_frame(self, event=None):
-        """Load frame from selected video to canvas. Delegates to CanvasManager."""
-        return self.canvas_manager.load_selected_video_frame(event)
 
     def _maybe_offer_zone_reuse(self, video_path: str) -> None:
         """Prompt user to reuse zones when current video has none. Delegates to DialogManager."""
@@ -1302,11 +1141,7 @@ class ApplicationGUI:
     def _on_video_tree_double_click(self, event):
         """Handle double click on video selector."""
         del event  # Evento não é utilizado diretamente
-        self._load_selected_video_frame()
-
-    def _create_processing_reports_tab(self) -> None:
-        """Create the processing reports tab. Delegates to TabBuilder."""
-        return self.tab_builder.build_processing_reports_tab()
+        self.canvas_manager.load_selected_video_frame()
 
     def _on_processing_reports_item_double_click(self, event=None) -> None:
         """Handle processing reports item double click. Delegates to ProjectViewManager."""
@@ -1429,7 +1264,7 @@ class ApplicationGUI:
 
         self.drawing_state_manager.drawing_type = "arena"
 
-        self._start_polygon_drawing()
+        self.canvas_manager.start_polygon_drawing()
 
     def _start_roi_drawing(self):
         """Start drawing an ROI polygon, checking if an arena exists first."""
@@ -1450,19 +1285,7 @@ class ApplicationGUI:
             )
             return
         self.drawing_state_manager.drawing_type = "roi"
-        self._start_polygon_drawing()
-
-    def _start_polygon_drawing(self):
-        """Activates polygon drawing mode. Delegates to CanvasManager."""
-        return self.canvas_manager.start_polygon_drawing()
-
-    def _stop_drawing(self):
-        """Deactivates drawing mode and unbinds events. Delegates to CanvasManager."""
-        return self.canvas_manager.stop_drawing()
-
-    def _create_drawing_buttons(self):
-        """Create floating undo/redo buttons over the canvas. Delegates to WidgetFactory."""
-        return self.widget_factory.create_drawing_buttons()
+        self.canvas_manager.start_polygon_drawing()
 
     def _on_drawing_undo(self, event):
         """Undo last point added to polygon."""
@@ -1861,19 +1684,24 @@ class ApplicationGUI:
                     f"Zona criada com {len(video_points)} pontos.",
                 )
                 self._request_overview_refresh(reason=status_message, append_summary=True)
-                self._stop_drawing()
+                self.canvas_manager.stop_drawing()
             else:
                 self.set_status("❌ Erro ao salvar zona.")
                 self.show_error("Erro", "Não foi possível salvar a zona.")
-                self._stop_drawing()
+                self.canvas_manager.stop_drawing()
 
         except Exception as e:
             self.set_status("❌ Erro durante salvamento.")
             self.show_error("Erro", str(e))
-            self._stop_drawing()
+            self.canvas_manager.stop_drawing()
 
+    @public_api
     def update_zone_listbox(self, zone_data: ZoneData | None = None):
-        """Update zone listbox. Delegates to CanvasManager."""
+        """Update zone listbox with current zones (PUBLIC API).
+
+        Called by: DialogManager, Renderer, PolygonDrawingService,
+                   ROITemplateManager, ZoneControlBuilder
+        """
         return self.canvas_manager.update_zone_listbox(zone_data)
 
     def _enable_roi_button_if_arena_exists(self, zone_data: ZoneData | None = None):
@@ -1932,13 +1760,9 @@ class ApplicationGUI:
             value=dialog.result["value"],
         )
 
-    def _create_template_rois(self):
-        """Open a dialog to create ROIs from a template. Delegates to WidgetFactory."""
-        return self.widget_factory.create_template_rois()
-
     def _start_circle_drawing(self):
         """Activates circle drawing mode."""
-        self._stop_drawing()  # Ensure clean state
+        self.canvas_manager.stop_drawing()  # Ensure clean state
         self.drawing_mode = "circle"
         self.current_circle_center = None
         self.roi_canvas.config(cursor="crosshair")
@@ -1977,7 +1801,7 @@ class ApplicationGUI:
         radius = ((event.x - cx) ** 2 + (event.y - cy) ** 2) ** 0.5
 
         if radius < 2:  # Ignore tiny circles
-            self._stop_drawing()
+            self.canvas_manager.stop_drawing()
             return
 
         roi_name = self.ask_string(
@@ -1985,13 +1809,13 @@ class ApplicationGUI:
             "Digite um nome para esta nova Região de Interesse (Círculo):",
         )
         if not roi_name:
-            self._stop_drawing()
+            self.canvas_manager.stop_drawing()
             return
 
         current_arena_id = self.arena_selector_var.get()
         if not current_arena_id:
             self.show_error("Erro", "Nenhum aquário ativo selecionado.")
-            self._stop_drawing()
+            self.canvas_manager.stop_drawing()
             return
 
         new_roi = {"name": roi_name, "type": "circle", "coords": (cx, cy, radius)}
@@ -2009,7 +1833,7 @@ class ApplicationGUI:
         )
         self.roi_listbox.insert("", "end", values=(roi_name,))
 
-        self._stop_drawing()
+        self.canvas_manager.stop_drawing()
 
     def _load_project_view(self):
         """
@@ -2020,9 +1844,9 @@ class ApplicationGUI:
         # Reset analysis display state from single video workflow
         self.hide_progress_bar()
         self.analysis_status_var.set("Nenhuma análise em andamento.")
-        if self.analysis_video_label:
+        if self.analysis_display_widget and self.analysis_display_widget.video_label:
             try:
-                self.analysis_video_label.configure(image="")
+                self.analysis_display_widget.video_label.configure(image="")
                 self._analysis_overlay_image = None
             except Exception:
                 pass
@@ -2109,7 +1933,7 @@ class ApplicationGUI:
                 )
             except OSError as e:
                 self.show_error("Erro na Câmera", str(e))
-                self._create_welcome_frame()
+                self.widget_factory.create_welcome_frame()
                 return
         elif project_type == "pre-recorded":
             self.update_reports_tree()
@@ -2122,17 +1946,9 @@ class ApplicationGUI:
             # Auto-calibration for Live projects when no zones are defined
             self.root.after(1000, self._check_live_project_calibration)
 
-    def _create_progress_grid_tab(self):
-        """Create the progress grid tab. Delegates to WidgetFactory."""
-        return self.widget_factory.create_progress_grid_tab()
-
     def _check_live_project_calibration(self):
         """Check if Live project needs calibration. Delegates to ValidationManager."""
         return self.validation_manager.check_live_project_calibration()
-
-    def _render_progress_grid(self):
-        """Clear and redraw progress grid. Delegates to WidgetFactory."""
-        return self.widget_factory.render_progress_grid()
 
     def _on_grid_cell_clicked(self, day, group_name):
         pm = self.controller.project_manager
@@ -2166,11 +1982,7 @@ class ApplicationGUI:
                 # Legacy path for pre-recorded projects
                 self.controller.start_recording(day=day, group=group_name, cobaia=str(subject_id))
 
-            self._render_progress_grid()  # Refresh grid after starting a recording
-
-    def _prompt_for_weight_type(self):
-        """Prompts user to select weight type. Delegates to WidgetFactory."""
-        return self.widget_factory.prompt_for_weight_type()
+            self.widget_factory.render_progress_grid()  # Refresh grid after starting a recording
 
     def _manage_weights_clicked(self):
         """Open the weight management dialog."""
@@ -2287,9 +2099,9 @@ class ApplicationGUI:
         # Reset analysis UI elements for a clean setup
         self.hide_progress_bar()
         self.analysis_status_var.set("Nenhuma análise em andamento.")
-        if self.analysis_video_label:
+        if self.analysis_display_widget and self.analysis_display_widget.video_label:
             try:
-                self.analysis_video_label.configure(image="")
+                self.analysis_display_widget.video_label.configure(image="")
                 self._analysis_overlay_image = None
             except Exception:
                 pass
@@ -2329,15 +2141,7 @@ class ApplicationGUI:
             "Vídeo Único'.",
         )
 
-        self._prepare_single_video_ui_state(config)
-
-    def _prepare_single_video_ui_state(self, config: dict | None) -> None:
-        """Ensure zone controls reflect single-video config. Delegates to StateSynchronizer."""
-        return self.state_synchronizer.prepare_single_video_ui_state(config)
-
-    def _compose_single_video_runtime_config(self) -> dict | None:
-        """Collect single-video settings. Delegates to ValidationManager."""
-        return self.validation_manager.compose_single_video_runtime_config()
+        self.state_synchronizer.prepare_single_video_ui_state(config)
 
     def _on_auto_detect_clicked(self, stabilization_frames: int | str | None = None):
         """Handle the auto-detect button."""
@@ -2404,7 +2208,7 @@ class ApplicationGUI:
             self.show_error("Erro", "A área principal do aquário (polígono) não foi definida.")
             return
 
-        updated_config = self._compose_single_video_runtime_config()
+        updated_config = self.validation_manager.compose_single_video_runtime_config()
         if updated_config is None:
             return
         self.pending_single_video_config = updated_config
@@ -2437,12 +2241,14 @@ class ApplicationGUI:
         self.status_var.set(text)
 
     def show_progress_bar(self):
-        """Show progress bar. Delegates to DialogManager."""
-        return self.dialog_manager.show_progress_bar()
+        """Show the progress bar."""
+        if self.analysis_display_widget:
+            self.analysis_display_widget.show_progress()
 
     def update_progress(self, value):
         """Update progress. Delegates to AnalysisDisplay."""
-        return self.analysis_display.update_progress(value)
+        if self.analysis_display_widget:
+            self.analysis_display_widget.update_progress(value)
 
     def update_idletasks(self):
         """Force the GUI to update, processing pending events."""
@@ -2469,16 +2275,9 @@ class ApplicationGUI:
         )
 
     def hide_progress_bar(self):
-        """Hides the progress bar and cancel button, and resets its value."""
-        if (
-            self.progress_frame
-            and self.progress_frame.winfo_exists()
-            and self.progress_frame.winfo_viewable()
-        ):
-            self.progress_frame.pack_forget()
-            self.progress_bar["value"] = 0
-        if self.cancel_proc_btn and self.cancel_proc_btn.winfo_exists():
-            self.cancel_proc_btn.config(state="disabled")
+        """Hide the progress bar."""
+        if self.analysis_display_widget:
+            self.analysis_display_widget.hide_progress()
 
     def _toggle_canvas_view(self):
         """Toggle between zone drawing view and analysis progress view."""
@@ -2526,8 +2325,8 @@ class ApplicationGUI:
         self.show_progress_bar()
         if self.zone_controls and self.zone_controls.toggle_view_btn:
             self.zone_controls.toggle_view_btn.config(state="normal")
-        if self.cancel_proc_btn:
-            self.cancel_proc_btn.config(state="normal")
+        if self.analysis_display_widget:
+            self.analysis_display_widget.enable_cancel_button()
         self._switch_to_analysis_view()
 
     def stop_analysis_view_mode(self):
@@ -2535,8 +2334,8 @@ class ApplicationGUI:
         self.analysis_active = False
         if self.zone_controls and self.zone_controls.toggle_view_btn:
             self.zone_controls.toggle_view_btn.config(state="disabled")
-        if self.cancel_proc_btn:
-            self.cancel_proc_btn.config(state="disabled")
+        if self.analysis_display_widget:
+            self.analysis_display_widget.disable_cancel_button()
         self.hide_progress_bar()
         self.analysis_status_var.set("Nenhuma análise em andamento.")
         if self.analysis_task_var is not None:
@@ -2580,19 +2379,20 @@ class ApplicationGUI:
         mode = report.mode
         self._active_processing_mode = mode
 
-        self.tracking_mode_var.set(f"Modo de rastreamento: {mode.display_name}")
+        if self.analysis_display_widget:
+            self.analysis_display_widget.set_tracking_mode(mode.display_name)
 
-        if not self.track_selector_widget:
-            return
-
-        state = "disabled" if mode is ProcessingMode.SINGLE_SUBJECT else "readonly"
-        self.track_selector_widget.configure(state=state)
+        if self.analysis_display_widget and self.analysis_display_widget.track_selector_widget:
+            state = "disabled" if mode is ProcessingMode.SINGLE_SUBJECT else "readonly"
+            self.analysis_display_widget.track_selector_widget.configure(state=state)
 
         if mode is ProcessingMode.SINGLE_SUBJECT:
-            self.track_selector_var.set("Todos")
+            if self.analysis_display_widget:
+                self.analysis_display_widget.track_selector_var.set("Todos")
             self.state_synchronizer._update_track_options(["Todos"])
         elif previous_mode is ProcessingMode.SINGLE_SUBJECT:
-            options = self._build_track_options(self._current_detections)
+            # Re-populate track selector
+            options = self.widget_factory.build_track_options(self._current_detections)
             self.state_synchronizer._update_track_options(options)
 
     def update_analysis_profile(self, profile_name: str) -> None:
@@ -2601,6 +2401,7 @@ class ApplicationGUI:
         self.analysis_profile_var.set(f"Perfil de análise: {text}")
         self._reset_analysis_controls()
 
+    @public_api
     def update_social_summary(
         self,
         *,
@@ -2608,7 +2409,10 @@ class ApplicationGUI:
         stats: dict | None,
         tracks: list[str] | None,
     ) -> None:
-        """Display social proximity statistics. Delegates to StateSynchronizer."""
+        """Display social proximity statistics (PUBLIC API).
+
+        Called by: AnalysisService during analysis
+        """
         return self.state_synchronizer.update_social_summary(
             profile=profile, stats=stats, tracks=tracks
         )
@@ -2618,15 +2422,18 @@ class ApplicationGUI:
         self._current_detections = []
         self._last_analysis_frame = None
         self._analysis_overlay_image = None
-        self.track_selector_var.set("Todos")
-        self.state_synchronizer._update_track_options(["Todos"])
-        if self.track_selector_widget:
-            state = (
-                "disabled"
-                if self._active_processing_mode is ProcessingMode.SINGLE_SUBJECT
-                else "readonly"
-            )
-            self.track_selector_widget.configure(state=state)
+
+        if self.analysis_display_widget:
+            self.analysis_display_widget.track_selector_var.set("Todos")
+            self.state_synchronizer._update_track_options(["Todos"])
+
+            if self.analysis_display_widget.track_selector_widget:
+                state = (
+                    "disabled"
+                    if self._active_processing_mode is ProcessingMode.SINGLE_SUBJECT
+                    else "readonly"
+                )
+                self.analysis_display_widget.track_selector_widget.configure(state=state)
 
     def _build_track_options(self, detections: list[tuple]) -> list[str]:
         observed: set[str] = set()
@@ -2654,6 +2461,7 @@ class ApplicationGUI:
             self.analysis_status_var.set(status_text)
         self.update_idletasks()
 
+    @public_api
     def update_processing_stats(
         self,
         total_frames=None,
@@ -2662,7 +2470,10 @@ class ApplicationGUI:
         start_time=None,
         current_frame=None,
     ):
-        """Update processing statistics. Delegates to StateSynchronizer."""
+        """Update processing statistics during analysis (PUBLIC API).
+
+        Called by: AnalysisService, VideoProcessingOrchestrator
+        """
         return self.state_synchronizer.update_processing_stats(
             total_frames=total_frames,
             processed_frames=processed_frames,
@@ -2674,9 +2485,9 @@ class ApplicationGUI:
     def update_analysis_metadata(self, *, metadata: dict | None) -> None:
         """Update the metadata display for the currently processed video."""
         metadata = metadata or {}
-        group_display = self._resolve_group_display(metadata)
-        day_display = self._resolve_day_display(metadata)
-        subject_display = self._resolve_subject_display(metadata)
+        group_display = self.validation_manager.resolve_group_display(metadata)
+        day_display = self.validation_manager.resolve_day_display(metadata)
+        subject_display = self.validation_manager.resolve_subject_display(metadata)
 
         self.state_synchronizer._apply_analysis_metadata_strings(
             group_display,
@@ -2684,6 +2495,7 @@ class ApplicationGUI:
             subject_display,
         )
 
+    @public_api
     def update_analysis_task_status(
         self,
         *,
@@ -2692,22 +2504,13 @@ class ApplicationGUI:
         experiment_id: str | None = None,
         step: str | None = None,
     ) -> None:
-        """Update task status. Delegates to StateSynchronizer."""
+        """Update analysis task status (PUBLIC API).
+
+        Called by: AnalysisService, VideoProcessingOrchestrator
+        """
         return self.state_synchronizer.update_analysis_task_status(
             index=index, total=total, experiment_id=experiment_id, step=step
         )
-
-    def _resolve_group_display(self, metadata: dict) -> str:
-        """Resolve group display. Delegates to ValidationManager."""
-        return self.validation_manager.resolve_group_display(metadata)
-
-    def _resolve_day_display(self, metadata: dict) -> str:
-        """Resolve day display. Delegates to ValidationManager."""
-        return self.validation_manager.resolve_day_display(metadata)
-
-    def _resolve_subject_display(self, metadata: dict) -> str:
-        """Resolve subject display name from metadata. Delegates to ValidationManager."""
-        return self.validation_manager.resolve_subject_display(metadata)
 
     @staticmethod
     def _format_time(seconds: float) -> str:
@@ -2852,8 +2655,11 @@ class ApplicationGUI:
             self.stop_rec_btn.config(state=state)
         elif button_name == "process_video" and self.process_video_btn is not None:
             self.process_video_btn.config(state=state)
-        elif button_name == "cancel_processing" and self.cancel_proc_btn is not None:
-            self.cancel_proc_btn.config(state=state)
+        elif button_name == "cancel_processing" and self.analysis_display_widget:
+            if state == "normal":
+                self.analysis_display_widget.enable_cancel_button()
+            else:
+                self.analysis_display_widget.disable_cancel_button()
 
     def ask_recording_details_unified(self):
         """Show a unified dialog to get day, group, and subject."""
