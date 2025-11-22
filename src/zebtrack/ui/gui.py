@@ -665,8 +665,8 @@ class ApplicationGUI:
         self.hide_progress_bar()
 
     def _create_configuration_tab_widget(self) -> None:
-        """Create the configuration tab. Delegates to WidgetFactory."""
-        return self.widget_factory.create_configuration_tab_widget()
+        """Create the configuration tab. Delegates to TabBuilder."""
+        return self.tab_builder.build_configuration_tab()
 
     def _reload_config_editor_values_widget(self) -> None:
         """Load current settings into ConfigEditorWidget. Delegates to WidgetFactory."""
@@ -830,115 +830,8 @@ class ApplicationGUI:
         return self.dialog_manager.clear_external_trigger_notice()
 
     def _create_roi_analysis_tab(self):
-        """Create the tab for ROI and detection zone configuration."""
-        # This tab is now for defining detection zones (main polygon, ROI polygons)
-        # and will replace the old ROI analysis functionality.
-        self.roi_data = {}  # This will be repurposed for the new zone data
-        # Phase 3: Drawing state delegated to DrawingStateManager
-        # self.drawing_mode = None -> self.drawing_state_manager.mode
-        # self.current_polygon_points = [] -> self.drawing_state_manager.current_points
-
-        # Coordinate system for polygon alignment
-        # self._poly_pts_canvas = [] -> self.drawing_state_manager.canvas_points
-        # self._poly_pts_video = [] -> self.drawing_state_manager.video_points
-        self._bg_scale = 1.0  # Scaling factor from video to canvas
-        self._bg_offset = (0, 0)  # Offset of image in canvas
-        self._bg_img_size = (0, 0)  # Original image dimensions
-
-        # Undo/Redo system for drawing
-        # self._drawing_history = [] -> self.drawing_state_manager._history
-        # self._drawing_redo_stack = [] -> self.drawing_state_manager._redo_stack
-
-        # Interactive vertex editing during drawing (moved to DrawingStateManager)
-        # self._dragging_vertex_index = None
-        # self._vertex_hover_index = None
-        # self._vertex_hover_tolerance = 10
-
-        # self.current_circle_center = None
-        self._canvas_bg_image = None  # Keep a reference to the image
-        self._drawing_buttons_frame = None  # Frame for undo/redo buttons
-
-        # 1. Create the main frame for the tab and rename it
-        self.zone_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.zone_tab_frame, text="Configuração de Zonas")
-
-        # 2. Create the PanedWindow for side-by-side panels
-        main_pane = ttk.PanedWindow(self.zone_tab_frame, orient="horizontal")
-        main_pane.pack(expand=True, fill="both")
-
-        # 3. Create the control panel on the left with scrollable frame
-        left_panel_frame = ttk.Frame(main_pane, padding=5, relief="groove", borderwidth=2)
-        # Add left panel without invalid minsize parameter
-        main_pane.add(left_panel_frame, weight=1)
-
-        # ✨ NEW: Create ZoneControlsWidget instead of inline controls
-        self.zone_controls = ZoneControlsWidget(left_panel_frame, event_bus=self.event_bus)
-        self.zone_controls.pack(fill="both", expand=True)
-
-        # Keep legacy attributes in sync with the new component state
-        self.stabilization_frames_var = self.zone_controls.stabilization_frames_var
-
-        # Keep reference to internal widgets for backward compatibility
-        # TODO: Migrate code to use ZoneControlsWidget API instead
-        self.zone_controls_frame = self.zone_controls.zone_controls_frame
-        self.fixed_button_frame = self.zone_controls.fixed_button_frame
-
-        # 4. Create the visualization panel on the right
-        self.viz_frame = ttk.Frame(main_pane, padding=5, relief="sunken", borderwidth=2)
-        main_pane.add(self.viz_frame, weight=4)
-
-        # Bind pane configure event to maintain minimum left panel width
-        def _on_pane_configure(event=None):
-            try:
-                # Clamp left panel to minimum 600px width to keep all controls visible
-                current_pos = main_pane.sashpos(0)
-                if current_pos < 600:
-                    main_pane.sashpos(0, 600)
-            except Exception:
-                pass  # Ignore errors during resize
-
-        main_pane.bind("<Configure>", _on_pane_configure)
-
-        # 5. ✨ NEW: Create VideoDisplayWidget instead of manual Canvas
-        self.video_display = VideoDisplayWidget(
-            self.viz_frame, event_bus=self.event_bus, width=800, height=600, bg="gray"
-        )
-        self.video_display.pack(expand=True, fill="both")
-
-        # Keep reference to canvas for backward compatibility with drawing code
-        # TODO: Migrate drawing logic to use VideoDisplayWidget API
-        self._roi_canvas_widget = self.video_display.canvas
-
-        # Bind canvas resize event for proper image scaling (keep existing behavior)
-        self._roi_canvas_widget.bind("<Configure>", self._on_canvas_configure)
-
-        # 6. ✨ REMOVED: _create_zone_control_widgets() is no longer needed
-        # ZoneControlsWidget already creates all the necessary control widgets
-        # The old method is kept below for reference but is no longer called
-
-        # 7. ✨ NEW: Create context menu before subscribing to events
-        self.roi_context_menu = None
-        self.menu_manager.create_roi_context_menu()
-
-        # 8. ✨ NEW: Subscribe to events emitted by the components
-        self._subscribe_zone_component_events()
-
-        # 9. Set initial sash position AFTER all widgets are created
-        # This ensures the geometry is properly calculated
-        def _set_initial_sash():
-            try:
-                # Use update_idletasks to ensure geometry is calculated
-                main_pane.update_idletasks()
-                # Set to 640px so the "Aplicar" button stays fully visible
-                main_pane.sashpos(0, 640)
-            except Exception:
-                pass  # Sash position might fail if pane isn't fully realized yet
-
-        # Try multiple times with increasing delays to ensure it sticks
-        main_pane.after(10, _set_initial_sash)
-        main_pane.after(50, _set_initial_sash)
-        main_pane.after(100, _set_initial_sash)
-        main_pane.after(200, _set_initial_sash)
+        """Create the tab for ROI and detection zone configuration. Delegates to TabBuilder."""
+        return self.tab_builder.build_zone_tab()
 
     def _subscribe_zone_component_events(self):
         """Subscribe to events emitted by ZoneControlsWidget. Delegates to EventDispatcher."""
@@ -947,14 +840,6 @@ class ApplicationGUI:
     def _on_canvas_configure(self, event=None):
         """Handle canvas configure. Delegates to CanvasManager."""
         return self.canvas_manager.on_canvas_configure(event)
-
-    def _create_zone_control_widgets(self):
-        """Create all zone control widgets. Delegates to WidgetFactory."""
-        return self.widget_factory.create_zone_control_widgets()
-
-    def _create_zone_summary_cards_section(self) -> None:
-        """Create zone summary cards. Delegates to WidgetFactory."""
-        return self.widget_factory.create_zone_summary_cards_section()
 
     def _update_zone_summary_cards(self, all_videos=None) -> None:
         """Update zone summary cards. Delegates to ProjectViewManager."""
@@ -1107,8 +992,8 @@ class ApplicationGUI:
         return self.project_view_manager._refresh_zone_indicators(videos)
 
     def _create_analysis_tab_widget(self):
-        """Create the analysis tab. Delegates to WidgetFactory."""
-        return self.widget_factory.create_analysis_tab_widget()
+        """Create the analysis tab. Delegates to TabBuilder."""
+        return self.tab_builder.build_analysis_tab()
 
     def _create_scrollable_controls_frame(self, parent):
         """Create a scrollable frame. Delegates to WidgetFactory."""
@@ -1420,8 +1305,8 @@ class ApplicationGUI:
         self._load_selected_video_frame()
 
     def _create_processing_reports_tab(self) -> None:
-        """Create the processing reports tab. Delegates to WidgetFactory."""
-        return self.widget_factory.create_processing_reports_tab()
+        """Create the processing reports tab. Delegates to TabBuilder."""
+        return self.tab_builder.build_processing_reports_tab()
 
     def _on_processing_reports_item_double_click(self, event=None) -> None:
         """Handle processing reports item double click. Delegates to ProjectViewManager."""
