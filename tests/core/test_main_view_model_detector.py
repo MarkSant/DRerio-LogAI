@@ -15,7 +15,7 @@ import pytest
 @pytest.fixture
 def mock_root():
     """Create mock Tkinter root."""
-    root = Mock(spec=tk.Tk)
+    root = Mock()
     root.after = Mock()
     return root
 

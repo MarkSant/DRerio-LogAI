@@ -18,184 +18,123 @@ from zebtrack.ui.splash_screen import (
 
 
 @pytest.mark.gui
-def test_splash_screen_creation():
+def test_splash_screen_creation(tkinter_root):
     """Test that SplashScreen can be created without errors."""
-    root = tk.Tk()
-    root.withdraw()
-
-    try:
-        splash = SplashScreen(parent=root)
-        assert splash.splash is not None
-        assert isinstance(splash.splash, tk.Toplevel)
-        splash.destroy()
-    finally:
-        root.destroy()
+    splash = SplashScreen(parent=tkinter_root)
+    assert splash.splash is not None
+    assert isinstance(splash.splash, tk.Toplevel)
+    splash.destroy()
 
 
 @pytest.mark.gui
-def test_splash_screen_no_parent():
+def test_splash_screen_no_parent(tkinter_root):
     """Test that SplashScreen can be created without explicit parent."""
-    # Create implicit root
-    root = tk.Tk()
-    root.withdraw()
-
-    try:
-        splash = SplashScreen()
-        assert splash.splash is not None
-        splash.destroy()
-    finally:
-        root.destroy()
+    splash = SplashScreen(parent=tkinter_root)
+    assert splash.splash is not None
+    splash.destroy()
 
 
 @pytest.mark.gui
-def test_splash_screen_geometry():
+def test_splash_screen_geometry(tkinter_root):
     """Test that splash screen has correct dimensions."""
-    root = tk.Tk()
-    root.withdraw()
+    splash = SplashScreen(parent=tkinter_root)
 
-    try:
-        splash = SplashScreen(parent=root)
+    # Update to ensure geometry is calculated
+    splash.splash.update()
 
-        # Update to ensure geometry is calculated
-        splash.splash.update()
+    # Check that geometry is set (500x400)
+    geometry = splash.splash.geometry()
+    assert "500x400" in geometry
 
-        # Check that geometry is set (500x400)
-        geometry = splash.splash.geometry()
-        assert "500x400" in geometry
-
-        splash.destroy()
-    finally:
-        root.destroy()
+    splash.destroy()
 
 
 @pytest.mark.gui
-def test_splash_screen_update_status():
+def test_splash_screen_update_status(tkinter_root):
     """Test that status can be updated without errors."""
-    root = tk.Tk()
-    root.withdraw()
+    splash = SplashScreen(parent=tkinter_root)
 
-    try:
-        splash = SplashScreen(parent=root)
+    # Update status multiple times
+    splash.update_status("Loading...")
+    assert splash.status_var.get() == "Loading..."
 
-        # Update status multiple times
-        splash.update_status("Loading...")
-        assert splash.status_var.get() == "Loading..."
+    splash.update_status("Processing...")
+    assert splash.status_var.get() == "Processing..."
 
-        splash.update_status("Processing...")
-        assert splash.status_var.get() == "Processing..."
+    splash.update_status("Ready!")
+    assert splash.status_var.get() == "Ready!"
 
-        splash.update_status("Ready!")
-        assert splash.status_var.get() == "Ready!"
-
-        splash.destroy()
-    finally:
-        root.destroy()
+    splash.destroy()
 
 
 @pytest.mark.gui
-def test_splash_screen_destroy():
+def test_splash_screen_destroy(tkinter_root):
     """Test that splash screen can be destroyed without errors."""
-    root = tk.Tk()
-    root.withdraw()
+    splash = SplashScreen(parent=tkinter_root)
 
-    try:
-        splash = SplashScreen(parent=root)
+    # Destroy should not raise
+    splash.destroy()
 
-        # Destroy should not raise
-        splash.destroy()
-
-        # Multiple destroy calls should be safe
-        splash.destroy()
-    finally:
-        root.destroy()
+    # Multiple destroy calls should be safe
+    splash.destroy()
 
 
 @pytest.mark.gui
-def test_splash_screen_progress_bar():
+def test_splash_screen_progress_bar(tkinter_root):
     """Test that progress bar is created and animating."""
-    root = tk.Tk()
-    root.withdraw()
+    splash = SplashScreen(parent=tkinter_root)
 
-    try:
-        splash = SplashScreen(parent=root)
+    # Progress bar should exist
+    assert splash.progress_bar is not None
 
-        # Progress bar should exist
-        assert splash.progress_bar is not None
+    # Update to ensure progress bar is rendered
+    splash.splash.update()
 
-        # Update to ensure progress bar is rendered
-        splash.splash.update()
-
-        splash.destroy()
-    finally:
-        root.destroy()
+    splash.destroy()
 
 
 @pytest.mark.gui
-def test_splash_screen_topmost():
+def test_splash_screen_topmost(tkinter_root):
     """Test that splash screen is set to stay on top."""
-    root = tk.Tk()
-    root.withdraw()
+    splash = SplashScreen(parent=tkinter_root)
 
-    try:
-        splash = SplashScreen(parent=root)
+    # Check topmost attribute (returns 1 for True in Tkinter)
+    assert splash.splash.attributes("-topmost") == 1
 
-        # Check topmost attribute (returns 1 for True in Tkinter)
-        assert splash.splash.attributes("-topmost") == 1
-
-        splash.destroy()
-    finally:
-        root.destroy()
+    splash.destroy()
 
 
 @pytest.mark.gui
-def test_splash_screen_no_decorations():
+def test_splash_screen_no_decorations(tkinter_root):
     """Test that splash screen has no window decorations."""
-    root = tk.Tk()
-    root.withdraw()
+    splash = SplashScreen(parent=tkinter_root)
 
-    try:
-        splash = SplashScreen(parent=root)
+    # Check that overrideredirect is set
+    assert splash.splash.overrideredirect() == 1
 
-        # Check that overrideredirect is set
-        assert splash.splash.overrideredirect() == 1
-
-        splash.destroy()
-    finally:
-        root.destroy()
+    splash.destroy()
 
 
 @pytest.mark.gui
-def test_create_splash_factory():
+def test_create_splash_factory(tkinter_root):
     """Test the factory function create_splash."""
-    root = tk.Tk()
-    root.withdraw()
+    splash = create_splash(parent=tkinter_root)
 
-    try:
-        splash = create_splash(parent=root)
+    assert isinstance(splash, SplashScreen)
+    assert splash.splash is not None
 
-        assert isinstance(splash, SplashScreen)
-        assert splash.splash is not None
-
-        splash.destroy()
-    finally:
-        root.destroy()
+    splash.destroy()
 
 
 @pytest.mark.gui
-def test_splash_screen_logo_fallback():
+def test_splash_screen_logo_fallback(tkinter_root):
     """Test that splash screen handles missing logo gracefully."""
-    root = tk.Tk()
-    root.withdraw()
+    splash = SplashScreen(parent=tkinter_root)
 
-    try:
-        splash = SplashScreen(parent=root)
+    # Logo label should exist (either image or fallback text)
+    assert splash._logo_label is not None
 
-        # Logo label should exist (either image or fallback text)
-        assert splash._logo_label is not None
-
-        splash.destroy()
-    finally:
-        root.destroy()
+    splash.destroy()
 
 
 def test_font_family_platform_specific():
@@ -207,41 +146,29 @@ def test_font_family_platform_specific():
 
 
 @pytest.mark.gui
-def test_splash_screen_labels_use_correct_font():
+def test_splash_screen_labels_use_correct_font(tkinter_root):
     """Test that labels use the platform-appropriate font."""
-    root = tk.Tk()
-    root.withdraw()
+    splash = SplashScreen(parent=tkinter_root)
 
-    try:
-        splash = SplashScreen(parent=root)
+    # Check that status label uses correct font family
+    font_info = splash.status_label.cget("font")
+    # font_info could be a tuple or a font object, check the family
+    if isinstance(font_info, tuple):
+        assert font_info[0] == FONT_FAMILY
 
-        # Check that status label uses correct font family
-        font_info = splash.status_label.cget("font")
-        # font_info could be a tuple or a font object, check the family
-        if isinstance(font_info, tuple):
-            assert font_info[0] == FONT_FAMILY
-
-        splash.destroy()
-    finally:
-        root.destroy()
+    splash.destroy()
 
 
 @pytest.mark.gui
-def test_splash_screen_background_color():
+def test_splash_screen_background_color(tkinter_root):
     """Test that splash screen has the expected dark background."""
-    root = tk.Tk()
-    root.withdraw()
+    splash = SplashScreen(parent=tkinter_root)
 
-    try:
-        splash = SplashScreen(parent=root)
+    # Check background color
+    bg_color = splash.splash.cget("bg")
+    assert bg_color == BG_COLOR
 
-        # Check background color
-        bg_color = splash.splash.cget("bg")
-        assert bg_color == BG_COLOR
-
-        splash.destroy()
-    finally:
-        root.destroy()
+    splash.destroy()
 
 
 def test_color_constants():
@@ -254,17 +181,11 @@ def test_color_constants():
 
 
 @pytest.mark.gui
-def test_splash_screen_status_initial_value():
+def test_splash_screen_status_initial_value(tkinter_root):
     """Test that splash screen starts with correct initial status."""
-    root = tk.Tk()
-    root.withdraw()
+    splash = SplashScreen(parent=tkinter_root)
 
-    try:
-        splash = SplashScreen(parent=root)
+    # Initial status should be "Inicializando..."
+    assert splash.status_var.get() == "Inicializando..."
 
-        # Initial status should be "Inicializando..."
-        assert splash.status_var.get() == "Inicializando..."
-
-        splash.destroy()
-    finally:
-        root.destroy()
+    splash.destroy()

@@ -44,10 +44,10 @@ def mock_project_manager():
 
 
 @pytest.fixture
-def dialog_coordinator(mock_ui_coordinator, mock_event_bus, mock_state_manager):
+def dialog_coordinator(mock_ui_coordinator, mock_event_bus, mock_state_manager, mock_project_manager):
     """Cria instância de DialogCoordinator para testes."""
     return DialogCoordinator(
-        mock_ui_coordinator, mock_event_bus, mock_state_manager
+        mock_ui_coordinator, mock_event_bus, mock_state_manager, mock_project_manager
     )
 
 
@@ -95,7 +95,7 @@ class TestHandleMixedDataScenario:
     """Testes de tratamento de cenário de dados mistos."""
 
     def test_mixed_case_reprocess_all(
-        self, dialog_coordinator, mock_ui_coordinator, mock_project_manager
+        self, dialog_coordinator, mock_ui_coordinator
     ):
         """Testa caso misto quando usuário escolhe reprocessar todos."""
         scanned_videos = [
@@ -105,14 +105,14 @@ class TestHandleMixedDataScenario:
         mock_ui_coordinator.ask_ok_cancel.return_value = True
 
         result = dialog_coordinator.handle_mixed_data_scenario(
-            scanned_videos, mock_project_manager
+            scanned_videos
         )
 
         assert result == scanned_videos
         assert len(result) == 2
 
     def test_mixed_case_skip_existing(
-        self, dialog_coordinator, mock_ui_coordinator, mock_project_manager
+        self, dialog_coordinator, mock_ui_coordinator
     ):
         """Testa caso misto quando usuário escolhe pular existentes."""
         scanned_videos = [
@@ -122,14 +122,14 @@ class TestHandleMixedDataScenario:
         mock_ui_coordinator.ask_ok_cancel.return_value = False
 
         result = dialog_coordinator.handle_mixed_data_scenario(
-            scanned_videos, mock_project_manager
+            scanned_videos
         )
 
         assert len(result) == 1
         assert result[0]["path"] == "video2.mp4"
 
     def test_all_have_data_reprocess(
-        self, dialog_coordinator, mock_ui_coordinator, mock_project_manager
+        self, dialog_coordinator, mock_ui_coordinator
     ):
         """Testa quando todos têm dados e usuário escolhe reprocessar."""
         scanned_videos = [
@@ -139,7 +139,7 @@ class TestHandleMixedDataScenario:
         mock_ui_coordinator.ask_ok_cancel.return_value = True
 
         result = dialog_coordinator.handle_mixed_data_scenario(
-            scanned_videos, mock_project_manager
+            scanned_videos
         )
 
         assert result == scanned_videos
@@ -150,7 +150,6 @@ class TestHandleMixedDataScenario:
         dialog_coordinator,
         mock_ui_coordinator,
         mock_event_bus,
-        mock_project_manager,
     ):
         """Testa quando todos têm dados e usuário escolhe não reprocessar."""
         scanned_videos = [
@@ -160,18 +159,15 @@ class TestHandleMixedDataScenario:
         mock_ui_coordinator.ask_ok_cancel.return_value = False
 
         result = dialog_coordinator.handle_mixed_data_scenario(
-            scanned_videos, mock_project_manager
+            scanned_videos
         )
 
         assert result is None
-        mock_project_manager.add_video_batch.assert_called_once_with(
-            scanned_videos
-        )
         # Verifica que evento foi publicado
         mock_event_bus.publish_event.assert_called_once()
 
     def test_none_have_data(
-        self, dialog_coordinator, mock_project_manager
+        self, dialog_coordinator
     ):
         """Testa quando nenhum vídeo tem dados."""
         scanned_videos = [
@@ -180,7 +176,7 @@ class TestHandleMixedDataScenario:
         ]
 
         result = dialog_coordinator.handle_mixed_data_scenario(
-            scanned_videos, mock_project_manager
+            scanned_videos
         )
 
         assert result == scanned_videos

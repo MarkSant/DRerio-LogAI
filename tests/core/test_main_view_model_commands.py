@@ -21,7 +21,7 @@ from zebtrack.core.main_view_model import MainViewModel
 @pytest.fixture
 def mock_root():
     """Create mock Tkinter root."""
-    root = Mock(spec=tk.Tk)
+    root = Mock()
     root.after = Mock()
     root.quit = Mock()
     return root
