@@ -26,6 +26,9 @@ from pydantic import ValidationError
 
 from zebtrack.settings import Settings
 from zebtrack.ui.window_utils import reset_geometry_if_not_maximized
+from zebtrack.ui.builders.button_factory import ButtonFactory
+from zebtrack.ui.builders.panel_builder import PanelBuilder
+from zebtrack.ui.builders.zone_control_builder import ZoneControlBuilder
 
 log = structlog.get_logger()
 
@@ -127,100 +130,6 @@ class WidgetFactory:
         digest = hashlib.blake2b(digest_source, digest_size=8).hexdigest()
         return f"file_{digest}"
 
-    def format_roi_template_display(self, template: dict[str, Any]) -> str:
-        """
-        Format ROI template for display in dropdown.
-
-        Args:
-            template: Template dictionary
-
-        Returns:
-            Formatted display string
-        """
-        base_name = template.get("name", "")
-        location = template.get("location", "project")
-
-        content_parts: list[str] = []
-        if template.get("includes_arena"):
-            content_parts.append("Arena")
-        if template.get("includes_rois"):
-            content_parts.append("ROIs")
-
-        if not content_parts:
-            content_label = "Sem dados"
-        elif len(content_parts) == 2:
-            content_label = "Arena + ROIs"
-        else:
-            content_label = content_parts[0]
-
-        location_label: str | None = None
-        if location == "global":
-            location_label = "Global"
-        elif location not in {"project", "global", None}:
-            location_label = str(location)
-
-        suffix_parts = [content_label] if content_label else []
-        if location_label:
-            suffix_parts.append(location_label)
-
-        suffix = f" ({'; '.join(suffix_parts)})" if suffix_parts else ""
-
-        if base_name:
-            return f"{base_name}{suffix}"
-
-        return suffix.lstrip() or "Template"
-
-    def build_roi_template_identifier(self, template: dict[str, Any]) -> str:
-        """
-        Build unique identifier for ROI template.
-
-        Args:
-            template: Template dictionary
-
-        Returns:
-            Template identifier string
-        """
-        location = template.get("location", "project")
-        slug = template.get("slug") or ""
-        file_ref = template.get("file") or ""
-
-        if location == "project" and slug:
-            return f"{location}:{slug}"
-
-        if file_ref:
-            return f"{location}:{file_ref}"
-
-        return f"{location}:{template.get('name', '')}"
-
-    def get_selected_roi_template(self) -> dict[str, Any] | None:
-        """
-        Get currently selected template from dropdown.
-
-        Returns:
-            Selected template dict or None
-        """
-        if not self.gui._roi_templates_cache:
-            log.debug("gui.get_selected_roi_template.empty_cache")
-            return None
-
-        current_display = self.gui.roi_template_var.get().strip()
-        if not current_display:
-            log.debug("gui.get_selected_roi_template.no_selection")
-            return None
-
-        log.debug(
-            "gui.get_selected_roi_template.searching",
-            current_display=current_display,
-            cache_size=len(self.gui._roi_templates_cache),
-        )
-
-        for template in self.gui._roi_templates_cache:
-            if template.get("display_name") == current_display:
-                log.debug("gui.get_selected_roi_template.found", template_name=template.get("name"))
-                return template
-
-        log.warning("gui.get_selected_roi_template.not_found", current_display=current_display)
-        return None
 
     def build_track_options(self, detections: list[tuple]) -> list[str]:
         """
@@ -257,29 +166,14 @@ class WidgetFactory:
         Args:
             parent: Parent frame to add buttons to
         """
-        project_actions_frame = ttk.LabelFrame(parent, text="Ações do Projeto", padding=10)
-        project_actions_frame.pack(fill="x", pady=10, expand=True)
+        commands = {
+            'calibration': self.gui._open_global_calibration_window,
+            'single_analysis': self.gui._on_analyze_single_video_clicked,
+            'create_project': self.gui._create_project_workflow,
+            'open_project': self.gui._open_project_workflow
+        }
 
-        ttk.Button(
-            project_actions_frame,
-            text="Calibração Global (Pesos e Diagnóstico)...",
-            command=self.gui._open_global_calibration_window,
-        ).pack(fill="x", padx=10, pady=5)
-        ttk.Button(
-            project_actions_frame,
-            text="Analisar Vídeo Único",
-            command=self.gui._on_analyze_single_video_clicked,
-        ).pack(fill="x", padx=10, pady=5)
-        ttk.Button(
-            project_actions_frame,
-            text="Criar Novo Projeto",
-            command=self.gui._create_project_workflow,
-        ).pack(fill="x", padx=10, pady=5)
-        ttk.Button(
-            project_actions_frame,
-            text="Abrir Projeto Existente",
-            command=self.gui._open_project_workflow,
-        ).pack(fill="x", padx=10, pady=5)
+        ButtonFactory.create_project_action_buttons(parent, commands)
 
     def build_model_status(self, parent) -> None:
         """
@@ -288,21 +182,13 @@ class WidgetFactory:
         Args:
             parent: Parent frame to add labels to
         """
-        model_status_frame = ttk.LabelFrame(parent, text="Estado do Modelo de Detecção", padding=10)
-        model_status_frame.pack(fill="x", pady=10, expand=True)
-        ttk.Label(
-            model_status_frame,
-            textvariable=self.gui._active_weight_display_var,
-        ).pack(anchor="w")
-        ttk.Label(
-            model_status_frame,
-            textvariable=self.gui._openvino_display_var,
-        ).pack(anchor="w", pady=(4, 0))
-        ttk.Label(
-            model_status_frame,
-            textvariable=self.gui._gpu_hardware_display_var,
-            foreground="gray",
-        ).pack(anchor="w", pady=(4, 0))
+        status_vars = {
+            'active_weight': self.gui._active_weight_display_var,
+            'openvino_status': self.gui._openvino_display_var,
+            'hardware_status': self.gui._gpu_hardware_display_var
+        }
+
+        PanelBuilder.build_model_status_panel(parent, status_vars)
 
     def create_zone_summary_cards_section(self) -> None:
         """
@@ -322,57 +208,10 @@ class WidgetFactory:
             except Exception:
                 pass
 
-        self.gui.zone_summary_cards = {}
-        self.gui.zone_summary_frame = ttk.LabelFrame(
+        self.gui.zone_summary_frame, self.gui.zone_summary_cards = PanelBuilder.create_zone_summary_cards(
             self.gui.zone_controls_frame,
-            text=f"{STATUS_SYMBOLS['summary']} Indicadores de Preparação",
-            padding=10,
+            self.gui._get_zone_summary_helper_text()
         )
-        self.gui.zone_summary_frame.pack(fill="x", pady=(0, 5))
-
-        cards_container = ttk.Frame(self.gui.zone_summary_frame)
-        cards_container.pack(fill="x")
-
-        card_specs = [
-            ("arena_missing", f"{STATUS_SYMBOLS['arena']} Arenas pendentes"),
-            ("rois_missing", f"{STATUS_SYMBOLS['rois']} ROIs pendentes"),
-            (
-                "ready_for_processing",
-                f"{STATUS_SYMBOLS['summary']} Prontos para trajetórias",
-            ),
-        ]
-
-        for idx, (key, title) in enumerate(card_specs):
-            card = ttk.Frame(cards_container, padding=10, relief="ridge", borderwidth=1)
-            card.grid(row=0, column=idx, padx=5, pady=5, sticky="nsew")
-            cards_container.columnconfigure(idx, weight=1)
-
-            value_var = StringVar(value="0")
-            detail_var = StringVar(value="Nenhum vídeo listado")
-
-            ttk.Label(card, text=title, font=("TkDefaultFont", 9, "bold")).pack(anchor="w")
-            value_label = ttk.Label(
-                card, textvariable=value_var, font=("TkDefaultFont", 20, "bold")
-            )
-            value_label.pack(anchor="w", pady=(5, 0))
-            ttk.Label(card, textvariable=detail_var, font=("TkDefaultFont", 8)).pack(
-                anchor="w", pady=(2, 0)
-            )
-
-            self.gui.zone_summary_cards[key] = {
-                "value": value_var,
-                "detail": detail_var,
-            }
-
-        # Add helper text at bottom
-        helper_text = self.gui._get_zone_summary_helper_text()
-        if helper_text:
-            ttk.Label(
-                self.gui.zone_summary_frame,
-                text=helper_text,
-                font=("TkDefaultFont", 8),
-                foreground="gray",
-            ).pack(anchor="w", pady=(5, 0))
 
         # Initial update
         self.gui._update_zone_summary_cards()
@@ -386,28 +225,15 @@ class WidgetFactory:
         if self.gui._drawing_buttons_frame:
             self.gui._drawing_buttons_frame.destroy()
 
-        # Create a frame that floats over the canvas (top-right corner)
-        self.gui._drawing_buttons_frame = ttk.Frame(
-            self.gui.viz_frame, relief="raised", borderwidth=2
-        )
+        commands = {
+            'undo': lambda: self.gui._on_drawing_undo(None),
+            'redo': lambda: self.gui._on_drawing_redo(None)
+        }
 
-        # Undo button
-        undo_btn = ttk.Button(
-            self.gui._drawing_buttons_frame,
-            text="↶ Desfazer (Ctrl+Z)",
-            command=lambda: self.gui._on_drawing_undo(None),
-            width=20,
+        self.gui._drawing_buttons_frame = ButtonFactory.create_floating_drawing_buttons(
+            self.gui.viz_frame,
+            commands
         )
-        undo_btn.pack(side="left", padx=2)
-
-        # Redo button
-        redo_btn = ttk.Button(
-            self.gui._drawing_buttons_frame,
-            text="↷ Refazer (Ctrl+Y)",
-            command=lambda: self.gui._on_drawing_redo(None),
-            width=20,
-        )
-        redo_btn.pack(side="left", padx=2)
 
         # Position the frame in top-right corner of canvas
         self.gui._drawing_buttons_frame.place(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
@@ -599,16 +425,6 @@ class WidgetFactory:
                     Events.VIDEO_CANCEL_ANALYSIS, {}
                 )
             )
-
-        # Set up backward compatibility aliases
-        self.gui.video_label = self.gui.analysis_display_widget.video_label
-        self.gui.progress_frame = self.gui.analysis_display_widget.progress_frame
-        self.gui.progress_bar = self.gui.analysis_display_widget.progress_bar
-        self.gui.progress_labels = self.gui.analysis_display_widget.progress_labels
-        self.gui.cancel_proc_btn = self.gui.analysis_display_widget.cancel_btn
-        self.gui.track_selector_var = self.gui.analysis_display_widget.track_selector_var
-        self.gui.track_selector_widget = self.gui.analysis_display_widget.track_selector_widget
-        self.gui.social_summary_var = self.gui.analysis_display_widget.social_summary_var
 
     def create_processing_reports_tab(self) -> None:
         """
@@ -972,394 +788,9 @@ class WidgetFactory:
         - Interactive edit buttons
         - ROI inclusion rule panel
         """
-        # Call zone summary cards creation (delegated separately)
-        self.gui._create_zone_summary_cards_section()
-
-        # --- Drawing Actions ---
-        actions_frame = ttk.LabelFrame(
-            self.gui.zone_controls_frame, text="Ações de Desenho", padding=10
-        )
-        actions_frame.pack(fill="x", pady=5)
-
-        # --- Single Analysis Options ---
-        self.gui.single_analysis_options_frame = ttk.LabelFrame(
-            self.gui.zone_controls_frame,
-            text="Opções de Análise de Vídeo Único",
-            padding=10,
-        )
-        # This frame is packed on demand by setup_zone_configuration_for_video
-
-        # ROI options
-        self.gui.roi_choice_var = StringVar(value="none")
-        ttk.Label(self.gui.single_analysis_options_frame, text="Opções de ROI:").pack(anchor="w")
-        ttk.Radiobutton(
-            self.gui.single_analysis_options_frame,
-            text="Não usar ROIs",
-            variable=self.gui.roi_choice_var,
-            value="none",
-        ).pack(anchor="w", padx=10)
-        ttk.Radiobutton(
-            self.gui.single_analysis_options_frame,
-            text="Desenhar ROIs manualmente",
-            variable=self.gui.roi_choice_var,
-            value="manual",
-        ).pack(anchor="w", padx=10)
-        ttk.Radiobutton(
-            self.gui.single_analysis_options_frame,
-            text="Usar ROIs de template",
-            variable=self.gui.roi_choice_var,
-            value="template",
-        ).pack(anchor="w", padx=10)
-
-        # Frame intervals for analysis and display
-        ttk.Label(
-            self.gui.single_analysis_options_frame, text="Intervalo de Análise (frames):"
-        ).pack(anchor="w", pady=(10, 0))
-        ttk.Entry(
-            self.gui.single_analysis_options_frame,
-            textvariable=self.gui.analysis_interval_var,
-            width=10,
-        ).pack(anchor="w", padx=10)
-
-        ttk.Label(
-            self.gui.single_analysis_options_frame, text="Intervalo de Exibição (frames):"
-        ).pack(anchor="w", pady=(5, 0))
-        ttk.Entry(
-            self.gui.single_analysis_options_frame,
-            textvariable=self.gui.display_interval_var,
-            width=10,
-        ).pack(anchor="w", padx=10)
-
-        # Button for automatic detection
-        ttk.Button(
-            actions_frame,
-            text="Detectar Aquário (Auto)",
-            command=self.gui._on_auto_detect_clicked,
-        ).pack(fill="x", pady=2)
-
-        # New Entry for stabilization frames
-        stabilization_frame = ttk.Frame(actions_frame)
-        ttk.Label(stabilization_frame, text="Frames para Análise:").pack(side="left", padx=(0, 5))
-        ttk.Entry(
-            stabilization_frame, textvariable=self.gui.stabilization_frames_var, width=5
-        ).pack(side="left")
-        stabilization_frame.pack(fill="x", pady=2, anchor="w")
-
-        # Manual drawing buttons
-        ttk.Button(
-            actions_frame,
-            text="Desenhar Polígono Principal",
-            command=self.gui._start_main_arena_drawing,
-        ).pack(fill="x", pady=2)
-
-        # ROI button - initially disabled until main arena is drawn
-        self.gui.draw_roi_button = ttk.Button(
-            actions_frame,
-            text="Desenhar Área de Interesse",
-            command=self.gui._start_roi_drawing,
-            state="disabled",
-        )
-        self.gui.draw_roi_button.pack(fill="x", pady=2)
-
-        # View toggle button (initially hidden)
-        self.gui.toggle_view_btn = ttk.Button(
-            actions_frame,
-            text="Ver Análise em Progresso",
-            command=self.gui._toggle_canvas_view,
-            state="disabled",
-        )
-        self.gui.toggle_view_btn.pack(fill="x", pady=2)
-
-        template_frame = ttk.LabelFrame(
-            self.gui.zone_controls_frame,
-            text="Templates de ROI",
-            padding=10,
-        )
-        template_frame.pack(fill="x", pady=5)
-
-        template_selector = ttk.Frame(template_frame)
-        template_selector.pack(fill="x", pady=(0, 6))
-
-        ttk.Label(template_selector, text="Templates salvos:").pack(side="left", padx=(0, 5))
-        self.gui.roi_template_combobox = ttk.Combobox(
-            template_selector,
-            state="readonly",
-            textvariable=self.gui.roi_template_var,
-            values=[],
-            width=25,
-        )
-        self.gui.roi_template_combobox.pack(side="left", fill="x", expand=True)
-        # Add binding to log selection changes
-        self.gui.roi_template_combobox.bind(
-            "<<ComboboxSelected>>", self.gui._on_template_combobox_changed
-        )
-
-        ttk.Button(
-            template_selector,
-            text="Aplicar",
-            command=self.gui._on_apply_roi_template,
-        ).pack(side="left", padx=4)
-
-        template_actions = ttk.Frame(template_frame)
-        template_actions.pack(fill="x")
-
-        log.info("gui.zone_tab.creating_template_buttons")
-
-        ttk.Button(
-            template_actions,
-            text="💾 Salvar Zonas Atuais",
-            command=self.gui._on_save_roi_template,
-        ).pack(side="left", padx=(0, 4))
-
-        ttk.Button(
-            template_actions,
-            text="📂 Importar e Aplicar Arquivo...",
-            command=self.gui._on_import_and_apply_roi_template,
-        ).pack(side="left", padx=(0, 4))
-
-        # Delete button - store reference to control state
-        self.gui.delete_template_btn = ttk.Button(
-            template_actions,
-            text="🗑️ Deletar Template",
-            command=self.gui._on_delete_roi_template,
-            state="disabled",  # Start disabled
-        )
-        self.gui.delete_template_btn.pack(side="left")
-
-        log.info(
-            "gui.zone_tab.delete_button_created",
-            button_exists=self.gui.delete_template_btn is not None,
-            button_state=(
-                self.gui.delete_template_btn["state"] if self.gui.delete_template_btn else None
-            ),
-        )
-
-        ttk.Label(
-            template_frame,
-            text=(
-                "Templates armazenam o polígono principal e todas as ROIs "
-                "para reutilizar em outros vídeos do projeto."
-            ),
-            wraplength=280,
-            style="Small.TLabel",
-        ).pack(anchor="w", pady=(6, 0))
-
-        self.gui._refresh_roi_templates()
-
-        # --- Video Selector ---
-        video_selector_frame = ttk.LabelFrame(
-            self.gui.zone_controls_frame,
-            text="📹 Selecionar Vídeo para Desenho",
-            padding=10,
-        )
-        video_selector_frame.pack(fill="both", pady=5)
-
-        search_frame = ttk.Frame(video_selector_frame)
-        search_frame.pack(fill="x", pady=(0, 5))
-
-        ttk.Label(search_frame, text="🔍 Buscar:").pack(side="left", padx=(0, 5))
-        self.gui.video_search_var = StringVar()
-        self.gui.video_search_var.trace_add("write", lambda *_: self.gui._filter_video_tree())
-        ttk.Entry(
-            search_frame,
-            textvariable=self.gui.video_search_var,
-            width=25,
-        ).pack(side="left", fill="x", expand=True, padx=(0, 5))
-        ttk.Button(
-            search_frame,
-            text="🔄",
-            width=3,
-            command=lambda: self.gui._populate_video_selector_tree(),
-        ).pack(side="left")
-
-        tree_container = ttk.Frame(video_selector_frame)
-        tree_container.pack(fill="both", expand=True)
-
-        self.gui.video_selector_tree = ttk.Treeview(
-            tree_container,
-            columns=("status", "filename"),
-            show="tree headings",
-            height=10,
-            selectmode="browse",
-        )
-        self.gui.video_selector_tree.heading("#0", text="Hierarquia")
-        self.gui.video_selector_tree.heading("status", text="Dados")
-        self.gui.video_selector_tree.heading("filename", text="Arquivo")
-
-        self.gui.video_selector_tree.column("#0", width=220, stretch=True)
-        self.gui.video_selector_tree.column(
-            "status",
-            width=120,
-            anchor="center",
-            stretch=False,
-        )
-        self.gui.video_selector_tree.column("filename", width=180, stretch=True)
-
-        scrollbar = ttk.Scrollbar(
-            tree_container,
-            orient="vertical",
-            command=self.gui.video_selector_tree.yview,
-        )
-        self.gui.video_selector_tree.configure(yscrollcommand=scrollbar.set)
-        self.gui.video_selector_tree.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        self.gui.video_selector_tree.bind(
-            "<Double-Button-1>",
-            self.gui._on_video_tree_double_click,
-        )
-
-        ttk.Button(
-            video_selector_frame,
-            text="📹 Carregar Frame do Vídeo Selecionado",
-            command=self.gui._load_selected_video_frame,
-        ).pack(pady=(5, 0))
-
-        legend_frame = ttk.Frame(video_selector_frame)
-        legend_frame.pack(fill="x", pady=(5, 0))
-        ttk.Label(
-            legend_frame,
-            text=self.gui._build_status_icon_legend(),
-            font=("TkDefaultFont", 8),
-            foreground="gray",
-        ).pack(anchor="w")
-
-        self.gui._populate_video_selector_tree()
-
-        # --- Zone List ---
-        zone_list_frame = ttk.LabelFrame(
-            self.gui.zone_controls_frame, text="Zonas Definidas", padding=10
-        )
-        zone_list_frame.pack(fill="x", pady=5)
-
-        from zebtrack.ui.window_utils import create_scrollbar
-
-        self.gui.zone_listbox = ttk.Treeview(
-            zone_list_frame,
-            columns=("name", "type", "color"),
-            show="headings",
-            height=6,
-        )
-        self.gui.zone_listbox.heading("name", text="Nome")
-        self.gui.zone_listbox.heading("type", text="Tipo")
-        self.gui.zone_listbox.heading("color", text="Cor")
-
-        # Configure column widths
-        self.gui.zone_listbox.column("name", width=240, minwidth=160, stretch=True)
-        self.gui.zone_listbox.column("type", width=90, minwidth=80, stretch=False)
-        self.gui.zone_listbox.column("color", width=70, minwidth=60, stretch=False)
-
-        self.gui.zone_listbox.pack(side="left", fill="both", expand=True)
-
-        # Scrollbar
-        scrollbar = create_scrollbar(
-            zone_list_frame, orient="vertical", command=self.gui.zone_listbox.yview
-        )
-        self.gui.zone_listbox.configure(yscrollcommand=scrollbar.set)
-
-        # Bind events
-        self.gui.zone_listbox.bind("<Button-3>", self.gui._on_zone_right_click)
-        self.gui.zone_listbox.bind("<Double-Button-1>", self.gui._on_zone_double_click)
-
-        # Menu de contexto para ROIs
-        self.gui.roi_context_menu = None
-        self.gui.menu_manager.create_roi_context_menu()
-
-        scrollbar.pack(side="right", fill="y")
-
-        # --- Interactive Buttons (initially hidden) ---
-        # Positioned right after zone list, before ROI Inclusion Rule Panel
-        self.gui.interactive_buttons_frame = ttk.Frame(self.gui.zone_controls_frame)
-        self.gui.save_arena_btn = ttk.Button(
-            self.gui.interactive_buttons_frame,
-            text="✅ Salvar Edição",
-            command=self.gui._on_save_arena,
-        )
-        self.gui.save_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
-        self.gui.discard_arena_btn = ttk.Button(
-            self.gui.interactive_buttons_frame,
-            text="❌ Descartar",
-            command=self.gui._on_discard_arena,
-        )
-        self.gui.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
-        # This frame is packed later when needed (via pack() in _enter_edit_mode)
-
-        # --- ROI Inclusion Rule Panel ---
-        self.gui.roi_inclusion_frame = ttk.LabelFrame(
-            self.gui.zone_controls_frame, text="Regra de Inclusão em ROI", padding=10
-        )
-        self.gui.roi_inclusion_frame.pack(fill="x", pady=5)
-
-        # Rule selection combobox
-        rule_frame = ttk.Frame(self.gui.roi_inclusion_frame)
-        rule_frame.pack(fill="x", pady=2)
-        ttk.Label(rule_frame, text="Regra:").pack(side="left", padx=(0, 5))
-        self.gui.roi_rule_combo = ttk.Combobox(
-            rule_frame,
-            textvariable=self.gui.roi_inclusion_rule_var,
-            values=[
-                "centroid_in",
-                "centroid_in_on_buffered_roi",
-                "bbox_intersects",
-                "seg_overlap",
-            ],
-            state="readonly",
-            width=30,
-        )
-        self.gui.roi_rule_combo.pack(side="left", fill="x", expand=True)
-        self.gui.roi_rule_combo.bind("<<ComboboxSelected>>", self.gui._on_roi_rule_change)
-
-        # Parameter fields (shown/hidden based on rule)
-        self.gui.radius_frame = ttk.Frame(self.gui.roi_inclusion_frame)
-        ttk.Label(self.gui.radius_frame, text="Raio de buffer (r):").pack(side="left", padx=(0, 5))
-        self.gui.radius_entry = ttk.Entry(
-            self.gui.radius_frame, textvariable=self.gui.roi_buffer_radius_var, width=10
-        )
-        self.gui.radius_entry.pack(side="left", padx=(0, 10))
-        ttk.Label(
-            self.gui.radius_frame,
-            text="Usado para dilatar a ROI. Interpretado em cm quando houver "
-            "calibração (px/cm); caso contrário, em pixels.",
-            font=("TkDefaultFont", 8),
-        ).pack(side="left")
-
-        self.gui.overlap_frame = ttk.Frame(self.gui.roi_inclusion_frame)
-        ttk.Label(self.gui.overlap_frame, text="Mín. fração de sobreposição (0–1):").pack(
-            side="left", padx=(0, 5)
-        )
-        self.gui.overlap_entry = ttk.Entry(
-            self.gui.overlap_frame, textvariable=self.gui.roi_overlap_ratio_var, width=10
-        )
-        self.gui.overlap_entry.pack(side="left", padx=(0, 10))
-        self.gui.overlap_help_label = ttk.Label(
-            self.gui.overlap_frame,
-            text="A detecção é considerada dentro da ROI quando a fração de "
-            "área do bbox contida na ROI atinge este valor.",
-            font=("TkDefaultFont", 8),
-        )
-        self.gui.overlap_help_label.pack(side="left")
-
-        # Help text that changes based on rule
-        self.gui.rule_help_label = ttk.Label(
-            self.gui.roi_inclusion_frame,
-            text="",
-            font=("TkDefaultFont", 8),
-            wraplength=400,
-            justify="left",
-        )
-        self.gui.rule_help_label.pack(fill="x", pady=(5, 0))
-
-        # Save settings button
-        save_settings_frame = ttk.Frame(self.gui.roi_inclusion_frame)
-        save_settings_frame.pack(fill="x", pady=(5, 0))
-        ttk.Button(
-            save_settings_frame,
-            text="Aplicar Configurações",
-            command=self.gui._on_apply_roi_settings,
-        ).pack(side="right")
-
-        # Initialize display based on current rule
-        self.gui._on_roi_rule_change()
+        # Delegate to ZoneControlBuilder
+        builder = ZoneControlBuilder(self.gui)
+        builder.create_zone_control_widgets()
 
     def configure_styles(self) -> None:
         """Configure custom styles for ttk components used by the GUI."""
@@ -1423,132 +854,6 @@ class WidgetFactory:
         )
         style.configure("Zebtrack.TNotebook", padding=(4, 4))
 
-    def select_roi_template(self, metadata: dict[str, Any]) -> None:
-        """Select a template in the dropdown by matching metadata."""
-        if not self.gui._roi_templates_cache:
-            log.warning("gui.select_roi_template.no_cache", metadata_name=metadata.get("name"))
-            return
-
-        identifier = self.build_roi_template_identifier(metadata)
-
-        # First try: exact identifier match
-        for entry in self.gui._roi_templates_cache:
-            if entry.get("identifier") == identifier:
-                display_name = entry.get("display_name", "")
-                if display_name:
-                    self.gui.roi_template_var.set(display_name)
-                    log.info(
-                        "gui.select_roi_template.success_by_identifier",
-                        display_name=display_name,
-                        identifier=identifier,
-                    )
-                    return
-
-        # Second try: match by name
-        fallback_name = metadata.get("name", "")
-        if fallback_name:
-            for entry in self.gui._roi_templates_cache:
-                if entry.get("name") == fallback_name:
-                    display_name = entry.get("display_name", "")
-                    if display_name:
-                        self.gui.roi_template_var.set(display_name)
-                        log.info(
-                            "gui.select_roi_template.success_by_name",
-                            display_name=display_name,
-                            name=fallback_name,
-                        )
-                        return
-
-        # Third try: match by slug or file reference
-        slug = metadata.get("slug", "")
-        file_ref = metadata.get("file", "")
-        if slug or file_ref:
-            for entry in self.gui._roi_templates_cache:
-                if (slug and entry.get("slug") == slug) or (
-                    file_ref and entry.get("file") == file_ref
-                ):
-                    display_name = entry.get("display_name", "")
-                    if display_name:
-                        self.gui.roi_template_var.set(display_name)
-                        log.info(
-                            "gui.select_roi_template.success_by_slug_or_file",
-                            display_name=display_name,
-                        )
-                        return
-
-        # Failed to find template
-        log.warning(
-            "gui.select_roi_template.not_found",
-            metadata_name=fallback_name,
-            identifier=identifier,
-            cache_size=len(self.gui._roi_templates_cache),
-        )
-        self.gui.roi_template_var.set("")
-
-    def delete_roi_template(self) -> None:
-        """Delete the currently selected template."""
-        from pathlib import Path
-        from tkinter import messagebox
-
-        pm = getattr(self.gui.controller, "project_manager", None)
-        if pm is None:
-            return
-
-        selected_template = self.get_selected_roi_template()
-        if not selected_template:
-            self.gui.show_warning(
-                "Nenhum template selecionado",
-                "Por favor, selecione um template na lista para deletar.",
-            )
-            return
-
-        template_name = selected_template.get("name", "Template")
-        template_file = selected_template.get("file")
-        template_location = selected_template.get("location", "unknown")
-
-        # Confirm deletion
-        response = messagebox.askyesno(
-            "Confirmar Deleção",
-            f"Tem certeza que deseja deletar o template '{template_name}'?\n\n"
-            f"Localização: {template_location}\n"
-            f"Arquivo: {template_file}\n\n"
-            f"Esta ação não pode ser desfeita.",
-            icon="warning",
-        )
-
-        if not response:
-            return
-
-        try:
-            # Delete the file
-            if template_file:
-                file_path = Path(template_file)
-                if file_path.exists():
-                    file_path.unlink()
-                    log.info(
-                        "gui.roi_templates.deleted",
-                        template_name=template_name,
-                        file=template_file,
-                    )
-                else:
-                    log.warning(
-                        "gui.roi_templates.delete_file_not_found",
-                        template_name=template_name,
-                        file=template_file,
-                    )
-
-            # Refresh the template list
-            self.gui._refresh_roi_templates(clear_selection=True)
-
-            self.gui.show_info(
-                "Template Deletado", f"O template '{template_name}' foi removido com sucesso."
-            )
-
-        except Exception as exc:
-            log.error(
-                "gui.roi_templates.delete_failed", template_name=template_name, error=str(exc)
-            )
-            self.gui.show_error("Erro ao Deletar", f"Não foi possível deletar o template:\n{exc}")
 
     def create_template_rois(self) -> None:
         """Open a dialog to create ROIs from a template."""
@@ -1696,60 +1001,6 @@ class WidgetFactory:
         for row_index in range(days + 1):
             self.gui.grid_container.rowconfigure(row_index, weight=1)
 
-    def save_roi_template(self) -> None:
-        """Save ROI template to file."""
-        pm = getattr(self.gui.controller, "project_manager", None)
-        if pm is None:
-            return
-
-        zone_data = pm.get_zone_data()
-        if not zone_data or (not zone_data.polygon and not (zone_data.roi_polygons or [])):
-            self.gui.show_warning(
-                "Template incompleto",
-                "Desenhe a arena ou pelo menos uma ROI antes de salvar um template.",
-            )
-            return
-
-        allow_project = bool(getattr(pm, "project_path", None))
-        selected_template = self.get_selected_roi_template()
-        if selected_template:
-            initial_name = selected_template.get("name", "")
-        else:
-            initial_name = self.gui.roi_template_var.get() or ""
-        dialog_result = self.gui._show_template_save_dialog(
-            has_arena=bool(zone_data.polygon),
-            has_rois=bool(zone_data.roi_polygons),
-            allow_project=allow_project,
-            initial_name=initial_name,
-        )
-
-        if not dialog_result:
-            return
-
-        try:
-            metadata = pm.save_roi_template(
-                dialog_result["name"],
-                zone_data,
-                save_arena=dialog_result["save_arena"],
-                save_rois=dialog_result["save_rois"],
-                save_location=dialog_result["save_location"],
-                custom_path=dialog_result.get("custom_path"),
-                persist=dialog_result["save_location"] == "project",
-            )
-        except ValueError as exc:
-            self.gui.show_warning("Template inválido", str(exc))
-            return
-        except Exception as exc:  # pragma: no cover - defensive
-            log.error("gui.roi_templates.save_failed", error=str(exc))
-            self.gui.show_error("Erro ao salvar", str(exc))
-            return
-
-        self.gui._refresh_roi_templates()
-        self.select_roi_template(metadata)
-        self.gui.show_info(
-            "Template salvo",
-            (f"Template '{metadata.get('name', dialog_result['name'])}' disponível para uso."),
-        )
 
     def reload_config_editor_values(self) -> None:
         """Load current settings into ConfigEditorWidget."""
@@ -1801,7 +1052,7 @@ class WidgetFactory:
 
     def prompt_for_weight_type(self):
         """Prompts user to select weight type when it cannot be determined from filename."""
-        from tkinter import Button, Frame, Label, Radiobutton, StringVar, Toplevel
+        from tkinter import Button, Frame, Label, Radiobutton, Toplevel
 
         dialog = Toplevel(self.gui.root)
         dialog.title("Tipo de Peso")
@@ -1957,34 +1208,3 @@ class WidgetFactory:
             ).pack(pady=(0, 15))
             log.warning("welcome.logo.load_error", error=str(e))
 
-    def import_roi_template(self) -> None:
-        """Import a template file into the library (does not apply it)."""
-        from pathlib import Path
-        from tkinter import filedialog
-
-        pm = getattr(self.gui.controller, "project_manager", None)
-        if pm is None:
-            return
-
-        file_path = filedialog.askopenfilename(
-            title="Importar Template de ROI para Biblioteca",
-            filetypes=[("Templates de ROI", "*.json"), ("Todos os arquivos", "*.*")],
-        )
-        if not file_path:
-            return
-
-        try:
-            metadata = pm.import_roi_template(file_path)
-        except Exception as exc:  # pragma: no cover - defensive
-            log.error("gui.roi_templates.import_failed", error=str(exc), file=file_path)
-            self.gui.show_error("Erro ao importar", str(exc))
-            return
-
-        self.gui._refresh_roi_templates()
-        self.gui._select_roi_template(metadata)
-        template_name = metadata.get("name", Path(file_path).stem)
-        message = (
-            f"Template '{template_name}' adicionado à biblioteca.\n\n"
-            "Use o botão 'Aplicar' para usar este template."
-        )
-        self.gui.show_info("Template importado", message)

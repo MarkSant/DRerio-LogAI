@@ -118,8 +118,12 @@ def main_view_model(mock_root, mock_dependencies):
                                                 attribute="_init_hardware_and_models",
                                                 new=lambda self: None
                                             ):
-                                                from zebtrack.core.main_view_model import MainViewModel
-                                                from zebtrack.core.dependency_container import MainViewModelDependencies
+                                                from zebtrack.core.dependency_container import (
+                                                    MainViewModelDependencies,
+                                                )
+                                                from zebtrack.core.main_view_model import (
+                                                    MainViewModel,
+                                                )
 
                                                 # Phase 3: Create dependencies container
                                                 dependencies = MainViewModelDependencies(

@@ -333,7 +333,7 @@ class VideoProcessingOrchestrator:
 
             self.ui_coordinator.set_status(self.view, "Pronto.")
             self.main_view_model._publish_processing_mode(source="worker.completed", force=True)
-            self.main_view_model.refresh_project_views()
+            self.main_view_model.ui_state_controller.refresh_project_views()
 
         return ProcessingCallbacks(
             on_started=on_started,
@@ -440,7 +440,7 @@ class VideoProcessingOrchestrator:
             check_videos_exist=False,  # Not required for single video
         )
 
-        if not self.main_view_model._handle_validation_error(validation_result):
+        if not self.main_view_model.dialog_coordinator.handle_validation_error(validation_result):
             return
 
         self.project_manager.set_active_zone_video(video_path)
@@ -496,7 +496,7 @@ class VideoProcessingOrchestrator:
 
         # Refresh views so the video appears in Main Control and Reports tabs
         # Ensures the user sees the registered video before processing starts
-        self.main_view_model.refresh_project_views(reason="Single video registered", immediate=True)
+        self.main_view_model.ui_state_controller.refresh_project_views(reason="Single video registered", immediate=True)
 
         # 1. Update the detector with the newly created zone data
         # We need to know the video dimensions to set up the zones correctly
@@ -560,7 +560,7 @@ class VideoProcessingOrchestrator:
         )
 
         # 4. Switch to analysis view mode immediately
-        self.main_view_model._activate_analysis_view_mode()
+        self.main_view_model.ui_state_controller.activate_analysis_view_mode()
 
         # Permanecer na tela principal para exibir a barra de progresso
         # self.view._create_welcome_frame()
@@ -593,11 +593,11 @@ class VideoProcessingOrchestrator:
             check_videos_exist=False,
         )
 
-        if not self.main_view_model._handle_validation_error(validation_result):
+        if not self.main_view_model.dialog_coordinator.handle_validation_error(validation_result):
             return
 
         # Sprint 13: Validate zones with UI interaction
-        if not self.main_view_model._validate_zones_with_ui():
+        if not self.main_view_model.dialog_coordinator.validate_zones_with_ui():
             return
 
         # 1. Ask user to select files or folders
@@ -625,7 +625,7 @@ class VideoProcessingOrchestrator:
             return
 
         # 3. Sprint 13: Handle mixed data scenario
-        videos_to_process = self.main_view_model._handle_mixed_data_scenario(scanned_videos)
+        videos_to_process = self.main_view_model.dialog_coordinator.handle_mixed_data_scenario(scanned_videos)
         if videos_to_process is None:
             return  # User cancelled or videos already added
 
@@ -656,7 +656,7 @@ class VideoProcessingOrchestrator:
             self.main_view_model.processing_worker.start_in_thread()
         )
 
-        self.main_view_model._activate_analysis_view_mode()
+        self.main_view_model.ui_state_controller.activate_analysis_view_mode()
 
         # 6. Update statuses in project file
         for video in videos_to_process:
@@ -827,7 +827,7 @@ class VideoProcessingOrchestrator:
             check_zones=False,
             check_videos_exist=True,
         )
-        if not self.main_view_model._handle_validation_error(validation_result):
+        if not self.main_view_model.dialog_coordinator.handle_validation_error(validation_result):
             return
 
         # Get all videos and prepare selection
@@ -914,7 +914,7 @@ class VideoProcessingOrchestrator:
             self.main_view_model.processing_worker.start_in_thread()
         )
 
-        self.main_view_model._activate_analysis_view_mode()
+        self.main_view_model.ui_state_controller.activate_analysis_view_mode()
 
         for video_info in eligible_videos:
             path_value = video_info.get("path")

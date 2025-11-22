@@ -218,7 +218,7 @@ class ProjectOrchestrator:
             summary_excel=summary_excel,
             report_path=report_path,
         )
-        self.main_view_model.refresh_project_views(
+        self.main_view_model.ui_state_controller.refresh_project_views(
             reason="processing_progress",
             append_summary=True,
         )
@@ -311,7 +311,7 @@ class ProjectOrchestrator:
 
         message = "Configurações globais aplicadas ao projeto."
         self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": message})
-        self.main_view_model.refresh_project_views(reason=message, append_summary=True)
+        self.main_view_model.ui_state_controller.refresh_project_views(reason=message, append_summary=True)
 
         return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
 
@@ -356,7 +356,7 @@ class ProjectOrchestrator:
 
         message = "Overrides do projeto atualizados a partir desta calibração."
         self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": message})
-        self.main_view_model.refresh_project_views(reason=message, append_summary=True)
+        self.main_view_model.ui_state_controller.refresh_project_views(reason=message, append_summary=True)
 
         return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
 

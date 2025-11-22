@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
-    from zebtrack.core.analysis_coordinator import AnalysisCoordinator
     from zebtrack.orchestrators.analysis_orchestrator import AnalysisOrchestrator
     from zebtrack.orchestrators.calibration_orchestrator import CalibrationOrchestrator
     from zebtrack.orchestrators.model_diagnostics_orchestrator import (

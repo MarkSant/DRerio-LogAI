@@ -44,7 +44,6 @@ from zebtrack.core.processing_worker import (
     ProcessingWorker,
 )
 from zebtrack.core.project_manager import ProjectManager
-from zebtrack.core.state_manager import StateCategory
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:

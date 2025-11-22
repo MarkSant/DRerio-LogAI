@@ -2,6 +2,12 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from zebtrack.analysis.analysis_service import AnalysisService
+
+# Phase 3: Super Coordinators (replace legacy coordinators/orchestrators)
+from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
+from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
+from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
+from zebtrack.coordinators.session_coordinator import SessionCoordinator
 from zebtrack.core.detector_service import DetectorService
 from zebtrack.core.live_camera_service import LiveCameraService
 from zebtrack.core.model_service import ModelService
@@ -15,11 +21,6 @@ from zebtrack.core.weight_manager import WeightManager
 from zebtrack.settings import Settings
 from zebtrack.ui.event_bus import EventBus
 
-# Phase 3: Super Coordinators (replace legacy coordinators/orchestrators)
-from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
-from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
-from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
-from zebtrack.coordinators.session_coordinator import SessionCoordinator
 
 @dataclass
 class MainViewModelDependencies:

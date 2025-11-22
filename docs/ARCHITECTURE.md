@@ -266,6 +266,7 @@ A UI foi refatorada de uma classe monolítica para uma **arquitetura baseada em 
 | `EventBus` | Um sistema de publicação/inscrição que desacopla os componentes da UI do `MainViewModel`. Componentes publicam eventos (`zone.draw_roi`) sem conhecer quem os consome. |
 | `WizardDialog` 🧙 | Assistente de 5 etapas para criação inteligente de projetos. É um componente complexo, porém autocontido, que entrega um conjunto de dados para o `ProjectWorkflowAdapter`. |
 | `DialogManager` 🆕 | **Novo (Phase 2+)**: Centraliza todas as interações de diálogo da UI. Extraído de `ApplicationGUI` (~811 linhas) para reduzir God Object. Gerencia messageboxes, file dialogs, custom dialogs (calibração, ROI templates, análise), confirmações e notificações. |
+| **Novos Componentes (Phase 3-5)** | Componentes extraídos para reduzir o acoplamento da `ApplicationGUI`: <br> - `DrawingStateManager`: Centraliza o estado de desenho de polígonos e ROIs. <br> - `PolygonDrawingService`: Encapsula a lógica de conclusão de desenho (strategies para Arena/ROI). <br> - `GeometryService`: Lógica matemática pura para snapping e clamping. <br> - `ROITemplateManager`: Gerencia operações CRUD de templates de ROI. <br> - `TabBuilder`: Constrói as abas principais da interface. |
 
 ### 3.2. ViewModel Layer
 
