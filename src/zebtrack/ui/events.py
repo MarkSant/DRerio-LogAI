@@ -216,6 +216,7 @@ class Events:
     UI_DISPLAY_FRAME = "ui:display_frame"
     UI_UPDATE_SOCIAL_SUMMARY = "ui:update_social_summary"
     UI_UPDATE_PROCESSING_STATS = "ui:update_processing_stats"
+    UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED = "ui:video_hierarchy_snapshot_updated"
 
     # Weight Management
     UI_REQUEST_WEIGHT_FILE = "ui:request_weight_file"

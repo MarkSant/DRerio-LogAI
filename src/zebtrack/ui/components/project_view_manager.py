@@ -190,11 +190,14 @@ class ProjectViewManager:
         pm = self.gui.controller.project_manager
         pm.get_all_videos()
 
-        # Build hierarchy data
-        hierarchy_data = self.gui._build_video_hierarchy_snapshot()
+        # Request update via event/method
+        self.gui.publish_video_hierarchy_snapshot()
 
-        # Update widget
-        self.gui.project_overview_widget.update_tree(hierarchy_data)
+    def on_video_hierarchy_snapshot_updated(self, snapshot: list[dict]) -> None:
+        """Handle video hierarchy snapshot update event."""
+        if not hasattr(self.gui, "project_overview_widget") or not self.gui.project_overview_widget:
+            return
+        self.gui.project_overview_widget.update_tree(snapshot)
 
     # ===========================================================================
     # CATEGORIA 3: FORMATADORES E HELPERS

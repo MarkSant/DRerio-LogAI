@@ -21,6 +21,7 @@ import structlog
 from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.models import AnalysisResult, CalibrationParams
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
+from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
@@ -643,10 +644,13 @@ class AnalysisService:
                 )
                 root_tk.after(
                     0,
-                    lambda name=profile_name: controller.view.update_social_summary(
-                        profile=name,
-                        stats=None,
-                        tracks=[],
+                    lambda name=profile_name: controller.ui_event_bus.publish_event(
+                        Events.UI_UPDATE_SOCIAL_SUMMARY,
+                        {
+                            "profile": name,
+                            "stats": None,
+                            "tracks": [],
+                        }
                     ),
                 )
 

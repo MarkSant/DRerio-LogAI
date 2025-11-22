@@ -167,6 +167,16 @@ class EventDispatcher:
             self._handle_setup_zone_definition_for_single_video
         )
 
+        # Analysis Updates
+        self.event_bus.subscribe(Events.UI_UPDATE_PROCESSING_STATS,
+            lambda d: self.gui._on_processing_stats_updated(**d))
+        self.event_bus.subscribe(Events.UI_UPDATE_SOCIAL_SUMMARY,
+            lambda d: self.gui._on_social_summary_updated(**d))
+
+        # Project View Updates
+        self.event_bus.subscribe(Events.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
+            lambda d: self.gui.project_view_manager.on_video_hierarchy_snapshot_updated(d.get("snapshot", [])))
+
     def _handle_setup_zone_definition_for_single_video(self, data: dict) -> None:
         """Handler for single video zone setup event."""
         if not self.gui: return

@@ -7,6 +7,7 @@ import sys
 from collections import Counter
 from collections.abc import Callable, Iterable
 from pathlib import Path
+import warnings
 from tkinter import (
     BooleanVar,
     Button,
@@ -1060,8 +1061,25 @@ class ApplicationGUI:
         """Build video hierarchy data. Delegates to ProjectViewManager."""
         return self.project_view_manager._build_video_hierarchy_data(all_videos, search_text)
 
+    def publish_video_hierarchy_snapshot(self) -> None:
+        """Build and publish video hierarchy snapshot."""
+        snapshot = self.validation_manager.build_video_hierarchy_snapshot()
+        self.event_dispatcher.event_bus.publish(
+            Events.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
+            {"snapshot": snapshot}
+        )
+
     def _build_video_hierarchy_snapshot(self) -> list[dict]:
-        """Build video hierarchy snapshot. Delegates to ValidationManager."""
+        """Build video hierarchy snapshot. Delegates to ValidationManager.
+
+        .. deprecated:: 0.1.0
+           Use publish_video_hierarchy_snapshot() instead.
+        """
+        warnings.warn(
+            "_build_video_hierarchy_snapshot is deprecated. Use publish_video_hierarchy_snapshot() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         return self.validation_manager.build_video_hierarchy_snapshot()
 
     def _format_status_token(self, has_parquet: bool, symbol_key: str) -> str:
@@ -2265,6 +2283,10 @@ class ApplicationGUI:
         """Force the GUI to update, processing pending events."""
         self.root.update_idletasks()
 
+    def _on_processing_stats_updated(self, **kwargs) -> None:
+        """Handle processing stats update event."""
+        self.state_synchronizer.update_processing_stats(**kwargs)
+
     def update_progress_stats(
         self,
         *,
@@ -2275,7 +2297,16 @@ class ApplicationGUI:
         elapsed=None,
         eta=None,
     ):
-        """Update progress stats. Delegates to AnalysisDisplay."""
+        """Update progress stats. Delegates to AnalysisDisplay.
+
+        .. deprecated:: 0.1.0
+           Use UIEvents.PROCESSING_STATS_UPDATED instead.
+        """
+        warnings.warn(
+            "update_progress_stats is deprecated. Use UIEvents.PROCESSING_STATS_UPDATED event.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         return self.analysis_display.update_progress_stats(
             total=total,
             processed=processed,
@@ -2413,6 +2444,11 @@ class ApplicationGUI:
         self._reset_analysis_controls()
 
     @public_api
+    def _on_social_summary_updated(self, **kwargs) -> None:
+        """Handle social summary update event."""
+        self.state_synchronizer.update_social_summary(**kwargs)
+
+    @public_api
     def update_social_summary(
         self,
         *,
@@ -2423,7 +2459,15 @@ class ApplicationGUI:
         """Display social proximity statistics (PUBLIC API).
 
         Called by: AnalysisService during analysis
+
+        .. deprecated:: 0.1.0
+           Use UIEvents.SOCIAL_SUMMARY_UPDATED instead.
         """
+        warnings.warn(
+            "update_social_summary is deprecated. Use UIEvents.SOCIAL_SUMMARY_UPDATED event.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         return self.state_synchronizer.update_social_summary(
             profile=profile, stats=stats, tracks=tracks
         )
