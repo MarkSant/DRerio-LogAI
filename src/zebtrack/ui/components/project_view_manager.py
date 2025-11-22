@@ -59,7 +59,13 @@ class ProjectViewManager:
         # Subscribe to VIDEO_TREE_REFRESH_REQUESTED event
         # (replaces direct gui._populate_video_selector_tree calls)
         self.event_bus_v2.subscribe(UIEvents.VIDEO_TREE_REFRESH_REQUESTED, self._on_video_tree_refresh_requested)
-        log.debug("project_view_manager.event_subscriptions_setup", events=["VIDEO_TREE_REFRESH_REQUESTED"])
+
+        # Subscribe to READINESS_SNAPSHOT_UPDATED event
+        # (replaces direct gui.apply_pending_readiness_snapshot calls)
+        self.event_bus_v2.subscribe(UIEvents.READINESS_SNAPSHOT_UPDATED, self._on_readiness_snapshot_updated)
+
+        log.debug("project_view_manager.event_subscriptions_setup",
+                  events=["VIDEO_TREE_REFRESH_REQUESTED", "READINESS_SNAPSHOT_UPDATED"])
 
     def _on_video_tree_refresh_requested(self, data: dict):
         """Handle VIDEO_TREE_REFRESH_REQUESTED event.
@@ -70,6 +76,30 @@ class ProjectViewManager:
         filter_text = data.get("filter_text")
         log.debug("project_view_manager.video_tree_refresh_event_received", filter_text=filter_text)
         self._populate_video_selector_tree(filter_text)
+
+    def _on_readiness_snapshot_updated(self, data: dict):
+        """Handle READINESS_SNAPSHOT_UPDATED event.
+
+        Args:
+            data: Event payload containing readiness snapshot data
+        """
+        ready_with_trajectory = data.get("ready_with_trajectory", [])
+        ready_with_zones = data.get("ready_with_zones", [])
+        arena_only = data.get("arena_only", [])
+        without_arena = data.get("without_arena", [])
+
+        log.debug("project_view_manager.readiness_snapshot_event_received",
+                  ready_with_trajectory_count=len(ready_with_trajectory),
+                  ready_with_zones_count=len(ready_with_zones),
+                  arena_only_count=len(arena_only),
+                  without_arena_count=len(without_arena))
+
+        self.apply_pending_readiness_snapshot(
+            ready_with_trajectory=ready_with_trajectory,
+            ready_with_zones=ready_with_zones,
+            arena_only=arena_only,
+            without_arena=without_arena
+        )
 
     # ===========================================================================
     # CATEGORIA 1: NAVEGAÇÃO E WINDOW MANAGEMENT

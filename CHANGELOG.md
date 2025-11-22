@@ -27,10 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `ZoneControlBuilder._refresh_video_tree_dual_mode()` (2 call sites: refresh button + initialization)
     - `ProjectViewManager._build_readiness_snapshot()`
   - `ProjectViewManager` subscribes to VIDEO_TREE_REFRESH_REQUESTED and processes updates
-- **Integration Tests**: 21 new tests validating event flows
+- **READINESS_SNAPSHOT_UPDATED Event**: Migrated `apply_pending_readiness_snapshot()` from direct calls to events
+  - 1 publisher now emits READINESS_SNAPSHOT_UPDATED event:
+    - `DialogManager.ask_reuse_zones()`
+  - `ProjectViewManager` subscribes to READINESS_SNAPSHOT_UPDATED and processes updates
+- **Integration Tests**: 31 new tests validating event flows
   - `tests/integration/test_zones_updated_event.py` (12 tests)
   - `tests/integration/test_video_tree_refresh_event.py` (9 tests)
-  - Tests dual mode compatibility, edge cases, and multiple subscribers
+  - `tests/integration/test_readiness_snapshot_event.py` (10 tests)
+  - Tests dual mode compatibility, edge cases, multiple subscribers, and empty/missing data handling
 
 #### Changed
 - **GUI.__init__**: Now creates EventBusV2 instance (`self.event_bus_v2`)
@@ -41,9 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `CanvasManager(gui, event_bus_v2)`
   - `ProjectViewManager(gui, event_bus_v2)` ✨ NEW
   - `ZoneControlBuilder(gui, event_bus_v2)` ✨ NEW
-- **Dual Mode Enabled**: All 7 publishers execute BOTH paths:
+- **Dual Mode Enabled**: All 8 publishers execute BOTH paths:
   - ZONES_UPDATED: 4 publishers (OLD + NEW paths)
   - VIDEO_TREE_REFRESH_REQUESTED: 3 publishers (OLD + NEW paths)
+  - READINESS_SNAPSHOT_UPDATED: 1 publisher (OLD + NEW paths) ✨ NEW
   - Ensures backward compatibility during migration
 
 #### Deprecated
@@ -55,16 +61,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reason: "Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0"
   - Alternative: `event_bus_v2.publish(Event(UIEvents.VIDEO_TREE_REFRESH_REQUESTED, {'filter_text': filter_text}))`
   - Will be removed in v4.0 final (after dual mode phase)
+- **`GUI.apply_pending_readiness_snapshot()`**: Marked with `@deprecated` decorator ✨ NEW
+  - Reason: "Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0"
+  - Alternative: `event_bus_v2.publish(Event(UIEvents.READINESS_SNAPSHOT_UPDATED, {...}))`
+  - Will be removed in v4.0 final (after dual mode phase)
 
 #### Documentation
-- Updated `docs/EVENT_MAPPING.md` with implementation details for both events
+- Updated `docs/EVENT_MAPPING.md` with implementation details for all 3 events
 - Updated `docs/API_STABILITY.md` with deprecation notices
 
 #### Next Steps (v4.0 Phase 2 Remaining)
-- ✅ ~~Migrate `update_zone_listbox()` → `UIEvents.ZONES_UPDATED`~~ (COMPLETE)
-- ✅ ~~Migrate `_populate_video_selector_tree()` → `UIEvents.VIDEO_TREE_REFRESH_REQUESTED`~~ (COMPLETE)
-- Migrate `apply_pending_readiness_snapshot()` → `UIEvents.READINESS_SNAPSHOT_UPDATED` (1 publisher) 🔄 IN PROGRESS
+- ✅ ~~Migrate `update_zone_listbox()` → `UIEvents.ZONES_UPDATED`~~ (COMPLETE - 4 publishers)
+- ✅ ~~Migrate `_populate_video_selector_tree()` → `UIEvents.VIDEO_TREE_REFRESH_REQUESTED`~~ (COMPLETE - 3 publishers)
+- ✅ ~~Migrate `apply_pending_readiness_snapshot()` → `UIEvents.READINESS_SNAPSHOT_UPDATED`~~ (COMPLETE - 1 publisher)
 - Migrate 2-7 additional methods to events
+  - Candidates: `setup_interactive_polygon()`, `_build_video_hierarchy_snapshot()`, `update_processing_stats()`, `update_social_summary()`, `update_analysis_task_status()`
+
+#### Progress
+- **3 of 11+** methods migrated to Event Bus V2 (**27% complete**)
 
 ## [3.0.0] - 2025-01-11
 

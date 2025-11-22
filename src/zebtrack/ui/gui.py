@@ -1154,6 +1154,11 @@ class ApplicationGUI:
             return
         self._populate_video_selector_tree(self.video_search_var.get())
 
+    @deprecated(
+        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
+        version="v3.1",
+        alternative="event_bus_v2.publish(Event(UIEvents.READINESS_SNAPSHOT_UPDATED, {...}))",
+    )
     @public_api
     def apply_pending_readiness_snapshot(
         self,
@@ -1164,6 +1169,8 @@ class ApplicationGUI:
         without_arena: list[dict],
     ) -> None:
         """Apply video readiness snapshot to UI (PUBLIC API).
+
+        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
 
         Called by: DialogManager after zone reuse operations
         """

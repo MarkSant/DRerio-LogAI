@@ -463,12 +463,26 @@ class DialogManager:
         Returns:
             Dialog result with selected videos, or None if cancelled
         """
-        self.gui.apply_pending_readiness_snapshot(
+        # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
+        self.gui.apply_pending_readiness_snapshot(  # OLD PATH - will be removed in v4.0
             ready_with_trajectory=ready_with_trajectory,
             ready_with_zones=ready_with_zones,
             arena_only=arena_only,
             without_arena=without_arena,
         )
+
+        if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+            self.event_bus_v2.publish(Event(
+                type=UIEvents.READINESS_SNAPSHOT_UPDATED,
+                data={
+                    'ready_with_trajectory': ready_with_trajectory,
+                    'ready_with_zones': ready_with_zones,
+                    'arena_only': arena_only,
+                    'without_arena': without_arena
+                },
+                source='DialogManager.ask_reuse_zones'
+            ))
 
         dialog = PendingVideosDialog(
             self.gui.root,
