@@ -22,13 +22,15 @@ log = structlog.get_logger()
 class CanvasManager:
     """Manages canvas operations, drawing, and coordinate transformations."""
 
-    def __init__(self, gui):
+    def __init__(self, gui, event_bus_v2=None):
         """Initialize CanvasManager.
 
         Args:
             gui: Reference to ApplicationGUI instance
+            event_bus_v2: EventBusV2 instance for v4.0 Event-Driven Architecture (optional)
         """
         self.gui = gui
+        self.event_bus_v2 = event_bus_v2
         # Transformation attributes
         self._bg_scale = None
         self._bg_offset = None
@@ -36,10 +38,32 @@ class CanvasManager:
         self._raw_bg_image = None
         self._canvas_bg_image = None
         self._canvas_bg_position = None
-        
+
         # Initialize sub-components
         self.renderer = CanvasRenderer(self)
         self.event_handler = CanvasEventHandler(self)
+
+        # Subscribe to events if event bus is available
+        if self.event_bus_v2:
+            self._setup_event_subscriptions()
+
+    def _setup_event_subscriptions(self):
+        """Subscribe to Event Bus V2 events for v4.0 Event-Driven Architecture."""
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        # Subscribe to ZONES_UPDATED event (replaces direct gui.update_zone_listbox calls)
+        self.event_bus_v2.subscribe(UIEvents.ZONES_UPDATED, self._on_zones_updated)
+        log.debug("canvas_manager.event_subscriptions_setup", events=["ZONES_UPDATED"])
+
+    def _on_zones_updated(self, data: dict):
+        """Handle ZONES_UPDATED event.
+
+        Args:
+            data: Event payload containing zone_data
+        """
+        zone_data = data.get("zone_data")
+        log.debug("canvas_manager.zones_updated_event_received", has_zone_data=zone_data is not None)
+        self.update_zone_listbox(zone_data)
 
     # ========== Coordinate Transformation Methods ========== 
 

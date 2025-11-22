@@ -30,13 +30,15 @@ log = structlog.get_logger()
 class DialogManager:
     """Manages dialogs and user interactions for ApplicationGUI."""
 
-    def __init__(self, gui):
+    def __init__(self, gui, event_bus_v2=None):
         """Initialize DialogManager.
 
         Args:
             gui: Reference to ApplicationGUI instance
+            event_bus_v2: EventBusV2 instance for v4.0 Event-Driven Architecture (optional)
         """
         self.gui = gui
+        self.event_bus_v2 = event_bus_v2
 
     # =========================================================================
     # MessageBox Wrappers
@@ -368,7 +370,17 @@ class DialogManager:
 
         # Refresh UI
         self.gui.canvas_manager.redraw_zones_from_project_data()
-        self.gui.update_zone_listbox()
+
+        # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
+        self.gui.update_zone_listbox()  # OLD PATH - will be removed in v4.0
+        if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+            self.event_bus_v2.publish(Event(
+                type=UIEvents.ZONES_UPDATED,
+                data={'zone_data': None},
+                source='DialogManager.import_and_apply_template'
+            ))
+
         self.gui._refresh_zone_indicators()
         self.gui._enable_roi_button_if_arena_exists()
 

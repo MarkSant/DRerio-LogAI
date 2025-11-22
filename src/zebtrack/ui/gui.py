@@ -52,6 +52,7 @@ from zebtrack.ui.components import (
     WidgetFactory,
 )
 from zebtrack.ui.decorators import deprecated, public_api
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
     CenterPeripheryDialog,
@@ -179,6 +180,10 @@ class ApplicationGUI:
         self._event_bus_after_id: int | None = None
         self._event_bus_poll_interval_ms = 50
         self._event_bus_handlers: dict[str, Callable[[Any], None]] = {}
+
+        # Initialize Event Bus V2 for Event-Driven Architecture (v4.0)
+        self.event_bus_v2 = EventBusV2()
+
         self.root.title("DRerio LogAI")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 
@@ -189,23 +194,23 @@ class ApplicationGUI:
         # Initialize component managers (extracted from God Object)
         # Phase 1 components
         self.menu_manager = MenuManager(self)
-        self.canvas_manager = CanvasManager(self)
+        self.canvas_manager = CanvasManager(self, event_bus_v2=self.event_bus_v2)
         self.state_synchronizer = StateSynchronizer(self)
         self.event_dispatcher = EventDispatcher(self)
 
         # Phase 2 components (with dependency injection)
         self.validation_manager = ValidationManager(self, settings_obj=self.settings)
-        self.dialog_manager = DialogManager(self)
+        self.dialog_manager = DialogManager(self, event_bus_v2=self.event_bus_v2)
         self.widget_factory = WidgetFactory(self, settings_obj=self.settings)
         self.project_view_manager = ProjectViewManager(self)
 
         # Phase 3 components
         self.drawing_state_manager = DrawingStateManager()
-        self.polygon_drawing_service = PolygonDrawingService()
+        self.polygon_drawing_service = PolygonDrawingService(event_bus_v2=self.event_bus_v2)
 
         # Phase 4 components
         self.roi_template_manager = ROITemplateManager(
-            self.controller.project_manager, self
+            self.controller.project_manager, self, event_bus_v2=self.event_bus_v2
         )
 
         # Phase 5 components
@@ -1737,16 +1742,18 @@ class ApplicationGUI:
             self.canvas_manager.stop_drawing()
 
     @deprecated(
-        reason="Use Event Bus instead",
+        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
         version="v3.1",
-        alternative="event_bus.publish(Events.UI_UPDATE_ZONE_LIST, ...)",
+        alternative="event_bus_v2.publish(Event(UIEvents.ZONES_UPDATED, {'zone_data': zone_data}))",
     )
     @public_api
     def update_zone_listbox(self, zone_data: ZoneData | None = None):
         """Update zone listbox with current zones (PUBLIC API).
 
+        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
+
         Called by: DialogManager, Renderer, PolygonDrawingService,
-                   ROITemplateManager, ZoneControlBuilder
+                   ROITemplateManager
         """
         return self.canvas_manager.update_zone_listbox(zone_data)
 

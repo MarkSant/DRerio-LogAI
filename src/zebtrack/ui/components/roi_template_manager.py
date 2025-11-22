@@ -12,9 +12,10 @@ log = structlog.get_logger()
 class ROITemplateManager:
     """Gerencia operações de templates de ROI."""
 
-    def __init__(self, project_manager, gui_parent: "ApplicationGUI"):
+    def __init__(self, project_manager, gui_parent: "ApplicationGUI", event_bus_v2=None):
         self.project_manager = project_manager
         self.gui = gui_parent
+        self.event_bus_v2 = event_bus_v2
         self._cache: list[dict[str, Any]] = []
         self.template_var = StringVar(value="")
         # Delete button reference will be managed via gui or passed in?
@@ -160,7 +161,17 @@ class ROITemplateManager:
 
             self.gui.controller.setup_detector_zones()
             self.gui.canvas_manager.redraw_zones_from_project_data()
-            self.gui.update_zone_listbox()
+
+            # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
+            self.gui.update_zone_listbox()  # OLD PATH - will be removed in v4.0
+            if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.ZONES_UPDATED,
+                    data={'zone_data': None},
+                    source='ROITemplateManager.apply_template'
+                ))
+
             self.gui._refresh_zone_indicators()
 
             template_name = selected.get("name")

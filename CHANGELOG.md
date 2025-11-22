@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔄 Event-Driven Architecture (v4.0 Migration - Phase 2)
+**Status**: IN PROGRESS (Dual Mode Compatibility)
+
+#### Added
+- **Event Bus V2** (`ui/event_bus_v2.py`): Foundation for Event-Driven Architecture v4.0
+  - Type-safe event system with `UIEvents` enum (20+ event types)
+  - Thread-safe publish/subscribe pattern with RLock
+  - Event payload validation with dataclass `Event`
+- **ZONES_UPDATED Event**: Migrated `update_zone_listbox()` from direct calls to events
+  - 4 publishers now emit ZONES_UPDATED event:
+    - `DialogManager.import_and_apply_template()`
+    - `ROITemplateManager.apply_template()`
+    - `CanvasRenderer.redraw_zones()`
+    - `PolygonDrawingService` (ArenaCompletionStrategy + ROICompletionStrategy)
+  - `CanvasManager` subscribes to ZONES_UPDATED and processes updates
+- **Integration Tests**: 12 new tests validating ZONES_UPDATED event flow
+  - `tests/integration/test_zones_updated_event.py`
+  - Tests dual mode compatibility, edge cases, and multiple subscribers
+
+#### Changed
+- **GUI.__init__**: Now creates EventBusV2 instance (`self.event_bus_v2`)
+- **Dependency Injection**: Event Bus V2 injected into 4 components:
+  - `DialogManager(gui, event_bus_v2)`
+  - `ROITemplateManager(project_manager, gui, event_bus_v2)`
+  - `PolygonDrawingService(event_bus_v2)`
+  - `CanvasManager(gui, event_bus_v2)`
+- **Dual Mode Enabled**: All 4 publishers execute BOTH paths:
+  - OLD PATH: Direct `gui.update_zone_listbox()` call (deprecated)
+  - NEW PATH: `event_bus_v2.publish(Event(UIEvents.ZONES_UPDATED, ...))` ✅
+  - Ensures backward compatibility during migration
+
+#### Deprecated
+- **`GUI.update_zone_listbox()`**: Marked with `@deprecated` decorator
+  - Reason: "Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0"
+  - Alternative: `event_bus_v2.publish(Event(UIEvents.ZONES_UPDATED, {'zone_data': zone_data}))`
+  - Will be removed in v4.0 final (after dual mode phase)
+
+#### Documentation
+- Updated `docs/EVENT_MAPPING.md` with ZONES_UPDATED implementation details
+- Updated `docs/API_STABILITY.md` with deprecation notice for `update_zone_listbox()`
+
+#### Next Steps (v4.0 Phase 2 Remaining)
+- Migrate `_populate_video_selector_tree()` → `UIEvents.VIDEO_TREE_REFRESH_REQUESTED` (3 publishers)
+- Migrate `apply_pending_readiness_snapshot()` → `UIEvents.READINESS_SNAPSHOT_UPDATED` (1 publisher)
+- Migrate 2-7 additional methods to events
+
 ## [3.0.0] - 2025-01-11
 
 ### 🔴 Breaking Changes
