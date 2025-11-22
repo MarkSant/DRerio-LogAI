@@ -31,7 +31,17 @@ class ArenaCompletionStrategy(PolygonCompletionStrategy):
         success = gui.controller.set_main_arena_polygon(video_points)
         if success:
             gui.canvas_manager.redraw_zones_from_project_data()
-            gui.update_zone_listbox()
+
+            # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
+            gui.update_zone_listbox()  # OLD PATH - will be removed in v4.0
+            if hasattr(gui, 'event_bus_v2') and gui.event_bus_v2:
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                gui.event_bus_v2.publish(Event(
+                    type=UIEvents.ZONES_UPDATED,
+                    data={'zone_data': None},
+                    source='ArenaCompletionStrategy.complete'
+                ))
+
             return True
         return False
 
@@ -65,7 +75,17 @@ class ROICompletionStrategy(PolygonCompletionStrategy):
 
         if success:
             gui.canvas_manager.redraw_zones_from_project_data()
-            gui.update_zone_listbox()
+
+            # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
+            gui.update_zone_listbox()  # OLD PATH - will be removed in v4.0
+            if hasattr(gui, 'event_bus_v2') and gui.event_bus_v2:
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                gui.event_bus_v2.publish(Event(
+                    type=UIEvents.ZONES_UPDATED,
+                    data={'zone_data': None},
+                    source='ROICompletionStrategy.complete'
+                ))
+
             return True
         return False
 
@@ -73,7 +93,8 @@ class ROICompletionStrategy(PolygonCompletionStrategy):
 class PolygonDrawingService:
     """Serviço para gerenciar conclusão de desenho de polígono."""
 
-    def __init__(self):
+    def __init__(self, event_bus_v2=None):
+        self.event_bus_v2 = event_bus_v2
         self._strategies = {
             "arena": ArenaCompletionStrategy(),
             "roi": ROICompletionStrategy(),

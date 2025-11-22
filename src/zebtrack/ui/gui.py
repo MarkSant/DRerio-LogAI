@@ -52,7 +52,8 @@ from zebtrack.ui.components import (
     ValidationManager,
     WidgetFactory,
 )
-from zebtrack.ui.decorators import public_api
+from zebtrack.ui.decorators import deprecated, public_api
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
     CenterPeripheryDialog,
@@ -180,6 +181,10 @@ class ApplicationGUI:
         self._event_bus_after_id: int | None = None
         self._event_bus_poll_interval_ms = 50
         self._event_bus_handlers: dict[str, Callable[[Any], None]] = {}
+
+        # Initialize Event Bus V2 for Event-Driven Architecture (v4.0)
+        self.event_bus_v2 = EventBusV2()
+
         self.root.title("DRerio LogAI")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 
@@ -190,30 +195,30 @@ class ApplicationGUI:
         # Initialize component managers (extracted from God Object)
         # Phase 1 components
         self.menu_manager = MenuManager(self)
-        self.canvas_manager = CanvasManager(self)
+        self.canvas_manager = CanvasManager(self, event_bus_v2=self.event_bus_v2)
         self.state_synchronizer = StateSynchronizer(self)
         self.event_dispatcher = EventDispatcher(self)
 
         # Phase 2 components (with dependency injection)
         self.validation_manager = ValidationManager(self, settings_obj=self.settings)
-        self.dialog_manager = DialogManager(self)
+        self.dialog_manager = DialogManager(self, event_bus_v2=self.event_bus_v2)
         self.widget_factory = WidgetFactory(self, settings_obj=self.settings)
-        self.project_view_manager = ProjectViewManager(self)
+        self.project_view_manager = ProjectViewManager(self, event_bus_v2=self.event_bus_v2)
 
         # Phase 3 components
         self.drawing_state_manager = DrawingStateManager()
-        self.polygon_drawing_service = PolygonDrawingService()
+        self.polygon_drawing_service = PolygonDrawingService(event_bus_v2=self.event_bus_v2)
 
         # Phase 4 components
         self.roi_template_manager = ROITemplateManager(
-            self.controller.project_manager, self
+            self.controller.project_manager, self, event_bus_v2=self.event_bus_v2
         )
 
         # Phase 5 components
         self.tab_builder = TabBuilder(self)
 
         # Phase 5 builders (zone control widgets, buttons, panels)
-        self.zone_control_builder = ZoneControlBuilder(self)
+        self.zone_control_builder = ZoneControlBuilder(self, event_bus_v2=self.event_bus_v2)
         self.button_factory = ButtonFactory(self)
         self.panel_builder = PanelBuilder(self)
 
@@ -657,6 +662,7 @@ class ApplicationGUI:
             return
         return self.widget_factory.create_project_overview_panel(parent)
 
+    @public_api
     def _request_overview_refresh(
         self,
         reason: str | None = None,
@@ -671,6 +677,11 @@ class ApplicationGUI:
             immediate=immediate,
         )
 
+    @deprecated(
+        reason="Use Event Bus instead",
+        version="v3.1",
+        alternative="event_bus.publish(Events.UI_REFRESH_PROJECT_VIEWS, ...)",
+    )
     @public_api
     def refresh_project_views(
         self,
@@ -689,6 +700,7 @@ class ApplicationGUI:
             immediate=immediate,
         )
 
+    @public_api
     def _update_project_overview_summary(
         self,
         counts: Counter,
@@ -919,13 +931,27 @@ class ApplicationGUI:
             tags="background_image",
         )
 
+    @deprecated(
+        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
+        version="v3.1",
+        alternative="event_bus_v2.publish(Event(UIEvents.POLYGON_EDIT_REQUESTED, {'polygon': polygon}))",
+    )
     @public_api
     def setup_interactive_polygon(self, polygon: np.ndarray):
         """Set up interactive polygon for editing (PUBLIC API).
 
+        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
+
         Called by: CanvasManager when loading zones for editing
         """
-        return self.event_dispatcher.setup_interactive_polygon(polygon)
+        # LEGACY IMPLEMENTATION: This method is deprecated and will be removed in v4.0
+        # The actual implementation is now in CanvasManager._on_polygon_edit_requested()
+        # which is triggered by the POLYGON_EDIT_REQUESTED event.
+        # This method is kept only for backward compatibility during dual mode migration.
+        import structlog
+        log = structlog.get_logger()
+        log.warning("gui.setup_interactive_polygon.deprecated_call",
+                    message="This method is deprecated. Use Event Bus V2 (POLYGON_EDIT_REQUESTED) instead.")
 
     def _on_handle_press(self, event, handle_index):
         """Record which handle is being dragged and initial offset."""
@@ -1053,6 +1079,7 @@ class ApplicationGUI:
 
         return ValidationManager._format_day_display(value)
 
+    @public_api
     def _build_video_hierarchy_data(
         self,
         all_videos: list[dict],
@@ -1069,6 +1096,7 @@ class ApplicationGUI:
             {"snapshot": snapshot}
         )
 
+    @public_api
     def _build_video_hierarchy_snapshot(self) -> list[dict]:
         """Build video hierarchy snapshot. Delegates to ValidationManager.
 
@@ -1082,12 +1110,22 @@ class ApplicationGUI:
         )
         return self.validation_manager.build_video_hierarchy_snapshot()
 
+    @public_api
     def _format_status_token(self, has_parquet: bool, symbol_key: str) -> str:
         """Format status token. Delegates to ValidationManager."""
         return self.validation_manager.format_status_token(has_parquet, symbol_key)
 
+    @deprecated(
+        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
+        version="v3.1",
+        alternative="event_bus_v2.publish(Event(UIEvents.VIDEO_TREE_REFRESH_REQUESTED, {'filter_text': filter_text}))",
+    )
+    @public_api
     def _populate_video_selector_tree(self, filter_text: str | None = None):
-        """Populate video selector tree. Delegates to ProjectViewManager."""
+        """Populate video selector tree. Delegates to ProjectViewManager.
+
+        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
+        """
         return self.project_view_manager._populate_video_selector_tree(filter_text)
 
     def _refresh_video_selector_tree(self) -> None:
@@ -1143,6 +1181,11 @@ class ApplicationGUI:
             return
         self._populate_video_selector_tree(self.video_search_var.get())
 
+    @deprecated(
+        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
+        version="v3.1",
+        alternative="event_bus_v2.publish(Event(UIEvents.READINESS_SNAPSHOT_UPDATED, {...}))",
+    )
     @public_api
     def apply_pending_readiness_snapshot(
         self,
@@ -1154,6 +1197,8 @@ class ApplicationGUI:
     ) -> None:
         """Apply video readiness snapshot to UI (PUBLIC API).
 
+        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
+
         Called by: DialogManager after zone reuse operations
         """
         return self.project_view_manager.apply_pending_readiness_snapshot(
@@ -1163,6 +1208,7 @@ class ApplicationGUI:
             without_arena=without_arena,
         )
 
+    @public_api
     def _maybe_offer_zone_reuse(self, video_path: str) -> None:
         """Prompt user to reuse zones when current video has none. Delegates to DialogManager."""
         return self.dialog_manager.offer_zone_reuse(video_path)
@@ -1172,18 +1218,22 @@ class ApplicationGUI:
         del event  # Evento não é utilizado diretamente
         self.canvas_manager.load_selected_video_frame()
 
+    @public_api
     def _on_processing_reports_item_double_click(self, event=None) -> None:
         """Handle processing reports item double click. Delegates to ProjectViewManager."""
         return self.project_view_manager.handle_processing_reports_item_double_click(event)
 
+    @public_api
     def _on_processing_reports_generate_partial(self) -> None:
         """Handle partial report generation. Delegates to ProjectViewManager."""
         return self.project_view_manager.on_processing_reports_generate_partial()
 
+    @public_api
     def _refresh_processing_reports_tab(self) -> None:
         """Refresh the processing reports tab. Delegates to ProjectViewManager."""
         return self.project_view_manager._refresh_processing_reports_tab()
 
+    @public_api
     def _determine_status_tag(self, complete_count: int, total_count: int) -> str:
         """Determine status tag. Delegates to ProjectViewManager."""
         return self.project_view_manager._determine_status_tag(complete_count, total_count)
@@ -1197,22 +1247,27 @@ class ApplicationGUI:
         digest = hashlib.blake2b(digest_source, digest_size=8).hexdigest()
         return f"file_{digest}"
 
+    @public_api
     def _sort_key_for_reports(self, value):
         """Sort key for reports. Delegates to ProjectViewManager."""
         return self.project_view_manager._sort_key_for_reports(value)
 
+    @public_api
     def _format_subject_for_reports(self, value):
         """Format subject for reports. Delegates to ValidationManager."""
         return self.validation_manager.format_subject_for_reports(value)
 
+    @public_api
     def _build_report_hierarchy(self, all_videos: list[dict], pm) -> dict:
         """Build report hierarchy. Delegates to ProjectViewManager."""
         return self.project_view_manager._build_report_hierarchy(all_videos, pm)
 
+    @public_api
     def _populate_reports_tree_from_hierarchy(self, hierarchy: dict, pm) -> None:
         """Populate reports tree. Delegates to ProjectViewManager."""
         return self.project_view_manager._populate_reports_tree_from_hierarchy(hierarchy, pm)
 
+    @public_api
     def _append_report_artifacts(self, parent_id: str, entry: dict) -> None:
         """Append report artifacts to tree. Delegates to ProjectViewManager."""
         return self.project_view_manager.append_report_artifacts_from_entry(parent_id, entry)
@@ -1233,14 +1288,17 @@ class ApplicationGUI:
         else:
             self.generate_partial_report_btn.config(state="disabled")
 
+    @public_api
     def _on_report_item_double_click(self, event=None):
         """Handle report item double click. Delegates to ProjectViewManager."""
         return self.project_view_manager.handle_report_item_double_click(event)
 
+    @public_api
     def _handle_report_file_node(self, metadata: dict) -> None:
         """Handle report file node. Delegates to ProjectViewManager."""
         return self.project_view_manager._handle_report_file_node(metadata)
 
+    @public_api
     def _handle_report_video_node(self, metadata: dict) -> None:
         """Handle report video node. Delegates to ProjectViewManager."""
         return self.project_view_manager.handle_report_video_node(metadata)
@@ -1534,6 +1592,7 @@ class ApplicationGUI:
         """Apply template. Delegates to ROITemplateManager."""
         return self.roi_template_manager.apply_template()
 
+    @public_api
     def _on_canvas_click(self, event):
         """Handle canvas clicks during polygon drawing. Delegates to CanvasManager."""
         return self.canvas_manager.handle_canvas_click(event)
@@ -1724,12 +1783,19 @@ class ApplicationGUI:
             self.show_error("Erro", str(e))
             self.canvas_manager.stop_drawing()
 
+    @deprecated(
+        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
+        version="v3.1",
+        alternative="event_bus_v2.publish(Event(UIEvents.ZONES_UPDATED, {'zone_data': zone_data}))",
+    )
     @public_api
     def update_zone_listbox(self, zone_data: ZoneData | None = None):
         """Update zone listbox with current zones (PUBLIC API).
 
+        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
+
         Called by: DialogManager, Renderer, PolygonDrawingService,
-                   ROITemplateManager, ZoneControlBuilder
+                   ROITemplateManager
         """
         return self.canvas_manager.update_zone_listbox(zone_data)
 
@@ -2017,6 +2083,7 @@ class ApplicationGUI:
         """Open the weight management dialog."""
         self.event_dispatcher.publish_event(Events.MODEL_MANAGE_WEIGHTS)
 
+    @public_api
     def update_weights_dropdown(self, weights: list[str]):
         """Cache available weights so summaries stay consistent."""
         self._available_weight_names = list(weights or [])
@@ -2119,10 +2186,12 @@ class ApplicationGUI:
 
         self.event_dispatcher.publish_event(Events.PROJECT_OPEN, {"project_path": project_path})
 
+    @public_api
     def _on_analyze_single_video_clicked(self):
         """Handle single video analysis. Delegates to EventDispatcher."""
         return self.event_dispatcher.handle_analyze_single_video_clicked()
 
+    @public_api
     def setup_zone_definition_for_single_video(self, video_path: str, config: dict):
         """Prepare and display the zone configuration tab for a single video."""
         # Reset analysis UI elements for a clean setup
@@ -2265,20 +2334,24 @@ class ApplicationGUI:
         """Delegate thread joining to the controller."""
         self.controller.join_threads()
 
+    @public_api
     def set_status(self, text):
         """Update the UI status bar."""
         self.status_var.set(text)
 
+    @public_api
     def show_progress_bar(self):
         """Show the progress bar."""
         if self.analysis_display_widget:
             self.analysis_display_widget.show_progress()
 
+    @public_api
     def update_progress(self, value):
         """Update progress. Delegates to AnalysisDisplay."""
         if self.analysis_display_widget:
             self.analysis_display_widget.update_progress(value)
 
+    @public_api
     def update_idletasks(self):
         """Force the GUI to update, processing pending events."""
         self.root.update_idletasks()
@@ -2316,6 +2389,7 @@ class ApplicationGUI:
             eta=eta,
         )
 
+    @public_api
     def hide_progress_bar(self):
         """Hide the progress bar."""
         if self.analysis_display_widget:
@@ -2443,6 +2517,11 @@ class ApplicationGUI:
         self.analysis_profile_var.set(f"Perfil de análise: {text}")
         self._reset_analysis_controls()
 
+    @deprecated(
+        reason="Use Event Bus instead",
+        version="v3.1",
+        alternative="event_bus.publish(Events.UI_UPDATE_SOCIAL_SUMMARY, ...)",
+    )
     @public_api
     def _on_social_summary_updated(self, **kwargs) -> None:
         """Handle social summary update event."""
@@ -2516,6 +2595,11 @@ class ApplicationGUI:
             self.analysis_status_var.set(status_text)
         self.update_idletasks()
 
+    @deprecated(
+        reason="Use Event Bus instead",
+        version="v3.1",
+        alternative="event_bus.publish(Events.UI_UPDATE_PROCESSING_STATS, ...)",
+    )
     @public_api
     def update_processing_stats(
         self,
@@ -2550,6 +2634,11 @@ class ApplicationGUI:
             subject_display,
         )
 
+    @deprecated(
+        reason="Use Event Bus instead",
+        version="v3.1",
+        alternative="event_bus.publish(Events.UI_UPDATE_ANALYSIS_TASK_STATUS, ...)",
+    )
     @public_api
     def update_analysis_task_status(
         self,
@@ -2574,18 +2663,22 @@ class ApplicationGUI:
 
         return StateSynchronizer._format_time(seconds)
 
+    @public_api
     def show_error(self, title, message):
         """Show an error message box. Delegates to DialogManager."""
         return self.dialog_manager.show_error(title, message)
 
+    @public_api
     def show_warning(self, title, message):
         """Show a warning message box. Delegates to DialogManager."""
         return self.dialog_manager.show_warning(title, message)
 
+    @public_api
     def show_info(self, title, message):
         """Show an info message box. Delegates to DialogManager."""
         return self.dialog_manager.show_info(title, message)
 
+    @public_api
     def show_pending_videos_dialog(
         self,
         *,
@@ -2602,18 +2695,22 @@ class ApplicationGUI:
             without_arena=without_arena,
         )
 
+    @public_api
     def ask_ok_cancel(self, title, message):
         """Show a confirmation dialog. Delegates to DialogManager."""
         return self.dialog_manager.ask_ok_cancel(title, message)
 
+    @public_api
     def ask_string(self, title, prompt, initialvalue=None):
         """Show a dialog for string input. Delegates to DialogManager."""
         return self.dialog_manager.ask_string(title, prompt, initialvalue=initialvalue)
 
+    @public_api
     def ask_directory(self, title):
         """Show a dialog to select a directory. Delegates to DialogManager."""
         return self.dialog_manager.ask_directory(title)
 
+    @public_api
     def ask_open_filenames(self, title, filetypes):
         """Show a dialog to select one or more files. Delegates to DialogManager."""
         return self.dialog_manager.ask_open_filenames(title, filetypes)
@@ -2644,6 +2741,7 @@ class ApplicationGUI:
                 )
                 arena_menu.post(event.x_root, event.y_root)
 
+    @public_api
     def _edit_selected_zone_vertices(self):
         """Enable interactive editing of selected zone vertices. Delegates to CanvasManager."""
         return self.canvas_manager.edit_selected_zone_vertices()
@@ -2698,10 +2796,12 @@ class ApplicationGUI:
             except ValueError:
                 self.show_error("Erro", "ROI não encontrada")
 
+    @public_api
     def ask_save_filename(self, **options):
         """Show a dialog to select a save file path. Delegates to DialogManager."""
         return self.dialog_manager.ask_save_filename(**options)
 
+    @public_api
     def update_button_state(self, button_name, state):
         """Update the state of a button ('normal' or 'disabled')."""
         if button_name == "start_rec" and self.start_rec_btn is not None:
@@ -2716,6 +2816,7 @@ class ApplicationGUI:
             else:
                 self.analysis_display_widget.disable_cancel_button()
 
+    @public_api
     def ask_recording_details_unified(self):
         """Show a unified dialog to get day, group, and subject."""
         # Check if it's a live project with the necessary config
@@ -2730,6 +2831,7 @@ class ApplicationGUI:
         dialog = StartRecordingDialog(self.root, pm)
         return dialog.result
 
+    @public_api
     def ask_missing_metadata(self, experiment_id):
         """Show a dialog to get missing metadata from the user."""
         dialog = MissingMetadataDialog(self.root, experiment_id)
