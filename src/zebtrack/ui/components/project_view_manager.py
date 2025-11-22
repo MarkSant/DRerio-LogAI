@@ -35,16 +35,41 @@ class ProjectViewManager:
     Thread-safety: All UI updates must use gui.root.after(0, ...) pattern.
     """
 
-    def __init__(self, gui):
+    def __init__(self, gui, event_bus_v2=None):
         """
         Initialize ProjectViewManager with reference to parent GUI.
 
         Args:
             gui: Reference to ApplicationGUI instance
+            event_bus_v2: EventBusV2 instance for v4.0 Event-Driven Architecture (optional)
         """
         self.gui = gui
+        self.event_bus_v2 = event_bus_v2
+
+        # Subscribe to events if event bus is available
+        if self.event_bus_v2:
+            self._setup_event_subscriptions()
         self._overview_refresh_pending = False
         self._overview_refresh_after_id = None
+
+    def _setup_event_subscriptions(self):
+        """Subscribe to Event Bus V2 events for v4.0 Event-Driven Architecture."""
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        # Subscribe to VIDEO_TREE_REFRESH_REQUESTED event
+        # (replaces direct gui._populate_video_selector_tree calls)
+        self.event_bus_v2.subscribe(UIEvents.VIDEO_TREE_REFRESH_REQUESTED, self._on_video_tree_refresh_requested)
+        log.debug("project_view_manager.event_subscriptions_setup", events=["VIDEO_TREE_REFRESH_REQUESTED"])
+
+    def _on_video_tree_refresh_requested(self, data: dict):
+        """Handle VIDEO_TREE_REFRESH_REQUESTED event.
+
+        Args:
+            data: Event payload containing filter_text
+        """
+        filter_text = data.get("filter_text")
+        log.debug("project_view_manager.video_tree_refresh_event_received", filter_text=filter_text)
+        self._populate_video_selector_tree(filter_text)
 
     # ===========================================================================
     # CATEGORIA 1: NAVEGAÇÃO E WINDOW MANAGEMENT
@@ -345,7 +370,18 @@ class ProjectViewManager:
         self.gui._pending_readiness_snapshot = mapping
 
         if hasattr(self.gui, "video_selector_tree") and self.gui.video_selector_tree:
-            self.gui._populate_video_selector_tree(self.gui._video_selector_filter)
+            filter_text = self.gui._video_selector_filter
+
+            # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
+            self.gui._populate_video_selector_tree(filter_text)  # OLD PATH - will be removed in v4.0
+
+            if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data={'filter_text': filter_text},
+                    source='ProjectViewManager._build_readiness_snapshot'
+                ))
 
     def refresh_pipeline_video_table(self) -> None:
         """Refresh the pipeline video table in pre-recorded projects."""

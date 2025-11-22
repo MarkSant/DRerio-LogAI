@@ -202,7 +202,7 @@ class ApplicationGUI:
         self.validation_manager = ValidationManager(self, settings_obj=self.settings)
         self.dialog_manager = DialogManager(self, event_bus_v2=self.event_bus_v2)
         self.widget_factory = WidgetFactory(self, settings_obj=self.settings)
-        self.project_view_manager = ProjectViewManager(self)
+        self.project_view_manager = ProjectViewManager(self, event_bus_v2=self.event_bus_v2)
 
         # Phase 3 components
         self.drawing_state_manager = DrawingStateManager()
@@ -217,7 +217,7 @@ class ApplicationGUI:
         self.tab_builder = TabBuilder(self)
 
         # Phase 5 builders (zone control widgets, buttons, panels)
-        self.zone_control_builder = ZoneControlBuilder(self)
+        self.zone_control_builder = ZoneControlBuilder(self, event_bus_v2=self.event_bus_v2)
         self.button_factory = ButtonFactory(self)
         self.panel_builder = PanelBuilder(self)
 
@@ -1088,9 +1088,17 @@ class ApplicationGUI:
         """Format status token. Delegates to ValidationManager."""
         return self.validation_manager.format_status_token(has_parquet, symbol_key)
 
+    @deprecated(
+        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
+        version="v3.1",
+        alternative="event_bus_v2.publish(Event(UIEvents.VIDEO_TREE_REFRESH_REQUESTED, {'filter_text': filter_text}))",
+    )
     @public_api
     def _populate_video_selector_tree(self, filter_text: str | None = None):
-        """Populate video selector tree. Delegates to ProjectViewManager."""
+        """Populate video selector tree. Delegates to ProjectViewManager.
+
+        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
+        """
         return self.project_view_manager._populate_video_selector_tree(filter_text)
 
     def _refresh_video_selector_tree(self) -> None:
