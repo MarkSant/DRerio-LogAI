@@ -6,12 +6,14 @@ Provides reusable components for testing multi-component workflows.
 
 import gc
 import time
+from unittest.mock import MagicMock
 
 import pytest
 
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.state_manager import StateManager
 from zebtrack.io.recorder import Recorder
+from zebtrack.ui.gui import ApplicationGUI
 
 
 @pytest.fixture
@@ -192,3 +194,62 @@ def create_sample_detections(num_detections=1, track_id=1):
     return [
         (100 + i * 50, 100, 150 + i * 50, 150, 0.9, track_id + i) for i in range(num_detections)
     ]
+
+
+@pytest.fixture
+def mock_gui_controller():
+    """Mock controller for GUI integration tests."""
+    controller = MagicMock()
+    controller.project_manager = MagicMock()
+    controller.settings = MagicMock()
+
+    # Setup default project type
+    controller.project_manager.get_project_type.return_value = "pre-recorded"
+    controller.project_manager.get_project_name.return_value = "Test Project"
+
+    # Setup default settings
+    controller.settings.roi_inclusion_rule = "bbox_intersects"
+    controller.settings.roi_buffer_radius_value = 0.5
+    controller.settings.roi_min_bbox_overlap_ratio = 0.10
+    controller.settings.video_processing.processing_interval = 10
+
+    # Ensure other commonly accessed attributes are present
+    controller.active_weight_name = "default"
+    controller.use_openvino = False
+    controller.get_openvino_status.return_value = "Not initialized"
+
+    return controller
+
+
+@pytest.fixture
+def gui_fixture(tkinter_root, mock_gui_controller):
+    """
+    ApplicationGUI fixture for integration tests.
+
+    Uses a real tkinter_root but mocked controller/settings.
+    Ensures proper cleanup.
+    """
+    # Create GUI instance
+    gui = ApplicationGUI(tkinter_root, mock_gui_controller)
+
+    # Initialize main control frame to ensure widgets are created
+    # This might fail if it tries to load project data, so we wrap it
+    try:
+        gui._load_project_view()
+    except Exception:
+        pass
+
+    yield gui
+
+    # Cleanup
+    try:
+        # Destroy main frames/widgets created
+        if gui.notebook:
+            gui.notebook.destroy()
+        if gui.welcome_frame:
+            gui.welcome_frame.destroy()
+
+        # The root itself is managed by tkinter_root fixture,
+        # so we don't destroy it here.
+    except Exception:
+        pass

@@ -1,0 +1,246 @@
+{
+  "refresh_project_views": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    },
+    {
+      "name": "reason",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": "None",
+      "annotation": "str | None"
+    },
+    {
+      "name": "append_summary",
+      "kind": "KEYWORD_ONLY",
+      "default": "False",
+      "annotation": "<class 'bool'>"
+    },
+    {
+      "name": "immediate",
+      "kind": "KEYWORD_ONLY",
+      "default": "False",
+      "annotation": "<class 'bool'>"
+    }
+  ],
+  "update_zone_listbox": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    },
+    {
+      "name": "zone_data",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": "None",
+      "annotation": "zebtrack.core.detector.ZoneData | None"
+    }
+  ],
+  "setup_interactive_polygon": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    },
+    {
+      "name": "polygon",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": "<class 'numpy.ndarray'>"
+    }
+  ],
+  "apply_pending_readiness_snapshot": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    },
+    {
+      "name": "ready_with_trajectory",
+      "kind": "KEYWORD_ONLY",
+      "default": null,
+      "annotation": "list[dict]"
+    },
+    {
+      "name": "ready_with_zones",
+      "kind": "KEYWORD_ONLY",
+      "default": null,
+      "annotation": "list[dict]"
+    },
+    {
+      "name": "arena_only",
+      "kind": "KEYWORD_ONLY",
+      "default": null,
+      "annotation": "list[dict]"
+    },
+    {
+      "name": "without_arena",
+      "kind": "KEYWORD_ONLY",
+      "default": null,
+      "annotation": "list[dict]"
+    }
+  ],
+  "show_external_trigger_notice": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    },
+    {
+      "name": "session_label",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": "<class 'str'>"
+    },
+    {
+      "name": "details",
+      "kind": "VAR_KEYWORD",
+      "default": null,
+      "annotation": null
+    }
+  ],
+  "clear_external_trigger_notice": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    }
+  ],
+  "update_processing_stats": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    },
+    {
+      "name": "total_frames",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": "None",
+      "annotation": null
+    },
+    {
+      "name": "processed_frames",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": "None",
+      "annotation": null
+    },
+    {
+      "name": "detected_frames",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": "None",
+      "annotation": null
+    },
+    {
+      "name": "start_time",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": "None",
+      "annotation": null
+    },
+    {
+      "name": "current_frame",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": "None",
+      "annotation": null
+    }
+  ],
+  "update_social_summary": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    },
+    {
+      "name": "profile",
+      "kind": "KEYWORD_ONLY",
+      "default": null,
+      "annotation": "<class 'str'>"
+    },
+    {
+      "name": "stats",
+      "kind": "KEYWORD_ONLY",
+      "default": null,
+      "annotation": "dict | None"
+    },
+    {
+      "name": "tracks",
+      "kind": "KEYWORD_ONLY",
+      "default": null,
+      "annotation": "list[str] | None"
+    }
+  ],
+  "update_analysis_task_status": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    },
+    {
+      "name": "index",
+      "kind": "KEYWORD_ONLY",
+      "default": null,
+      "annotation": "<class 'int'>"
+    },
+    {
+      "name": "total",
+      "kind": "KEYWORD_ONLY",
+      "default": null,
+      "annotation": "<class 'int'>"
+    },
+    {
+      "name": "experiment_id",
+      "kind": "KEYWORD_ONLY",
+      "default": "None",
+      "annotation": "str | None"
+    },
+    {
+      "name": "step",
+      "kind": "KEYWORD_ONLY",
+      "default": "None",
+      "annotation": "str | None"
+    }
+  ],
+  "setup_zone_definition_for_single_video": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    },
+    {
+      "name": "video_path",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": "<class 'str'>"
+    },
+    {
+      "name": "config",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": "<class 'dict'>"
+    }
+  ],
+  "update_weights_dropdown": [
+    {
+      "name": "self",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": null
+    },
+    {
+      "name": "weights",
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "default": null,
+      "annotation": "list[str]"
+    }
+  ]
+}
