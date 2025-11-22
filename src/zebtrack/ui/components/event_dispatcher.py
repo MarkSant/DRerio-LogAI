@@ -34,7 +34,7 @@ class EventDispatcher:
         """Inicializa o dispatcher de eventos.
 
         Args:
-            context: Pode ser uma instância de EventBus (Core usage) 
+            context: Pode ser uma instância de EventBus (Core usage)
                      ou ApplicationGUI (UI usage).
         """
         self.log = structlog.get_logger()
@@ -46,15 +46,15 @@ class EventDispatcher:
 
         if context is None:
             self.event_bus = None
+        elif hasattr(context, "subscribe") and callable(getattr(context, "subscribe", None)):
+            # Context behaves like EventBus (preferred branch to keep mocks working)
+            self.event_bus = context
         elif hasattr(context, "event_bus"):
             # Context is likely ApplicationGUI
             self.gui = context
-            self.event_bus = context.event_bus
-        elif hasattr(context, "subscribe"):
-            # Context is likely EventBus
-            self.event_bus = context
+            self.event_bus = getattr(context, "event_bus", None)
         else:
-            # Fallback/Unknown
+            # Fallback/Unknown – treat as raw event bus reference
             self.event_bus = context
 
     # --- Core Dispatching Methods (Used by MainViewModel) ---
@@ -107,6 +107,27 @@ class EventDispatcher:
             return
         self.event_bus.subscribe(event_name, handler)
         self.handlers[event_name] = handler
+
+    def unregister_handler(self, event_name: str) -> None:
+        """Remove handler registrado anteriormente, se existir."""
+        dispatcher = self.handlers.pop(event_name, None)
+        if not dispatcher or not self.event_bus:
+            return
+
+        unsubscribe = getattr(self.event_bus, "unsubscribe", None)
+        if callable(unsubscribe):
+            try:
+                unsubscribe(event_name, dispatcher)
+            except Exception as exc:  # pragma: no cover - defensive
+                self.log.warning(
+                    "event_dispatcher.unsubscribe_failed",
+                    event_name=event_name,
+                    error=str(exc),
+                )
+
+    def get_registered_count(self) -> int:
+        """Return the total number of handlers currently registered."""
+        return len(self.handlers)
 
     # --- UI Dispatching Methods (Used by ApplicationGUI) ---
 
