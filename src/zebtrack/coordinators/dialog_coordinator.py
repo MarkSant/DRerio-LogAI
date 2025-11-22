@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING
 import structlog
 
 if TYPE_CHECKING:
+    from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.ui.components.event_bus import EventBus
     from zebtrack.ui.components.ui_coordinator import UICoordinator
-    from zebtrack.core.project_manager import ProjectManager
 
 log = structlog.get_logger()
 
@@ -178,7 +178,7 @@ class DialogCoordinator:
         if not self.project_manager:
             self.log.error("dialog.validate_zones.no_project_manager")
             return False
-            
+
         zone_data = self.project_manager.get_zone_data()
 
         # Check if main arena is defined
@@ -239,16 +239,16 @@ class DialogCoordinator:
                         cap.release()
 
                         default_arena = [[0, 0], [width, 0], [width, height], [0, height]]
-                        
+
                         # We need to update project manager directly since we don't have controller ref
                         zone_data.polygon = default_arena
                         self.project_manager.save_zone_data(zone_data)
-                        
+
                         self.log.info(
                             "workflow.project_processing.default_arena_created",
                             size=f"{width}x{height}",
                         )
-                        
+
                         if self.event_bus:
                             from zebtrack.ui.events import Events
                             self.event_bus.publish_event(
@@ -321,3 +321,73 @@ class DialogCoordinator:
     def ask_yes_no(self, title: str, message: str) -> bool:
         """Solicita confirmação sim/não do usuário."""
         return self.ui_coordinator.ask_ok_cancel(title, message)
+
+    def handle_validation_error(self, validation_result) -> bool:
+        """
+        Handle validation errors by showing appropriate UI messages.
+
+        Args:
+            validation_result: ValidationResult from ProcessingCoordinator
+
+        Returns:
+            bool: True if validation passed, False if error was shown
+        """
+        if validation_result.is_valid:
+            return True
+
+        # Map error codes to appropriate UI events
+        error_code = validation_result.error_code
+        error_message = validation_result.error_message
+
+        if self.event_bus:
+            from zebtrack.ui.events import Events
+
+            if error_code == "processing_already_active":
+                self.event_bus.publish_event(
+                    Events.UI_SHOW_WARNING,
+                    {
+                        "title": "Análise em Andamento",
+                        "message": error_message,
+                    },
+                )
+            elif error_code == "no_project_loaded":
+                self.event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Nenhum Projeto Carregado",
+                        "message": error_message,
+                    },
+                )
+            elif error_code == "no_videos":
+                self.event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Nenhum Vídeo Encontrado",
+                        "message": error_message,
+                    },
+                )
+            elif error_code == "no_weight_selected":
+                self.event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Peso Não Selecionado",
+                        "message": error_message,
+                    },
+                )
+            else:
+                # Generic error fallback
+                self.event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Erro de Validação",
+                        "message": error_message,
+                    },
+                )
+        else:
+            # Fallback to UI Coordinator direct calls if no event bus
+            if error_code == "processing_already_active":
+                self.ui_coordinator.show_warning("Análise em Andamento", error_message)
+            else:
+                self.ui_coordinator.show_error("Erro de Validação", error_message)
+
+        return False

@@ -8,7 +8,15 @@
       "Bash(test:*)",
       "Bash(pytest:*)",
       "Bash(git log:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git add:*)",
+      "Bash(poetry run ruff check:*)",
+      "Bash(cat:*)",
+      "Bash(for method in \"_create_welcome_frame\" \"_build_project_actions\" \"_build_model_status\" \"_create_main_control_frame\" \"_create_configuration_tab_widget\" \"_create_analysis_tab_widget\" \"_create_processing_reports_tab\" \"_create_progress_grid_tab\" \"_create_drawing_buttons\" \"_create_scrollable_controls_frame\" \"_create_template_rois\" \"_create_project_workflow\")",
+      "Bash(do echo \"=== $method ===\")",
+      "Bash(done)",
+      "Bash(wrapper_analysis.txt)",
+      "Bash(wrapper_simple_analysis.txt)"
     ],
     "deny": [],
     "ask": []

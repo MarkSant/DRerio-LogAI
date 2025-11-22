@@ -17,50 +17,47 @@ import os
 import queue
 import threading
 from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.core.dependency_container import MainViewModelDependencies
-from zebtrack.core.state_manager import StateCategory, StateManager
-from zebtrack.core.project_service import ProjectService
 from zebtrack.analysis.analysis_service import AnalysisService
-from zebtrack.core.batch_configuration_service import BatchConfigurationService
-from zebtrack.core.thread_coordinator import ThreadCoordinator
-from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
-from zebtrack.ui.components.event_dispatcher import EventDispatcher
-from zebtrack.core.video_classification_service import VideoClassificationService
-from zebtrack.core.video_selection_service import VideoSelectionService
-from zebtrack.core.video_validation_service import VideoValidationService
-from zebtrack.io.recorder import Recorder
-from zebtrack.io.arduino import Arduino
-from zebtrack.io.arduino_manager import ArduinoManager
-from zebtrack.utils.hardware_detection import get_hardware_summary, recommend_backend
-from zebtrack.ui.gui import ApplicationGUI
-from zebtrack.core.processing_worker import ProcessingWorker
-
-# Legacy Orchestrators (to be removed in future phases)
-from zebtrack.orchestrators.recording_session_orchestrator import RecordingSessionOrchestrator
-from zebtrack.orchestrators.video_processing_orchestrator import VideoProcessingOrchestrator
-from zebtrack.orchestrators.analysis_orchestrator import AnalysisOrchestrator
-from zebtrack.orchestrators.project_orchestrator import ProjectOrchestrator
-from zebtrack.orchestrators.ui_state_controller import UIStateController
-from zebtrack.orchestrators.model_diagnostics_orchestrator import ModelDiagnosticsOrchestrator
-from zebtrack.orchestrators.zone_arena_orchestrator import ZoneArenaOrchestrator
-from zebtrack.orchestrators.processing_config_orchestrator import ProcessingConfigOrchestrator
-from zebtrack.orchestrators.calibration_orchestrator import CalibrationOrchestrator
-from zebtrack.core.orchestrator_registry import OrchestratorRegistry
-from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 
 # Legacy Coordinators for backward compatibility
 from zebtrack.coordinators.detector_coordinator import DetectorCoordinator
-from zebtrack.core.video_orchestrator import VideoOrchestrator
-from zebtrack.core.analysis_coordinator import AnalysisCoordinator
-from zebtrack.coordinators.recording_coordinator import RecordingCoordinator
+from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
 from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
+from zebtrack.coordinators.recording_coordinator import RecordingCoordinator
+from zebtrack.core.analysis_coordinator import AnalysisCoordinator
+from zebtrack.core.batch_configuration_service import BatchConfigurationService
+from zebtrack.core.dependency_container import MainViewModelDependencies
+from zebtrack.core.orchestrator_registry import OrchestratorRegistry
+from zebtrack.core.project_service import ProjectService
+from zebtrack.core.thread_coordinator import ThreadCoordinator
+from zebtrack.core.video_classification_service import VideoClassificationService
+from zebtrack.core.video_orchestrator import VideoOrchestrator
+from zebtrack.core.video_selection_service import VideoSelectionService
+from zebtrack.core.video_validation_service import VideoValidationService
+from zebtrack.io.arduino_manager import ArduinoManager
+from zebtrack.io.recorder import Recorder
+from zebtrack.orchestrators.analysis_orchestrator import AnalysisOrchestrator
+from zebtrack.orchestrators.calibration_orchestrator import CalibrationOrchestrator
+from zebtrack.orchestrators.model_diagnostics_orchestrator import ModelDiagnosticsOrchestrator
+from zebtrack.orchestrators.processing_config_orchestrator import ProcessingConfigOrchestrator
+from zebtrack.orchestrators.project_orchestrator import ProjectOrchestrator
+
+# Legacy Orchestrators (to be removed in future phases)
+from zebtrack.orchestrators.recording_session_orchestrator import RecordingSessionOrchestrator
+from zebtrack.orchestrators.ui_state_controller import UIStateController
+from zebtrack.orchestrators.video_processing_orchestrator import VideoProcessingOrchestrator
+from zebtrack.orchestrators.zone_arena_orchestrator import ZoneArenaOrchestrator
+from zebtrack.ui.components.event_dispatcher import EventDispatcher
+from zebtrack.ui.gui import ApplicationGUI
+from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
+from zebtrack.utils.hardware_detection import get_hardware_summary, recommend_backend
 
 if TYPE_CHECKING:
-    from zebtrack.core.main_view_model import MainViewModel
+    pass
 
 log = structlog.get_logger()
 
@@ -68,7 +65,7 @@ log = structlog.get_logger()
 @dataclass
 class BootstrapResult:
     """Result of the application bootstrap process."""
-    
+
     # Internal Services
     project_service: ProjectService
     analysis_service: AnalysisService
@@ -87,16 +84,16 @@ class BootstrapResult:
     recommended_backend: str
     recorder: Recorder
     arduino_manager: ArduinoManager | None
-    
+
     # Threading & Queues
     frame_queue: queue.Queue
     video_queue: queue.Queue
     program_exit_event: threading.Event
     cancel_event: threading.Event
-    
+
     # View
     view: ApplicationGUI
-    
+
     # Legacy Orchestrators
     video_processing_orchestrator: VideoProcessingOrchestrator
     analysis_orchestrator: AnalysisOrchestrator
@@ -107,11 +104,11 @@ class BootstrapResult:
     zone_arena_orchestrator: ZoneArenaOrchestrator
     processing_config_orchestrator: ProcessingConfigOrchestrator
     calibration_orchestrator: CalibrationOrchestrator
-    
+
     # Registry & Adapter
     orchestrators: OrchestratorRegistry
     project_workflow_adapter: ProjectWorkflowAdapter
-    
+
     # Legacy Coordinators (created internally if not injected)
     legacy_coordinators: dict[str, Any] = field(default_factory=dict)
 
@@ -127,7 +124,7 @@ class ApplicationBootstrapper:
         self.view = view
         self.state_manager = dependencies.state_manager
         self.settings = dependencies.settings_obj
-        
+
         # Temporary storage for initialization results
         self._services: dict = {}
         self._hardware_state: dict = {}
@@ -147,26 +144,26 @@ class ApplicationBootstrapper:
             BootstrapResult containing all initialized components.
         """
         log.info("bootstrapper.initialize.start")
-        
+
         # 1. Initialize internal services
         self._init_services()
-        
+
         # 2. Initialize hardware and models
         self._init_hardware_and_models()
-        
+
         # 3. Initialize runtime state
         self._init_runtime_state()
-        
+
         # 4. Initialize view
         self._init_view(controller_proxy)
-        
+
         # -----------------------------------------------------------------------
         # CRITICAL: Populate controller proxy with dependencies required by
         # legacy orchestrators' __init__ methods.
         # This allows us to break the circular dependency without rewriting
         # all legacy code immediately.
         # -----------------------------------------------------------------------
-        
+
         # Core dependencies
         controller_proxy.state_manager = self.state_manager
         controller_proxy.project_manager = self.deps.project_manager
@@ -174,34 +171,34 @@ class ApplicationBootstrapper:
         controller_proxy.root = self.deps.root
         controller_proxy.settings = self.settings
         controller_proxy.ui_event_bus = self.deps.event_bus
-        
+
         # Services created in step 1
         controller_proxy.video_selection_service = self._services["video_selection_service"]
         controller_proxy.video_validation_service = self._services["video_validation_service"]
         controller_proxy.video_classification_service = self._services["video_classification_service"]
-        
+
         # Hardware from step 2/deps
         controller_proxy.detector = self.deps.detector_service.detector
-        
+
         # Runtime state from step 3
         controller_proxy.cancel_event = self._runtime_state["cancel_event"]
-        
+
         # View from step 4
         controller_proxy.view = self.view
-        
+
         # Coordinators from deps
         controller_proxy.processing_coordinator = self.deps.processing_coordinator
         controller_proxy.hardware_coordinator = self.deps.hardware_coordinator
         controller_proxy.session_coordinator = self.deps.session_coordinator
         controller_proxy.project_lifecycle_coordinator = self.deps.project_lifecycle_coordinator
-        
+
         # -----------------------------------------------------------------------
-        
+
         # 5. Initialize orchestrators (requires controller_proxy)
         self._init_orchestrators(controller_proxy)
-        
+
         log.info("bootstrapper.initialize.complete")
-        
+
         return BootstrapResult(
             project_service=self._services["project_service"],
             analysis_service=self._services["analysis_service"],
@@ -212,21 +209,21 @@ class ApplicationBootstrapper:
             thread_coordinator=self._services["thread_coordinator"],
             dialog_coordinator=self._services["dialog_coordinator"],
             event_dispatcher=self._services["event_dispatcher"],
-            
+
             active_weight_name=self._hardware_state["active_weight_name"],
             use_openvino=self._hardware_state["use_openvino"],
             hardware_summary=self._hardware_state["hardware_summary"],
             recommended_backend=self._hardware_state["recommended_backend"],
-            
+
             recorder=self._runtime_state["recorder"],
             arduino_manager=self._runtime_state["arduino_manager"],
             frame_queue=self._runtime_state["frame_queue"],
             video_queue=self._runtime_state["video_queue"],
             program_exit_event=self._runtime_state["program_exit_event"],
             cancel_event=self._runtime_state["cancel_event"],
-            
+
             view=self.view,
-            
+
             video_processing_orchestrator=self._orchestrators["video_processing_orchestrator"],
             analysis_orchestrator=self._orchestrators["analysis_orchestrator"],
             recording_session_orchestrator=self._orchestrators["recording_session_orchestrator"],
@@ -236,10 +233,10 @@ class ApplicationBootstrapper:
             zone_arena_orchestrator=self._orchestrators["zone_arena_orchestrator"],
             processing_config_orchestrator=self._orchestrators["processing_config_orchestrator"],
             calibration_orchestrator=self._orchestrators["calibration_orchestrator"],
-            
+
             orchestrators=self._orchestrators["registry"],
             project_workflow_adapter=self._orchestrators["project_workflow_adapter"],
-            
+
             legacy_coordinators=self._legacy_coordinators
         )
 
@@ -271,7 +268,7 @@ class ApplicationBootstrapper:
             project_manager=self.deps.project_manager,
         )
         event_dispatcher = EventDispatcher(self.deps.event_bus)
-        
+
         self._services = {
             "project_service": project_service,
             "analysis_service": analysis_service,
@@ -349,7 +346,7 @@ class ApplicationBootstrapper:
         """Initialize runtime attributes and threading primitives."""
         # Core runtime attributes
         recorder = Recorder(settings_obj=self.settings)
-        
+
         # Initialize recording state in StateManager
         self.state_manager.update_recording_state(
             source="bootstrapper.init",
@@ -363,7 +360,7 @@ class ApplicationBootstrapper:
         # Exit event for threads
         program_exit_event = threading.Event()
         cancel_event = threading.Event()
-        
+
         self._runtime_state = {
             "recorder": recorder,
             "arduino_manager": None, # Will be initialized on demand
@@ -372,7 +369,7 @@ class ApplicationBootstrapper:
             "program_exit_event": program_exit_event,
             "cancel_event": cancel_event
         }
-        
+
         # Configure global model defaults
         self.deps.project_workflow_service.set_global_model_defaults(
             active_weight=self._hardware_state["active_weight_name"] or None,
@@ -387,10 +384,10 @@ class ApplicationBootstrapper:
             # Use event bus from dependencies
             ui_features = getattr(self.settings, "ui_features", None)
             use_event_bus = bool(
-                self.deps.event_bus or 
+                self.deps.event_bus or
                 (ui_features and getattr(ui_features, "enable_event_queue", False))
             )
-            
+
             self.view = ApplicationGUI(
                 self.deps.root,
                 controller_proxy, # Must pass controller for legacy callbacks
@@ -403,7 +400,7 @@ class ApplicationBootstrapper:
             self.view.update_gpu_hardware_display(self._hardware_state["hardware_summary"])
 
         # Update OpenVINO status
-        if (self._hardware_state["recommended_backend"] == "openvino" 
+        if (self._hardware_state["recommended_backend"] == "openvino"
             and not self._hardware_state["use_openvino"]):
             if hasattr(self.view, "update_openvino_status_display"):
                 self.view.update_openvino_status_display(
@@ -412,12 +409,11 @@ class ApplicationBootstrapper:
 
     def _init_orchestrators(self, controller_proxy):
         """Initialize all orchestrators and coordinators."""
-        
+
         # Legacy Coordinators (DEPRECATED - created only if not injected)
         legacy_coords = {}
-        
+
         # Detector Coordinator
-        from zebtrack.coordinators.detector_coordinator import DetectorCoordinator
         if self.deps.detector_coordinator:
             legacy_coords["detector_coordinator"] = self.deps.detector_coordinator
         else:
@@ -428,7 +424,7 @@ class ApplicationBootstrapper:
                 weight_manager=self.deps.weight_manager,
                 event_bus=self.deps.event_bus,
             )
-            
+
         # Video Orchestrator
         if self.deps.video_orchestrator:
             legacy_coords["video_orchestrator"] = self.deps.video_orchestrator
@@ -446,7 +442,7 @@ class ApplicationBootstrapper:
             )
             video_orc.set_view(self.view)
             legacy_coords["video_orchestrator"] = video_orc
-            
+
         # Analysis Coordinator
         if self.deps.analysis_coordinator:
             legacy_coords["analysis_coordinator"] = self.deps.analysis_coordinator
@@ -462,13 +458,13 @@ class ApplicationBootstrapper:
             )
             analysis_coord.set_view(self.view)
             legacy_coords["analysis_coordinator"] = analysis_coord
-            
+
         # Project Coordinator
         if self.deps.project_coordinator:
             legacy_coords["project_coordinator"] = self.deps.project_coordinator
         else:
             legacy_coords["project_coordinator"] = None
-            
+
         # Recording Coordinator
         if self.deps.recording_coordinator:
             legacy_coords["recording_coordinator"] = self.deps.recording_coordinator
@@ -479,7 +475,7 @@ class ApplicationBootstrapper:
                 arduino_manager=None, # Initialized lazily
                 event_bus=self.deps.event_bus,
             )
-            
+
         # Live Camera Coordinator
         if self.deps.live_camera_coordinator:
             legacy_coords["live_camera_coordinator"] = self.deps.live_camera_coordinator
@@ -492,17 +488,17 @@ class ApplicationBootstrapper:
                 camera=None,
                 event_bus=self.deps.event_bus,
             )
-            
+
         self._legacy_coordinators = legacy_coords
 
         # Initialize Orchestrators
         # NOTE: These legacy orchestrators require the controller (MainViewModel)
         # We pass the controller_proxy which should be the 'self' from MainViewModel.__init__
-        
+
         recording_session_orchestrator = RecordingSessionOrchestrator(controller_proxy)
         # Manual setup for recording service callbacks since we're bypassing _init_orchestrators logic
         recording_session_orchestrator._setup_recording_service_callbacks()
-        
+
         video_processing_orchestrator = VideoProcessingOrchestrator(controller_proxy)
         analysis_orchestrator = AnalysisOrchestrator(controller_proxy)
         project_orchestrator = ProjectOrchestrator(controller_proxy)
@@ -511,7 +507,7 @@ class ApplicationBootstrapper:
         zone_arena_orchestrator = ZoneArenaOrchestrator(controller_proxy)
         processing_config_orchestrator = ProcessingConfigOrchestrator(controller_proxy)
         calibration_orchestrator = CalibrationOrchestrator(controller_proxy)
-        
+
         self._orchestrators = {
             "recording_session_orchestrator": recording_session_orchestrator,
             "video_processing_orchestrator": video_processing_orchestrator,
@@ -538,7 +534,7 @@ class ApplicationBootstrapper:
             live_camera_coordinator=legacy_coords["live_camera_coordinator"],
         )
         self._orchestrators["registry"] = registry
-        
+
         # Project Workflow Adapter
         project_workflow_adapter = ProjectWorkflowAdapter(
             project_workflow_service=self.deps.project_workflow_service,
@@ -548,7 +544,7 @@ class ApplicationBootstrapper:
             ui_event_bus=self.deps.event_bus,
         )
         self._orchestrators["project_workflow_adapter"] = project_workflow_adapter
-        
+
         # Setup coordinator callbacks
         # This replicates _setup_coordinator_callbacks from MainViewModel
         if self.deps.hardware_coordinator and self.deps.session_coordinator:

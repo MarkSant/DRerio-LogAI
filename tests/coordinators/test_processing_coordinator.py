@@ -8,16 +8,14 @@ Legacy tests for pre-Phase 3 methods have been removed.
 """
 
 from threading import Event
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from zebtrack.coordinators.processing_coordinator import (
     ProcessingCoordinator,
-    ProcessingCoordinatorError,
     ValidationResult,
 )
-from zebtrack.core.state_manager import StateCategory, StateManager
 
 # =============================================================================
 # FIXTURES

@@ -1,10 +1,11 @@
-import pytest
 from unittest.mock import MagicMock
+
 from zebtrack.ui.components.polygon_drawing_service import (
     ArenaCompletionStrategy,
-    ROICompletionStrategy,
     PolygonDrawingService,
+    ROICompletionStrategy,
 )
+
 
 def test_arena_completion_strategy():
     """Testa strategy de conclusão de arena."""

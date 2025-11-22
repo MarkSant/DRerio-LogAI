@@ -108,6 +108,7 @@ class Events:
     # Recording
     RECORDING_START = "recording:start"
     RECORDING_STOP = "recording:stop"
+    RECORDING_TOGGLE = "recording:toggle"
     RECORDING_TRIGGER = "recording:trigger"
 
     # Project
@@ -115,6 +116,7 @@ class Events:
     PROJECT_OPEN = "project:open"
     PROJECT_CLOSE = "project:close"
     PROJECT_PROCESS_VIDEOS = "project:process_videos"
+    PROJECT_ADD_VIDEOS = "project:add_videos"
     PROJECT_GENERATE_SUMMARIES = "project:generate_summaries"
     PROJECT_APPLY_SETTINGS = "project:apply_settings_to_batch"
     PROJECT_DELETE_ASSET = "project:delete_asset"

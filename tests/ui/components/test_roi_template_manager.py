@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from tkinter import StringVar
+
+import pytest
+
 from zebtrack.ui.components.roi_template_manager import ROITemplateManager
+
 
 @pytest.fixture
 def mock_gui(tkinter_root):

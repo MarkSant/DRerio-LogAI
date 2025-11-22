@@ -18,7 +18,6 @@ class TestOpenVINOFallback:
 
     def test_is_valid_openvino_directory_with_xml(self, tmp_path):
         """Valid directory with .xml files should return True."""
-        from zebtrack.core.application_bootstrapper import ApplicationBootstrapper
 
         # Create a temporary directory with a .xml file
         model_dir = tmp_path / "openvino_model"

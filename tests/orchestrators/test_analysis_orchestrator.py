@@ -121,6 +121,10 @@ class DummyMainViewModel:
         self.refresh_calls: list[dict] = []
         self.processing_thread = None
 
+        # Mock ui_state_controller and route refresh_project_views to capture calls
+        self.ui_state_controller = MagicMock()
+        self.ui_state_controller.refresh_project_views = self.refresh_project_views
+
     def _publish_processing_mode(self, **kwargs):
         self.processing_mode_calls.append(kwargs)
 

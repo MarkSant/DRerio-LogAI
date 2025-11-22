@@ -1,6 +1,8 @@
-import numpy as np
 import cv2
+import numpy as np
+
 from zebtrack.utils import polygon_centroid, snap_point_to_axes
+
 
 class GeometryService:
     """Cálculos de geometria puros para operações de polígono."""

@@ -157,7 +157,7 @@ class TestApplyToSingleVideo:
 
         assert result is False
 
-    @patch("builtins.open", side_effect=IOError("Write error"))
+    @patch("builtins.open", side_effect=OSError("Write error"))
     @patch("pathlib.Path.mkdir")
     def test_apply_to_single_video_error(self, mock_mkdir, mock_file, batch_service):
         """Testa tratamento de erro ao salvar configurações."""

@@ -1,12 +1,11 @@
-import tkinter as tk
-from tkinter import ttk, Button, Label
+from tkinter import Button, Label, ttk
 from typing import TYPE_CHECKING
 
 import structlog
 
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
-from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 from zebtrack.ui.components.video_display import VideoDisplayWidget
+from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:

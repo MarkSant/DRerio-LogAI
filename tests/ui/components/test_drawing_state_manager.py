@@ -1,5 +1,5 @@
-import pytest
 from zebtrack.ui.components.drawing_state_manager import DrawingStateManager
+
 
 def test_start_polygon_drawing():
     """Testa inicialização de modo de desenho de polígono."""

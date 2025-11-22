@@ -1,5 +1,5 @@
-import pytest
 from zebtrack.utils.geometry_service import GeometryService
+
 
 def test_apply_snapping_to_vertex():
     """Testa snapping para vértice próximo."""

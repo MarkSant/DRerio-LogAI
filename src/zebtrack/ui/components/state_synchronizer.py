@@ -164,16 +164,16 @@ class StateSynchronizer:
 
     def _reset_analysis_media(self) -> None:
         """Reset media-related widgets such as analysis image overlays."""
-        if hasattr(self.gui, "analysis_video_label") and self.gui.analysis_video_label:
-            try:
-                if self.gui.analysis_video_label.winfo_exists():
-                    self.gui.analysis_video_label.configure(image="")
-                    self.gui._analysis_overlay_image = None
-            except Exception:
-                pass
+        if self.gui.analysis_display_widget:
+            self.gui.analysis_display_widget.clear_video_display()
+            self.gui._analysis_overlay_image = None
 
     def _reset_analysis_progress_and_metadata(self) -> None:
         """Reset progress indicators and analysis metadata to defaults."""
+        if self.gui.analysis_display_widget:
+            self.gui.analysis_display_widget.reset_to_defaults()
+
+        # Also reset internal state vars that might be used elsewhere
         try:
             self.gui.hide_progress_bar()
         except Exception:
@@ -193,13 +193,6 @@ class StateSynchronizer:
             self._set_analysis_metadata_defaults()
         except Exception:
             pass
-
-        if hasattr(self.gui, "progress_labels") and self.gui.progress_labels:
-            for var in self.gui.progress_labels.values():
-                try:
-                    var.set("-")
-                except Exception:
-                    pass
 
     def _reset_roi_and_visual_frames(self) -> None:
         """Handle ROI canvas and visualization frame teardown."""
@@ -262,15 +255,18 @@ class StateSynchronizer:
         self.gui._current_detections = []
         self.gui._last_analysis_frame = None
         self.gui._analysis_overlay_image = None
-        self.gui.track_selector_var.set("Todos")
-        self._update_track_options(["Todos"])
-        if self.gui.track_selector_widget:
-            state = (
-                "disabled"
-                if self.gui._active_processing_mode is ProcessingMode.SINGLE_SUBJECT
-                else "readonly"
-            )
-            self.gui.track_selector_widget.configure(state=state)
+
+        if self.gui.analysis_display_widget:
+            self.gui.analysis_display_widget.track_selector_var.set("Todos")
+            self._update_track_options(["Todos"])
+
+            if self.gui.analysis_display_widget.track_selector_widget:
+                state = (
+                    "disabled"
+                    if self.gui._active_processing_mode is ProcessingMode.SINGLE_SUBJECT
+                    else "readonly"
+                )
+                self.gui.analysis_display_widget.track_selector_widget.configure(state=state)
 
     def _update_track_options(self, options: list[str]) -> None:
         """Update track selector combobox with new options."""
@@ -286,12 +282,11 @@ class StateSynchronizer:
             cleaned = ["Todos"]
 
         normalized = tuple(cleaned)
-        if normalized == self.gui._available_track_options:
-            return
-
+        # We still update local state for consistency if GUI uses it
         self.gui._available_track_options = normalized
-        if self.gui.track_selector_widget:
-            self.gui.track_selector_widget.configure(values=list(normalized))
+
+        if self.gui.analysis_display_widget:
+            self.gui.analysis_display_widget.update_track_options(list(normalized))
 
     # ========================================================================
     # Reset Methods - Configuration
@@ -412,17 +407,21 @@ class StateSynchronizer:
                     if isinstance(value, (int, float)):
                         formatted.append(f"ID {key}: {value:.1f}%")
                 if formatted:
-                    self.gui.social_summary_var.set("Interações sociais: " + ", ".join(formatted))
+                    if self.gui.analysis_display_widget:
+                        self.gui.analysis_display_widget.set_social_summary("Interações sociais: " + ", ".join(formatted))
                 else:
-                    self.gui.social_summary_var.set(
+                    if self.gui.analysis_display_widget:
+                        self.gui.analysis_display_widget.set_social_summary(
+                            "Interações sociais: nenhum agrupamento registrado."
+                        )
+            else:
+                if self.gui.analysis_display_widget:
+                    self.gui.analysis_display_widget.set_social_summary(
                         "Interações sociais: nenhum agrupamento registrado."
                     )
-            else:
-                self.gui.social_summary_var.set(
-                    "Interações sociais: nenhum agrupamento registrado."
-                )
         else:
-            self.gui.social_summary_var.set("Interações sociais: aguardando dados.")
+            if self.gui.analysis_display_widget:
+                self.gui.analysis_display_widget.set_social_summary("Interações sociais: aguardando dados.")
 
         if tracks and self.gui._active_processing_mode is not ProcessingMode.SINGLE_SUBJECT:
             normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
@@ -442,41 +441,44 @@ class StateSynchronizer:
         current_frame=None,
     ) -> None:
         """Update processing statistics in real-time during video analysis."""
-        if not self.gui.progress_labels:
-            return
+        if self.gui.analysis_display_widget:
+            # Format values if needed before passing
+            percent = None
+            elapsed_str = None
+            eta_str = None
 
-        # Update frame counters in all label sets
-        labels = self.gui.progress_labels
-        if total_frames is not None:
-            labels["total"].set(str(total_frames))
-        if processed_frames is not None:
-            labels["processed"].set(str(processed_frames))
-        if detected_frames is not None:
-            labels["detected"].set(str(detected_frames))
+            # Calculate and update percentage based on actual frame position
+            if total_frames:
+                frame_for_percent = current_frame if current_frame is not None else processed_frames
+                if frame_for_percent is not None:
+                    percent_val = (frame_for_percent / total_frames) * 100
+                    percent = f"{percent_val:.1f}%"
 
-        # Calculate and update percentage based on actual frame position
-        if total_frames:
-            frame_for_percent = current_frame if current_frame is not None else processed_frames
-            if frame_for_percent is not None:
-                percent = (frame_for_percent / total_frames) * 100
-                labels["percent"].set(f"{percent:.1f}%")
+            # Calculate elapsed time and ETA
+            if start_time:
+                import time
 
-        # Calculate elapsed time and ETA
-        if start_time:
-            import time
+                elapsed = time.time() - start_time
+                elapsed_str = self._format_time(elapsed)
 
-            elapsed = time.time() - start_time
-            labels["elapsed"].set(self._format_time(elapsed))
+                frame_for_eta = current_frame if current_frame is not None else processed_frames
+                if frame_for_eta and total_frames and frame_for_eta > 0:
+                    rate = frame_for_eta / elapsed
+                    remaining_frames = total_frames - frame_for_eta
+                    if rate > 0:
+                        eta = remaining_frames / rate
+                        eta_str = self._format_time(eta)
+                    else:
+                        eta_str = "-"
 
-            frame_for_eta = current_frame if current_frame is not None else processed_frames
-            if frame_for_eta and total_frames and frame_for_eta > 0:
-                rate = frame_for_eta / elapsed
-                remaining_frames = total_frames - frame_for_eta
-                if rate > 0:
-                    eta = remaining_frames / rate
-                    labels["eta"].set(self._format_time(eta))
-                else:
-                    labels["eta"].set("-")
+            self.gui.analysis_display_widget.update_progress_stats(
+                total_frames=total_frames,
+                processed_frames=processed_frames,
+                detected_frames=detected_frames,
+                percent=percent,
+                elapsed=elapsed_str,
+                eta=eta_str
+            )
 
     @staticmethod
     def _format_time(seconds: float) -> str:

@@ -6,33 +6,25 @@ and orchestrates video processing workflows with dependency injection.
 
 from __future__ import annotations
 
-import os
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import structlog
 
-from zebtrack.core.dependency_container import MainViewModelDependencies
-from zebtrack.core.application_bootstrapper import BootstrapResult
-from zebtrack.core.state_manager import StateCategory
-from zebtrack.ui.events import Events
-from zebtrack.core.processing_mode import ProcessingMode
-from zebtrack.core.processing_worker import ProcessingWorker
-from zebtrack.core.project_manager import ProjectManager
-from zebtrack.io.arduino_manager import ArduinoManager
-from zebtrack.io.recorder import Recorder
-
 # Legacy imports kept for type hinting in signatures
-from zebtrack.analysis.reporter import Reporter
-from zebtrack.analysis.roi import ROI
-from zebtrack.core.calibration import Calibration
-from zebtrack.core.detector import Detector, ZoneData
+from zebtrack.core.application_bootstrapper import BootstrapResult
+from zebtrack.core.dependency_container import MainViewModelDependencies
+from zebtrack.core.detector import Detector
+from zebtrack.core.processing_mode import ProcessingMode
 from zebtrack.core.recording_service import RecordingService
+from zebtrack.core.state_manager import StateCategory
+from zebtrack.io.arduino_manager import ArduinoManager
+from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
-    from zebtrack.settings import Settings
+    pass
 
 log = structlog.get_logger()
 
@@ -71,7 +63,7 @@ class MainViewModel:
 
         # 3. Subscribe to state changes
         self._subscribe_to_state()
-        
+
         # 4. Setup event handlers mapping
         self._EVENT_METHOD_MAPPING = {
             Events.RECORDING_START: ("start_recording", [], "no_params"),
@@ -134,13 +126,13 @@ class MainViewModel:
         self._recommended_backend = result.recommended_backend
         self.recorder = result.recorder
         self.arduino_manager = result.arduino_manager
-        
+
         # Queues & Events
         self.frame_queue = result.frame_queue
         self.video_queue = result.video_queue
         self.program_exit_event = result.program_exit_event
         self.cancel_event = result.cancel_event
-        
+
         # Legacy Orchestrators
         self.video_processing_orchestrator = result.video_processing_orchestrator
         self.analysis_orchestrator = result.analysis_orchestrator
@@ -151,7 +143,7 @@ class MainViewModel:
         self.zone_arena_orchestrator = result.zone_arena_orchestrator
         self.processing_config_orchestrator = result.processing_config_orchestrator
         self.calibration_orchestrator = result.calibration_orchestrator
-        
+
         # Legacy Coordinators
         self.detector_coordinator = result.legacy_coordinators.get("detector_coordinator")
         self.video_orchestrator = result.legacy_coordinators.get("video_orchestrator")
@@ -159,7 +151,7 @@ class MainViewModel:
         self.project_coordinator = result.legacy_coordinators.get("project_coordinator")
         self.recording_coordinator = result.legacy_coordinators.get("recording_coordinator")
         self.live_camera_coordinator = result.legacy_coordinators.get("live_camera_coordinator")
-        
+
         # Registry & Adapter
         self.orchestrators = result.orchestrators
         self.project_workflow_adapter = result.project_workflow_adapter
@@ -176,7 +168,7 @@ class MainViewModel:
         self.report_results_paths = {}
         self.timed_recording_job = None
         self._pending_external_trigger = None
-        
+
         # Event bus flag
         self.ui_event_bus = self.event_dispatcher.event_bus
         self._use_event_bus = bool(self.ui_event_bus)
@@ -184,7 +176,7 @@ class MainViewModel:
         # Set legacy services if needed (for properties)
         self._recording_service = None
 
-        # NOTE: self.view is NOT assigned here anymore. 
+        # NOTE: self.view is NOT assigned here anymore.
         # MainViewModel is decoupled from the concrete View instance.
         # Any remaining self.view usages must be refactored.
         # Only VideoProcessingOrchestrator holds a reference to view (via proxy).
@@ -301,8 +293,8 @@ class MainViewModel:
             if new:
                 self.ui_event_bus.publish_event(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW)
             else:
-                # Logic for stopping analysis view is handled by processing worker completion callback
-                # or we can emit an event if needed.
+                # Logic for stopping analysis view is handled by
+                # processing worker completion callback
                 pass
         elif key == "cancel_requested" and new:
             self.ui_state_controller._show_cancel_feedback()
@@ -322,7 +314,7 @@ class MainViewModel:
         self.program_exit_event.set()
         if self.processing_thread and self.processing_thread.is_alive():
             self.processing_thread.join()
-        
+
         capture_thread = getattr(self, "capture_thread", None)
         if capture_thread and capture_thread.is_alive():
             capture_thread.join()
@@ -350,7 +342,7 @@ class MainViewModel:
     def _create_event_dispatcher(self, event_name: str):
         if event_name not in self._EVENT_METHOD_MAPPING:
             return lambda data: None
-            
+
         method_name, param_names, mode = self._EVENT_METHOD_MAPPING[event_name]
 
         def dispatcher(data: dict) -> None:
@@ -434,15 +426,15 @@ class MainViewModel:
 
     def create_project_workflow(self, **wizard_data):
         return self.project_orchestrator.create_project_workflow(**wizard_data)
-        
+
     def start_single_video_workflow(self, video_path, config):
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
-        
+
         self.project_manager.set_active_zone_video(str(video_path))
-        
+
         use_openvino = config.get("use_openvino", self.settings.model_selection.use_openvino)
         self.use_openvino = use_openvino
-        
+
         if not self.detector:
              temp_animal_method = config.get("animal_method")
              if not self.setup_detector(temp_animal_method):
@@ -467,9 +459,11 @@ class MainViewModel:
             cancel_requested=True,
         )
         # Update status via event
-        self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Cancelando análise em andamento..."})
+        self.ui_event_bus.publish_event(
+            Events.UI_SET_STATUS, {"message": "Cancelando análise em andamento..."}
+        )
         self.ui_state_controller._show_cancel_feedback()
-        
+
         def _await_shutdown():
             if self.processing_worker and self.processing_worker.is_running:
                 self.processing_worker.cancel()
@@ -494,7 +488,7 @@ class MainViewModel:
         self.analysis_coordinator.generate_parquet_summaries(
             video_paths, processing_thread_ref=self.processing_thread
         )
-        
+
     def setup_detector(self, temp_animal_method: str | None = None) -> bool:
         success, _ = self.detector_coordinator.setup_detector(
             animal_method=temp_animal_method,
@@ -509,27 +503,9 @@ class MainViewModel:
         self.arduino_manager = self.hardware_coordinator.arduino_manager
         return success
 
-    def _handle_validation_error(self, result):
-        if not result.can_start:
-            self.dialog_coordinator.show_warning("Erro de Validação", result.message)
-            return False
-        return True
-    
-    def _validate_zones_with_ui(self):
-        return self.dialog_coordinator.validate_zones_with_ui()
-
-    def _handle_mixed_data_scenario(self, scanned_videos):
-        return self.dialog_coordinator.handle_mixed_data_scenario(scanned_videos)
-
-    def refresh_project_views(self, reason="unknown", immediate=False, append_summary=False):
-        self.ui_state_controller.refresh_project_views(reason, immediate, append_summary)
-    
-    def _activate_analysis_view_mode(self):
-        self.ui_state_controller.activate_analysis_view_mode()
-        
     def _publish_processing_mode(self, source="unknown", force=False):
         return self.ui_state_controller._publish_processing_mode(source, force)
-    
+
     def _determine_processing_intervals(self, single_video_config):
         p_data = self.project_manager.project_data
         a_int = 10

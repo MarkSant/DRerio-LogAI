@@ -1,6 +1,7 @@
-import pytest
-from unittest.mock import MagicMock, Mock, patch
 import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Mock tkinter to avoid GUI requirement
 sys.modules['tkinter'] = MagicMock()
@@ -16,8 +17,9 @@ sys.modules['cv2'] = MagicMock()
 from zebtrack.core.application_bootstrapper import ApplicationBootstrapper
 from zebtrack.core.dependency_container import MainViewModelDependencies
 
+
 class TestApplicationBootstrapper:
-    
+
     @pytest.fixture
     def dependencies(self):
         deps = MagicMock(spec=MainViewModelDependencies)
@@ -33,13 +35,13 @@ class TestApplicationBootstrapper:
         deps.analysis_service = MagicMock()
         deps.project_workflow_service = MagicMock()
         deps.ui_coordinator = MagicMock()
-        
+
         # Coordinators
         deps.processing_coordinator = MagicMock()
         deps.hardware_coordinator = MagicMock()
         deps.session_coordinator = MagicMock()
         deps.project_lifecycle_coordinator = MagicMock()
-        
+
         return deps
 
     def test_init(self, dependencies):
@@ -54,24 +56,24 @@ class TestApplicationBootstrapper:
         # Setup mocks
         mock_hw.return_value = {"cuda_available": False, "openvino_available": False, "has_intel_gpu": False}
         mock_backend.return_value = "pytorch"
-        
+
         # Mock weight manager response
         dependencies.weight_manager.get_default_weight.return_value = ("yolov8n.pt", {})
-        
+
         bootstrapper = ApplicationBootstrapper(dependencies)
-        
+
         # Mock controller proxy
         controller_proxy = MagicMock()
-        
+
         # Run initialize
         result = bootstrapper.initialize(controller_proxy)
-        
+
         # Verify result
         assert result is not None
         assert result.view is not None
         assert result.recorder is not None
         assert result.event_dispatcher is not None
-        
+
         # Verify proxy was populated
         assert controller_proxy.state_manager == dependencies.state_manager
         assert controller_proxy.ui_coordinator == dependencies.ui_coordinator

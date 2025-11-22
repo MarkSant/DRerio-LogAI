@@ -1,10 +1,11 @@
+from tkinter import StringVar, ttk
 from unittest.mock import MagicMock, patch
+
 import pytest
-import tkinter as tk
-from tkinter import ttk, BooleanVar, StringVar
 
 from zebtrack.ui.components.tab_builder import TabBuilder
 from zebtrack.ui.gui import ApplicationGUI
+
 
 @pytest.fixture
 def mock_app(tkinter_root):

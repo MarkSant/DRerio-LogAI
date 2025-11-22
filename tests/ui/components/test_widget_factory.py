@@ -171,84 +171,59 @@ class TestUtilitáriosSimples:
 class TestConstrutoresSimples:
     """Tests for simple widget constructors."""
 
-    @patch("zebtrack.ui.components.widget_factory.ttk")
-    def test_build_project_actions(self, mock_ttk, widget_factory):
-        """Test building project actions frame."""
-        parent = Mock()
-        mock_frame = Mock()
-        mock_ttk.LabelFrame.return_value = mock_frame
-        mock_button = Mock()
-        mock_ttk.Button.return_value = mock_button
+    def test_build_model_status(self, widget_factory):
+        """Test building model status frame delegation."""
+        with patch("zebtrack.ui.components.widget_factory.PanelBuilder") as mock_panel_builder:
+            parent = Mock()
+            widget_factory.build_model_status(parent)
+            mock_panel_builder.build_model_status_panel.assert_called_once()
 
-        widget_factory.build_project_actions(parent)
+    def test_create_zone_summary_cards_section(self, widget_factory, mock_gui):
+        """Test creating zone summary cards delegation."""
+        with patch("zebtrack.ui.components.widget_factory.PanelBuilder") as mock_panel_builder:
+            mock_gui.zone_controls_frame = Mock()
+            # Mock return values from builder
+            mock_panel_builder.create_zone_summary_cards.return_value = (Mock(), {})
+            mock_gui._get_zone_summary_helper_text = Mock(return_value="Helper")
+            mock_gui._update_zone_summary_cards = Mock()
 
-        mock_ttk.LabelFrame.assert_called_once()
-        mock_frame.pack.assert_called_once()
-        assert mock_ttk.Button.call_count == 4
+            widget_factory.create_zone_summary_cards_section()
 
-    @patch("zebtrack.ui.components.widget_factory.ttk")
-    def test_build_model_status(self, mock_ttk, widget_factory):
-        """Test building model status frame."""
-        parent = Mock()
-        mock_frame = Mock()
-        mock_ttk.LabelFrame.return_value = mock_frame
-        mock_label = Mock()
-        mock_ttk.Label.return_value = mock_label
+            mock_panel_builder.create_zone_summary_cards.assert_called_once()
+            assert mock_gui._update_zone_summary_cards.called
 
-        widget_factory.build_model_status(parent)
+    def test_build_project_actions(self, widget_factory):
+        """Test building project actions frame delegation."""
+        with patch("zebtrack.ui.components.widget_factory.ButtonFactory") as mock_button_factory:
+            parent = Mock()
+            widget_factory.build_project_actions(parent)
+            mock_button_factory.create_project_action_buttons.assert_called_once()
 
-        mock_ttk.LabelFrame.assert_called_once()
-        mock_frame.pack.assert_called_once()
-        assert mock_ttk.Label.call_count == 3
+    def test_create_drawing_buttons(self, widget_factory, mock_gui):
+        """Test creating drawing buttons delegation."""
+        with patch("zebtrack.ui.components.widget_factory.ButtonFactory") as mock_button_factory:
+            # Mock return value
+            mock_frame = Mock()
+            mock_button_factory.create_floating_drawing_buttons.return_value = mock_frame
+            mock_frame.place = Mock()
+            mock_gui.viz_frame = Mock()
 
-    @patch("zebtrack.ui.components.widget_factory.ttk")
-    @patch("zebtrack.ui.components.widget_factory.StringVar")
-    def test_create_zone_summary_cards_section(
-        self, mock_stringvar, mock_ttk, widget_factory, mock_gui
-    ):
-        """Test creating zone summary cards."""
-        mock_gui.zone_controls_frame = Mock()
-        mock_gui.zone_summary_frame = Mock()
-        mock_gui.zone_summary_frame.winfo_exists.return_value = True
-        mock_gui._get_zone_summary_helper_text = Mock(return_value="Helper text")
-        mock_gui._update_zone_summary_cards = Mock()
+            widget_factory.create_drawing_buttons()
 
-        mock_frame = Mock()
-        mock_ttk.Frame.return_value = mock_frame
-        mock_ttk.LabelFrame.return_value = mock_frame
-        mock_label = Mock()
-        mock_ttk.Label.return_value = mock_label
-        mock_var = Mock()
-        mock_stringvar.return_value = mock_var
+            mock_button_factory.create_floating_drawing_buttons.assert_called_once()
+            assert mock_gui._drawing_buttons_frame == mock_frame
+            mock_frame.place.assert_called_once()
 
-        widget_factory.create_zone_summary_cards_section()
-
-        assert mock_ttk.LabelFrame.call_count >= 1
-        assert mock_ttk.Frame.call_count >= 3
-        assert mock_gui._update_zone_summary_cards.called
-
-    @patch("zebtrack.ui.components.widget_factory.ttk")
-    def test_create_zone_summary_cards_no_zone_controls(self, mock_ttk, widget_factory, mock_gui):
-        """Test creating zone summary cards with no zone_controls_frame."""
-        mock_gui.zone_controls_frame = None
-        widget_factory.create_zone_summary_cards_section()
-        mock_ttk.LabelFrame.assert_not_called()
-
-    @patch("zebtrack.ui.components.widget_factory.ttk")
-    def test_create_drawing_buttons(self, mock_ttk, widget_factory, mock_gui):
-        """Test creating drawing buttons."""
-        mock_gui._drawing_buttons_frame = None  # Start with no frame
-        mock_frame = Mock()
-        mock_ttk.Frame.return_value = mock_frame
-        mock_button = Mock()
-        mock_ttk.Button.return_value = mock_button
-
-        widget_factory.create_drawing_buttons()
-
-        # After Phase 3, just verify that frame and buttons were created
-        mock_ttk.Frame.assert_called_once()
-        assert mock_ttk.Button.call_count == 2
-        assert mock_gui._drawing_buttons_frame == mock_frame
+    def test_create_zone_control_widgets(self, widget_factory, mock_gui):
+        """Test create_zone_control_widgets delegation."""
+        with patch("zebtrack.ui.components.widget_factory.ZoneControlBuilder") as mock_zone_builder_cls:
+            mock_builder = Mock()
+            mock_zone_builder_cls.return_value = mock_builder
+            
+            widget_factory.create_zone_control_widgets()
+            
+            mock_zone_builder_cls.assert_called_once_with(mock_gui)
+            mock_builder.create_zone_control_widgets.assert_called_once()
 
     @patch("zebtrack.ui.components.widget_factory.ttk")
     def test_create_progress_grid_tab(self, mock_ttk, widget_factory, mock_gui):
@@ -437,6 +412,10 @@ class TestConstrutoresComplexos:
         mock_gui._display_welcome_logo = Mock()
         mock_frame = Mock()
         mock_ttk.Frame.return_value = mock_frame
+        
+        # Mock internal build methods to avoid real widget creation
+        widget_factory.build_project_actions = Mock()
+        widget_factory.build_model_status = Mock()
 
         widget_factory.create_welcome_frame()
 
@@ -446,6 +425,8 @@ class TestConstrutoresComplexos:
         mock_gui._display_welcome_logo.assert_called_once()
         assert mock_gui.root.update_idletasks.call_count >= 2
         mock_ttk.Frame.assert_called_once()
+        widget_factory.build_project_actions.assert_called_once()
+        widget_factory.build_model_status.assert_called_once()
 
     @patch("zebtrack.ui.components.widget_factory.reset_geometry_if_not_maximized")
     @patch("zebtrack.ui.components.widget_factory.ttk.Notebook")

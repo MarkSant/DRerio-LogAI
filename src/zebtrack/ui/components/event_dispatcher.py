@@ -4,9 +4,10 @@ Handles both Core-side dispatching (routing commands to orchestrators)
 and UI-side dispatching (routing UI updates to widgets).
 """
 
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Callable
 
 import structlog
+
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
@@ -38,11 +39,11 @@ class EventDispatcher:
         """
         self.log = structlog.get_logger()
         self.handlers: dict[str, Callable] = {}
-        
+
         # Detect context type
-        self.gui: "ApplicationGUI | None" = None
-        self.event_bus: "EventBus | None" = None
-        
+        self.gui: ApplicationGUI | None = None
+        self.event_bus: EventBus | None = None
+
         if context is None:
             self.event_bus = None
         elif hasattr(context, "event_bus"):
@@ -113,7 +114,7 @@ class EventDispatcher:
         """Register handlers specific to the GUI instance."""
         if not self.gui or not self.event_bus:
             return
-            
+
         # Handlers that need access to GUI instance
         # Example: self.gui.update_status(...)
         pass
@@ -124,21 +125,21 @@ class EventDispatcher:
             return
 
         # Generic UI updates
-        self.event_bus.subscribe(Events.UI_SHOW_INFO, 
+        self.event_bus.subscribe(Events.UI_SHOW_INFO,
             lambda d: self.gui.dialog_manager.show_info(d.get("title", "Info"), d.get("message", "")))
-        self.event_bus.subscribe(Events.UI_SHOW_WARNING, 
+        self.event_bus.subscribe(Events.UI_SHOW_WARNING,
             lambda d: self.gui.dialog_manager.show_warning(d.get("title", "Aviso"), d.get("message", "")))
-        self.event_bus.subscribe(Events.UI_SHOW_ERROR, 
+        self.event_bus.subscribe(Events.UI_SHOW_ERROR,
             lambda d: self.gui.dialog_manager.show_error(d.get("title", "Erro"), d.get("message", "")))
-            
+
         # Status updates
-        self.event_bus.subscribe(Events.UI_SET_STATUS, 
+        self.event_bus.subscribe(Events.UI_SET_STATUS,
             lambda d: self.gui.status_var.set(d.get("message", "")))
-            
+
         # View navigation
-        self.event_bus.subscribe(Events.UI_SELECT_TAB, 
+        self.event_bus.subscribe(Events.UI_SELECT_TAB,
             lambda d: self.gui.notebook.select(getattr(self.gui, f"{d.get('tab_name')}_frame", 0)))
-            
+
         # Single video zone setup (Decoupling from MainViewModel)
         self.event_bus.subscribe(
             "ui:setup_zone_definition_for_single_video",
@@ -161,21 +162,21 @@ class EventDispatcher:
         if not self.gui or not self.event_bus: return
 
         # Drawing Actions
-        self.event_bus.subscribe(Events.ZONE_AUTO_DETECT, 
+        self.event_bus.subscribe(Events.ZONE_AUTO_DETECT,
             lambda d: self.gui._on_auto_detect_clicked(**d))
-        self.event_bus.subscribe(Events.ZONE_START_DRAW_ARENA, 
+        self.event_bus.subscribe(Events.ZONE_START_DRAW_ARENA,
             lambda d: self.gui._start_main_arena_drawing())
-            
+
         # ROI Templates
-        self.event_bus.subscribe(Events.ZONE_APPLY_ROI_TEMPLATE, 
+        self.event_bus.subscribe(Events.ZONE_APPLY_ROI_TEMPLATE,
             lambda d: self.gui._on_apply_roi_template())
-        self.event_bus.subscribe(Events.ZONE_SAVE_ROI_TEMPLATE, 
+        self.event_bus.subscribe(Events.ZONE_SAVE_ROI_TEMPLATE,
             lambda d: self.gui._on_save_roi_template())
-        self.event_bus.subscribe(Events.ZONE_IMPORT_AND_APPLY_ROI_TEMPLATE, 
+        self.event_bus.subscribe(Events.ZONE_IMPORT_AND_APPLY_ROI_TEMPLATE,
             lambda d: self.gui._on_import_and_apply_roi_template())
-            
+
         # ROI Settings
-        self.event_bus.subscribe(Events.ZONE_APPLY_ROI_SETTINGS, 
+        self.event_bus.subscribe(Events.ZONE_APPLY_ROI_SETTINGS,
             lambda d: self.gui._on_apply_roi_settings())
 
     def schedule_event_bus_poll(self) -> None:
@@ -186,7 +187,7 @@ class EventDispatcher:
     def poll_event_bus(self) -> None:
         """Poll the event bus for pending events."""
         if not self.gui: return
-        
+
         if self.event_bus:
             # Assuming EventBus has a process_events or similar method for Tkinter integration
             # If EventBus is purely callback-based (immediate), this might just be a keep-alive
@@ -197,6 +198,6 @@ class EventDispatcher:
                 self.event_bus.process_events()
             elif hasattr(self.event_bus, "process_queue"):
                 self.event_bus.process_queue()
-                
+
         # Reschedule
         self.schedule_event_bus_poll()
