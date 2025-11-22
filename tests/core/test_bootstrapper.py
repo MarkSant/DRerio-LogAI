@@ -3,17 +3,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Mock tkinter to avoid GUI requirement
-sys.modules['tkinter'] = MagicMock()
-sys.modules['tkinter.ttk'] = MagicMock()
-sys.modules['tkinter.messagebox'] = MagicMock()
-sys.modules['tkinter.scrolledtext'] = MagicMock()
-sys.modules['tkinter.font'] = MagicMock()
-sys.modules['tkinter.simpledialog'] = MagicMock()
-sys.modules['tkinter.filedialog'] = MagicMock()
-sys.modules['ttkbootstrap'] = MagicMock()
-sys.modules['cv2'] = MagicMock()
-
 from zebtrack.core.application_bootstrapper import ApplicationBootstrapper
 from zebtrack.core.dependency_container import MainViewModelDependencies
 

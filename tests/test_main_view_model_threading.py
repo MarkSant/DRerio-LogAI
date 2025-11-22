@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 
 from zebtrack.core.main_view_model import MainViewModel
+from tests.helpers.controller_factory import create_test_controller
 
 
 @pytest.fixture
@@ -155,15 +156,6 @@ def main_view_model(
         def shutdown(self):
             pass
 
-    monkeypatch.setattr("zebtrack.core.main_view_model.ApplicationGUI", DummyGUI)
-    monkeypatch.setattr(
-        "zebtrack.core.main_view_model.HardwareCoordinator", DummyHardwareCoordinator
-    )
-    monkeypatch.setattr("zebtrack.core.main_view_model.VideoOrchestrator", DummyVideoOrchestrator)
-    monkeypatch.setattr(
-        "zebtrack.core.main_view_model.AnalysisCoordinator", DummyAnalysisCoordinator
-    )
-
     project_workflow_service = Mock()
     project_workflow_service.set_global_model_defaults.return_value = None
 
@@ -181,7 +173,7 @@ def main_view_model(
     analysis_service = Mock()
     recording_service = Mock()
 
-    view_model = MainViewModel(
+    view_model = create_test_controller(
         root=Mock(),
         event_bus=None,
         state_manager=mock_state_manager,

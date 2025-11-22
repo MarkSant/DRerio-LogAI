@@ -197,8 +197,25 @@ class MainViewModel:
     def set_openvino_usage(self, use_openvino: bool, dialog=None):
         return self.ui_state_controller.set_openvino_usage(use_openvino, dialog)
 
+    def update_detector_parameters(self, params: dict, **kwargs) -> bool:
+        """Update detector parameters via coordinator."""
+        if self.detector_coordinator:
+            return self.detector_coordinator.update_detector_parameters(params, **kwargs)
+        return False
+
+    def get_current_detector_parameters(self) -> dict:
+        """Get current detector parameters via coordinator."""
+        if self.detector_coordinator:
+            return self.detector_coordinator.get_detector_parameters()
+        return {}
+
     def update_openvino_status(self, dialog=None):
         return self.ui_state_controller.update_openvino_status(dialog)
+
+    def _show_post_creation_guide(self):
+        """Show post-creation guide (delegated to UI coordinator or legacy)."""
+        # Placeholder for backward compatibility with tests/wizards
+        pass
 
     def close_project(self):
         return self.project_lifecycle_coordinator.close_project()
@@ -561,16 +578,33 @@ class MainViewModel:
         if not wizard_metadata:
             return
 
-        # Map wizard keys to detector parameters
-        overrides = {}
-        # Example mapping - adjust based on actual wizard metadata structure
-        if "conf_threshold" in wizard_metadata:
-            overrides["track_threshold"] = float(wizard_metadata["conf_threshold"])
-        if "iou_threshold" in wizard_metadata:
-            overrides["match_threshold"] = float(wizard_metadata["iou_threshold"])
+        # Handle nested detector_parameters (standard wizard output)
+        source = wizard_metadata.get("detector_parameters", wizard_metadata)
 
-        if overrides and self.detector_coordinator:
-            self.detector_coordinator.update_detector_parameters(
+        if source is None:
+            source = wizard_metadata
+
+        overrides = {}
+
+        # Map Wizard UI keys to Detector Plugin keys
+        if "confidence_threshold" in source:
+            overrides["conf_threshold"] = float(source["confidence_threshold"])
+        elif "conf_threshold" in source:
+            overrides["conf_threshold"] = float(source["conf_threshold"])
+
+        if "nms_threshold" in source:
+            overrides["nms_threshold"] = float(source["nms_threshold"])
+
+        if "track_threshold" in source and source["track_threshold"] is not None:
+            overrides["track_threshold"] = float(source["track_threshold"])
+
+        if "match_threshold" in source:
+            overrides["match_threshold"] = float(source["match_threshold"])
+        elif "iou_threshold" in source:
+             overrides["match_threshold"] = float(source["iou_threshold"])
+
+        if overrides:
+            self.update_detector_parameters(
                 params=overrides,
                 scope="project"
             )

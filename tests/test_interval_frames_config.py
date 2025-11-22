@@ -119,7 +119,12 @@ def test_controller_workflow_roundtrip_persists_intervals(
     root = MagicMock()
     # Create REAL ProjectManager for this test
     real_pm = ProjectManager()
-    controller = create_test_controller(root=root, project_manager=real_pm)
+    # Need real project orchestrator to actually execute creation logic
+    controller = create_test_controller(
+        root=root,
+        project_manager=real_pm,
+        use_real_project_orchestrator=True
+    )
     controller.ui_event_bus = MagicMock()
 
     project_dir = tmp_path / "controller_project"

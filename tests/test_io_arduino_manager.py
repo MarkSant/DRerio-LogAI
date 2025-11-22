@@ -28,7 +28,12 @@ def mock_arduino():
     arduino.send_command = MagicMock(return_value=True)
     arduino.ser = MagicMock()
     arduino.ser.is_open = True
-    arduino.ser.readline = MagicMock(return_value=b"")
+
+    def delayed_readline():
+        time.sleep(0.01)
+        return b""
+
+    arduino.ser.readline = MagicMock(side_effect=delayed_readline)
     return arduino
 
 
