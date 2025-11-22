@@ -53,7 +53,12 @@ class CanvasManager:
 
         # Subscribe to ZONES_UPDATED event (replaces direct gui.update_zone_listbox calls)
         self.event_bus_v2.subscribe(UIEvents.ZONES_UPDATED, self._on_zones_updated)
-        log.debug("canvas_manager.event_subscriptions_setup", events=["ZONES_UPDATED"])
+
+        # Subscribe to POLYGON_EDIT_REQUESTED event (replaces direct gui.setup_interactive_polygon calls)
+        self.event_bus_v2.subscribe(UIEvents.POLYGON_EDIT_REQUESTED, self._on_polygon_edit_requested)
+
+        log.debug("canvas_manager.event_subscriptions_setup",
+                  events=["ZONES_UPDATED", "POLYGON_EDIT_REQUESTED"])
 
     def _on_zones_updated(self, data: dict):
         """Handle ZONES_UPDATED event.
@@ -64,6 +69,36 @@ class CanvasManager:
         zone_data = data.get("zone_data")
         log.debug("canvas_manager.zones_updated_event_received", has_zone_data=zone_data is not None)
         self.update_zone_listbox(zone_data)
+
+    def _on_polygon_edit_requested(self, data: dict):
+        """Handle POLYGON_EDIT_REQUESTED event.
+
+        Sets up interactive polygon editing mode by populating gui.edited_polygon_points
+        and drawing the polygon with interactive handles.
+
+        Args:
+            data: Event payload containing:
+                - polygon: np.ndarray of polygon points [[x1, y1], [x2, y2], ...]
+        """
+        polygon = data.get("polygon")
+        if polygon is None:
+            log.warning("canvas_manager.polygon_edit_requested.missing_polygon")
+            return
+
+        # Convert numpy array to list of lists if needed
+        if isinstance(polygon, np.ndarray):
+            polygon_list = polygon.tolist()
+        else:
+            polygon_list = polygon
+
+        # Populate gui.edited_polygon_points (THIS IS THE MISSING LOGIC!)
+        self.gui.edited_polygon_points = polygon_list
+
+        # Draw the interactive polygon with handles
+        self.renderer.draw_interactive_polygon()
+
+        log.debug("canvas_manager.polygon_edit_requested.complete",
+                  num_points=len(polygon_list))
 
     # ========== Coordinate Transformation Methods ========== 
 
@@ -420,7 +455,18 @@ class CanvasManager:
 
             # Convert polygon to the format expected by setup_interactive_polygon
             polygon_points = np.array(zone_data.polygon)
-            self.gui.setup_interactive_polygon(polygon_points)
+
+            # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
+            self.gui.setup_interactive_polygon(polygon_points)  # OLD PATH - will be removed in v4.0
+
+            if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.POLYGON_EDIT_REQUESTED,
+                    data={'polygon': polygon_points},
+                    source='CanvasManager.edit_selected_zone_vertices.arena'
+                ))
+
             self.gui.current_editing_zone = "arena"
             self.gui.set_status("Editando vértices da arena principal. Arraste os pontos amarelos.")
 
@@ -433,7 +479,18 @@ class CanvasManager:
 
                 # Convert polygon to the format expected by setup_interactive_polygon
                 polygon_points = np.array(roi_polygon)
-                self.gui.setup_interactive_polygon(polygon_points)
+
+                # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
+                self.gui.setup_interactive_polygon(polygon_points)  # OLD PATH - will be removed in v4.0
+
+                if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+                    from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                    self.event_bus_v2.publish(Event(
+                        type=UIEvents.POLYGON_EDIT_REQUESTED,
+                        data={'polygon': polygon_points},
+                        source=f'CanvasManager.edit_selected_zone_vertices.roi.{roi_name}'
+                    ))
+
                 self.gui.current_editing_zone = ("roi", roi_index, roi_name)
                 self.gui.set_status(
                     f"Editando vértices da ROI '{roi_name}'. Arraste os pontos amarelos."

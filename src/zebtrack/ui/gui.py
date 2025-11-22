@@ -931,17 +931,26 @@ class ApplicationGUI:
         )
 
     @deprecated(
-        reason="Use Event Bus instead",
+        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
         version="v3.1",
-        alternative="event_bus.publish(Events.UI_SETUP_INTERACTIVE_POLYGON, ...)",
+        alternative="event_bus_v2.publish(Event(UIEvents.POLYGON_EDIT_REQUESTED, {'polygon': polygon}))",
     )
     @public_api
     def setup_interactive_polygon(self, polygon: np.ndarray):
         """Set up interactive polygon for editing (PUBLIC API).
 
+        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
+
         Called by: CanvasManager when loading zones for editing
         """
-        return self.event_dispatcher.setup_interactive_polygon(polygon)
+        # LEGACY IMPLEMENTATION: This method is deprecated and will be removed in v4.0
+        # The actual implementation is now in CanvasManager._on_polygon_edit_requested()
+        # which is triggered by the POLYGON_EDIT_REQUESTED event.
+        # This method is kept only for backward compatibility during dual mode migration.
+        import structlog
+        log = structlog.get_logger()
+        log.warning("gui.setup_interactive_polygon.deprecated_call",
+                    message="This method is deprecated. Use Event Bus V2 (POLYGON_EDIT_REQUESTED) instead.")
 
     def _on_handle_press(self, event, handle_index):
         """Record which handle is being dragged and initial offset."""
