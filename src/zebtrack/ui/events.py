@@ -154,6 +154,23 @@ class Events:
     ZONE_REMOVE_SELECTED_ROI = "zone:remove_selected_roi"
     ZONE_APPLY_ROI_SETTINGS = "zone:apply_roi_settings"
 
+    # ZoneControlsWidget events (Component specific)
+    ZONE_DRAW_ARENA = "zone.draw_arena"
+    ZONE_DRAW_ROI = "zone.draw_roi"
+    ZONE_TOGGLE_VIEW = "zone.toggle_view"
+    ZONE_TEMPLATE_APPLY = "zone.template_apply"
+    ZONE_TEMPLATE_SAVE = "zone.template_save"
+    ZONE_TEMPLATE_IMPORT = "zone.template_import"
+    ZONE_VIDEO_SEARCH_CHANGED = "zone.video_search_changed"
+    ZONE_VIDEO_REFRESH = "zone.video_refresh"
+    ZONE_VIDEO_DOUBLE_CLICK = "zone.video_double_click"
+    ZONE_VIDEO_FRAME_LOAD = "zone.video_frame_load"
+    ZONE_LIST_ITEM_RIGHT_CLICK = "zone.list_item_right_click"
+    ZONE_LIST_ITEM_DOUBLE_CLICK = "zone.list_item_double_click"
+    ZONE_SAVE_ARENA = "zone.save_arena"
+    ZONE_DISCARD_ARENA = "zone.discard_arena"
+    ZONE_AUTO_DETECT_CLICKED = "zone.auto_detect_clicked"
+
     # Calibration
     CALIBRATION_RUN_LIVE = "calibration:run_live"
     CALIBRATION_COPY_TO_PROJECT = "calibration:copy_to_project"

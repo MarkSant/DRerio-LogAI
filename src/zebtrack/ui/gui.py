@@ -51,7 +51,7 @@ from zebtrack.ui.components import (
     ValidationManager,
     WidgetFactory,
 )
-from zebtrack.ui.decorators import deprecated, public_api
+from zebtrack.ui.decorators import public_api
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
     CenterPeripheryDialog,
@@ -599,9 +599,9 @@ class ApplicationGUI:
         self.tab_builder.build_main_controls_tab()
         if self.controller.project_manager.get_project_type() == "live":
             self.widget_factory.create_progress_grid_tab()
-        self._create_roi_analysis_tab()
+        self.tab_builder.build_zone_tab()
         self.tab_builder.build_processing_reports_tab()  # New unified tab
-        self._create_analysis_tab_widget()
+        self.tab_builder.build_analysis_tab()
         self.tab_builder.build_configuration_tab()
 
         # Status frame below the notebook
@@ -664,44 +664,6 @@ class ApplicationGUI:
         return self.widget_factory.create_project_overview_panel(parent)
 
     @public_api
-    def _request_overview_refresh(
-        self,
-        reason: str | None = None,
-        *,
-        append_summary: bool = False,
-        immediate: bool = False,
-    ) -> None:
-        """Request overview refresh. Delegates to ProjectViewManager."""
-        return self.project_view_manager._request_overview_refresh(
-            reason=reason,
-            append_summary=append_summary,
-            immediate=immediate,
-        )
-
-    @deprecated(
-        reason="Use Event Bus instead",
-        version="v3.1",
-        alternative="event_bus.publish(Events.UI_REFRESH_PROJECT_VIEWS, ...)",
-    )
-    @public_api
-    def refresh_project_views(
-        self,
-        reason: str | None = None,
-        *,
-        append_summary: bool = False,
-        immediate: bool = False,
-    ) -> None:
-        """Refresh overview, pipeline, and reports panels (PUBLIC API).
-
-        Called by: orchestrators, analysis_service, components
-        """
-        return self.project_view_manager.refresh_project_views(
-            reason=reason,
-            append_summary=append_summary,
-            immediate=immediate,
-        )
-
-    @public_api
     def _update_project_overview_summary(
         self,
         counts: Counter,
@@ -733,22 +695,6 @@ class ApplicationGUI:
             self.menu_manager.show_project_overview_context_menu(
                 item_id, event.x_root, event.y_root
             )
-
-    @public_api
-    def show_external_trigger_notice(self, session_label: str, **details):
-        """Show external trigger notice (PUBLIC API).
-
-        Called by: RecordingService, LiveCameraService
-        """
-        return self.dialog_manager.show_external_trigger_notice(session_label, **details)
-
-    @public_api
-    def clear_external_trigger_notice(self):
-        """Clear external trigger notice (PUBLIC API).
-
-        Called by: RecordingService, LiveCameraService
-        """
-        return self.dialog_manager.clear_external_trigger_notice()
 
     def _pipeline_summary_exists(self, video_info: dict) -> bool:
         controller = getattr(self, "controller", None)
@@ -933,131 +879,7 @@ class ApplicationGUI:
         )
 
 
-    def _on_handle_press(self, event, handle_index):
-        """Record which handle is being dragged and initial offset."""
-        self._dragged_handle_index = handle_index
 
-        # Store the initial mouse position and handle position
-        self._drag_start_mouse = (float(event.x), float(event.y))
-
-        # Get current handle position in video coordinates
-        video_point = self.edited_polygon_points[handle_index]
-        # Convert to canvas coordinates
-        canvas_point = self.canvas_manager._video_to_canvas(video_point[0], video_point[1])
-        self._drag_start_handle = canvas_point
-
-        # Calculate offset between mouse and handle center
-        self._drag_offset = (canvas_point[0] - event.x, canvas_point[1] - event.y)
-
-        # Bind motion and release to the entire canvas so events continue even
-        # when mouse leaves the handle
-        self.video_display.canvas.bind("<B1-Motion>", self._on_handle_drag_global)
-        self.video_display.canvas.bind("<ButtonRelease-1>", self._on_handle_release_global)
-
-    def _on_handle_drag_global(self, event):
-        """Global drag handler for canvas-wide dragging."""
-        self._on_handle_drag(event)
-
-    def _on_handle_release(self, event):
-        """Finalize the drag operation (called from tag binding)."""
-        self._handle_release_common()
-
-    def _on_handle_release_global(self, event):
-        """Global release handler (called from canvas binding)."""
-        # Unbind global handlers
-        self.video_display.canvas.unbind("<B1-Motion>")
-        self.video_display.canvas.unbind("<ButtonRelease-1>")
-        self._handle_release_common()
-
-    def _handle_release_common(self):
-        """Execute common release logic."""
-        self._dragged_handle_index = None
-        self._drag_offset = (0, 0)
-
-    def _on_save_arena(self):
-        """Save the edited polygon and make it static."""
-        if self.current_editing_zone == "arena":
-            # Save main arena
-            self.event_dispatcher.publish_event(
-                Events.ZONE_SAVE_MANUAL_ARENA,
-                {"polygon_points": self.edited_polygon_points},
-            )
-            status_message = "Arena principal salva com sucesso."
-            self.set_status(status_message)
-            # Enable ROI button after main arena is saved
-            self._enable_roi_button_if_arena_exists()
-            self._request_overview_refresh(reason=status_message, append_summary=True)
-        elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
-            # Save ROI
-            _, roi_index, roi_name = self.current_editing_zone
-            zone_data = self._get_zone_data_for_active_context()
-
-            # Update the ROI polygon
-            zone_data.roi_polygons[roi_index] = self.edited_polygon_points
-
-            # Save to project using new zone persistence helper
-            self.controller.project_manager.save_zone_data(zone_data)
-
-            status_message = f"ROI '{roi_name}' salva com sucesso."
-            self.set_status(status_message)
-            self._request_overview_refresh(reason=status_message, append_summary=True)
-        else:
-            # Fallback - assume arena (legacy behavior)
-            self.controller.save_manual_arena(self.edited_polygon_points)
-            status_message = "Zona salva com sucesso."
-            self.set_status(status_message)
-            # Enable ROI button after main arena is saved
-            self._enable_roi_button_if_arena_exists()
-            self._request_overview_refresh(reason=status_message, append_summary=True)
-
-        # Clear interactive elements and redraw zones
-        self._clear_interactive_polygon()
-        self.canvas_manager.redraw_zones_from_project_data()
-
-        if self.event_bus_v2:
-            self.event_bus_v2.publish(Event(
-                type=UIEvents.ZONES_UPDATED,
-                data={'zone_data': None},
-                source='GUI._on_save_arena'
-            ))
-
-        self._refresh_zone_indicators()
-
-    def _on_discard_arena(self):
-        """Discards the interactive polygon."""
-        self._clear_interactive_polygon()
-        if self.current_editing_zone == "arena":
-            self.set_status("Edição da arena descartada.")
-        elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
-            _, _, roi_name = self.current_editing_zone
-            self.set_status(f"Edição da ROI '{roi_name}' descartada.")
-        else:
-            self.set_status("Edição descartada.")
-
-        # Redraw zones to restore original state
-        self.canvas_manager.redraw_zones_from_project_data()
-
-    def _clear_interactive_polygon(self):
-        """Clear all interactive elements from the canvas and hide buttons."""
-        self.video_display.canvas.delete("interactive_polygon", "handle", "suggested_polygon")
-        try:
-            if (
-                self.zone_controls
-                and self.zone_controls.interactive_buttons_frame
-                and self.zone_controls.interactive_buttons_frame.winfo_exists()
-            ):
-                self.zone_controls.interactive_buttons_frame.pack_forget()
-        except Exception:
-            # This can fail if the root window is already being destroyed.
-            # It's safe to ignore in that case.
-            pass
-
-        self.interactive_polygon_item = None
-        self.polygon_handles = []
-        self.edited_polygon_points = []
-        self._dragged_handle_index = None
-        self._drag_offset = (0, 0)
-        self.current_editing_zone = None
 
     @staticmethod
     def _format_day_display(value):
@@ -1275,156 +1097,6 @@ class ApplicationGUI:
             {"videos": all_videos, "report_type": "unified"},
         )
 
-    def _start_main_arena_drawing(self):
-        """Start drawing the main arena polygon."""
-        # Prevent editing during analysis
-        if self.analysis_active:
-            self.show_warning(
-                "Análise em Progresso",
-                "Não é possível editar zonas durante a análise de vídeo.",
-            )
-            return
-
-        self.drawing_state_manager.drawing_type = "arena"
-
-        self.canvas_manager.start_polygon_drawing()
-
-    def _start_roi_drawing(self):
-        """Start drawing an ROI polygon, checking if an arena exists first."""
-        # Prevent editing during analysis
-        if self.analysis_active:
-            self.show_warning(
-                "Análise em Progresso",
-                "Não é possível editar zonas durante a análise de vídeo.",
-            )
-            return
-
-        main_arena = self._get_zone_data_for_active_context().polygon
-        if not main_arena:
-            self.show_error(
-                "Erro",
-                "Por favor, defina o 'Polígono Principal' primeiro antes de "
-                "adicionar Áreas de Interesse.",
-            )
-            return
-        self.drawing_state_manager.drawing_type = "roi"
-        self.canvas_manager.start_polygon_drawing()
-
-    def _on_drawing_undo(self, event):
-        """Undo last point added to polygon."""
-        if (
-            self.drawing_state_manager.mode != "polygon"
-            or not self.drawing_state_manager.has_points()
-        ):
-            return "break"  # Prevent event propagation
-
-        success = self.drawing_state_manager.undo()
-
-        if success:
-            # Redraw the polygon
-            self.canvas_manager._redraw_polygon_in_progress()
-            self.set_status(
-                f"Último ponto desfeito. Pontos atuais: {self.drawing_state_manager.point_count()}"
-            )
-
-        return "break"
-
-    def _on_drawing_redo(self, event):
-        """Redo last undone point."""
-        if self.drawing_state_manager.mode != "polygon":
-            return "break"
-
-        success = self.drawing_state_manager.redo()
-
-        if success:
-            # Redraw the polygon
-            self.canvas_manager._redraw_polygon_in_progress()
-            self.set_status(
-                f"Ponto restaurado. Pontos atuais: {self.drawing_state_manager.point_count()}"
-            )
-
-        return "break"
-
-    def _on_vertex_drag_motion(self, event):
-        """Handle mouse motion while dragging a vertex."""
-        if self.drawing_state_manager.dragging_vertex_index is None:
-            return
-
-        canvas_x = float(event.x)
-        canvas_y = float(event.y)
-
-        # If drawing ROI, clamp position to arena
-        if self.drawing_state_manager.drawing_type == "roi":
-            main_arena_poly = self._get_zone_data_for_active_context().polygon
-            if main_arena_poly:
-                canvas_arena_poly = []
-                for point in main_arena_poly:
-                    canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
-                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
-
-                # Use GeometryService to clamp
-                canvas_x, canvas_y = GeometryService.clamp_point_to_polygon(
-                    (canvas_x, canvas_y), canvas_arena_poly
-                )
-
-        # Update vertex position via state manager
-        idx = self.drawing_state_manager.dragging_vertex_index
-        video_pt = self.canvas_manager._canvas_to_video(canvas_x, canvas_y)
-
-        self.drawing_state_manager.current_points[idx] = (canvas_x, canvas_y)
-        self.drawing_state_manager.canvas_points[idx] = (canvas_x, canvas_y)
-        self.drawing_state_manager.video_points[idx] = video_pt
-
-        # Redraw polygon
-        self.canvas_manager._redraw_polygon_in_progress()
-
-    def _on_vertex_drag_end(self, event):
-        """Handle mouse release after dragging a vertex."""
-        if self.drawing_state_manager.dragging_vertex_index is not None:
-            self.drawing_state_manager.dragging_vertex_index = None
-            self.video_display.canvas.config(cursor="crosshair")
-
-    def _apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
-        """
-        Apply snapping to nearby vertices or edges of existing polygons.
-        Delegates to GeometryService.
-        """
-        zone_data = self._get_zone_data_for_active_context()
-        all_polygons = []
-
-        # Add main arena polygon if it exists
-        if zone_data.polygon:
-            # Convert to canvas coordinates
-            canvas_polygon = []
-            for point in zone_data.polygon:
-                canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
-                canvas_polygon.append(canvas_pt)
-
-            # Only add if not editing this polygon
-            if not (exclude_current_polygon and self.current_editing_zone == "arena"):
-                all_polygons.append(canvas_polygon)
-
-        # Add all ROI polygons
-        for idx, roi_polygon in enumerate(zone_data.roi_polygons):
-            canvas_polygon = []
-            for point in roi_polygon:
-                canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
-                canvas_polygon.append(canvas_pt)
-
-            # Only add if not editing this specific ROI
-            skip_this_roi = (
-                exclude_current_polygon
-                and isinstance(self.current_editing_zone, tuple)
-                and self.current_editing_zone[0] == "roi"
-                and self.current_editing_zone[1] == idx
-            )
-            if not skip_this_roi:
-                all_polygons.append(canvas_polygon)
-
-        # Use GeometryService for consolidated snapping (vertex, edge, and axis)
-        return GeometryService.apply_snapping(
-            canvas_x, canvas_y, all_polygons, threshold=snap_threshold
-        )
 
     def _refresh_roi_templates(self, clear_selection: bool = False) -> None:
         """Refresh template list. Delegates to ROITemplateManager."""
@@ -1528,328 +1200,8 @@ class ApplicationGUI:
         """Apply template. Delegates to ROITemplateManager."""
         return self.roi_template_manager.apply_template()
 
-    @public_api
-    def _on_canvas_click(self, event):
-        """Handle canvas clicks during polygon drawing. Delegates to CanvasManager."""
-        return self.canvas_manager.handle_canvas_click(event)
-
-    def _on_canvas_motion(self, event):
-        """Handle mouse movement for drawing elastic lines."""
-        # Delegate to DrawingStateManager to get current state
-        # Note: The original code accessed legacy attributes like self.drawing_mode
-        # which might be out of sync. We should use DrawingStateManager or CanvasManager.
-
-        # For this refactor step, we will just fix the canvas reference.
-        # The full migration of logic to CanvasManager is part of Phase 3 (already done?).
-        # It seems some legacy logic remained here.
-
-        if self.drawing_state_manager.mode != "polygon":
-            return
-
-        canvas = self.video_display.canvas
-        canvas.delete("elastic_line")
-        canvas.delete("snap_indicator")  # Clear previous snap indicator
-
-        # Check for snapping
-        canvas_x = float(event.x)
-        canvas_y = float(event.y)
-        snapped_point = self._apply_snapping(canvas_x, canvas_y)
-
-        # Check if mouse is hovering over an existing vertex (from current polygon being drawn)
-        self._vertex_hover_index = None
-        hover_color = "cyan"  # Default color
-
-        current_points = self.drawing_state_manager.current_points
-
-        if current_points:
-            for i, (vx, vy) in enumerate(current_points):
-                dist = ((canvas_x - vx) ** 2 + (canvas_y - vy) ** 2) ** 0.5
-                if dist <= 10: # default tolerance
-                    self._vertex_hover_index = i
-                    hover_color = "orange"  # Change color when over vertex
-                    # Use vertex position for display
-                    display_x, display_y = vx, vy
-                    break
-
-        # Use snapped point if available and not hovering over vertex
-        if self._vertex_hover_index is None:
-            display_x = snapped_point[0] if snapped_point else canvas_x
-            display_y = snapped_point[1] if snapped_point else canvas_y
-        else:
-            display_x, display_y = current_points[self._vertex_hover_index]
-
-        # When drawing ROI, clamp the display indicator within the arena
-        if self.drawing_state_manager.drawing_type == "roi":
-            main_arena_poly = self._get_zone_data_for_active_context().polygon
-            if main_arena_poly:
-                # Convert arena to canvas coordinates
-                canvas_arena_poly = []
-                for point in main_arena_poly:
-                    canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
-                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
-
-                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
-
-                # Test if display point is inside arena
-                result = cv2.pointPolygonTest(arena_array, (display_x, display_y), True)
-
-                # If outside arena (result < 0), clamp to nearest arena boundary
-                if result < 0:
-                    # Find the closest point on the arena boundary
-                    min_dist = float("inf")
-                    closest_point = (display_x, display_y)
-
-                    # Check distance to each edge of the arena
-                    for i in range(len(canvas_arena_poly)):
-                        p1 = canvas_arena_poly[i]
-                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
-
-                        edge_snap = self.canvas_manager._point_to_segment_distance(
-                            display_x, display_y, p1[0], p1[1], p2[0], p2[1]
-                        )
-
-                        if edge_snap and edge_snap["distance"] < min_dist:
-                            min_dist = edge_snap["distance"]
-                            closest_point = (edge_snap["x"], edge_snap["y"])
-
-                    # Update display position to clamped point
-                    display_x, display_y = closest_point
-
-        # Draw snap indicator if snapping is active, hovering over vertex, or if we're drawing ROI
-        # (to show the clamped position within arena)
-        should_show_indicator = (
-            snapped_point is not None
-            or self._vertex_hover_index is not None
-            or (
-                self.drawing_state_manager.drawing_type == "roi"
-                and self._get_zone_data_for_active_context().polygon
-            )
-        )
-
-        if should_show_indicator:
-            # Draw a small circle to indicate snap point (color changes when over vertex)
-            canvas.create_oval(
-                display_x - 5,
-                display_y - 5,
-                display_x + 5,
-                display_y + 5,
-                outline=hover_color,
-                width=2,
-                tags="snap_indicator",
-            )
-
-        # If no points yet, only show snap indicator
-        if not current_points:
-            return
-
-        last_point = current_points[-1]
-        first_point = current_points[0]
-
-        # Line from last vertex to cursor (or snap point)
-        canvas.create_line(
-            last_point[0],
-            last_point[1],
-            display_x,
-            display_y,
-            fill="yellow",
-            dash=(4, 4),
-            tags="elastic_line",
-        )
-        # Line from cursor (or snap point) to first vertex (if more than one
-        # point exists)
-        if len(current_points) > 1:
-            canvas.create_line(
-                display_x,
-                display_y,
-                first_point[0],
-                first_point[1],
-                fill="yellow",
-                dash=(4, 4),
-                tags="elastic_line",
-            )
-
-    def _on_canvas_double_click(self, event):
-        """Finaliza o desenho do polígono e o envia para o controlador."""
-        # Fix: Auto-detect drawing type if not set (for single video workflow)
-        if (
-            self.drawing_state_manager.drawing_type is None
-            and self.drawing_state_manager.mode == "polygon"
-        ):
-            # If no main arena exists, assume we're drawing it
-            zone_data = self._get_zone_data_for_active_context()
-            if not zone_data.polygon:
-                self.drawing_state_manager.drawing_type = "arena"
-            else:
-                self.drawing_state_manager.drawing_type = "roi"
-
-        if self.drawing_state_manager.mode != "polygon":
-            return
-
-        try:
-            # Limpa elementos temporários de desenho ANTES de salvar
-            self.roi_canvas.delete("elastic_line")
-            self.roi_canvas.delete("drawing_aid")
-
-            video_points = self.drawing_state_manager.video_points
-
-            success = self.polygon_drawing_service.complete_polygon(
-                self.drawing_state_manager.drawing_type,
-                video_points,
-                self
-            )
-
-            if success:
-                status_message = (
-                    f"✓ {self.drawing_state_manager.drawing_type.title()} definida com sucesso!"
-                )
-                self.set_status(status_message)
-                self.show_info(
-                    "Sucesso",
-                    f"Zona criada com {len(video_points)} pontos.",
-                )
-                self._request_overview_refresh(reason=status_message, append_summary=True)
-                self.canvas_manager.stop_drawing()
-            else:
-                self.set_status("❌ Erro ao salvar zona.")
-                self.show_error("Erro", "Não foi possível salvar a zona.")
-                self.canvas_manager.stop_drawing()
-
-        except Exception as e:
-            self.set_status("❌ Erro durante salvamento.")
-            self.show_error("Erro", str(e))
-            self.canvas_manager.stop_drawing()
 
 
-    def _enable_roi_button_if_arena_exists(self, zone_data: ZoneData | None = None):
-        """Habilita o botão de desenhar ROI se a arena principal existir."""
-        if zone_data is None:
-            zone_data = self._get_zone_data_for_active_context()
-
-        widget = getattr(self, "zone_controls", None)
-        if widget:
-            widget.set_draw_roi_enabled(bool(zone_data and zone_data.polygon))
-            return
-
-        if hasattr(self, "draw_roi_button") and self.draw_roi_button is not None:
-            if zone_data and zone_data.polygon:
-                self.draw_roi_button.config(state="normal")
-            else:
-                self.draw_roi_button.config(state="disabled")
-
-    def _remove_selected_roi(self):
-        """Remove the ROI selected in the listbox."""
-        selected_items = self.roi_listbox.selection()
-        if not selected_items:
-            self.show_warning(
-                "Nenhuma Seleção", "Por favor, selecione uma ROI da lista para remover."
-            )
-            return
-
-        selected_arena_id = self.arena_selector_var.get()
-        if not selected_arena_id or selected_arena_id not in self.roi_data:
-            return  # Should not happen if an item is selected
-
-        # Find the index and name of the item to remove
-        selected_item = selected_items[0]
-        item_index = self.roi_listbox.index(selected_item)
-
-        # Remove from data source
-        del self.roi_data[selected_arena_id][item_index]
-
-        # Refresh the view
-        self._on_arena_select()
-
-    def _run_center_periphery_analysis(self):
-        """Run the center-periphery analysis."""
-        current_arena_id = self.arena_selector_var.get()
-        if not current_arena_id:
-            self.show_error("Erro", "Selecione um aquário ativo e carregue os dados primeiro.")
-            return
-
-        dialog = CenterPeripheryDialog(self.root)
-        if not dialog.result:
-            return
-
-        self.controller.run_center_periphery_analysis(
-            arena_id=current_arena_id,
-            method=dialog.result["method"],
-            value=dialog.result["value"],
-        )
-
-    def _start_circle_drawing(self):
-        """Activates circle drawing mode."""
-        self.canvas_manager.stop_drawing()  # Ensure clean state
-        self.drawing_mode = "circle"
-        self.current_circle_center = None
-        self.roi_canvas.config(cursor="crosshair")
-        self.roi_canvas.bind("<ButtonPress-1>", self._on_canvas_press_circle)
-        self.roi_canvas.bind("<B1-Motion>", self._on_canvas_drag_circle)
-        self.roi_canvas.bind("<ButtonRelease-1>", self._on_canvas_release_circle)
-        self.set_status("Modo de Desenho (Círculo): Clique e arraste para definir o raio.")
-
-    def _on_canvas_press_circle(self, event):
-        if self.drawing_mode != "circle":
-            return
-        self.current_circle_center = (event.x, event.y)
-
-    def _on_canvas_drag_circle(self, event):
-        if self.drawing_mode != "circle" or not self.current_circle_center:
-            return
-
-        self.roi_canvas.delete("elastic_line")
-        cx, cy = self.current_circle_center
-        radius = ((event.x - cx) ** 2 + (event.y - cy) ** 2) ** 0.5
-        self.roi_canvas.create_oval(
-            cx - radius,
-            cy - radius,
-            cx + radius,
-            cy + radius,
-            outline="yellow",
-            dash=(4, 4),
-            tags="elastic_line",
-        )
-
-    def _on_canvas_release_circle(self, event):
-        if self.drawing_mode != "circle" or not self.current_circle_center:
-            return
-
-        cx, cy = self.current_circle_center
-        radius = ((event.x - cx) ** 2 + (event.y - cy) ** 2) ** 0.5
-
-        if radius < 2:  # Ignore tiny circles
-            self.canvas_manager.stop_drawing()
-            return
-
-        roi_name = self.ask_string(
-            "Nome da ROI",
-            "Digite um nome para esta nova Região de Interesse (Círculo):",
-        )
-        if not roi_name:
-            self.canvas_manager.stop_drawing()
-            return
-
-        current_arena_id = self.arena_selector_var.get()
-        if not current_arena_id:
-            self.show_error("Erro", "Nenhum aquário ativo selecionado.")
-            self.canvas_manager.stop_drawing()
-            return
-
-        new_roi = {"name": roi_name, "type": "circle", "coords": (cx, cy, radius)}
-        self.roi_data.setdefault(current_arena_id, []).append(new_roi)
-
-        self.roi_canvas.create_oval(
-            cx - radius,
-            cy - radius,
-            cx + radius,
-            cy + radius,
-            outline="blue",
-            fill="cyan",
-            stipple="gray25",
-            width=2,
-        )
-        self.roi_listbox.insert("", "end", values=(roi_name,))
-
-        self.canvas_manager.stop_drawing()
 
     def _update_window_title(self, project_name: str | None = None) -> None:
         """Update the window title with the project name."""
@@ -1980,40 +1332,6 @@ class ApplicationGUI:
     def _check_live_project_calibration(self):
         """Check if Live project needs calibration. Delegates to ValidationManager."""
         return self.validation_manager.check_live_project_calibration()
-
-    def _on_grid_cell_clicked(self, day, group_name):
-        pm = self.controller.project_manager
-        subjects_per_group = pm.project_data.get("subjects_per_group", 0)
-        completed_sessions = pm.get_completed_sessions()
-
-        completed_subjects = {s for (d, g, s) in completed_sessions if d == day and g == group_name}
-
-        dialog = SubjectSelectionDialog(
-            self.root, day, group_name, subjects_per_group, completed_subjects
-        )
-
-        if dialog.result:
-            subject_id = dialog.result
-            project_type = pm.get_project_type()
-
-            if project_type == "live":
-                # ✅ NEW: Use LiveCameraService for Live projects
-                success = self.controller.start_live_project_session(
-                    day=day,
-                    group=group_name,
-                    subject=str(subject_id),
-                )
-
-                if not success:
-                    self.show_error(
-                        "Erro na Gravação",
-                        f"Falha ao iniciar sessão de gravação para {group_name}/{subject_id}.",
-                    )
-            else:
-                # Legacy path for pre-recorded projects
-                self.controller.start_recording(day=day, group=group_name, cobaia=str(subject_id))
-
-            self.widget_factory.render_progress_grid()  # Refresh grid after starting a recording
 
     def _manage_weights_clicked(self):
         """Open the weight management dialog."""
@@ -2536,91 +1854,29 @@ class ApplicationGUI:
         """Show a dialog to select one or more files. Delegates to DialogManager."""
         return self.dialog_manager.ask_open_filenames(title, filetypes)
 
-    def _on_zone_double_click(self, event):
-        """Handle double-click on zone list - opens vertex editing mode."""
-        self._edit_selected_zone_vertices()
-
-    def _on_zone_right_click(self, event):
-        """Mostra menu de contexto."""
-        # Seleciona item sob o cursor
-        item = self.zone_listbox.identify_row(event.y)
-        if item:
-            self.zone_listbox.selection_set(item)
-
-            # Verifica se é ROI (não arena principal)
-            values = self.zone_listbox.item(item)["values"]
-            if values and "Arena Principal" not in values[0]:
-                # ROI - show full menu
-                if self.roi_context_menu:
-                    self.roi_context_menu.post(event.x_root, event.y_root)
-            elif values and "Arena Principal" in values[0]:
-                # Arena Principal - show limited menu (only edit vertices)
-                arena_menu = Menu(self.root, tearoff=0)
-                arena_menu.add_command(
-                    label="🔧 Editar Vértices",
-                    command=self._edit_selected_zone_vertices,
-                )
-                arena_menu.post(event.x_root, event.y_root)
-
-    @public_api
-    def _edit_selected_zone_vertices(self):
-        """Enable interactive editing of selected zone vertices. Delegates to CanvasManager."""
-        return self.canvas_manager.edit_selected_zone_vertices()
-
-    def _rename_selected_roi(self):
-        """Rename the selected ROI. Delegates to DialogManager."""
-        return self.dialog_manager.rename_selected_roi()
-
-    def _change_roi_color(self):
-        """Change the color of the selected ROI. Delegates to DialogManager."""
-        return self.dialog_manager.change_roi_color()
-
-    def _remove_selected_roi_confirm(self):
-        """Remove ROI selecionada com confirmação."""
-        selected = self.zone_listbox.selection()
-        if not selected:
-            return
-
-        item = self.zone_listbox.item(selected[0])
-        roi_name = item["values"][0].replace("📍 ", "")
-
-        # Confirmação
-        confirm = self.dialog_manager.confirm_remove_roi(roi_name)
-
-        if confirm:
-            # Remove do projeto
-            zone_data = self._get_zone_data_for_active_context()
-            try:
-                idx = zone_data.roi_names.index(roi_name)
-
-                # Remove da lista de nomes
-                zone_data.roi_names.pop(idx)
-
-                # Remove da lista de polígonos
-                if idx < len(zone_data.roi_polygons):
-                    zone_data.roi_polygons.pop(idx)
-
-                # Remove da lista de cores
-                if idx < len(zone_data.roi_colors):
-                    zone_data.roi_colors.pop(idx)
-
-                # Persist removals
-                self.controller.project_manager.save_zone_data(zone_data)
-
-                # Atualiza visualização
-                self.canvas_manager.redraw_zones_from_project_data()
-                self.show_info("Sucesso", f"ROI '{roi_name}' removida com sucesso")
-                status_message = f"ROI '{roi_name}' removida com sucesso."
-                self.set_status(status_message)
-                self._request_overview_refresh(reason=status_message, append_summary=True)
-
-            except ValueError:
-                self.show_error("Erro", "ROI não encontrada")
 
     @public_api
     def ask_save_filename(self, **options):
         """Show a dialog to select a save file path. Delegates to DialogManager."""
         return self.dialog_manager.ask_save_filename(**options)
+
+    @public_api
+    def _edit_selected_zone_vertices(self):
+        """
+        Enable interactive editing of selected zone vertices.
+
+        DEPRECATED: Use canvas_manager.edit_selected_zone_vertices() directly.
+        """
+        return self.canvas_manager.edit_selected_zone_vertices()
+
+    @public_api
+    def _on_canvas_click(self, event):
+        """
+        Handle canvas click events.
+
+        DEPRECATED: Use canvas_manager.handle_canvas_click(event).
+        """
+        return self.canvas_manager.handle_canvas_click(event)
 
     @public_api
     def update_button_state(self, button_name, state):

@@ -75,5 +75,5 @@ class TestZoneControlBuilder:
 
         # Verify population calls
         mock_gui._refresh_roi_templates.assert_called_once()
-        mock_gui._populate_video_selector_tree.assert_called_once()
+        # mock_gui._populate_video_selector_tree.assert_called_once() # Replaced by event
         mock_gui._on_roi_rule_change.assert_called_once()

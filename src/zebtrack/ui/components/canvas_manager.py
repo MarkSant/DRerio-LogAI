@@ -15,6 +15,8 @@ from PIL import Image
 
 from zebtrack.ui.components.canvas.event_handler import CanvasEventHandler
 from zebtrack.ui.components.canvas.renderer import CanvasRenderer
+from zebtrack.ui.events import Events
+from zebtrack.utils.geometry_service import GeometryService
 
 log = structlog.get_logger()
 
@@ -38,6 +40,13 @@ class CanvasManager:
         self._raw_bg_image = None
         self._canvas_bg_image = None
         self._canvas_bg_position = None
+
+        # Interactive editing state
+        self.dragged_handle_index = None
+        self.drag_offset = (0, 0)
+        self.drag_start_mouse = (0, 0)
+        self.drag_start_handle = (0, 0)
+        self.current_editing_zone = None
 
         # Initialize sub-components
         self.renderer = CanvasRenderer(self)
@@ -574,3 +583,315 @@ class CanvasManager:
                     controls.add_zone_to_list(
                         f"roi_{i}", f"📍 {name}", "ROI", color_hex
                     )
+
+    def apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
+        """Apply snapping to nearby vertices or edges of existing polygons."""
+        zone_data = self.gui._get_zone_data_for_active_context()
+        all_polygons = []
+
+        # Add main arena polygon if it exists
+        if zone_data.polygon:
+            # Convert to canvas coordinates
+            canvas_polygon = []
+            for point in zone_data.polygon:
+                canvas_pt = self._video_to_canvas(point[0], point[1])
+                canvas_polygon.append(canvas_pt)
+
+            # Only add if not editing this polygon
+            if not (exclude_current_polygon and self.current_editing_zone == "arena"):
+                all_polygons.append(canvas_polygon)
+
+        # Add all ROI polygons
+        for idx, roi_polygon in enumerate(zone_data.roi_polygons):
+            canvas_polygon = []
+            for point in roi_polygon:
+                canvas_pt = self._video_to_canvas(point[0], point[1])
+                canvas_polygon.append(canvas_pt)
+
+            # Only add if not editing this specific ROI
+            skip_this_roi = (
+                exclude_current_polygon
+                and isinstance(self.current_editing_zone, tuple)
+                and self.current_editing_zone[0] == "roi"
+                and self.current_editing_zone[1] == idx
+            )
+            if not skip_this_roi:
+                all_polygons.append(canvas_polygon)
+
+        return GeometryService.apply_snapping(
+            canvas_x, canvas_y, all_polygons, threshold=snap_threshold
+        )
+
+    def start_main_arena_drawing(self):
+        """Start drawing the main arena polygon."""
+        if self.gui.analysis_active:
+            self.gui.show_warning(
+                "Análise em Progresso",
+                "Não é possível editar zonas durante a análise de vídeo.",
+            )
+            return
+
+        self.gui.drawing_state_manager.drawing_type = "arena"
+        self.start_polygon_drawing()
+
+    def start_roi_drawing(self):
+        """Start drawing an ROI polygon."""
+        if self.gui.analysis_active:
+            self.gui.show_warning(
+                "Análise em Progresso",
+                "Não é possível editar zonas durante a análise de vídeo.",
+            )
+            return
+
+        main_arena = self.gui._get_zone_data_for_active_context().polygon
+        if not main_arena:
+            self.gui.show_error(
+                "Erro",
+                "Por favor, defina o 'Polígono Principal' primeiro antes de "
+                "adicionar Áreas de Interesse.",
+            )
+            return
+        self.gui.drawing_state_manager.drawing_type = "roi"
+        self.start_polygon_drawing()
+
+    def save_arena(self):
+        """Save the edited polygon."""
+        if self.current_editing_zone == "arena":
+            # Save main arena
+            self.gui.event_dispatcher.publish_event(
+                Events.ZONE_SAVE_MANUAL_ARENA,
+                {"polygon_points": self.gui.edited_polygon_points},
+            )
+            status_message = "Arena principal salva com sucesso."
+            self.gui.set_status(status_message)
+            self._enable_roi_button_if_arena_exists()
+
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+            if self.event_bus_v2:
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                    data={"reason": status_message, "append_summary": True},
+                    source="CanvasManager.save_arena"
+                ))
+
+        elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
+            # Save ROI
+            _, roi_index, roi_name = self.current_editing_zone
+            zone_data = self.gui._get_zone_data_for_active_context()
+
+            # Update the ROI polygon
+            zone_data.roi_polygons[roi_index] = self.gui.edited_polygon_points
+
+            # Save to project
+            self.gui.controller.project_manager.save_zone_data(zone_data)
+
+            status_message = f"ROI '{roi_name}' salva com sucesso."
+            self.gui.set_status(status_message)
+
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+            if self.event_bus_v2:
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                    data={"reason": status_message, "append_summary": True},
+                    source="CanvasManager.save_arena"
+                ))
+        else:
+            # Fallback
+            self.gui.controller.save_manual_arena(self.gui.edited_polygon_points)
+            status_message = "Zona salva com sucesso."
+            self.gui.set_status(status_message)
+            self._enable_roi_button_if_arena_exists()
+
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+            if self.event_bus_v2:
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                    data={"reason": status_message, "append_summary": True},
+                    source="CanvasManager.save_arena"
+                ))
+
+        self.clear_interactive_polygon()
+        self.redraw_zones_from_project_data()
+
+        from zebtrack.ui.event_bus_v2 import Event, UIEvents
+        if self.event_bus_v2:
+            self.event_bus_v2.publish(Event(
+                type=UIEvents.ZONES_UPDATED,
+                data={'zone_data': None},
+                source='CanvasManager.save_arena'
+            ))
+
+    def discard_arena(self):
+        """Discard the interactive polygon."""
+        self.clear_interactive_polygon()
+        if self.current_editing_zone == "arena":
+            self.gui.set_status("Edição da arena descartada.")
+        elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
+            _, _, roi_name = self.current_editing_zone
+            self.gui.set_status(f"Edição da ROI '{roi_name}' descartada.")
+        else:
+            self.gui.set_status("Edição descartada.")
+
+        self.redraw_zones_from_project_data()
+
+    def clear_interactive_polygon(self):
+        """Clear all interactive elements."""
+        self.gui.video_display.canvas.delete("interactive_polygon", "handle", "suggested_polygon")
+        try:
+            if (
+                self.gui.zone_controls
+                and self.gui.zone_controls.interactive_buttons_frame
+                and self.gui.zone_controls.interactive_buttons_frame.winfo_exists()
+            ):
+                self.gui.zone_controls.interactive_buttons_frame.pack_forget()
+        except Exception:
+            pass
+
+        self.gui.interactive_polygon_item = None
+        self.gui.polygon_handles = []
+        self.gui.edited_polygon_points = []
+        self.dragged_handle_index = None
+        self.drag_offset = (0, 0)
+        self.current_editing_zone = None
+
+    def _enable_roi_button_if_arena_exists(self):
+        """Enable ROI button if arena exists."""
+        zone_data = self.gui._get_zone_data_for_active_context()
+        widget = getattr(self.gui, "zone_controls", None)
+        if widget:
+            widget.set_draw_roi_enabled(bool(zone_data and zone_data.polygon))
+
+    def start_circle_drawing(self):
+        """Activates circle drawing mode."""
+        self.stop_drawing()
+        self.gui.drawing_mode = "circle"
+        self.gui.current_circle_center = None
+        self.gui.roi_canvas.config(cursor="crosshair")
+
+        self.gui.roi_canvas.bind("<ButtonPress-1>", self.on_canvas_press_circle)
+        self.gui.roi_canvas.bind("<B1-Motion>", self.on_canvas_drag_circle)
+        self.gui.roi_canvas.bind("<ButtonRelease-1>", self.on_canvas_release_circle)
+        self.gui.set_status("Modo de Desenho (Círculo): Clique e arraste para definir o raio.")
+
+    def on_canvas_press_circle(self, event):
+        if self.gui.drawing_mode != "circle":
+            return
+        self.gui.current_circle_center = (event.x, event.y)
+
+    def on_canvas_drag_circle(self, event):
+        if self.gui.drawing_mode != "circle" or not self.gui.current_circle_center:
+            return
+
+        self.gui.roi_canvas.delete("elastic_line")
+        cx, cy = self.gui.current_circle_center
+        radius = ((event.x - cx) ** 2 + (event.y - cy) ** 2) ** 0.5
+        self.gui.roi_canvas.create_oval(
+            cx - radius,
+            cy - radius,
+            cx + radius,
+            cy + radius,
+            outline="yellow",
+            dash=(4, 4),
+            tags="elastic_line",
+        )
+
+    def on_canvas_release_circle(self, event):
+        if self.gui.drawing_mode != "circle" or not self.gui.current_circle_center:
+            return
+
+        cx, cy = self.gui.current_circle_center
+        radius = ((event.x - cx) ** 2 + (event.y - cy) ** 2) ** 0.5
+
+        if radius < 2:
+            self.stop_drawing()
+            return
+
+        roi_name = self.gui.ask_string(
+            "Nome da ROI",
+            "Digite um nome para esta nova Região de Interesse (Círculo):",
+        )
+        if not roi_name:
+            self.stop_drawing()
+            return
+
+        current_arena_id = self.gui.arena_selector_var.get()
+        if not current_arena_id:
+            self.gui.show_error("Erro", "Nenhum aquário ativo selecionado.")
+            self.stop_drawing()
+            return
+
+        new_roi = {"name": roi_name, "type": "circle", "coords": (cx, cy, radius)}
+        self.gui.roi_data.setdefault(current_arena_id, []).append(new_roi)
+
+        self.gui.roi_canvas.create_oval(
+            cx - radius,
+            cy - radius,
+            cx + radius,
+            cy + radius,
+            outline="blue",
+            fill="cyan",
+            stipple="gray25",
+            width=2,
+        )
+        self.gui.roi_listbox.insert("", "end", values=(roi_name,))
+
+        self.stop_drawing()
+
+    def remove_selected_roi(self):
+        """Remove the currently selected ROI with confirmation."""
+        controls = getattr(self.gui, "zone_controls", None)
+        if not controls or not controls.zone_listbox:
+            return
+
+        selected = controls.zone_listbox.selection()
+        if not selected:
+            return
+
+        item = controls.zone_listbox.item(selected[0])
+        roi_name = item["values"][0].replace("📍 ", "")
+
+        # Check if it's an ROI (not main arena)
+        if "Arena Principal" in item["values"][0]:
+            return
+
+        # Confirmation
+        confirm = self.gui.dialog_manager.confirm_remove_roi(roi_name)
+
+        if confirm:
+            zone_data = self.gui._get_zone_data_for_active_context()
+            try:
+                idx = zone_data.roi_names.index(roi_name)
+
+                # Remove from all lists
+                zone_data.roi_names.pop(idx)
+                if idx < len(zone_data.roi_polygons):
+                    zone_data.roi_polygons.pop(idx)
+                if idx < len(zone_data.roi_colors):
+                    zone_data.roi_colors.pop(idx)
+
+                # Persist removals
+                self.gui.controller.project_manager.save_zone_data(zone_data)
+
+                # Update view
+                self.redraw_zones_from_project_data()
+
+                status_message = f"ROI '{roi_name}' removida com sucesso."
+                self.gui.set_status(status_message)
+                self.gui.show_info("Sucesso", status_message)
+
+                # Refresh project views
+                if self.event_bus_v2:
+                    from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                    self.event_bus_v2.publish(Event(
+                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                        data={"reason": status_message, "append_summary": True},
+                        source="CanvasManager.remove_selected_roi"
+                    ))
+                    self.event_bus_v2.publish(Event(
+                        type=UIEvents.ZONES_UPDATED,
+                        data={'zone_data': None},
+                        source='CanvasManager.remove_selected_roi'
+                    ))
+
+            except ValueError:
+                self.gui.show_error("Erro", "ROI não encontrada")

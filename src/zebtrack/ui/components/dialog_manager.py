@@ -531,6 +531,48 @@ class DialogManager:
 
         self.gui.event_dispatcher.publish_event(Events.PROJECT_OPEN, {"project_path": project_path})
 
+    def handle_grid_cell_click(self, day: int, group_name: str) -> None:
+        """Handle click on a cell in the experimental progress grid.
+
+        Args:
+            day: Day number
+            group_name: Group name
+        """
+        pm = self.gui.controller.project_manager
+        subjects_per_group = pm.project_data.get("subjects_per_group", 0)
+        completed_sessions = pm.get_completed_sessions()
+
+        completed_subjects = {s for (d, g, s) in completed_sessions if d == day and g == group_name}
+
+        # Import here to avoid circular dependency if needed, or use existing import
+        from zebtrack.ui.dialogs import SubjectSelectionDialog
+
+        dialog = SubjectSelectionDialog(
+            self.gui.root, day, group_name, subjects_per_group, completed_subjects
+        )
+
+        if dialog.result:
+            subject_id = dialog.result
+            project_type = pm.get_project_type()
+
+            if project_type == "live":
+                success = self.gui.controller.start_live_project_session(
+                    day=day,
+                    group=group_name,
+                    subject=str(subject_id),
+                )
+
+                if not success:
+                    self.show_error(
+                        "Erro na Gravação",
+                        f"Falha ao iniciar sessão de gravação para {group_name}/{subject_id}.",
+                    )
+            else:
+                # Legacy path for pre-recorded projects
+                self.gui.controller.start_recording(day=day, group=group_name, cobaia=str(subject_id))
+
+            self.gui.widget_factory.render_progress_grid()
+
     # =========================================================================
     # Confirmation Dialogs
     # =========================================================================

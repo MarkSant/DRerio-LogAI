@@ -5,8 +5,6 @@ from zebtrack.ui.gui import ApplicationGUI
 # List of expected public API methods (Total: 50)
 EXPECTED_PUBLIC_API = [
     # 1. Project View Management
-    'refresh_project_views',
-    '_request_overview_refresh',
     '_update_project_overview_summary',
     '_refresh_processing_reports_tab',
 
@@ -15,8 +13,7 @@ EXPECTED_PUBLIC_API = [
     '_edit_selected_zone_vertices',
 
     # 3. Live Recording
-    'show_external_trigger_notice',
-    'clear_external_trigger_notice',
+    # Methods removed in Phase 3.1 (Event-Driven)
 
     # 4. Analysis Progress & Statistics
     # Methods removed in Phase 3.1 (Event-Driven)

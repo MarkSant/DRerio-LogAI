@@ -992,7 +992,7 @@ class WidgetFactory:
                     background=color,
                     width=15,
                     height=3,
-                    command=lambda d=day, g=group_name: self.gui._on_grid_cell_clicked(d, g),
+                    command=lambda d=day, g=group_name: self.gui.dialog_manager.handle_grid_cell_click(d, g),
                 )
                 cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
 

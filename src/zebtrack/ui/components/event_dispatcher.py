@@ -153,6 +153,15 @@ class EventDispatcher:
         self.event_bus.subscribe(Events.UI_SHOW_ERROR,
             lambda d: self.gui.dialog_manager.show_error(d.get("title", "Erro"), d.get("message", "")))
 
+        # External Triggers
+        self.event_bus.subscribe(Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
+            lambda d: self.gui.dialog_manager.show_external_trigger_notice(
+                d.get("session_label", ""),
+                **{k: v for k, v in d.items() if k != "session_label"}
+            ))
+        self.event_bus.subscribe(Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE,
+            lambda d: self.gui.dialog_manager.clear_external_trigger_notice())
+
         # Status updates
         self.event_bus.subscribe(Events.UI_SET_STATUS,
             lambda d: self.gui.status_var.set(d.get("message", "")))
@@ -178,6 +187,12 @@ class EventDispatcher:
         # Project View Updates
         self.event_bus.subscribe(Events.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
             lambda d: self.gui.project_view_manager.on_video_hierarchy_snapshot_updated(d.get("snapshot", [])))
+        self.event_bus.subscribe(Events.UI_REFRESH_PROJECT_VIEWS,
+            lambda d: self.gui.project_view_manager.refresh_project_views(
+                reason=d.get("reason"),
+                append_summary=d.get("append_summary", False),
+                immediate=d.get("immediate", False)
+            ))
 
     def _handle_setup_zone_definition_for_single_video(self, data: dict) -> None:
         """Handler for single video zone setup event."""
@@ -195,18 +210,46 @@ class EventDispatcher:
         if not self.gui or not self.event_bus: return
 
         # Drawing Actions
-        self.event_bus.subscribe(Events.ZONE_AUTO_DETECT,
-            lambda d: self.gui._on_auto_detect_clicked(**d))
-        self.event_bus.subscribe(Events.ZONE_START_DRAW_ARENA,
-            lambda d: self.gui._start_main_arena_drawing())
+        self.event_bus.subscribe(Events.ZONE_AUTO_DETECT_CLICKED,
+            lambda d: self.gui._on_auto_detect_clicked(stabilization_frames=d.get("stabilization_frames")))
+        self.event_bus.subscribe(Events.ZONE_DRAW_ARENA,
+            lambda d: self.gui.canvas_manager.start_main_arena_drawing())
+        self.event_bus.subscribe(Events.ZONE_DRAW_ROI,
+            lambda d: self.gui.canvas_manager.start_roi_drawing())
+        self.event_bus.subscribe(Events.ZONE_TOGGLE_VIEW,
+            lambda d: self.gui._toggle_canvas_view())
 
         # ROI Templates
-        self.event_bus.subscribe(Events.ZONE_APPLY_ROI_TEMPLATE,
+        self.event_bus.subscribe(Events.ZONE_TEMPLATE_APPLY,
             lambda d: self.gui._on_apply_roi_template())
-        self.event_bus.subscribe(Events.ZONE_SAVE_ROI_TEMPLATE,
+        self.event_bus.subscribe(Events.ZONE_TEMPLATE_SAVE,
             lambda d: self.gui._on_save_roi_template())
-        self.event_bus.subscribe(Events.ZONE_IMPORT_AND_APPLY_ROI_TEMPLATE,
+        self.event_bus.subscribe(Events.ZONE_TEMPLATE_IMPORT,
             lambda d: self.gui._on_import_and_apply_roi_template())
+
+        # Video Selector
+        self.event_bus.subscribe(Events.ZONE_VIDEO_SEARCH_CHANGED,
+            lambda d: self.gui._filter_video_tree())
+        self.event_bus.subscribe(Events.ZONE_VIDEO_REFRESH,
+            lambda d: self.gui._refresh_video_selector_tree())
+        self.event_bus.subscribe(Events.ZONE_VIDEO_DOUBLE_CLICK,
+             lambda d: self.gui.canvas_manager.load_selected_video_frame())
+        self.event_bus.subscribe(Events.ZONE_VIDEO_FRAME_LOAD,
+             lambda d: self.gui.canvas_manager.load_selected_video_frame())
+
+        # Zone List
+        self.event_bus.subscribe(Events.ZONE_LIST_ITEM_DOUBLE_CLICK,
+             lambda d: self.gui.canvas_manager.edit_selected_zone_vertices())
+        self.event_bus.subscribe(Events.ZONE_LIST_ITEM_RIGHT_CLICK,
+             lambda d: self.gui.menu_manager.show_roi_context_menu(
+                 x=d.get("x"), y=d.get("y"), item_id=d.get("item_id")
+             ))
+
+        # Interactive Editing
+        self.event_bus.subscribe(Events.ZONE_SAVE_ARENA,
+             lambda d: self.gui.canvas_manager.save_arena())
+        self.event_bus.subscribe(Events.ZONE_DISCARD_ARENA,
+             lambda d: self.gui.canvas_manager.discard_arena())
 
         # ROI Settings
         self.event_bus.subscribe(Events.ZONE_APPLY_ROI_SETTINGS,

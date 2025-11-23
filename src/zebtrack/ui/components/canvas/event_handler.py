@@ -31,13 +31,13 @@ class CanvasEventHandler:
         canvas.bind("<Button-1>", self.on_canvas_click)
         canvas.bind("<B1-Motion>", self.on_vertex_drag_motion)
         canvas.bind("<ButtonRelease-1>", self.on_vertex_drag_end)
-        canvas.bind("<Double-Button-1>", self.gui._on_canvas_double_click)
-        canvas.bind("<Motion>", self.gui._on_canvas_motion)
+        canvas.bind("<Double-Button-1>", self.on_canvas_double_click)
+        canvas.bind("<Motion>", self.on_canvas_motion)
 
         # Keyboard shortcuts
-        canvas.bind("<Control-z>", self.gui._on_drawing_undo)
-        canvas.bind("<Control-y>", self.gui._on_drawing_redo)
-        canvas.bind("<Control-Shift-Z>", self.gui._on_drawing_redo)
+        canvas.bind("<Control-z>", self.on_drawing_undo)
+        canvas.bind("<Control-y>", self.on_drawing_redo)
+        canvas.bind("<Control-Shift-Z>", self.on_drawing_redo)
         canvas.focus_set()
 
     def unbind_drawing_events(self):
@@ -76,7 +76,7 @@ class CanvasEventHandler:
         canvas_x = float(event.x) + self.gui._drag_offset[0]
         canvas_y = float(event.y) + self.gui._drag_offset[1]
 
-        snapped_point = self.gui._apply_snapping(canvas_x, canvas_y, exclude_current_polygon=True)
+        snapped_point = self.manager.apply_snapping(canvas_x, canvas_y, exclude_current_polygon=True)
         if snapped_point:
             canvas_x, canvas_y = snapped_point
 
@@ -143,7 +143,7 @@ class CanvasEventHandler:
                     self.gui.video_display.canvas.config(cursor="hand2")
                     return
 
-        snapped_point = self.gui._apply_snapping(canvas_x, canvas_y)
+        snapped_point = self.manager.apply_snapping(canvas_x, canvas_y)
         if snapped_point:
             canvas_x, canvas_y = snapped_point
 
@@ -216,3 +216,189 @@ class CanvasEventHandler:
         if self.gui.drawing_state_manager.dragging_vertex_index is not None:
             self.gui.drawing_state_manager.dragging_vertex_index = None
             self.gui.video_display.canvas.config(cursor="crosshair")
+
+    def on_canvas_motion(self, event):
+        """Handle mouse movement for drawing elastic lines."""
+        if self.gui.drawing_state_manager.mode != "polygon":
+            return
+
+        canvas = self.gui.video_display.canvas
+        canvas.delete("elastic_line")
+        canvas.delete("snap_indicator")
+
+        # Check for snapping
+        canvas_x = float(event.x)
+        canvas_y = float(event.y)
+        snapped_point = self.manager.apply_snapping(canvas_x, canvas_y)
+
+        # Check if mouse is hovering over an existing vertex
+        vertex_hover_index = None
+        hover_color = "cyan"
+
+        current_points = self.gui.drawing_state_manager.current_points
+
+        if current_points:
+            for i, (vx, vy) in enumerate(current_points):
+                dist = ((canvas_x - vx) ** 2 + (canvas_y - vy) ** 2) ** 0.5
+                if dist <= 10:
+                    vertex_hover_index = i
+                    hover_color = "orange"
+                    display_x, display_y = vx, vy
+                    break
+
+        if vertex_hover_index is None:
+            display_x = snapped_point[0] if snapped_point else canvas_x
+            display_y = snapped_point[1] if snapped_point else canvas_y
+        elif current_points:
+            display_x, display_y = current_points[vertex_hover_index]
+        else:
+            display_x, display_y = canvas_x, canvas_y
+
+        # When drawing ROI, clamp the display indicator within the arena
+        if self.gui.drawing_state_manager.drawing_type == "roi":
+            main_arena_poly = self.gui._get_zone_data_for_active_context().polygon
+            if main_arena_poly:
+                canvas_arena_poly = []
+                for point in main_arena_poly:
+                    canvas_pt = self.manager._video_to_canvas(point[0], point[1])
+                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+
+                canvas_x, canvas_y = GeometryService.clamp_point_to_polygon(
+                    (display_x, display_y), canvas_arena_poly
+                )
+                display_x, display_y = canvas_x, canvas_y
+
+        should_show_indicator = (
+            snapped_point is not None
+            or vertex_hover_index is not None
+            or (
+                self.gui.drawing_state_manager.drawing_type == "roi"
+                and self.gui._get_zone_data_for_active_context().polygon
+            )
+        )
+
+        if should_show_indicator:
+            canvas.create_oval(
+                display_x - 5,
+                display_y - 5,
+                display_x + 5,
+                display_y + 5,
+                outline=hover_color,
+                width=2,
+                tags="snap_indicator",
+            )
+
+        if not current_points:
+            return
+
+        last_point = current_points[-1]
+        first_point = current_points[0]
+
+        canvas.create_line(
+            last_point[0],
+            last_point[1],
+            display_x,
+            display_y,
+            fill="yellow",
+            dash=(4, 4),
+            tags="elastic_line",
+        )
+        if len(current_points) > 1:
+            canvas.create_line(
+                display_x,
+                display_y,
+                first_point[0],
+                first_point[1],
+                fill="yellow",
+                dash=(4, 4),
+                tags="elastic_line",
+            )
+
+    def on_canvas_double_click(self, event):
+        """Finalize the drawing of the polygon."""
+        if (
+            self.gui.drawing_state_manager.drawing_type is None
+            and self.gui.drawing_state_manager.mode == "polygon"
+        ):
+            zone_data = self.gui._get_zone_data_for_active_context()
+            if not zone_data.polygon:
+                self.gui.drawing_state_manager.drawing_type = "arena"
+            else:
+                self.gui.drawing_state_manager.drawing_type = "roi"
+
+        if self.gui.drawing_state_manager.mode != "polygon":
+            return
+
+        try:
+            self.gui.roi_canvas.delete("elastic_line")
+            self.gui.roi_canvas.delete("drawing_aid")
+
+            video_points = self.gui.drawing_state_manager.video_points
+
+            success = self.gui.polygon_drawing_service.complete_polygon(
+                self.gui.drawing_state_manager.drawing_type,
+                video_points,
+                self.gui
+            )
+
+            if success:
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                status_message = (
+                    f"✓ {self.gui.drawing_state_manager.drawing_type.title()} definida com sucesso!"
+                )
+                self.gui.set_status(status_message)
+                self.gui.show_info(
+                    "Sucesso",
+                    f"Zona criada com {len(video_points)} pontos.",
+                )
+
+                if self.manager.event_bus_v2:
+                    self.manager.event_bus_v2.publish(Event(
+                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                        data={"reason": status_message, "append_summary": True},
+                        source="CanvasEventHandler.on_canvas_double_click"
+                    ))
+
+                self.manager.stop_drawing()
+            else:
+                self.gui.set_status("❌ Erro ao salvar zona.")
+                self.gui.show_error("Erro", "Não foi possível salvar a zona.")
+                self.manager.stop_drawing()
+
+        except Exception as e:
+            self.gui.set_status("❌ Erro durante salvamento.")
+            self.gui.show_error("Erro", str(e))
+            self.manager.stop_drawing()
+
+    def on_drawing_undo(self, event):
+        """Undo last point added to polygon."""
+        if (
+            self.gui.drawing_state_manager.mode != "polygon"
+            or not self.gui.drawing_state_manager.has_points()
+        ):
+            return "break"
+
+        success = self.gui.drawing_state_manager.undo()
+
+        if success:
+            self.manager._redraw_polygon_in_progress()
+            self.gui.set_status(
+                f"Último ponto desfeito. Pontos atuais: {self.gui.drawing_state_manager.point_count()}"
+            )
+
+        return "break"
+
+    def on_drawing_redo(self, event):
+        """Redo last undone point."""
+        if self.gui.drawing_state_manager.mode != "polygon":
+            return "break"
+
+        success = self.gui.drawing_state_manager.redo()
+
+        if success:
+            self.manager._redraw_polygon_in_progress()
+            self.gui.set_status(
+                f"Ponto restaurado. Pontos atuais: {self.gui.drawing_state_manager.point_count()}"
+            )
+
+        return "break"

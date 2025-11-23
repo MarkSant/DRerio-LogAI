@@ -150,6 +150,10 @@ class UICoordinator:
             UIEvents.ANALYSIS_TASK_STATUS_UPDATED, self._on_analysis_task_status_updated
         )
 
+        # External Trigger Events
+        self.event_bus.subscribe(UIEvents.EXTERNAL_TRIGGER_NOTICE, self._on_external_trigger_notice)
+        self.event_bus.subscribe(UIEvents.EXTERNAL_TRIGGER_NOTICE_CLEARED, self._on_external_trigger_notice_cleared)
+
         log.debug("ui_coordinator.subscriptions_setup", count=self._count_subscriptions())
 
     # ===========================
@@ -457,6 +461,30 @@ class UICoordinator:
         except Exception as e:
             self._errors_count += 1
             log.exception("ui_coordinator.analysis_task_status_updated.error", error=str(e))
+
+    def _on_external_trigger_notice(self, data: dict[str, Any]) -> None:
+        """Handle EXTERNAL_TRIGGER_NOTICE event."""
+        self._events_handled += 1
+        try:
+            if self.dialog_manager:
+                self._safe_ui_call(
+                    lambda: self.dialog_manager.show_external_trigger_notice(
+                        data.get("session_label", ""), **data
+                    )
+                )
+        except Exception as e:
+            self._errors_count += 1
+            log.exception("ui_coordinator.external_trigger_notice.error", error=str(e))
+
+    def _on_external_trigger_notice_cleared(self, data: dict[str, Any]) -> None:
+        """Handle EXTERNAL_TRIGGER_NOTICE_CLEARED event."""
+        self._events_handled += 1
+        try:
+            if self.dialog_manager:
+                self._safe_ui_call(lambda: self.dialog_manager.clear_external_trigger_notice())
+        except Exception as e:
+            self._errors_count += 1
+            log.exception("ui_coordinator.external_trigger_notice_cleared.error", error=str(e))
 
     # ===========================
     # Helper Methods
