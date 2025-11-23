@@ -15,7 +15,6 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from zebtrack.core.main_view_model import MainViewModel
 from tests.helpers.controller_factory import create_test_controller
 
 

@@ -7,7 +7,6 @@ import sys
 from collections import Counter
 from collections.abc import Callable, Iterable
 from pathlib import Path
-import warnings
 from tkinter import (
     BooleanVar,
     Button,
@@ -20,8 +19,6 @@ from tkinter import (
 from tkinter import font as tkfont
 from typing import Any
 
-import cv2
-import numpy as np
 import structlog
 
 try:
@@ -52,22 +49,20 @@ from zebtrack.ui.components import (
     ValidationManager,
     WidgetFactory,
 )
-from zebtrack.ui.decorators import deprecated, public_api
-from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
+from zebtrack.ui.decorators import public_api
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
-    CenterPeripheryDialog,
     MissingMetadataDialog,
     SaveROITemplateDialog,
     StartRecordingDialog,
-    SubjectSelectionDialog,
 )
 from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.events import Events
+from zebtrack.ui.ui_coordinator import UICoordinator
 from zebtrack.ui.window_utils import (
     reset_geometry_if_not_maximized,
 )
-from zebtrack.utils.geometry_service import GeometryService
 
 log = structlog.get_logger()
 
@@ -100,84 +95,27 @@ PROJECT_STATUS_WIDGET_ORDER: tuple[str, ...] = (
 )
 
 
-class _VideoPathResolverContext:
-    """Helper class to reduce complexity of _resolve_processing_reports_video_paths."""
-
-    def __init__(self, tree, metadata_store):
-        self.tree = tree
-        self.metadata_store = metadata_store
-        self.final_paths: list[str] = []
-        self.seen_paths: set[str] = set()
-        self.resolved_video_nodes: list[str] = []
-        self.had_hierarchy_nodes = False
-
-    def add_video_path(self, video_path: str | None, node_id: str | None = None) -> None:
-        """Add a video path if not already seen."""
-        if not video_path or video_path in self.seen_paths:
-            return
-        self.seen_paths.add(video_path)
-        self.final_paths.append(video_path)
-        if node_id and node_id not in self.resolved_video_nodes and self.tree.exists(node_id):
-            self.resolved_video_nodes.append(node_id)
-
-    def add_video_node(self, item_id: str) -> None:
-        """Process a single video or file node."""
-        metadata = self.metadata_store.get(item_id)
-        if not metadata:
-            return
-        node_type = metadata.get("type")
-        if node_type == "video":
-            self.add_video_path(metadata.get("video_path"), item_id)
-        elif node_type == "file":
-            parent_video = metadata.get("parent_video")
-            if parent_video:
-                self.add_video_path(parent_video, f"video_{parent_video}")
-
-    def collect_descendants(self, item_id: str) -> None:
-        """Recursively collect all video descendants."""
-        if not self.tree.exists(item_id):
-            return
-        try:
-            self.tree.item(item_id, open=True)
-        except Exception:
-            pass
-        for child in self.tree.get_children(item_id):
-            child_type = self.metadata_store.get(child, {}).get("type")
-            if child_type in ("video", "file"):
-                self.add_video_node(child)
-            else:
-                self.collect_descendants(child)
-
-    def process_item(self, item_id: str) -> None:
-        """Process a single item from the selection."""
-        metadata = self.metadata_store.get(item_id)
-        if metadata and metadata.get("type") in ("video", "file"):
-            self.add_video_node(item_id)
-        else:
-            self.had_hierarchy_nodes = True
-            self.collect_descendants(item_id)
-
-    def update_tree_selection(self) -> None:
-        """Update tree selection to show resolved video nodes."""
-        if self.had_hierarchy_nodes and self.resolved_video_nodes:
-            try:
-                self.tree.selection_set(tuple(self.resolved_video_nodes))
-            except Exception:
-                pass
-
-
 class ApplicationGUI:
     """A classe principal que gerencia a interface gráfica (a "Visão")."""
 
     DEFAULT_CANVAS_WIDTH = 800
     DEFAULT_CANVAS_HEIGHT = 600
 
-    def __init__(self, root, controller, event_bus: EventBus | None = None, settings_obj=None):
+    def __init__(
+        self,
+        root,
+        controller,
+        event_bus: EventBus | None = None,
+        settings_obj=None,
+        project_manager: Any | None = None,
+    ):
         """Inicializa a ApplicationGUI."""
         self.root = root
         self.controller = controller
         self.event_bus = event_bus
         self.settings = settings_obj
+        # Use injected project_manager or fallback to controller (legacy)
+        self.project_manager = project_manager or getattr(controller, "project_manager", None)
         self._event_bus_after_id: int | None = None
         self._event_bus_poll_interval_ms = 50
         self._event_bus_handlers: dict[str, Callable[[Any], None]] = {}
@@ -192,6 +130,13 @@ class ApplicationGUI:
         self._ttkbootstrap_theme = None
         self._initialize_theme()
 
+        # Initialize state variables before components
+        self.notebook = None
+        self.welcome_frame = None
+        self.main_controls_frame = None
+        self.zone_tab_frame = None
+        self.analysis_tab_frame = None
+
         # Initialize component managers (extracted from God Object)
         # Phase 1 components
         self.menu_manager = MenuManager(self)
@@ -205,13 +150,24 @@ class ApplicationGUI:
         self.widget_factory = WidgetFactory(self, settings_obj=self.settings)
         self.project_view_manager = ProjectViewManager(self, event_bus_v2=self.event_bus_v2)
 
+        # Phase 2.5: Initialize UI Coordinator (Mediator)
+        self.ui_coordinator = UICoordinator(
+            event_bus=self.event_bus_v2,
+            canvas_manager=self.canvas_manager,
+            validation_manager=self.validation_manager,
+            project_view_manager=self.project_view_manager,
+            dialog_manager=self.dialog_manager,
+            state_synchronizer=self.state_synchronizer,
+            root=self.root,
+        )
+
         # Phase 3 components
         self.drawing_state_manager = DrawingStateManager()
         self.polygon_drawing_service = PolygonDrawingService(event_bus_v2=self.event_bus_v2)
 
         # Phase 4 components
         self.roi_template_manager = ROITemplateManager(
-            self.controller.project_manager, self, event_bus_v2=self.event_bus_v2
+            self.project_manager, self, event_bus_v2=self.event_bus_v2
         )
 
         # Phase 5 components
@@ -219,17 +175,13 @@ class ApplicationGUI:
 
         # Phase 5 builders (zone control widgets, buttons, panels)
         self.zone_control_builder = ZoneControlBuilder(self, event_bus_v2=self.event_bus_v2)
-        self.button_factory = ButtonFactory(self)
-        self.panel_builder = PanelBuilder(self)
+        self.button_factory = ButtonFactory()
+        self.panel_builder = PanelBuilder()
 
         # Create menu bar
         self.menu_manager.create_menu_bar()
 
         # Dynamic widgets / state variables
-        self.welcome_frame = None
-        self.notebook = None
-        self.main_controls_frame = None
-        self.zone_tab_frame = None
         self.zone_summary_frame: ttk.LabelFrame | None = None
         self.zone_summary_cards: dict[str, dict[str, StringVar]] = {}
         self.pipeline_tab_frame: ttk.Frame | None = None
@@ -265,22 +217,22 @@ class ApplicationGUI:
         # ROI Inclusion Rule Variables
         self.roi_inclusion_rule_var = StringVar(
             value=(
-                self.controller.settings.roi_inclusion_rule
-                if self.controller.settings
+                self.settings.roi_inclusion_rule
+                if self.settings
                 else "bbox_intersects"
             )
         )
         self.roi_buffer_radius_var = StringVar(
             value=str(
-                self.controller.settings.roi_buffer_radius_value
-                if self.controller.settings
+                self.settings.roi_buffer_radius_value
+                if self.settings
                 else 0.5
             )
         )
         self.roi_overlap_ratio_var = StringVar(
             value=str(
-                self.controller.settings.roi_min_bbox_overlap_ratio
-                if self.controller.settings
+                self.settings.roi_min_bbox_overlap_ratio
+                if self.settings
                 else 0.10
             )
         )
@@ -310,8 +262,8 @@ class ApplicationGUI:
         # User options
         self.processing_interval_var = StringVar(
             value=str(
-                self.controller.settings.video_processing.processing_interval
-                if self.controller.settings
+                self.settings.video_processing.processing_interval
+                if self.settings
                 else 10
             )
         )
@@ -371,7 +323,6 @@ class ApplicationGUI:
         self.update_openvino_checkbox(self.controller.use_openvino)
         self.update_openvino_status_display(self.controller.get_openvino_status())
 
-        self._configure_styles()
         self.widget_factory.create_welcome_frame()
 
         log.info("gui.init.event_bus_setup", has_event_bus=self.event_bus is not None)
@@ -598,9 +549,9 @@ class ApplicationGUI:
         self.tab_builder.build_main_controls_tab()
         if self.controller.project_manager.get_project_type() == "live":
             self.widget_factory.create_progress_grid_tab()
-        self._create_roi_analysis_tab()
+        self.tab_builder.build_zone_tab()
         self.tab_builder.build_processing_reports_tab()  # New unified tab
-        self._create_analysis_tab_widget()
+        self.tab_builder.build_analysis_tab()
         self.tab_builder.build_configuration_tab()
 
         # Status frame below the notebook
@@ -662,54 +613,6 @@ class ApplicationGUI:
             return
         return self.widget_factory.create_project_overview_panel(parent)
 
-    @public_api
-    def _request_overview_refresh(
-        self,
-        reason: str | None = None,
-        *,
-        append_summary: bool = False,
-        immediate: bool = False,
-    ) -> None:
-        """Request overview refresh. Delegates to ProjectViewManager."""
-        return self.project_view_manager._request_overview_refresh(
-            reason=reason,
-            append_summary=append_summary,
-            immediate=immediate,
-        )
-
-    @deprecated(
-        reason="Use Event Bus instead",
-        version="v3.1",
-        alternative="event_bus.publish(Events.UI_REFRESH_PROJECT_VIEWS, ...)",
-    )
-    @public_api
-    def refresh_project_views(
-        self,
-        reason: str | None = None,
-        *,
-        append_summary: bool = False,
-        immediate: bool = False,
-    ) -> None:
-        """Refresh overview, pipeline, and reports panels (PUBLIC API).
-
-        Called by: orchestrators, analysis_service, components
-        """
-        return self.project_view_manager.refresh_project_views(
-            reason=reason,
-            append_summary=append_summary,
-            immediate=immediate,
-        )
-
-    @public_api
-    def _update_project_overview_summary(
-        self,
-        counts: Counter,
-        total: int,
-        videos: list[dict] | None,
-    ) -> None:
-        """Update project overview summary. Delegates to ProjectViewManager."""
-        return self.project_view_manager._update_project_overview_summary(counts, total, videos)
-
     def _on_project_overview_tree_double_click(self, event) -> None:
         """Handle double-click events on the overview tree (legacy handler)."""
         del event
@@ -733,164 +636,20 @@ class ApplicationGUI:
                 item_id, event.x_root, event.y_root
             )
 
-    @public_api
-    def show_external_trigger_notice(self, session_label: str, **details):
-        """Show external trigger notice (PUBLIC API).
 
-        Called by: RecordingService, LiveCameraService
-        """
-        return self.dialog_manager.show_external_trigger_notice(session_label, **details)
-
-    @public_api
-    def clear_external_trigger_notice(self):
-        """Clear external trigger notice (PUBLIC API).
-
-        Called by: RecordingService, LiveCameraService
-        """
-        return self.dialog_manager.clear_external_trigger_notice()
-
-    def _pipeline_summary_exists(self, video_info: dict) -> bool:
-        controller = getattr(self, "controller", None)
-        pm = getattr(controller, "project_manager", None)
-        path = video_info.get("path")
-        if not pm or not path:
-            return False
-
-        experiment_id = Path(path).stem
-        entry = pm.find_video_entry(path=path)
-        metadata_hint = dict(entry.get("metadata") or {}) if entry else {}
-        results_path = pm.resolve_results_directory(
-            experiment_id,
-            video_path=path,
-            metadata=metadata_hint,
-        )
-        summary_path = Path(results_path) / f"{experiment_id}_summary.parquet"
-        return summary_path.exists()
-
-    def _get_selected_pipeline_video_paths(self) -> list[str]:
-        if not self.pipeline_video_tree:
-            return []
-        selected_items = list(self.pipeline_video_tree.selection() or [])
-        if not selected_items:
-            return []
-
-        final_selection: list[str] = []
-        seen_subjects: set[str] = set()
-        had_hierarchy_nodes = False
-
-        def add_subject(item_id: str) -> None:
-            if item_id in self.pipeline_video_vars and item_id not in seen_subjects:
-                seen_subjects.add(item_id)
-                final_selection.append(item_id)
-
-        def collect_descendants(item_id: str) -> None:
-            # Ensure parent nodes are expanded so children become visible.
-            try:
-                self.pipeline_video_tree.item(item_id, open=True)
-            except Exception:
-                pass
-
-            for child in self.pipeline_video_tree.get_children(item_id):
-                if child in self.pipeline_video_vars:
-                    add_subject(child)
-                else:
-                    collect_descendants(child)
-
-        for item in selected_items:
-            if item in self.pipeline_video_vars:
-                add_subject(item)
-            else:
-                had_hierarchy_nodes = True
-                collect_descendants(item)
-
-        if had_hierarchy_nodes or len(final_selection) != len(selected_items):
-            # Replace Treeview selection with the resolved subject entries only.
-            try:
-                self.pipeline_video_tree.selection_set(tuple(final_selection))
-            except Exception:
-                pass
-
-        return final_selection
-
-    def _resolve_processing_reports_video_paths(self, selection: Iterable[str] | None) -> list[str]:
-        """Translate unified tab selections into concrete video paths."""
-        if not selection:
-            return []
-
-        widget = getattr(self, "processing_reports_widget", None)
-        tree = getattr(widget, "tree", None)
-        if not tree:
-            return []
-
-        metadata_store = getattr(self, "_processing_reports_tree_metadata", {})
-        context = _VideoPathResolverContext(tree, metadata_store)
-
-        for item_id in selection:
-            if not item_id or not tree.exists(item_id):
-                continue
-            context.process_item(item_id)
-
-        context.update_tree_selection()
-        return context.final_paths
-
-    def _on_pipeline_selection_changed(self, event=None) -> None:
-        del event
-        selections = self._get_selected_pipeline_video_paths()
-        listed = len(self.pipeline_video_vars)
-
-        if self.pipeline_selection_label:
-            if not selections:
-                if listed == 0:
-                    text = "Nenhum vídeo elegível listado."
-                else:
-                    text = f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
-            else:
-                text = f"{listed} vídeo(s) elegível(is) • {len(selections)} selecionado(s)."
-            self.pipeline_selection_label.config(text=text)
-
-        self._update_pipeline_buttons_state(selections)
-
-    def _update_pipeline_buttons_state(self, selections=None) -> None:
-        if not self.pipeline_action_buttons:
-            return
-        if selections is None:
-            selections = self._get_selected_pipeline_video_paths()
-
-        has_selection = bool(selections)
-        for button in self.pipeline_action_buttons.values():
-            button.config(state="normal" if has_selection else "disabled")
-
-        if has_selection:
-            all_have_trajectory = all(
-                bool(self.pipeline_video_vars.get(path, {}).get("info", {}).get("has_trajectory"))
-                for path in selections
-            )
-            self.pipeline_action_buttons["summaries"].config(
-                state="normal" if all_have_trajectory else "disabled"
-            )
-
-    def _trigger_parquet_summaries(self) -> None:
-        selections = self._get_selected_pipeline_video_paths()
-        if not selections:
-            self.show_info(
-                "Sumários",
-                "Selecione ao menos um vídeo com trajetória para exportar o sumário.",
-            )
-            return
-
-        self.event_dispatcher.publish_event(
-            Events.PROJECT_GENERATE_SUMMARIES, {"video_paths": selections}
-        )
-        self._refresh_pipeline_video_table()
 
     def _on_frame_configure(self, event=None):
         """Update scroll region when frame size changes."""
         self.controls_canvas.configure(scrollregion=self.controls_canvas.bbox("all"))
 
+
+
     def _on_canvas_configure_scroll(self, event=None):
         """Update frame width when canvas size changes."""
         canvas_width = event.width if event else self.controls_canvas.winfo_width()
         self.controls_canvas.itemconfig(self.controls_canvas_window, width=canvas_width)
+
+
 
     def _bind_mousewheel(self):
         """Bind mouse wheel scrolling to the canvas."""
@@ -906,6 +665,8 @@ class ApplicationGUI:
         self.controls_canvas.bind(
             "<Button-5>", lambda e: self.controls_canvas.yview_scroll(1, "units")
         )
+
+
 
     def _recenter_canvas_image(self, canvas_width, canvas_height):
         """Recenter the canvas background image."""
@@ -931,564 +692,16 @@ class ApplicationGUI:
             tags="background_image",
         )
 
-    @deprecated(
-        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
-        version="v3.1",
-        alternative="event_bus_v2.publish(Event(UIEvents.POLYGON_EDIT_REQUESTED, {'polygon': polygon}))",
-    )
-    @public_api
-    def setup_interactive_polygon(self, polygon: np.ndarray):
-        """Set up interactive polygon for editing (PUBLIC API).
 
-        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
 
-        Called by: CanvasManager when loading zones for editing
-        """
-        # LEGACY IMPLEMENTATION: This method is deprecated and will be removed in v4.0
-        # The actual implementation is now in CanvasManager._on_polygon_edit_requested()
-        # which is triggered by the POLYGON_EDIT_REQUESTED event.
-        # This method is kept only for backward compatibility during dual mode migration.
-        import structlog
-        log = structlog.get_logger()
-        log.warning("gui.setup_interactive_polygon.deprecated_call",
-                    message="This method is deprecated. Use Event Bus V2 (POLYGON_EDIT_REQUESTED) instead.")
 
-    def _on_handle_press(self, event, handle_index):
-        """Record which handle is being dragged and initial offset."""
-        self._dragged_handle_index = handle_index
 
-        # Store the initial mouse position and handle position
-        self._drag_start_mouse = (float(event.x), float(event.y))
 
-        # Get current handle position in video coordinates
-        video_point = self.edited_polygon_points[handle_index]
-        # Convert to canvas coordinates
-        canvas_point = self.canvas_manager._video_to_canvas(video_point[0], video_point[1])
-        self._drag_start_handle = canvas_point
-
-        # Calculate offset between mouse and handle center
-        self._drag_offset = (canvas_point[0] - event.x, canvas_point[1] - event.y)
-
-        # Bind motion and release to the entire canvas so events continue even
-        # when mouse leaves the handle
-        self.video_display.canvas.bind("<B1-Motion>", self._on_handle_drag_global)
-        self.video_display.canvas.bind("<ButtonRelease-1>", self._on_handle_release_global)
-
-    def _on_handle_drag_global(self, event):
-        """Global drag handler for canvas-wide dragging."""
-        self._on_handle_drag(event)
-
-    def _on_handle_release(self, event):
-        """Finalize the drag operation (called from tag binding)."""
-        self._handle_release_common()
-
-    def _on_handle_release_global(self, event):
-        """Global release handler (called from canvas binding)."""
-        # Unbind global handlers
-        self.video_display.canvas.unbind("<B1-Motion>")
-        self.video_display.canvas.unbind("<ButtonRelease-1>")
-        self._handle_release_common()
-
-    def _handle_release_common(self):
-        """Execute common release logic."""
-        self._dragged_handle_index = None
-        self._drag_offset = (0, 0)
-
-    def _on_save_arena(self):
-        """Save the edited polygon and make it static."""
-        if self.current_editing_zone == "arena":
-            # Save main arena
-            self.event_dispatcher.publish_event(
-                Events.ZONE_SAVE_MANUAL_ARENA,
-                {"polygon_points": self.edited_polygon_points},
-            )
-            status_message = "Arena principal salva com sucesso."
-            self.set_status(status_message)
-            # Enable ROI button after main arena is saved
-            self._enable_roi_button_if_arena_exists()
-            self._request_overview_refresh(reason=status_message, append_summary=True)
-        elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
-            # Save ROI
-            _, roi_index, roi_name = self.current_editing_zone
-            zone_data = self._get_zone_data_for_active_context()
-
-            # Update the ROI polygon
-            zone_data.roi_polygons[roi_index] = self.edited_polygon_points
-
-            # Save to project using new zone persistence helper
-            self.controller.project_manager.save_zone_data(zone_data)
-
-            status_message = f"ROI '{roi_name}' salva com sucesso."
-            self.set_status(status_message)
-            self._request_overview_refresh(reason=status_message, append_summary=True)
-        else:
-            # Fallback - assume arena (legacy behavior)
-            self.controller.save_manual_arena(self.edited_polygon_points)
-            status_message = "Zona salva com sucesso."
-            self.set_status(status_message)
-            # Enable ROI button after main arena is saved
-            self._enable_roi_button_if_arena_exists()
-            self._request_overview_refresh(reason=status_message, append_summary=True)
-
-        # Clear interactive elements and redraw zones
-        self._clear_interactive_polygon()
-        self.canvas_manager.redraw_zones_from_project_data()
-        self.update_zone_listbox()
-        self._refresh_zone_indicators()
-
-    def _on_discard_arena(self):
-        """Discards the interactive polygon."""
-        self._clear_interactive_polygon()
-        if self.current_editing_zone == "arena":
-            self.set_status("Edição da arena descartada.")
-        elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
-            _, _, roi_name = self.current_editing_zone
-            self.set_status(f"Edição da ROI '{roi_name}' descartada.")
-        else:
-            self.set_status("Edição descartada.")
-
-        # Redraw zones to restore original state
-        self.canvas_manager.redraw_zones_from_project_data()
-
-    def _clear_interactive_polygon(self):
-        """Clear all interactive elements from the canvas and hide buttons."""
-        self.video_display.canvas.delete("interactive_polygon", "handle", "suggested_polygon")
-        try:
-            if (
-                self.zone_controls
-                and self.zone_controls.interactive_buttons_frame
-                and self.zone_controls.interactive_buttons_frame.winfo_exists()
-            ):
-                self.zone_controls.interactive_buttons_frame.pack_forget()
-        except Exception:
-            # This can fail if the root window is already being destroyed.
-            # It's safe to ignore in that case.
-            pass
-
-        self.interactive_polygon_item = None
-        self.polygon_handles = []
-        self.edited_polygon_points = []
-        self._dragged_handle_index = None
-        self._drag_offset = (0, 0)
-        self.current_editing_zone = None
-
-    @staticmethod
-    def _format_day_display(value):
-        """Format day display. Delegates to ValidationManager."""
-        from zebtrack.ui.components.validation_manager import ValidationManager
-
-        return ValidationManager._format_day_display(value)
-
-    @public_api
-    def _build_video_hierarchy_data(
-        self,
-        all_videos: list[dict],
-        search_text: str,
-    ) -> dict[str, dict]:
-        """Build video hierarchy data. Delegates to ProjectViewManager."""
-        return self.project_view_manager._build_video_hierarchy_data(all_videos, search_text)
-
-    def publish_video_hierarchy_snapshot(self) -> None:
-        """Build and publish video hierarchy snapshot."""
-        snapshot = self.validation_manager.build_video_hierarchy_snapshot()
-        self.event_dispatcher.event_bus.publish(
-            Events.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
-            {"snapshot": snapshot}
-        )
-
-    @public_api
-    def _build_video_hierarchy_snapshot(self) -> list[dict]:
-        """Build video hierarchy snapshot. Delegates to ValidationManager.
-
-        .. deprecated:: 0.1.0
-           Use publish_video_hierarchy_snapshot() instead.
-        """
-        warnings.warn(
-            "_build_video_hierarchy_snapshot is deprecated. Use publish_video_hierarchy_snapshot() instead.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return self.validation_manager.build_video_hierarchy_snapshot()
-
-    @public_api
-    def _format_status_token(self, has_parquet: bool, symbol_key: str) -> str:
-        """Format status token. Delegates to ValidationManager."""
-        return self.validation_manager.format_status_token(has_parquet, symbol_key)
-
-    @deprecated(
-        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
-        version="v3.1",
-        alternative="event_bus_v2.publish(Event(UIEvents.VIDEO_TREE_REFRESH_REQUESTED, {'filter_text': filter_text}))",
-    )
-    @public_api
-    def _populate_video_selector_tree(self, filter_text: str | None = None):
-        """Populate video selector tree. Delegates to ProjectViewManager.
-
-        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
-        """
-        return self.project_view_manager._populate_video_selector_tree(filter_text)
-
-    def _refresh_video_selector_tree(self) -> None:
-        """Repopula a árvore mantendo seleção e filtros atuais sempre que possível."""
-        tree = self.zone_controls.video_selector_tree if self.zone_controls else None
-        if not tree:
-            return
-
-        selected_tag = None
-        selection = tree.selection()
-        if selection:
-            try:
-                tags = tree.item(selection[0], "tags")
-                if tags:
-                    selected_tag = tags[0]
-            except Exception:
-                selected_tag = None
-
-        current_filter = getattr(self, "_video_selector_filter", "")
-        self._populate_video_selector_tree(current_filter)
-
-        if selected_tag:
-            self._reselect_video_tree_item(selected_tag)
-
-    def _reselect_video_tree_item(self, target_tag: str) -> None:
-        tree = self.zone_controls.video_selector_tree if self.zone_controls else None
-        if not target_tag or not tree:
-            return
-
-        def _walk(node: str) -> bool:
-            for child in tree.get_children(node):
-                tags = tree.item(child, "tags")
-                if tags and tags[0] == target_tag:
-                    # Ensure branch is visible before selecting
-                    parent = tree.parent(child)
-                    while parent:
-                        tree.item(parent, open=True)
-                        parent = tree.parent(parent)
-
-                    tree.selection_set(child)
-                    tree.see(child)
-                    return True
-
-                if _walk(child):
-                    return True
-            return False
-
-        _walk("")
-
-    def _filter_video_tree(self):
-        """Filtra a árvore com base no texto de busca."""
-        if self.video_search_var is None:
-            return
-        self._populate_video_selector_tree(self.video_search_var.get())
-
-    @deprecated(
-        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
-        version="v3.1",
-        alternative="event_bus_v2.publish(Event(UIEvents.READINESS_SNAPSHOT_UPDATED, {...}))",
-    )
-    @public_api
-    def apply_pending_readiness_snapshot(
-        self,
-        *,
-        ready_with_trajectory: list[dict],
-        ready_with_zones: list[dict],
-        arena_only: list[dict],
-        without_arena: list[dict],
-    ) -> None:
-        """Apply video readiness snapshot to UI (PUBLIC API).
-
-        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
-
-        Called by: DialogManager after zone reuse operations
-        """
-        return self.project_view_manager.apply_pending_readiness_snapshot(
-            ready_with_trajectory=ready_with_trajectory,
-            ready_with_zones=ready_with_zones,
-            arena_only=arena_only,
-            without_arena=without_arena,
-        )
-
-    @public_api
-    def _maybe_offer_zone_reuse(self, video_path: str) -> None:
-        """Prompt user to reuse zones when current video has none. Delegates to DialogManager."""
-        return self.dialog_manager.offer_zone_reuse(video_path)
 
     def _on_video_tree_double_click(self, event):
         """Handle double click on video selector."""
         del event  # Evento não é utilizado diretamente
         self.canvas_manager.load_selected_video_frame()
-
-    @public_api
-    def _on_processing_reports_item_double_click(self, event=None) -> None:
-        """Handle processing reports item double click. Delegates to ProjectViewManager."""
-        return self.project_view_manager.handle_processing_reports_item_double_click(event)
-
-    @public_api
-    def _on_processing_reports_generate_partial(self) -> None:
-        """Handle partial report generation. Delegates to ProjectViewManager."""
-        return self.project_view_manager.on_processing_reports_generate_partial()
-
-    @public_api
-    def _refresh_processing_reports_tab(self) -> None:
-        """Refresh the processing reports tab. Delegates to ProjectViewManager."""
-        return self.project_view_manager._refresh_processing_reports_tab()
-
-    @public_api
-    def _determine_status_tag(self, complete_count: int, total_count: int) -> str:
-        """Determine status tag. Delegates to ProjectViewManager."""
-        return self.project_view_manager._determine_status_tag(complete_count, total_count)
-
-    def _build_processing_report_artifact_id(self, parent_id: str, artifact_path: str) -> str:
-        """Create a stable item id for report artifacts while avoiding duplicates.
-
-        Task 2.0a: Replaced SHA1 with BLAKE2b for security.
-        """
-        digest_source = f"{parent_id}|{artifact_path}".encode("utf-8", "ignore")
-        digest = hashlib.blake2b(digest_source, digest_size=8).hexdigest()
-        return f"file_{digest}"
-
-    @public_api
-    def _sort_key_for_reports(self, value):
-        """Sort key for reports. Delegates to ProjectViewManager."""
-        return self.project_view_manager._sort_key_for_reports(value)
-
-    @public_api
-    def _format_subject_for_reports(self, value):
-        """Format subject for reports. Delegates to ValidationManager."""
-        return self.validation_manager.format_subject_for_reports(value)
-
-    @public_api
-    def _build_report_hierarchy(self, all_videos: list[dict], pm) -> dict:
-        """Build report hierarchy. Delegates to ProjectViewManager."""
-        return self.project_view_manager._build_report_hierarchy(all_videos, pm)
-
-    @public_api
-    def _populate_reports_tree_from_hierarchy(self, hierarchy: dict, pm) -> None:
-        """Populate reports tree. Delegates to ProjectViewManager."""
-        return self.project_view_manager._populate_reports_tree_from_hierarchy(hierarchy, pm)
-
-    @public_api
-    def _append_report_artifacts(self, parent_id: str, entry: dict) -> None:
-        """Append report artifacts to tree. Delegates to ProjectViewManager."""
-        return self.project_view_manager.append_report_artifacts_from_entry(parent_id, entry)
-
-    def _on_report_item_select(self, event=None):
-        """Enable or disable the partial report button based on selection."""
-        selection = self.reports_tree.selection()
-        has_video = False
-        metadata_store = getattr(self, "_report_tree_metadata", {})
-        for item_id in selection:
-            metadata = metadata_store.get(item_id)
-            if metadata and metadata.get("type") == "video":
-                has_video = True
-                break
-
-        if has_video:
-            self.generate_partial_report_btn.config(state="normal")
-        else:
-            self.generate_partial_report_btn.config(state="disabled")
-
-    @public_api
-    def _on_report_item_double_click(self, event=None):
-        """Handle report item double click. Delegates to ProjectViewManager."""
-        return self.project_view_manager.handle_report_item_double_click(event)
-
-    @public_api
-    def _handle_report_file_node(self, metadata: dict) -> None:
-        """Handle report file node. Delegates to ProjectViewManager."""
-        return self.project_view_manager._handle_report_file_node(metadata)
-
-    @public_api
-    def _handle_report_video_node(self, metadata: dict) -> None:
-        """Handle report video node. Delegates to ProjectViewManager."""
-        return self.project_view_manager.handle_report_video_node(metadata)
-
-    def _open_path_in_explorer(self, target_path: str) -> None:
-        """Open the given directory in the user's file explorer."""
-        try:
-            if sys.platform.startswith("win"):
-                os.startfile(target_path)  # type: ignore[attr-defined]
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", target_path])
-            else:
-                subprocess.Popen(["xdg-open", target_path])
-        except Exception as exc:  # pragma: no cover - GUI feedback
-            self.show_error(
-                "Erro ao abrir pasta",
-                (
-                    "Não foi possível abrir o diretório de resultados.\n"
-                    f"Caminho: {target_path}\n\nDetalhes: {exc}"
-                ),
-            )
-
-    def _generate_partial_report(self):
-        """Generate partial report. Delegates to ProjectViewManager."""
-        return self.project_view_manager.generate_partial_report()
-
-    def _generate_unified_report(self):
-        """Tells the controller to generate a unified report of all project videos."""
-        all_videos = self.controller.project_manager.get_all_videos()
-        if not all_videos:
-            self.show_warning(
-                "Sem Dados",
-                "Não há vídeos processados neste projeto para gerar um relatório.",
-            )
-            return
-        self.event_dispatcher.publish_event(
-            Events.REPORT_GENERATE,
-            {"videos": all_videos, "report_type": "unified"},
-        )
-
-    def _start_main_arena_drawing(self):
-        """Start drawing the main arena polygon."""
-        # Prevent editing during analysis
-        if self.analysis_active:
-            self.show_warning(
-                "Análise em Progresso",
-                "Não é possível editar zonas durante a análise de vídeo.",
-            )
-            return
-
-        self.drawing_state_manager.drawing_type = "arena"
-
-        self.canvas_manager.start_polygon_drawing()
-
-    def _start_roi_drawing(self):
-        """Start drawing an ROI polygon, checking if an arena exists first."""
-        # Prevent editing during analysis
-        if self.analysis_active:
-            self.show_warning(
-                "Análise em Progresso",
-                "Não é possível editar zonas durante a análise de vídeo.",
-            )
-            return
-
-        main_arena = self._get_zone_data_for_active_context().polygon
-        if not main_arena:
-            self.show_error(
-                "Erro",
-                "Por favor, defina o 'Polígono Principal' primeiro antes de "
-                "adicionar Áreas de Interesse.",
-            )
-            return
-        self.drawing_state_manager.drawing_type = "roi"
-        self.canvas_manager.start_polygon_drawing()
-
-    def _on_drawing_undo(self, event):
-        """Undo last point added to polygon."""
-        if (
-            self.drawing_state_manager.mode != "polygon"
-            or not self.drawing_state_manager.has_points()
-        ):
-            return "break"  # Prevent event propagation
-
-        success = self.drawing_state_manager.undo()
-
-        if success:
-            # Redraw the polygon
-            self.canvas_manager._redraw_polygon_in_progress()
-            self.set_status(
-                f"Último ponto desfeito. Pontos atuais: {self.drawing_state_manager.point_count()}"
-            )
-
-        return "break"
-
-    def _on_drawing_redo(self, event):
-        """Redo last undone point."""
-        if self.drawing_state_manager.mode != "polygon":
-            return "break"
-
-        success = self.drawing_state_manager.redo()
-
-        if success:
-            # Redraw the polygon
-            self.canvas_manager._redraw_polygon_in_progress()
-            self.set_status(
-                f"Ponto restaurado. Pontos atuais: {self.drawing_state_manager.point_count()}"
-            )
-
-        return "break"
-
-    def _on_vertex_drag_motion(self, event):
-        """Handle mouse motion while dragging a vertex."""
-        if self.drawing_state_manager.dragging_vertex_index is None:
-            return
-
-        canvas_x = float(event.x)
-        canvas_y = float(event.y)
-
-        # If drawing ROI, clamp position to arena
-        if self.drawing_state_manager.drawing_type == "roi":
-            main_arena_poly = self._get_zone_data_for_active_context().polygon
-            if main_arena_poly:
-                canvas_arena_poly = []
-                for point in main_arena_poly:
-                    canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
-                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
-
-                # Use GeometryService to clamp
-                canvas_x, canvas_y = GeometryService.clamp_point_to_polygon(
-                    (canvas_x, canvas_y), canvas_arena_poly
-                )
-
-        # Update vertex position via state manager
-        idx = self.drawing_state_manager.dragging_vertex_index
-        video_pt = self.canvas_manager._canvas_to_video(canvas_x, canvas_y)
-
-        self.drawing_state_manager.current_points[idx] = (canvas_x, canvas_y)
-        self.drawing_state_manager.canvas_points[idx] = (canvas_x, canvas_y)
-        self.drawing_state_manager.video_points[idx] = video_pt
-
-        # Redraw polygon
-        self.canvas_manager._redraw_polygon_in_progress()
-
-    def _on_vertex_drag_end(self, event):
-        """Handle mouse release after dragging a vertex."""
-        if self.drawing_state_manager.dragging_vertex_index is not None:
-            self.drawing_state_manager.dragging_vertex_index = None
-            self.video_display.canvas.config(cursor="crosshair")
-
-    def _apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
-        """
-        Apply snapping to nearby vertices or edges of existing polygons.
-        Delegates to GeometryService.
-        """
-        zone_data = self._get_zone_data_for_active_context()
-        all_polygons = []
-
-        # Add main arena polygon if it exists
-        if zone_data.polygon:
-            # Convert to canvas coordinates
-            canvas_polygon = []
-            for point in zone_data.polygon:
-                canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
-                canvas_polygon.append(canvas_pt)
-
-            # Only add if not editing this polygon
-            if not (exclude_current_polygon and self.current_editing_zone == "arena"):
-                all_polygons.append(canvas_polygon)
-
-        # Add all ROI polygons
-        for idx, roi_polygon in enumerate(zone_data.roi_polygons):
-            canvas_polygon = []
-            for point in roi_polygon:
-                canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
-                canvas_polygon.append(canvas_pt)
-
-            # Only add if not editing this specific ROI
-            skip_this_roi = (
-                exclude_current_polygon
-                and isinstance(self.current_editing_zone, tuple)
-                and self.current_editing_zone[0] == "roi"
-                and self.current_editing_zone[1] == idx
-            )
-            if not skip_this_roi:
-                all_polygons.append(canvas_polygon)
-
-        # Use GeometryService for consolidated snapping (vertex, edge, and axis)
-        return GeometryService.apply_snapping(
-            canvas_x, canvas_y, all_polygons, threshold=snap_threshold
-        )
 
     def _refresh_roi_templates(self, clear_selection: bool = False) -> None:
         """Refresh template list. Delegates to ROITemplateManager."""
@@ -1592,343 +805,16 @@ class ApplicationGUI:
         """Apply template. Delegates to ROITemplateManager."""
         return self.roi_template_manager.apply_template()
 
-    @public_api
-    def _on_canvas_click(self, event):
-        """Handle canvas clicks during polygon drawing. Delegates to CanvasManager."""
-        return self.canvas_manager.handle_canvas_click(event)
 
-    def _on_canvas_motion(self, event):
-        """Handle mouse movement for drawing elastic lines."""
-        # Delegate to DrawingStateManager to get current state
-        # Note: The original code accessed legacy attributes like self.drawing_mode
-        # which might be out of sync. We should use DrawingStateManager or CanvasManager.
 
-        # For this refactor step, we will just fix the canvas reference.
-        # The full migration of logic to CanvasManager is part of Phase 3 (already done?).
-        # It seems some legacy logic remained here.
 
-        if self.drawing_state_manager.mode != "polygon":
-            return
-
-        canvas = self.video_display.canvas
-        canvas.delete("elastic_line")
-        canvas.delete("snap_indicator")  # Clear previous snap indicator
-
-        # Check for snapping
-        canvas_x = float(event.x)
-        canvas_y = float(event.y)
-        snapped_point = self._apply_snapping(canvas_x, canvas_y)
-
-        # Check if mouse is hovering over an existing vertex (from current polygon being drawn)
-        self._vertex_hover_index = None
-        hover_color = "cyan"  # Default color
-
-        current_points = self.drawing_state_manager.current_points
-
-        if current_points:
-            for i, (vx, vy) in enumerate(current_points):
-                dist = ((canvas_x - vx) ** 2 + (canvas_y - vy) ** 2) ** 0.5
-                if dist <= 10: # default tolerance
-                    self._vertex_hover_index = i
-                    hover_color = "orange"  # Change color when over vertex
-                    # Use vertex position for display
-                    display_x, display_y = vx, vy
-                    break
-
-        # Use snapped point if available and not hovering over vertex
-        if self._vertex_hover_index is None:
-            display_x = snapped_point[0] if snapped_point else canvas_x
-            display_y = snapped_point[1] if snapped_point else canvas_y
+    def _update_window_title(self, project_name: str | None = None) -> None:
+        """Update the window title with the project name."""
+        base_title = "DRerio LogAI"
+        if project_name:
+            self.root.title(f"{base_title} - {project_name}")
         else:
-            display_x, display_y = current_points[self._vertex_hover_index]
-
-        # When drawing ROI, clamp the display indicator within the arena
-        if self.drawing_state_manager.drawing_type == "roi":
-            main_arena_poly = self._get_zone_data_for_active_context().polygon
-            if main_arena_poly:
-                # Convert arena to canvas coordinates
-                canvas_arena_poly = []
-                for point in main_arena_poly:
-                    canvas_pt = self.canvas_manager._video_to_canvas(point[0], point[1])
-                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
-
-                arena_array = np.array(canvas_arena_poly, dtype=np.float32)
-
-                # Test if display point is inside arena
-                result = cv2.pointPolygonTest(arena_array, (display_x, display_y), True)
-
-                # If outside arena (result < 0), clamp to nearest arena boundary
-                if result < 0:
-                    # Find the closest point on the arena boundary
-                    min_dist = float("inf")
-                    closest_point = (display_x, display_y)
-
-                    # Check distance to each edge of the arena
-                    for i in range(len(canvas_arena_poly)):
-                        p1 = canvas_arena_poly[i]
-                        p2 = canvas_arena_poly[(i + 1) % len(canvas_arena_poly)]
-
-                        edge_snap = self.canvas_manager._point_to_segment_distance(
-                            display_x, display_y, p1[0], p1[1], p2[0], p2[1]
-                        )
-
-                        if edge_snap and edge_snap["distance"] < min_dist:
-                            min_dist = edge_snap["distance"]
-                            closest_point = (edge_snap["x"], edge_snap["y"])
-
-                    # Update display position to clamped point
-                    display_x, display_y = closest_point
-
-        # Draw snap indicator if snapping is active, hovering over vertex, or if we're drawing ROI
-        # (to show the clamped position within arena)
-        should_show_indicator = (
-            snapped_point is not None
-            or self._vertex_hover_index is not None
-            or (
-                self.drawing_state_manager.drawing_type == "roi"
-                and self._get_zone_data_for_active_context().polygon
-            )
-        )
-
-        if should_show_indicator:
-            # Draw a small circle to indicate snap point (color changes when over vertex)
-            canvas.create_oval(
-                display_x - 5,
-                display_y - 5,
-                display_x + 5,
-                display_y + 5,
-                outline=hover_color,
-                width=2,
-                tags="snap_indicator",
-            )
-
-        # If no points yet, only show snap indicator
-        if not current_points:
-            return
-
-        last_point = current_points[-1]
-        first_point = current_points[0]
-
-        # Line from last vertex to cursor (or snap point)
-        canvas.create_line(
-            last_point[0],
-            last_point[1],
-            display_x,
-            display_y,
-            fill="yellow",
-            dash=(4, 4),
-            tags="elastic_line",
-        )
-        # Line from cursor (or snap point) to first vertex (if more than one
-        # point exists)
-        if len(current_points) > 1:
-            canvas.create_line(
-                display_x,
-                display_y,
-                first_point[0],
-                first_point[1],
-                fill="yellow",
-                dash=(4, 4),
-                tags="elastic_line",
-            )
-
-    def _on_canvas_double_click(self, event):
-        """Finaliza o desenho do polígono e o envia para o controlador."""
-        # Fix: Auto-detect drawing type if not set (for single video workflow)
-        if (
-            self.drawing_state_manager.drawing_type is None
-            and self.drawing_state_manager.mode == "polygon"
-        ):
-            # If no main arena exists, assume we're drawing it
-            zone_data = self._get_zone_data_for_active_context()
-            if not zone_data.polygon:
-                self.drawing_state_manager.drawing_type = "arena"
-            else:
-                self.drawing_state_manager.drawing_type = "roi"
-
-        if self.drawing_state_manager.mode != "polygon":
-            return
-
-        try:
-            # Limpa elementos temporários de desenho ANTES de salvar
-            self.roi_canvas.delete("elastic_line")
-            self.roi_canvas.delete("drawing_aid")
-
-            video_points = self.drawing_state_manager.video_points
-
-            success = self.polygon_drawing_service.complete_polygon(
-                self.drawing_state_manager.drawing_type,
-                video_points,
-                self
-            )
-
-            if success:
-                status_message = (
-                    f"✓ {self.drawing_state_manager.drawing_type.title()} definida com sucesso!"
-                )
-                self.set_status(status_message)
-                self.show_info(
-                    "Sucesso",
-                    f"Zona criada com {len(video_points)} pontos.",
-                )
-                self._request_overview_refresh(reason=status_message, append_summary=True)
-                self.canvas_manager.stop_drawing()
-            else:
-                self.set_status("❌ Erro ao salvar zona.")
-                self.show_error("Erro", "Não foi possível salvar a zona.")
-                self.canvas_manager.stop_drawing()
-
-        except Exception as e:
-            self.set_status("❌ Erro durante salvamento.")
-            self.show_error("Erro", str(e))
-            self.canvas_manager.stop_drawing()
-
-    @deprecated(
-        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
-        version="v3.1",
-        alternative="event_bus_v2.publish(Event(UIEvents.ZONES_UPDATED, {'zone_data': zone_data}))",
-    )
-    @public_api
-    def update_zone_listbox(self, zone_data: ZoneData | None = None):
-        """Update zone listbox with current zones (PUBLIC API).
-
-        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
-
-        Called by: DialogManager, Renderer, PolygonDrawingService,
-                   ROITemplateManager
-        """
-        return self.canvas_manager.update_zone_listbox(zone_data)
-
-    def _enable_roi_button_if_arena_exists(self, zone_data: ZoneData | None = None):
-        """Habilita o botão de desenhar ROI se a arena principal existir."""
-        if zone_data is None:
-            zone_data = self._get_zone_data_for_active_context()
-
-        widget = getattr(self, "zone_controls", None)
-        if widget:
-            widget.set_draw_roi_enabled(bool(zone_data and zone_data.polygon))
-            return
-
-        if hasattr(self, "draw_roi_button") and self.draw_roi_button is not None:
-            if zone_data and zone_data.polygon:
-                self.draw_roi_button.config(state="normal")
-            else:
-                self.draw_roi_button.config(state="disabled")
-
-    def _remove_selected_roi(self):
-        """Remove the ROI selected in the listbox."""
-        selected_items = self.roi_listbox.selection()
-        if not selected_items:
-            self.show_warning(
-                "Nenhuma Seleção", "Por favor, selecione uma ROI da lista para remover."
-            )
-            return
-
-        selected_arena_id = self.arena_selector_var.get()
-        if not selected_arena_id or selected_arena_id not in self.roi_data:
-            return  # Should not happen if an item is selected
-
-        # Find the index and name of the item to remove
-        selected_item = selected_items[0]
-        item_index = self.roi_listbox.index(selected_item)
-
-        # Remove from data source
-        del self.roi_data[selected_arena_id][item_index]
-
-        # Refresh the view
-        self._on_arena_select()
-
-    def _run_center_periphery_analysis(self):
-        """Run the center-periphery analysis."""
-        current_arena_id = self.arena_selector_var.get()
-        if not current_arena_id:
-            self.show_error("Erro", "Selecione um aquário ativo e carregue os dados primeiro.")
-            return
-
-        dialog = CenterPeripheryDialog(self.root)
-        if not dialog.result:
-            return
-
-        self.controller.run_center_periphery_analysis(
-            arena_id=current_arena_id,
-            method=dialog.result["method"],
-            value=dialog.result["value"],
-        )
-
-    def _start_circle_drawing(self):
-        """Activates circle drawing mode."""
-        self.canvas_manager.stop_drawing()  # Ensure clean state
-        self.drawing_mode = "circle"
-        self.current_circle_center = None
-        self.roi_canvas.config(cursor="crosshair")
-        self.roi_canvas.bind("<ButtonPress-1>", self._on_canvas_press_circle)
-        self.roi_canvas.bind("<B1-Motion>", self._on_canvas_drag_circle)
-        self.roi_canvas.bind("<ButtonRelease-1>", self._on_canvas_release_circle)
-        self.set_status("Modo de Desenho (Círculo): Clique e arraste para definir o raio.")
-
-    def _on_canvas_press_circle(self, event):
-        if self.drawing_mode != "circle":
-            return
-        self.current_circle_center = (event.x, event.y)
-
-    def _on_canvas_drag_circle(self, event):
-        if self.drawing_mode != "circle" or not self.current_circle_center:
-            return
-
-        self.roi_canvas.delete("elastic_line")
-        cx, cy = self.current_circle_center
-        radius = ((event.x - cx) ** 2 + (event.y - cy) ** 2) ** 0.5
-        self.roi_canvas.create_oval(
-            cx - radius,
-            cy - radius,
-            cx + radius,
-            cy + radius,
-            outline="yellow",
-            dash=(4, 4),
-            tags="elastic_line",
-        )
-
-    def _on_canvas_release_circle(self, event):
-        if self.drawing_mode != "circle" or not self.current_circle_center:
-            return
-
-        cx, cy = self.current_circle_center
-        radius = ((event.x - cx) ** 2 + (event.y - cy) ** 2) ** 0.5
-
-        if radius < 2:  # Ignore tiny circles
-            self.canvas_manager.stop_drawing()
-            return
-
-        roi_name = self.ask_string(
-            "Nome da ROI",
-            "Digite um nome para esta nova Região de Interesse (Círculo):",
-        )
-        if not roi_name:
-            self.canvas_manager.stop_drawing()
-            return
-
-        current_arena_id = self.arena_selector_var.get()
-        if not current_arena_id:
-            self.show_error("Erro", "Nenhum aquário ativo selecionado.")
-            self.canvas_manager.stop_drawing()
-            return
-
-        new_roi = {"name": roi_name, "type": "circle", "coords": (cx, cy, radius)}
-        self.roi_data.setdefault(current_arena_id, []).append(new_roi)
-
-        self.roi_canvas.create_oval(
-            cx - radius,
-            cy - radius,
-            cx + radius,
-            cy + radius,
-            outline="blue",
-            fill="cyan",
-            stipple="gray25",
-            width=2,
-        )
-        self.roi_listbox.insert("", "end", values=(roi_name,))
-
-        self.canvas_manager.stop_drawing()
+            self.root.title(base_title)
 
     def _load_project_view(self):
         """
@@ -2032,7 +918,14 @@ class ApplicationGUI:
                 return
         elif project_type == "pre-recorded":
             self.update_reports_tree()
-            self._populate_video_selector_tree()
+
+            if self.event_bus_v2:
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data={'filter_text': None},
+                    source='GUI._load_project_view'
+                ))
+
             ready_message = f"Projeto: {pm.get_project_name()} - Pronto."
             self.set_status(ready_message)
             self._request_overview_refresh(reason=ready_message, append_summary=True)
@@ -2044,40 +937,6 @@ class ApplicationGUI:
     def _check_live_project_calibration(self):
         """Check if Live project needs calibration. Delegates to ValidationManager."""
         return self.validation_manager.check_live_project_calibration()
-
-    def _on_grid_cell_clicked(self, day, group_name):
-        pm = self.controller.project_manager
-        subjects_per_group = pm.project_data.get("subjects_per_group", 0)
-        completed_sessions = pm.get_completed_sessions()
-
-        completed_subjects = {s for (d, g, s) in completed_sessions if d == day and g == group_name}
-
-        dialog = SubjectSelectionDialog(
-            self.root, day, group_name, subjects_per_group, completed_subjects
-        )
-
-        if dialog.result:
-            subject_id = dialog.result
-            project_type = pm.get_project_type()
-
-            if project_type == "live":
-                # ✅ NEW: Use LiveCameraService for Live projects
-                success = self.controller.start_live_project_session(
-                    day=day,
-                    group=group_name,
-                    subject=str(subject_id),
-                )
-
-                if not success:
-                    self.show_error(
-                        "Erro na Gravação",
-                        f"Falha ao iniciar sessão de gravação para {group_name}/{subject_id}.",
-                    )
-            else:
-                # Legacy path for pre-recorded projects
-                self.controller.start_recording(day=day, group=group_name, cobaia=str(subject_id))
-
-            self.widget_factory.render_progress_grid()  # Refresh grid after starting a recording
 
     def _manage_weights_clicked(self):
         """Open the weight management dialog."""
@@ -2356,39 +1215,6 @@ class ApplicationGUI:
         """Force the GUI to update, processing pending events."""
         self.root.update_idletasks()
 
-    def _on_processing_stats_updated(self, **kwargs) -> None:
-        """Handle processing stats update event."""
-        self.state_synchronizer.update_processing_stats(**kwargs)
-
-    def update_progress_stats(
-        self,
-        *,
-        total=None,
-        processed=None,
-        detected=None,
-        percent=None,
-        elapsed=None,
-        eta=None,
-    ):
-        """Update progress stats. Delegates to AnalysisDisplay.
-
-        .. deprecated:: 0.1.0
-           Use UIEvents.PROCESSING_STATS_UPDATED instead.
-        """
-        warnings.warn(
-            "update_progress_stats is deprecated. Use UIEvents.PROCESSING_STATS_UPDATED event.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return self.analysis_display.update_progress_stats(
-            total=total,
-            processed=processed,
-            detected=detected,
-            percent=percent,
-            elapsed=elapsed,
-            eta=eta,
-        )
-
     @public_api
     def hide_progress_bar(self):
         """Hide the progress bar."""
@@ -2517,40 +1343,6 @@ class ApplicationGUI:
         self.analysis_profile_var.set(f"Perfil de análise: {text}")
         self._reset_analysis_controls()
 
-    @deprecated(
-        reason="Use Event Bus instead",
-        version="v3.1",
-        alternative="event_bus.publish(Events.UI_UPDATE_SOCIAL_SUMMARY, ...)",
-    )
-    @public_api
-    def _on_social_summary_updated(self, **kwargs) -> None:
-        """Handle social summary update event."""
-        self.state_synchronizer.update_social_summary(**kwargs)
-
-    @public_api
-    def update_social_summary(
-        self,
-        *,
-        profile: str,
-        stats: dict | None,
-        tracks: list[str] | None,
-    ) -> None:
-        """Display social proximity statistics (PUBLIC API).
-
-        Called by: AnalysisService during analysis
-
-        .. deprecated:: 0.1.0
-           Use UIEvents.SOCIAL_SUMMARY_UPDATED instead.
-        """
-        warnings.warn(
-            "update_social_summary is deprecated. Use UIEvents.SOCIAL_SUMMARY_UPDATED event.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return self.state_synchronizer.update_social_summary(
-            profile=profile, stats=stats, tracks=tracks
-        )
-
     def _reset_analysis_controls(self) -> None:
         """Reset track selector state and cached frames."""
         self._current_detections = []
@@ -2595,32 +1387,6 @@ class ApplicationGUI:
             self.analysis_status_var.set(status_text)
         self.update_idletasks()
 
-    @deprecated(
-        reason="Use Event Bus instead",
-        version="v3.1",
-        alternative="event_bus.publish(Events.UI_UPDATE_PROCESSING_STATS, ...)",
-    )
-    @public_api
-    def update_processing_stats(
-        self,
-        total_frames=None,
-        processed_frames=None,
-        detected_frames=None,
-        start_time=None,
-        current_frame=None,
-    ):
-        """Update processing statistics during analysis (PUBLIC API).
-
-        Called by: AnalysisService, VideoProcessingOrchestrator
-        """
-        return self.state_synchronizer.update_processing_stats(
-            total_frames=total_frames,
-            processed_frames=processed_frames,
-            detected_frames=detected_frames,
-            start_time=start_time,
-            current_frame=current_frame,
-        )
-
     def update_analysis_metadata(self, *, metadata: dict | None) -> None:
         """Update the metadata display for the currently processed video."""
         metadata = metadata or {}
@@ -2632,28 +1398,6 @@ class ApplicationGUI:
             group_display,
             day_display,
             subject_display,
-        )
-
-    @deprecated(
-        reason="Use Event Bus instead",
-        version="v3.1",
-        alternative="event_bus.publish(Events.UI_UPDATE_ANALYSIS_TASK_STATUS, ...)",
-    )
-    @public_api
-    def update_analysis_task_status(
-        self,
-        *,
-        index: int,
-        total: int,
-        experiment_id: str | None = None,
-        step: str | None = None,
-    ) -> None:
-        """Update analysis task status (PUBLIC API).
-
-        Called by: AnalysisService, VideoProcessingOrchestrator
-        """
-        return self.state_synchronizer.update_analysis_task_status(
-            index=index, total=total, experiment_id=experiment_id, step=step
         )
 
     @staticmethod
@@ -2715,86 +1459,6 @@ class ApplicationGUI:
         """Show a dialog to select one or more files. Delegates to DialogManager."""
         return self.dialog_manager.ask_open_filenames(title, filetypes)
 
-    def _on_zone_double_click(self, event):
-        """Handle double-click on zone list - opens vertex editing mode."""
-        self._edit_selected_zone_vertices()
-
-    def _on_zone_right_click(self, event):
-        """Mostra menu de contexto."""
-        # Seleciona item sob o cursor
-        item = self.zone_listbox.identify_row(event.y)
-        if item:
-            self.zone_listbox.selection_set(item)
-
-            # Verifica se é ROI (não arena principal)
-            values = self.zone_listbox.item(item)["values"]
-            if values and "Arena Principal" not in values[0]:
-                # ROI - show full menu
-                if self.roi_context_menu:
-                    self.roi_context_menu.post(event.x_root, event.y_root)
-            elif values and "Arena Principal" in values[0]:
-                # Arena Principal - show limited menu (only edit vertices)
-                arena_menu = Menu(self.root, tearoff=0)
-                arena_menu.add_command(
-                    label="🔧 Editar Vértices",
-                    command=self._edit_selected_zone_vertices,
-                )
-                arena_menu.post(event.x_root, event.y_root)
-
-    @public_api
-    def _edit_selected_zone_vertices(self):
-        """Enable interactive editing of selected zone vertices. Delegates to CanvasManager."""
-        return self.canvas_manager.edit_selected_zone_vertices()
-
-    def _rename_selected_roi(self):
-        """Rename the selected ROI. Delegates to DialogManager."""
-        return self.dialog_manager.rename_selected_roi()
-
-    def _change_roi_color(self):
-        """Change the color of the selected ROI. Delegates to DialogManager."""
-        return self.dialog_manager.change_roi_color()
-
-    def _remove_selected_roi_confirm(self):
-        """Remove ROI selecionada com confirmação."""
-        selected = self.zone_listbox.selection()
-        if not selected:
-            return
-
-        item = self.zone_listbox.item(selected[0])
-        roi_name = item["values"][0].replace("📍 ", "")
-
-        # Confirmação
-        confirm = self.dialog_manager.confirm_remove_roi(roi_name)
-
-        if confirm:
-            # Remove do projeto
-            zone_data = self._get_zone_data_for_active_context()
-            try:
-                idx = zone_data.roi_names.index(roi_name)
-
-                # Remove da lista de nomes
-                zone_data.roi_names.pop(idx)
-
-                # Remove da lista de polígonos
-                if idx < len(zone_data.roi_polygons):
-                    zone_data.roi_polygons.pop(idx)
-
-                # Remove da lista de cores
-                if idx < len(zone_data.roi_colors):
-                    zone_data.roi_colors.pop(idx)
-
-                # Persist removals
-                self.controller.project_manager.save_zone_data(zone_data)
-
-                # Atualiza visualização
-                self.canvas_manager.redraw_zones_from_project_data()
-                self.show_info("Sucesso", f"ROI '{roi_name}' removida com sucesso")
-                status_message = f"ROI '{roi_name}' removida com sucesso."
-                self.set_status(status_message)
-                self._request_overview_refresh(reason=status_message, append_summary=True)
-
-            except ValueError:
-                self.show_error("Erro", "ROI não encontrada")
 
     @public_api
     def ask_save_filename(self, **options):

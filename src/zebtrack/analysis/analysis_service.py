@@ -731,4 +731,7 @@ class AnalysisService:
 
         root_tk.after(0, lambda: controller.view.set_status("Pronto."))
         controller._publish_processing_mode(source="processing.finalize", force=True)
-        controller.refresh_project_views()
+        controller.ui_event_bus.publish_event(
+            Events.UI_REFRESH_PROJECT_VIEWS,
+            {"reason": "Analysis completed", "append_summary": True}
+        )

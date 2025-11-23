@@ -1,56 +1,48 @@
-# Migration Guide v4.0
+# Guia de Migração v4.0
 
-## Introduction
-This guide outlines the steps to migrate existing components to the v4.0 Event-Driven Architecture.
+Este guia consolida as instruções para desenvolvedores migrarem código legado para a nova arquitetura Event-Driven v4.0.
 
-## Migration Strategy: Dual Mode
-To ensure stability during the transition, we use a "Dual Mode" approach. Components support both the old direct calls (v3) and the new event publishing (v4).
+## Principais Mudanças
 
-### Step 1: Inject EventBusV2
-Ensure your component accepts `event_bus_v2` in `__init__`.
+1.  **GUI mais leve:** Métodos de lógica de negócios foram removidos de `ApplicationGUI`.
+2.  **Event Bus:** Comunicação via eventos em vez de chamadas diretas.
+3.  **Managers:** Funcionalidades agrupadas em `CanvasManager`, `DialogManager`, etc.
 
+## Check-list de Migração
+
+Ao adicionar ou modificar código:
+
+- [ ] **Não adicione métodos à `GUI`**: Se precisar de nova lógica de UI, adicione ao `UICoordinator` ou a um Manager específico.
+- [ ] **Use Eventos**: Em vez de chamar `gui.refresh_...()`, publique um evento correspondente.
+- [ ] **Injeção de Dependência**: Se seu componente precisa acessar outro, receba-o no construtor ou use o `UICoordinator` como mediador via eventos.
+
+## Mapeamento de Métodos (De -> Para)
+
+| Código Antigo (v3) | Código Novo (v4) |
+|--------------------|------------------|
+| `gui.update_zone_listbox(data)` | `event_bus.publish(Event(UIEvents.ZONES_UPDATED, ...))` |
+| `gui.refresh_project_views()` | `event_bus.publish(Event(UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED, ...))` |
+| `gui._refresh_video_selector_tree()` | `event_bus.publish(Event(UIEvents.VIDEO_TREE_REFRESH_REQUESTED, ...))` |
+| `gui.apply_pending_readiness_snapshot(...)` | `event_bus.publish(Event(UIEvents.READINESS_SNAPSHOT_UPDATED, ...))` |
+
+## Exemplo Prático: Adicionando um Botão
+
+**Antes (v3):**
 ```python
-class MyComponent:
-    def __init__(self, gui, event_bus_v2=None):
-        self.gui = gui
-        self.event_bus_v2 = event_bus_v2
+# gui.py
+def _on_click(self):
+    self.process_data()
+    self.update_ui()
 ```
 
-### Step 2: Implement Dual Mode Publishing
-When a state change occurs that needs UI update, keep the old call and add the event publish.
-
+**Depois (v4):**
 ```python
-def update_something(self, data):
-    # OLD PATH (v3)
-    self.gui.update_ui_method(data)
+# component.py
+def _on_click(self):
+    # Processa dados localmente ou via Controller
+    self.event_bus.publish(Event(UIEvents.DATA_PROCESSED, result))
 
-    # NEW PATH (v4)
-    if self.event_bus_v2:
-        from zebtrack.ui.event_bus_v2 import Event, UIEvents
-        self.event_bus_v2.publish(Event(
-            type=UIEvents.SOMETHING_UPDATED,
-            data={'data': data},
-            source='MyComponent.update_something'
-        ))
+# ui_coordinator.py
+def _on_data_processed(self, event):
+    self.canvas_manager.show_result(event.data)
 ```
-
-### Step 3: Subscribe in Target Component
-The component that updates the UI (e.g., `CanvasManager`, `ProjectViewManager`) should subscribe to the event.
-
-```python
-def _setup_event_subscriptions(self):
-    self.event_bus_v2.subscribe(UIEvents.SOMETHING_UPDATED, self._on_something_updated)
-
-def _on_something_updated(self, data):
-    self.update_ui_method(data['data'])
-```
-
-## Common Patterns
-
-### Updating Zones
-**Old:** `gui.update_zone_listbox(zone_data)`
-**New:** Publish `UIEvents.ZONES_UPDATED`
-
-### Refreshing Video Tree
-**Old:** `gui._populate_video_selector_tree(filter)`
-**New:** Publish `UIEvents.VIDEO_TREE_REFRESH_REQUESTED`

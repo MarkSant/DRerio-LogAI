@@ -16,6 +16,7 @@ def mock_app(tkinter_root):
     app.event_dispatcher = MagicMock()
     app.widget_factory = MagicMock()
     app.event_bus = MagicMock() # Added missing mock
+    app.event_bus_v2 = MagicMock()
 
     # Use a real notebook because ttkbootstrap inspects parent widget class hierarchy
     app.notebook = ttk.Notebook(tkinter_root)
@@ -56,7 +57,7 @@ def test_build_main_controls_tab_pre_recorded(mock_app):
 
     # Verify delegation calls on the GUI object (since GUI is mocked)
     mock_app._create_project_overview_panel.assert_called_once()
-    mock_app._request_overview_refresh.assert_called_once()
+    # mock_app._request_overview_refresh.assert_called_once() # Removed in Phase 3.2
 
 def test_build_main_controls_tab_live(mock_app):
     """Test creating main controls tab for live project."""

@@ -203,15 +203,9 @@ class CanvasRenderer:
             except Exception as e:
                 log.error("gui.roi_draw_error", name=name, error=str(e), index=i)
 
-        # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
-        self.gui.update_zone_listbox(zone_data)  # OLD PATH - will be removed in v4.0
-        if hasattr(self.manager, 'event_bus_v2') and self.manager.event_bus_v2:
-            from zebtrack.ui.event_bus_v2 import Event, UIEvents
-            self.manager.event_bus_v2.publish(Event(
-                type=UIEvents.ZONES_UPDATED,
-                data={'zone_data': zone_data},
-                source='CanvasRenderer.redraw_zones'
-            ))
+        # Note: We do NOT publish ZONES_UPDATED here because redraw_zones is usually
+        # the *result* of that event. Publishing it would cause an infinite loop.
+        # The component initiating the change (e.g. DialogManager) is responsible for publishing.
 
         log.info("gui.redraw_zones.complete")
 

@@ -162,9 +162,8 @@ class ROITemplateManager:
             self.gui.controller.setup_detector_zones()
             self.gui.canvas_manager.redraw_zones_from_project_data()
 
-            # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
-            self.gui.update_zone_listbox()  # OLD PATH - will be removed in v4.0
-            if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+            # NEW PATH - Event-Driven Architecture v4.0
+            if self.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
                 self.event_bus_v2.publish(Event(
                     type=UIEvents.ZONES_UPDATED,

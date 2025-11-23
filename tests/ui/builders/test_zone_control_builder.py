@@ -3,8 +3,11 @@ Tests for ZoneControlBuilder.
 """
 
 from unittest.mock import Mock, patch
+
 import pytest
+
 from zebtrack.ui.builders.zone_control_builder import ZoneControlBuilder
+
 
 class TestZoneControlBuilder:
     """Tests for ZoneControlBuilder methods."""
@@ -53,7 +56,7 @@ class TestZoneControlBuilder:
         mock_scrollbar = Mock()
         mock_ttk.Scrollbar.return_value = mock_scrollbar
         mock_create_scrollbar.return_value = mock_scrollbar
-        
+
         mock_stringvar.return_value = Mock()
 
         builder = ZoneControlBuilder(mock_gui)
@@ -61,16 +64,16 @@ class TestZoneControlBuilder:
 
         # Verify calls
         mock_gui._create_zone_summary_cards_section.assert_called_once()
-        
+
         # Verify major sections created (by checking LabelFrame creation)
         # We expect LabelFrames for: Drawing Actions, Single Analysis, Templates, Video Selector, Zone List, Inclusion Rule
-        assert mock_ttk.LabelFrame.call_count >= 6 
-        
+        assert mock_ttk.LabelFrame.call_count >= 6
+
         # Verify variables initialized
         assert mock_gui.roi_choice_var is not None
         assert mock_gui.video_search_var is not None
-        
+
         # Verify population calls
         mock_gui._refresh_roi_templates.assert_called_once()
-        mock_gui._populate_video_selector_tree.assert_called_once()
+        # mock_gui._populate_video_selector_tree.assert_called_once() # Replaced by event
         mock_gui._on_roi_rule_change.assert_called_once()

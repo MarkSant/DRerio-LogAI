@@ -15,7 +15,16 @@ from zebtrack.core.weight_manager import OpenVINOExportError
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
+    from zebtrack.core.detector_service import DetectorService
     from zebtrack.core.main_view_model import MainViewModel
+    from zebtrack.core.model_service import ModelService
+    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project_workflow_service import ProjectWorkflowService
+    from zebtrack.core.state_manager import StateManager
+    from zebtrack.core.weight_manager import WeightManager
+    from zebtrack.settings import Settings
+    from zebtrack.ui.components.ui_coordinator import UICoordinator
+    from zebtrack.ui.event_bus import EventBus
 
 logger = structlog.get_logger()
 
@@ -36,27 +45,54 @@ class UIStateController:
     - Core UI utilities
     """
 
-    def __init__(self, main_view_model: MainViewModel):
-        """Initialize with MainViewModel reference.
+    def __init__(
+        self,
+        root: Any,
+        ui_event_bus: EventBus,
+        state_manager: StateManager,
+        ui_coordinator: UICoordinator,
+        project_manager: ProjectManager,
+        weight_manager: WeightManager,
+        detector_service: DetectorService,
+        model_service: ModelService,
+        settings: Settings,
+        detector_coordinator: Any,  # HardwareCoordinator
+        project_workflow_service: ProjectWorkflowService,
+        main_view_model: Any | None = None,
+    ):
+        """Initialize with direct dependency injection.
 
         Args:
-            main_view_model: Reference to MainViewModel for delegation
+            root: Tkinter root window
+            ui_event_bus: Event bus for UI events
+            state_manager: Application state manager
+            ui_coordinator: UI coordinator
+            project_manager: Project manager
+            weight_manager: Weight manager
+            detector_service: Detector service
+            model_service: Model service
+            settings: Application settings
+            detector_coordinator: Hardware coordinator (handles detector/zones)
+            project_workflow_service: Project workflow service
+            main_view_model: Optional reference to MainViewModel (for backward compatibility)
         """
+        self.root = root
+        self.ui_event_bus = ui_event_bus
+        self.state_manager = state_manager
+        self.ui_coordinator = ui_coordinator
+        self.project_manager = project_manager
+        self.weight_manager = weight_manager
+        self.detector_service = detector_service
+        self.model_service = model_service
+        self.settings = settings
+        self.detector_coordinator = detector_coordinator
+        self.project_workflow_service = project_workflow_service
+
+        # Optional MainViewModel reference (for legacy delegation if needed)
         self.main_view_model = main_view_model
 
-        # Cache frequently used attributes from MainViewModel
-        self.view = main_view_model.view
-        self.root = main_view_model.root
-        self.state_manager = main_view_model.state_manager
-        self.ui_coordinator = main_view_model.ui_coordinator
-        self.ui_event_bus = main_view_model.ui_event_bus
-        self.project_manager = main_view_model.project_manager
-        self.weight_manager = main_view_model.weight_manager
-        self.detector_service = main_view_model.detector_service
-        self.model_service = main_view_model.model_service
-        self.settings = main_view_model.settings
-        self.detector_coordinator = main_view_model.detector_coordinator
-        self.project_workflow_service = main_view_model.project_workflow_service
+        # View will be set later by MainViewModel or Bootstrapper
+        self.view = getattr(main_view_model, "view", None) if main_view_model else None
 
     # ========================================================================
     # Group H: Core Utilities (extract first - most fundamental)

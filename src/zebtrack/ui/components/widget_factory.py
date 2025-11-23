@@ -25,10 +25,10 @@ import yaml
 from pydantic import ValidationError
 
 from zebtrack.settings import Settings
-from zebtrack.ui.window_utils import reset_geometry_if_not_maximized
 from zebtrack.ui.builders.button_factory import ButtonFactory
 from zebtrack.ui.builders.panel_builder import PanelBuilder
 from zebtrack.ui.builders.zone_control_builder import ZoneControlBuilder
+from zebtrack.ui.window_utils import reset_geometry_if_not_maximized
 
 log = structlog.get_logger()
 
@@ -100,9 +100,9 @@ class WidgetFactory:
         metadata = metadata or {}
         candidate = metadata.get("day_label") or ""
         if not candidate and metadata.get("day") is not None:
-            candidate = self.gui._format_day_display(metadata.get("day"))
+            candidate = self.gui.validation_manager._format_day_display(metadata.get("day"))
         if not candidate:
-            candidate = self.gui._format_day_display(day_value)
+            candidate = self.gui.validation_manager._format_day_display(day_value)
         if not candidate:
             base_value = day_value if day_value not in (None, "") else None
             candidate = str(base_value) if base_value is not None else "Sem Dia"
@@ -459,10 +459,10 @@ class WidgetFactory:
         self.gui.processing_reports_widget = ProcessingReportsWidget(
             self.gui.processing_reports_tab_frame,
             event_bus=self.gui.event_bus,
-            on_generate_trajectories=self.gui._trigger_batch_trajectory_processing,
-            on_export_summaries=self.gui._trigger_parquet_summaries,
-            on_generate_partial_report=self.gui._on_processing_reports_generate_partial,
-            on_generate_unified_report=self.gui._generate_unified_report,
+            on_generate_trajectories=self.gui.project_view_manager.trigger_batch_trajectory_processing,
+            on_export_summaries=self.gui.project_view_manager.trigger_parquet_summaries,
+            on_generate_partial_report=self.gui.project_view_manager.on_processing_reports_generate_partial,
+            on_generate_unified_report=self.gui.project_view_manager.generate_unified_report,
         )
         self.gui.processing_reports_widget.pack(fill="both", expand=True)
 
@@ -470,7 +470,7 @@ class WidgetFactory:
         if self.gui.processing_reports_widget.tree:
             self.gui.processing_reports_widget.tree.bind(
                 "<Double-Button-1>",
-                self.gui._on_processing_reports_item_double_click,
+                self.gui.project_view_manager.on_processing_reports_item_double_click,
             )
 
         # Initial refresh
@@ -560,7 +560,7 @@ class WidgetFactory:
         self.gui.welcome_frame.pack(expand=True, fill="both")
 
         # --- Logo Image ---
-        self.gui._display_welcome_logo()
+        self.display_welcome_logo()
 
         # Project actions and model status widgets
         self.build_project_actions(self.gui.welcome_frame)
@@ -992,7 +992,7 @@ class WidgetFactory:
                     background=color,
                     width=15,
                     height=3,
-                    command=lambda d=day, g=group_name: self.gui._on_grid_cell_clicked(d, g),
+                    command=lambda d=day, g=group_name: self.gui.dialog_manager.handle_grid_cell_click(d, g),
                 )
                 cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
 

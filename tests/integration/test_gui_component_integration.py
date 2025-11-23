@@ -82,93 +82,29 @@ class TestGUIComponentIntegration:
             # Assert
             mock_pop.assert_called_once_with(filter_text)
 
-    def test_show_external_trigger_notice(self, gui_fixture):
-        """Test show_external_trigger_notice delegation."""
-        # Arrange
-        label = "Session 1"
-        details = {"timestamp": 12345}
+    def test_show_external_trigger_notice_removed(self, gui_fixture):
+        """Test that show_external_trigger_notice is removed from GUI."""
+        assert not hasattr(gui_fixture, "show_external_trigger_notice")
 
-        # Mock DialogManager
-        with patch.object(gui_fixture.dialog_manager, "show_external_trigger_notice") as mock_show:
-            # Act
-            gui_fixture.show_external_trigger_notice(label, **details)
+    def test_clear_external_trigger_notice_removed(self, gui_fixture):
+        """Test that clear_external_trigger_notice is removed from GUI."""
+        assert not hasattr(gui_fixture, "clear_external_trigger_notice")
 
-            # Assert
-            mock_show.assert_called_once_with(label, **details)
+    def test_update_processing_stats_removed(self, gui_fixture):
+        """Test that update_processing_stats is removed from GUI."""
+        assert not hasattr(gui_fixture, "update_processing_stats")
 
-    def test_clear_external_trigger_notice(self, gui_fixture):
-        """Test clear_external_trigger_notice delegation."""
-        # Mock DialogManager
-        with patch.object(
-            gui_fixture.dialog_manager, "clear_external_trigger_notice"
-        ) as mock_clear:
-            # Act
-            gui_fixture.clear_external_trigger_notice()
+    def test_update_social_summary_removed(self, gui_fixture):
+        """Test that update_social_summary is removed from GUI."""
+        assert not hasattr(gui_fixture, "update_social_summary")
 
-            # Assert
-            mock_clear.assert_called_once()
+    def test_update_analysis_task_status_removed(self, gui_fixture):
+        """Test that update_analysis_task_status is removed from GUI."""
+        assert not hasattr(gui_fixture, "update_analysis_task_status")
 
-    def test_update_processing_stats(self, gui_fixture):
-        """Test update_processing_stats delegation."""
-        # Arrange
-        stats = {
-            "total_frames": 100,
-            "processed_frames": 50,
-            "detected_frames": 45,
-            "start_time": 1000.0,
-            "current_frame": 50,
-        }
-
-        # Mock StateSynchronizer
-        with patch.object(gui_fixture.state_synchronizer, "update_processing_stats") as mock_update:
-            # Act
-            gui_fixture.update_processing_stats(**stats)
-
-            # Assert
-            mock_update.assert_called_once_with(**stats)
-
-    def test_update_social_summary(self, gui_fixture):
-        """Test update_social_summary delegation."""
-        # Arrange
-        kwargs = {"profile": "test_profile", "stats": {"mean_dist": 10}, "tracks": ["t1", "t2"]}
-
-        # Mock StateSynchronizer
-        with patch.object(gui_fixture.state_synchronizer, "update_social_summary") as mock_update:
-            # Act
-            gui_fixture.update_social_summary(**kwargs)
-
-            # Assert
-            mock_update.assert_called_once_with(**kwargs)
-
-    def test_update_analysis_task_status(self, gui_fixture):
-        """Test update_analysis_task_status delegation."""
-        # Arrange
-        kwargs = {"index": 1, "total": 5, "experiment_id": "exp1", "step": "tracking"}
-
-        # Mock StateSynchronizer
-        with patch.object(
-            gui_fixture.state_synchronizer, "update_analysis_task_status"
-        ) as mock_update:
-            # Act
-            gui_fixture.update_analysis_task_status(**kwargs)
-
-            # Assert
-            mock_update.assert_called_once_with(**kwargs)
-
-    def test_refresh_project_views(self, gui_fixture):
-        """Test refresh_project_views delegation."""
-        # Arrange
-        kwargs = {"reason": "test", "append_summary": True, "immediate": True}
-
-        # Mock ProjectViewManager
-        with patch.object(
-            gui_fixture.project_view_manager, "refresh_project_views"
-        ) as mock_refresh:
-            # Act
-            gui_fixture.refresh_project_views(**kwargs)
-
-            # Assert
-            mock_refresh.assert_called_once_with(**kwargs)
+    def test_refresh_project_views_removed(self, gui_fixture):
+        """Test that refresh_project_views is removed from GUI."""
+        assert not hasattr(gui_fixture, "refresh_project_views")
 
     def test_edit_selected_zone_vertices(self, gui_fixture):
         """Test edit_selected_zone_vertices delegation."""

@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 from zebtrack.ui.builders.button_factory import ButtonFactory
 
+
 class TestButtonFactory:
     """Tests for ButtonFactory methods."""
 

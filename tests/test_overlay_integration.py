@@ -4,6 +4,7 @@ Tests for validating that detector.draw_overlay integration is correctly impleme
 These tests verify the code structure rather than mocking complex Tkinter interactions.
 """
 import pytest
+
 pytest.skip("Obsolete string-based checks", allow_module_level=True)
 
 import os

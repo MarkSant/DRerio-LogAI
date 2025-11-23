@@ -8,6 +8,7 @@ Phase 1.1: Enhanced with threading.Event synchronization to eliminate race condi
 in observer-based tests.
 """
 import pytest
+
 pytest.skip("Obsolete: MainViewModel no longer has is_recording property", allow_module_level=True)
 
 import threading

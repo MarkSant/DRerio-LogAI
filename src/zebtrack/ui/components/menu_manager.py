@@ -12,6 +12,7 @@ from tkinter import Menu, Toplevel, messagebox, ttk
 import structlog
 from PIL import Image, ImageTk
 
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.events import Events
 
 log = structlog.get_logger()
@@ -43,7 +44,8 @@ class MenuManager:
         menubar.add_cascade(label="Arquivo", menu=file_menu)
         file_menu.add_command(
             label="Analisar Câmera ao Vivo...",
-            command=self.gui.controller.start_live_camera_analysis,
+            # Defer call to allow controller initialization
+            command=lambda: self.gui.controller.start_live_camera_analysis(),
             accelerator="Ctrl+L",
         )
         file_menu.add_separator()
@@ -397,26 +399,78 @@ class MenuManager:
 
         status_message = f"{status_labels.get(asset, 'Item removido')} • {basename}"
         self.gui.set_status(status_message)
-        self.gui.refresh_project_views(
-            reason=status_message,
-            append_summary=True,
-            immediate=True,
-        )
+
+        if self.gui.event_bus_v2:
+            self.gui.event_bus_v2.publish(Event(
+                type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                data={
+                    "reason": status_message,
+                    "append_summary": True,
+                    "immediate": True
+                },
+                source="MenuManager.handle_overview_asset_removal"
+            ))
 
     def create_roi_context_menu(self):
         """Cria menu de contexto para ROIs."""
         self.gui.roi_context_menu = Menu(self.gui.root, tearoff=0)
         self.gui.roi_context_menu.add_command(
-            label="🔧 Editar Vértices", command=self.gui._edit_selected_zone_vertices
+            label="🔧 Editar Vértices",
+            command=self.gui.canvas_manager.edit_selected_zone_vertices,
         )
         self.gui.roi_context_menu.add_separator()
         self.gui.roi_context_menu.add_command(
-            label="✏️ Renomear", command=self.gui._rename_selected_roi
+            label="✏️ Renomear", command=self.gui.dialog_manager.rename_selected_roi
         )
         self.gui.roi_context_menu.add_command(
-            label="🎨 Mudar Cor", command=self.gui._change_roi_color
+            label="🎨 Mudar Cor", command=self.gui.dialog_manager.change_roi_color
         )
         self.gui.roi_context_menu.add_separator()
         self.gui.roi_context_menu.add_command(
-            label="🗑️ Remover", command=self.gui._remove_selected_roi_confirm
+            label="🗑️ Remover", command=self.gui.canvas_manager.remove_selected_roi
         )
+
+    def show_roi_context_menu(
+        self, event=None, x=None, y=None, item_id=None
+    ) -> None:
+        """Show the ROI context menu.
+
+        Args:
+            event: Tkinter event object (optional)
+            x: Screen X coordinate (optional, overrides event)
+            y: Screen Y coordinate (optional, overrides event)
+            item_id: ID of the item to show menu for (optional)
+        """
+        if x is None and event:
+            x = event.x_root
+        if y is None and event:
+            y = event.y_root
+
+        if x is None or y is None:
+            return
+
+        listbox = getattr(self.gui.zone_controls, "zone_listbox", None)
+        if not listbox:
+            return
+
+        item = item_id
+        if not item and event:
+            item = listbox.identify_row(event.y)
+
+        if item:
+            listbox.selection_set(item)
+
+            # Check if ROI (not main arena)
+            values = listbox.item(item)["values"]
+            if values and "Arena Principal" not in values[0]:
+                # ROI - show full menu
+                if self.gui.roi_context_menu:
+                    self.gui.roi_context_menu.post(x, y)
+            elif values and "Arena Principal" in values[0]:
+                # Arena Principal - show limited menu (only edit vertices)
+                arena_menu = Menu(self.gui.root, tearoff=0)
+                arena_menu.add_command(
+                    label="🔧 Editar Vértices",
+                    command=self.gui.canvas_manager.edit_selected_zone_vertices,
+                )
+                arena_menu.post(x, y)

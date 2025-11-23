@@ -4,12 +4,25 @@ Tests the migration of update_zone_listbox() from direct GUI calls to Event Bus 
 This validates FASE 2 - Tarefa 2.1 (PLANO_ACAO_V4.md).
 """
 
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 
-from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.core.detector import ZoneData
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
+
+@pytest.fixture(autouse=True)
+def mock_tkinter_vars():
+    """Mock tkinter variables to avoid root window requirement."""
+    with patch('tkinter.StringVar') as mock_string_var:
+        mock_var_instance = MagicMock()
+        mock_var_instance.get.return_value = ""
+        mock_string_var.return_value = mock_var_instance
+
+        with patch('tkinter.BooleanVar'):
+            with patch('tkinter.IntVar'):
+                yield
 
 @pytest.mark.integration
 class TestZonesUpdatedEvent:
@@ -73,6 +86,8 @@ class TestZonesUpdatedEvent:
         from zebtrack.ui.components.dialog_manager import DialogManager
 
         dialog_manager = DialogManager(gui_mock, event_bus_v2=event_bus)
+        # Mock show_info to avoid tkinter interaction
+        dialog_manager.show_info = MagicMock()
 
         events_received = []
 
@@ -83,22 +98,18 @@ class TestZonesUpdatedEvent:
 
         # Mock file dialog and dependencies
         with patch('zebtrack.ui.components.dialog_manager.filedialog.askopenfilename', return_value='/fake/template.json'):
-            with patch.object(gui_mock.controller.project_manager, 'load_roi_template_from_file') as mock_load:
-                # Mock successful template load
-                mock_zone = MagicMock()
-                mock_zone.polygon = [[0, 0], [100, 0], [100, 100], [0, 100]]
-                mock_zone.roi_polygons = []
-                mock_load.return_value = mock_zone
+            # Mock open for json loading
+            with patch("builtins.open", new_callable=MagicMock) as mock_open:
+                mock_open.return_value.__enter__.return_value.read.return_value = '{"polygon": [[0,0]]}'
 
-                # Act - simulate import_and_apply_template
-                # This test will be skipped if the method signature changed
-                try:
-                    dialog_manager.import_and_apply_template()
-                except Exception:
-                    pytest.skip("DialogManager.import_and_apply_template signature changed")
+                with patch("json.load", return_value={"polygon": [[0,0]]}):
+                    # Mock save_zone_data
+                    gui_mock.controller.project_manager.get_active_zone_video.return_value = "video.mp4"
+
+                    # Act - simulate import_and_apply_roi_template
+                    dialog_manager.import_and_apply_roi_template()
 
         # Assert - event was published
-        # Note: This might receive multiple events if the method calls update_zone_listbox multiple times
         assert len(events_received) >= 1, "ZONES_UPDATED event should be published at least once"
 
     def test_roi_template_manager_publishes_zones_updated_dual_mode(self):
@@ -106,16 +117,31 @@ class TestZonesUpdatedEvent:
         # Arrange
         event_bus = EventBusV2()
         gui_mock = MagicMock()
+        # Mock root to avoid tkinter access
+        gui_mock.root = MagicMock()
         gui_mock.event_bus_v2 = event_bus
         gui_mock.controller = MagicMock()
         gui_mock.canvas_manager = MagicMock()
+        # Ensure zone_controls.roi_template_combobox exists for _update_combobox_values
+        gui_mock.zone_controls = MagicMock()
+        gui_mock.zone_controls.roi_template_combobox = MagicMock()
+
         project_manager_mock = MagicMock()
 
-        from zebtrack.ui.components.roi_template_manager import ROITemplateManager
+        # Patch StringVar in the module to avoid root requirement
+        with patch('zebtrack.ui.components.roi_template_manager.StringVar') as mock_string_var:
+            mock_var = MagicMock()
+            mock_var.get.return_value = ""
+            mock_string_var.return_value = mock_var
 
-        roi_manager = ROITemplateManager(project_manager_mock, gui_mock, event_bus_v2=event_bus)
+            from zebtrack.ui.components.roi_template_manager import ROITemplateManager
 
-        events_received = []
+            roi_manager = ROITemplateManager(project_manager_mock, gui_mock, event_bus_v2=event_bus)
+            # Mock gui.show_info used in apply_template
+            roi_manager.gui.show_info = MagicMock()
+            roi_manager.gui.set_status = MagicMock()
+
+            events_received = []
 
         def handler(data):
             events_received.append(data)
@@ -123,28 +149,32 @@ class TestZonesUpdatedEvent:
         event_bus.subscribe(UIEvents.ZONES_UPDATED, handler)
 
         # Mock template application
-        roi_manager._cache = [{'name': 'test_template', 'id': '123'}]
+        roi_manager._cache = [{'name': 'test_template', 'display_name': 'test_template', 'id': '123'}]
         roi_manager.template_var.set('test_template')
 
-        with patch.object(project_manager_mock, 'apply_roi_template', return_value=True):
-            with patch.object(project_manager_mock, 'get_active_zone_video', return_value='/fake/video.mp4'):
-                # Act
-                try:
-                    roi_manager.apply_template()
-                except Exception:
-                    pytest.skip("ROITemplateManager.apply_template signature changed")
+        # Also patch load_roi_template which is called by apply_template
+        with patch.object(project_manager_mock, 'load_roi_template', return_value=MagicMock()):
+            with patch.object(project_manager_mock, 'save_zone_data'):
+                with patch.object(project_manager_mock, 'get_active_zone_video', return_value='/fake/video.mp4'):
+                    # Act
+                    try:
+                        roi_manager.apply_template()
+                    except Exception:
+                        pytest.skip("ROITemplateManager.apply_template signature changed")
 
         # Assert
         assert len(events_received) >= 1, "ZONES_UPDATED event should be published"
 
-    def test_renderer_publishes_zones_updated_dual_mode(self):
-        """CanvasRenderer publishes ZONES_UPDATED in dual mode when redrawing zones."""
+    def test_renderer_does_not_publish_zones_updated(self):
+        """CanvasRenderer should NOT publish ZONES_UPDATED (to avoid loops)."""
         # Arrange
         event_bus = EventBusV2()
         gui_mock = MagicMock()
+        gui_mock.root = MagicMock()
         gui_mock.event_bus_v2 = event_bus
         gui_mock.video_display = MagicMock()
         gui_mock.video_display.canvas = MagicMock()
+        gui_mock.zone_controls = MagicMock()
 
         from zebtrack.ui.components.canvas_manager import CanvasManager
 
@@ -160,18 +190,16 @@ class TestZonesUpdatedEvent:
 
         # Mock zone data
         zone_data = MagicMock(spec=ZoneData)
-        zone_data.arena_polygon = [[0, 0], [100, 0], [100, 100], [0, 100]]
+        zone_data.polygon = [[0, 0], [100, 0], [100, 100], [0, 100]]
         zone_data.roi_polygons = []
+        zone_data.roi_names = []
+        zone_data.roi_colors = []
 
         # Act
-        try:
-            renderer.redraw_zones(zone_data)
-        except Exception as e:
-            pytest.skip(f"Renderer.redraw_zones failed: {e}")
+        renderer.redraw_zones(zone_data)
 
         # Assert
-        assert len(events_received) >= 1, "ZONES_UPDATED event should be published"
-        assert events_received[0]['zone_data'] == zone_data
+        assert len(events_received) == 0, "Renderer should NOT publish ZONES_UPDATED"
 
     def test_polygon_drawing_service_publishes_zones_updated_dual_mode(self):
         """PolygonDrawingService publishes ZONES_UPDATED in dual mode."""

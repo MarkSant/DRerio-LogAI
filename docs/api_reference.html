@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Reference - ZebTrack-AI v4.0</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --text-color: #1f2937;
+            --bg-color: #ffffff;
+            --code-bg: #f3f4f6;
+            --border-color: #e5e7eb;
+            --deprecated-bg: #fef2f2;
+            --deprecated-border: #fecaca;
+            --sidebar-width: 280px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: #f8fafc;
+            border-right: 1px solid var(--border-color);
+            position: fixed;
+            padding: 2rem 1rem;
+            overflow-y: auto;
+        }
+
+        .sidebar h3 {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            margin-bottom: 1rem;
+        }
+
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .sidebar li {
+            margin-bottom: 0.5rem;
+        }
+
+        .sidebar a {
+            text-decoration: none;
+            color: var(--text-color);
+            font-size: 0.95rem;
+            display: block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+        }
+
+        .sidebar a:hover {
+            background: var(--bg-color);
+            color: var(--primary-color);
+        }
+
+        /* Main Content */
+        .content {
+            margin-left: var(--sidebar-width);
+            padding: 2rem 4rem;
+            max-width: 900px;
+        }
+
+        h1 {
+            font-size: 2.25rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-bottom: 2rem;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2.5rem;
+            color: var(--primary-color);
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            margin-top: 1.5rem;
+        }
+
+        code {
+            background: var(--code-bg);
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9em;
+            color: #d946ef;
+        }
+
+        pre {
+            background: #1e293b;
+            color: #f8fafc;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            background: transparent;
+            color: inherit;
+            padding: 0;
+        }
+
+        .method-card {
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            transition: box-shadow 0.2s;
+        }
+
+        .method-card:hover {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .method-name {
+            font-family: monospace;
+            font-weight: bold;
+            color: var(--primary-color);
+            font-size: 1.1em;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.1rem 0.5rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-left: 0.5rem;
+        }
+
+        .tag.stable { background: #dcfce7; color: #166534; }
+        .tag.deprecated { background: #fee2e2; color: #991b1b; }
+
+        .deprecated-section {
+            background: var(--deprecated-bg);
+            border: 1px solid var(--deprecated-border);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            margin-top: 2rem;
+        }
+
+        footer {
+            margin-top: 4rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="sidebar">
+    <h3>Core API</h3>
+    <ul>
+        <li><a href="#lifecycle">Lifecycle</a></li>
+        <li><a href="#feedback">Feedback Delegates</a></li>
+        <li><a href="#status">Status & Progress</a></li>
+        <li><a href="#ui-control">UI State Control</a></li>
+        <li><a href="#wizards">Wizards & Dialogs</a></li>
+        <li><a href="#callbacks">Controller Integration</a></li>
+    </ul>
+    <h3>Migration</h3>
+    <ul>
+        <li><a href="#deprecated">Removed Methods</a></li>
+        <li><a href="#policy">Change Policy</a></li>
+    </ul>
+</nav>
+
+<main class="content">
+    <h1>API Stability Contract (v4.0)</h1>
+    
+    <p>
+        <strong>Status:</strong> <span class="tag stable">Stable</span><br>
+        <strong>Last Updated:</strong> 23/11/2025<br>
+        <strong>Module:</strong> <code>src/zebtrack/ui/gui.py</code>
+    </p>
+
+    <p>
+        This document defines the public API of the <code>ApplicationGUI</code> class. 
+        With the v4.0 refactoring (Event-Driven Architecture), the public API has been drastically reduced, 
+        delegating responsibilities to specialized internal components. 
+        Only essential methods for initialization, lifecycle, and global feedback remain.
+    </p>
+
+    <h2 id="lifecycle">1. Lifecycle & Initialization</h2>
+    <div class="method-card">
+        <div class="method-name">__init__(root, controller, event_bus=None, settings_obj=None)</div>
+        <p>Initializes the application, builds UI components, and sets up the <code>UICoordinator</code>.</p>
+    </div>
+
+    <h2 id="feedback">2. Feedback Delegates</h2>
+    <p>These methods delegate to <code>DialogManager</code>, keeping a convenient facade for global messages.</p>
+    
+    <div class="method-card">
+        <div class="method-name">show_error(title, message)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">show_warning(title, message)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">show_info(title, message)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">ask_ok_cancel(title, message)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">ask_string(title, prompt, initialvalue=None)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">ask_directory(title)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">ask_open_filenames(title, filetypes)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">ask_save_filename(**options)</div>
+    </div>
+
+    <h2 id="status">3. Status & Progress</h2>
+    <p>Methods for updating the global status bar and progress indicators.</p>
+
+    <div class="method-card">
+        <div class="method-name">set_status(text)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">show_progress_bar()</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">hide_progress_bar()</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">update_progress(value)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">update_idletasks()</div>
+    </div>
+
+    <h2 id="ui-control">4. UI State Control</h2>
+    <div class="method-card">
+        <div class="method-name">update_button_state(button_name, state)</div>
+        <p>Controls the enabled/disabled state of global buttons (Record, Process, Stop).</p>
+    </div>
+
+    <h2 id="wizards">5. Specific Interfaces (Wizards)</h2>
+    <div class="method-card">
+        <div class="method-name">ask_recording_details_unified()</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">ask_missing_metadata(experiment_id)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">show_pending_videos_dialog(...)</div>
+    </div>
+
+    <h2 id="callbacks">6. Controller Integration (Callbacks)</h2>
+    <p>These methods are called by the Controller to update the visualization in real-time.</p>
+
+    <div class="method-card">
+        <div class="method-name">update_weights_dropdown(weights)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">set_active_weight_in_dropdown(weight_name)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">update_openvino_checkbox(enabled)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">update_openvino_status_display(status)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">update_gpu_hardware_display(hardware_summary)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">update_detection_overlay(detections, report)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">update_processing_mode(report)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">update_analysis_profile(profile_name)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">update_analysis_progress(value, status_text)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">update_analysis_metadata(metadata)</div>
+    </div>
+    <div class="method-card">
+        <div class="method-name">setup_zone_definition_for_single_video(video_path, config)</div>
+    </div>
+
+    <div id="deprecated" class="deprecated-section">
+        <h2>⚠️ Removed/Migrated Methods (v3 → v4)</h2>
+        <p>The following methods are <strong>NO LONGER</strong> part of the public GUI API. They have been moved to specialized components or replaced by events.</p>
+        
+        <ul>
+            <li><code>update_zone_listbox</code> → <span class="tag stable">UIEvents.ZONES_UPDATED</span></li>
+            <li><code>refresh_project_views</code> → <span class="tag stable">UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED</span></li>
+            <li><code>apply_pending_readiness_snapshot</code> → <span class="tag stable">UIEvents.READINESS_SNAPSHOT_UPDATED</span></li>
+            <li><code>_edit_selected_zone_vertices</code> → <code>CanvasManager.edit_selected_zone_vertices</code></li>
+            <li><code>_on_canvas_click</code> → <code>CanvasEventHandler</code></li>
+            <li><code>_format_day_display</code> → <code>ValidationManager</code></li>
+            <li><code>_pipeline_summary_exists</code> → <code>ProjectViewManager</code></li>
+            <li><code>_generate_unified_report</code> → <code>ProjectViewManager</code></li>
+        </ul>
+    </div>
+
+    <h2 id="policy">Policy on Changes</h2>
+    <ol>
+        <li><strong>No New Public Methods:</strong> Avoid adding public methods to <code>GUI</code>. Prefer adding logic to Managers (<code>CanvasManager</code>, etc.) or <code>UICoordinator</code>.</li>
+        <li><strong>Event-Driven:</strong> Communication between components must occur EXCLUSIVELY via <code>EventBusV2</code>.</li>
+        <li><strong>Container Pattern:</strong> The <code>GUI</code> should act only as a container and dependency injection point.</li>
+    </ol>
+
+    <footer>
+        <p>Generated for ZebTrack-AI v4.0 | © 2025</p>
+    </footer>
+</main>
+
+</body>
+</html>

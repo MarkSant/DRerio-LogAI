@@ -135,11 +135,11 @@ class ApplicationBootstrapper:
     def initialize(self, controller_proxy: Any) -> BootstrapResult:
         """
         Execute the bootstrap process.
-        
+
         Args:
             controller_proxy: A proxy or "self" reference from MainViewModel to pass
                             to legacy orchestrators that demand it in __init__.
-        
+
         Returns:
             BootstrapResult containing all initialized components.
         """
@@ -393,6 +393,7 @@ class ApplicationBootstrapper:
                 controller_proxy, # Must pass controller for legacy callbacks
                 event_bus=self.deps.event_bus if use_event_bus else None,
                 settings_obj=self.settings,
+                project_manager=self.deps.project_manager,
             )
 
         # Update GPU hardware display in UI

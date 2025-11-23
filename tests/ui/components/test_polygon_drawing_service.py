@@ -49,7 +49,7 @@ def test_polygon_service_completion_arena():
     assert result is True
     mock_gui.controller.set_main_arena_polygon.assert_called_once()
     mock_gui.canvas_manager.redraw_zones_from_project_data.assert_called_once()
-    mock_gui.update_zone_listbox.assert_called_once()
+    # mock_gui.update_zone_listbox.assert_called_once() # Replaced by event
 
 def test_polygon_service_completion_roi_cancel_name():
     """Testa cancelamento de ROI se nome não fornecido."""

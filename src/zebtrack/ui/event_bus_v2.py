@@ -35,6 +35,7 @@ class UIEvents(Enum):
     PROJECT_VIEWS_REFRESH_REQUESTED = auto()  # Replaces refresh_project_views
     VIDEO_TREE_REFRESH_REQUESTED = auto()  # Replaces _populate_video_selector_tree
     VIDEO_HIERARCHY_SNAPSHOT_REQUESTED = auto()  # Replaces _build_video_hierarchy_snapshot
+    VIDEO_HIERARCHY_SNAPSHOT_UPDATED = auto()  # New: Snapshot data ready
     READINESS_SNAPSHOT_UPDATED = auto()  # Replaces apply_pending_readiness_snapshot
 
     # Analysis & Processing

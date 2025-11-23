@@ -6,6 +6,7 @@ import structlog
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.components.video_display import VideoDisplayWidget
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
@@ -18,7 +19,8 @@ class TabBuilder:
 
     def __init__(self, gui: "ApplicationGUI"):
         self.gui = gui
-        self.project_manager = gui.controller.project_manager
+        # Use project_manager injected into GUI (Phase 4 dependency injection)
+        self.project_manager = gui.project_manager
         self.notebook = gui.notebook
 
     def build_main_controls_tab(self) -> ttk.Frame:
@@ -55,7 +57,17 @@ class TabBuilder:
         if project_type == "live":
             self._build_live_project_widgets(self.gui.main_controls_frame)
 
-        self.gui._request_overview_refresh()
+        if self.gui.event_bus_v2:
+            self.gui.event_bus_v2.publish(Event(
+                type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                data={
+                    "reason": "TabBuilder initialization",
+                    "append_summary": False,
+                    "immediate": False
+                },
+                source="TabBuilder.build_main_controls_tab"
+            ))
+
         return self.gui.main_controls_frame
 
     def build_zone_tab(self) -> None:
@@ -243,4 +255,9 @@ class TabBuilder:
             project_manager=self.project_manager,
         )
         self.gui.arduino_dashboard_widget.pack(fill="both", expand=False, pady=(0, 10))
-        self.gui.clear_external_trigger_notice()
+
+        if self.gui.event_bus_v2:
+            self.gui.event_bus_v2.publish(Event(
+                type=UIEvents.EXTERNAL_TRIGGER_NOTICE_CLEARED,
+                source="TabBuilder._build_live_project_widgets"
+            ))
