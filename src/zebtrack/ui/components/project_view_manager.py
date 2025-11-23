@@ -149,13 +149,17 @@ class ProjectViewManager:
         force: bool = False,
         debounce_ms: int = 300,
     ) -> None:
-        """
-        Request a refresh of the project overview (debounced).
-
-        Args:
-            reason: Optional reason for the refresh (for logging)
-            force: If True, cancel pending refresh and execute immediately
-            debounce_ms: Millisecond delay for debouncing (default 300ms)
+        if force:
+            if self._overview_refresh_after_id:
+                self.gui.root.after_cancel(self._overview_refresh_after_id)
+                self._overview_refresh_after_id = None
+            self._overview_refresh_pending = False
+            self.refresh_project_views(
+                reason=reason,
+                append_summary=False,
+                immediate=True,
+            )
+            return
         """
         if force:
             if self._overview_refresh_after_id:
@@ -167,7 +171,7 @@ class ProjectViewManager:
 
         if self._overview_refresh_pending:
             return
-
+            self.refresh_project_views(reason=reason)
         self._overview_refresh_pending = True
         if reason:
             log.debug("gui.overview.refresh_requested", reason=reason)
@@ -182,11 +186,26 @@ class ProjectViewManager:
     def refresh_project_views(self) -> None:
         """
         Refresh project overview, pipeline table, and reports tab.
-
-        This is the main orchestrator for updating all project-related views.
-        """
-        self._refresh_project_overview()
-
+    def refresh_project_views(
+        self,
+        reason: str | None = None,
+        *,
+        append_summary: bool = False,
+        immediate: bool = False,
+    ) -> None:
+        """Refresh project overview, pipeline table, and reports tab."""
+        if reason:
+            log.debug(
+                "project_view_manager.refresh_project_views",
+                reason=reason,
+                append_summary=append_summary,
+                immediate=immediate,
+            )
+            if append_summary and hasattr(self.gui, "set_status"):
+                try:
+                    self.gui.set_status(reason)
+                except Exception:
+                    log.warning("project_view_manager.refresh_project_views.status_failed")
         # Refresh pipeline table if in pre-recorded mode
         project_type = self.gui.controller.project_manager.get_project_type()
         if project_type == "pre-recorded":

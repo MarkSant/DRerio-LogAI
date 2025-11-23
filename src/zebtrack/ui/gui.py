@@ -914,6 +914,155 @@ class ApplicationGUI:
         self.event_dispatcher.publish_event(Events.MODEL_MANAGE_WEIGHTS)
 
     @public_api
+    def setup_interactive_polygon(self, polygon):
+        """Delegate interactive polygon setup to EventDispatcher (back-compat shim)."""
+        polygon = polygon or []
+        try:
+            import numpy as np
+
+            polygon_array = np.array(polygon, dtype=float)
+        except Exception:
+            polygon_array = polygon
+
+        return self.canvas_manager.setup_interactive_polygon(polygon_array)
+
+    def update_zone_listbox(self, zone_data: ZoneData | None = None):
+        """Update the zone listbox via CanvasManager (legacy entry point)."""
+        return self.canvas_manager.update_zone_listbox(zone_data)
+
+    def apply_pending_readiness_snapshot(
+        self,
+        *,
+        ready_with_trajectory: list,
+        ready_with_zones: list,
+        arena_only: list,
+        without_arena: list,
+    ) -> None:
+        """Apply the readiness snapshot through ProjectViewManager."""
+        return self.project_view_manager.apply_pending_readiness_snapshot(
+            ready_with_trajectory=ready_with_trajectory,
+            ready_with_zones=ready_with_zones,
+            arena_only=arena_only,
+            without_arena=without_arena,
+        )
+
+    def _populate_video_selector_tree(self, filter_text: str | None = None) -> None:
+        """Populate the video selector tree via ProjectViewManager (legacy shim)."""
+        return self.project_view_manager._populate_video_selector_tree(filter_text)
+
+    def _request_overview_refresh(
+        self,
+        *,
+        reason: str | None = None,
+        append_summary: bool = False,
+        immediate: bool = False,
+    ) -> None:
+        """Compat shim that delegates overview refreshes to ProjectViewManager."""
+        if append_summary and reason:
+            self._pending_overview_status = reason
+            self._overview_status_append = True
+
+        # Prefer new public API when available.
+        if hasattr(self.project_view_manager, "request_overview_refresh"):
+            return self.project_view_manager.request_overview_refresh(
+                reason=reason,
+                force=immediate,
+            )
+
+        # Fallback for older extracted method names if still present.
+        legacy_handler = getattr(self.project_view_manager, "_request_overview_refresh", None)
+        if legacy_handler:
+            return legacy_handler(
+                reason=reason,
+                append_summary=append_summary,
+                immediate=immediate,
+            )
+
+        # As a last resort, trigger an immediate full refresh.
+        refresh_fn = getattr(self.project_view_manager, "refresh_project_views", None)
+        if refresh_fn:
+            return refresh_fn()
+
+    @public_api
+    def refresh_project_views(
+        self,
+        reason: str | None = None,
+        *,
+        append_summary: bool = False,
+        immediate: bool = False,
+    ) -> None:
+        """Public entry point preserved for orchestrators and tests."""
+        return self._request_overview_refresh(
+            reason=reason,
+            append_summary=append_summary,
+            immediate=immediate,
+        )
+
+    def _edit_selected_zone_vertices(self) -> None:
+        """Delegate zone vertex editing to CanvasManager."""
+        return self.canvas_manager.edit_selected_zone_vertices()
+
+    def _rename_selected_roi(self) -> None:
+        """Delegate ROI rename workflow to DialogManager."""
+        return self.dialog_manager.rename_selected_roi()
+
+    def _remove_selected_roi_confirm(self) -> None:
+        """Remove the selected ROI after user confirmation (legacy UI flow)."""
+        if not getattr(self, "zone_listbox", None):
+            return
+
+        selected = self.zone_listbox.selection()
+        if not selected:
+            return
+
+        item = self.zone_listbox.item(selected[0])
+        values = item.get("values") if isinstance(item, dict) else None
+        if not values:
+            return
+
+        roi_name = str(values[0]).replace("📍 ", "")
+        confirm = self.dialog_manager.confirm_remove_roi(roi_name)
+        if not confirm:
+            return
+
+        zone_data = self._get_zone_data_for_active_context()
+        if not zone_data or not getattr(zone_data, "roi_names", None):
+            return
+
+        try:
+            idx = zone_data.roi_names.index(roi_name)
+        except ValueError:
+            self.show_error("Erro", "ROI não encontrada")
+            return
+
+        zone_data.roi_names.pop(idx)
+
+        if isinstance(zone_data.roi_polygons, list) and idx < len(zone_data.roi_polygons):
+            zone_data.roi_polygons.pop(idx)
+
+        roi_colors = getattr(zone_data, "roi_colors", None)
+        if isinstance(roi_colors, list) and idx < len(roi_colors):
+            roi_colors.pop(idx)
+
+        self.controller.project_manager.save_zone_data(zone_data)
+        self.canvas_manager.redraw_zones_from_project_data()
+
+        status_message = f"ROI '{roi_name}' removida com sucesso."
+        self.show_info("Sucesso", status_message)
+        self.set_status(status_message)
+        self._request_overview_refresh(reason=status_message, append_summary=True)
+
+        # Publish dual-path event for observers still listening to Event Bus v2
+        if self.event_bus_v2:
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.ZONES_UPDATED,
+                    data={"zone_data": zone_data},
+                    source="ApplicationGUI._remove_selected_roi_confirm",
+                )
+            )
+
+    @public_api
     def update_weights_dropdown(self, weights: list[str]):
         """Cache available weights so summaries stay consistent."""
         self._available_weight_names = list(weights or [])

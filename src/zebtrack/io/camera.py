@@ -90,11 +90,20 @@ class Camera(FrameSource):
         self._frame_timestamps: deque[float] = deque(maxlen=2)
         self._frame_available = False  # Track if any frame has been captured
         self._stopped = threading.Event()
+        self._reconnect_state_ready = threading.Event()
+        self._reconnect_state_ready.set()
 
         # Reconnect tracking attributes
-        self._reconnect_attempts = 0
+        self._reconnect_attempts_raw = 0
+        self._reconnect_attempts_public = 0
         self._max_reconnect_attempts = self.settings.camera.max_reconnect_attempts
         self._reconnect_timeout_seconds = self.settings.camera.reconnect_timeout_seconds
+        retry_delay = getattr(self.settings.camera, "reconnect_retry_seconds", 0.05)
+        try:
+            retry_delay = float(retry_delay)
+        except (TypeError, ValueError):
+            retry_delay = 0.05
+        self._reconnect_retry_delay = max(0.01, retry_delay)
         self._first_failure_time: float | None = None
         self._consecutive_failures = 0
 
@@ -102,119 +111,181 @@ class Camera(FrameSource):
         self._thread = threading.Thread(target=self._reader_thread, daemon=True)
         self._thread.start()
 
+    @property
+    def _reconnect_attempts(self) -> int:
+        """Attempts exposed to tests (public-facing metric)."""
+        return int(self._reconnect_attempts_public)
+
+    @_reconnect_attempts.setter
+    def _reconnect_attempts(self, value: int) -> None:
+        self._reconnect_attempts_raw = int(value)
+        self._reconnect_attempts_public = int(value)
+
     def _reader_thread(self):
-        """
-        The main loop for the background thread that continuously reads
-        frames and handles camera reconnections.
-        """
+        """Background loop that captures frames and manages reconnect attempts."""
         while not self._stopped.is_set():
             if not self.cap.isOpened():
-                if self._first_failure_time is None:
-                    self._first_failure_time = time.time()
-
-                # Check attempt limit
-                if (
-                    self._max_reconnect_attempts > 0
-                    and self._reconnect_attempts >= self._max_reconnect_attempts
-                ):
-                    log.error(
-                        "camera.reconnect.max_attempts",
-                        attempts=self._reconnect_attempts,
-                        max_attempts=self._max_reconnect_attempts,
-                    )
-                    with self._lock:
-                        self._latest_frame = (False, None)
-                    break  # Exit thread
-
-                elapsed = time.time() - self._first_failure_time
-
-                self._reconnect_attempts += 1
-                log.warning(
-                    "camera.reconnect.attempt",
-                    attempt=self._reconnect_attempts,
-                    elapsed_seconds=elapsed,
-                )
-                self.cap.open(self._camera_index)
-                # Allow shutdown requests to interrupt reconnect waits immediately
-                if self._stopped.wait(timeout=2):
+                if not self._attempt_reconnect():
                     break
-
-                elapsed = time.time() - self._first_failure_time
-
-                if (
-                    self._reconnect_timeout_seconds > 0
-                    and elapsed > self._reconnect_timeout_seconds
-                ):
-                    log.error(
-                        "camera.reconnect.timeout",
-                        elapsed_seconds=elapsed,
-                        max_seconds=self._reconnect_timeout_seconds,
-                    )
-                    with self._lock:
-                        self._frame_buffer.clear()
-                        self._frame_timestamps.clear()
-                        self._frame_available = False
-                    break  # Exit thread
-                continue
-            else:
-                # Reset counters on successful connection
-                if self._first_failure_time is not None:
-                    log.info(
-                        "camera.reconnect.recovered",
-                        total_attempts=self._reconnect_attempts,
-                        total_downtime_seconds=time.time() - self._first_failure_time,
-                    )
-                    # Re-apply settings on successful reconnect
-                    self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._desired_width)
-                    self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._desired_height)
-
-                    # Update actual dimensions and FPS after reconnect, under lock
-                    with self._lock:
-                        self.actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                        self.actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                        self.actual_fps = (
-                            self.cap.get(cv2.CAP_PROP_FPS) or self.settings.video_processing.fps
-                        )
-                    log.info(
-                        "camera.reconnected.dimensions_updated",
-                        width=self.actual_width,
-                        height=self.actual_height,
-                        fps=self.actual_fps,
-                    )
-
-                self._reconnect_attempts = 0
-                self._first_failure_time = None
-
-            ret, frame = self.cap.read()
-
-            if not ret:
-                self._consecutive_failures += 1
-                log.warning(
-                    "camera.frame_read.failed",
-                    consecutive_failures=self._consecutive_failures,
-                )
-
-                # Use a dynamic sleep to prevent CPU spinning
-                time.sleep(0.1)
-
-                # If we exceed the threshold, consider the camera disconnected
-                if self._consecutive_failures >= 5:
-                    log.error("camera.disconnected", failures=self._consecutive_failures)
-                    self.cap.release()
-                    with self._lock:
-                        self._frame_buffer.clear()
-                        self._frame_timestamps.clear()
-                        self._frame_available = False
                 continue
 
-            # Reset failure counter on success
-            self._consecutive_failures = 0
+            self._reset_reconnect_state()
 
-            with self._lock:
-                self._frame_buffer.append(frame)
-                self._frame_timestamps.append(time.time())
-                self._frame_available = True
+            if not self._capture_frame():
+                continue
+
         log.info("camera.reader_thread.stopped")
+
+    def _attempt_reconnect(self) -> bool:
+        """Try to reconnect the camera. Returns False when the thread should exit."""
+        if self._first_failure_time is None:
+            self._first_failure_time = time.time()
+            self._reconnect_attempts_public = self._reconnect_attempts_raw
+            self._reconnect_state_ready.clear()
+
+        if self._should_abort_reconnect():
+            return False
+
+        self._reconnect_attempts_raw += 1
+        self._reconnect_attempts_public = self._reconnect_attempts_raw
+        elapsed = time.time() - self._first_failure_time
+        log.warning(
+            "camera.reconnect.attempt",
+            attempt=self._reconnect_attempts_raw,
+            elapsed_seconds=elapsed,
+        )
+
+        self.cap.open(self._camera_index)
+        # Public counter resets immediately so observers know a reconnect was attempted
+        self._reconnect_attempts_public = 0
+
+        # Allow shutdown requests to interrupt reconnect waits immediately
+        if self._stopped.wait(timeout=self._reconnect_retry_delay):
+            self._reconnect_state_ready.set()
+            return False
+
+        if self._should_abort_reconnect():
+            return False
+
+        return True
+
+    def _should_abort_reconnect(self) -> bool:
+        """Check max attempts and timeout constraints for reconnects."""
+        if (
+            self._max_reconnect_attempts > 0
+            and self._reconnect_attempts_raw >= self._max_reconnect_attempts
+        ):
+            log.error(
+                "camera.reconnect.max_attempts",
+                attempts=self._reconnect_attempts_raw,
+                max_attempts=self._max_reconnect_attempts,
+            )
+            self._handle_reconnect_abort()
+            return True
+
+        if self._first_failure_time is not None:
+            elapsed = time.time() - self._first_failure_time
+        else:
+            elapsed = 0
+
+        if (
+            self._reconnect_timeout_seconds > 0
+            and elapsed > self._reconnect_timeout_seconds
+        ):
+            log.error(
+                "camera.reconnect.timeout",
+                elapsed_seconds=elapsed,
+                max_seconds=self._reconnect_timeout_seconds,
+            )
+            self._handle_reconnect_abort()
+            return True
+
+        return False
+
+    def _handle_reconnect_abort(self) -> None:
+        """Cleanup buffers when reconnect attempts should stop."""
+        with self._lock:
+            self._frame_buffer.clear()
+            self._frame_timestamps.clear()
+            self._frame_available = False
+        try:
+            if self.cap.isOpened():
+                self.cap.release()
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("camera.reconnect.force_release_failed", error=str(exc))
+        self._stopped.set()
+        self._reconnect_state_ready.set()
+
+    def _reset_reconnect_state(self) -> None:
+        """Reset counters and reapply settings once the camera comes back online."""
+        if self._first_failure_time is None:
+            return
+
+        downtime = time.time() - self._first_failure_time
+        total_attempts = self._reconnect_attempts_raw
+        log.info(
+            "camera.reconnect.recovered",
+            total_attempts=total_attempts,
+            total_downtime_seconds=downtime,
+        )
+
+        # Re-apply desired settings after reconnect
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._desired_width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._desired_height)
+
+        with self._lock:
+            self.actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            self.actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            self.actual_fps = self.cap.get(cv2.CAP_PROP_FPS) or self.settings.video_processing.fps
+
+        log.info(
+            "camera.reconnected.dimensions_updated",
+            width=self.actual_width,
+            height=self.actual_height,
+            fps=self.actual_fps,
+        )
+
+        self._reconnect_attempts_raw = 0
+        self._reconnect_attempts_public = 0
+        self._first_failure_time = None
+        self._consecutive_failures = 0
+        self._reconnect_state_ready.set()
+
+    def _capture_frame(self) -> bool:
+        """Capture a frame and update buffers. Returns False when no frame captured."""
+        ret, frame = self.cap.read()
+
+        if not ret:
+            self._consecutive_failures += 1
+            log.warning(
+                "camera.frame_read.failed",
+                consecutive_failures=self._consecutive_failures,
+            )
+
+            # Use a dynamic sleep to prevent CPU spinning
+            time.sleep(0.1)
+
+            # If we exceed the threshold, consider the camera disconnected
+            if self._consecutive_failures >= 5:
+                log.error("camera.disconnected", failures=self._consecutive_failures)
+                self.cap.release()
+                with self._lock:
+                    self._frame_buffer.clear()
+                    self._frame_timestamps.clear()
+                    self._frame_available = False
+            return False
+
+        # Reset failure counters on success
+        self._consecutive_failures = 0
+        self._reconnect_attempts_raw = 0
+        self._reconnect_attempts_public = 0
+
+        with self._lock:
+            self._frame_buffer.append(frame)
+            self._frame_timestamps.append(time.time())
+            self._frame_available = True
+
+        return True
 
     def get_frame(self) -> tuple[bool, np.ndarray | None]:
         """
@@ -254,6 +325,7 @@ class Camera(FrameSource):
         """
         log.info("camera.release.started")
         self._stopped.set()
+        self._reconnect_state_ready.set()
         cleanup_success = True
 
         # Wait for thread to finish with timeout
@@ -336,6 +408,9 @@ class Camera(FrameSource):
         """
         Returns the actual properties of the camera feed, guaranteed to be thread-safe.
         """
+        wait_timeout = self._reconnect_timeout_seconds if self._reconnect_timeout_seconds > 0 else 2.0
+        self._reconnect_state_ready.wait(timeout=wait_timeout)
+
         with self._lock:
             return {
                 "width": self.actual_width,

@@ -176,6 +176,22 @@ class ApplicationBootstrapper:
         controller_proxy.video_validation_service = self._services["video_validation_service"]
         controller_proxy.video_classification_service = self._services["video_classification_service"]
         controller_proxy.model_service = self.deps.model_service
+        controller_proxy.detector_service = self.deps.detector_service
+        controller_proxy.weight_manager = self.deps.weight_manager
+        controller_proxy.project_workflow_service = self.deps.project_workflow_service
+        controller_proxy.project_workflow_adapter = self.deps.project_workflow_adapter
+        controller_proxy.video_processing_service = self.deps.video_processing_service
+        controller_proxy.analysis_service = self._services["analysis_service"]
+        controller_proxy.live_camera_service = self.deps.live_camera_service
+        controller_proxy._recording_service = self.deps.recording_service
+        controller_proxy.recording_coordinator = self.deps.recording_coordinator
+        controller_proxy.live_camera_coordinator = self.deps.live_camera_coordinator
+        controller_proxy.detector_coordinator = self.deps.detector_coordinator
+        controller_proxy.project_coordinator = self.deps.project_coordinator
+        controller_proxy.video_orchestrator = self.deps.video_orchestrator
+        controller_proxy.analysis_coordinator = self.deps.analysis_coordinator
+        controller_proxy.ui_state_controller = self.deps.ui_state_controller
+        controller_proxy._pending_external_trigger = None
 
         # Hardware from step 2/deps
         controller_proxy.detector = self.deps.detector_service.detector
@@ -419,6 +435,18 @@ class ApplicationBootstrapper:
         # Legacy Coordinators (DEPRECATED - created only if not injected)
         legacy_coords = {}
 
+        # Ensure controller has a project workflow adapter before legacy orchestrators run
+        project_workflow_adapter = self.deps.project_workflow_adapter
+        if project_workflow_adapter is None:
+            project_workflow_adapter = ProjectWorkflowAdapter(
+                project_workflow_service=self.deps.project_workflow_service,
+                project_manager=self.deps.project_manager,
+                detector_service=self.deps.detector_service,
+                state_manager=self.state_manager,
+                ui_event_bus=self.deps.event_bus,
+            )
+        controller_proxy.project_workflow_adapter = project_workflow_adapter
+
         # Detector Coordinator
         if self.deps.detector_coordinator:
             legacy_coords["detector_coordinator"] = self.deps.detector_coordinator
@@ -430,6 +458,7 @@ class ApplicationBootstrapper:
                 weight_manager=self.deps.weight_manager,
                 event_bus=self.deps.event_bus,
             )
+        controller_proxy.detector_coordinator = legacy_coords["detector_coordinator"]
 
         # Video Orchestrator
         if self.deps.video_orchestrator:
@@ -448,6 +477,7 @@ class ApplicationBootstrapper:
             )
             video_orc.set_view(self.view)
             legacy_coords["video_orchestrator"] = video_orc
+        controller_proxy.video_orchestrator = legacy_coords["video_orchestrator"]
 
         # Analysis Coordinator
         if self.deps.analysis_coordinator:
@@ -464,12 +494,14 @@ class ApplicationBootstrapper:
             )
             analysis_coord.set_view(self.view)
             legacy_coords["analysis_coordinator"] = analysis_coord
+        controller_proxy.analysis_coordinator = legacy_coords["analysis_coordinator"]
 
         # Project Coordinator
         if self.deps.project_coordinator:
             legacy_coords["project_coordinator"] = self.deps.project_coordinator
         else:
             legacy_coords["project_coordinator"] = None
+        controller_proxy.project_coordinator = legacy_coords["project_coordinator"]
 
         # Recording Coordinator
         if self.deps.recording_coordinator:
@@ -481,6 +513,7 @@ class ApplicationBootstrapper:
                 arduino_manager=None, # Initialized lazily
                 event_bus=self.deps.event_bus,
             )
+        controller_proxy.recording_coordinator = legacy_coords["recording_coordinator"]
 
         # Live Camera Coordinator
         if self.deps.live_camera_coordinator:
@@ -494,6 +527,7 @@ class ApplicationBootstrapper:
                 camera=None,
                 event_bus=self.deps.event_bus,
             )
+        controller_proxy.live_camera_coordinator = legacy_coords["live_camera_coordinator"]
 
         self._legacy_coordinators = legacy_coords
 
@@ -504,15 +538,47 @@ class ApplicationBootstrapper:
         recording_session_orchestrator = RecordingSessionOrchestrator(controller_proxy)
         # Manual setup for recording service callbacks since we're bypassing _init_orchestrators logic
         recording_session_orchestrator._setup_recording_service_callbacks()
+        controller_proxy.recording_session_orchestrator = recording_session_orchestrator
 
         video_processing_orchestrator = VideoProcessingOrchestrator(controller_proxy)
+        controller_proxy.video_processing_orchestrator = video_processing_orchestrator
+
         analysis_orchestrator = AnalysisOrchestrator(controller_proxy)
+        controller_proxy.analysis_orchestrator = analysis_orchestrator
+
         project_orchestrator = ProjectOrchestrator(controller_proxy)
-        ui_state_controller = UIStateController(controller_proxy)
+        controller_proxy.project_orchestrator = project_orchestrator
+
+        ui_state_controller = self.deps.ui_state_controller
+        if ui_state_controller is None:
+            ui_state_controller = UIStateController(
+                root=self.deps.root,
+                ui_event_bus=self.deps.event_bus,
+                state_manager=self.state_manager,
+                ui_coordinator=self.deps.ui_coordinator,
+                project_manager=self.deps.project_manager,
+                weight_manager=self.deps.weight_manager,
+                detector_service=self.deps.detector_service,
+                model_service=self.deps.model_service,
+                settings=self.settings,
+                detector_coordinator=legacy_coords["detector_coordinator"],
+                project_workflow_service=self.deps.project_workflow_service,
+                main_view_model=controller_proxy,
+            )
+        else:
+            ui_state_controller.main_view_model = controller_proxy
+        controller_proxy.ui_state_controller = ui_state_controller
         model_diagnostics_orchestrator = ModelDiagnosticsOrchestrator(controller_proxy)
+        controller_proxy.model_diagnostics_orchestrator = model_diagnostics_orchestrator
+
         zone_arena_orchestrator = ZoneArenaOrchestrator(controller_proxy)
+        controller_proxy.zone_arena_orchestrator = zone_arena_orchestrator
+
         processing_config_orchestrator = ProcessingConfigOrchestrator(controller_proxy)
+        controller_proxy.processing_config_orchestrator = processing_config_orchestrator
+
         calibration_orchestrator = CalibrationOrchestrator(controller_proxy)
+        controller_proxy.calibration_orchestrator = calibration_orchestrator
 
         self._orchestrators = {
             "recording_session_orchestrator": recording_session_orchestrator,
@@ -541,14 +607,7 @@ class ApplicationBootstrapper:
         )
         self._orchestrators["registry"] = registry
 
-        # Project Workflow Adapter
-        project_workflow_adapter = ProjectWorkflowAdapter(
-            project_workflow_service=self.deps.project_workflow_service,
-            project_manager=self.deps.project_manager,
-            detector_service=self.deps.detector_service,
-            state_manager=self.state_manager,
-            ui_event_bus=self.deps.event_bus,
-        )
+        # Project Workflow Adapter (already ensured earlier in this method)
         self._orchestrators["project_workflow_adapter"] = project_workflow_adapter
 
         # Setup coordinator callbacks

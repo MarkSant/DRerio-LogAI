@@ -18,8 +18,10 @@ from zebtrack.core.state_manager import StateManager
 from zebtrack.core.ui_coordinator import UICoordinator
 from zebtrack.core.video_processing_service import VideoProcessingService
 from zebtrack.core.weight_manager import WeightManager
+from zebtrack.orchestrators.ui_state_controller import UIStateController
 from zebtrack.settings import Settings
 from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 
 
 @dataclass
@@ -55,12 +57,14 @@ class MainViewModelDependencies:
     analysis_service: Optional[AnalysisService] = None
     recording_service: Optional[RecordingService] = None
     live_camera_service: Optional[LiveCameraService] = None
+    ui_state_controller: Optional[UIStateController] = None
 
     # Phase 3: Super Coordinators (NEW - replace 20 legacy coordinators)
     project_lifecycle_coordinator: Optional[ProjectLifecycleCoordinator] = None
     hardware_coordinator: Optional[HardwareCoordinator] = None
     processing_coordinator: Optional[ProcessingCoordinator] = None
     session_coordinator: Optional[SessionCoordinator] = None
+    project_workflow_adapter: Optional[ProjectWorkflowAdapter] = None
 
     # Legacy coordinators (DEPRECATED - will be removed in Phase 4)
     # Kept temporarily for backward compatibility during gradual migration

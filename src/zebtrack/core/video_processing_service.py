@@ -102,6 +102,8 @@ class VideoProcessingService:
         view,  # ApplicationGUI
         cancel_event,  # threading.Event
         settings_obj: Settings,
+        detector: Detector | None = None,
+        recorder: Recorder | None = None,
     ):
         """Initialize VideoProcessingService with injected dependencies.
 
@@ -123,6 +125,9 @@ class VideoProcessingService:
         self.view = view
         self.cancel_event = cancel_event
         self.settings = settings_obj
+        # Legacy attributes kept for backward compatibility with orchestrators/tests
+        self.detector = detector
+        self.recorder = recorder
 
         log.info("video_processing_service.init.complete")
 
@@ -597,8 +602,8 @@ class VideoProcessingService:
         video_path: Path | str,
         results_dir: str,
         experiment_id: str,
-        detector: Detector,
-        recorder: Recorder,
+        detector: Detector | None = None,
+        recorder: Recorder | None = None,
         progress_callback=None,
         calibration_data: dict | None = None,
         analysis_interval_frames: int = 10,
@@ -614,8 +619,8 @@ class VideoProcessingService:
             video_path: Path to video file
             results_dir: Output directory for results
             experiment_id: Unique experiment identifier
-            detector: Detector instance
-            recorder: Recorder instance (or factory)
+            detector: Optional detector override (defaults to injected instance)
+            recorder: Optional recorder override (defaults to injected instance)
             progress_callback: Optional progress update callback
             calibration_data: Optional calibration configuration
             analysis_interval_frames: Frame interval for analysis
@@ -630,6 +635,9 @@ class VideoProcessingService:
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
         arena_polygon = self.project_manager.get_zone_data().polygon
 
+        detector = detector or self.detector
+        recorder = recorder or self.recorder
+
         # Early return if trajectory already exists
         if os.path.exists(trajectory_path):
             log.info("controller.tracking.exists", path=trajectory_path)
@@ -637,6 +645,10 @@ class VideoProcessingService:
 
         if detector is None:
             log.error("controller.tracking.no_detector")
+            return False, None
+
+        if recorder is None:
+            log.error("controller.tracking.no_recorder")
             return False, None
 
         log.info("controller.tracking.generating", video=experiment_id)
@@ -878,13 +890,15 @@ class VideoProcessingService:
                     )
 
     def _prepare_zone_data_for_tracking(
-        self, frame_width: int, frame_height: int, detector: Detector
+        self, frame_width: int, frame_height: int, detector: Detector | None = None
     ) -> tuple[ZoneData, list[list[int]]]:
         """Ensure zone data is ready for tracking and inform plugins.
 
         Phase 3: Moved from MainViewModel._prepare_zone_data_for_tracking
         """
-        assert detector is not None
+        detector = detector or self.detector
+        if detector is None:
+            raise RuntimeError("Detector not available for zone preparation")
 
         zone_data = self.project_manager.get_zone_data()
         if not zone_data.polygon:

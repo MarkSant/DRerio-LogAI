@@ -138,7 +138,10 @@ class EventDispatcher:
 
         # Handlers that need access to GUI instance
         # Example: self.gui.update_status(...)
-        pass
+        self.event_bus.subscribe(
+            Events.UI_SETUP_INTERACTIVE_POLYGON,
+            lambda data: self._handle_setup_interactive_polygon(data.get("polygon")),
+        )
 
     def subscribe_to_ui_events(self) -> None:
         """Subscribe to UI-related events."""
@@ -193,6 +196,17 @@ class EventDispatcher:
                 append_summary=d.get("append_summary", False),
                 immediate=d.get("immediate", False)
             ))
+
+    def _handle_setup_interactive_polygon(self, polygon_data) -> None:
+        """Handle legacy interactive polygon requests from the event bus."""
+        if not self.gui:
+            return
+
+        polygon = polygon_data
+        if polygon is None:
+            polygon = []
+
+        self.gui.setup_interactive_polygon(polygon)
 
     def _handle_setup_zone_definition_for_single_video(self, data: dict) -> None:
         """Handler for single video zone setup event."""

@@ -735,3 +735,20 @@ class AnalysisService:
             Events.UI_REFRESH_PROJECT_VIEWS,
             {"reason": "Analysis completed", "append_summary": True}
         )
+
+        def _refresh_views(*, immediate: bool) -> None:
+            refresher = getattr(controller, "refresh_project_views", None)
+            if callable(refresher):
+                refresher(reason="Analysis completed")
+                return
+
+            ui_state_controller = getattr(controller, "ui_state_controller", None)
+            if ui_state_controller:
+                ui_state_controller.refresh_project_views(
+                    reason="Analysis completed",
+                    append_summary=True,
+                    immediate=immediate,
+                )
+
+        _refresh_views(immediate=True)
+        root_tk.after(0, lambda: _refresh_views(immediate=False))

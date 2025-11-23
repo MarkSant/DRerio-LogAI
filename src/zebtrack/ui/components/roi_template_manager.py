@@ -167,7 +167,7 @@ class ROITemplateManager:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
                 self.event_bus_v2.publish(Event(
                     type=UIEvents.ZONES_UPDATED,
-                    data={'zone_data': None},
+                    data={'zone_data': zone_data},
                     source='ROITemplateManager.apply_template'
                 ))
 

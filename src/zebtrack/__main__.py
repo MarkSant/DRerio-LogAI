@@ -480,6 +480,7 @@ def main():
             ui_coordinator=ui_coordinator,
             project_manager=project_manager,
             project_workflow_service=project_workflow_service,
+            project_workflow_adapter=project_workflow_adapter,
             weight_manager=weight_manager,
             model_service=model_service,
             detector_service=detector_service,
@@ -487,6 +488,7 @@ def main():
             analysis_service=analysis_service,
             recording_service=recording_service,
             live_camera_service=live_camera_service,
+            ui_state_controller=ui_state_controller,
             # Phase 3: Four super coordinators replace legacy coordinators
             project_lifecycle_coordinator=project_lifecycle_coordinator,
             hardware_coordinator=hardware_coordinator,
