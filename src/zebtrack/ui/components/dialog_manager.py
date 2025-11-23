@@ -368,9 +368,6 @@ class DialogManager:
             self.show_error("Erro ao importar e aplicar", str(exc))
             return
 
-        # Refresh UI
-        self.gui.canvas_manager.redraw_zones_from_project_data()
-
         # NEW PATH - Event-Driven Architecture v4.0
         if self.event_bus_v2:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -381,9 +378,13 @@ class DialogManager:
             ))
         else:
             log.warning("gui.roi_templates.import_and_apply.no_event_bus")
-
-        self.gui._refresh_zone_indicators()
-        self.gui._enable_roi_button_if_arena_exists()
+            # Fallback for legacy mode if event bus is missing
+            if hasattr(self.gui, "canvas_manager"):
+                self.gui.canvas_manager.redraw_zones_from_project_data()
+            if hasattr(self.gui, "_refresh_zone_indicators"):
+                self.gui._refresh_zone_indicators()
+            if hasattr(self.gui, "_enable_roi_button_if_arena_exists"):
+                self.gui._enable_roi_button_if_arena_exists()
 
         # Import to library and update dropdown
         template_name = Path(file_path).stem
@@ -569,7 +570,9 @@ class DialogManager:
                     )
             else:
                 # Legacy path for pre-recorded projects
-                self.gui.controller.start_recording(day=day, group=group_name, cobaia=str(subject_id))
+                self.gui.controller.start_recording(
+                    day=day, group=group_name, cobaia=str(subject_id)
+                )
 
             self.gui.widget_factory.render_progress_grid()
 
@@ -778,11 +781,28 @@ class DialogManager:
                 last_video_with_zones, video_path, persist=False
             )
             pm.save_project()
-            self.gui._refresh_zone_indicators()
-            self.gui._refresh_video_selector_tree()
+
             status_message = f'Zonas reutilizadas de "{last_name}" para "{current_name}".'
             self.gui.set_status(status_message)
-            self.gui._request_overview_refresh(reason=status_message, append_summary=True)
+
+            if self.event_bus_v2:
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.ZONES_UPDATED,
+                    data={'zone_data': None},
+                    source='DialogManager.offer_zone_reuse'
+                ))
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data={'filter_text': None},
+                    source='DialogManager.offer_zone_reuse'
+                ))
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                    data={'reason': status_message, 'append_summary': True},
+                    source='DialogManager.offer_zone_reuse'
+                ))
+
             if not copied_files:
                 self.show_warning(
                     "Arquivos Parquet Indisponíveis",
@@ -796,8 +816,19 @@ class DialogManager:
             pm.clear_zone_data_for_video(video_path, persist=False)
             status_message = "Comece a desenhar a arena e as ROIs para este vídeo."
             self.gui.set_status(status_message)
-            self.gui._request_overview_refresh(reason=status_message, append_summary=True)
-            self.gui._refresh_video_selector_tree()
+
+            if self.event_bus_v2:
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                    data={'reason': status_message, 'append_summary': True},
+                    source='DialogManager.offer_zone_reuse'
+                ))
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data={'filter_text': None},
+                    source='DialogManager.offer_zone_reuse'
+                ))
 
     def change_roi_color(self):
         """Change the color of the selected ROI."""
@@ -829,11 +860,22 @@ class DialogManager:
             self.gui.controller.project_manager.save_zone_data(zone_data)
 
             # Update visualization
-            self.gui.canvas_manager.redraw_zones_from_project_data()
-            self.show_info("Sucesso", f"Cor da ROI '{old_name}' alterada para {color_name}")
             status_message = f"Cor da ROI '{old_name}' alterada para {color_name}."
             self.gui.set_status(status_message)
-            self.gui._request_overview_refresh(reason=status_message, append_summary=True)
+            self.show_info("Sucesso", status_message)
+
+            if self.event_bus_v2:
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.ZONES_UPDATED,
+                    data={'zone_data': zone_data},
+                    source='DialogManager.change_roi_color'
+                ))
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                    data={'reason': status_message, 'append_summary': True},
+                    source='DialogManager.change_roi_color'
+                ))
 
         except ValueError:
             self.show_error("Erro", "ROI não encontrada")
@@ -864,11 +906,22 @@ class DialogManager:
                 self.gui.controller.project_manager.save_zone_data(zone_data)
 
                 # Update visualization
-                self.gui.canvas_manager.redraw_zones_from_project_data()
-                self.show_info("Sucesso", f"ROI renomeada para '{new_name}'")
                 status_message = f"ROI renomeada para '{new_name}'."
                 self.gui.set_status(status_message)
-                self.gui._request_overview_refresh(reason=status_message, append_summary=True)
+                self.show_info("Sucesso", status_message)
+
+                if self.event_bus_v2:
+                    from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                    self.event_bus_v2.publish(Event(
+                        type=UIEvents.ZONES_UPDATED,
+                        data={'zone_data': zone_data},
+                        source='DialogManager.rename_selected_roi'
+                    ))
+                    self.event_bus_v2.publish(Event(
+                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                        data={'reason': status_message, 'append_summary': True},
+                        source='DialogManager.rename_selected_roi'
+                    ))
 
             except ValueError:
                 self.show_error("Erro", "ROI não encontrada")

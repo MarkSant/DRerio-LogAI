@@ -1,257 +1,74 @@
-<p align="center">
-  <img src="docs/drerio_logai_logo.png" alt="DRerio LogAI Logo" width="256"/>
-</p>
+# ZebTrack-AI
 
-<p align="center">
-  <a href="https://github.com/MarkSant/ZebTrack-AI/actions/workflows/ci.yml"><img src="https://github.com/MarkSant/ZebTrack-AI/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" alt="Python 3.12+"></a>
-  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-</p>
+**Software de Rastreamento e Análise Comportamental para Danio rerio (Zebrafish)**
 
-**DRerio LogAI** é uma aplicação desktop construída com Tkinter que automatiza todo o fluxo de rastreamento multi-animal, análise comportamental e geração de relatórios científicos para pesquisa com *Danio rerio* (zebrafish). O projeto combina modelos de visão computacional (YOLO/OpenVINO), análises especializadas de comportamento e uma interface amigável, oferecendo uma solução completa para laboratórios de pesquisa translacional.
+![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)
+![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
+![Python](https://img.shields.io/badge/python-3.11%2B-yellow.svg)
+![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
 
-> **Nota sobre o nome**: Este projeto foi anteriormente conhecido como "ZebTrack-AI" durante o desenvolvimento. O nome oficial do produto é **DRerio LogAI**. O nome do pacote interno Python (`zebtrack`) foi mantido por compatibilidade.
->
-> *Screenshot/preview do app virá em breve.*
+O **ZebTrack-AI** é uma plataforma avançada de visão computacional projetada para automatizar a análise de comportamento de peixes *Danio rerio* em experimentos científicos. Ele combina detecção baseada em Deep Learning (YOLO/OpenVINO) com uma interface gráfica robusta e modular.
 
-## Sumário rápido
+## 🚀 Novidades na Versão 4.0
 
-- [Propósito do projeto](#propósito-do-projeto)
-- [Guia rápido](#guia-rápido)
-- [Principais capacidades](#principais-capacidades)
-- [Arquitetura geral](#arquitetura-geral)
-- [Estrutura de pastas explicada](#estrutura-de-pastas-explicada)
-- [Convenções de código](#convenções-de-código)
-- [Pontos de atenção importantes](#pontos-de-atenção-importantes)
-- [Testes](#testes)
-- [Checklist de QA pré-release](#checklist-de-qa-pré-release)
-- [Dados e relatórios](#dados-e-relatórios)
-- [Documentação estendida](#documentação-estendida)
-- [Contribuindo](#contribuindo)
-- [Licença](#licença)
+*   **Arquitetura Event-Driven:** Totalmente refatorado para eliminar acoplamento, garantindo maior estabilidade e facilidade de manutenção.
+*   **Interface Otimizada:** Nova aba unificada de "Processamento e Relatórios" para fluxo de trabalho simplificado.
+*   **Performance:** Redução significativa no uso de memória e CPU durante a renderização da interface.
+*   **Confiabilidade:** Eliminação de condições de corrida (race conditions) e melhor tratamento de erros.
 
-## Propósito do projeto
+## 🛠️ Instalação
 
-Entregar uma solução de ponta a ponta para pesquisadores que precisam rastrear múltiplos animais em vídeo, extrair métricas comportamentais e produzir relatórios publicáveis sem sair da aplicação. O **DRerio LogAI** integra detecção, rastreamento, análise de ROIs, relatórios (Excel/Word/CSV/Parquet) e ferramentas de QA com foco em reprodutibilidade e alta produtividade.
+1.  **Pré-requisitos:** Python 3.11 ou superior e Poetry instalado.
+2.  Clone o repositório:
+    ```bash
+    git clone https://github.com/seu-usuario/ZebTrack-AI.git
+    cd ZebTrack-AI
+    ```
+3.  Instale as dependências:
+    ```bash
+    poetry install
+    ```
 
-## Guia rápido
+## ▶️ Execução
 
-### Pré-requisitos
+Para iniciar a aplicação:
 
-- Python 3.12 ou superior
-- [Poetry](https://python-poetry.org/) configurado no PATH
-- **Hardware recomendado** (auto-detectado no startup):
-  - **GPU NVIDIA com CUDA**: Melhor performance com PyTorch (auto-selecionado)
-  - **GPU Intel (incluindo plataformas EVO)**: Aceleração via OpenVINO (auto-selecionado)
-  - **CPU apenas**: Funciona com PyTorch ou OpenVINO otimizado para CPU
-
-> **Nota**: O sistema detecta automaticamente seu hardware e seleciona o melhor backend. Na janela principal, você verá o hardware detectado em "Estado do Modelo de Detecção". Se OpenVINO for recomendado mas o modelo não estiver convertido, o sistema usará PyTorch temporariamente e exibirá orientações para conversão.
-
-### Instalação
-
-```powershell
-poetry install
-poetry run python -m zebtrack --help
-```
-
-### Executar a interface gráfica
-
-```powershell
+```bash
 poetry run zebtrack
 ```
 
-Fluxo inicial recomendado:
+## 📖 Documentação
 
-1. **Criar um novo projeto** com o wizard inteligente de 5 etapas (ativado por padrão desde a versão 1.6).
-   - Escolha o tipo de projeto (experimental, exploratório ou live) e informe se deseja reutilizar Parquets existentes.
-   - Faça o scan recursivo de pastas para localizar vídeos e arquivos `*_arena.parquet`, `*_rois.parquet`, `*_trajectory.parquet`.
-   - Revise a detecção automática do design experimental, ajuste regex personalizados quando necessário e defina o plano de importação (SKIP, IMPORT_ZONES, PARTIAL, FULL) vídeo a vídeo.
-   - Confirme o resumo consolidado antes da criação — nada é escrito em disco até essa etapa.
-2. Selecione o plugin de detector (YOLO padrão ou pesos convertidos em OpenVINO) e configure os limiares de confiança/NMS pelo painel de configuração avançada.
-3. Defina arenas/ROIs (ou importe templates/parquets existentes), execute a calibração pixel/cm quando necessário e aproveite os templates reutilizáveis na aba de zonas.
-4. Acompanhe o progresso em tempo real pelo overlay de análise, com indicador de modo de rastreamento (multi vs. indivíduo único), estatísticas detalhadas e seleção de trilhas bloqueada automaticamente quando o modo single subject é forçado.
-5. Gere relatórios individuais ou agregados ao final. Os arquivos são gravados em `<video>_results/` com prefixos `1_`, `2_`, `3_`, mantendo o esquema Parquet imutável.
+A documentação completa está disponível na pasta `docs/`:
 
-### Wizard de Criação de Projetos (padrão)
+*   [Arquitetura do Sistema](docs/ARCHITECTURE.md): Detalhes técnicos sobre o design Event-Driven e Mediator.
+*   [Guia do Desenvolvedor](docs/DEVELOPER_GUIDE.md): Como contribuir e estender o sistema.
+*   [Guia de Eventos](docs/EVENT_BUS_GUIDE.md): Como utilizar o barramento de eventos.
+*   [API Reference](docs/API_STABILITY.md): Contrato da API pública.
 
-Desde a v1.6 o wizard é o fluxo oficial de criação de projetos. Não é necessário editar `config.local.yaml`; desabilite o wizard apenas em cenários de suporte legado.
+## 🧪 Recursos Científicos
 
-#### Recursos em destaque
+*   **Rastreamento Preciso:** Algoritmos de filtragem para suavizar trajetórias (Savgol filter).
+*   **Métricas Comportamentais:** Cálculo automático de velocidade, distância, tempo na zona (center/periphery) e imobilidade.
+*   **Reprodutibilidade:** Configurações de análise salvas com os dados (arquivos Parquet e YAML).
+*   **Exportação:** Relatórios em Excel e Word prontos para publicação.
 
--
-- ✅ Detecção automática de design experimental (grupos/dias/sujeitos) com regex personalizável e pré-visualização ao vivo
-- ✅ Importação seletiva de arenas, ROIs e trajetórias previamente processadas
-- ✅ Layout responsivo em 3 colunas (janela 1150×550px) com botões sempre visíveis
-- ✅ Integração direta com o sistema de templates de ROI e com as configurações avançadas do detector
-- ✅ Resumo final com plano de processamento por ação (SKIP/IMPORT_ZONES/PARTIAL/FULL), métricas de confiança e estimativa de tempo
+## 🏗️ Estrutura do Projeto
 
-Consulte a nossa **[Wiki](docs/wiki)** para guias de usuário detalhados, incluindo o passo a passo completo do Wizard e tutoriais.
-
-## Principais capacidades
-
-- **Detecção automática de hardware e otimização**: Sistema inteligente que detecta GPUs NVIDIA (CUDA), Intel (incluindo EVO) e seleciona automaticamente o melhor backend (PyTorch ou OpenVINO) para máximo desempenho.
-- **Arquitetura MVVM com Componentes de UI**: Sistema modular, testável e reativo com `StateManager` para uma fonte única de verdade e um `EventBus` para comunicação desacoplada.
-- **Wizard inteligente de criação de projetos**: Assistente de 5 etapas com auto-detecção de design experimental, importação granular de Parquets e validação contextual.
-- **Rastreamento multi-animal**: Utiliza modelos YOLOv8 com suporte a OpenVINO para aceleração de inferência e gerenciamento de cache.
-- **Gestão avançada de ROIs**: Desenho assistido (snapping/clamping), edição segura de vértices, templates reutilizáveis e regras de inclusão configuráveis.
-- **Relatórios científicos ricos**: Exportação em Excel, CSV, Parquet e Word com mapas de ROI, gráficos e apêndice de eventos.
-- **Overlay em tempo real**: Exibição de modo de rastreamento, progresso detalhado e estatísticas de processamento.
-- **Progresso visual de diagnósticos**: Janela modal com barra de progresso frame-by-frame, log detalhado e opção de cancelamento durante testes de modelo.
-- **Sistema de Projetos Persistente**: Gerencia lotes de vídeos, configurações de análise, metadados e templates de ROI.
-- **Configuração avançada in-app**: Editor de `config.local.yaml` com validação Pydantic v2 em tempo real.
-
-## Arquitetura geral
-
-A aplicação segue uma arquitetura **MVVM-like** (Model-View-ViewModel) com uma camada de **UI baseada em componentes**, promovendo alta coesão e baixo acoplamento.
-
-- **View Layer (`zebtrack.ui`)**: Componentes Tkinter modulares e reutilizáveis que emitem eventos.
-- **ViewModel Layer (`zebtrack.core.controller`)**: O `MainViewModel` orquestra operações, ouve eventos da UI e atualiza o estado centralizado.
-- **Model Layer (`zebtrack.core`, `zebtrack.analysis`)**: O `StateManager` (fonte única de verdade), serviços de domínio (`ProjectService`, `AnalysisService`) e a lógica de negócio principal.
-
-Consulte o documento [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) para um diagrama detalhado, fluxos de dados e as decisões arquiteturais do projeto.
-
-## Estrutura de pastas explicada
-
-```text
-.
-├─ src/
-│  └─ zebtrack/
-│     ├─ __main__.py          # Entry point do CLI/GUI (python -m zebtrack / poetry run zebtrack)
-│     ├─ core/                # Controlador, gerenciamento de projetos, detectores, calibração
-│     ├─ ui/                  # Interface Tkinter, diálogos e overlays da análise (wizard, templates, config)
-│     ├─ analysis/            # Métricas comportamentais, ROI, reporter, serviços auxiliares
-│     ├─ io/                  # Escrita de Parquet, MP4 e integrações de entrada/saída
-│     ├─ plugins/             # Implementações de DetectorPlugin (YOLO, OpenVINO, mock)
-│     └─ settings.py          # Modelos Pydantic, feature flags, carregamento de config.yaml
-├─ tests/                     # Suite pytest (unitário, integração e fluxos de UI)
-│  ├─ test_wizard*.py         # 🧙 Testes do wizard (adapter, integração, steps)
-│  └─ ...
-├─ docs/                      # Documentação complementar (arquitetura, guias, changelog, wiki)
-│  ├─ wiki/                   # Conteúdo replicado na wiki do GitHub
-│  └─ notes/                  # Estudos técnicos e propostas em andamento
-├─ config.yaml                # Configuração padrão carregada em runtime
-├─ config.local.yaml          # Overrides locais (ex.: apontar para GPUs específicas)
-├─ poetry.lock / pyproject.toml
-└─ .github/copilot-instructions.md
+```
+src/zebtrack/
+├── core/           # Lógica de negócios (Detecção, Análise)
+├── io/             # Entrada/Saída (Câmera, Arquivos)
+├── ui/             # Interface Gráfica (Tkinter)
+│   ├── components/ # Gerenciadores (Canvas, Dialogs, Project)
+│   ├── ui_coordinator.py # Mediator
+│   └── gui.py      # Entry point
+└── utils/          # Utilitários matemáticos e geométricos
 ```
 
-### Destaques
+## 🤝 Contribuição
 
-- **`core/controller.py`**: hub do fluxo de trabalho. Chama detecção, grava dados, atualiza GUI e agenda callbacks via `root.after` para manter a thread principal livre.
-- **`ui/wizard/`** 🧙: Wizard de 5 etapas (layout 3 colunas) com adaptador para o controlador e testes dedicados.
-- **`core/project_manager.py`**: Varredura granular de Parquets (`scan_input_paths()`), persistência de templates de ROI e estados por vídeo.
-- **`io/recorder.py`**: garante esquema Parquet fixo (`timestamp, frame, track_id, x1, y1, x2, y2, confidence, ...`). Colunas em cm são anexadas somente quando há calibração.
-- **`analysis/behavior.py` & `analysis/analysis_service.py` + `analysis/reporter.py`**: métricas comportamentais, ROI e geração de relatórios multi-formato.
-- **`tests/test_wizard*.py`, `tests/test_overlay_integration.py`, `tests/test_interval_frames_config.py`**: cobertura dos fluxos críticos da UI.
+Contribuições são bem-vindas! Consulte o `docs/DEVELOPER_GUIDE.md` para diretrizes de estilo e testes.
 
-## Convenções de código
-
-- **Linguagem & runtime**: Python ≥ 3.12, dependências gerenciadas por Poetry.
-- **Estilo**: [Ruff](https://docs.astral.sh/ruff/) com `line-length = 100` (execute `poetry run ruff check .`).
-- **Tipagem**: uso consistente de type hints e Pydantic para contratos de configuração.
-- **Logging**: `structlog` com padrão `dominio.acao.resultado` (`controller.load_project.success`, `recorder.save_parquet.error`, etc.).
-- **Configurações**: nunca hardcode valores; importe `from zebtrack import settings`.
-- **Testes**: pytest com fixtures em `tests/conftest.py`. Cada mudança pública deve ter cobertura.
-- **Documentação**: atualize README, `CONTRIBUTING.md`, `docs/ARCHITECTURE.md`, `docs/REFERENCE_GUIDE.md` e `.github/copilot-instructions.md` ao alterar fluxos principais.
-
-## Pontos de atenção importantes
-
-- **Esquema Parquet**: mantenha a ordem das colunas conforme definida em `io/recorder.py`. Novas colunas só podem ser adicionadas ao final e precisam de testes.
-- **Escalonamento de zonas**: chame `Detector.set_zones(...)` após conhecer as dimensões reais do vídeo para evitar deslocamentos de ROI.
-- **Callbacks de progresso**: agende atualizações com `root.after(0, ...)` para não bloquear a thread principal do Tkinter.
-- **Modo de processamento**: fluxos de calibração e diagnóstico forçam o modo single subject; o overlay bloqueia o seletor de trilhas automaticamente.
-- **Hardware opcional**: mantenha verificações para ausência de Arduino/câmeras; o app deve continuar funcional em modo offline.
-- **Persistência de intervalos**: valores de `analysis_interval_frames`/`display_interval_frames` vivem em `ProjectManager.project_data` e devem ser salvos via `save_project()`.
-- **Templates e ROIs**: utilizar `ProjectManager.save_zone_data()` garante que a UI, o detector e os relatórios fiquem sincronizados.
-
-## Testes
-
-```powershell
-# Rodar todos os testes com cobertura (paralelizado)
-poetry run pytest
-
-# Rodar testes sequencialmente
-poetry run pytest -n 0
-
-# Gerar relatório de cobertura HTML
-poetry run pytest --cov-report=html
-```
-
-Rodar testes específicos:
-
-```powershell
-poetry run pytest tests/test_overlay_integration.py::TestOverlayIntegration
-poetry run pytest tests/test_interval_frames_config.py
-poetry run pytest tests/test_wizard_integration.py
-```
-
-### Pre-commit Hooks
-
-```powershell
-# Instalar hooks (primeira vez apenas)
-poetry run pre-commit install
-
-# Rodar manualmente em todos os arquivos
-poetry run pre-commit run --all-files
-```
-
-Os hooks executam automaticamente:
-
-- Ruff (lint e format)
-- Verificação de trailing whitespace
-- Verificação de YAML
-- Poetry lock file check
-
-Toda cobertura de testes é automatizada. Reproduza casos extremos via fixtures de pytest e cenários documentados em `test_scenarios/`.
-
-## Checklist de QA pré-release
-
-1. **Atualizar artefatos compartilhados**
-   - `poetry run python scripts/build_templates.py`
-   - `poetry run python scripts/compile_translations.py`
-2. **Executar baterias automáticas**
-   - `poetry run pytest -q`
-   - `poetry run ruff check .`
-3. **Confirmar documentação** – conferir entradas recentes em `docs/changelog.md` e nos guias de fluxo.
-
-## Dados e relatórios
-
-Para cada vídeo processado é criado um diretório `*_results` contendo:
-
-- `3_CoordMovimento_{video}.parquet`: trajetória com colunas obrigatórias `timestamp, frame, track_id, x1, y1, x2, y2, confidence` (+ métricas em cm quando calibrado).
-- `{video}_summary.xlsx`: métricas globais e por ROI em formato analítico.
-- `{video}_report.docx`: relatório Word com gráficos, mapas de ROI e estatísticas chave.
-
-Relatórios consolidados (`.xlsx`, `.csv`, `.parquet`) podem ser gerados pela aba **Relatórios** após o processamento de múltiplos vídeos.
-
-✅ Consulte [`docs/REFERENCE_GUIDE.md`](docs/REFERENCE_GUIDE.md) para as tabelas completas de variáveis, fórmulas matemáticas e tutoriais de inspeção experimental.
-
-## Documentação estendida
-
-### 📖 Para Usuários
-
-A Wiki do projeto contém guias completos para usuários finais:
-
-- **[Guia de Introdução](docs/wiki/user-guide/GETTING_STARTED.md)** - Tutorial completo do primeiro projeto, desde instalação até análise de resultados
-- **[Perguntas Frequentes (FAQ)](docs/wiki/user-guide/FAQ.md)** - Respostas para mais de 50 perguntas comuns sobre instalação, uso e análise
-- **[Guia de Resolução de Problemas](docs/wiki/user-guide/TROUBLESHOOTING.md)** - Soluções detalhadas para problemas comuns (câmera, detecção, performance, GPU, etc.)
-
-### 🔧 Para Desenvolvedores
-
-Documentação técnica detalhada para contribuidores:
-
-- **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)**: A documentação técnica central. Contém a visão de componentes, fluxos de dados, decisões arquiteturais e o padrão MVVM.
-- [`docs/REFERENCE_GUIDE.md`](docs/REFERENCE_GUIDE.md): Guia de referência para métricas, fórmulas e integrações.
-- [`docs/COORDINATE_SYSTEMS.md`](docs/COORDINATE_SYSTEMS.md): Detalhes sobre transformações de coordenadas e calibração.
-- [`docs/DEPENDENCY_INJECTION_GUIDE.md`](docs/DEPENDENCY_INJECTION_GUIDE.md): Padrões de injeção de dependência e arquitetura MVVM-S.
-- [`docs/STATE_MANAGER_GUIDE.md`](docs/STATE_MANAGER_GUIDE.md): Gerenciamento de estado centralizado e observável.
-- [`docs/DEVELOPER_GUIDE_WIZARD.md`](docs/DEVELOPER_GUIDE_WIZARD.md): Desenvolvimento e extensão do wizard de projetos.
-
-## Contribuindo
-
-Contribuições são super bem-vindas! Leia o [CONTRIBUTING.md](CONTRIBUTING.md) para conhecer o fluxo de desenvolvimento, padrões de commit e checklist de PR.
-
-## Licença
-
-Distribuído sob a licença MIT. Veja [LICENSE](LICENSE) para detalhes.
+---
+**Desenvolvido para:** Pesquisa de Canabidiol - UNESP

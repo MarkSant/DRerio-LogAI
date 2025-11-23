@@ -151,8 +151,12 @@ class UICoordinator:
         )
 
         # External Trigger Events
-        self.event_bus.subscribe(UIEvents.EXTERNAL_TRIGGER_NOTICE, self._on_external_trigger_notice)
-        self.event_bus.subscribe(UIEvents.EXTERNAL_TRIGGER_NOTICE_CLEARED, self._on_external_trigger_notice_cleared)
+        self.event_bus.subscribe(
+            UIEvents.EXTERNAL_TRIGGER_NOTICE, self._on_external_trigger_notice
+        )
+        self.event_bus.subscribe(
+            UIEvents.EXTERNAL_TRIGGER_NOTICE_CLEARED, self._on_external_trigger_notice_cleared
+        )
 
         log.debug("ui_coordinator.subscriptions_setup", count=self._count_subscriptions())
 
@@ -185,7 +189,11 @@ class UICoordinator:
             # 1. Update canvas zone listbox
             if self.canvas_manager:
                 self._safe_ui_call(lambda: self.canvas_manager.update_zone_listbox(zone_data))
-                log.debug("ui_coordinator.zones_updated.canvas_updated", has_zones=zone_data is not None)
+                self._safe_ui_call(lambda: self.canvas_manager.update_roi_button_state())
+                log.debug(
+                    "ui_coordinator.zones_updated.canvas_updated",
+                    has_zones=zone_data is not None
+                )
 
             # 2. Validate zones (if validation manager is available)
             if self.validation_manager and zone_data:
@@ -457,7 +465,9 @@ class UICoordinator:
         self._events_handled += 1
         try:
             if self.state_synchronizer:
-                self._safe_ui_call(lambda: self.state_synchronizer.update_analysis_task_status(**data))
+                self._safe_ui_call(
+                    lambda: self.state_synchronizer.update_analysis_task_status(**data)
+                )
         except Exception as e:
             self._errors_count += 1
             log.exception("ui_coordinator.analysis_task_status_updated.error", error=str(e))

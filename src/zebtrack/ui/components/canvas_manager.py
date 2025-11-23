@@ -63,11 +63,16 @@ class CanvasManager:
         # Subscribe to ZONES_UPDATED event (replaces direct gui.update_zone_listbox calls)
         self.event_bus_v2.subscribe(UIEvents.ZONES_UPDATED, self._on_zones_updated)
 
-        # Subscribe to POLYGON_EDIT_REQUESTED event (replaces direct gui.setup_interactive_polygon calls)
-        self.event_bus_v2.subscribe(UIEvents.POLYGON_EDIT_REQUESTED, self._on_polygon_edit_requested)
+        # Subscribe to POLYGON_EDIT_REQUESTED event
+        # (replaces direct gui.setup_interactive_polygon calls)
+        self.event_bus_v2.subscribe(
+            UIEvents.POLYGON_EDIT_REQUESTED, self._on_polygon_edit_requested
+        )
 
-        log.debug("canvas_manager.event_subscriptions_setup",
-                  events=["ZONES_UPDATED", "POLYGON_EDIT_REQUESTED"])
+        log.debug(
+            "canvas_manager.event_subscriptions_setup",
+            events=["ZONES_UPDATED", "POLYGON_EDIT_REQUESTED"]
+        )
 
     def _on_zones_updated(self, data: dict):
         """Handle ZONES_UPDATED event.
@@ -76,7 +81,10 @@ class CanvasManager:
             data: Event payload containing zone_data
         """
         zone_data = data.get("zone_data")
-        log.debug("canvas_manager.zones_updated_event_received", has_zone_data=zone_data is not None)
+        log.debug(
+            "canvas_manager.zones_updated_event_received",
+            has_zone_data=zone_data is not None
+        )
         self.update_zone_listbox(zone_data)
 
     def _on_polygon_edit_requested(self, data: dict):
@@ -433,7 +441,7 @@ class CanvasManager:
 
     def edit_selected_zone_vertices(self):
         """Enable interactive editing of the selected zone's vertices.
-        
+
         Note: This involves business logic AND UI interaction, so it stays in Manager
         but delegates drawing to Renderer and events to EventHandler.
         """
@@ -664,7 +672,7 @@ class CanvasManager:
             )
             status_message = "Arena principal salva com sucesso."
             self.gui.set_status(status_message)
-            self._enable_roi_button_if_arena_exists()
+            self.update_roi_button_state()
 
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
             if self.event_bus_v2:
@@ -700,7 +708,7 @@ class CanvasManager:
             self.gui.controller.save_manual_arena(self.gui.edited_polygon_points)
             status_message = "Zona salva com sucesso."
             self.gui.set_status(status_message)
-            self._enable_roi_button_if_arena_exists()
+            self.update_roi_button_state()
 
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
             if self.event_bus_v2:
@@ -754,7 +762,7 @@ class CanvasManager:
         self.drag_offset = (0, 0)
         self.current_editing_zone = None
 
-    def _enable_roi_button_if_arena_exists(self):
+    def update_roi_button_state(self):
         """Enable ROI button if arena exists."""
         zone_data = self.gui._get_zone_data_for_active_context()
         widget = getattr(self.gui, "zone_controls", None)

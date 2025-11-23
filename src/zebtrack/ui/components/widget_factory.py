@@ -100,9 +100,9 @@ class WidgetFactory:
         metadata = metadata or {}
         candidate = metadata.get("day_label") or ""
         if not candidate and metadata.get("day") is not None:
-            candidate = self.gui._format_day_display(metadata.get("day"))
+            candidate = self.gui.validation_manager._format_day_display(metadata.get("day"))
         if not candidate:
-            candidate = self.gui._format_day_display(day_value)
+            candidate = self.gui.validation_manager._format_day_display(day_value)
         if not candidate:
             base_value = day_value if day_value not in (None, "") else None
             candidate = str(base_value) if base_value is not None else "Sem Dia"
@@ -459,10 +459,10 @@ class WidgetFactory:
         self.gui.processing_reports_widget = ProcessingReportsWidget(
             self.gui.processing_reports_tab_frame,
             event_bus=self.gui.event_bus,
-            on_generate_trajectories=self.gui._trigger_batch_trajectory_processing,
-            on_export_summaries=self.gui._trigger_parquet_summaries,
-            on_generate_partial_report=self.gui._on_processing_reports_generate_partial,
-            on_generate_unified_report=self.gui._generate_unified_report,
+            on_generate_trajectories=self.gui.project_view_manager.trigger_batch_trajectory_processing,
+            on_export_summaries=self.gui.project_view_manager.trigger_parquet_summaries,
+            on_generate_partial_report=self.gui.project_view_manager.on_processing_reports_generate_partial,
+            on_generate_unified_report=self.gui.project_view_manager.generate_unified_report,
         )
         self.gui.processing_reports_widget.pack(fill="both", expand=True)
 
@@ -470,7 +470,7 @@ class WidgetFactory:
         if self.gui.processing_reports_widget.tree:
             self.gui.processing_reports_widget.tree.bind(
                 "<Double-Button-1>",
-                self.gui._on_processing_reports_item_double_click,
+                self.gui.project_view_manager.on_processing_reports_item_double_click,
             )
 
         # Initial refresh

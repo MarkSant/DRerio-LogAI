@@ -1,11 +1,12 @@
 """Tests for DialogManager component."""
 
 import sys
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, ANY
 
 import pytest
 
 from zebtrack.ui.components.dialog_manager import DialogManager
+from zebtrack.ui.event_bus_v2 import UIEvents, Event
 
 
 @pytest.fixture(autouse=True)
@@ -49,6 +50,12 @@ def mock_controller():
     controller.global_calibration_session = Mock()
     controller.project_calibration_session = Mock()
     return controller
+
+
+@pytest.fixture
+def mock_event_bus():
+    """Create a mock EventBusV2."""
+    return Mock()
 
 
 @pytest.fixture
@@ -109,18 +116,19 @@ def mock_gui(tkinter_root, mock_validation_manager, mock_controller):
 
 
 @pytest.fixture
-def dialog_manager(mock_gui):
+def dialog_manager(mock_gui, mock_event_bus):
     """Create a DialogManager instance for testing."""
-    return DialogManager(mock_gui)
+    return DialogManager(mock_gui, event_bus_v2=mock_event_bus)
 
 
 @pytest.mark.gui
 class TestDialogManagerInitialization:
     """Tests for DialogManager initialization."""
 
-    def test_initialization(self, dialog_manager, mock_gui):
+    def test_initialization(self, dialog_manager, mock_gui, mock_event_bus):
         """Test that DialogManager initializes correctly."""
         assert dialog_manager.gui is mock_gui
+        assert dialog_manager.event_bus_v2 is mock_event_bus
 
     def test_initialization_with_real_gui(self, tkinter_root):
         """Test initialization with minimal real gui object."""
@@ -128,6 +136,7 @@ class TestDialogManagerInitialization:
         gui.root = tkinter_root
         manager = DialogManager(gui)
         assert manager.gui is gui
+        assert manager.event_bus_v2 is None
 
 
 @pytest.mark.gui
@@ -567,9 +576,9 @@ class TestROITemplateDialogs:
 
     @patch("zebtrack.ui.components.dialog_manager.filedialog")
     def test_import_and_apply_roi_template_success(
-        self, mock_filedialog, dialog_manager, mock_gui, tmp_path
+        self, mock_filedialog, dialog_manager, mock_gui, tmp_path, mock_event_bus
     ):
-        """Test successful import and apply of ROI template."""
+        """Test successful import and apply of ROI template with event bus."""
         # Create temporary template file
         template_file = tmp_path / "template.json"
         template_data = {
@@ -595,9 +604,19 @@ class TestROITemplateDialogs:
 
         mock_gui.controller.project_manager.save_zone_data.assert_called_once()
         mock_gui.controller.setup_detector_zones.assert_called_once()
-        mock_gui.canvas_manager.redraw_zones_from_project_data.assert_called_once()
-        mock_gui.update_zone_listbox.assert_called_once()
+        # Removed direct call assertions
+        # mock_gui.canvas_manager.redraw_zones_from_project_data.assert_called_once()
+        # mock_gui.update_zone_listbox.assert_called_once()
         mock_info.assert_called_once()
+
+        # Verify Event Bus publishing
+        assert mock_event_bus.publish.call_count >= 1
+        # Check for ZONES_UPDATED event
+        calls = mock_event_bus.publish.call_args_list
+        zones_updated_call = next(
+            (call for call in calls if call[0][0].type == UIEvents.ZONES_UPDATED), None
+        )
+        assert zones_updated_call is not None
 
 
 @pytest.mark.gui
@@ -696,9 +715,9 @@ class TestProjectAndRecordingDialogs:
 
     @patch("zebtrack.ui.components.dialog_manager.PendingVideosDialog")
     def test_show_pending_videos_dialog_returns_result(
-        self, mock_dialog_class, dialog_manager, mock_gui
+        self, mock_dialog_class, dialog_manager, mock_gui, mock_event_bus
     ):
-        """Test show_pending_videos_dialog returns dialog result."""
+        """Test show_pending_videos_dialog returns dialog result and publishes event."""
         mock_dialog = Mock()
         mock_dialog.result = {"selected_videos": ["/path/to/video.mp4"]}
         mock_dialog_class.return_value = mock_dialog
@@ -716,8 +735,15 @@ class TestProjectAndRecordingDialogs:
         )
 
         assert result == {"selected_videos": ["/path/to/video.mp4"]}
-        mock_gui.apply_pending_readiness_snapshot.assert_called_once()
         mock_dialog_class.assert_called_once()
+
+        # Verify Event Bus publishing
+        assert mock_event_bus.publish.call_count >= 1
+        calls = mock_event_bus.publish.call_args_list
+        readiness_updated_call = next(
+            (call for call in calls if call[0][0].type == UIEvents.READINESS_SNAPSHOT_UPDATED), None
+        )
+        assert readiness_updated_call is not None
 
     @patch("zebtrack.ui.components.dialog_manager.PendingVideosDialog")
     def test_show_pending_videos_dialog_returns_none_on_cancel(
@@ -910,7 +936,9 @@ class TestConfirmationDialogs:
         assert result is None
 
     @patch("zebtrack.ui.components.dialog_manager.messagebox")
-    def test_offer_zone_reuse_accepted(self, mock_messagebox, dialog_manager, mock_gui):
+    def test_offer_zone_reuse_accepted(
+        self, mock_messagebox, dialog_manager, mock_gui, mock_event_bus
+    ):
         """Test offer_zone_reuse when user accepts."""
         mock_messagebox.askyesno.return_value = True
 
@@ -937,8 +965,18 @@ class TestConfirmationDialogs:
         assert "video2.mp4" in call_args[0][1]
         assert call_args[1]["icon"] == "question"
 
+        # Verify Event Bus publishing
+        assert mock_event_bus.publish.call_count >= 3
+        calls = mock_event_bus.publish.call_args_list
+        event_types = [call[0][0].type for call in calls]
+        assert UIEvents.ZONES_UPDATED in event_types
+        assert UIEvents.VIDEO_TREE_REFRESH_REQUESTED in event_types
+        assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
+
     @patch("zebtrack.ui.components.dialog_manager.messagebox")
-    def test_offer_zone_reuse_declined(self, mock_messagebox, dialog_manager, mock_gui):
+    def test_offer_zone_reuse_declined(
+        self, mock_messagebox, dialog_manager, mock_gui, mock_event_bus
+    ):
         """Test offer_zone_reuse when user declines."""
         mock_messagebox.askyesno.return_value = False
 
@@ -957,6 +995,22 @@ class TestConfirmationDialogs:
         dialog_manager.offer_zone_reuse("video1.mp4")
 
         mock_messagebox.askyesno.assert_called_once()
+
+        # Verify Event Bus publishing (should refresh project views and tree but NOT zones)
+        assert mock_event_bus.publish.call_count >= 2
+        calls = mock_event_bus.publish.call_args_list
+        event_types = [call[0][0].type for call in calls]
+        assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
+        assert UIEvents.VIDEO_TREE_REFRESH_REQUESTED in event_types
+        # ZONES_UPDATED should NOT be fired if declined (unless we cleared zones, which we did)
+        # Wait, code says: pm.clear_zone_data_for_video(video_path, persist=False)
+        # But it does NOT publish ZONES_UPDATED in the 'else' block in my implementation.
+        # Let's check implementation again.
+        # Implementation 'else' block:
+        # self.event_bus_v2.publish(Event(type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED...))
+        # self.event_bus_v2.publish(Event(type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED...))
+        # No ZONES_UPDATED. So assertions above are correct.
+
 
 
 @pytest.mark.gui

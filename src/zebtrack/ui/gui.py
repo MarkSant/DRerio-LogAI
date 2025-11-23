@@ -19,8 +19,6 @@ from tkinter import (
 from tkinter import font as tkfont
 from typing import Any
 
-import cv2
-import numpy as np
 import structlog
 
 try:
@@ -54,19 +52,17 @@ from zebtrack.ui.components import (
 from zebtrack.ui.decorators import public_api
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
-    CenterPeripheryDialog,
     MissingMetadataDialog,
     SaveROITemplateDialog,
     StartRecordingDialog,
-    SubjectSelectionDialog,
 )
 from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.events import Events
+from zebtrack.ui.ui_coordinator import UICoordinator
 from zebtrack.ui.window_utils import (
     reset_geometry_if_not_maximized,
 )
-from zebtrack.utils.geometry_service import GeometryService
 
 log = structlog.get_logger()
 
@@ -97,72 +93,6 @@ PROJECT_STATUS_WIDGET_ORDER: tuple[str, ...] = (
     "trajectory",
     "summary",
 )
-
-
-class _VideoPathResolverContext:
-    """Helper class to reduce complexity of _resolve_processing_reports_video_paths."""
-
-    def __init__(self, tree, metadata_store):
-        self.tree = tree
-        self.metadata_store = metadata_store
-        self.final_paths: list[str] = []
-        self.seen_paths: set[str] = set()
-        self.resolved_video_nodes: list[str] = []
-        self.had_hierarchy_nodes = False
-
-    def add_video_path(self, video_path: str | None, node_id: str | None = None) -> None:
-        """Add a video path if not already seen."""
-        if not video_path or video_path in self.seen_paths:
-            return
-        self.seen_paths.add(video_path)
-        self.final_paths.append(video_path)
-        if node_id and node_id not in self.resolved_video_nodes and self.tree.exists(node_id):
-            self.resolved_video_nodes.append(node_id)
-
-    def add_video_node(self, item_id: str) -> None:
-        """Process a single video or file node."""
-        metadata = self.metadata_store.get(item_id)
-        if not metadata:
-            return
-        node_type = metadata.get("type")
-        if node_type == "video":
-            self.add_video_path(metadata.get("video_path"), item_id)
-        elif node_type == "file":
-            parent_video = metadata.get("parent_video")
-            if parent_video:
-                self.add_video_path(parent_video, f"video_{parent_video}")
-
-    def collect_descendants(self, item_id: str) -> None:
-        """Recursively collect all video descendants."""
-        if not self.tree.exists(item_id):
-            return
-        try:
-            self.tree.item(item_id, open=True)
-        except Exception:
-            pass
-        for child in self.tree.get_children(item_id):
-            child_type = self.metadata_store.get(child, {}).get("type")
-            if child_type in ("video", "file"):
-                self.add_video_node(child)
-            else:
-                self.collect_descendants(child)
-
-    def process_item(self, item_id: str) -> None:
-        """Process a single item from the selection."""
-        metadata = self.metadata_store.get(item_id)
-        if metadata and metadata.get("type") in ("video", "file"):
-            self.add_video_node(item_id)
-        else:
-            self.had_hierarchy_nodes = True
-            self.collect_descendants(item_id)
-
-    def update_tree_selection(self) -> None:
-        """Update tree selection to show resolved video nodes."""
-        if self.had_hierarchy_nodes and self.resolved_video_nodes:
-            try:
-                self.tree.selection_set(tuple(self.resolved_video_nodes))
-            except Exception:
-                pass
 
 
 class ApplicationGUI:
@@ -210,6 +140,17 @@ class ApplicationGUI:
         self.dialog_manager = DialogManager(self, event_bus_v2=self.event_bus_v2)
         self.widget_factory = WidgetFactory(self, settings_obj=self.settings)
         self.project_view_manager = ProjectViewManager(self, event_bus_v2=self.event_bus_v2)
+
+        # Phase 2.5: Initialize UI Coordinator (Mediator)
+        self.ui_coordinator = UICoordinator(
+            event_bus=self.event_bus_v2,
+            canvas_manager=self.canvas_manager,
+            validation_manager=self.validation_manager,
+            project_view_manager=self.project_view_manager,
+            dialog_manager=self.dialog_manager,
+            state_synchronizer=self.state_synchronizer,
+            root=self.root,
+        )
 
         # Phase 3 components
         self.drawing_state_manager = DrawingStateManager()
@@ -663,16 +604,6 @@ class ApplicationGUI:
             return
         return self.widget_factory.create_project_overview_panel(parent)
 
-    @public_api
-    def _update_project_overview_summary(
-        self,
-        counts: Counter,
-        total: int,
-        videos: list[dict] | None,
-    ) -> None:
-        """Update project overview summary. Delegates to ProjectViewManager."""
-        return self.project_view_manager._update_project_overview_summary(counts, total, videos)
-
     def _on_project_overview_tree_double_click(self, event) -> None:
         """Handle double-click events on the overview tree (legacy handler)."""
         del event
@@ -684,419 +615,178 @@ class ApplicationGUI:
         if item_id:
             self._on_project_overview_tree_double_click_impl(item_id)
 
-    def _on_project_overview_right_click(self, event) -> None:
-        """Handle right-click events on the overview tree (legacy handler)."""
-        tree = self.project_overview_tree
-        if not tree or not tree.winfo_exists():
-            return
+        def _on_project_overview_right_click(self, event) -> None:
 
-        item_id = tree.identify_row(event.y)
-        if item_id:
-            self.menu_manager.show_project_overview_context_menu(
-                item_id, event.x_root, event.y_root
+            """Handle right-click events on the overview tree (legacy handler)."""
+
+            tree = self.project_overview_tree
+
+            if not tree or not tree.winfo_exists():
+
+                return
+
+    
+
+            item_id = tree.identify_row(event.y)
+
+            if item_id:
+
+                self.menu_manager.show_project_overview_context_menu(
+
+                    item_id, event.x_root, event.y_root
+
+                )
+
+    
+
+        def _on_frame_configure(self, event=None):
+
+            """Update scroll region when frame size changes."""
+
+            self.controls_canvas.configure(scrollregion=self.controls_canvas.bbox("all"))
+
+    
+
+        def _on_canvas_configure_scroll(self, event=None):
+
+            """Update frame width when canvas size changes."""
+
+            canvas_width = event.width if event else self.controls_canvas.winfo_width()
+
+            self.controls_canvas.itemconfig(self.controls_canvas_window, width=canvas_width)
+
+    
+
+        def _bind_mousewheel(self):
+
+            """Bind mouse wheel scrolling to the canvas."""
+
+    
+
+            def _on_mousewheel(event):
+
+                self.controls_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    
+
+            self.controls_canvas.bind("<MouseWheel>", _on_mousewheel)
+
+            # For Linux
+
+            self.controls_canvas.bind(
+
+                "<Button-4>", lambda e: self.controls_canvas.yview_scroll(-1, "units")
+
             )
 
-    def _pipeline_summary_exists(self, video_info: dict) -> bool:
-        controller = getattr(self, "controller", None)
-        pm = getattr(controller, "project_manager", None)
-        path = video_info.get("path")
-        if not pm or not path:
-            return False
+            self.controls_canvas.bind(
 
-        experiment_id = Path(path).stem
-        entry = pm.find_video_entry(path=path)
-        metadata_hint = dict(entry.get("metadata") or {}) if entry else {}
-        results_path = pm.resolve_results_directory(
-            experiment_id,
-            video_path=path,
-            metadata=metadata_hint,
-        )
-        summary_path = Path(results_path) / f"{experiment_id}_summary.parquet"
-        return summary_path.exists()
+                "<Button-5>", lambda e: self.controls_canvas.yview_scroll(1, "units")
 
-    def _get_selected_pipeline_video_paths(self) -> list[str]:
-        if not self.pipeline_video_tree:
-            return []
-        selected_items = list(self.pipeline_video_tree.selection() or [])
-        if not selected_items:
-            return []
-
-        final_selection: list[str] = []
-        seen_subjects: set[str] = set()
-        had_hierarchy_nodes = False
-
-        def add_subject(item_id: str) -> None:
-            if item_id in self.pipeline_video_vars and item_id not in seen_subjects:
-                seen_subjects.add(item_id)
-                final_selection.append(item_id)
-
-        def collect_descendants(item_id: str) -> None:
-            # Ensure parent nodes are expanded so children become visible.
-            try:
-                self.pipeline_video_tree.item(item_id, open=True)
-            except Exception:
-                pass
-
-            for child in self.pipeline_video_tree.get_children(item_id):
-                if child in self.pipeline_video_vars:
-                    add_subject(child)
-                else:
-                    collect_descendants(child)
-
-        for item in selected_items:
-            if item in self.pipeline_video_vars:
-                add_subject(item)
-            else:
-                had_hierarchy_nodes = True
-                collect_descendants(item)
-
-        if had_hierarchy_nodes or len(final_selection) != len(selected_items):
-            # Replace Treeview selection with the resolved subject entries only.
-            try:
-                self.pipeline_video_tree.selection_set(tuple(final_selection))
-            except Exception:
-                pass
-
-        return final_selection
-
-    def _resolve_processing_reports_video_paths(self, selection: Iterable[str] | None) -> list[str]:
-        """Translate unified tab selections into concrete video paths."""
-        if not selection:
-            return []
-
-        widget = getattr(self, "processing_reports_widget", None)
-        tree = getattr(widget, "tree", None)
-        if not tree:
-            return []
-
-        metadata_store = getattr(self, "_processing_reports_tree_metadata", {})
-        context = _VideoPathResolverContext(tree, metadata_store)
-
-        for item_id in selection:
-            if not item_id or not tree.exists(item_id):
-                continue
-            context.process_item(item_id)
-
-        context.update_tree_selection()
-        return context.final_paths
-
-    def _on_pipeline_selection_changed(self, event=None) -> None:
-        del event
-        selections = self._get_selected_pipeline_video_paths()
-        listed = len(self.pipeline_video_vars)
-
-        if self.pipeline_selection_label:
-            if not selections:
-                if listed == 0:
-                    text = "Nenhum vídeo elegível listado."
-                else:
-                    text = f"{listed} vídeo(s) elegível(is). Selecione itens para ações."
-            else:
-                text = f"{listed} vídeo(s) elegível(is) • {len(selections)} selecionado(s)."
-            self.pipeline_selection_label.config(text=text)
-
-        self._update_pipeline_buttons_state(selections)
-
-    def _update_pipeline_buttons_state(self, selections=None) -> None:
-        if not self.pipeline_action_buttons:
-            return
-        if selections is None:
-            selections = self._get_selected_pipeline_video_paths()
-
-        has_selection = bool(selections)
-        for button in self.pipeline_action_buttons.values():
-            button.config(state="normal" if has_selection else "disabled")
-
-        if has_selection:
-            all_have_trajectory = all(
-                bool(self.pipeline_video_vars.get(path, {}).get("info", {}).get("has_trajectory"))
-                for path in selections
-            )
-            self.pipeline_action_buttons["summaries"].config(
-                state="normal" if all_have_trajectory else "disabled"
             )
 
-    def _trigger_parquet_summaries(self) -> None:
-        selections = self._get_selected_pipeline_video_paths()
-        if not selections:
-            self.show_info(
-                "Sumários",
-                "Selecione ao menos um vídeo com trajetória para exportar o sumário.",
-            )
-            return
+    
 
-        self.event_dispatcher.publish_event(
-            Events.PROJECT_GENERATE_SUMMARIES, {"video_paths": selections}
-        )
-        self._refresh_pipeline_video_table()
+            def _recenter_canvas_image(self, canvas_width, canvas_height):
 
-    def _on_frame_configure(self, event=None):
-        """Update scroll region when frame size changes."""
-        self.controls_canvas.configure(scrollregion=self.controls_canvas.bbox("all"))
+    
 
-    def _on_canvas_configure_scroll(self, event=None):
-        """Update frame width when canvas size changes."""
-        canvas_width = event.width if event else self.controls_canvas.winfo_width()
-        self.controls_canvas.itemconfig(self.controls_canvas_window, width=canvas_width)
+                """Recenter the canvas background image."""
 
-    def _bind_mousewheel(self):
-        """Bind mouse wheel scrolling to the canvas."""
+    
 
-        def _on_mousewheel(event):
-            self.controls_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                if not hasattr(self, "_canvas_bg_position"):
 
-        self.controls_canvas.bind("<MouseWheel>", _on_mousewheel)
-        # For Linux
-        self.controls_canvas.bind(
-            "<Button-4>", lambda e: self.controls_canvas.yview_scroll(-1, "units")
-        )
-        self.controls_canvas.bind(
-            "<Button-5>", lambda e: self.controls_canvas.yview_scroll(1, "units")
-        )
+    
 
-    def _recenter_canvas_image(self, canvas_width, canvas_height):
-        """Recenter the canvas background image."""
-        if not hasattr(self, "_canvas_bg_position"):
-            return
+                    return
 
-        # Remove the old image
-        self.video_display.canvas.delete("background_image")
+    
 
-        # Center the image in the new canvas size
-        center_x = canvas_width // 2
-        center_y = canvas_height // 2
+        
 
-        # Update stored position
-        self._canvas_bg_position = (center_x, center_y, "center")
+    
 
-        # Create the centered image
-        self.video_display.canvas.create_image(
-            center_x,
-            center_y,
-            anchor="center",
-            image=self._canvas_bg_image,
-            tags="background_image",
-        )
+                # Remove the old image
 
+    
 
+                self.video_display.canvas.delete("background_image")
 
+    
 
-    @staticmethod
-    def _format_day_display(value):
-        """Format day display. Delegates to ValidationManager."""
-        from zebtrack.ui.components.validation_manager import ValidationManager
+        
 
-        return ValidationManager._format_day_display(value)
+    
 
-    def publish_video_hierarchy_snapshot(self) -> None:
-        """Build and publish video hierarchy snapshot."""
-        snapshot = self.validation_manager.build_video_hierarchy_snapshot()
-        self.event_dispatcher.event_bus.publish(
-            Events.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
-            {"snapshot": snapshot}
-        )
+                # Center the image in the new canvas size
 
-    @public_api
-    def _format_status_token(self, has_parquet: bool, symbol_key: str) -> str:
-        """Format status token. Delegates to ValidationManager."""
-        return self.validation_manager.format_status_token(has_parquet, symbol_key)
+    
 
-    def _refresh_video_selector_tree(self) -> None:
-        """Repopula a árvore mantendo seleção e filtros atuais sempre que possível."""
-        tree = self.zone_controls.video_selector_tree if self.zone_controls else None
-        if not tree:
-            return
+                center_x = canvas_width // 2
 
-        selected_tag = None
-        selection = tree.selection()
-        if selection:
-            try:
-                tags = tree.item(selection[0], "tags")
-                if tags:
-                    selected_tag = tags[0]
-            except Exception:
-                selected_tag = None
+    
 
-        current_filter = getattr(self, "_video_selector_filter", "")
-        if self.event_bus_v2:
-            self.event_bus_v2.publish(Event(
-                type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                data={'filter_text': current_filter},
-                source='GUI._refresh_video_selector_tree'
-            ))
+                center_y = canvas_height // 2
 
-        if selected_tag:
-            self._reselect_video_tree_item(selected_tag)
+    
 
-    def _reselect_video_tree_item(self, target_tag: str) -> None:
-        tree = self.zone_controls.video_selector_tree if self.zone_controls else None
-        if not target_tag or not tree:
-            return
+        
 
-        def _walk(node: str) -> bool:
-            for child in tree.get_children(node):
-                tags = tree.item(child, "tags")
-                if tags and tags[0] == target_tag:
-                    # Ensure branch is visible before selecting
-                    parent = tree.parent(child)
-                    while parent:
-                        tree.item(parent, open=True)
-                        parent = tree.parent(parent)
+    
 
-                    tree.selection_set(child)
-                    tree.see(child)
-                    return True
+                # Update stored position
 
-                if _walk(child):
-                    return True
-            return False
+    
 
-        _walk("")
+                self._canvas_bg_position = (center_x, center_y, "center")
 
-    def _filter_video_tree(self):
-        """Filtra a árvore com base no texto de busca."""
-        if self.video_search_var is None:
-            return
+    
 
-        if self.event_bus_v2:
-            self.event_bus_v2.publish(Event(
-                type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                data={'filter_text': self.video_search_var.get()},
-                source='GUI._filter_video_tree'
-            ))
+        
 
+    
 
-    @public_api
-    def _maybe_offer_zone_reuse(self, video_path: str) -> None:
-        """Prompt user to reuse zones when current video has none. Delegates to DialogManager."""
-        return self.dialog_manager.offer_zone_reuse(video_path)
+                # Create the centered image
 
-    def _on_video_tree_double_click(self, event):
+    
+
+                self.video_display.canvas.create_image(
+
+    
+
+                    center_x,
+
+    
+
+                    center_y,
+
+    
+
+                    anchor="center",
+
+    
+
+                    image=self._canvas_bg_image,
+
+    
+
+                    tags="background_image",
+
+    
+
+                )
+
+    
+
+        
+
+    
+
+            def _on_video_tree_double_click(self, event):
         """Handle double click on video selector."""
         del event  # Evento não é utilizado diretamente
         self.canvas_manager.load_selected_video_frame()
-
-    @public_api
-    def _on_processing_reports_item_double_click(self, event=None) -> None:
-        """Handle processing reports item double click. Delegates to ProjectViewManager."""
-        return self.project_view_manager.handle_processing_reports_item_double_click(event)
-
-    @public_api
-    def _on_processing_reports_generate_partial(self) -> None:
-        """Handle partial report generation. Delegates to ProjectViewManager."""
-        return self.project_view_manager.on_processing_reports_generate_partial()
-
-    @public_api
-    def _refresh_processing_reports_tab(self) -> None:
-        """Refresh the processing reports tab. Delegates to ProjectViewManager."""
-        return self.project_view_manager._refresh_processing_reports_tab()
-
-    @public_api
-    def _determine_status_tag(self, complete_count: int, total_count: int) -> str:
-        """Determine status tag. Delegates to ProjectViewManager."""
-        return self.project_view_manager._determine_status_tag(complete_count, total_count)
-
-    def _build_processing_report_artifact_id(self, parent_id: str, artifact_path: str) -> str:
-        """Create a stable item id for report artifacts while avoiding duplicates.
-
-        Task 2.0a: Replaced SHA1 with BLAKE2b for security.
-        """
-        digest_source = f"{parent_id}|{artifact_path}".encode("utf-8", "ignore")
-        digest = hashlib.blake2b(digest_source, digest_size=8).hexdigest()
-        return f"file_{digest}"
-
-    @public_api
-    def _sort_key_for_reports(self, value):
-        """Sort key for reports. Delegates to ProjectViewManager."""
-        return self.project_view_manager._sort_key_for_reports(value)
-
-    @public_api
-    def _format_subject_for_reports(self, value):
-        """Format subject for reports. Delegates to ValidationManager."""
-        return self.validation_manager.format_subject_for_reports(value)
-
-    @public_api
-    def _build_report_hierarchy(self, all_videos: list[dict], pm) -> dict:
-        """Build report hierarchy. Delegates to ProjectViewManager."""
-        return self.project_view_manager._build_report_hierarchy(all_videos, pm)
-
-    @public_api
-    def _populate_reports_tree_from_hierarchy(self, hierarchy: dict, pm) -> None:
-        """Populate reports tree. Delegates to ProjectViewManager."""
-        return self.project_view_manager._populate_reports_tree_from_hierarchy(hierarchy, pm)
-
-    @public_api
-    def _append_report_artifacts(self, parent_id: str, entry: dict) -> None:
-        """Append report artifacts to tree. Delegates to ProjectViewManager."""
-        return self.project_view_manager.append_report_artifacts_from_entry(parent_id, entry)
-
-    def _on_report_item_select(self, event=None):
-        """Enable or disable the partial report button based on selection."""
-        selection = self.reports_tree.selection()
-        has_video = False
-        metadata_store = getattr(self, "_report_tree_metadata", {})
-        for item_id in selection:
-            metadata = metadata_store.get(item_id)
-            if metadata and metadata.get("type") == "video":
-                has_video = True
-                break
-
-        if has_video:
-            self.generate_partial_report_btn.config(state="normal")
-        else:
-            self.generate_partial_report_btn.config(state="disabled")
-
-    @public_api
-    def _on_report_item_double_click(self, event=None):
-        """Handle report item double click. Delegates to ProjectViewManager."""
-        return self.project_view_manager.handle_report_item_double_click(event)
-
-    @public_api
-    def _handle_report_file_node(self, metadata: dict) -> None:
-        """Handle report file node. Delegates to ProjectViewManager."""
-        return self.project_view_manager._handle_report_file_node(metadata)
-
-    @public_api
-    def _handle_report_video_node(self, metadata: dict) -> None:
-        """Handle report video node. Delegates to ProjectViewManager."""
-        return self.project_view_manager.handle_report_video_node(metadata)
-
-    def _open_path_in_explorer(self, target_path: str) -> None:
-        """Open the given directory in the user's file explorer."""
-        try:
-            if sys.platform.startswith("win"):
-                os.startfile(target_path)  # type: ignore[attr-defined]
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", target_path])
-            else:
-                subprocess.Popen(["xdg-open", target_path])
-        except Exception as exc:  # pragma: no cover - GUI feedback
-            self.show_error(
-                "Erro ao abrir pasta",
-                (
-                    "Não foi possível abrir o diretório de resultados.\n"
-                    f"Caminho: {target_path}\n\nDetalhes: {exc}"
-                ),
-            )
-
-    def _generate_partial_report(self):
-        """Generate partial report. Delegates to ProjectViewManager."""
-        return self.project_view_manager.generate_partial_report()
-
-    def _generate_unified_report(self):
-        """Tells the controller to generate a unified report of all project videos."""
-        all_videos = self.controller.project_manager.get_all_videos()
-        if not all_videos:
-            self.show_warning(
-                "Sem Dados",
-                "Não há vídeos processados neste projeto para gerar um relatório.",
-            )
-            return
-        self.event_dispatcher.publish_event(
-            Events.REPORT_GENERATE,
-            {"videos": all_videos, "report_type": "unified"},
-        )
-
 
     def _refresh_roi_templates(self, clear_selection: bool = False) -> None:
         """Refresh template list. Delegates to ROITemplateManager."""
@@ -1859,24 +1549,6 @@ class ApplicationGUI:
     def ask_save_filename(self, **options):
         """Show a dialog to select a save file path. Delegates to DialogManager."""
         return self.dialog_manager.ask_save_filename(**options)
-
-    @public_api
-    def _edit_selected_zone_vertices(self):
-        """
-        Enable interactive editing of selected zone vertices.
-
-        DEPRECATED: Use canvas_manager.edit_selected_zone_vertices() directly.
-        """
-        return self.canvas_manager.edit_selected_zone_vertices()
-
-    @public_api
-    def _on_canvas_click(self, event):
-        """
-        Handle canvas click events.
-
-        DEPRECATED: Use canvas_manager.handle_canvas_click(event).
-        """
-        return self.canvas_manager.handle_canvas_click(event)
 
     @public_api
     def update_button_state(self, button_name, state):
