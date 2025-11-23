@@ -135,7 +135,9 @@ class Camera(FrameSource):
                     elapsed_seconds=elapsed,
                 )
                 self.cap.open(self._camera_index)
-                time.sleep(2)
+                # Allow shutdown requests to interrupt reconnect waits immediately
+                if self._stopped.wait(timeout=2):
+                    break
 
                 elapsed = time.time() - self._first_failure_time
 
@@ -241,14 +243,18 @@ class Camera(FrameSource):
 
             return (True, frame)
 
-    def release(self) -> None:
+    def release(self) -> bool:
         """
         Signals the reader thread to stop and releases the camera resource.
 
         Task 1.6: Robust thread termination with timeout and forced cleanup.
+
+        Returns:
+            bool: True if the reader thread stopped cleanly, False otherwise.
         """
         log.info("camera.release.started")
         self._stopped.set()
+        cleanup_success = True
 
         # Wait for thread to finish with timeout
         self._thread.join(timeout=2)
@@ -266,6 +272,7 @@ class Camera(FrameSource):
                     self.cap.release()
             except Exception as e:
                 log.error("camera.release.force_close_failed", error=str(e))
+                cleanup_success = False
 
             # Give thread more time to finish after forced close
             self._thread.join(timeout=1)
@@ -275,6 +282,7 @@ class Camera(FrameSource):
                     "camera.release.thread_zombie",
                     message="Thread still alive after forced close - potential resource leak",
                 )
+                cleanup_success = False
         else:
             # Thread terminated normally, safe to release capture if not already done
             try:
@@ -283,6 +291,9 @@ class Camera(FrameSource):
                     log.info("camera.released")
             except Exception as e:
                 log.error("camera.release.normal_close_failed", error=str(e))
+                cleanup_success = False
+
+        return cleanup_success
 
     def __enter__(self) -> "Camera":
         """Enter context manager - camera is already initialized."""

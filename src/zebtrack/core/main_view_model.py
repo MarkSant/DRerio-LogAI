@@ -6,6 +6,7 @@ and orchestrates video processing workflows with dependency injection.
 
 from __future__ import annotations
 
+import sys
 import threading
 from contextlib import contextmanager
 from pathlib import Path
@@ -424,8 +425,20 @@ class MainViewModel:
         if capture_thread and capture_thread.is_alive():
             capture_thread.join()
 
+        camera_release_success = True
         if hasattr(self, "camera") and self.camera:
-            self.camera.release()
+            try:
+                camera_release_success = bool(self.camera.release())
+            except Exception as exc:
+                camera_release_success = False
+                log.error("controller.camera.release_failed", error=str(exc))
+
+        if not camera_release_success:
+            log.critical(
+                "controller.camera.zombie_detected",
+                message="Camera thread did not shut down cleanly; forcing exit",
+            )
+            sys.exit(70)
 
         self._shutdown_arduino_manager()
         log.info("controller.shutdown.complete")

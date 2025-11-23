@@ -32,6 +32,7 @@ import shutil
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -58,6 +59,29 @@ from zebtrack.core.detector import ZoneData
 from zebtrack.ui.events import Events
 
 log = structlog.get_logger()
+
+
+@dataclass
+class VideoContext:
+    """Shared video capture metadata to avoid redundant I/O."""
+
+    path: str
+    cap: cv2.VideoCapture
+    width: int
+    height: int
+    fps: float
+    first_frame: np.ndarray | None = None
+
+    def reset(self) -> None:
+        """Seek capture back to the first frame if still open."""
+        if self.cap is not None and self.cap.isOpened():
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+
+    def release(self) -> None:
+        """Release underlying capture safely."""
+        if self.cap is not None and self.cap.isOpened():
+            self.cap.release()
+        self.cap = None
 
 
 class VideoProcessingService:
@@ -102,12 +126,45 @@ class VideoProcessingService:
 
         log.info("video_processing_service.init.complete")
 
-    def display_initial_frame(self, video_path: Path | str) -> None:
+    def _create_video_context(self, video_path: Path | str) -> VideoContext | None:
+        """Open a video once and cache metadata/first frame for downstream steps."""
+        normalized_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        cap = cv2.VideoCapture(normalized_path)
+        if not cap.isOpened():
+            log.error("video_processing.video_open_failed", path=normalized_path)
+            return None
+
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps = cap.get(cv2.CAP_PROP_FPS) or getattr(self.settings.video_processing, "fps", 30.0)
+
+        first_frame = None
+        ret, frame = cap.read()
+        if ret:
+            first_frame = frame.copy()
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        else:
+            log.debug("video_processing.initial_frame_missing", path=normalized_path)
+
+        return VideoContext(
+            path=normalized_path,
+            cap=cap,
+            width=width,
+            height=height,
+            fps=fps,
+            first_frame=first_frame,
+        )
+
+    def display_initial_frame(self, video_path: Path | str, frame: np.ndarray | None = None) -> None:
         """Display first frame of video in UI.
 
         Args:
             video_path: Path to video file
         """
+        if frame is not None:
+            self.ui_coordinator.display_frame(self.view, frame)
+            return
+
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         cap = None
         try:
@@ -156,7 +213,10 @@ class VideoProcessingService:
         return results_path, existed_before
 
     def ensure_arena_polygon(
-        self, arena_polygon_px: list | None, video_path: Path | str
+        self,
+        arena_polygon_px: list | None,
+        video_path: Path | str | None = None,
+        video_context: VideoContext | None = None,
     ) -> list | None:
         """Ensure arena polygon exists, using full frame as fallback.
 
@@ -167,9 +227,21 @@ class VideoProcessingService:
         Returns:
             Arena polygon (existing or full-frame fallback)
         """
-        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         if arena_polygon_px:
             return arena_polygon_px
+
+        if video_context is not None:
+            return [
+                [0, 0],
+                [video_context.width, 0],
+                [video_context.width, video_context.height],
+                [0, video_context.height],
+            ]
+
+        if video_path is None:
+            return None
+
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
 
         cap = None
         try:
@@ -235,6 +307,7 @@ class VideoProcessingService:
         calibration_data: dict | None,
         recorder: Recorder,
         detector: Detector,
+        video_context: VideoContext | None = None,
     ) -> tuple[
         cv2.VideoCapture | None,
         Recorder,
@@ -262,14 +335,27 @@ class VideoProcessingService:
         # assuming 'recorder' passed is an instance serving as a prototype.
         session_recorder = recorder.__class__(settings_obj=self.settings)
 
-        cap = cv2.VideoCapture(str(video_path))
+        cap: cv2.VideoCapture | None
+        if video_context is not None and video_context.cap is not None:
+            cap = video_context.cap
+            if cap.isOpened():
+                video_context.reset()
+            else:
+                log.error("controller.tracking.video_context_closed", path=video_context.path)
+                return None, None, None, None, None, None
+        else:
+            cap = cv2.VideoCapture(str(video_path))
 
-        if not cap.isOpened():
+        if cap is None or not cap.isOpened():
             log.error("controller.tracking.video_open_failed", path=video_path)
             return None, None, None, None, None, None
 
-        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        if video_context is not None:
+            frame_width = video_context.width
+            frame_height = video_context.height
+        else:
+            frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
         zone_data, arena_polygon = self._prepare_zone_data_for_tracking(
             frame_width, frame_height, detector
@@ -517,6 +603,7 @@ class VideoProcessingService:
         calibration_data: dict | None = None,
         analysis_interval_frames: int = 10,
         display_interval_frames: int = 10,
+        video_context: VideoContext | None = None,
     ) -> tuple[bool, list | None]:
         """Run tracking process if trajectory doesn't exist.
 
@@ -533,6 +620,7 @@ class VideoProcessingService:
             calibration_data: Optional calibration configuration
             analysis_interval_frames: Frame interval for analysis
             display_interval_frames: Frame interval for display
+            video_context: Optional cached capture metadata to avoid reopening
 
         Returns:
             Tuple of (success: bool, arena_polygon: list | None)
@@ -558,6 +646,7 @@ class VideoProcessingService:
         )
 
         cap = None
+        session_recorder: Recorder | None = None
         try:
             # Setup tracking session
             setup_result = self._setup_tracking_session(
@@ -567,6 +656,7 @@ class VideoProcessingService:
                 calibration_data=calibration_data,
                 recorder=recorder,
                 detector=detector,
+                video_context=video_context,
             )
             (
                 cap,
@@ -775,6 +865,17 @@ class VideoProcessingService:
         finally:
             if cap is not None and cap.isOpened():
                 cap.release()
+            if video_context is not None:
+                video_context.cap = None
+            if session_recorder is not None and getattr(session_recorder, "is_recording", False):
+                try:
+                    session_recorder.stop_recording(force_stop=True, reason="Exception cleanup")
+                except Exception:
+                    log.warning(
+                        "controller.tracking.recorder_cleanup_failed",
+                        video=experiment_id,
+                        exc_info=True,
+                    )
 
     def _prepare_zone_data_for_tracking(
         self, frame_width: int, frame_height: int, detector: Detector
@@ -1546,11 +1647,23 @@ class VideoProcessingService:
         single_video_config: dict | None,
         progress_callback,
         analysis_profile: dict | None,
+        video_context: VideoContext | None = None,
     ) -> bool:
-        """Run complete analysis pipeline for a video.
+        """Run complete analysis pipeline for a tracked video.
 
         Phase 3: Moved from MainViewModel._run_analysis_pipeline
         Phase 4 Refactoring: Simplified by extracting helper methods
+
+        Args:
+            experiment_id: Unique experiment identifier
+            video_path: Path to source video
+            results_dir: Directory containing tracking outputs
+            arena_polygon_px: Arena polygon in pixels (optional)
+            metadata_context: Additional metadata for reports
+            single_video_config: Overrides for single-video mode
+            progress_callback: Progress reporting callable
+            analysis_profile: Profile describing analysis parameters
+            video_context: Optional cached capture metadata
         """
         # Load trajectory data
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
@@ -1594,7 +1707,11 @@ class VideoProcessingService:
 
         # Validate calibration data
         zone_data = self.project_manager.get_zone_data()
-        arena_polygon_px = self.ensure_arena_polygon(arena_polygon_px, video_path)
+        arena_polygon_px = self.ensure_arena_polygon(
+            arena_polygon_px,
+            video_path,
+            video_context=video_context,
+        )
         if not all([width_cm, height_cm, arena_polygon_px]):
             self.ui_event_bus.publish_event(
                 Events.UI_SHOW_ERROR,
@@ -1823,9 +1940,18 @@ class VideoProcessingService:
         Returns:
             Tuple of (success: bool, results_dir: str | None)
         """
+        video_context: VideoContext | None = None
         try:
             video_path = video_info.get("path")
             if not video_path:
+                return False, None
+
+            video_context = self._create_video_context(video_path)
+            if video_context is None:
+                log.error(
+                    "video_processing.context_init_failed",
+                    video_path=video_path,
+                )
                 return False, None
 
             if metadata_context is None:
@@ -1857,7 +1983,7 @@ class VideoProcessingService:
                 experiment_id=experiment_id,
             )
 
-            self.display_initial_frame(video_path)
+            self.display_initial_frame(video_path, frame=video_context.first_frame)
 
             results_path, _ = self.resolve_results_path(
                 experiment_id=experiment_id,
@@ -1883,6 +2009,7 @@ class VideoProcessingService:
                 calibration_data=single_video_config,
                 analysis_interval_frames=analysis_interval_frames,
                 display_interval_frames=display_interval_frames,
+                video_context=video_context,
             )
 
             if self.cancel_event.is_set():
@@ -1903,6 +2030,7 @@ class VideoProcessingService:
                 single_video_config=single_video_config,
                 progress_callback=progress_callback,
                 analysis_profile=analysis_profile,
+                video_context=video_context,
             )
 
             if self.cancel_event.is_set():
@@ -1914,3 +2042,5 @@ class VideoProcessingService:
             # Release frame references
             if detector and hasattr(detector, "clear_cache"):
                 detector.clear_cache()
+            if video_context is not None:
+                video_context.release()
