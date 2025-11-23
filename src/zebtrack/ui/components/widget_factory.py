@@ -25,10 +25,10 @@ import yaml
 from pydantic import ValidationError
 
 from zebtrack.settings import Settings
-from zebtrack.ui.window_utils import reset_geometry_if_not_maximized
 from zebtrack.ui.builders.button_factory import ButtonFactory
 from zebtrack.ui.builders.panel_builder import PanelBuilder
 from zebtrack.ui.builders.zone_control_builder import ZoneControlBuilder
+from zebtrack.ui.window_utils import reset_geometry_if_not_maximized
 
 log = structlog.get_logger()
 
@@ -560,7 +560,7 @@ class WidgetFactory:
         self.gui.welcome_frame.pack(expand=True, fill="both")
 
         # --- Logo Image ---
-        self.gui._display_welcome_logo()
+        self.display_welcome_logo()
 
         # Project actions and model status widgets
         self.build_project_actions(self.gui.welcome_frame)

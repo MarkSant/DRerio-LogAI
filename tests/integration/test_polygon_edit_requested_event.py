@@ -7,12 +7,25 @@ IMPORTANT: This migration also fixes a critical bug where the method setup_inter
 was calling a non-existent method in EventDispatcher, making polygon editing non-functional.
 """
 
-import pytest
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-from unittest.mock import Mock, MagicMock, patch
+import pytest
 
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
+
+@pytest.fixture(autouse=True)
+def mock_tkinter_vars():
+    """Mock tkinter variables to avoid root window requirement."""
+    with patch('tkinter.StringVar') as mock_string_var:
+        mock_var_instance = MagicMock()
+        mock_var_instance.get.return_value = ""
+        mock_string_var.return_value = mock_var_instance
+
+        with patch('tkinter.BooleanVar'):
+            with patch('tkinter.IntVar'):
+                yield
 
 @pytest.mark.integration
 class TestPolygonEditRequestedEvent:
@@ -160,8 +173,8 @@ class TestPolygonEditRequestedEvent:
         assert events_received[0]['polygon'] is not None
         assert len(events_received[0]['polygon']) == 4  # 4 vertices for ROI
 
-    def test_dual_mode_both_paths_execute(self):
-        """Dual mode: both old path (direct call) and new path (event) execute."""
+    def test_dual_mode_removed_old_path_does_not_execute(self):
+        """Verify Phase 3: Old path is removed, only new path (event) executes."""
         # Arrange
         event_bus = EventBusV2()
         gui_mock = MagicMock()
@@ -194,8 +207,8 @@ class TestPolygonEditRequestedEvent:
         # Act
         canvas_manager.edit_selected_zone_vertices()
 
-        # Assert both paths executed
-        assert gui_mock.setup_interactive_polygon.call_count >= 1, "Old path should execute"
+        # Assert
+        assert gui_mock.setup_interactive_polygon.call_count == 0, "Old path should NOT execute"
         assert len(events_received) >= 1, "New path (event) should execute"
 
     def test_polygon_with_different_shapes(self):

@@ -4,11 +4,24 @@ Tests the migration of apply_pending_readiness_snapshot() from direct GUI calls 
 This validates FASE 2 - Tarefa 2.3 (PLANO_ACAO_V4.md).
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
+
+@pytest.fixture(autouse=True)
+def mock_tkinter_vars():
+    """Mock tkinter variables to avoid root window requirement."""
+    with patch('tkinter.StringVar') as mock_string_var:
+        mock_var_instance = MagicMock()
+        mock_var_instance.get.return_value = ""
+        mock_string_var.return_value = mock_var_instance
+
+        with patch('tkinter.BooleanVar'):
+            with patch('tkinter.IntVar'):
+                yield
 
 @pytest.mark.integration
 class TestReadinessSnapshotEvent:
@@ -115,8 +128,8 @@ class TestReadinessSnapshotEvent:
             }
 
             try:
-                result = dialog_manager.ask_reuse_zones(**snapshot_lists)
-            except Exception as e:
+                result = dialog_manager.show_pending_videos_dialog(**snapshot_lists)
+            except Exception:
                 # If method fails due to missing dependencies, that's OK - we're testing event publishing
                 pass
 
@@ -126,8 +139,8 @@ class TestReadinessSnapshotEvent:
         assert events_received[0]['ready_with_zones'] == [{'path': '/video2.mp4'}]
         assert events_received[0]['without_arena'] == [{'path': '/video4.mp4'}]
 
-    def test_dual_mode_both_paths_execute(self):
-        """Dual mode: both old path (direct call) and new path (event) execute."""
+    def test_dual_mode_removed_legacy_path_does_not_execute(self):
+        """Verify Phase 3: Old path is removed, only new path (event) executes."""
         # Arrange
         event_bus = EventBusV2()
         gui_mock = MagicMock()
@@ -160,10 +173,10 @@ class TestReadinessSnapshotEvent:
                 'arena_only': [],
                 'without_arena': []
             }
-            dialog_manager.ask_reuse_zones(**snapshot_data)
+            dialog_manager.show_pending_videos_dialog(**snapshot_data)
 
-        # Assert both paths executed
-        assert gui_mock.apply_pending_readiness_snapshot.call_count >= 1, "Old path should execute"
+        # Assert
+        assert gui_mock.apply_pending_readiness_snapshot.call_count == 0, "Old path should NOT execute"
         assert len(events_received) >= 1, "New path (event) should execute"
 
     def test_empty_lists_handled_correctly(self):

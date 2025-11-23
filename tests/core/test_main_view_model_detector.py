@@ -6,7 +6,6 @@ Tests setup_detector, weight management, OpenVINO conversion,
 and detector configuration.
 """
 
-import tkinter as tk
 from unittest.mock import Mock, patch
 
 import pytest

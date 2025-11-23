@@ -8,7 +8,6 @@ and RecordingService integration.
 NOTE: Tests obsolete after MainViewModel refactoring - need update for new DI-based initialization.
 """
 
-import tkinter as tk
 from unittest.mock import Mock, patch
 
 import pytest

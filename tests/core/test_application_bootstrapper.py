@@ -5,11 +5,12 @@ Após refatoração significativa, a maioria dos testes internos foram removidos
 A funcionalidade é testada através de testes de integração.
 """
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from zebtrack.core.application_bootstrapper import ApplicationBootstrapper
 from zebtrack.core.dependency_container import MainViewModelDependencies
-from unittest.mock import MagicMock
 
 
 @pytest.fixture

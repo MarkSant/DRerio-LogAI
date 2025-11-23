@@ -7,7 +7,6 @@ import sys
 from collections import Counter
 from collections.abc import Callable, Iterable
 from pathlib import Path
-import warnings
 from tkinter import (
     BooleanVar,
     Button,
@@ -53,7 +52,6 @@ from zebtrack.ui.components import (
     WidgetFactory,
 )
 from zebtrack.ui.decorators import deprecated, public_api
-from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
     CenterPeripheryDialog,
@@ -63,6 +61,7 @@ from zebtrack.ui.dialogs import (
     SubjectSelectionDialog,
 )
 from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 from zebtrack.ui.events import Events
 from zebtrack.ui.window_utils import (
     reset_geometry_if_not_maximized,
@@ -192,6 +191,13 @@ class ApplicationGUI:
         self._ttkbootstrap_theme = None
         self._initialize_theme()
 
+        # Initialize state variables before components
+        self.notebook = None
+        self.welcome_frame = None
+        self.main_controls_frame = None
+        self.zone_tab_frame = None
+        self.analysis_tab_frame = None
+
         # Initialize component managers (extracted from God Object)
         # Phase 1 components
         self.menu_manager = MenuManager(self)
@@ -219,17 +225,13 @@ class ApplicationGUI:
 
         # Phase 5 builders (zone control widgets, buttons, panels)
         self.zone_control_builder = ZoneControlBuilder(self, event_bus_v2=self.event_bus_v2)
-        self.button_factory = ButtonFactory(self)
-        self.panel_builder = PanelBuilder(self)
+        self.button_factory = ButtonFactory()
+        self.panel_builder = PanelBuilder()
 
         # Create menu bar
         self.menu_manager.create_menu_bar()
 
         # Dynamic widgets / state variables
-        self.welcome_frame = None
-        self.notebook = None
-        self.main_controls_frame = None
-        self.zone_tab_frame = None
         self.zone_summary_frame: ttk.LabelFrame | None = None
         self.zone_summary_cards: dict[str, dict[str, StringVar]] = {}
         self.pipeline_tab_frame: ttk.Frame | None = None
@@ -371,7 +373,6 @@ class ApplicationGUI:
         self.update_openvino_checkbox(self.controller.use_openvino)
         self.update_openvino_status_display(self.controller.get_openvino_status())
 
-        self._configure_styles()
         self.widget_factory.create_welcome_frame()
 
         log.info("gui.init.event_bus_setup", has_event_bus=self.event_bus is not None)
@@ -931,27 +932,6 @@ class ApplicationGUI:
             tags="background_image",
         )
 
-    @deprecated(
-        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
-        version="v3.1",
-        alternative="event_bus_v2.publish(Event(UIEvents.POLYGON_EDIT_REQUESTED, {'polygon': polygon}))",
-    )
-    @public_api
-    def setup_interactive_polygon(self, polygon: np.ndarray):
-        """Set up interactive polygon for editing (PUBLIC API).
-
-        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
-
-        Called by: CanvasManager when loading zones for editing
-        """
-        # LEGACY IMPLEMENTATION: This method is deprecated and will be removed in v4.0
-        # The actual implementation is now in CanvasManager._on_polygon_edit_requested()
-        # which is triggered by the POLYGON_EDIT_REQUESTED event.
-        # This method is kept only for backward compatibility during dual mode migration.
-        import structlog
-        log = structlog.get_logger()
-        log.warning("gui.setup_interactive_polygon.deprecated_call",
-                    message="This method is deprecated. Use Event Bus V2 (POLYGON_EDIT_REQUESTED) instead.")
 
     def _on_handle_press(self, event, handle_index):
         """Record which handle is being dragged and initial offset."""
@@ -1033,7 +1013,14 @@ class ApplicationGUI:
         # Clear interactive elements and redraw zones
         self._clear_interactive_polygon()
         self.canvas_manager.redraw_zones_from_project_data()
-        self.update_zone_listbox()
+
+        if self.event_bus_v2:
+            self.event_bus_v2.publish(Event(
+                type=UIEvents.ZONES_UPDATED,
+                data={'zone_data': None},
+                source='GUI._on_save_arena'
+            ))
+
         self._refresh_zone_indicators()
 
     def _on_discard_arena(self):
@@ -1079,15 +1066,6 @@ class ApplicationGUI:
 
         return ValidationManager._format_day_display(value)
 
-    @public_api
-    def _build_video_hierarchy_data(
-        self,
-        all_videos: list[dict],
-        search_text: str,
-    ) -> dict[str, dict]:
-        """Build video hierarchy data. Delegates to ProjectViewManager."""
-        return self.project_view_manager._build_video_hierarchy_data(all_videos, search_text)
-
     def publish_video_hierarchy_snapshot(self) -> None:
         """Build and publish video hierarchy snapshot."""
         snapshot = self.validation_manager.build_video_hierarchy_snapshot()
@@ -1097,36 +1075,9 @@ class ApplicationGUI:
         )
 
     @public_api
-    def _build_video_hierarchy_snapshot(self) -> list[dict]:
-        """Build video hierarchy snapshot. Delegates to ValidationManager.
-
-        .. deprecated:: 0.1.0
-           Use publish_video_hierarchy_snapshot() instead.
-        """
-        warnings.warn(
-            "_build_video_hierarchy_snapshot is deprecated. Use publish_video_hierarchy_snapshot() instead.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return self.validation_manager.build_video_hierarchy_snapshot()
-
-    @public_api
     def _format_status_token(self, has_parquet: bool, symbol_key: str) -> str:
         """Format status token. Delegates to ValidationManager."""
         return self.validation_manager.format_status_token(has_parquet, symbol_key)
-
-    @deprecated(
-        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
-        version="v3.1",
-        alternative="event_bus_v2.publish(Event(UIEvents.VIDEO_TREE_REFRESH_REQUESTED, {'filter_text': filter_text}))",
-    )
-    @public_api
-    def _populate_video_selector_tree(self, filter_text: str | None = None):
-        """Populate video selector tree. Delegates to ProjectViewManager.
-
-        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
-        """
-        return self.project_view_manager._populate_video_selector_tree(filter_text)
 
     def _refresh_video_selector_tree(self) -> None:
         """Repopula a árvore mantendo seleção e filtros atuais sempre que possível."""
@@ -1145,7 +1096,12 @@ class ApplicationGUI:
                 selected_tag = None
 
         current_filter = getattr(self, "_video_selector_filter", "")
-        self._populate_video_selector_tree(current_filter)
+        if self.event_bus_v2:
+            self.event_bus_v2.publish(Event(
+                type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                data={'filter_text': current_filter},
+                source='GUI._refresh_video_selector_tree'
+            ))
 
         if selected_tag:
             self._reselect_video_tree_item(selected_tag)
@@ -1179,34 +1135,14 @@ class ApplicationGUI:
         """Filtra a árvore com base no texto de busca."""
         if self.video_search_var is None:
             return
-        self._populate_video_selector_tree(self.video_search_var.get())
 
-    @deprecated(
-        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
-        version="v3.1",
-        alternative="event_bus_v2.publish(Event(UIEvents.READINESS_SNAPSHOT_UPDATED, {...}))",
-    )
-    @public_api
-    def apply_pending_readiness_snapshot(
-        self,
-        *,
-        ready_with_trajectory: list[dict],
-        ready_with_zones: list[dict],
-        arena_only: list[dict],
-        without_arena: list[dict],
-    ) -> None:
-        """Apply video readiness snapshot to UI (PUBLIC API).
+        if self.event_bus_v2:
+            self.event_bus_v2.publish(Event(
+                type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                data={'filter_text': self.video_search_var.get()},
+                source='GUI._filter_video_tree'
+            ))
 
-        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
-
-        Called by: DialogManager after zone reuse operations
-        """
-        return self.project_view_manager.apply_pending_readiness_snapshot(
-            ready_with_trajectory=ready_with_trajectory,
-            ready_with_zones=ready_with_zones,
-            arena_only=arena_only,
-            without_arena=without_arena,
-        )
 
     @public_api
     def _maybe_offer_zone_reuse(self, video_path: str) -> None:
@@ -1783,21 +1719,6 @@ class ApplicationGUI:
             self.show_error("Erro", str(e))
             self.canvas_manager.stop_drawing()
 
-    @deprecated(
-        reason="Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0",
-        version="v3.1",
-        alternative="event_bus_v2.publish(Event(UIEvents.ZONES_UPDATED, {'zone_data': zone_data}))",
-    )
-    @public_api
-    def update_zone_listbox(self, zone_data: ZoneData | None = None):
-        """Update zone listbox with current zones (PUBLIC API).
-
-        **DEPRECATED**: Will be removed in v4.0. Use Event Bus V2 instead.
-
-        Called by: DialogManager, Renderer, PolygonDrawingService,
-                   ROITemplateManager
-        """
-        return self.canvas_manager.update_zone_listbox(zone_data)
 
     def _enable_roi_button_if_arena_exists(self, zone_data: ZoneData | None = None):
         """Habilita o botão de desenhar ROI se a arena principal existir."""
@@ -1930,6 +1851,14 @@ class ApplicationGUI:
 
         self.canvas_manager.stop_drawing()
 
+    def _update_window_title(self, project_name: str | None = None) -> None:
+        """Update the window title with the project name."""
+        base_title = "DRerio LogAI"
+        if project_name:
+            self.root.title(f"{base_title} - {project_name}")
+        else:
+            self.root.title(base_title)
+
     def _load_project_view(self):
         """
         Transitions from the welcome screen to the main control view.
@@ -2032,7 +1961,14 @@ class ApplicationGUI:
                 return
         elif project_type == "pre-recorded":
             self.update_reports_tree()
-            self._populate_video_selector_tree()
+
+            if self.event_bus_v2:
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data={'filter_text': None},
+                    source='GUI._load_project_view'
+                ))
+
             ready_message = f"Projeto: {pm.get_project_name()} - Pronto."
             self.set_status(ready_message)
             self._request_overview_refresh(reason=ready_message, append_summary=True)
@@ -2356,39 +2292,6 @@ class ApplicationGUI:
         """Force the GUI to update, processing pending events."""
         self.root.update_idletasks()
 
-    def _on_processing_stats_updated(self, **kwargs) -> None:
-        """Handle processing stats update event."""
-        self.state_synchronizer.update_processing_stats(**kwargs)
-
-    def update_progress_stats(
-        self,
-        *,
-        total=None,
-        processed=None,
-        detected=None,
-        percent=None,
-        elapsed=None,
-        eta=None,
-    ):
-        """Update progress stats. Delegates to AnalysisDisplay.
-
-        .. deprecated:: 0.1.0
-           Use UIEvents.PROCESSING_STATS_UPDATED instead.
-        """
-        warnings.warn(
-            "update_progress_stats is deprecated. Use UIEvents.PROCESSING_STATS_UPDATED event.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return self.analysis_display.update_progress_stats(
-            total=total,
-            processed=processed,
-            detected=detected,
-            percent=percent,
-            elapsed=elapsed,
-            eta=eta,
-        )
-
     @public_api
     def hide_progress_bar(self):
         """Hide the progress bar."""
@@ -2517,40 +2420,6 @@ class ApplicationGUI:
         self.analysis_profile_var.set(f"Perfil de análise: {text}")
         self._reset_analysis_controls()
 
-    @deprecated(
-        reason="Use Event Bus instead",
-        version="v3.1",
-        alternative="event_bus.publish(Events.UI_UPDATE_SOCIAL_SUMMARY, ...)",
-    )
-    @public_api
-    def _on_social_summary_updated(self, **kwargs) -> None:
-        """Handle social summary update event."""
-        self.state_synchronizer.update_social_summary(**kwargs)
-
-    @public_api
-    def update_social_summary(
-        self,
-        *,
-        profile: str,
-        stats: dict | None,
-        tracks: list[str] | None,
-    ) -> None:
-        """Display social proximity statistics (PUBLIC API).
-
-        Called by: AnalysisService during analysis
-
-        .. deprecated:: 0.1.0
-           Use UIEvents.SOCIAL_SUMMARY_UPDATED instead.
-        """
-        warnings.warn(
-            "update_social_summary is deprecated. Use UIEvents.SOCIAL_SUMMARY_UPDATED event.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return self.state_synchronizer.update_social_summary(
-            profile=profile, stats=stats, tracks=tracks
-        )
-
     def _reset_analysis_controls(self) -> None:
         """Reset track selector state and cached frames."""
         self._current_detections = []
@@ -2595,32 +2464,6 @@ class ApplicationGUI:
             self.analysis_status_var.set(status_text)
         self.update_idletasks()
 
-    @deprecated(
-        reason="Use Event Bus instead",
-        version="v3.1",
-        alternative="event_bus.publish(Events.UI_UPDATE_PROCESSING_STATS, ...)",
-    )
-    @public_api
-    def update_processing_stats(
-        self,
-        total_frames=None,
-        processed_frames=None,
-        detected_frames=None,
-        start_time=None,
-        current_frame=None,
-    ):
-        """Update processing statistics during analysis (PUBLIC API).
-
-        Called by: AnalysisService, VideoProcessingOrchestrator
-        """
-        return self.state_synchronizer.update_processing_stats(
-            total_frames=total_frames,
-            processed_frames=processed_frames,
-            detected_frames=detected_frames,
-            start_time=start_time,
-            current_frame=current_frame,
-        )
-
     def update_analysis_metadata(self, *, metadata: dict | None) -> None:
         """Update the metadata display for the currently processed video."""
         metadata = metadata or {}
@@ -2632,28 +2475,6 @@ class ApplicationGUI:
             group_display,
             day_display,
             subject_display,
-        )
-
-    @deprecated(
-        reason="Use Event Bus instead",
-        version="v3.1",
-        alternative="event_bus.publish(Events.UI_UPDATE_ANALYSIS_TASK_STATUS, ...)",
-    )
-    @public_api
-    def update_analysis_task_status(
-        self,
-        *,
-        index: int,
-        total: int,
-        experiment_id: str | None = None,
-        step: str | None = None,
-    ) -> None:
-        """Update analysis task status (PUBLIC API).
-
-        Called by: AnalysisService, VideoProcessingOrchestrator
-        """
-        return self.state_synchronizer.update_analysis_task_status(
-            index=index, total=total, experiment_id=experiment_id, step=step
         )
 
     @staticmethod

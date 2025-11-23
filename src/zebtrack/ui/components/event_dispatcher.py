@@ -169,9 +169,11 @@ class EventDispatcher:
 
         # Analysis Updates
         self.event_bus.subscribe(Events.UI_UPDATE_PROCESSING_STATS,
-            lambda d: self.gui._on_processing_stats_updated(**d))
+            lambda d: self.gui.state_synchronizer.update_processing_stats(**d))
         self.event_bus.subscribe(Events.UI_UPDATE_SOCIAL_SUMMARY,
-            lambda d: self.gui._on_social_summary_updated(**d))
+            lambda d: self.gui.state_synchronizer.update_social_summary(**d))
+        self.event_bus.subscribe(Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
+            lambda d: self.gui.state_synchronizer.update_analysis_task_status(**d.get("payload", {})))
 
         # Project View Updates
         self.event_bus.subscribe(Events.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,

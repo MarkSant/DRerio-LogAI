@@ -32,8 +32,7 @@ class ArenaCompletionStrategy(PolygonCompletionStrategy):
         if success:
             gui.canvas_manager.redraw_zones_from_project_data()
 
-            # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
-            gui.update_zone_listbox()  # OLD PATH - will be removed in v4.0
+            # NEW PATH (v4.0)
             if hasattr(gui, 'event_bus_v2') and gui.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
                 gui.event_bus_v2.publish(Event(
@@ -76,8 +75,7 @@ class ROICompletionStrategy(PolygonCompletionStrategy):
         if success:
             gui.canvas_manager.redraw_zones_from_project_data()
 
-            # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
-            gui.update_zone_listbox()  # OLD PATH - will be removed in v4.0
+            # NEW PATH (v4.0)
             if hasattr(gui, 'event_bus_v2') and gui.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
                 gui.event_bus_v2.publish(Event(

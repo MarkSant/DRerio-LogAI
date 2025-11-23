@@ -5,7 +5,9 @@ Handles validation of application configuration settings and UI form values.
 """
 
 from pydantic import ValidationError
+
 from zebtrack.settings import Settings
+
 
 class ConfigValidator:
     """Validator for configuration settings."""

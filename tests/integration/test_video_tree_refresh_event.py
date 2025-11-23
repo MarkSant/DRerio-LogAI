@@ -4,8 +4,9 @@ Tests the migration of _populate_video_selector_tree() from direct GUI calls to 
 This validates FASE 2 - Tarefa 2.2 (PLANO_ACAO_V4.md).
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
@@ -105,21 +106,20 @@ class TestVideoTreeRefreshEvent:
 
         event_bus.subscribe(UIEvents.VIDEO_TREE_REFRESH_REQUESTED, handler)
 
-        # Mock _build_video_hierarchy_data to avoid complex setup
-        with patch.object(view_manager, '_build_video_hierarchy_data', return_value=([], [], [], [])):
-            # Act - call _build_readiness_snapshot which publishes the event
-            try:
-                view_manager._build_readiness_snapshot()
-            except Exception as e:
-                # If method fails due to missing dependencies, that's OK - we're testing event publishing
-                pass
+        # Act
+        view_manager.apply_pending_readiness_snapshot(
+            ready_with_trajectory=[],
+            ready_with_zones=[],
+            arena_only=[],
+            without_arena=[]
+        )
 
-        # Assert - event was published (might be 0 if method failed before publishing)
-        if events_received:
-            assert events_received[0]['filter_text'] == 'test_filter'
+        # Assert
+        assert len(events_received) >= 1, "VIDEO_TREE_REFRESH_REQUESTED event should be published"
+        assert events_received[0]['filter_text'] == 'test_filter'
 
-    def test_dual_mode_both_paths_execute(self):
-        """Dual mode: both old path (direct call) and new path (event) execute."""
+    def test_dual_mode_removed_old_path_does_not_execute(self):
+        """Verify Phase 3: Old path is removed, only new path (event) executes."""
         # Arrange
         event_bus = EventBusV2()
         gui_mock = MagicMock()
@@ -137,11 +137,11 @@ class TestVideoTreeRefreshEvent:
 
         builder = ZoneControlBuilder(gui_mock, event_bus_v2=event_bus)
 
-        # Act - call dual mode method
+        # Act
         builder._refresh_video_tree_dual_mode('test')
 
-        # Assert both paths executed
-        assert gui_mock._populate_video_selector_tree.call_count >= 1, "Old path should execute"
+        # Assert
+        assert gui_mock._populate_video_selector_tree.call_count == 0, "Old path should NOT execute"
         assert len(events_received) >= 1, "New path (event) should execute"
         assert events_received[0]['filter_text'] == 'test'
 

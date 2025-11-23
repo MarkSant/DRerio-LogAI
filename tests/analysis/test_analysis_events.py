@@ -1,7 +1,10 @@
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.ui.events import Events
+
 
 @pytest.fixture
 def mock_controller():

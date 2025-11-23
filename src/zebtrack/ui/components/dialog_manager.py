@@ -371,15 +371,16 @@ class DialogManager:
         # Refresh UI
         self.gui.canvas_manager.redraw_zones_from_project_data()
 
-        # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
-        self.gui.update_zone_listbox()  # OLD PATH - will be removed in v4.0
-        if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+        # NEW PATH - Event-Driven Architecture v4.0
+        if self.event_bus_v2:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
             self.event_bus_v2.publish(Event(
                 type=UIEvents.ZONES_UPDATED,
                 data={'zone_data': None},
                 source='DialogManager.import_and_apply_template'
             ))
+        else:
+            log.warning("gui.roi_templates.import_and_apply.no_event_bus")
 
         self.gui._refresh_zone_indicators()
         self.gui._enable_roi_button_if_arena_exists()
@@ -463,15 +464,8 @@ class DialogManager:
         Returns:
             Dialog result with selected videos, or None if cancelled
         """
-        # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
-        self.gui.apply_pending_readiness_snapshot(  # OLD PATH - will be removed in v4.0
-            ready_with_trajectory=ready_with_trajectory,
-            ready_with_zones=ready_with_zones,
-            arena_only=arena_only,
-            without_arena=without_arena,
-        )
-
-        if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+        # NEW PATH - Event-Driven Architecture v4.0
+        if self.event_bus_v2:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
             self.event_bus_v2.publish(Event(
                 type=UIEvents.READINESS_SNAPSHOT_UPDATED,
@@ -483,10 +477,12 @@ class DialogManager:
                 },
                 source='DialogManager.ask_reuse_zones'
             ))
+        else:
+            log.warning("dialog_manager.readiness_snapshot.no_event_bus")
 
         dialog = PendingVideosDialog(
             self.gui.root,
-            hierarchy_builder=self.gui._build_video_hierarchy_snapshot,
+            hierarchy_builder=self.gui.validation_manager.build_video_hierarchy_snapshot,
             ready_with_trajectory=ready_with_trajectory,
             ready_with_zones=ready_with_zones,
             arena_only=arena_only,

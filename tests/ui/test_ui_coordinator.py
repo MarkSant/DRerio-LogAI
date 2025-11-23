@@ -4,7 +4,7 @@ Tests the Mediator pattern implementation that coordinates UI component
 communication via EventBusV2.
 """
 
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 
 import numpy as np
 import pytest

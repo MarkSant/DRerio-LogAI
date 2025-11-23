@@ -64,8 +64,14 @@ class ProjectViewManager:
         # (replaces direct gui.apply_pending_readiness_snapshot calls)
         self.event_bus_v2.subscribe(UIEvents.READINESS_SNAPSHOT_UPDATED, self._on_readiness_snapshot_updated)
 
+        # Subscribe to VIDEO_HIERARCHY_SNAPSHOT_UPDATED event
+        self.event_bus_v2.subscribe(
+            UIEvents.VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
+            lambda d: self.on_video_hierarchy_snapshot_updated(d.get("snapshot", []))
+        )
+
         log.debug("project_view_manager.event_subscriptions_setup",
-                  events=["VIDEO_TREE_REFRESH_REQUESTED", "READINESS_SNAPSHOT_UPDATED"])
+                  events=["VIDEO_TREE_REFRESH_REQUESTED", "READINESS_SNAPSHOT_UPDATED", "VIDEO_HIERARCHY_SNAPSHOT_UPDATED"])
 
     def _on_video_tree_refresh_requested(self, data: dict):
         """Handle VIDEO_TREE_REFRESH_REQUESTED event.
@@ -242,11 +248,33 @@ class ProjectViewManager:
         if not self.gui.project_overview_widget:
             return
 
-        pm = self.gui.controller.project_manager
-        pm.get_all_videos()
+        # Request update via event
+        if self.event_bus_v2:
+            from zebtrack.ui.event_bus_v2 import Event, UIEvents
+            self.event_bus_v2.publish(Event(
+                type=UIEvents.VIDEO_HIERARCHY_SNAPSHOT_REQUESTED,
+                data={},
+                source='ProjectViewManager._update_project_overview_tree'
+            ))
+        else:
+            # Fallback if no event bus
+            self._build_video_hierarchy_snapshot()
 
-        # Request update via event/method
-        self.gui.publish_video_hierarchy_snapshot()
+    def _build_video_hierarchy_snapshot(self) -> list[dict]:
+        """Build video hierarchy snapshot. Delegates to ValidationManager."""
+        if hasattr(self.gui, "validation_manager"):
+            snapshot = self.gui.validation_manager.build_video_hierarchy_snapshot()
+
+            # Publish the update
+            if self.event_bus_v2:
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                self.event_bus_v2.publish(Event(
+                    type=UIEvents.VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
+                    data={"snapshot": snapshot},
+                    source='ProjectViewManager._build_video_hierarchy_snapshot'
+                ))
+            return snapshot
+        return []
 
     def on_video_hierarchy_snapshot_updated(self, snapshot: list[dict]) -> None:
         """Handle video hierarchy snapshot update event."""
@@ -405,22 +433,114 @@ class ProjectViewManager:
         if hasattr(self.gui, "video_selector_tree") and self.gui.video_selector_tree:
             filter_text = self.gui._video_selector_filter
 
-            # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
-            self.gui._populate_video_selector_tree(filter_text)  # OLD PATH - will be removed in v4.0
-
-            if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+            # NEW PATH - Event-Driven Architecture v4.0
+            if self.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
                 self.event_bus_v2.publish(Event(
                     type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
                     data={'filter_text': filter_text},
                     source='ProjectViewManager._build_readiness_snapshot'
                 ))
+            else:
+                # Fallback for tests or if event bus missing (call internal impl)
+                self._populate_video_selector_tree(filter_text)
 
     def refresh_pipeline_video_table(self) -> None:
         """Refresh the pipeline video table in pre-recorded projects."""
         # Note: This method is called _refresh_pipeline_video_table in gui.py
         # but exposed as public method here
         self._refresh_pipeline_video_table()
+
+    def _populate_video_selector_tree(self, filter_text: str | None = None) -> None:
+        """Populate video selector tree with filtered videos.
+
+        Args:
+            filter_text: Optional filter string
+        """
+        # Access tree via ZoneControls
+        zone_controls = getattr(self.gui, "zone_controls", None)
+        if not zone_controls or not zone_controls.video_selector_tree:
+            return
+        tree = zone_controls.video_selector_tree
+
+        # Clear tree
+        for item in tree.get_children():
+            tree.delete(item)
+
+        # Get data
+        pm = getattr(self.gui.controller, "project_manager", None)
+        if not pm:
+            return
+
+        try:
+            all_videos = pm.get_all_videos()
+        except Exception:
+            all_videos = []
+
+        # Build hierarchy using ValidationManager helper (delegation)
+        if hasattr(self.gui, "validation_manager"):
+            hierarchy = self.gui.validation_manager._build_video_hierarchy_data(
+                all_videos, filter_text or ""
+            )
+        else:
+            log.warning("project_view_manager.populate_tree.missing_validation_manager")
+            return
+
+        # Populate tree
+        from zebtrack.ui.gui import STATUS_SYMBOLS
+
+        for group_id, group_data in sorted(
+            hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
+        ):
+            group_display = f"🏷️ {group_data['display']}"
+            group_node = tree.insert("", "end", text=group_display, open=True)
+
+            for day_id, videos in sorted(
+                group_data["days"].items(),
+                key=lambda item: self._video_sort_key(item[0]),
+            ):
+                # Resolve day title
+                sample_meta = videos[0].get("metadata") if videos else None
+                day_title = self.gui.validation_manager._build_day_title(day_id, sample_meta)
+                day_node = tree.insert(
+                    group_node, "end", text=f"📅 {day_title}", open=True
+                )
+
+                for video_entry in sorted(
+                    videos,
+                    key=lambda entry: self._video_sort_key(entry.get("subject")),
+                ):
+                    # Format subject label
+                    subject_val = video_entry.get("subject")
+                    subject_label = self.gui.validation_manager.format_subject_label(subject_val)
+
+                    filename = video_entry.get("filename", "")
+                    path = video_entry.get("path", "")
+
+                    # Build status string
+                    badges = []
+                    if video_entry.get("has_arena"):
+                        badges.append(STATUS_SYMBOLS["arena"])
+                    if video_entry.get("has_rois"):
+                        badges.append(STATUS_SYMBOLS["rois"])
+                    if video_entry.get("has_trajectory"):
+                        badges.append(STATUS_SYMBOLS["trajectory"])
+
+                    status_display = " ".join(badges) if badges else "—"
+
+                    display_text = f"🐟 Sujeito {subject_label}"
+
+                    tree.insert(
+                        day_node,
+                        "end",
+                        text=display_text,
+                        values=(status_display, filename),
+                        tags=(path,),
+                    )
+
+        # Apply expansion state if available
+        if hasattr(zone_controls, "apply_video_tree_expand_state"):
+            zone_controls.apply_video_tree_expand_state()
 
     def _refresh_pipeline_video_table(self) -> None:
         """Refresh pipeline video table (internal implementation)."""

@@ -108,52 +108,17 @@ class TestGUIComponentIntegration:
             # Assert
             mock_clear.assert_called_once()
 
-    def test_update_processing_stats(self, gui_fixture):
-        """Test update_processing_stats delegation."""
-        # Arrange
-        stats = {
-            "total_frames": 100,
-            "processed_frames": 50,
-            "detected_frames": 45,
-            "start_time": 1000.0,
-            "current_frame": 50,
-        }
+    def test_update_processing_stats_removed(self, gui_fixture):
+        """Test that update_processing_stats is removed from GUI."""
+        assert not hasattr(gui_fixture, "update_processing_stats")
 
-        # Mock StateSynchronizer
-        with patch.object(gui_fixture.state_synchronizer, "update_processing_stats") as mock_update:
-            # Act
-            gui_fixture.update_processing_stats(**stats)
+    def test_update_social_summary_removed(self, gui_fixture):
+        """Test that update_social_summary is removed from GUI."""
+        assert not hasattr(gui_fixture, "update_social_summary")
 
-            # Assert
-            mock_update.assert_called_once_with(**stats)
-
-    def test_update_social_summary(self, gui_fixture):
-        """Test update_social_summary delegation."""
-        # Arrange
-        kwargs = {"profile": "test_profile", "stats": {"mean_dist": 10}, "tracks": ["t1", "t2"]}
-
-        # Mock StateSynchronizer
-        with patch.object(gui_fixture.state_synchronizer, "update_social_summary") as mock_update:
-            # Act
-            gui_fixture.update_social_summary(**kwargs)
-
-            # Assert
-            mock_update.assert_called_once_with(**kwargs)
-
-    def test_update_analysis_task_status(self, gui_fixture):
-        """Test update_analysis_task_status delegation."""
-        # Arrange
-        kwargs = {"index": 1, "total": 5, "experiment_id": "exp1", "step": "tracking"}
-
-        # Mock StateSynchronizer
-        with patch.object(
-            gui_fixture.state_synchronizer, "update_analysis_task_status"
-        ) as mock_update:
-            # Act
-            gui_fixture.update_analysis_task_status(**kwargs)
-
-            # Assert
-            mock_update.assert_called_once_with(**kwargs)
+    def test_update_analysis_task_status_removed(self, gui_fixture):
+        """Test that update_analysis_task_status is removed from GUI."""
+        assert not hasattr(gui_fixture, "update_analysis_task_status")
 
     def test_refresh_project_views(self, gui_fixture):
         """Test refresh_project_views delegation."""

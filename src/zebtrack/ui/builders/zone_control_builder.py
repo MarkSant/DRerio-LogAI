@@ -29,21 +29,21 @@ class ZoneControlBuilder:
         self.event_bus_v2 = event_bus_v2
 
     def _refresh_video_tree_dual_mode(self, filter_text: str | None = None):
-        """Refresh video tree using dual mode (OLD + NEW paths).
+        """Refresh video tree via Event Bus.
 
         Args:
             filter_text: Optional filter text for video tree
         """
-        # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
-        self.gui._populate_video_selector_tree(filter_text)  # OLD PATH - will be removed in v4.0
-
-        if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+        # NEW PATH - Event-Driven Architecture v4.0
+        if self.event_bus_v2:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
             self.event_bus_v2.publish(Event(
                 type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
                 data={'filter_text': filter_text},
                 source='ZoneControlBuilder._refresh_video_tree_dual_mode'
             ))
+        else:
+            log.warning("zone_control_builder.refresh_tree.no_event_bus")
 
     def create_zone_control_widgets(self) -> None:
         """

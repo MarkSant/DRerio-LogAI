@@ -13,8 +13,8 @@ import structlog
 import ttkbootstrap as ttk
 from PIL import Image
 
-from zebtrack.ui.components.canvas.renderer import CanvasRenderer
 from zebtrack.ui.components.canvas.event_handler import CanvasEventHandler
+from zebtrack.ui.components.canvas.renderer import CanvasRenderer
 
 log = structlog.get_logger()
 
@@ -73,34 +73,36 @@ class CanvasManager:
     def _on_polygon_edit_requested(self, data: dict):
         """Handle POLYGON_EDIT_REQUESTED event.
 
-        Sets up interactive polygon editing mode by populating gui.edited_polygon_points
-        and drawing the polygon with interactive handles.
-
         Args:
             data: Event payload containing:
-                - polygon: np.ndarray of polygon points [[x1, y1], [x2, y2], ...]
+                - polygon: np.ndarray of polygon points
         """
         polygon = data.get("polygon")
-        if polygon is None:
-            log.warning("canvas_manager.polygon_edit_requested.missing_polygon")
-            return
+        if polygon is not None:
+            self.setup_interactive_polygon(polygon)
 
+    def setup_interactive_polygon(self, polygon: np.ndarray | list) -> None:
+        """Set up interactive polygon editing.
+
+        Args:
+            polygon: Polygon points as numpy array or list of lists
+        """
         # Convert numpy array to list of lists if needed
         if isinstance(polygon, np.ndarray):
             polygon_list = polygon.tolist()
         else:
             polygon_list = polygon
 
-        # Populate gui.edited_polygon_points (THIS IS THE MISSING LOGIC!)
+        # Populate gui.edited_polygon_points
         self.gui.edited_polygon_points = polygon_list
 
         # Draw the interactive polygon with handles
         self.renderer.draw_interactive_polygon()
 
-        log.debug("canvas_manager.polygon_edit_requested.complete",
+        log.debug("canvas_manager.setup_interactive_polygon.complete",
                   num_points=len(polygon_list))
 
-    # ========== Coordinate Transformation Methods ========== 
+    # ========== Coordinate Transformation Methods ==========
 
     def _canvas_to_video(self, canvas_x, canvas_y):
         """Convert canvas coordinates to video frame coordinates.
@@ -202,7 +204,7 @@ class CanvasManager:
 
         return {"distance": dist, "x": closest_x, "y": closest_y}
 
-    # ========== Delegated Methods ========== 
+    # ========== Delegated Methods ==========
 
     def _draw_bg_image_to_canvas(self):
         """Draw the background image to canvas. Delegates to renderer."""
@@ -371,7 +373,7 @@ class CanvasManager:
         if not self.gui.drawing_instruction_label and zc_frame and zc_listbox:
             self.gui.drawing_instruction_label = ttk.Label(
                 zc_frame,
-                text="Clique para adicionar pontos.\nClique duplo para finalizar.\n" 
+                text="Clique para adicionar pontos.\nClique duplo para finalizar.\n"
                 "Ctrl+Z: Desfazer | Ctrl+Y: Refazer",
                 justify="center",
                 relief="solid",
@@ -401,7 +403,7 @@ class CanvasManager:
 
         self.gui.drawing_state_manager.mode = None
         self.gui.drawing_state_manager.drawing_type = None
-        
+
         self.event_handler.unbind_drawing_events()
 
         self.gui.video_display.canvas.delete("elastic_line")
@@ -456,16 +458,17 @@ class CanvasManager:
             # Convert polygon to the format expected by setup_interactive_polygon
             polygon_points = np.array(zone_data.polygon)
 
-            # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
-            self.gui.setup_interactive_polygon(polygon_points)  # OLD PATH - will be removed in v4.0
-
-            if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+            # NEW PATH - Event-Driven Architecture v4.0
+            if self.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
                 self.event_bus_v2.publish(Event(
                     type=UIEvents.POLYGON_EDIT_REQUESTED,
                     data={'polygon': polygon_points},
                     source='CanvasManager.edit_selected_zone_vertices.arena'
                 ))
+            else:
+                # Fallback
+                self.setup_interactive_polygon(polygon_points)
 
             self.gui.current_editing_zone = "arena"
             self.gui.set_status("Editando vértices da arena principal. Arraste os pontos amarelos.")
@@ -480,16 +483,17 @@ class CanvasManager:
                 # Convert polygon to the format expected by setup_interactive_polygon
                 polygon_points = np.array(roi_polygon)
 
-                # DUAL MODE (v3/v4 compatibility): OLD PATH (deprecated) + NEW PATH (v4.0)
-                self.gui.setup_interactive_polygon(polygon_points)  # OLD PATH - will be removed in v4.0
-
-                if self.event_bus_v2:  # NEW PATH - Event-Driven Architecture v4.0
+                # NEW PATH - Event-Driven Architecture v4.0
+                if self.event_bus_v2:
                     from zebtrack.ui.event_bus_v2 import Event, UIEvents
                     self.event_bus_v2.publish(Event(
                         type=UIEvents.POLYGON_EDIT_REQUESTED,
                         data={'polygon': polygon_points},
                         source=f'CanvasManager.edit_selected_zone_vertices.roi.{roi_name}'
                     ))
+                else:
+                    # Fallback
+                    self.setup_interactive_polygon(polygon_points)
 
                 self.gui.current_editing_zone = ("roi", roi_index, roi_name)
                 self.gui.set_status(
@@ -542,5 +546,31 @@ class CanvasManager:
             )
 
     def update_zone_listbox(self, zone_data=None):
-        """Update zone listbox. Delegates to Renderer."""
+        """Update zone listbox. Delegates to Renderer and ZoneControls."""
         self.renderer.redraw_zones(zone_data)
+
+        # Update the listbox widget via ZoneControls (Restored Logic)
+        if zone_data is None:
+            zone_data = self.gui._get_zone_data_for_active_context()
+
+        controls = getattr(self.gui, "zone_controls", None)
+        if controls:
+            controls.clear_zone_list()
+            # Add Arena
+            if zone_data.polygon:
+                controls.add_zone_to_list(
+                    "arena", "🏟 Arena Principal", "Polígono", "cyan"
+                )
+            # Add ROIs
+            if zone_data.roi_names:
+                for i, name in enumerate(zone_data.roi_names):
+                    color = (
+                        zone_data.roi_colors[i]
+                        if i < len(zone_data.roi_colors)
+                        else (0, 255, 0)
+                    )
+                    # BGR to Hex
+                    color_hex = f"#{color[2]:02x}{color[1]:02x}{color[0]:02x}"
+                    controls.add_zone_to_list(
+                        f"roi_{i}", f"📍 {name}", "ROI", color_hex
+                    )

@@ -219,9 +219,9 @@ class TestConstrutoresSimples:
         with patch("zebtrack.ui.components.widget_factory.ZoneControlBuilder") as mock_zone_builder_cls:
             mock_builder = Mock()
             mock_zone_builder_cls.return_value = mock_builder
-            
+
             widget_factory.create_zone_control_widgets()
-            
+
             mock_zone_builder_cls.assert_called_once_with(mock_gui)
             mock_builder.create_zone_control_widgets.assert_called_once()
 
@@ -412,7 +412,7 @@ class TestConstrutoresComplexos:
         mock_gui._display_welcome_logo = Mock()
         mock_frame = Mock()
         mock_ttk.Frame.return_value = mock_frame
-        
+
         # Mock internal build methods to avoid real widget creation
         widget_factory.build_project_actions = Mock()
         widget_factory.build_model_status = Mock()

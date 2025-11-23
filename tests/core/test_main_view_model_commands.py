@@ -8,7 +8,6 @@ and state synchronization.
 Phase 3: Updated fixtures to use MainViewModelDependencies.
 """
 
-import tkinter as tk
 from unittest.mock import Mock
 
 import pytest

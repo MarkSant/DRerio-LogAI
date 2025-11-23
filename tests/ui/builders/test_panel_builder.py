@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 from zebtrack.ui.builders.panel_builder import PanelBuilder
 
+
 class TestPanelBuilder:
     """Tests for PanelBuilder methods."""
 
@@ -42,7 +43,7 @@ class TestPanelBuilder:
         mock_ttk.Frame.return_value = mock_frame # Reuse frame mock for simplicity
         mock_label = Mock()
         mock_ttk.Label.return_value = mock_label
-        
+
         mock_var = Mock()
         mock_stringvar.return_value = mock_var
 
@@ -52,7 +53,7 @@ class TestPanelBuilder:
 
         mock_ttk.LabelFrame.assert_called_once()
         assert frame == mock_frame
-        
+
         # Check returned data structure
         assert "arena_missing" in cards_data
         assert "rois_missing" in cards_data

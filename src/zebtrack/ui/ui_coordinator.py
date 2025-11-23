@@ -12,12 +12,13 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
+from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.canvas_manager import CanvasManager
     from zebtrack.ui.components.dialog_manager import DialogManager
     from zebtrack.ui.components.project_view_manager import ProjectViewManager
+    from zebtrack.ui.components.state_synchronizer import StateSynchronizer
     from zebtrack.ui.components.validation_manager import ValidationManager
 
 log = structlog.get_logger().bind(component="ui.ui_coordinator")
@@ -74,6 +75,7 @@ class UICoordinator:
         validation_manager: ValidationManager | None = None,
         project_view_manager: ProjectViewManager | None = None,
         dialog_manager: DialogManager | None = None,
+        state_synchronizer: StateSynchronizer | None = None,
         root=None,
     ) -> None:
         """Initialize the UICoordinator.
@@ -84,6 +86,7 @@ class UICoordinator:
             validation_manager: Optional ValidationManager for validation.
             project_view_manager: Optional ProjectViewManager for project views.
             dialog_manager: Optional DialogManager for dialogs.
+            state_synchronizer: Optional StateSynchronizer for status updates.
             root: Optional Tkinter root for thread-safe UI updates.
         """
         self.event_bus = event_bus
@@ -91,6 +94,7 @@ class UICoordinator:
         self.validation_manager = validation_manager
         self.project_view_manager = project_view_manager
         self.dialog_manager = dialog_manager
+        self.state_synchronizer = state_synchronizer
         self.root = root
 
         # Statistics for monitoring
@@ -138,6 +142,12 @@ class UICoordinator:
         self.event_bus.subscribe(UIEvents.ANALYSIS_COMPLETED, self._on_analysis_completed)
         self.event_bus.subscribe(
             UIEvents.PROCESSING_STATS_UPDATED, self._on_processing_stats_updated
+        )
+        self.event_bus.subscribe(
+            UIEvents.SOCIAL_SUMMARY_UPDATED, self._on_social_summary_updated
+        )
+        self.event_bus.subscribe(
+            UIEvents.ANALYSIS_TASK_STATUS_UPDATED, self._on_analysis_task_status_updated
         )
 
         log.debug("ui_coordinator.subscriptions_setup", count=self._count_subscriptions())
@@ -398,101 +408,55 @@ class UICoordinator:
             log.exception("ui_coordinator.project_views_refresh.error", error=str(e))
 
     def _on_analysis_started(self, data: dict[str, Any]) -> None:
-        """Handle ANALYSIS_STARTED event.
-
-        **Workflow 8: Analysis Start Coordination**
-
-        Publishers: MainViewModel, AnalysisService
-
-        Coordinates:
-        1. Update UI to show analysis is running
-        2. Disable relevant controls
-        3. Show progress indicators
-
-        Args:
-            data: Event payload containing:
-                - video_path: str | None
-                - analysis_type: str | None
-        """
+        """Handle ANALYSIS_STARTED event."""
         self._events_handled += 1
-
         try:
-            log.debug(
-                "ui_coordinator.analysis_started",
-                video_path=data.get("video_path"),
-                analysis_type=data.get("analysis_type"),
-            )
-            # Placeholder for future UI coordination logic
-            # This will be expanded when GUI analysis controls are refactored
-
+            # Typically handled via StateManager (is_processing=True),
+            # but we can add specific coordination here if needed.
+            log.debug("ui_coordinator.analysis_started", data=data)
         except Exception as e:
             self._errors_count += 1
             log.exception("ui_coordinator.analysis_started.error", error=str(e))
 
     def _on_analysis_completed(self, data: dict[str, Any]) -> None:
-        """Handle ANALYSIS_COMPLETED event.
-
-        **Workflow 9: Analysis Completion Coordination**
-
-        Publishers: MainViewModel, AnalysisService
-
-        Coordinates:
-        1. Update UI to show analysis is complete
-        2. Re-enable controls
-        3. Refresh result displays
-
-        Args:
-            data: Event payload containing:
-                - video_path: str | None
-                - success: bool
-                - error: str | None
-        """
+        """Handle ANALYSIS_COMPLETED event."""
         self._events_handled += 1
-
         try:
-            log.debug(
-                "ui_coordinator.analysis_completed",
-                video_path=data.get("video_path"),
-                success=data.get("success"),
-            )
-            # Placeholder for future UI coordination logic
-
+            # Typically handled via StateManager (is_processing=False)
+            log.debug("ui_coordinator.analysis_completed", data=data)
         except Exception as e:
             self._errors_count += 1
             log.exception("ui_coordinator.analysis_completed.error", error=str(e))
 
     def _on_processing_stats_updated(self, data: dict[str, Any]) -> None:
-        """Handle PROCESSING_STATS_UPDATED event.
-
-        **Workflow 10: Processing Stats Update Coordination**
-
-        Publishers: ProcessingService, MainViewModel
-
-        Coordinates:
-        1. Update progress bars
-        2. Update status labels
-        3. Update ETA displays
-
-        Args:
-            data: Event payload containing:
-                - processed_frames: int
-                - total_frames: int
-                - detected_frames: int
-                - start_time: float
-        """
+        """Handle PROCESSING_STATS_UPDATED event."""
         self._events_handled += 1
-
         try:
-            log.debug(
-                "ui_coordinator.processing_stats_updated",
-                processed=data.get("processed_frames"),
-                total=data.get("total_frames"),
-            )
-            # Placeholder for future UI coordination logic
-
+            if self.state_synchronizer:
+                self._safe_ui_call(lambda: self.state_synchronizer.update_processing_stats(**data))
         except Exception as e:
             self._errors_count += 1
             log.exception("ui_coordinator.processing_stats_updated.error", error=str(e))
+
+    def _on_social_summary_updated(self, data: dict[str, Any]) -> None:
+        """Handle SOCIAL_SUMMARY_UPDATED event."""
+        self._events_handled += 1
+        try:
+            if self.state_synchronizer:
+                self._safe_ui_call(lambda: self.state_synchronizer.update_social_summary(**data))
+        except Exception as e:
+            self._errors_count += 1
+            log.exception("ui_coordinator.social_summary_updated.error", error=str(e))
+
+    def _on_analysis_task_status_updated(self, data: dict[str, Any]) -> None:
+        """Handle ANALYSIS_TASK_STATUS_UPDATED event."""
+        self._events_handled += 1
+        try:
+            if self.state_synchronizer:
+                self._safe_ui_call(lambda: self.state_synchronizer.update_analysis_task_status(**data))
+        except Exception as e:
+            self._errors_count += 1
+            log.exception("ui_coordinator.analysis_task_status_updated.error", error=str(e))
 
     # ===========================
     # Helper Methods
