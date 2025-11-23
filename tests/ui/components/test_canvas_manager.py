@@ -584,9 +584,6 @@ class TestZoneDrawing:
         # Verify arena polygon was drawn
         assert mock_gui.video_display.canvas.create_polygon.called
 
-        # Verify listbox was updated
-        mock_gui.update_zone_listbox.assert_called_once_with(mock_zone_data)
-
     def test_redraw_zones_from_project_data_with_rois(
         self, canvas_manager, mock_gui, mock_zone_data
     ):

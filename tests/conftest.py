@@ -353,7 +353,8 @@ def tkinter_root(tkinter_session_root):
     else:
         test_window = tk.Toplevel(tkinter_session_root)
         test_window.withdraw()
-        test_window.update_idletasks()
+        # CRITICAL: Do NOT call update_idletasks() during setup
+        # It causes Windows access violations with threading
 
     yield test_window
 
@@ -380,9 +381,11 @@ def tkinter_root(tkinter_session_root):
             except Exception:
                 pass
 
-        # Destroy the test window
-        test_window.update_idletasks()
-        test_window.destroy()
+        # Destroy the test window WITHOUT update_idletasks to avoid access violations
+        try:
+            test_window.destroy()
+        except Exception:
+            pass
     except tk.TclError:
         pass
     except Exception:

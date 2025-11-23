@@ -1,0 +1,64 @@
+........................................................................ [  8%]
+.....................................x.................................. [ 17%]
+........................................................................ [ 25%]
+........................................................................ [ 34%]
+........................................................................ [ 42%]
+........................................................................ [ 51%]
+........................................................................ [ 59%]
+Windows fatal exception: access violation
+
+Thread 0x000042fc (most recent call first):
+  File "C:\Program Files\Python312\Lib\threading.py", line 359 in wait
+  File "C:\Program Files\Python312\Lib\threading.py", line 655 in wait
+  File "C:\Program Files\Python312\Lib\threading.py", line 1431 in run
+  File "C:\Program Files\Python312\Lib\threading.py", line 1075 in _bootstrap_inner
+  File "C:\Program Files\Python312\Lib\threading.py", line 1032 in _bootstrap
+
+Thread 0x0000546c (most recent call first):
+  File "C:\Program Files\Python312\Lib\concurrent\futures\thread.py", line 90 in _worker
+  File "C:\Program Files\Python312\Lib\threading.py", line 1012 in run
+  File "C:\Program Files\Python312\Lib\threading.py", line 1075 in _bootstrap_inner
+  File "C:\Program Files\Python312\Lib\threading.py", line 1032 in _bootstrap
+
+Current thread 0x00003d0c (most recent call first):
+  File "C:\Program Files\Python312\Lib\tkinter\__init__.py", line 1379 in update_idletasks
+  File "c:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\tests\conftest.py", line 356 in tkinter_root
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py", line 922 in call_fixture_func
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py", line 1195 in pytest_fixture_setup
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py", line 1127 in execute
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py", line 639 in _get_active_fixturedef
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py", line 548 in getfixturevalue
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py", line 719 in _fillfixtures
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\python.py", line 1674 in setup
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\runner.py", line 514 in setup
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\runner.py", line 164 in pytest_runtest_setup
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\runner.py", line 246 in <lambda>
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\runner.py", line 344 in from_call
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\runner.py", line 245 in call_and_report
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\runner.py", line 130 in runtestprotocol
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\runner.py", line 117 in pytest_runtest_protocol
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\main.py", line 367 in pytest_runtestloop
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\main.py", line 343 in _main
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\main.py", line 289 in wrap_session
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\main.py", line 336 in pytest_cmdline_main
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_callers.py", line 121 in _multicall
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_manager.py", line 120 in _hookexec
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\pluggy\_hooks.py", line 512 in __call__
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\config\__init__.py", line 175 in main
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\config\__init__.py", line 201 in console_main
+  File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Scripts\pytest.exe\__main__.py", line 7 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 198 in _run_module_as_main
+................................................

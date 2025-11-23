@@ -78,6 +78,14 @@ def mock_gui(tkinter_root, mock_controller):
     gui.project_overview_frame = None
     gui.project_overview_tree = None
 
+    # Analysis display widget (refactored architecture)
+    gui.analysis_display_widget = Mock()
+    gui.analysis_display_widget.clear_video_display = Mock()
+    gui.analysis_display_widget.reset_to_defaults = Mock()
+    gui.analysis_display_widget.track_selector_var = Mock()
+    gui.analysis_display_widget.track_selector_widget = Mock()
+    gui.analysis_display_widget.update_track_options = Mock()
+
     # Analysis variables
     gui.analysis_status_var = Mock()
     gui.analysis_task_var = Mock()
@@ -431,13 +439,13 @@ class TestResetAnalysisWidgets:
         """Test media reset clears video label."""
         state_synchronizer._reset_analysis_media()
 
-        # Verify image was cleared
-        mock_gui.analysis_video_label.configure.assert_called_once_with(image="")
+        # Verify clear_video_display was called on analysis_display_widget
+        mock_gui.analysis_display_widget.clear_video_display.assert_called_once()
         assert mock_gui._analysis_overlay_image is None
 
     def test_reset_analysis_media_no_video_label(self, state_synchronizer, mock_gui):
         """Test media reset when video label is None."""
-        mock_gui.analysis_video_label = None
+        mock_gui.analysis_display_widget = None
 
         # Should not crash
         state_synchronizer._reset_analysis_media()
@@ -482,15 +490,11 @@ class TestResetAnalysisWidgets:
     def test_reset_analysis_progress_and_metadata_resets_progress_labels(
         self, state_synchronizer, mock_gui
     ):
-        """Test that progress labels are reset to '-'."""
-        var1 = Mock()
-        var2 = Mock()
-        mock_gui.progress_labels = {"label1": var1, "label2": var2}
-
+        """Test that reset_to_defaults is called on analysis_display_widget."""
         state_synchronizer._reset_analysis_progress_and_metadata()
 
-        var1.set.assert_called_once_with("-")
-        var2.set.assert_called_once_with("-")
+        # Verify reset_to_defaults was called
+        mock_gui.analysis_display_widget.reset_to_defaults.assert_called_once()
 
     def test_reset_analysis_progress_and_metadata_handles_exceptions(
         self, state_synchronizer, mock_gui
@@ -643,11 +647,11 @@ class TestResetAnalysisControls:
 
     def test_reset_analysis_controls_resets_track_selector(self, state_synchronizer, mock_gui):
         """Test that track selector is reset to 'Todos'."""
-        mock_gui.track_selector_var.get.return_value = "5"
+        mock_gui.analysis_display_widget.track_selector_var.get.return_value = "5"
 
         state_synchronizer.reset_analysis_controls()
 
-        mock_gui.track_selector_var.set.assert_called_once_with("Todos")
+        mock_gui.analysis_display_widget.track_selector_var.set.assert_called_once_with("Todos")
 
     def test_reset_analysis_controls_updates_track_options(self, state_synchronizer, mock_gui):
         """Test that track options are updated."""
@@ -664,8 +668,8 @@ class TestResetAnalysisControls:
 
         state_synchronizer.reset_analysis_controls()
 
-        # configure() is called twice: once for values, once for state
-        mock_gui.track_selector_widget.configure.assert_any_call(state="readonly")
+        # configure() is called with state="readonly" for multi-track mode
+        mock_gui.analysis_display_widget.track_selector_widget.configure.assert_called_once_with(state="readonly")
 
     def test_reset_analysis_controls_sets_widget_state_single_subject(
         self, state_synchronizer, mock_gui
@@ -675,8 +679,8 @@ class TestResetAnalysisControls:
 
         state_synchronizer.reset_analysis_controls()
 
-        # configure() is called twice: once for values, once for state
-        mock_gui.track_selector_widget.configure.assert_any_call(state="disabled")
+        # configure() is called with state="disabled" for single-subject mode
+        mock_gui.analysis_display_widget.track_selector_widget.configure.assert_called_once_with(state="disabled")
 
     def test_reset_analysis_controls_no_widget(self, state_synchronizer, mock_gui):
         """Test reset when widget is None."""
@@ -738,7 +742,7 @@ class TestResetAnalysisControls:
 
         state_synchronizer._update_track_options(options)
 
-        mock_gui.track_selector_widget.configure.assert_called_once_with(values=["Todos", "1", "2"])
+        mock_gui.analysis_display_widget.update_track_options.assert_called_once_with(["Todos", "1", "2"])
 
     def test_update_track_options_skips_update_if_unchanged(self, state_synchronizer, mock_gui):
         """Test that widget is not updated if options unchanged."""

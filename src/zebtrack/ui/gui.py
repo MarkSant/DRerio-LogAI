@@ -1520,6 +1520,22 @@ class ApplicationGUI:
             subject_display,
         )
 
+    def update_analysis_task_status(
+        self,
+        *,
+        index: int,
+        total: int,
+        experiment_id: str | None = None,
+        step: str | None = None,
+    ) -> None:
+        """Update the task summary indicating which video is being processed."""
+        self.state_synchronizer.update_analysis_task_status(
+            index=index,
+            total=total,
+            experiment_id=experiment_id,
+            step=step,
+        )
+
     @staticmethod
     def _format_time(seconds: float) -> str:
         """Format time. Delegates to StateSynchronizer."""

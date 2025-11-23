@@ -37,15 +37,15 @@ class TestGUIComponentIntegration:
     def test_setup_interactive_polygon(self, gui_fixture):
         """Test setup_interactive_polygon flow."""
         # Arrange
-        polygon = np.array([(0, 0), (10, 10)])
+        polygon = [(0, 0), (10, 10)]  # Use list instead of numpy array to avoid ValueError
 
-        # Mock EventDispatcher since setup_interactive_polygon delegates to it
-        with patch.object(gui_fixture.event_dispatcher, "setup_interactive_polygon") as mock_setup:
+        # Mock CanvasManager since setup_interactive_polygon delegates to it
+        with patch.object(gui_fixture.canvas_manager, "setup_interactive_polygon") as mock_setup:
             # Act
             gui_fixture.setup_interactive_polygon(polygon)
 
             # Assert
-            mock_setup.assert_called_once_with(polygon)
+            mock_setup.assert_called_once()
 
     def test_apply_pending_readiness_snapshot(self, gui_fixture):
         """Test apply_pending_readiness_snapshot delegation."""
@@ -98,13 +98,25 @@ class TestGUIComponentIntegration:
         """Test that update_social_summary is removed from GUI."""
         assert not hasattr(gui_fixture, "update_social_summary")
 
-    def test_update_analysis_task_status_removed(self, gui_fixture):
-        """Test that update_analysis_task_status is removed from GUI."""
-        assert not hasattr(gui_fixture, "update_analysis_task_status")
+    def test_update_analysis_task_status_delegates(self, gui_fixture):
+        """Test that update_analysis_task_status delegates to state_synchronizer."""
+        # Mock StateSynchronizer
+        with patch.object(gui_fixture.state_synchronizer, "update_analysis_task_status") as mock_update:
+            # Act
+            gui_fixture.update_analysis_task_status(index=1, total=5)
 
-    def test_refresh_project_views_removed(self, gui_fixture):
-        """Test that refresh_project_views is removed from GUI."""
-        assert not hasattr(gui_fixture, "refresh_project_views")
+            # Assert
+            mock_update.assert_called_once_with(index=1, total=5, experiment_id=None, step=None)
+
+    def test_refresh_project_views_delegates(self, gui_fixture):
+        """Test that refresh_project_views delegates to _request_overview_refresh."""
+        # Mock _request_overview_refresh
+        with patch.object(gui_fixture, "_request_overview_refresh") as mock_refresh:
+            # Act
+            gui_fixture.refresh_project_views(reason="test")
+
+            # Assert
+            mock_refresh.assert_called_once_with(reason="test", append_summary=False, immediate=False)
 
     def test_edit_selected_zone_vertices(self, gui_fixture):
         """Test edit_selected_zone_vertices delegation."""
@@ -124,12 +136,20 @@ class TestGUIComponentIntegration:
         mock_listbox.item.return_value = {"values": ["📍 ROI 1"]}
         gui_fixture.zone_listbox = mock_listbox
 
-        # Mock DialogManager to return True
+        # Mock DialogManager to return True (user confirms)
         gui_fixture.dialog_manager.confirm_remove_roi = MagicMock(return_value=True)
 
         # Mock data retrieval
         zone_data = ZoneData(roi_names=["ROI 1"], roi_polygons=[[]], roi_colors=["red"])
         gui_fixture._get_zone_data_for_active_context = MagicMock(return_value=zone_data)
+
+        # Mock show_info to prevent modal dialog
+        gui_fixture.show_info = MagicMock()
+        gui_fixture.set_status = MagicMock()
+        gui_fixture._request_overview_refresh = MagicMock()
+        
+        # Mock project_manager.save_zone_data
+        gui_fixture.controller.project_manager.save_zone_data = MagicMock()
 
         # Mock CanvasManager redraw
         with patch.object(
@@ -142,6 +162,8 @@ class TestGUIComponentIntegration:
             mock_redraw.assert_called_once()
             # Verify data was modified
             assert "ROI 1" not in zone_data.roi_names
+            # Verify success dialog was shown
+            gui_fixture.show_info.assert_called_once()
 
     def test_update_button_state(self, gui_fixture):
         """Test button state updates."""

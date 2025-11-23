@@ -2,53 +2,29 @@ import inspect
 
 from zebtrack.ui.gui import ApplicationGUI
 
-# List of expected public API methods (Total: 50)
+# List of expected public API methods (Total: 22 after Phase 3 refactoring)
+# Many methods moved to component managers (CanvasManager, DialogManager, etc.)
 EXPECTED_PUBLIC_API = [
-    # 1. Project View Management
-    '_update_project_overview_summary',
-    '_refresh_processing_reports_tab',
-
-    # 2. Zone & ROI Management
-    '_maybe_offer_zone_reuse',
-    '_edit_selected_zone_vertices',
-
-    # 3. Live Recording
-    # Methods removed in Phase 3.1 (Event-Driven)
-
-    # 4. Analysis Progress & Statistics
-    # Methods removed in Phase 3.1 (Event-Driven)
-
-    # 5. Processing Reports (Internal delegation)
-    '_on_processing_reports_item_double_click',
-    '_on_processing_reports_generate_partial',
-    '_determine_status_tag',
-    '_sort_key_for_reports',
-    '_build_report_hierarchy',
-    '_populate_reports_tree_from_hierarchy',
-    '_append_report_artifacts',
-
-    # 6. Video Hierarchy & Metadata
-    '_format_status_token',
-    '_format_subject_for_reports',
-
-    # 7. Single Video
+    # 1. Zone & ROI Management
+    'setup_interactive_polygon',
     'setup_zone_definition_for_single_video',
+
+    # 2. Single Video Analysis
     '_on_analyze_single_video_clicked',
 
-    # 8. Core UI API (Wrappers & Status)
+    # 3. Core UI API (Wrappers & Status)
     'show_info',
     'show_warning',
     'show_error',
     'set_status',
 
-    # 9. Other Public Methods
-    'update_weights_dropdown',
-    '_on_canvas_click',
-    '_on_report_item_double_click',
-    '_handle_report_file_node',
-    '_handle_report_video_node',
+    # 4. Project Views (Public entry preserved for orchestrators)
+    'refresh_project_views',
 
-    # 10. Wrappers & Utilities (Added during audit)
+    # 5. Other Public Methods
+    'update_weights_dropdown',
+
+    # 6. Wrappers & Utilities
     'ask_directory',
     'ask_missing_metadata',
     'ask_ok_cancel',

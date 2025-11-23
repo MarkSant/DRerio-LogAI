@@ -1,0 +1,171 @@
+........................................................................ [  3%]
+........................................................................ [  6%]
+........................................................................ [ 10%]
+........................................................................ [ 13%]
+........................................................................ [ 16%]
+........................................................................ [ 20%]
+........................................................................ [ 23%]
+........................................................................ [ 26%]
+........................................................................ [ 30%]
+........................................................................ [ 33%]
+........................................................................ [ 36%]
+........................................................................ [ 40%]
+........................................................................ [ 43%]
+........................................................................ [ 47%]
+.......................................................2025-11-23 20:23:28 [warning  ] camera.reconnect.attempt       attempt=1 elapsed_seconds=0.0
+................. [ 50%]
+........................................................................ [ 53%]
+........................................................................ [ 57%]
+.............................................................s.......... [ 60%]
+........................................................................ [ 63%]
+.....................................................................FFs [ 67%]
+........................................................................ [ 70%]
+........................................................................ [ 73%]
+........................................................................ [ 77%]
+........................................................................ [ 80%]
+..s..................................................................... [ 83%]
+........................................................................ [ 87%]
+........................................................................ [ 90%]
+........................................................................ [ 94%]
+........................................................................ [ 97%]
+.......................................................                  [100%]
+=== PYTEST SESSION CLEANUP ===
+Shutdown 3 ThreadPoolExecutor(s)
+
+Remaining threads at session end: 4
+  - MainThread: daemon=False, alive=True
+  - Thread-1475 (_reader_thread): daemon=True, alive=True
+  - Thread-1486 (_reader_thread): daemon=True, alive=True
+  - Thread-1490 (_reader_thread): daemon=True, alive=True
+==============================
+
+
+============================== warnings summary ===============================
+tests/analysis/test_visualization_generator.py::test_generate_comparative_boxplot
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\seaborn\categorical.py:700: PendingDeprecationWarning: vert: bool will be deprecated in a future version. Use orientation: {'vertical', 'horizontal'} instead.
+    artists = ax.bxp(**boxplot_kws)
+
+tests/test_detection_enforcement.py::test_detection_mode_with_single_animal_allowed
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-36_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_detection_enforcement.py::test_segmentation_mode_with_multiple_animals_allowed
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-37_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_detector_service_integration.py::TestDetectorServiceIntegration::test_detector_initialization_workflow
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-41_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_detector_service_integration.py::TestDetectorServiceIntegration::test_detector_property_delegation
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-43_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_detector_service_integration.py::TestDetectorServiceIntegration::test_get_parameters_returns_plugin_values
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-45_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_detector_service_integration.py::TestDetectorServiceIntegration::test_parameter_update_coordination
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-47_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_detector_service_integration.py::TestDetectorServiceIntegration::test_parameter_updates_without_detector
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-49_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_detector_service_integration.py::TestDetectorServiceIntegration::test_reset_tracking_state
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-51_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_detector_service_integration.py::TestDetectorServiceIntegration::test_single_subject_mode_configuration
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-53_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_detector_service_integration.py::TestDetectorServiceIntegration::test_zone_configuration_propagation
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-55_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_gui_state_observer.py::TestGUIStateObserver::test_recording_state_change_triggers_ui_update
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-58_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_gui_state_observer.py::TestGUIStateObserver::test_processing_state_change_triggers_ui_update
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-59_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_gui_state_observer.py::TestGUIStateObserver::test_detector_state_change_triggers_ui_update
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-60_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_gui_state_observer.py::TestGUIStateObserver::test_ui_updates_scheduled_on_main_thread
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-61_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_gui_state_observer.py::TestGUIStateObserver::test_recording_state_stop_updates_ui
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-62_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_gui_state_observer.py::TestGUIStateObserver::test_processing_state_stop_updates_ui
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-63_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_interval_frames_config.py::test_controller_workflow_roundtrip_persists_intervals
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-64_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_logging_advanced.py::TestLogLevelConfiguration::test_root_logger_set_to_info
+  C:\Program Files\Python312\Lib\unittest\mock.py:1191: ResourceWarning: unclosed file <_io.FileIO name='C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\analysis.log' mode='ab' closefd=True>
+    def _execute_mock_call(self, /, *args, **kwargs):
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_logging_config.py::test_validate_invalid_log_level
+  C:\Program Files\Python312\Lib\unittest\mock.py:1191: ResourceWarning: unclosed file <_io.TextIOWrapper name='C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\analysis.log' mode='a' encoding='cp1252'>
+    def _execute_mock_call(self, /, *args, **kwargs):
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_main_view_model_threading.py::TestMainViewModelThreadLifecycle::test_thread_join_timeout
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread Thread-1523 (long_running_worker) still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_state_manager.py::TestObserverPattern::test_observer_exception_doesnt_break_others
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-100_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_state_manager_observer_pattern.py::TestObserverExceptionHandling::test_failing_observer_doesnt_prevent_update
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-135_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_state_manager_observer_pattern.py::TestObserverExceptionHandling::test_failing_global_observer_doesnt_prevent_update
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-136_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests/test_state_manager_observer_timeout.py::test_observer_exception_handling_with_timeout
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\fixtures.py:938: ResourceWarning: Thread ThreadPoolExecutor-142_0 still alive after test cleanup (timeout=2.0s)
+    next(it)
+
+tests\conftest.py:89
+  c:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\tests\conftest.py:89: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, ThreadPoolExecutor):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+
+----------------------------------------------------------------------------------------------------- benchmark: 3 tests ----------------------------------------------------------------------------------------------------
+Name (time in us)                              Min                    Max                   Mean              StdDev                 Median                 IQR            Outliers         OPS            Rounds  Iterations
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+test_benchmark_frame_preprocessing        383.7000 (1.0)         853.6000 (1.0)         414.7197 (1.0)       56.7032 (1.0)         398.6000 (1.0)        7.2000 (1.0)        69;218  2,411.2670 (1.0)        1191           1
+test_benchmark_list_comprehension         615.1000 (1.60)      1,328.2000 (1.56)        669.9134 (1.62)     115.2292 (2.03)        646.3000 (1.62)      24.1500 (3.35)       65;120  1,492.7302 (0.62)       1261           1
+test_benchmark_numpy_operations        10,731.0000 (27.97)    12,986.7000 (15.21)    11,503.8427 (27.74)    413.6612 (7.30)     11,492.1000 (28.83)    500.3750 (69.50)        19;2     86.9275 (0.04)         75           1
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Legend:
+  Outliers: 1 Standard Deviation from Mean; 1.5 IQR (InterQuartile Range) from 1st Quartile and 3rd Quartile.
+  OPS: Operations Per Second, computed as 1 / Mean
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_detector_service_integration.py:285: Obsolete: ProjectOrchestrator mocks prevent callback execution
+SKIPPED [1] tests\test_overlay_integration.py:99: YOLOv8 detector not available
+SKIPPED [1] tests\test_state_manager_observer_timeout.py:16: Timeout mechanism only works on Unix in main thread
+FAILED tests/test_overlay_integration.py::TestOverlayIntegration::test_detector_draw_overlay_called_during_tracking
+FAILED tests/test_overlay_integration.py::TestOverlayIntegration::test_video_processing_service_frame_flow
+2 failed, 2138 passed, 3 skipped, 884 deselected, 26 warnings in 180.01s (0:03:00)

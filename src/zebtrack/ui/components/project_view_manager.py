@@ -195,6 +195,10 @@ class ProjectViewManager:
                     self.gui.set_status(reason)
                 except Exception:
                     log.warning("project_view_manager.refresh_project_views.status_failed")
+        
+        # Refresh project overview
+        self._refresh_project_overview()
+        
         # Refresh pipeline table if in pre-recorded mode
         project_type = self.gui.controller.project_manager.get_project_type()
         if project_type == "pre-recorded":
