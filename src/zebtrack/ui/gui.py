@@ -101,12 +101,21 @@ class ApplicationGUI:
     DEFAULT_CANVAS_WIDTH = 800
     DEFAULT_CANVAS_HEIGHT = 600
 
-    def __init__(self, root, controller, event_bus: EventBus | None = None, settings_obj=None):
+    def __init__(
+        self,
+        root,
+        controller,
+        event_bus: EventBus | None = None,
+        settings_obj=None,
+        project_manager: Any | None = None,
+    ):
         """Inicializa a ApplicationGUI."""
         self.root = root
         self.controller = controller
         self.event_bus = event_bus
         self.settings = settings_obj
+        # Use injected project_manager or fallback to controller (legacy)
+        self.project_manager = project_manager or getattr(controller, "project_manager", None)
         self._event_bus_after_id: int | None = None
         self._event_bus_poll_interval_ms = 50
         self._event_bus_handlers: dict[str, Callable[[Any], None]] = {}
@@ -158,7 +167,7 @@ class ApplicationGUI:
 
         # Phase 4 components
         self.roi_template_manager = ROITemplateManager(
-            self.controller.project_manager, self, event_bus_v2=self.event_bus_v2
+            self.project_manager, self, event_bus_v2=self.event_bus_v2
         )
 
         # Phase 5 components
@@ -208,22 +217,22 @@ class ApplicationGUI:
         # ROI Inclusion Rule Variables
         self.roi_inclusion_rule_var = StringVar(
             value=(
-                self.controller.settings.roi_inclusion_rule
-                if self.controller.settings
+                self.settings.roi_inclusion_rule
+                if self.settings
                 else "bbox_intersects"
             )
         )
         self.roi_buffer_radius_var = StringVar(
             value=str(
-                self.controller.settings.roi_buffer_radius_value
-                if self.controller.settings
+                self.settings.roi_buffer_radius_value
+                if self.settings
                 else 0.5
             )
         )
         self.roi_overlap_ratio_var = StringVar(
             value=str(
-                self.controller.settings.roi_min_bbox_overlap_ratio
-                if self.controller.settings
+                self.settings.roi_min_bbox_overlap_ratio
+                if self.settings
                 else 0.10
             )
         )
@@ -253,8 +262,8 @@ class ApplicationGUI:
         # User options
         self.processing_interval_var = StringVar(
             value=str(
-                self.controller.settings.video_processing.processing_interval
-                if self.controller.settings
+                self.settings.video_processing.processing_interval
+                if self.settings
                 else 10
             )
         )
@@ -615,175 +624,81 @@ class ApplicationGUI:
         if item_id:
             self._on_project_overview_tree_double_click_impl(item_id)
 
-        def _on_project_overview_right_click(self, event) -> None:
+    def _on_project_overview_right_click(self, event) -> None:
+        """Handle right-click events on the overview tree (legacy handler)."""
+        tree = self.project_overview_tree
+        if not tree or not tree.winfo_exists():
+            return
 
-            """Handle right-click events on the overview tree (legacy handler)."""
-
-            tree = self.project_overview_tree
-
-            if not tree or not tree.winfo_exists():
-
-                return
-
-    
-
-            item_id = tree.identify_row(event.y)
-
-            if item_id:
-
-                self.menu_manager.show_project_overview_context_menu(
-
-                    item_id, event.x_root, event.y_root
-
-                )
-
-    
-
-        def _on_frame_configure(self, event=None):
-
-            """Update scroll region when frame size changes."""
-
-            self.controls_canvas.configure(scrollregion=self.controls_canvas.bbox("all"))
-
-    
-
-        def _on_canvas_configure_scroll(self, event=None):
-
-            """Update frame width when canvas size changes."""
-
-            canvas_width = event.width if event else self.controls_canvas.winfo_width()
-
-            self.controls_canvas.itemconfig(self.controls_canvas_window, width=canvas_width)
-
-    
-
-        def _bind_mousewheel(self):
-
-            """Bind mouse wheel scrolling to the canvas."""
-
-    
-
-            def _on_mousewheel(event):
-
-                self.controls_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-    
-
-            self.controls_canvas.bind("<MouseWheel>", _on_mousewheel)
-
-            # For Linux
-
-            self.controls_canvas.bind(
-
-                "<Button-4>", lambda e: self.controls_canvas.yview_scroll(-1, "units")
-
+        item_id = tree.identify_row(event.y)
+        if item_id:
+            self.menu_manager.show_project_overview_context_menu(
+                item_id, event.x_root, event.y_root
             )
 
-            self.controls_canvas.bind(
 
-                "<Button-5>", lambda e: self.controls_canvas.yview_scroll(1, "units")
 
-            )
+    def _on_frame_configure(self, event=None):
+        """Update scroll region when frame size changes."""
+        self.controls_canvas.configure(scrollregion=self.controls_canvas.bbox("all"))
 
-    
 
-            def _recenter_canvas_image(self, canvas_width, canvas_height):
 
-    
+    def _on_canvas_configure_scroll(self, event=None):
+        """Update frame width when canvas size changes."""
+        canvas_width = event.width if event else self.controls_canvas.winfo_width()
+        self.controls_canvas.itemconfig(self.controls_canvas_window, width=canvas_width)
 
-                """Recenter the canvas background image."""
 
-    
 
-                if not hasattr(self, "_canvas_bg_position"):
+    def _bind_mousewheel(self):
+        """Bind mouse wheel scrolling to the canvas."""
 
-    
+        def _on_mousewheel(event):
+            self.controls_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
-                    return
+        self.controls_canvas.bind("<MouseWheel>", _on_mousewheel)
+        # For Linux
+        self.controls_canvas.bind(
+            "<Button-4>", lambda e: self.controls_canvas.yview_scroll(-1, "units")
+        )
+        self.controls_canvas.bind(
+            "<Button-5>", lambda e: self.controls_canvas.yview_scroll(1, "units")
+        )
 
-    
 
-        
 
-    
+    def _recenter_canvas_image(self, canvas_width, canvas_height):
+        """Recenter the canvas background image."""
+        if not hasattr(self, "_canvas_bg_position"):
+            return
 
-                # Remove the old image
+        # Remove the old image
+        self.video_display.canvas.delete("background_image")
 
-    
+        # Center the image in the new canvas size
+        center_x = canvas_width // 2
+        center_y = canvas_height // 2
 
-                self.video_display.canvas.delete("background_image")
+        # Update stored position
+        self._canvas_bg_position = (center_x, center_y, "center")
 
-    
+        # Create the centered image
+        self.video_display.canvas.create_image(
+            center_x,
+            center_y,
+            anchor="center",
+            image=self._canvas_bg_image,
+            tags="background_image",
+        )
 
-        
 
-    
 
-                # Center the image in the new canvas size
 
-    
 
-                center_x = canvas_width // 2
 
-    
 
-                center_y = canvas_height // 2
-
-    
-
-        
-
-    
-
-                # Update stored position
-
-    
-
-                self._canvas_bg_position = (center_x, center_y, "center")
-
-    
-
-        
-
-    
-
-                # Create the centered image
-
-    
-
-                self.video_display.canvas.create_image(
-
-    
-
-                    center_x,
-
-    
-
-                    center_y,
-
-    
-
-                    anchor="center",
-
-    
-
-                    image=self._canvas_bg_image,
-
-    
-
-                    tags="background_image",
-
-    
-
-                )
-
-    
-
-        
-
-    
-
-            def _on_video_tree_double_click(self, event):
+    def _on_video_tree_double_click(self, event):
         """Handle double click on video selector."""
         del event  # Evento não é utilizado diretamente
         self.canvas_manager.load_selected_video_frame()

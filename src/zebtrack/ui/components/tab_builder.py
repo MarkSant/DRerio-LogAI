@@ -19,7 +19,8 @@ class TabBuilder:
 
     def __init__(self, gui: "ApplicationGUI"):
         self.gui = gui
-        self.project_manager = gui.controller.project_manager
+        # Use project_manager injected into GUI (Phase 4 dependency injection)
+        self.project_manager = gui.project_manager
         self.notebook = gui.notebook
 
     def build_main_controls_tab(self) -> ttk.Frame:

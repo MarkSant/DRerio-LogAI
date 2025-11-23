@@ -226,6 +226,36 @@ class MainViewModel:
     def open_project_workflow(self, project_path):
         return self.project_orchestrator.open_project_workflow(project_path)
 
+    def start_live_camera_analysis(self, camera_index: int | None = None):
+        """Start live camera analysis via SessionCoordinator."""
+        return self.session_coordinator.start_live_camera_analysis(camera_index)
+
+    def start_live_project_session(self):
+        """Start a live project session via SessionCoordinator."""
+        return self.session_coordinator.start_live_project_session()
+
+    def can_remove_project_asset(self, video_path: str, asset: str) -> tuple[bool, str | None]:
+        """Check if a project asset can be removed via ProjectOrchestrator."""
+        return self.project_orchestrator.can_remove_project_asset(video_path, asset)
+
+    def save_manual_arena(self, polygon: list[tuple[int, int]]):
+        """Save manually drawn arena via ProcessingCoordinator."""
+        return self.processing_coordinator.save_manual_arena(polygon)
+
+    def setup_detector_zones(self):
+        """Setup detector zones from project data via ProjectLifecycleCoordinator."""
+        def _callback():
+            # Get active video and zone data
+            active_video = self.project_manager.get_active_zone_video()
+            zone_data = self.project_manager.get_zone_data(video_path=active_video)
+
+            # Configure detector
+            self.detector_service.configure_zones(zones_data=zone_data)
+
+        self.project_lifecycle_coordinator._setup_zones_from_project(
+            setup_detector_zones_callback=_callback
+        )
+
     # =========================================================================
     # Application Lifecycle
     # =========================================================================

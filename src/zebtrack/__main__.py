@@ -325,7 +325,13 @@ def main():
         from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 
         project_service = ProjectService()
-        project_workflow_adapter = ProjectWorkflowAdapter()
+        project_workflow_adapter = ProjectWorkflowAdapter(
+            project_workflow_service=project_workflow_service,
+            project_manager=project_manager,
+            detector_service=detector_service,
+            state_manager=state_manager,
+            ui_event_bus=event_bus,
+        )
 
         # 1. ProjectLifecycleCoordinator - Project & calibration workflows
         _t0_proj = time.perf_counter()
@@ -368,10 +374,22 @@ def main():
         from zebtrack.core.video_validation_service import VideoValidationService
         from zebtrack.orchestrators.ui_state_controller import UIStateController
 
-        video_selection_service = VideoSelectionService(project_manager=project_manager)
+        video_selection_service = VideoSelectionService()
         video_validation_service = VideoValidationService()
-        video_classification_service = VideoClassificationService(project_manager=project_manager)
-        ui_state_controller = UIStateController(root=root, event_bus=event_bus)
+        video_classification_service = VideoClassificationService()
+        ui_state_controller = UIStateController(
+            root=root,
+            ui_event_bus=event_bus,
+            state_manager=state_manager,
+            ui_coordinator=ui_coordinator,
+            project_manager=project_manager,
+            weight_manager=weight_manager,
+            detector_service=detector_service,
+            model_service=model_service,
+            settings=settings_obj,
+            detector_coordinator=hardware_coordinator,
+            project_workflow_service=project_workflow_service,
+        )
 
         processing_coordinator = ProcessingCoordinator(
             state_manager=state_manager,
@@ -497,6 +515,8 @@ def main():
 
         # Set view reference in video_processing_service after view is created
         video_processing_service.view = controller.view
+        ui_state_controller.view = controller.view
+        ui_state_controller.main_view_model = controller
 
         # Bind events
         controller.bind_events()

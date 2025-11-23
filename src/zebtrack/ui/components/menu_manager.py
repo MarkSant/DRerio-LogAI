@@ -44,7 +44,8 @@ class MenuManager:
         menubar.add_cascade(label="Arquivo", menu=file_menu)
         file_menu.add_command(
             label="Analisar Câmera ao Vivo...",
-            command=self.gui.controller.start_live_camera_analysis,
+            # Defer call to allow controller initialization
+            command=lambda: self.gui.controller.start_live_camera_analysis(),
             accelerator="Ctrl+L",
         )
         file_menu.add_separator()
