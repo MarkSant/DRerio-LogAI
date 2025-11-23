@@ -461,7 +461,7 @@ class TestHandleOverviewAssetRemoval:
 
         # Verify UI updates
         menu_manager.gui.set_status.assert_called_once()
-        
+
         # Verify project views refresh event was published via event_bus_v2
         if menu_manager.gui.event_bus_v2:
             menu_manager.gui.event_bus_v2.publish.assert_called()

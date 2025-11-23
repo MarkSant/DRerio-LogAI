@@ -147,7 +147,7 @@ class TestGUIComponentIntegration:
         gui_fixture.show_info = MagicMock()
         gui_fixture.set_status = MagicMock()
         gui_fixture._request_overview_refresh = MagicMock()
-        
+
         # Mock project_manager.save_zone_data
         gui_fixture.controller.project_manager.save_zone_data = MagicMock()
 
