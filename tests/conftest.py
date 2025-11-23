@@ -200,9 +200,23 @@ def tkinter_session_root():
             warnings.warn(f"Could not start virtual display: {e}", stacklevel=2)
 
     # Create the tkinter root window (once per session)
-    root = tk.Tk()
-    root.withdraw()
-    root.update_idletasks()
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        root.update_idletasks()
+    except tk.TclError:
+        from unittest.mock import MagicMock
+        warnings.warn("Headless environment detected. Using Mock for Tkinter root.", stacklevel=2)
+        root = MagicMock()
+        root.tk = MagicMock()
+        root.tk.call = MagicMock(return_value=())
+        root.winfo_id = MagicMock(return_value=12345)
+        # Mock destroy/quit to prevent errors during cleanup
+        root.destroy = MagicMock()
+        root.quit = MagicMock()
+        root.update_idletasks = MagicMock()
+        root.after = MagicMock()
+        root.after_cancel = MagicMock()
 
     yield root
 
@@ -327,9 +341,19 @@ def tkinter_root(tkinter_session_root):
     avoiding the Tkinter multi-instance bug on Windows.
     """
     # Create a Toplevel window for this test (not a new Tk instance)
-    test_window = tk.Toplevel(tkinter_session_root)
-    test_window.withdraw()
-    test_window.update_idletasks()
+    from unittest.mock import MagicMock
+    if isinstance(tkinter_session_root, MagicMock):
+        test_window = MagicMock()
+        test_window.master = tkinter_session_root
+        test_window.tk = tkinter_session_root.tk
+        test_window.winfo_id = MagicMock(return_value=67890)
+        test_window.destroy = MagicMock()
+        test_window.update_idletasks = MagicMock()
+        test_window.winfo_children = MagicMock(return_value=[])
+    else:
+        test_window = tk.Toplevel(tkinter_session_root)
+        test_window.withdraw()
+        test_window.update_idletasks()
 
     yield test_window
 

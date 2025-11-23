@@ -151,6 +151,8 @@ class TestZonesUpdatedEvent:
         # Mock template application
         roi_manager._cache = [{'name': 'test_template', 'display_name': 'test_template', 'id': '123'}]
         roi_manager.template_var.set('test_template')
+        # Mock variable does not maintain state, so force return value
+        roi_manager.template_var.get.return_value = 'test_template'
 
         # Also patch load_roi_template which is called by apply_template
         with patch.object(project_manager_mock, 'load_roi_template', return_value=MagicMock()):

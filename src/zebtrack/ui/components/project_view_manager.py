@@ -160,18 +160,10 @@ class ProjectViewManager:
                 immediate=True,
             )
             return
-        """
-        if force:
-            if self._overview_refresh_after_id:
-                self.gui.root.after_cancel(self._overview_refresh_after_id)
-                self._overview_refresh_after_id = None
-            self._overview_refresh_pending = False
-            self.refresh_project_views()
-            return
 
         if self._overview_refresh_pending:
             return
-            self.refresh_project_views(reason=reason)
+
         self._overview_refresh_pending = True
         if reason:
             log.debug("gui.overview.refresh_requested", reason=reason)
@@ -179,13 +171,10 @@ class ProjectViewManager:
         def _execute():
             self._overview_refresh_pending = False
             self._overview_refresh_after_id = None
-            self.refresh_project_views()
+            self.refresh_project_views(reason=reason)
 
         self._overview_refresh_after_id = self.gui.root.after(debounce_ms, _execute)
 
-    def refresh_project_views(self) -> None:
-        """
-        Refresh project overview, pipeline table, and reports tab.
     def refresh_project_views(
         self,
         reason: str | None = None,
