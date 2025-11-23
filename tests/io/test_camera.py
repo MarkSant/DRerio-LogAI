@@ -1,5 +1,6 @@
 import itertools
 import threading
+import time
 from unittest.mock import MagicMock, patch
 
 import cv2
@@ -10,13 +11,10 @@ import pytest
 @pytest.fixture
 def camera_and_mock():
     """
-    Provides a Camera instance with a mocked VideoCapture and patched time.sleep
-    to make tests fast and deterministic.
+    Provides a Camera instance with a mocked VideoCapture.
+    Uses real time but mocked CV2.
     """
-    with (
-        patch("zebtrack.io.camera.cv2.VideoCapture") as mock_cv2_vc,
-        patch("zebtrack.io.camera.time.sleep"),
-    ):  # No need to capture mock_sleep
+    with patch("zebtrack.io.camera.cv2.VideoCapture") as mock_cv2_vc:
         from zebtrack.io.camera import Camera
 
         # Create mock settings
@@ -68,11 +66,11 @@ def test_camera_reconnects_successfully_and_updates_dimensions(camera_and_mock, 
     """Test that the camera can recover and updates its properties."""
     camera, mock_vc = camera_and_mock
     monkeypatch.setattr(camera, "_max_reconnect_attempts", 5)
+    monkeypatch.setattr(camera, "_reconnect_retry_delay", 0.01)
 
     is_opened_sequence = [True, False, False, True]
     read_sequence = [(False, None), (True, np.zeros((1, 1, 3)))]
     # This side_effect will be applied *after* the initial gets in the fixture.
-    # It provides the NEW dimensions after the reconnect.
     get_sequence = [640, 480, 60.0]
 
     mock_vc.isOpened.side_effect = itertools.chain(is_opened_sequence, itertools.repeat(True))
@@ -81,9 +79,16 @@ def test_camera_reconnects_successfully_and_updates_dimensions(camera_and_mock, 
     )
     mock_vc.get.side_effect = itertools.chain(get_sequence, itertools.repeat(60.0))
 
-    camera._thread.join(timeout=2.0)
+    # Wait enough time for reconnect logic (real time now)
+    # Defaults: sleep(0.1) in capture failure. retry_delay 0.05.
+    # Sequence: True -> read (False) -> sleep 0.1 -> False (isOpened) -> reconnect.
+    # Reconnect (attempt 1): wait 0.05.
+    # Reconnect (attempt 2): wait 0.05.
+    # True (isOpened).
+    time.sleep(1.0)
 
     assert camera._thread.is_alive()
+    # Open called 2 times (attempt 1, attempt 2)
     assert mock_vc.open.call_count == 2
     assert camera._reconnect_attempts == 0
     # Verify that the camera properties were updated
@@ -99,9 +104,14 @@ def test_camera_gives_up_after_max_attempts(camera_and_mock, monkeypatch):
     monkeypatch.setattr(camera, "_max_reconnect_attempts", 2)
     monkeypatch.setattr(camera, "_reconnect_timeout_seconds", 10)
 
-    mock_vc.isOpened.return_value = False
+    # Ensure retry delay is small to speed up test
+    monkeypatch.setattr(camera, "_reconnect_retry_delay", 0.01)
+
+    mock_vc.isOpened.side_effect = itertools.repeat(False)
     mock_vc.read.side_effect = itertools.repeat((False, None))
 
+    # Should try 2 times then abort. 2 * 0.01s = 0.02s.
+    # Give it plenty of time.
     camera._thread.join(timeout=2.0)
 
     assert not camera._thread.is_alive()
@@ -113,16 +123,18 @@ def test_camera_gives_up_after_timeout(camera_and_mock, monkeypatch):
     camera, mock_vc = camera_and_mock
     monkeypatch.setattr(camera, "_max_reconnect_attempts", 99)
     monkeypatch.setattr(camera, "_reconnect_timeout_seconds", 0.1)
+    monkeypatch.setattr(camera, "_reconnect_retry_delay", 0.01)
 
-    mock_vc.isOpened.return_value = False
+    mock_vc.isOpened.side_effect = itertools.repeat(False)
     mock_vc.read.side_effect = itertools.repeat((False, None))
-    with patch("zebtrack.io.camera.time.time") as mock_time:
-        # Provide initial time values and then keep returning time after timeout
-        mock_time.side_effect = itertools.chain([100.0, 100.0, 100.2], itertools.repeat(100.2))
-        camera._thread.join(timeout=2.0)
+
+    # Timeout is 0.1s. Retry is 0.01s. Should try ~10 times.
+    # Wait 0.5s.
+    camera._thread.join(timeout=1.0)
 
     assert not camera._thread.is_alive()
-    assert mock_vc.open.call_count >= 1
+    # Should have called open multiple times
+    assert mock_vc.open.call_count >= 2
 
 
 def test_camera_reconnects_indefinitely_when_limits_are_zero(camera_and_mock, monkeypatch):
@@ -130,12 +142,14 @@ def test_camera_reconnects_indefinitely_when_limits_are_zero(camera_and_mock, mo
     camera, mock_vc = camera_and_mock
     monkeypatch.setattr(camera, "_max_reconnect_attempts", 0)
     monkeypatch.setattr(camera, "_reconnect_timeout_seconds", 0)
+    monkeypatch.setattr(camera, "_reconnect_retry_delay", 0.01)
 
-    mock_vc.isOpened.return_value = False
+    mock_vc.isOpened.side_effect = itertools.repeat(False)
     mock_vc.read.side_effect = itertools.repeat((False, None))
 
-    camera._thread.join(timeout=0.2)  # Short join to let it run a bit
+    time.sleep(0.2)
     assert camera._thread.is_alive()
+    # 0.2s / 0.01s = ~20 calls. Should be > 2.
     assert mock_vc.open.call_count > 2
 
 

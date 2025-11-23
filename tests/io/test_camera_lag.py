@@ -206,18 +206,24 @@ def test_buffer_clears_on_read_failure(mock_cv2_capture):
     mock_cv2_capture.read.side_effect = mock_read
 
     with patch("zebtrack.io.camera.cv2.VideoCapture", return_value=mock_cv2_capture):
-        camera = Camera(settings_obj=mock_settings)
+        with patch("zebtrack.io.camera.time") as mock_camera_time:
+            # Delegate time.time() to real time so logic works
+            mock_camera_time.time.side_effect = time.time
+            # Mock sleep() to be instant
+            mock_camera_time.sleep.return_value = None
 
-        # Wait for success frames to be captured
-        time.sleep(0.2)
+            camera = Camera(settings_obj=mock_settings)
 
-        # Verify frame is available
-        ret, frame = camera.get_frame()
-        assert ret is True
-        assert frame is not None
+            # Wait for success frames to be captured
+            time.sleep(0.2)
 
-        # Wait for failure to kick in and be processed
-        time.sleep(0.4)
+            # Verify frame is available
+            ret, frame = camera.get_frame()
+            assert ret is True
+            assert frame is not None
+
+            # Wait for failure to kick in and be processed
+            time.sleep(0.5)
 
         # After failure, buffer should be cleared
         with camera._lock:
