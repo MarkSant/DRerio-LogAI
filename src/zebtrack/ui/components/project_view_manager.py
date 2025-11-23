@@ -621,11 +621,11 @@ class ProjectViewManager:
         else:
             # Try to resolve from active widget
             selections = self.resolve_processing_reports_video_paths()
-            
+
             # Fallback to legacy pipeline selection
             if not selections:
                 selections = self._get_selected_pipeline_video_paths()
-                
+
             # Fallback to all eligible videos in legacy pipeline if explicit selection empty?
             # (Legacy behavior was: if no selection, process all listed in table)
             if not selections and hasattr(self.gui, "pipeline_video_vars"):
@@ -640,7 +640,7 @@ class ProjectViewManager:
             return
 
         unique_paths = list(dict.fromkeys(selections))
-        
+
         self.gui.event_dispatcher.publish_event(
             Events.PROJECT_PROCESS_VIDEOS, {"video_paths": unique_paths}
         )
@@ -654,7 +654,7 @@ class ProjectViewManager:
 
         # Try to resolve from active widget (new tab)
         selections = self.resolve_processing_reports_video_paths()
-        
+
         # Fallback to legacy pipeline selection
         if not selections:
             selections = self._get_selected_pipeline_video_paths()
@@ -694,7 +694,7 @@ class ProjectViewManager:
         tree = getattr(self.gui, "pipeline_video_tree", None)
         if not tree:
             return []
-        
+
         selected_items = list(tree.selection() or [])
         if not selected_items:
             return []
