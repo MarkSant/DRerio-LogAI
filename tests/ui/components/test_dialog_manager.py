@@ -1,12 +1,12 @@
 """Tests for DialogManager component."""
 
 import sys
-from unittest.mock import Mock, patch, ANY
+from unittest.mock import Mock, patch
 
 import pytest
 
 from zebtrack.ui.components.dialog_manager import DialogManager
-from zebtrack.ui.event_bus_v2 import UIEvents, Event
+from zebtrack.ui.event_bus_v2 import UIEvents
 
 
 @pytest.fixture(autouse=True)

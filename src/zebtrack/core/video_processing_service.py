@@ -70,8 +70,6 @@ class VideoProcessingService:
     def __init__(
         self,
         *,
-        detector: Detector | None,
-        recorder: Recorder,
         project_manager: ProjectManager,
         state_manager: StateManager,
         ui_coordinator: UICoordinator,
@@ -84,8 +82,6 @@ class VideoProcessingService:
         """Initialize VideoProcessingService with injected dependencies.
 
         Args:
-            detector: Detector instance (can be None if not initialized)
-            recorder: Recorder instance for trajectory writing
             project_manager: ProjectManager for project state
             state_manager: StateManager for centralized state
             ui_coordinator: UICoordinator for UI updates
@@ -95,8 +91,6 @@ class VideoProcessingService:
             cancel_event: Threading event for cancellation signaling
             settings_obj: Settings instance for configuration access
         """
-        self.detector = detector
-        self.recorder = recorder
         self.project_manager = project_manager
         self.state_manager = state_manager
         self.ui_coordinator = ui_coordinator
@@ -239,6 +233,8 @@ class VideoProcessingService:
         results_dir: str,
         experiment_id: str,
         calibration_data: dict | None,
+        recorder: Recorder,
+        detector: Detector,
     ) -> tuple[
         cv2.VideoCapture | None,
         Recorder,
@@ -254,11 +250,18 @@ class VideoProcessingService:
             results_dir: Output directory for results
             experiment_id: Unique experiment identifier
             calibration_data: Optional calibration configuration
+            recorder: Recorder instance or factory
+            detector: Detector instance
 
         Returns:
             Tuple of (cap, recorder, zone_data, arena_polygon, calibration, pixel_per_cm_ratio)
         """
-        recorder = self.recorder.__class__(settings_obj=self.settings)
+        # Task 2.2: Create new recorder instance from passed recorder (factory/prototype)
+        # Using __class__ assumes recorder is an instance. If factory, might need .create()
+        # Existing code used self.recorder.__class__, so we stick to that pattern for now
+        # assuming 'recorder' passed is an instance serving as a prototype.
+        session_recorder = recorder.__class__(settings_obj=self.settings)
+
         cap = cv2.VideoCapture(str(video_path))
 
         if not cap.isOpened():
@@ -267,11 +270,14 @@ class VideoProcessingService:
 
         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        zone_data, arena_polygon = self._prepare_zone_data_for_tracking(frame_width, frame_height)
+
+        zone_data, arena_polygon = self._prepare_zone_data_for_tracking(
+            frame_width, frame_height, detector
+        )
 
         cal, pixel_per_cm_ratio = self._build_calibration_context(arena_polygon, calibration_data)
 
-        recorder.start_recording(
+        session_recorder.start_recording(
             output_folder=results_dir,
             frame_width=frame_width,
             frame_height=frame_height,
@@ -282,16 +288,16 @@ class VideoProcessingService:
             calibration=cal,
         )
 
-        return cap, recorder, zone_data, arena_polygon, cal, pixel_per_cm_ratio
+        return cap, session_recorder, zone_data, arena_polygon, cal, pixel_per_cm_ratio
 
-    def _reset_detector_tracking_state(self) -> None:
+    def _reset_detector_tracking_state(self, detector: Detector) -> None:
         """Reset detector tracking state if supported."""
-        if self.detector and hasattr(self.detector, "reset_tracking_state"):
+        if detector and hasattr(detector, "reset_tracking_state"):
             try:
-                self.detector.reset_tracking_state()
+                detector.reset_tracking_state()
             except Exception:  # pragma: no cover - defensive
-                plugin_obj = getattr(self.detector, "plugin", None)
-                plugin_class = getattr(plugin_obj, "__class__", type(self.detector))
+                plugin_obj = getattr(detector, "plugin", None)
+                plugin_class = getattr(plugin_obj, "__class__", type(detector))
                 log.warning(
                     "controller.tracking.reset_tracker_failed",
                     plugin=plugin_class,
@@ -306,6 +312,7 @@ class VideoProcessingService:
         analysis_interval_frames: int,
         cap: cv2.VideoCapture,
         recorder: Recorder,
+        detector: Detector,
     ) -> tuple[list, int, bool]:
         """Process a single frame for tracking.
 
@@ -315,6 +322,7 @@ class VideoProcessingService:
             analysis_interval_frames: Interval for running detection
             cap: Video capture object
             recorder: Recorder instance
+            detector: Detector instance
 
         Returns:
             Tuple of (detections, detected_count_increment, should_process)
@@ -324,7 +332,7 @@ class VideoProcessingService:
         detected_count_increment = 0
 
         if should_process:
-            detections, _ = self.detector.detect(frame, project_type="pre-recorded")
+            detections, _ = detector.detect(frame, project_type="pre-recorded")
             timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
             recorder.write_detection_data(timestamp, frame_num, detections)
 
@@ -503,6 +511,8 @@ class VideoProcessingService:
         video_path: Path | str,
         results_dir: str,
         experiment_id: str,
+        detector: Detector,
+        recorder: Recorder,
         progress_callback=None,
         calibration_data: dict | None = None,
         analysis_interval_frames: int = 10,
@@ -517,6 +527,8 @@ class VideoProcessingService:
             video_path: Path to video file
             results_dir: Output directory for results
             experiment_id: Unique experiment identifier
+            detector: Detector instance
+            recorder: Recorder instance (or factory)
             progress_callback: Optional progress update callback
             calibration_data: Optional calibration configuration
             analysis_interval_frames: Frame interval for analysis
@@ -535,7 +547,7 @@ class VideoProcessingService:
             log.info("controller.tracking.exists", path=trajectory_path)
             return True, arena_polygon
 
-        if self.detector is None:
+        if detector is None:
             log.error("controller.tracking.no_detector")
             return False, None
 
@@ -553,14 +565,23 @@ class VideoProcessingService:
                 results_dir=results_dir,
                 experiment_id=experiment_id,
                 calibration_data=calibration_data,
+                recorder=recorder,
+                detector=detector,
             )
-            cap, recorder, _zone_data, arena_polygon, _cal, _pixel_per_cm_ratio = setup_result
+            (
+                cap,
+                session_recorder,
+                _zone_data,
+                arena_polygon,
+                _cal,
+                _pixel_per_cm_ratio,
+            ) = setup_result
 
             if cap is None:
                 return False, None
 
             # Reset detector tracking state
-            self._reset_detector_tracking_state()
+            self._reset_detector_tracking_state(detector)
 
             # Process frames loop
             frame_num = 0
@@ -595,7 +616,8 @@ class VideoProcessingService:
                     frame_num=frame_num,
                     analysis_interval_frames=analysis_interval_frames,
                     cap=cap,
-                    recorder=recorder,
+                    recorder=session_recorder,
+                    detector=detector,
                 )
 
                 if was_processed:
@@ -618,7 +640,7 @@ class VideoProcessingService:
                         cap=cap,
                     )
 
-                    self.detector.draw_overlay(frame, detections)
+                    detector.draw_overlay(frame, detections)
                     progress_callback(
                         progress_fraction,
                         "Gerando trajetória...",
@@ -631,7 +653,7 @@ class VideoProcessingService:
 
             # Finalize session
             return self._finalize_tracking_session(
-                recorder=recorder,
+                recorder=session_recorder,
                 cancel_requested=cancel_requested,
                 experiment_id=experiment_id,
                 trajectory_path=trajectory_path,
@@ -755,13 +777,13 @@ class VideoProcessingService:
                 cap.release()
 
     def _prepare_zone_data_for_tracking(
-        self, frame_width: int, frame_height: int
+        self, frame_width: int, frame_height: int, detector: Detector
     ) -> tuple[ZoneData, list[list[int]]]:
         """Ensure zone data is ready for tracking and inform plugins.
 
         Phase 3: Moved from MainViewModel._prepare_zone_data_for_tracking
         """
-        assert self.detector is not None
+        assert detector is not None
 
         zone_data = self.project_manager.get_zone_data()
         if not zone_data.polygon:
@@ -775,15 +797,15 @@ class VideoProcessingService:
 
         arena_polygon = zone_data.polygon
 
-        self.detector.set_zones(zone_data, frame_width, frame_height)
+        detector.set_zones(zone_data, frame_width, frame_height)
 
-        if self.detector:
+        if detector:
             has_aquarium = bool(zone_data and zone_data.polygon)
-            self.detector.set_aquarium_region_defined(has_aquarium)
+            detector.set_aquarium_region_defined(has_aquarium)
             log.info(
                 "controller.tracking.aquarium_status",
                 defined=has_aquarium,
-                plugin=self.detector.plugin.get_name(),
+                plugin=detector.plugin.get_name(),
             )
 
         return zone_data, arena_polygon
@@ -1686,6 +1708,8 @@ class VideoProcessingService:
         frame_source,  # FrameSource type hint removed due to circular import
         output_dir: str,
         experiment_id: str,
+        detector: Detector,
+        recorder: Recorder,
         single_video_config: dict | None = None,
         analysis_interval_frames: int = 10,
         display_interval_frames: int = 10,
@@ -1701,6 +1725,8 @@ class VideoProcessingService:
             frame_source: FrameSource instance (VideoFileSource, LiveStreamSource, or Camera)
             output_dir: Output directory for results
             experiment_id: Unique experiment identifier
+            detector: Detector instance
+            recorder: Recorder instance
             single_video_config: Optional configuration dict for single video mode
             analysis_interval_frames: Frame interval for running detection/tracking
             display_interval_frames: Frame interval for updating UI
@@ -1728,6 +1754,8 @@ class VideoProcessingService:
             video_path=frame_source,  # Pass frame_source directly
             results_dir=str(output_path),
             experiment_id=experiment_id,
+            detector=detector,
+            recorder=recorder,
             progress_callback=None,
             calibration_data=single_video_config,
             analysis_interval_frames=analysis_interval_frames,
@@ -1771,6 +1799,8 @@ class VideoProcessingService:
         experiment_id: str,
         metadata_context: dict | None,
         analysis_profile: dict | None,
+        detector: Detector,
+        recorder: Recorder,
     ) -> tuple[bool, str | None]:
         """Process a single video: tracking + analysis.
 
@@ -1787,6 +1817,8 @@ class VideoProcessingService:
             experiment_id: Unique experiment identifier
             metadata_context: Optional metadata dictionary
             analysis_profile: Optional analysis profile configuration
+            detector: Detector instance
+            recorder: Recorder instance
 
         Returns:
             Tuple of (success: bool, results_dir: str | None)
@@ -1845,6 +1877,8 @@ class VideoProcessingService:
                 video_path,
                 results_dir,
                 experiment_id,
+                detector,
+                recorder,
                 progress_callback,
                 calibration_data=single_video_config,
                 analysis_interval_frames=analysis_interval_frames,
@@ -1878,5 +1912,5 @@ class VideoProcessingService:
             return analysis_success, results_dir
         finally:
             # Release frame references
-            if self.detector and hasattr(self.detector, "clear_cache"):
-                self.detector.clear_cache()
+            if detector and hasattr(detector, "clear_cache"):
+                detector.clear_cache()

@@ -128,7 +128,7 @@ class TestReadinessSnapshotEvent:
             }
 
             try:
-                result = dialog_manager.show_pending_videos_dialog(**snapshot_lists)
+                dialog_manager.show_pending_videos_dialog(**snapshot_lists)
             except Exception:
                 # If method fails due to missing dependencies, that's OK - we're testing event publishing
                 pass

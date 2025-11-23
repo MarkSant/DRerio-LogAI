@@ -17,6 +17,7 @@ def mock_app(tkinter_root):
     app.widget_factory = MagicMock()
     app.event_bus = MagicMock() # Added missing mock
     app.event_bus_v2 = MagicMock()
+    app.project_manager = MagicMock()
 
     # Use a real notebook because ttkbootstrap inspects parent widget class hierarchy
     app.notebook = ttk.Notebook(tkinter_root)
@@ -30,6 +31,7 @@ def mock_app(tkinter_root):
 
     # Mock frames that will be created
     app.main_controls_frame = None
+    app.external_trigger_notice_label = None
 
     return app
 
@@ -41,8 +43,8 @@ def test_init(mock_app):
 def test_build_main_controls_tab_pre_recorded(mock_app):
     """Test creating main controls tab for pre-recorded project."""
     # Setup
-    mock_app.controller.project_manager.get_project_type.return_value = "pre-recorded"
-    mock_app.controller.project_manager.project_path = "/tmp/project"
+    mock_app.project_manager.get_project_type.return_value = "pre-recorded"
+    mock_app.project_manager.project_path = "/tmp/project"
 
     # Create builder
     builder = TabBuilder(mock_app)
@@ -62,14 +64,14 @@ def test_build_main_controls_tab_pre_recorded(mock_app):
 def test_build_main_controls_tab_live(mock_app):
     """Test creating main controls tab for live project."""
     # Setup
-    mock_app.controller.project_manager.get_project_type.return_value = "live"
-    mock_app.controller.project_manager.project_path = "/tmp/project"
+    mock_app.project_manager.get_project_type.return_value = "live"
+    mock_app.project_manager.project_path = "/tmp/project"
 
     # Create builder
     builder = TabBuilder(mock_app)
 
     # Act
-    with patch("zebtrack.ui.components.tab_builder.ArduinoDashboardWidget") as MockArduino:
+    with patch("zebtrack.ui.components.tab_builder.ArduinoDashboardWidget"):
         builder.build_main_controls_tab()
 
     # Assert

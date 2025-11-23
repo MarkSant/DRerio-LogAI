@@ -11,11 +11,11 @@ import pytest
 
 pytest.skip("Obsolete: MainViewModel no longer has is_recording property", allow_module_level=True)
 
-import threading
-from pathlib import Path
-from unittest.mock import MagicMock
+import threading  # noqa: E402
+from pathlib import Path  # noqa: E402
+from unittest.mock import MagicMock  # noqa: E402
 
-from zebtrack.core.state_manager import StateCategory
+from zebtrack.core.state_manager import StateCategory  # noqa: E402
 
 
 class TestStateManagerControllerIntegration:

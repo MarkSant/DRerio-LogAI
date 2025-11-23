@@ -3,11 +3,13 @@ Application Bootstrapper for ZebTrack-AI.
 
 Responsibility:
 - Initialize all internal services and orchestrators that are not injected via __main__.py
-- Configure hardware and runtime state
+- Configure hardware and runtime state in a strict, linear initialization order
 - Create and wire the ApplicationGUI
 - Prepare the BootstrapResult for the MainViewModel
+- Initialize the single shared ThreadPoolExecutor for the application
 
 This class removes initialization complexity from the MainViewModel, adhering to SRP.
+It ensures that the application starts with a deterministic state and fully wired dependencies.
 """
 
 from __future__ import annotations
@@ -154,12 +156,9 @@ class ApplicationBootstrapper:
         # 3. Initialize runtime state
         self._init_runtime_state()
 
-        # 4. Initialize view
-        self._init_view(controller_proxy)
-
         # -----------------------------------------------------------------------
         # CRITICAL: Populate controller proxy with dependencies required by
-        # legacy orchestrators' __init__ methods.
+        # legacy orchestrators' __init__ methods AND View's __init__.
         # This allows us to break the circular dependency without rewriting
         # all legacy code immediately.
         # -----------------------------------------------------------------------
@@ -176,21 +175,27 @@ class ApplicationBootstrapper:
         controller_proxy.video_selection_service = self._services["video_selection_service"]
         controller_proxy.video_validation_service = self._services["video_validation_service"]
         controller_proxy.video_classification_service = self._services["video_classification_service"]
+        controller_proxy.model_service = self.deps.model_service
 
         # Hardware from step 2/deps
         controller_proxy.detector = self.deps.detector_service.detector
+        controller_proxy.active_weight_name = self._hardware_state["active_weight_name"]
+        controller_proxy.use_openvino = self._hardware_state["use_openvino"]
 
         # Runtime state from step 3
         controller_proxy.cancel_event = self._runtime_state["cancel_event"]
-
-        # View from step 4
-        controller_proxy.view = self.view
 
         # Coordinators from deps
         controller_proxy.processing_coordinator = self.deps.processing_coordinator
         controller_proxy.hardware_coordinator = self.deps.hardware_coordinator
         controller_proxy.session_coordinator = self.deps.session_coordinator
         controller_proxy.project_lifecycle_coordinator = self.deps.project_lifecycle_coordinator
+
+        # 4. Initialize view
+        self._init_view(controller_proxy)
+
+        # View from step 4
+        controller_proxy.view = self.view
 
         # -----------------------------------------------------------------------
 

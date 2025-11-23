@@ -1,12 +1,6 @@
 """Este módulo define a interface gráfica principal (GUI) para a aplicação Zebtrack."""
 
-import hashlib
-import os
-import subprocess
-import sys
-from collections import Counter
-from collections.abc import Callable, Iterable
-from pathlib import Path
+from collections.abc import Callable
 from tkinter import (
     BooleanVar,
     Button,
@@ -319,9 +313,8 @@ class ApplicationGUI:
         self._external_notice_default_bg = None
         self._external_notice_default_fg = None
 
-        self.set_active_weight_in_dropdown(self.controller.active_weight_name)
-        self.update_openvino_checkbox(self.controller.use_openvino)
-        self.update_openvino_status_display(self.controller.get_openvino_status())
+        # Defer controller state initialization to avoid tight coupling during __init__
+        self.root.after(100, self._post_init)
 
         self.widget_factory.create_welcome_frame()
 
@@ -340,6 +333,19 @@ class ApplicationGUI:
 
         # Subscribe to StateManager state changes for reactive UI updates
         self.state_synchronizer.subscribe_to_state_changes()
+
+    def _post_init(self) -> None:
+        """
+        Perform initialization tasks that require the controller or other dependencies
+        to be fully ready. This helps decouple the GUI construction from the
+        controller's state availability.
+        """
+        try:
+            self.set_active_weight_in_dropdown(self.controller.active_weight_name)
+            self.update_openvino_checkbox(self.controller.use_openvino)
+            self.update_openvino_status_display(self.controller.get_openvino_status())
+        except Exception:
+            log.warning("gui.post_init.controller_sync_failed", exc_info=True)
 
     # --- Event bus helpers -------------------------------------------------
 
@@ -399,81 +405,44 @@ class ApplicationGUI:
         )
         theme_name = preferred_theme or "cosmo"
 
-        # ttkbootstrap changed its API in some versions and may no longer accept
-        # the `master` keyword in Style.__init__.
-        #
-        # Behaviour:
-        # - Older ttkbootstrap accepted `master=self.root` in Style(...)
-        # - Newer releases removed that kwarg and raise TypeError if present
-        #
-        # Strategy: try the call that includes `master` first (compatible with
-        # older ttkbootstrap), and on TypeError retry without `master`. This
-        # keeps the code compatible across multiple installed versions. If you
-        # prefer to enforce a single supported ttkbootstrap version, pin an
-        # appropriate range in `pyproject.toml` (e.g. "ttkbootstrap~=1.1"),
-        # and remove the fallback.
-        #
-        # We also log the installed ttkbootstrap version when falling back so
-        # maintainers can identify mismatches in CI or user environments.
-        # Resolve installed ttkbootstrap version for better logging. Try
-        # importlib.metadata first (Python 3.8+), fallback to pkg_resources if
-        # importlib.metadata is not available or package metadata is missing.
-        # Detect installed ttkbootstrap version without importing pkg_resources
-        # to avoid triggering setuptools/pkg_resources deprecation warnings.
-        ttk_version = getattr(ttkb, "__version__", None)
         try:
-            from importlib.metadata import PackageNotFoundError
-            from importlib.metadata import version as _pkg_version
-
+            # Resolving version for logging
+            ttk_version = getattr(ttkb, "__version__", "unknown")
             try:
-                ttk_version = _pkg_version("ttkbootstrap")
-            except PackageNotFoundError:
-                # leave ttk_version as ttkb.__version__ if present
-                pass
-        except Exception:
-            # importlib.metadata not available or failed; keep ttkb.__version__
-            pass
+                from importlib.metadata import PackageNotFoundError
+                from importlib.metadata import version as _pkg_version
 
-        if not ttk_version:
-            ttk_version = "unknown"
-
-        try:
-            self._ttkbootstrap_style = ttkb.Style(theme=theme_name, master=self.root)
-        except TypeError:
-            # Older/newer mismatch: try without the master kwarg
-            try:
-                self._ttkbootstrap_style = ttkb.Style(theme=theme_name)
-                log.warning(
-                    "ui.theme.bootstrap_master_removed",
-                    message=(
-                        "ttkbootstrap.Style no longer accepts 'master'; "
-                        "initialized Style without master keyword"
-                    ),
-                    ttkbootstrap_version=ttk_version,
-                    theme=theme_name,
-                )
+                try:
+                    ttk_version = _pkg_version("ttkbootstrap")
+                except PackageNotFoundError:
+                    pass
             except Exception:
-                log.warning(
-                    "ui.theme.bootstrap_failed",
-                    theme=theme_name,
-                    exc_info=True,
-                )
-                self._ttkbootstrap_style = None
-                self._ttkbootstrap_theme = None
-                return
-        except Exception:
-            log.warning(
-                "ui.theme.bootstrap_failed",
-                theme=theme_name,
-                exc_info=True,
-            )
-            self._ttkbootstrap_style = None
-            self._ttkbootstrap_theme = None
-            return
+                pass
 
-        # If we get here, _ttkbootstrap_style is set. Configure theme usage and
-        # root background if the theme provides a frame background color.
-        try:
+            try:
+                self._ttkbootstrap_style = ttkb.Style(theme=theme_name, master=self.root)
+            except TypeError:
+                # Older/newer mismatch: try without the master kwarg
+                try:
+                    self._ttkbootstrap_style = ttkb.Style(theme=theme_name)
+                    log.warning(
+                        "ui.theme.bootstrap_master_removed",
+                        message=(
+                            "ttkbootstrap.Style no longer accepts 'master'; "
+                            "initialized Style without master keyword"
+                        ),
+                        ttkbootstrap_version=ttk_version,
+                        theme=theme_name,
+                    )
+                except Exception as e:
+                    log.warning(
+                        "ui.theme.bootstrap_failed_internal",
+                        theme=theme_name,
+                        error=str(e),
+                    )
+                    raise e  # Re-raise to be caught by outer block
+
+            # Configure theme usage and root background
             active_theme = self._ttkbootstrap_style.theme_use()
             self._ttkbootstrap_theme = active_theme
 
@@ -482,16 +451,18 @@ class ApplicationGUI:
                 self.root.configure(background=frame_bg)
 
             log.debug("ui.theme.bootstrap_applied", theme=active_theme)
+
         except Exception:
-            # If anything goes wrong after creating the Style instance, log and
-            # clear the style references so callers can fall back to ttk.
-            log.warning(
-                "ui.theme.bootstrap_failed_post_init",
+            log.error(
+                "ui.theme.bootstrap_failed_global",
                 theme=theme_name,
                 exc_info=True,
+                message="Falling back to standard Tkinter theme",
             )
             self._ttkbootstrap_style = None
             self._ttkbootstrap_theme = None
+            # Ensure any partial changes don't break standard widgets if possible
+            # Standard Tkinter doesn't need explicit cleanup usually
 
     def _open_global_calibration_window(self):
         with self.controller.global_calibration_session():

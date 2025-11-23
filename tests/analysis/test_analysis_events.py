@@ -45,7 +45,7 @@ def test_process_videos_batch_publishes_social_summary_event(analysis_service, m
         mock_analyzer.get_social_summary.return_value = {"social_time_percentage": {}}
         mock_analyzer.get_event_log.return_value = Mock(to_dict=lambda x: [])
 
-        with patch("zebtrack.analysis.analysis_service.ConcreteBehavioralAnalyzer") as MockBehavioralAnalyzer:
+        with patch("zebtrack.analysis.analysis_service.ConcreteBehavioralAnalyzer"):
 
             # Mock file system and pandas
             with patch("os.path.exists", return_value=True):

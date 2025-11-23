@@ -288,8 +288,6 @@ def main():
         # when a project is created/loaded. This is by design to support different
         # detection methods (seg/det) and backends (YOLO/OpenVINO) per project.
         video_processing_service = VideoProcessingService(
-            detector=None,  # Lazy-initialized by detector_service.initialize_detector()
-            recorder=recorder_factory,  # Lazy-loads when first used
             project_manager=project_manager,
             state_manager=state_manager,
             ui_coordinator=ui_coordinator,

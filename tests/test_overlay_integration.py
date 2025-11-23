@@ -7,8 +7,8 @@ import pytest
 
 pytest.skip("Obsolete string-based checks", allow_module_level=True)
 
-import os
-import unittest
+import os  # noqa: E402
+import unittest  # noqa: E402
 
 
 class TestOverlayIntegration(unittest.TestCase):

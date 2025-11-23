@@ -5,8 +5,8 @@ import pytest
 pytest.skip("Obsolete workflow tests", allow_module_level=True)
 
 # --- Types and Constants ---
-from zebtrack.ui.event_bus import EventBus
-from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus import EventBus  # noqa: E402
+from zebtrack.ui.events import Events  # noqa: E402
 
 # --- Paths for Patching ---
 STATE_MANAGER_PATH = "zebtrack.core.main_view_model.StateManager"

@@ -11,6 +11,8 @@ Key Features:
 - Thread-safe state access and updates
 - Integration with EventBus for UI synchronization
 - State history tracking for debugging
+- Single ThreadPoolExecutor: All state observers are executed via a single shared executor
+  to prevent thread explosion and ensure predictable performance.
 
 State Categories:
 - Project State: current project path, metadata, configuration
@@ -473,10 +475,18 @@ class StateManager:
         # notifications are in progress to avoid race conditions
         self._observer_timeout_seconds = 5
 
+        # Task 1.1: Single ThreadPoolExecutor for observers to avoid overhead
+        self._observer_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
         log.info("state_manager.initialized", history_enabled=enable_history)
 
         # Hint for coordinators to prefer unified state update API when available
         self.prefer_unified_state_api = True
+
+    def shutdown(self) -> None:
+        """Shutdown the state manager and release resources."""
+        self._observer_executor.shutdown(wait=False)
+        log.info("state_manager.shutdown")
 
     # ==================== Observer Management ====================
 
@@ -630,30 +640,30 @@ class StateManager:
         observer_name = getattr(observer, "__name__", repr(observer))
 
         # Execute observer in thread pool with timeout
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(observer, category, key, old_value, new_value)
-            try:
-                future.result(timeout=timeout_seconds)
-            except concurrent.futures.TimeoutError:
-                # Task 2.3: Observer exceeded timeout - log and continue
-                log.error(
-                    "state.observer.timeout",
-                    category=category.name,
-                    key=key,
-                    observer=observer_name,
-                    timeout=timeout_seconds,
-                    message=f"Observer took longer than {timeout_seconds}s and was terminated",
-                )
-            except Exception as e:
-                # Observer raised exception - log and continue
-                log.error(
-                    "state.observer.callback_failed",
-                    category=category.name,
-                    key=key,
-                    error=str(e),
-                    observer=observer_name,
-                    exc_info=True,
-                )
+        # Task 1.1: Reuse existing executor instead of creating new one
+        future = self._observer_executor.submit(observer, category, key, old_value, new_value)
+        try:
+            future.result(timeout=timeout_seconds)
+        except concurrent.futures.TimeoutError:
+            # Task 2.3: Observer exceeded timeout - log and continue
+            log.error(
+                "state.observer.timeout",
+                category=category.name,
+                key=key,
+                observer=observer_name,
+                timeout=timeout_seconds,
+                message=f"Observer took longer than {timeout_seconds}s and was terminated",
+            )
+        except Exception as e:
+            # Observer raised exception - log and continue
+            log.error(
+                "state.observer.callback_failed",
+                category=category.name,
+                key=key,
+                error=str(e),
+                observer=observer_name,
+                exc_info=True,
+            )
 
     def _notify_observers(
         self,

@@ -96,6 +96,7 @@ class Camera(FrameSource):
         self._max_reconnect_attempts = self.settings.camera.max_reconnect_attempts
         self._reconnect_timeout_seconds = self.settings.camera.reconnect_timeout_seconds
         self._first_failure_time: float | None = None
+        self._consecutive_failures = 0
 
         # Start the thread as the final step
         self._thread = threading.Thread(target=self._reader_thread, daemon=True)
@@ -185,15 +186,27 @@ class Camera(FrameSource):
             ret, frame = self.cap.read()
 
             if not ret:
-                self.cap.release()
-                log.warning("camera.frame_read.failed")
-                with self._lock:
-                    self._frame_buffer.clear()
-                    self._frame_timestamps.clear()
-                    self._frame_available = False
-                # Add a short sleep to prevent a tight loop on continuous read errors
+                self._consecutive_failures += 1
+                log.warning(
+                    "camera.frame_read.failed",
+                    consecutive_failures=self._consecutive_failures,
+                )
+
+                # Use a dynamic sleep to prevent CPU spinning
                 time.sleep(0.1)
+
+                # If we exceed the threshold, consider the camera disconnected
+                if self._consecutive_failures >= 5:
+                    log.error("camera.disconnected", failures=self._consecutive_failures)
+                    self.cap.release()
+                    with self._lock:
+                        self._frame_buffer.clear()
+                        self._frame_timestamps.clear()
+                        self._frame_available = False
                 continue
+
+            # Reset failure counter on success
+            self._consecutive_failures = 0
 
             with self._lock:
                 self._frame_buffer.append(frame)
@@ -234,7 +247,10 @@ class Camera(FrameSource):
 
         Task 1.6: Robust thread termination with timeout and forced cleanup.
         """
+        log.info("camera.release.started")
         self._stopped.set()
+
+        # Wait for thread to finish with timeout
         self._thread.join(timeout=2)
 
         # Task 1.6: Check if thread actually terminated
@@ -243,10 +259,13 @@ class Camera(FrameSource):
                 "camera.release.thread_timeout",
                 message="Thread did not terminate after 2s, forcing camera close",
             )
-
             # Force close the capture to unblock thread stuck in read()
-            if self.cap.isOpened():
-                self.cap.release()
+            # This is the aggressive part: close the resource to break the blocking call
+            try:
+                if self.cap.isOpened():
+                    self.cap.release()
+            except Exception as e:
+                log.error("camera.release.force_close_failed", error=str(e))
 
             # Give thread more time to finish after forced close
             self._thread.join(timeout=1)
@@ -257,10 +276,13 @@ class Camera(FrameSource):
                     message="Thread still alive after forced close - potential resource leak",
                 )
         else:
-            # Thread terminated normally, safe to release capture
-            if self.cap.isOpened():
-                self.cap.release()
-                log.info("camera.released")
+            # Thread terminated normally, safe to release capture if not already done
+            try:
+                if self.cap.isOpened():
+                    self.cap.release()
+                    log.info("camera.released")
+            except Exception as e:
+                log.error("camera.release.normal_close_failed", error=str(e))
 
     def __enter__(self) -> "Camera":
         """Enter context manager - camera is already initialized."""

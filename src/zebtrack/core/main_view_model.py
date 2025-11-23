@@ -66,14 +66,14 @@ class MainViewModel:
 
         # 4. Setup event handlers mapping
         self._EVENT_METHOD_MAPPING = {
-            Events.RECORDING_START: ("start_recording", [], "no_params"),
-            Events.RECORDING_STOP: ("stop_recording", [], "no_params"),
-            Events.RECORDING_TOGGLE: ("toggle_recording", [], "no_params"),
-            Events.PROJECT_CREATE: ("create_project_workflow", ["wizard_data"], "kwargs_all"),
-            Events.PROJECT_OPEN: ("open_project_workflow", ["project_path"], "positional"),
-            Events.PROJECT_CLOSE: ("close_project", [], "no_params"),
-            Events.PROJECT_PROCESS_VIDEOS: ("start_project_processing_workflow", [], "no_params"),
-            Events.PROJECT_ADD_VIDEOS: ("add_videos_to_project", [], "no_params"),
+            Events.RECORDING_START: (self.start_recording, [], "no_params"),
+            Events.RECORDING_STOP: (self.stop_recording, [], "no_params"),
+            Events.RECORDING_TOGGLE: (self.toggle_recording, [], "no_params"),
+            Events.PROJECT_CREATE: (self.create_project_workflow, ["wizard_data"], "kwargs_all"),
+            Events.PROJECT_OPEN: (self.open_project_workflow, ["project_path"], "positional"),
+            Events.PROJECT_CLOSE: (self.close_project, [], "no_params"),
+            Events.PROJECT_PROCESS_VIDEOS: (self.start_project_processing_workflow, [], "no_params"),
+            Events.PROJECT_ADD_VIDEOS: (self.add_videos_to_project, [], "no_params"),
         }
 
         log.info("main_view_model.initialized", source="init")
@@ -257,6 +257,64 @@ class MainViewModel:
         )
 
     # =========================================================================
+    # Event Handlers Delegates (Added for Event Mapping Refactor)
+    # =========================================================================
+
+    def start_recording(self):
+        """Delegates recording start to recording session orchestrator."""
+        if self.recording_session_orchestrator:
+            self.recording_session_orchestrator.start_recording()
+
+    def stop_recording(self):
+        """Delegates recording stop to recording session orchestrator."""
+        if self.recording_session_orchestrator:
+            self.recording_session_orchestrator.stop_recording()
+
+    def toggle_recording(self):
+        """Toggles recording state."""
+        if self.recording_service and self.recording_service.is_recording:
+            self.stop_recording()
+        else:
+            self.start_recording()
+
+    def start_project_processing_workflow(self):
+        """Delegates processing workflow to video processing orchestrator."""
+        if self.video_processing_orchestrator:
+            self.video_processing_orchestrator.start_project_processing_workflow()
+
+    def add_videos_to_project(self):
+        """Adds videos to the current project via file dialog."""
+        if not self.project_manager.project_path:
+            self.ui_event_bus.publish_event(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Nenhum Projeto",
+                    "message": "Crie ou abra um projeto antes de adicionar vídeos.",
+                },
+            )
+            return
+
+        from tkinter import filedialog
+
+        file_paths = filedialog.askopenfilenames(
+            title="Adicionar Vídeos ao Projeto",
+            filetypes=[("Arquivos de Vídeo", "*.mp4 *.avi *.mov *.mkv")],
+        )
+
+        if not file_paths:
+            return
+
+        added_count = 0
+        for path in file_paths:
+            if self.project_manager.add_video(path):
+                added_count += 1
+
+        if added_count > 0:
+            self.project_manager.save_project()
+            self.ui_event_bus.publish_event(Events.UI_UPDATE_PROJECT_INFO)
+            self.ui_state_controller.refresh_project_views(reason="videos_added")
+
+    # =========================================================================
     # Application Lifecycle
     # =========================================================================
 
@@ -390,10 +448,14 @@ class MainViewModel:
         if event_name not in self._EVENT_METHOD_MAPPING:
             return lambda data: None
 
-        method_name, param_names, mode = self._EVENT_METHOD_MAPPING[event_name]
+        method_ref, param_names, mode = self._EVENT_METHOD_MAPPING[event_name]
 
         def dispatcher(data: dict) -> None:
-            method = getattr(self, method_name, None)
+            if isinstance(method_ref, str):
+                method = getattr(self, method_ref, None)
+            else:
+                method = method_ref
+
             if not method:
                 return
 
@@ -550,10 +612,11 @@ class MainViewModel:
         threading.Thread(target=_await_shutdown, daemon=True).start()
 
     def _process_single_video(self, **kwargs):
-        self.video_processing_service.detector = self.detector
-        self.video_processing_service.recorder = self.recorder
-        self.video_processing_service.cancel_event = self.cancel_event
-        return self.video_processing_service.process_single_video(**kwargs)
+        return self.video_processing_service.process_single_video(
+            detector=self.detector,
+            recorder=self.recorder,
+            **kwargs
+        )
 
     def apply_project_settings_to_batch(self, videos: list):
         return self.batch_configuration_service.apply_settings(videos)
