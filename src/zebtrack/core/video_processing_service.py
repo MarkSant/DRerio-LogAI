@@ -701,7 +701,18 @@ class VideoProcessingService:
                     cancel_requested = True
                     break
 
-                ret, frame = cap.read()
+                # Optimized frame reading: use grab() for skipped frames (10-20x faster)
+                # Only decode frames that will be processed (analysis_interval_frames)
+                should_process = frame_num % analysis_interval_frames == 0
+
+                if should_process:
+                    # Decode this frame for processing
+                    ret, frame = cap.read()
+                else:
+                    # Skip decoding - just advance video position (fast seek)
+                    ret = cap.grab()
+                    frame = None
+
                 if not ret:
                     log.info("controller.tracking.loop.end_of_video", frame=frame_num)
                     break
@@ -712,44 +723,47 @@ class VideoProcessingService:
                     cancel_requested = True
                     break
 
-                # Process frame
-                detections, detected_increment, was_processed = self._process_tracking_frame(
-                    frame=frame,
-                    frame_num=frame_num,
-                    analysis_interval_frames=analysis_interval_frames,
-                    cap=cap,
-                    recorder=session_recorder,
-                    detector=detector,
-                )
-
-                if was_processed:
-                    processed_frames_count += 1
-                    detected_frames_count += detected_increment
-
-                if self._tracking_cancelled(
-                    experiment_id, frame_num, "controller.tracking.cancelled.before_progress"
-                ):
-                    cancel_requested = True
-                    break
-
-                # Update progress
-                if progress_callback and was_processed:
-                    progress_fraction, stats = self._calculate_tracking_progress_stats(
+                # Process frame (only if decoded)
+                if should_process:
+                    detections, detected_increment, was_processed = self._process_tracking_frame(
+                        frame=frame,
                         frame_num=frame_num,
-                        processed_frames_count=processed_frames_count,
-                        detected_frames_count=detected_frames_count,
-                        start_time=start_time,
+                        analysis_interval_frames=analysis_interval_frames,
                         cap=cap,
+                        recorder=session_recorder,
+                        detector=detector,
                     )
 
-                    detector.draw_overlay(frame, detections)
-                    progress_callback(
-                        progress_fraction,
-                        "Gerando trajetória...",
-                        frame,
-                        stats,
-                        detections=detections,
-                    )
+                    if was_processed:
+                        processed_frames_count += 1
+                        detected_frames_count += detected_increment
+
+                    if self._tracking_cancelled(
+                        experiment_id,
+                        frame_num,
+                        "controller.tracking.cancelled.before_progress",
+                    ):
+                        cancel_requested = True
+                        break
+
+                    # Update progress
+                    if progress_callback:
+                        progress_fraction, stats = self._calculate_tracking_progress_stats(
+                            frame_num=frame_num,
+                            processed_frames_count=processed_frames_count,
+                            detected_frames_count=detected_frames_count,
+                            start_time=start_time,
+                            cap=cap,
+                        )
+
+                        detector.draw_overlay(frame, detections)
+                        progress_callback(
+                            progress_fraction,
+                            "Gerando trajetória...",
+                            frame,
+                            stats,
+                            detections=detections,
+                        )
 
                 frame_num += 1
 

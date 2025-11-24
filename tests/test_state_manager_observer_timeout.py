@@ -69,6 +69,9 @@ def test_observer_timeout_on_windows_no_crash():
     # Should not crash on any platform
     mgr.update_recording_state(source="test", is_recording=True)
 
+    # Wait for async observers to complete (fire-and-forget pattern)
+    time.sleep(2.5)
+
     assert len(completed) == 1, "Observer should complete on all platforms"
 
 
@@ -92,4 +95,8 @@ def test_observer_exception_handling_with_timeout():
     # Should not crash, should call other observers
     mgr.update_recording_state(source="test", is_recording=True)
 
+    # Wait for async observers to complete (fire-and-forget pattern)
+    time.sleep(0.2)
+
     assert len(other_observer_called) == 1, "Other observers should still be notified"
+

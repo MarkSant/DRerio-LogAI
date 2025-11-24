@@ -13,6 +13,7 @@ from tkinter import (
 from tkinter import font as tkfont
 from typing import Any
 
+import numpy as np
 import structlog
 
 try:
@@ -917,13 +918,7 @@ class ApplicationGUI:
     def setup_interactive_polygon(self, polygon):
         """Delegate interactive polygon setup to EventDispatcher (back-compat shim)."""
         polygon = polygon or []
-        try:
-            import numpy as np
-
-            polygon_array = np.array(polygon, dtype=float)
-        except Exception:
-            polygon_array = polygon
-
+        polygon_array = np.array(polygon, dtype=float)
         return self.canvas_manager.setup_interactive_polygon(polygon_array)
 
     def update_zone_listbox(self, zone_data: ZoneData | None = None):

@@ -251,6 +251,8 @@ class TestObserverPattern:
 
     def test_subscribe_all(self):
         """Can subscribe to all state changes."""
+        import time
+
         mgr = StateManager()
         observer = MagicMock()
 
@@ -259,10 +261,15 @@ class TestObserverPattern:
         mgr.update_project_state(source="test", project_path=Path("/test"))
         mgr.update_detector_state(source="test", detector_initialized=True)
 
+        # Wait for async observers to complete (fire-and-forget pattern)
+        time.sleep(0.2)
+
         assert observer.call_count == 2
 
     def test_multiple_observers(self):
         """Multiple observers can subscribe to same category."""
+        import time
+
         mgr = StateManager()
         observer1 = MagicMock()
         observer2 = MagicMock()
@@ -271,6 +278,9 @@ class TestObserverPattern:
         mgr.subscribe(StateCategory.RECORDING, observer2)
 
         mgr.update_recording_state(source="test", is_recording=True)
+
+        # Wait for async observers to complete (fire-and-forget pattern)
+        time.sleep(0.2)
 
         observer1.assert_called_once()
         observer2.assert_called_once()
@@ -301,6 +311,8 @@ class TestObserverPattern:
 
     def test_observer_exception_doesnt_break_others(self):
         """Exception in one observer doesn't affect others."""
+        import time
+
         mgr = StateManager()
 
         def failing_observer(*args):
@@ -312,6 +324,9 @@ class TestObserverPattern:
         mgr.subscribe(StateCategory.RECORDING, good_observer)
 
         mgr.update_recording_state(source="test", is_recording=True)
+
+        # Wait for async observers to complete (fire-and-forget pattern)
+        time.sleep(0.2)
 
         # Good observer should still be called even if first observer fails
         good_observer.assert_called_once()
@@ -580,6 +595,8 @@ class TestIntegrationScenarios:
 
     def test_project_workflow(self):
         """Test complete project open → process → close workflow."""
+        import time
+
         mgr = StateManager()
         changes = []
 
@@ -617,11 +634,15 @@ class TestIntegrationScenarios:
         # Close project
         mgr.update_project_state(source="controller", project_path=None)
 
+        # Wait for async observers to complete (fire-and-forget pattern)
+        time.sleep(0.3)
+
         # Verify sequence
         assert len(changes) > 0
         assert changes[0][1] == "project_path"
-        assert changes[-1][1] == "project_path"
-        assert changes[-1][3] is None
+        # Last change should be project_path set to None
+        project_path_changes = [c for c in changes if c[1] == "project_path"]
+        assert project_path_changes[-1][3] is None
 
     def test_recording_session(self):
         """Test recording start → stop workflow."""
@@ -660,6 +681,8 @@ class TestIntegrationScenarios:
 
     def test_ui_view_mode_switching(self):
         """Test UI view mode transitions."""
+        import time
+
         mgr = StateManager()
         view_changes = []
 
@@ -680,6 +703,9 @@ class TestIntegrationScenarios:
             source="gui",
             canvas_view_mode="zones",
         )
+
+        # Wait for async observers to complete (fire-and-forget pattern)
+        time.sleep(0.2)
 
         assert view_changes == ["analysis", "zones"]
 

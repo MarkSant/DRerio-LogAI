@@ -6,8 +6,6 @@ from zebtrack.tracker.kalman_filter import KalmanFilter
 
 
 class STrack(BaseTrack):
-    shared_kalman = KalmanFilter()
-
     def __init__(self, tlwh, score):
         # wait activate
         self._tlwh = np.asarray(tlwh, dtype=np.float64)
@@ -27,7 +25,18 @@ class STrack(BaseTrack):
         self.mean, self.covariance = self.kalman_filter.predict(mean_state, self.covariance)
 
     @staticmethod
-    def multi_predict(stracks):
+    def multi_predict(stracks, kalman_filter):
+        """
+        Predict next states for multiple tracks using the provided Kalman filter.
+
+        Args:
+            stracks: List of STrack instances to predict
+            kalman_filter: KalmanFilter instance to use for prediction (thread-safe)
+
+        Note:
+            Previously used shared class-level kalman_filter which caused race conditions
+            in multi-threaded scenarios. Now requires explicit filter instance.
+        """
         if len(stracks) > 0:
             multi_mean = np.asarray([st.mean.copy() for st in stracks])
             multi_covariance = np.asarray([st.covariance for st in stracks])
@@ -38,7 +47,7 @@ class STrack(BaseTrack):
             (
                 multi_mean,
                 multi_covariance,
-            ) = STrack.shared_kalman.multi_predict(multi_mean, multi_covariance)
+            ) = kalman_filter.multi_predict(multi_mean, multi_covariance)
 
             for i, (mean, cov) in enumerate(zip(multi_mean, multi_covariance, strict=False)):
                 stracks[i].mean = mean
@@ -166,15 +175,18 @@ class BYTETracker:
         lost_stracks = []
         removed_stracks = []
 
+        # Assumes Ultralytics YOLO format (5 columns: x1, y1, x2, y2, confidence)
+        # All current detectors provide this format
         if output_results.shape[1] == 5:
             scores = output_results[:, 4]
             bboxes = output_results[:, :4]
         else:
-            # This is for YOLOX model which has score in a different format
-            # We are using a detector that provides 5 columns, so this part is not used
-            output_results = output_results.cpu().numpy()
-            scores = output_results[:, 4] * output_results[:, 5]
-            bboxes = output_results[:, :4]  # x1y1x2y2
+            # Defensive fallback - should not be reached with current detectors
+            msg = (
+                f"Unexpected detector output format: "
+                f"{output_results.shape[1]} columns (expected 5)"
+            )
+            raise ValueError(msg)
 
         img_h, img_w = img_info[0], img_info[1]
         scale = min(img_size[0] / float(img_h), img_size[1] / float(img_w))
@@ -213,7 +225,7 @@ class BYTETracker:
 
         strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
         # Predict the current location with KF
-        STrack.multi_predict(strack_pool)
+        STrack.multi_predict(strack_pool, self.kalman_filter)
         dists = matching.iou_distance(strack_pool, detections)
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)

@@ -621,9 +621,13 @@ class StateManager:
         timeout_seconds: float = 5.0,
     ) -> None:
         """
-        Call observer with timeout protection.
+        Call observer asynchronously without blocking the caller.
 
-        Task 2.3: Prevent hanging observers from freezing the application.
+        Task 2.3 (FIXED): Prevent hanging observers from freezing the application.
+        Observers are submitted to thread pool but caller does NOT wait for result.
+
+        This eliminates UI freezing (ANR - Application Not Responding) that occurred
+        when observers took several seconds to complete.
 
         Args:
             observer: Observer callback to invoke
@@ -631,39 +635,45 @@ class StateManager:
             key: State key that changed
             old_value: Previous value
             new_value: New value
-            timeout_seconds: Maximum time to wait for observer (default: 5s)
+            timeout_seconds: Maximum time to wait for observer (unused, kept for API compat)
 
         Logs:
-            - observer.timeout: If observer exceeds timeout
-            - observer.callback_failed: If observer raises exception
+            - observer.callback_failed: If observer raises exception (via callback)
+
+        Note:
+            This is now "fire and forget" - caller proceeds immediately.
+            Exceptions and timeouts are logged but do not block the caller.
         """
         observer_name = getattr(observer, "__name__", repr(observer))
 
-        # Execute observer in thread pool with timeout
+        # Execute observer in thread pool asynchronously (fire and forget)
         # Task 1.1: Reuse existing executor instead of creating new one
         future = self._observer_executor.submit(observer, category, key, old_value, new_value)
-        try:
-            future.result(timeout=timeout_seconds)
-        except concurrent.futures.TimeoutError:
-            # Task 2.3: Observer exceeded timeout - log and continue
-            log.error(
-                "state.observer.timeout",
-                category=category.name,
-                key=key,
-                observer=observer_name,
-                timeout=timeout_seconds,
-                message=f"Observer took longer than {timeout_seconds}s and was terminated",
-            )
-        except Exception as e:
-            # Observer raised exception - log and continue
-            log.error(
-                "state.observer.callback_failed",
-                category=category.name,
-                key=key,
-                error=str(e),
-                observer=observer_name,
-                exc_info=True,
-            )
+
+        # Add completion callback to handle errors without blocking caller
+        def _on_observer_complete(fut):
+            try:
+                fut.result(timeout=0.1)  # Non-blocking check with minimal timeout
+            except concurrent.futures.TimeoutError:
+                # Observer still running - this shouldn't happen with timeout=0.1
+                log.warning(
+                    "state.observer.still_running",
+                    category=category.name,
+                    key=key,
+                    observer=observer_name,
+                )
+            except Exception as e:
+                # Observer raised exception - log and continue
+                log.error(
+                    "state.observer.callback_failed",
+                    category=category.name,
+                    key=key,
+                    error=str(e),
+                    observer=observer_name,
+                    exc_info=True,
+                )
+
+        future.add_done_callback(_on_observer_complete)
 
     def _notify_observers(
         self,

@@ -74,21 +74,36 @@ class ThreadCoordinator:
 
         Realiza:
         - Define evento de saída
-        - Aguarda conclusão de threads
+        - Aguarda conclusão de threads com timeout
         - Libera recursos de câmera
+        - Previne deadlocks com timeout de 2 segundos por thread
+
+        Note:
+            Se threads não terminarem dentro do timeout, logs de warning são emitidos
+            e o programa continua o shutdown (evita travamento indefinido).
         """
         self.log.info("thread_coordinator.shutdown.start")
         self.program_exit_event.set()
 
-        # Join background threads (processamento de vídeo)
+        # Join background threads (processamento de vídeo) com timeout
         if self.processing_thread is not None and self.processing_thread.is_alive():
             self.log.info("thread_coordinator.join_processing_thread")
-            self.processing_thread.join()
+            self.processing_thread.join(timeout=2.0)
+            if self.processing_thread.is_alive():
+                self.log.warning(
+                    "thread_coordinator.processing_thread.timeout",
+                    message="Processing thread did not exit within 2 seconds",
+                )
             self.processing_thread = None
 
         if self.capture_thread is not None and self.capture_thread.is_alive():
             self.log.info("thread_coordinator.join_capture_thread")
-            self.capture_thread.join()
+            self.capture_thread.join(timeout=2.0)
+            if self.capture_thread.is_alive():
+                self.log.warning(
+                    "thread_coordinator.capture_thread.timeout",
+                    message="Capture thread did not exit within 2 seconds",
+                )
             self.capture_thread = None
 
         # Libera recursos da câmera
