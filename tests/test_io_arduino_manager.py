@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition
 from zebtrack.io.arduino_manager import ArduinoManager
 
 
@@ -30,7 +31,7 @@ def mock_arduino():
     arduino.ser.is_open = True
 
     def delayed_readline():
-        time.sleep(0.01)
+        time.sleep(0.01)  # intentional delay for mock readline
         return b""
 
     arduino.ser.readline = MagicMock(side_effect=delayed_readline)
@@ -408,7 +409,7 @@ def test_arduino_manager_reader_loop_handles_generic_exception(
     manager.connect("COM3", 9600)
 
     # Give reader thread time to process
-    time.sleep(0.2)
+    wait_for_condition(lambda: manager._reader_thread is not None and manager._reader_thread.is_alive(), timeout=1.0)
 
     # Should continue running despite the exception
     manager.disconnect()
@@ -424,7 +425,7 @@ def test_arduino_manager_reader_loop_ignores_empty_lines(
     manager.connect("COM3", 9600)
 
     # Give reader thread time to process
-    time.sleep(0.1)
+    wait_for_condition(lambda: manager._reader_thread is not None and manager._reader_thread.is_alive(), timeout=1.0)
 
     manager.disconnect()
 

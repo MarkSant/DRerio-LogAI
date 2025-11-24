@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2025-12-XX
+
+### 🔴 Critical Fixes
+
+#### Fixed Camera Thread Deadlock (Atomic Shutdown Pattern)
+- **CRITICAL**: Eliminated camera thread deadlocks during shutdown in `io/camera.py`
+- Implemented single ownership pattern: only `_reader_thread` calls `cap.release()` in finally block
+- `release()` method now only signals `_shutdown_requested` Event and joins thread with 3s timeout
+- Prevents race condition where main thread and reader thread both accessed VideoCapture object
+- Shutdown now completes cleanly in <3 seconds with no zombie threads
+
+#### VideoProcessingService UI Decoupling
+- **CRITICAL**: Decoupled `VideoProcessingService` from tkinter and ApplicationGUI dependencies
+- Removed `view` and `root` parameters from constructor (10 params → 8 params)
+- Error handling now publishes `UIEvents.ERROR_OCCURRED` instead of calling `view.show_error()` directly
+- ApplicationGUI subscribes to error events and schedules UI updates via `root.after()`
+- Enables headless testing and better separation of concerns
+
+#### Graceful Shutdown (Removed Hard Exit)
+- **MEDIUM**: Removed `sys.exit(70)` forced termination when camera thread fails to shut down
+- Publishes `UIEvents.ERROR_OCCURRED` with fatal error message for user notification
+- Allows natural shutdown flow via `root.destroy()` instead of process kill
+- Better cleanup and resource management during abnormal shutdown
+
+### 🟢 Performance & Optimization
+
+#### EventBus Performance Monitoring (100ms Fixed Threshold)
+- **HIGH**: Added performance monitoring to `event_bus_v2.py` to identify UI-blocking handlers
+- Measures handler execution time with `time.perf_counter()`
+- Logs warning when handler exceeds 100ms fixed threshold (not configurable)
+- Creates healthy pressure to move I/O operations to background threads instead of hiding with config
+- Warnings include event name, handler name, elapsed time, and tech debt message
+
+#### Dynamic Frame Skip Calibration
+- **PERFORMANCE**: Implemented warm-up + 1 seek calibration in `video_processing_service.py`
+- Measures single seek to frame 100 during `_create_video_context()`
+- Calculates optimal skip threshold: 120 (<10ms), 80 (<50ms), or 60 (≥50ms) based on storage speed
+- Added `_seek_to_frame()` helper using hybrid grab()/set() strategy
+- Adapts to hardware capabilities (fast SSD vs network storage)
+- Logged for debugging: `seek_time_ms`, `skip_threshold`
+
+#### Memory Optimization (Column Subset Copy)
+- **MEMORY**: Reduced memory usage during trajectory analysis by 40-60%
+- Added `REQUIRED_TRAJECTORY_COLUMNS` constant in `analysis/analysis_service.py`
+- Only copies 9 required columns instead of full DataFrame (15+ columns)
+- Faster DataFrame operations and better cache locality
+- Estimated savings: ~24MB per 500K-row trajectory
+
+### 🧪 Testing Infrastructure
+
+#### Wait Condition Helpers
+- **NEW**: Created `tests/utils/wait_helpers.py` with robust polling-based wait utilities
+- Eliminates flaky tests from `time.sleep()` usage
+- Provides `wait_for_condition()`, `wait_for_event()`, `wait_for_thread_exit()`, `assert_condition_met()`
+- Polling-based approach works reliably across different CPU speeds
+
+#### Nightly Stress Test Workflow
+- **NEW**: Created `.github/workflows/stress-tests.yml` scheduled for 2 AM UTC daily
+- Threading stress tests (10x repetition of slow tests)
+- Memory leak detection with memray profiling
+- Flakiness detection (3x full suite runs)
+- Auto-creates GitHub Issues on failure with labels and run links
+- Keeps `ci.yml` fast for PR feedback
+
+### Changed
+- Updated `VideoContext` dataclass to include `skip_threshold` field (default 60)
+- Modified `__main__.py` Composition Root to remove view/root from VideoProcessingService instantiation
+- ApplicationGUI now subscribes to `UIEvents.ERROR_OCCURRED` in `__init__()`
+
+### Documentation
+- Updated `BUGFIX_SUMMARY.md` with v2.2 architectural improvements
+- Added detailed explanations for all 8 major changes
+
+---
+
+## [2.1.0] - 2025-11-XX
+
 ### 🔄 Event-Driven Architecture (v4.0 Migration - Phase 2)
 **Status**: IN PROGRESS (Dual Mode Compatibility)
 

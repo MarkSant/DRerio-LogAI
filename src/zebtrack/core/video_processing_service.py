@@ -63,7 +63,10 @@ log = structlog.get_logger()
 
 @dataclass
 class VideoContext:
-    """Shared video capture metadata to avoid redundant I/O."""
+    """Shared video capture metadata to avoid redundant I/O.
+
+    v2.2: Added skip_threshold for dynamic frame skip calibration.
+    """
 
     path: str
     cap: cv2.VideoCapture
@@ -71,6 +74,7 @@ class VideoContext:
     height: int
     fps: float
     first_frame: np.ndarray | None = None
+    skip_threshold: int = 60  # v2.2: Calibrated frame skip threshold (default fallback)
 
     def reset(self) -> None:
         """Seek capture back to the first frame if still open."""
@@ -98,8 +102,6 @@ class VideoProcessingService:
         state_manager: StateManager,
         ui_coordinator: UICoordinator,
         ui_event_bus: EventBus,
-        root,  # tkinter.Tk
-        view,  # ApplicationGUI
         cancel_event,  # threading.Event
         settings_obj: Settings,
         detector: Detector | None = None,
@@ -107,13 +109,13 @@ class VideoProcessingService:
     ):
         """Initialize VideoProcessingService with injected dependencies.
 
+        v2.2: Removed view and root parameters for event-driven decoupling.
+
         Args:
             project_manager: ProjectManager for project state
             state_manager: StateManager for centralized state
             ui_coordinator: UICoordinator for UI updates
-            ui_event_bus: Event bus for UI events
-            root: Tkinter root for scheduling UI updates
-            view: ApplicationGUI for direct UI access
+            ui_event_bus: Event bus for UI events (publishes ERROR_OCCURRED, etc.)
             cancel_event: Threading event for cancellation signaling
             settings_obj: Settings instance for configuration access
         """
@@ -121,8 +123,6 @@ class VideoProcessingService:
         self.state_manager = state_manager
         self.ui_coordinator = ui_coordinator
         self.ui_event_bus = ui_event_bus
-        self.root = root
-        self.view = view
         self.cancel_event = cancel_event
         self.settings = settings_obj
         # Legacy attributes kept for backward compatibility with orchestrators/tests
@@ -132,7 +132,12 @@ class VideoProcessingService:
         log.info("video_processing_service.init.complete")
 
     def _create_video_context(self, video_path: Path | str) -> VideoContext | None:
-        """Open a video once and cache metadata/first frame for downstream steps."""
+        """Open a video once and cache metadata/first frame for downstream steps.
+
+        v2.2: Dynamic frame skip calibration with warm-up + 1 seek measurement.
+        """
+        import time
+
         normalized_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
         cap = cv2.VideoCapture(normalized_path)
         if not cap.isOpened():
@@ -143,6 +148,34 @@ class VideoProcessingService:
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS) or getattr(self.settings.video_processing, "fps", 30.0)
 
+        # v2.2: Dynamic frame skip calibration
+        # Warm-up seek to reset internal state
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        cap.read()  # Discard warm-up frame
+
+        # Measure single seek to frame 100
+        t0 = time.perf_counter()
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 100)
+        cap.read()  # Execute seek
+        seek_time_ms = (time.perf_counter() - t0) * 1000
+
+        # Calculate optimal skip threshold
+        if seek_time_ms < 10:
+            skip_threshold = 120  # Fast seek - use larger skip
+        elif seek_time_ms < 50:
+            skip_threshold = 80   # Medium seek
+        else:
+            skip_threshold = 60   # Slow seek - conservative skip
+
+        log.info(
+            "video_processing.frame_skip_calibrated",
+            path=Path(normalized_path).name,
+            seek_time_ms=round(seek_time_ms, 2),
+            skip_threshold=skip_threshold,
+        )
+
+        # Reset to beginning for first frame capture
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
         first_frame = None
         ret, frame = cap.read()
         if ret:
@@ -158,7 +191,47 @@ class VideoProcessingService:
             height=height,
             fps=fps,
             first_frame=first_frame,
+            skip_threshold=skip_threshold,  # v2.2: Add calibrated threshold
         )
+
+    def _seek_to_frame(
+        self,
+        cap: cv2.VideoCapture,
+        target_frame: int,
+        current_frame: int,
+        skip_threshold: int = 60,
+    ) -> bool:
+        """Optimized frame seeking using hybrid grab()/set() strategy.
+
+        v2.2: Uses calibrated skip_threshold to choose between:
+        - grab() for small sequential gaps (< threshold)
+        - set() for large jumps (>= threshold)
+
+        Args:
+            cap: OpenCV VideoCapture object
+            target_frame: Destination frame number
+            current_frame: Current position
+            skip_threshold: Gap threshold for set() vs grab() decision
+
+        Returns:
+            True if seek succeeded, False otherwise
+        """
+        gap = target_frame - current_frame
+
+        if gap <= 0:
+            # Backward seek always uses set()
+            cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+            return True
+        elif gap < skip_threshold:
+            # Small gap - use grab() for sequential advance
+            for _ in range(gap):
+                if not cap.grab():
+                    return False
+            return True
+        else:
+            # Large gap - use set() for direct seek
+            cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+            return True
 
     def display_initial_frame(self, video_path: Path | str, frame: np.ndarray | None = None) -> None:
         """Display first frame of video in UI.
@@ -277,13 +350,17 @@ class VideoProcessingService:
             Path(trajectory_path) if isinstance(trajectory_path, str) else trajectory_path
         )
         if not trajectory_path.exists():
-            self.root.after(
-                0,
-                lambda: self.view.show_error(
-                    "Erro de Processamento",
-                    f"Falha ao gerar arquivo de trajetória para {experiment_id}.",
-                ),
-            )
+            # v2.2: Publish event instead of calling view directly
+            if self.ui_event_bus is not None:
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                self.ui_event_bus.publish(Event(
+                    UIEvents.ERROR_OCCURRED,
+                    {
+                        'title': 'Erro de Processamento',
+                        'message': f'Falha ao gerar arquivo de trajetória para {experiment_id}.',
+                        'details': f'Arquivo não encontrado: {trajectory_path}'
+                    }
+                ))
             return None
 
         try:
@@ -294,13 +371,17 @@ class VideoProcessingService:
                 path=trajectory_path,
                 error=str(exc),
             )
-            self.root.after(
-                0,
-                lambda: self.view.show_error(
-                    "Erro de Processamento",
-                    f"Falha ao ler arquivo de trajetória para {experiment_id}.",
-                ),
-            )
+            # v2.2: Publish event instead of calling view directly
+            if self.ui_event_bus is not None:
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                self.ui_event_bus.publish(Event(
+                    UIEvents.ERROR_OCCURRED,
+                    {
+                        'title': 'Erro de Processamento',
+                        'message': f'Falha ao ler arquivo de trajetória para {experiment_id}.',
+                        'details': str(exc)
+                    }
+                ))
             return None
 
     def _setup_tracking_session(

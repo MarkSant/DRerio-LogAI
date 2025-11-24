@@ -90,6 +90,7 @@ class Camera(FrameSource):
         self._frame_timestamps: deque[float] = deque(maxlen=2)
         self._frame_available = False  # Track if any frame has been captured
         self._stopped = threading.Event()
+        self._shutdown_requested = threading.Event()  # v2.2: Atomic shutdown signal
         self._reconnect_state_ready = threading.Event()
         self._reconnect_state_ready.set()
 
@@ -122,17 +123,34 @@ class Camera(FrameSource):
         self._reconnect_attempts_public = int(value)
 
     def _reader_thread(self):
-        """Background loop that captures frames and manages reconnect attempts."""
-        while not self._stopped.is_set():
-            if not self.cap.isOpened():
-                if not self._attempt_reconnect():
+        """Background loop that captures frames and manages reconnect attempts.
+
+        v2.2: Only this thread calls cap.release() (single ownership pattern).
+        Checks _shutdown_requested at each iteration for atomic shutdown.
+        """
+        try:
+            while not self._stopped.is_set():
+                # v2.2: Check shutdown signal at beginning of each iteration
+                if self._shutdown_requested.is_set():
                     break
-                continue
 
-            self._reset_reconnect_state()
+                if not self.cap.isOpened():
+                    if not self._attempt_reconnect():
+                        break
+                    continue
 
-            if not self._capture_frame():
-                continue
+                self._reset_reconnect_state()
+
+                if not self._capture_frame():
+                    continue
+        finally:
+            # v2.2: ONLY _reader_thread calls cap.release() (prevents deadlock)
+            try:
+                if self.cap.isOpened():
+                    self.cap.release()
+                    log.info("camera.released_by_reader_thread")
+            except Exception as e:
+                log.error("camera.reader_thread.release_failed", error=str(e))
 
         log.info("camera.reader_thread.stopped")
 

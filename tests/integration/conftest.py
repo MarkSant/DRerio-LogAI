@@ -37,7 +37,7 @@ def integration_recorder(tmp_path):
     # Force cleanup to prevent resource leaks
     del recorder
     gc.collect()
-    time.sleep(0.1)  # Give Windows time to release file handles
+    time.sleep(0.1)  # Windows file handle release delay (intentional)
 
 
 @pytest.fixture

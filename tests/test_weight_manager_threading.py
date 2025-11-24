@@ -14,6 +14,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from tests.utils.wait_helpers import wait_for_thread_exit
 from zebtrack.core.weight_manager import WEIGHTS_CONFIG_FILE, WeightManager
 
 
@@ -67,7 +68,7 @@ class TestWeightManagerConcurrentAccess:
             for i in range(5):
                 weights = weight_manager.get_all_weights()
                 weight_lists.append((thread_id, len(weights)))
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         # Start multiple getter threads
         getters = []
@@ -78,7 +79,7 @@ class TestWeightManagerConcurrentAccess:
 
         # Wait for completion
         for getter in getters:
-            getter.join(timeout=3.0)
+            wait_for_thread_exit(getter, timeout=3.0)
 
         # All threads should complete
         for getter in getters:
@@ -99,7 +100,7 @@ class TestWeightManagerConcurrentAccess:
                 details = weight_manager.get_weight_details("weight1.pt")
                 if details:
                     details_retrieved.append((thread_id, details["type"]))
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         # Start multiple getter threads
         getters = []
@@ -110,7 +111,7 @@ class TestWeightManagerConcurrentAccess:
 
         # Wait for completion
         for getter in getters:
-            getter.join(timeout=3.0)
+            wait_for_thread_exit(getter, timeout=3.0)
 
         # All threads should complete
         for getter in getters:
@@ -130,7 +131,7 @@ class TestWeightManagerConcurrentAccess:
                 name, details = weight_manager.get_default_weight()
                 if name and details:
                     default_weights.append((thread_id, name))
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         # Start multiple getter threads
         getters = []
@@ -141,7 +142,7 @@ class TestWeightManagerConcurrentAccess:
 
         # Wait for completion
         for getter in getters:
-            getter.join(timeout=3.0)
+            wait_for_thread_exit(getter, timeout=3.0)
 
         # All threads should complete
         for getter in getters:
@@ -162,7 +163,7 @@ class TestWeightManagerConcurrentAccess:
                     path = weight_manager.get_weight_path_by_method("botsort", "seg")
                     if path:
                         paths_retrieved.append((thread_id, path))
-                    time.sleep(0.01)
+                    time.sleep(0.01)  # intentional interleaving delay
 
         # Start multiple getter threads
         getters = []
@@ -173,7 +174,7 @@ class TestWeightManagerConcurrentAccess:
 
         # Wait for completion
         for getter in getters:
-            getter.join(timeout=3.0)
+            wait_for_thread_exit(getter, timeout=3.0)
 
         # All threads should complete
         for getter in getters:
@@ -198,7 +199,7 @@ class TestWeightManagerConcurrentModifications:
                     "is_default_det": False,
                 }
                 update_count[0] += 1
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         # Start multiple updater threads
         updaters = []
@@ -209,7 +210,7 @@ class TestWeightManagerConcurrentModifications:
 
         # Wait for completion
         for updater in updaters:
-            updater.join(timeout=3.0)
+            wait_for_thread_exit(updater, timeout=3.0)
 
         # All threads should complete
         for updater in updaters:
@@ -240,7 +241,7 @@ class TestWeightManagerConcurrentModifications:
                 if weight_name in weight_manager.weights:
                     del weight_manager.weights[weight_name]
                     removal_count[0] += 1
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         # Start multiple remover threads
         removers = []
@@ -251,7 +252,7 @@ class TestWeightManagerConcurrentModifications:
 
         # Wait for completion
         for remover in removers:
-            remover.join(timeout=3.0)
+            wait_for_thread_exit(remover, timeout=3.0)
 
         # All threads should complete
         for remover in removers:
@@ -292,7 +293,7 @@ class TestWeightManagerConfigurationFile:
                                 read_count[0] += 1
                 except Exception:
                     pass
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         # Start multiple reader threads
         readers = []
@@ -303,7 +304,7 @@ class TestWeightManagerConfigurationFile:
 
         # Wait for completion
         for reader in readers:
-            reader.join(timeout=3.0)
+            wait_for_thread_exit(reader, timeout=3.0)
 
         # All threads should complete
         for reader in readers:
@@ -331,7 +332,7 @@ class TestWeightManagerRaceConditions:
                 if det_name:
                     det_defaults.append((thread_id, det_name))
 
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         # Start multiple querier threads
         queriers = []
@@ -342,7 +343,7 @@ class TestWeightManagerRaceConditions:
 
         # Wait for completion
         for querier in queriers:
-            querier.join(timeout=3.0)
+            wait_for_thread_exit(querier, timeout=3.0)
 
         # All threads should complete
         for querier in queriers:
@@ -365,7 +366,7 @@ class TestWeightManagerRaceConditions:
             for i in range(3):
                 weights = weight_manager.get_all_weights()
                 operations.append((thread_id, "read", len(weights)))
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         def writer_worker(thread_id):
             for i in range(3):
@@ -377,7 +378,7 @@ class TestWeightManagerRaceConditions:
                     "is_default_det": False,
                 }
                 operations.append((thread_id, "write", weight_name))
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         # Start both reader and writer threads
         workers = []
@@ -396,7 +397,7 @@ class TestWeightManagerRaceConditions:
 
         # Wait for completion
         for worker in workers:
-            worker.join(timeout=3.0)
+            wait_for_thread_exit(worker, timeout=3.0)
 
         # All threads should complete
         for worker in workers:
@@ -433,7 +434,7 @@ class TestWeightManagerErrorHandling:
 
         # Wait for completion
         for worker in workers:
-            worker.join(timeout=2.0)
+            wait_for_thread_exit(worker, timeout=2.0)
 
         # All threads should complete
         for worker in workers:

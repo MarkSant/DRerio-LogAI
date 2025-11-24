@@ -167,8 +167,16 @@ class TestGUIStateObserver:
 
     def test_processing_state_change_triggers_ui_update(self, mock_gui, controller):
         """Processing state changes should trigger UI updates."""
+        from tests.utils.wait_helpers import wait_for_condition
+
         # Trigger processing state change
         controller.state_manager.update_processing_state(source="test", is_processing=True)
+
+        # Wait for async observers to complete and schedule UI updates
+        wait_for_condition(
+            lambda: len([c for c in mock_gui.root._scheduled_callbacks if c[0] == 0]) > 0,
+            timeout=0.5,
+        )
 
         # Phase 1.2: Process all scheduled UI updates synchronously
         mock_gui.root.update_idletasks()
@@ -200,8 +208,8 @@ class TestGUIStateObserver:
         # This ensures thread safety
         zero_delay_callbacks = [item for item in mock_gui.root._scheduled_callbacks if item[0] == 0]
 
-        # Should have at least 3 calls (one per state change)
-        assert len(zero_delay_callbacks) >= 3
+        # Should have at least 2 calls (recording + processing; detector doesn't schedule UI update)
+        assert len(zero_delay_callbacks) >= 2
 
         # Phase 1.2: Process all scheduled updates
         mock_gui.root.update_idletasks()
@@ -212,6 +220,9 @@ class TestGUIStateObserver:
 
     def test_recording_state_stop_updates_ui(self, mock_gui, controller):
         """Stopping recording should re-enable start button."""
+        import time
+        from tests.utils.wait_helpers import wait_for_condition
+
         # Start recording
         controller.state_manager.update_recording_state(source="test", is_recording=True)
         mock_gui.root.update_idletasks()
@@ -222,6 +233,9 @@ class TestGUIStateObserver:
 
         # Stop recording
         controller.state_manager.update_recording_state(source="test", is_recording=False)
+
+        # Wait for async observers to complete and schedule UI updates
+        wait_for_condition(lambda: len([c for c in mock_gui.root._scheduled_callbacks if c[0] == 0]) > 0, timeout=0.5)
 
         # Phase 1.2: Process all scheduled UI updates synchronously
         mock_gui.root.update_idletasks()

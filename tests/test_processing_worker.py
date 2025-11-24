@@ -11,6 +11,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
+
 from zebtrack.core.processing_worker import (
     ProcessingCallbacks,
     ProcessingContext,
@@ -123,7 +125,7 @@ class TestProcessingWorkerThreading:
 
         # Cleanup
         basic_context.cancel_event.set()
-        thread1.join(timeout=1.0)
+        wait_for_thread_exit(thread1, timeout=1.0)
 
     def test_is_running_reflects_thread_state(self, basic_context, mock_callbacks):
         """is_running property accurately reflects whether thread is active."""
@@ -299,7 +301,7 @@ class TestProcessingWorkerCancellation:
         thread = worker.start_in_thread()
 
         # Let it start, then cancel
-        time.sleep(0.05)
+        wait_for_condition(lambda: worker.is_running, timeout=1.0)
         success = worker.cancel(timeout=1.0)
 
         assert success
@@ -339,7 +341,7 @@ class TestProcessingWorkerCancellation:
         # Wait for first video, then cancel
         cancel_after_first.wait(timeout=1.0)
         mock_cancel_event.set()
-        thread.join(timeout=2.0)
+        wait_for_thread_exit(thread, timeout=2.0)
 
         # Should have processed at least 1 but typically not all 5 videos
         # (in rare cases all may complete before cancellation is checked)

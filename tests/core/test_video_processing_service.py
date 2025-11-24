@@ -106,8 +106,6 @@ def video_processing_service(
     mock_state_manager,
     mock_ui_coordinator,
     mock_event_bus,
-    mock_root,
-    mock_view,
     cancel_event,
 ):
     """Create VideoProcessingService with mocked dependencies."""
@@ -120,8 +118,6 @@ def video_processing_service(
         state_manager=mock_state_manager,
         ui_coordinator=mock_ui_coordinator,
         ui_event_bus=mock_event_bus,
-        root=mock_root,
-        view=mock_view,
         cancel_event=cancel_event,
         settings_obj=mock_settings,
     )
@@ -154,8 +150,6 @@ def test_service_with_null_detector_allowed(
     mock_state_manager,
     mock_ui_coordinator,
     mock_event_bus,
-    mock_root,
-    mock_view,
     cancel_event,
 ):
     """Test that service can be instantiated with None detector (lazy initialization)."""
@@ -168,8 +162,6 @@ def test_service_with_null_detector_allowed(
         state_manager=mock_state_manager,
         ui_coordinator=mock_ui_coordinator,
         ui_event_bus=mock_event_bus,
-        root=mock_root,
-        view=mock_view,
         cancel_event=cancel_event,
         settings_obj=mock_settings,
     )

@@ -14,6 +14,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition
+
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.io.camera import Camera
 from zebtrack.io.recorder import Recorder
@@ -80,7 +82,7 @@ def test_camera_to_recorder_live_streaming(temp_results_dir, sample_zones):
             camera = Camera(settings_obj=mock_settings)
 
             # Wait for camera to start capturing
-            time.sleep(0.2)
+            wait_for_condition(lambda: camera._thread.is_alive(), timeout=1.0)
 
             # Start recorder with correct API
             recorder = Recorder()
@@ -110,7 +112,7 @@ def test_camera_to_recorder_live_streaming(temp_results_dir, sample_zones):
                     )
                     frames_written += 1
 
-                time.sleep(0.01)  # Simulate processing time
+                time.sleep(0.01)  # simulate processing time (intentional)
 
             # Stop recorder
             recorder.stop_recording()
@@ -249,7 +251,7 @@ def test_state_manager_workflow_orchestration(temp_results_dir, sample_zones):
     state_manager.update_recording_state(is_recording=True)
 
     # 3. Stop recording (change from True to False)
-    time.sleep(0.01)
+    time.sleep(0.01)  # simulate processing time (intentional)
     state_manager.update_recording_state(is_recording=False)
 
     # 4. Start processing
@@ -268,7 +270,7 @@ def test_state_manager_workflow_orchestration(temp_results_dir, sample_zones):
             current_frame=frame,
             total_frames=1000,
         )
-        time.sleep(0.01)
+        time.sleep(0.01)  # simulate processing time (intentional)
 
     # 5. Complete processing (change is_processing from True to False)
     state_manager.update_processing_state(
@@ -338,7 +340,7 @@ def test_end_to_end_simulated_workflow(temp_results_dir, sample_zones):
             state_manager = StateManager()
 
             # Wait for camera to initialize
-            time.sleep(0.2)
+            wait_for_condition(lambda: camera._thread.is_alive(), timeout=1.0)
 
             # Start workflow
             state_manager.update_recording_state(is_recording=True)
@@ -372,7 +374,7 @@ def test_end_to_end_simulated_workflow(temp_results_dir, sample_zones):
                     # Update state
                     state_manager.update_recording_state(is_recording=True)
 
-                time.sleep(0.01)
+                time.sleep(0.01)  # simulate processing time (intentional)
 
             # Stop workflow
             recorder.stop_recording()
@@ -439,7 +441,7 @@ def test_frame_buffer_prevents_lag_in_live_mode(temp_results_dir, sample_zones):
         camera = Camera(settings_obj=mock_settings)
 
         # Wait for camera to capture some frames
-        time.sleep(0.3)
+        wait_for_condition(lambda: frame_counter[0] > 5, timeout=1.0)
 
         # Verify buffer size is limited
         with camera._lock:
@@ -455,7 +457,7 @@ def test_frame_buffer_prevents_lag_in_live_mode(temp_results_dir, sample_zones):
             ret, frame = camera.get_frame()
             if ret:
                 frames_retrieved += 1
-            time.sleep(0.05)
+            time.sleep(0.05)  # simulate processing time (intentional)
 
         # Verify we retrieved frames
         assert frames_retrieved > 0, "Should have retrieved at least some frames"

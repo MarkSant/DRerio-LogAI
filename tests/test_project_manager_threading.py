@@ -13,6 +13,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from tests.utils.wait_helpers import wait_for_thread_exit
 from zebtrack.core.project_manager import ProjectManager
 
 
@@ -63,7 +64,7 @@ class TestProjectManagerConcurrentUpdates:
                 # Simulate project data update
                 project_manager.project_data[f"thread_{thread_id}_key_{i}"] = f"value_{i}"
                 update_count[0] += 1
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         # Start multiple update workers
         workers = []
@@ -74,7 +75,7 @@ class TestProjectManagerConcurrentUpdates:
 
         # Wait for completion
         for worker in workers:
-            worker.join(timeout=3.0)
+            wait_for_thread_exit(worker, timeout=3.0)
 
         # All threads should complete
         for worker in workers:
@@ -104,7 +105,7 @@ class TestProjectManagerConcurrentUpdates:
                 try:
                     zones = project_manager.project_data.get("zones", {})
                     zone_accesses.append((thread_id, len(zones)))
-                    time.sleep(0.01)
+                    time.sleep(0.01)  # intentional interleaving delay
                 except Exception as e:
                     zone_accesses.append((thread_id, f"error: {e}"))
 
@@ -117,7 +118,7 @@ class TestProjectManagerConcurrentUpdates:
 
         # Wait for completion
         for reader in readers:
-            reader.join(timeout=3.0)
+            wait_for_thread_exit(reader, timeout=3.0)
 
         # All threads should complete
         for reader in readers:
@@ -145,7 +146,7 @@ class TestProjectManagerConcurrentUpdates:
                             f"processing_by_thread_{thread_id}"
                         )
                         status_updates.append((thread_id, video_index, i))
-                        time.sleep(0.01)
+                        time.sleep(0.01)  # intentional interleaving delay
                 except Exception as e:
                     status_updates.append((thread_id, video_index, f"error: {e}"))
 
@@ -158,7 +159,7 @@ class TestProjectManagerConcurrentUpdates:
 
         # Wait for completion
         for updater in updaters:
-            updater.join(timeout=3.0)
+            wait_for_thread_exit(updater, timeout=3.0)
 
         # All threads should complete
         for updater in updaters:
@@ -184,7 +185,7 @@ class TestProjectManagerConcurrentUpdates:
                     if project_manager.metadata is not None:
                         row_count = len(project_manager.metadata)
                         metadata_reads.append((thread_id, row_count))
-                    time.sleep(0.01)
+                    time.sleep(0.01)  # intentional interleaving delay
                 except Exception as e:
                     metadata_reads.append((thread_id, f"error: {e}"))
 
@@ -197,7 +198,7 @@ class TestProjectManagerConcurrentUpdates:
 
         # Wait for completion
         for reader in readers:
-            reader.join(timeout=3.0)
+            wait_for_thread_exit(reader, timeout=3.0)
 
         # All threads should complete
         for reader in readers:
@@ -220,7 +221,7 @@ class TestProjectManagerSaveLoadOperations:
                     # Mock the actual file save
                     project_manager.project_data[f"save_marker_{thread_id}"] = i
                     save_attempts.append((thread_id, i, "success"))
-                    time.sleep(0.02)
+                    time.sleep(0.02)  # intentional interleaving delay
                 except Exception as e:
                     save_attempts.append((thread_id, i, f"error: {e}"))
 
@@ -233,7 +234,7 @@ class TestProjectManagerSaveLoadOperations:
 
         # Wait for completion
         for worker in workers:
-            worker.join(timeout=3.0)
+            wait_for_thread_exit(worker, timeout=3.0)
 
         # All threads should complete
         for worker in workers:
@@ -253,7 +254,7 @@ class TestProjectManagerSaveLoadOperations:
                     _ = project_manager.zone_manager
                     # Simulate zone operations
                     operations.append((thread_id, i, "zone_access"))
-                    time.sleep(0.01)
+                    time.sleep(0.01)  # intentional interleaving delay
                 except Exception as e:
                     operations.append((thread_id, i, f"error: {e}"))
 
@@ -266,7 +267,7 @@ class TestProjectManagerSaveLoadOperations:
 
         # Wait for completion
         for worker in workers:
-            worker.join(timeout=3.0)
+            wait_for_thread_exit(worker, timeout=3.0)
 
         # All threads should complete
         for worker in workers:
@@ -283,7 +284,7 @@ class TestProjectManagerSaveLoadOperations:
                     _ = project_manager.asset_manager
                     # Simulate asset operations
                     operations.append((thread_id, i, "asset_access"))
-                    time.sleep(0.01)
+                    time.sleep(0.01)  # intentional interleaving delay
                 except Exception as e:
                     operations.append((thread_id, i, f"error: {e}"))
 
@@ -296,7 +297,7 @@ class TestProjectManagerSaveLoadOperations:
 
         # Wait for completion
         for worker in workers:
-            worker.join(timeout=3.0)
+            wait_for_thread_exit(worker, timeout=3.0)
 
         # All threads should complete
         for worker in workers:
@@ -317,7 +318,7 @@ class TestProjectManagerRaceConditions:
                     "status": "pending",
                 }
                 project_manager.project_data["videos"].append(video_entry)
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         # Start multiple video adders
         adders = []
@@ -328,7 +329,7 @@ class TestProjectManagerRaceConditions:
 
         # Wait for completion
         for adder in adders:
-            adder.join(timeout=3.0)
+            wait_for_thread_exit(adder, timeout=3.0)
 
         # All threads should complete
         for adder in adders:
@@ -349,7 +350,7 @@ class TestProjectManagerRaceConditions:
                         has_changes=(i % 2 == 0),
                     )
                     notifications.append((thread_id, i))
-                    time.sleep(0.01)
+                    time.sleep(0.01)  # intentional interleaving delay
                 except Exception as e:
                     notifications.append((thread_id, f"error: {e}"))
 
@@ -362,7 +363,7 @@ class TestProjectManagerRaceConditions:
 
         # Wait for completion
         for notifier_thread in notifiers_list:
-            notifier_thread.join(timeout=3.0)
+            wait_for_thread_exit(notifier_thread, timeout=3.0)
 
         # All threads should complete
         for notifier_thread in notifiers_list:
@@ -394,7 +395,7 @@ class TestProjectManagerErrorHandling:
 
         # Wait for completion
         for worker in workers:
-            worker.join(timeout=2.0)
+            wait_for_thread_exit(worker, timeout=2.0)
 
         # All threads should complete
         for worker in workers:

@@ -8,6 +8,8 @@ import time
 
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition
+
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.io.recorder import Recorder
@@ -86,11 +88,11 @@ def test_recorder_creates_complete_dataset(temp_project_dir, sample_zones):
     # Stop recorder
     recorder.stop_recording()
 
-    # Give Windows time to flush
-    time.sleep(0.1)
+    # Wait for files to be flushed
+    arena_file = results_dir / "1_ProcessingArea_test_video.parquet"
+    wait_for_condition(lambda: arena_file.exists(), timeout=1.0)
 
     # Verify files exist
-    arena_file = results_dir / "1_ProcessingArea_test_video.parquet"
     areas_file = results_dir / "2_AreasOfInterest_test_video.parquet"
     coords_file = results_dir / "3_CoordMovimento_test_video.parquet"
 
@@ -171,13 +173,12 @@ def test_recorder_with_calibration(temp_project_dir, sample_zones):
 
     recorder.stop_recording()
 
-    # Give Windows time to flush
-    time.sleep(0.1)
+    # Wait for file to be flushed
+    coords_file = results_dir / "3_CoordMovimento_calibrated_video.parquet"
+    wait_for_condition(lambda: coords_file.exists(), timeout=1.0)
 
     # Verify calibrated schema
     import pyarrow.parquet as pq
-
-    coords_file = results_dir / "3_CoordMovimento_calibrated_video.parquet"
     assert coords_file.exists()
 
     table = pq.read_table(str(coords_file))
@@ -233,7 +234,7 @@ def test_state_manager_tracks_workflow_progression(temp_project_dir):
             current_frame=frame,
             total_frames=1000,
         )
-        time.sleep(0.01)
+        time.sleep(0.01)  # simulate processing time (intentional)
 
     # Complete processing
     state_manager.update_processing_state(
@@ -301,11 +302,11 @@ def test_multi_video_recording_session(temp_project_dir, sample_zones):
         # Stop session
         recorder.stop_recording()
 
-        # Give Windows time to flush
-        time.sleep(0.1)
+        # Wait for file to be flushed
+        coords_file = results_dir / f"3_CoordMovimento_{video_name}.parquet"
+        wait_for_condition(lambda: coords_file.exists(), timeout=1.0)
 
         # Verify files for this video
-        coords_file = results_dir / f"3_CoordMovimento_{video_name}.parquet"
         assert coords_file.exists(), f"Missing coords file for {video_name}"
 
     # Verify all 3 videos were processed
@@ -358,12 +359,13 @@ def test_recording_with_periodic_flush(temp_project_dir, sample_zones):
 
         # Small delay to allow flush to trigger
         if frame % 20 == 0:
-            time.sleep(0.6)
+            time.sleep(0.6)  # simulate processing time (intentional)
 
     recorder.stop_recording()
 
-    # Give Windows time to flush
-    time.sleep(0.1)
+    # Wait for final file flush
+    coords_file = results_dir / "3_CoordMovimento_flush_test.parquet"
+    wait_for_condition(lambda: coords_file.exists(), timeout=1.0)
 
     # Verify final file
     coords_file = results_dir / "3_CoordMovimento_flush_test.parquet"
@@ -419,11 +421,11 @@ def test_zone_metadata_preservation(temp_project_dir, sample_zones):
 
     recorder.stop_recording()
 
-    # Give Windows time to flush
-    time.sleep(0.1)
+    # Wait for files to be flushed
+    areas_file = results_dir / "2_AreasOfInterest_zone_test.parquet"
+    wait_for_condition(lambda: areas_file.exists(), timeout=1.0)
 
     # Load and verify zone metadata
-    areas_file = results_dir / "2_AreasOfInterest_zone_test.parquet"
     assert areas_file.exists()
 
     import pyarrow.parquet as pq

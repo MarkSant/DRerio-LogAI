@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition
 from zebtrack.core.state_manager import (
     ApplicationState,
     DetectorState,
@@ -251,8 +252,6 @@ class TestObserverPattern:
 
     def test_subscribe_all(self):
         """Can subscribe to all state changes."""
-        import time
-
         mgr = StateManager()
         observer = MagicMock()
 
@@ -262,14 +261,12 @@ class TestObserverPattern:
         mgr.update_detector_state(source="test", detector_initialized=True)
 
         # Wait for async observers to complete (fire-and-forget pattern)
-        time.sleep(0.2)
+        wait_for_condition(lambda: observer.call_count == 2, timeout=2.0)
 
         assert observer.call_count == 2
 
     def test_multiple_observers(self):
         """Multiple observers can subscribe to same category."""
-        import time
-
         mgr = StateManager()
         observer1 = MagicMock()
         observer2 = MagicMock()
@@ -280,7 +277,7 @@ class TestObserverPattern:
         mgr.update_recording_state(source="test", is_recording=True)
 
         # Wait for async observers to complete (fire-and-forget pattern)
-        time.sleep(0.2)
+        wait_for_condition(lambda: observer1.called and observer2.called, timeout=2.0)
 
         observer1.assert_called_once()
         observer2.assert_called_once()
@@ -311,8 +308,6 @@ class TestObserverPattern:
 
     def test_observer_exception_doesnt_break_others(self):
         """Exception in one observer doesn't affect others."""
-        import time
-
         mgr = StateManager()
 
         def failing_observer(*args):
@@ -326,7 +321,7 @@ class TestObserverPattern:
         mgr.update_recording_state(source="test", is_recording=True)
 
         # Wait for async observers to complete (fire-and-forget pattern)
-        time.sleep(0.2)
+        wait_for_condition(lambda: good_observer.called, timeout=2.0)
 
         # Good observer should still be called even if first observer fails
         good_observer.assert_called_once()
@@ -502,7 +497,6 @@ class TestThreadSafety:
 
         def subscribe_worker(obs):
             mgr.subscribe(StateCategory.RECORDING, obs)
-            time.sleep(0.001)
             mgr.unsubscribe(StateCategory.RECORDING, obs)
 
         threads = [threading.Thread(target=subscribe_worker, args=(obs,)) for obs in observers]
@@ -635,7 +629,12 @@ class TestIntegrationScenarios:
         mgr.update_project_state(source="controller", project_path=None)
 
         # Wait for async observers to complete (fire-and-forget pattern)
-        time.sleep(0.3)
+        # Wait specifically for the project_path=None change to be recorded
+        def project_closed():
+            project_path_changes = [c for c in changes if c[1] == "project_path"]
+            return len(project_path_changes) >= 2 and project_path_changes[-1][3] is None
+
+        wait_for_condition(project_closed, timeout=2.0)
 
         # Verify sequence
         assert len(changes) > 0
@@ -705,7 +704,7 @@ class TestIntegrationScenarios:
         )
 
         # Wait for async observers to complete (fire-and-forget pattern)
-        time.sleep(0.2)
+        wait_for_condition(lambda: len(view_changes) == 2, timeout=2.0)
 
         assert view_changes == ["analysis", "zones"]
 

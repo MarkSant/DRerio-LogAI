@@ -18,6 +18,8 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
+
 from zebtrack.core.live_camera_service import LiveCameraService
 
 pytestmark = pytest.mark.slow  # Marca TODOS os testes deste arquivo como slow

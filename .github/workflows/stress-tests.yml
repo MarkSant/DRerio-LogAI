@@ -1,0 +1,184 @@
+# GitHub Actions workflow for nightly stress tests
+# Runs intensive stress tests overnight to detect race conditions,
+# memory leaks, and flakiness without slowing down CI feedback loop
+#
+# Schedule: Daily at 2 AM UTC
+# Trigger: Manual via workflow_dispatch
+
+name: Nightly Stress Tests
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  threading-stress:
+    name: Threading Stress Tests (10x repetition)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run threading stress tests (10x)
+        run: |
+          poetry run pytest -m slow --count=10 -v --tb=short \
+            --junit-xml=threading-stress-results.xml
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: threading-stress-results
+          path: threading-stress-results.xml
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Nightly Stress Test Failed - Threading Tests',
+              body: `## Threading Stress Test Failure\n\n` +
+                    `**Workflow:** ${context.workflow}\n` +
+                    `**Run:** ${context.runNumber}\n` +
+                    `**Commit:** ${context.sha}\n\n` +
+                    `[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+              labels: ['stress-test-failure', 'needs-investigation', 'threading'],
+              assignees: []
+            });
+
+  memory-leak-detection:
+    name: Memory Leak Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies + memray
+        run: |
+          poetry install --no-interaction
+          poetry run pip install memray pytest-memray
+
+      - name: Run tests with memory profiling
+        run: |
+          poetry run pytest --memray --memray-bin-path=./memray-results \
+            -v --tb=short --junit-xml=memory-leak-results.xml
+        continue-on-error: true
+
+      - name: Upload memory profiling results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: memray-results
+          path: memray-results/
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: memory-leak-results
+          path: memory-leak-results.xml
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Nightly Stress Test Failed - Memory Leaks Detected',
+              body: `## Memory Leak Detection Failure\n\n` +
+                    `**Workflow:** ${context.workflow}\n` +
+                    `**Run:** ${context.runNumber}\n` +
+                    `**Commit:** ${context.sha}\n\n` +
+                    `[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n\n` +
+                    `Check memray results artifacts for detailed memory profiling.`,
+              labels: ['stress-test-failure', 'memory-leak', 'needs-investigation'],
+              assignees: []
+            });
+
+  flakiness-detection:
+    name: Flakiness Detection (3x full suite)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Run full suite 3 times
+        run: |
+          poetry run pytest --count=3 -x -v --tb=short \
+            --junit-xml=flakiness-results.xml
+        continue-on-error: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flakiness-results
+          path: flakiness-results.xml
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Nightly Stress Test Failed - Flaky Tests Detected',
+              body: `## Flakiness Detection Failure\n\n` +
+                    `**Workflow:** ${context.workflow}\n` +
+                    `**Run:** ${context.runNumber}\n` +
+                    `**Commit:** ${context.sha}\n\n` +
+                    `Some tests failed when run 3 times consecutively. This indicates flaky tests.\n\n` +
+                    `[View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+              labels: ['stress-test-failure', 'flaky-test', 'needs-investigation'],
+              assignees: []
+            });

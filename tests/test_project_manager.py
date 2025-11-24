@@ -47,7 +47,7 @@ class TestProjectManager(unittest.TestCase):
                 return
             except OSError as exc:  # pragma: no cover - defensive for Windows timing quirks
                 last_error = exc
-                time.sleep(delay * (attempt + 1))
+                time.sleep(delay * (attempt + 1))  # intentional retry backoff delay
 
         if last_error is not None and path.exists():
             shutil.rmtree(path, ignore_errors=True)
@@ -446,7 +446,7 @@ class TestProjectManager(unittest.TestCase):
             self.assertEqual(len(initial_scan), 1)
             initial_count = call_count["count"]
 
-            # Sleep needed for filesystem timestamp resolution (Windows: 1s, some Linux: 1s)
+            # Sleep needed for filesystem timestamp resolution (Windows: 1s, some Linux: 1s) - intentional
             time.sleep(1.1)
             second_video = os.path.join(video_dir, "second.mp4")
             with open(second_video, "wb") as handle:

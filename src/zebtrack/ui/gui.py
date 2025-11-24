@@ -118,6 +118,18 @@ class ApplicationGUI:
         # Initialize Event Bus V2 for Event-Driven Architecture (v4.0)
         self.event_bus_v2 = EventBusV2()
 
+        # Subscribe to VideoProcessingService events (v2.2 UI decoupling)
+        self.event_bus_v2.subscribe(
+            UIEvents.ERROR_OCCURRED,
+            lambda event: self.root.after(
+                0,
+                lambda: self.show_error(
+                    event.data.get("title", "Erro"),
+                    event.data.get("message", "Ocorreu um erro desconhecido.")
+                )
+            )
+        )
+
         self.root.title("DRerio LogAI")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 

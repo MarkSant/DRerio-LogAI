@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests.utils.wait_helpers import wait_for_thread_exit
 from zebtrack.core.thread_coordinator import ThreadCoordinator
 
 
@@ -44,7 +45,7 @@ class TestRegisterThreads:
 
     def test_register_processing_thread(self, thread_coordinator):
         """Testa registro de thread de processamento."""
-        thread = threading.Thread(target=lambda: time.sleep(0.1))
+        thread = threading.Thread(target=lambda: time.sleep(0.1))  # intentional test worker delay
 
         thread_coordinator.register_processing_thread(thread)
 
@@ -52,7 +53,7 @@ class TestRegisterThreads:
 
     def test_register_capture_thread(self, thread_coordinator):
         """Testa registro de thread de captura."""
-        thread = threading.Thread(target=lambda: time.sleep(0.1))
+        thread = threading.Thread(target=lambda: time.sleep(0.1))  # intentional test worker delay
 
         thread_coordinator.register_capture_thread(thread)
 
@@ -90,7 +91,7 @@ class TestJoinThreads:
         """Testa join com thread de processamento."""
         def worker():
             while not thread_coordinator.program_exit_event.is_set():
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         thread = threading.Thread(target=worker)
         thread.start()
@@ -154,13 +155,13 @@ class TestThreadStatus:
 
     def test_is_processing_active_true(self, thread_coordinator):
         """Testa status de processamento quando ativo."""
-        thread = threading.Thread(target=lambda: time.sleep(0.2))
+        thread = threading.Thread(target=lambda: time.sleep(0.2))  # intentional test worker delay
         thread.start()
         thread_coordinator.register_processing_thread(thread)
 
         assert thread_coordinator.is_processing_active() is True
 
-        thread.join()
+        wait_for_thread_exit(thread, timeout=1.0)
 
     def test_is_capture_active_false(self, thread_coordinator):
         """Testa status de captura quando inativo."""
@@ -172,10 +173,10 @@ class TestThreadStatus:
 
     def test_get_active_thread_count_one(self, thread_coordinator):
         """Testa contagem com uma thread ativa."""
-        thread = threading.Thread(target=lambda: time.sleep(0.2))
+        thread = threading.Thread(target=lambda: time.sleep(0.2))  # intentional test worker delay
         thread.start()
         thread_coordinator.register_processing_thread(thread)
 
         assert thread_coordinator.get_active_thread_count() == 1
 
-        thread.join()
+        wait_for_thread_exit(thread, timeout=1.0)

@@ -292,8 +292,6 @@ def main():
             state_manager=state_manager,
             ui_coordinator=ui_coordinator,
             ui_event_bus=event_bus,
-            root=root,
-            view=None,  # Set after ApplicationGUI is created
             cancel_event=cancel_event,
             settings_obj=settings_obj,
         )
@@ -513,8 +511,7 @@ def main():
 
         log.info("timing.mainviewmodel_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
-        # Set view reference in video_processing_service after view is created
-        video_processing_service.view = controller.view
+        # Set view reference for legacy components
         ui_state_controller.view = controller.view
         ui_state_controller.main_view_model = controller
 

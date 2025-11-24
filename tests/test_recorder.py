@@ -1,10 +1,12 @@
 import os
 import shutil
+import time
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition
 from zebtrack.io.recorder import Recorder
 
 
@@ -37,8 +39,8 @@ def recorder_setup(tmp_path):
     del recorder
     gc.collect()
 
-    # Give Windows extra time to release file handles
-    time.sleep(0.2)
+    # Give Windows time to release file handles (short wait)
+    time.sleep(0.1)
 
     # Clean up the temporary directory
     if test_dir.exists():
@@ -49,7 +51,7 @@ def recorder_setup(tmp_path):
                 break
             except PermissionError:
                 if attempt < max_retries - 1:
-                    time.sleep(0.5 * (attempt + 1))  # Exponential backoff
+                    time.sleep(0.3 * (attempt + 1))  # Exponential backoff
                 else:
                     # If still fails, pytest will clean up tmp_path automatically
                     pass  # Silently ignore - pytest tmp_path cleanup will handle it
@@ -155,14 +157,12 @@ def test_write_detection_data_saves_parquet(recorder_setup):
     # Stop recording to trigger Parquet file save
     recorder.stop_recording()
 
-    # Give Windows time to flush the file to disk
-    import time
-
-    time.sleep(0.1)
-
-    # Check that the Parquet file was created
+    # Wait for file to be created
     base_name = os.path.basename(output_folder)
     coord_movimento_parquet = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+    wait_for_condition(lambda: os.path.exists(coord_movimento_parquet), timeout=2.0)
+
+    # Check that the Parquet file was created
     assert os.path.exists(coord_movimento_parquet)
 
     # Check the content of the Parquet file
@@ -220,13 +220,11 @@ def test_periodic_flush_triggers_before_stop(recorder_setup):
 
     recorder.stop_recording()
 
-    # Give Windows time to flush the file to disk
-    import time
-
-    time.sleep(0.1)
-
+    # Wait for file to be created
     base_name = os.path.basename(output_folder)
     parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+    wait_for_condition(lambda: os.path.exists(parquet_path), timeout=2.0)
+
     assert os.path.exists(parquet_path)
 
     df = pd.read_parquet(parquet_path)
@@ -345,14 +343,12 @@ class TestRecorderEdgeCases:
 
         recorder.stop_recording()
 
-        # Give Windows time to flush
-        import time
-
-        time.sleep(0.1)
-
-        # Verify parquet file was created
+        # Wait for file to be created
         base_name = os.path.basename(output_folder)
         parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+        wait_for_condition(lambda: os.path.exists(parquet_path), timeout=2.0)
+
+        # Verify parquet file was created
         assert os.path.exists(parquet_path)
 
         # Verify it's empty
@@ -371,14 +367,12 @@ class TestRecorderEdgeCases:
 
         recorder.stop_recording()
 
-        # Give Windows time to flush
-        import time
-
-        time.sleep(0.1)
-
-        # Verify parquet file exists and has 1 row
+        # Wait for file to be created
         base_name = os.path.basename(output_folder)
         parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+        wait_for_condition(lambda: os.path.exists(parquet_path), timeout=2.0)
+
+        # Verify parquet file exists and has 1 row
         assert os.path.exists(parquet_path)
 
         df = pd.read_parquet(parquet_path)
@@ -405,14 +399,12 @@ class TestRecorderEdgeCases:
 
         recorder.stop_recording()
 
-        # Give Windows time to flush
-        import time
-
-        time.sleep(0.2)
-
-        # Verify all detections were saved
+        # Wait for file to be created
         base_name = os.path.basename(output_folder)
         parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+        wait_for_condition(lambda: os.path.exists(parquet_path), timeout=2.0)
+
+        # Verify all detections were saved
         assert os.path.exists(parquet_path)
 
         df = pd.read_parquet(parquet_path)
@@ -480,14 +472,12 @@ class TestRecorderEdgeCases:
 
         recorder.stop_recording()
 
-        # Give Windows time to flush
-        import time
-
-        time.sleep(0.1)
-
-        # Verify all frames were saved despite discontinuities
+        # Wait for file to be created
         base_name = os.path.basename(output_folder)
         parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
+        wait_for_condition(lambda: os.path.exists(parquet_path), timeout=2.0)
+
+        # Verify all frames were saved despite discontinuities
         df = pd.read_parquet(parquet_path)
 
         assert len(df) == 5  # All 5 detections should be present

@@ -55,6 +55,12 @@ class UIEvents(Enum):
     EXTERNAL_TRIGGER_NOTICE = auto()  # Replaces show_external_trigger_notice
     EXTERNAL_TRIGGER_NOTICE_CLEARED = auto()  # Replaces clear_external_trigger_notice
 
+    # v2.2: Video Processing Service Events (decoupling from view/root)
+    ERROR_OCCURRED = auto()  # Video processing errors
+    PROGRESS_UPDATE = auto()  # Processing progress updates
+    TRACKING_COMPLETE = auto()  # Tracking session completed
+    FRAME_DISPLAYED = auto()  # Frame ready for display
+
     # Navigation & View State
     DISPLAY_VIDEO_FRAME = auto()
     NAVIGATE_TO_WELCOME = auto()
@@ -137,9 +143,16 @@ class EventBusV2:
         Executes handlers synchronously. Captures exceptions in handlers
         to prevent disrupting the event flow for other subscribers.
 
+        v2.2: Monitors handler performance with FIXED 100ms threshold.
+        Slow handlers are logged as TECH DEBT to be refactored (moved to background threads).
+
+        TODO v3.0: Rename publish() -> publish_now() for explicit synchronous semantics
+
         Args:
             event: The Event object to publish.
         """
+        import time
+
         # Snapshot handlers under lock to avoid holding lock during execution
         handlers = []
         with self._lock:
@@ -149,6 +162,10 @@ class EventBusV2:
         if not handlers:
             return
 
+        # ARCHITECTURAL DECISION: 100ms is FIXED threshold.
+        # Slow handlers are TECH DEBT to be refactored, not edge cases to configure around.
+        SLOW_HANDLER_THRESHOLD_MS = 100
+
         log.debug(
             "event_bus_v2.publishing",
             event_type=event.type.name,
@@ -156,9 +173,25 @@ class EventBusV2:
             subscriber_count=len(handlers),
         )
 
+        # Execute handlers outside the lock
+        # Each handler executes sequentially on the calling thread
         for handler in handlers:
             try:
+                start = time.perf_counter()
                 handler(event.data)
+                elapsed = time.perf_counter() - start
+                elapsed_ms = int(elapsed * 1000)
+
+                # v2.2: Log slow handlers as tech debt (not errors)
+                if elapsed_ms > SLOW_HANDLER_THRESHOLD_MS:
+                    log.warning(
+                        "event_bus.slow_handler",
+                        handler=handler.__name__ if hasattr(handler, '__name__') else str(handler),
+                        elapsed_ms=elapsed_ms,
+                        threshold_ms=SLOW_HANDLER_THRESHOLD_MS,
+                        event_type=event.type.name,
+                        tech_debt="Move I/O operations to background thread",
+                    )
             except Exception as e:
                 log.exception(
                     "event_bus_v2.handler_failed",

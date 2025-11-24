@@ -527,7 +527,7 @@ def test_generate_plots_parallel_maintains_order(generator):
     def plot_with_delay(ax, plot_num):
         import time
 
-        # Add small random delays to test ordering
+        # intentional jitter delay - testing plot ordering despite variable timing
         time.sleep(0.001 * (plot_num % 3))
         ax.plot([1, 2], [plot_num, plot_num + 1])
         ax.set_title(f"Plot {plot_num}")

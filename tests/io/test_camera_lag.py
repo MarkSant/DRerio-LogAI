@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition
 from zebtrack.io.camera import Camera
 
 
@@ -70,7 +71,7 @@ def test_frame_buffer_keeps_only_recent_frames(mock_cv2_capture):
         camera = Camera(settings_obj=mock_settings)
 
         # Wait for frames to be captured
-        time.sleep(0.3)
+        wait_for_condition(lambda: camera._frame_available, timeout=1.0)
 
         # Get frame - should be frame3 (most recent)
         ret, frame = camera.get_frame()
@@ -103,7 +104,7 @@ def test_lag_warning_when_threshold_exceeded(mock_cv2_capture):
             camera = Camera(settings_obj=mock_settings)
 
             # Wait for frame to be captured
-            time.sleep(0.1)
+            wait_for_condition(lambda: camera._frame_available, timeout=1.0)
 
             # Manually set old timestamp to simulate lag
             with camera._lock:
@@ -147,7 +148,7 @@ def test_get_frame_returns_most_recent_frame(mock_cv2_capture):
         camera = Camera(settings_obj=mock_settings)
 
         # Wait for all frames to be captured
-        time.sleep(0.5)
+        wait_for_condition(lambda: camera._frame_available, timeout=1.0)
 
         # Get frame multiple times - should always be the most recent (frame 4)
         for _ in range(3):
@@ -215,7 +216,7 @@ def test_buffer_clears_on_read_failure(mock_cv2_capture):
             camera = Camera(settings_obj=mock_settings)
 
             # Wait for success frames to be captured
-            time.sleep(0.2)
+            wait_for_condition(lambda: camera._frame_available, timeout=1.0)
 
             # Verify frame is available
             ret, frame = camera.get_frame()
@@ -223,7 +224,7 @@ def test_buffer_clears_on_read_failure(mock_cv2_capture):
             assert frame is not None
 
             # Wait for failure to kick in and be processed
-            time.sleep(0.5)
+            wait_for_condition(lambda: not camera._frame_available, timeout=2.0)
 
         # After failure, buffer should be cleared
         with camera._lock:
@@ -252,7 +253,7 @@ def test_frame_timestamps_match_buffer_length(mock_cv2_capture):
         camera = Camera(settings_obj=mock_settings)
 
         # Wait for frames to be captured
-        time.sleep(0.5)
+        wait_for_condition(lambda: len(camera._frame_buffer) > 0, timeout=1.0)
 
         # Verify buffer and timestamps have same length
         with camera._lock:

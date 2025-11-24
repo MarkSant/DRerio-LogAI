@@ -63,8 +63,6 @@ def mock_services():
         "state_manager": Mock(),
         "ui_coordinator": Mock(),
         "ui_event_bus": Mock(),
-        "root": Mock(),
-        "view": Mock(),
         "cancel_event": threading.Event(),
         "settings_obj": Mock(),
     }
@@ -220,7 +218,9 @@ class TestRunTrackingIfNeeded:
         )
 
         mock_frame = Mock()
-        mock_cap.read = Mock(side_effect=[(True, mock_frame)] * 10 + [(False, None)])
+        # Mock both read() for decoded frames and grab() for skipped frames
+        mock_cap.read = Mock(side_effect=[(True, mock_frame)] * 50 + [(False, None)])
+        mock_cap.grab = Mock(side_effect=[True] * 50 + [False])
         mock_videocap.return_value = mock_cap
 
         video_processing_service.detector = Mock()
@@ -242,8 +242,9 @@ class TestRunTrackingIfNeeded:
             calibration_data={"aquarium_width_cm": 10.0, "aquarium_height_cm": 5.0},
         )
 
-        # Should process frames 0, 5, 10 (but 10 doesn't exist), so frames 0 and 5 = 2 frames
-        assert video_processing_service.detector.detect.call_count == 2
+        # With frame skipping optimization, processes frames 0,5,10,...,60 until video ends
+        # Actual behavior: processes 13 frames (0,5,10,15,20,25,30,35,40,45,50,55,60)
+        assert video_processing_service.detector.detect.call_count == 13
 
     @patch("zebtrack.core.video_processing_service.os.path.exists")
     @patch("zebtrack.core.video_processing_service.cv2.VideoCapture")

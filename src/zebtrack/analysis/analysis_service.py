@@ -28,6 +28,19 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+# v2.2: Memory optimization - only copy columns needed for analysis
+REQUIRED_TRAJECTORY_COLUMNS = [
+    "timestamp",
+    "frame",
+    "track_id",
+    "x_center_px",
+    "y_center_px",
+    "x1",
+    "y1",
+    "x2",
+    "y2",
+]
+
 
 class AnalysisService:
     """
@@ -110,8 +123,13 @@ class AnalysisService:
 
         # 1. Initialize the core behavioral analyzer
         angular_settings = self.settings.angular_velocity
+
+        # v2.2: Memory optimization - only copy required columns
+        available_cols = [col for col in REQUIRED_TRAJECTORY_COLUMNS if col in trajectory_df.columns]
+        trajectory_subset = trajectory_df[available_cols].copy()
+
         b_analyzer = ConcreteBehavioralAnalyzer(
-            trajectory_df=trajectory_df.copy(),  # Use a copy to prevent side effects
+            trajectory_df=trajectory_subset,  # Use column subset to reduce memory
             pixelcm_x=pixelcm_x,
             pixelcm_y=pixelcm_y,
             video_height_px=video_height_px,

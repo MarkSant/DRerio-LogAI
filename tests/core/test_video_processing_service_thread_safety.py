@@ -14,6 +14,8 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition
+
 
 @pytest.fixture
 def mock_settings():
@@ -102,8 +104,6 @@ def video_processing_service(
         state_manager=Mock(),
         ui_coordinator=Mock(),
         ui_event_bus=Mock(),
-        root=Mock(after=Mock()),
-        view=Mock(show_error=Mock()),
         cancel_event=threading.Event(),
         settings_obj=mock_settings,
     )
@@ -188,7 +188,7 @@ class TestThreadSafety:
         def mock_detect_with_lock(frame, project_type=None):
             with lock:
                 call_count[0] += 1
-                time.sleep(0.001)  # Simulate work
+                time.sleep(0.001)  # intentional 1ms delay - simulating detection work
             return ([], None)
 
         mock_detector.detect = mock_detect_with_lock
@@ -236,12 +236,15 @@ class TestThreadSafety:
 
         # Act: Set event from one thread, check from another
         def setter():
-            time.sleep(0.1)
+            time.sleep(0.1)  # intentional 100ms delay - ensuring checker starts first
             cancel_event.set()
 
         def checker(results):
-            while not cancel_event.is_set():
-                time.sleep(0.01)
+            wait_for_condition(
+                lambda: cancel_event.is_set(),
+                timeout=1.0,
+                error_msg="Cancel event never set"
+            )
             results.append(True)
 
         results = []

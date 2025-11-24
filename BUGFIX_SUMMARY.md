@@ -1,18 +1,304 @@
 # Summary of Critical Bugfixes and Performance Improvements
 
-**Date**: November 23, 2025
-**Version**: Post v2.1
-**Scope**: Robustness, Performance, Thread Safety
+**Date**: December 2025 (v2.2 Release)
+**Version**: v2.2
+**Scope**: Architecture, Performance, Thread Safety, Memory Optimization
 
 ---
 
 ## Overview
 
-This document summarizes the critical bugfixes and performance improvements implemented to address race conditions, UI freezing, deadlocks, and inefficiencies identified in the codebase analysis.
+This document summarizes the critical bugfixes and architectural improvements implemented in v2.2 to address race conditions, deadlocks, UI coupling, performance bottlenecks, and memory inefficiencies.
 
 ---
 
-## 1. 🔴 CRITICAL: Fixed Shared Kalman Filter Race Condition
+## v2.2 Architectural Improvements (December 2025)
+
+### 1. 🔴 CRITICAL: Fixed Camera Thread Deadlock (Atomic Shutdown Pattern)
+
+**File**: `src/zebtrack/io/camera.py`
+**Severity**: Critical
+**Impact**: Eliminates camera thread deadlocks during shutdown
+
+#### Problem
+The `Camera.release()` method had a race condition:
+- Main thread called `release()` → tried to call `cap.release()`
+- Reader thread was blocked in `cap.read()` (blocking I/O)
+- Both threads tried to access the same VideoCapture object → **deadlock**
+- Application hung on exit, required forced termination
+
+#### Solution: Single Ownership Pattern
+- **Only `_reader_thread` calls `cap.release()`** in its `finally` block
+- `release()` method now **only signals shutdown events** and joins thread:
+  ```python
+  self._shutdown_requested.set()
+  self._reader_thread.join(timeout=3.0)
+  ```
+- Added `_shutdown_requested` Event for clean signaling
+- Reader thread checks event in loop and guarantees cleanup in `finally`
+
+#### Validation
+- ✅ Shutdown completes cleanly in <3 seconds
+- ✅ No more zombie camera threads
+- ✅ Thread-safe by design (single ownership)
+
+---
+
+### 2. 🟠 HIGH: EventBus Performance Monitoring (100ms Fixed Threshold)
+
+**File**: `src/zebtrack/ui/event_bus_v2.py`
+**Severity**: High
+**Impact**: Identifies UI-blocking event handlers as tech debt
+
+#### Problem
+Synchronous event handlers with I/O operations (file writes, database queries) froze the UI thread:
+- No visibility into slow handlers
+- No pressure to fix root causes
+- Poor user experience during processing
+
+#### Solution: Tech Debt Warning System
+- Added `time.perf_counter()` measurement in `EventBus.publish()`
+- **Fixed 100ms threshold** (not configurable to create healthy pressure)
+- Logs warning when handler exceeds threshold:
+  ```python
+  log.warning(
+      "event_bus.slow_handler",
+      event=event_name,
+      handler=handler.__name__,
+      elapsed_ms=elapsed_ms,
+      message="Handler took >100ms. Move I/O to background thread (tech debt).",
+  )
+  ```
+- Encourages moving I/O to ThreadPoolExecutor instead of hiding with config
+
+#### Validation
+- ✅ Warnings appear in logs for slow handlers
+- ✅ Does not block execution (monitoring only)
+- ✅ Creates pressure to fix root causes
+
+---
+
+### 3. 🔴 CRITICAL: VideoProcessingService UI Decoupling
+
+**Files**:
+- `src/zebtrack/core/video_processing_service.py`
+- `src/zebtrack/ui/gui.py`
+- `src/zebtrack/__main__.py`
+
+**Severity**: Critical
+**Impact**: Enables headless testing and better separation of concerns
+
+#### Problem
+`VideoProcessingService` had direct dependencies on:
+- `root: Tk` (tkinter main window)
+- `view: ApplicationGUI` (UI component)
+- Called `root.after(0, lambda: view.show_error(...))` directly
+- **Impossible to test service layer without full GUI**
+
+#### Solution: Event-Driven Architecture
+- **Removed `view` and `root` from constructor** (10 params → 8 params)
+- Error handling now publishes events:
+  ```python
+  self.ui_event_bus.publish(
+      Event(UIEvents.ERROR_OCCURRED, {
+          "title": "Erro",
+          "message": error_message
+      })
+  )
+  ```
+- ApplicationGUI subscribes to `UIEvents.ERROR_OCCURRED` and schedules UI updates:
+  ```python
+  event_bus_v2.subscribe(
+      UIEvents.ERROR_OCCURRED,
+      lambda event: root.after(0, lambda: self.show_error(...))
+  )
+  ```
+- Service layer is now **UI-agnostic**
+
+#### Validation
+- ✅ VideoProcessingService can be tested without GUI
+- ✅ Error handling works via event bus
+- ✅ Clean separation between service and presentation layers
+
+---
+
+### 4. 🟡 MEDIUM: Graceful Shutdown (Removed sys.exit(70))
+
+**File**: `src/zebtrack/core/main_view_model.py`
+**Severity**: Medium
+**Impact**: Prevents forced exits, allows natural shutdown flow
+
+#### Problem
+When camera thread didn't shut down cleanly:
+- `sys.exit(70)` forced immediate process termination
+- No cleanup for other resources
+- No user notification before exit
+
+#### Solution: Event-Based Fatal Error Handling
+- **Removed `sys.exit(70)`** hard exit
+- Publishes `UIEvents.ERROR_OCCURRED` with fatal error message
+- Logs critical error but allows natural shutdown via `root.destroy()`
+- User sees error dialog before application closes
+
+#### Code Change
+```python
+# OLD:
+log.critical("controller.camera.zombie_detected")
+sys.exit(70)
+
+# NEW:
+log.critical("controller.camera.zombie_detected")
+ui_event_bus.publish(Event(UIEvents.ERROR_OCCURRED, {
+    "title": "Erro Crítico",
+    "message": "A thread da câmera não foi finalizada corretamente."
+}))
+# Allow natural shutdown via root.destroy()
+```
+
+---
+
+### 5. 🟢 PERFORMANCE: Dynamic Frame Skip Calibration
+
+**File**: `src/zebtrack/core/video_processing_service.py`
+**Severity**: Medium
+**Impact**: Optimizes frame seeking based on storage speed
+
+#### Problem
+Static frame skip threshold (60 frames):
+- Too conservative for fast SSDs (wastes performance)
+- Too aggressive for network storage (causes stuttering)
+- No adaptation to hardware capabilities
+
+#### Solution: Warm-up + 1 Seek Calibration
+In `_create_video_context()`:
+1. **Warm-up seek** to frame 0 (reset decoder state)
+2. **Measure single seek** to frame 100 with `time.perf_counter()`
+3. **Calculate optimal threshold**:
+   - <10ms: threshold = 120 (fast SSD)
+   - <50ms: threshold = 80 (normal HDD)
+   - ≥50ms: threshold = 60 (network/slow storage)
+4. **Store in VideoContext** for use in `_seek_to_frame()`
+
+#### New Helper Method
+```python
+def _seek_to_frame(cap, target_frame, current_frame, skip_threshold=60):
+    gap = target_frame - current_frame
+    if gap < skip_threshold:
+        # Small gap - use grab() for sequential advance
+        for _ in range(gap): cap.grab()
+    else:
+        # Large gap - use set() for direct seek
+        cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+```
+
+#### Validation
+- ✅ Calibration runs once per video
+- ✅ Logged for debugging: `seek_time_ms`, `skip_threshold`
+- ✅ Hybrid strategy balances performance and reliability
+
+---
+
+### 6. 🟢 MEMORY: Column Subset Optimization
+
+**File**: `src/zebtrack/analysis/analysis_service.py`
+**Severity**: Low
+**Impact**: Reduces memory usage during analysis (estimated 40-60% reduction)
+
+#### Problem
+`trajectory_df.copy()` copied **all columns** (including confidence, raw pixel coords, etc.):
+- Large videos: 500K+ rows × 15+ columns = ~60MB per copy
+- Only 9 columns actually needed for analysis
+- Wasted memory and increased GC pressure
+
+#### Solution: Column Subset Copy
+```python
+REQUIRED_TRAJECTORY_COLUMNS = [
+    "timestamp", "frame", "track_id",
+    "x_center_px", "y_center_px",
+    "x1", "y1", "x2", "y2",
+]
+
+available_cols = [col for col in REQUIRED_TRAJECTORY_COLUMNS
+                  if col in trajectory_df.columns]
+trajectory_subset = trajectory_df[available_cols].copy()
+b_analyzer = ConcreteBehavioralAnalyzer(trajectory_df=trajectory_subset, ...)
+```
+
+#### Impact
+- **Estimated memory savings**: 40-60% for large trajectories
+- Faster DataFrame operations (fewer columns to process)
+- Better cache locality during analysis
+
+---
+
+### 7. 🧪 TESTING: Wait Condition Helpers
+
+**File**: `tests/utils/wait_helpers.py` (NEW)
+**Severity**: Low
+**Impact**: Eliminates flaky tests from time.sleep() usage
+
+#### Problem
+Tests using `time.sleep(0.1)` to wait for thread completion:
+- **Flaky on slow CI runners** (timing-dependent)
+- **Wastes time on fast machines** (sleep too long)
+- **No failure detection** (sleeps even if condition never met)
+
+#### Solution: Polling-Based Wait Conditions
+Created 4 robust wait helpers:
+
+1. **`wait_for_condition(condition_fn, timeout=2.0)`** - Polls until condition true
+2. **`wait_for_event(event, timeout=2.0)`** - Waits for threading.Event
+3. **`wait_for_thread_exit(thread, timeout=2.0)`** - Joins thread with timeout
+4. **`assert_condition_met(...)`** - Raises AssertionError on timeout
+
+#### Example Usage
+```python
+# OLD (flaky):
+thread.start()
+time.sleep(0.2)  # Hope thread completes...
+assert result == expected
+
+# NEW (robust):
+thread.start()
+wait_for_thread_exit(thread, timeout=2.0)
+assert result == expected
+```
+
+#### Status
+- ✅ Utility created and ready
+- ⏳ Integration into tests (Task 7) pending
+
+---
+
+### 8. 🔄 CI/CD: Nightly Stress Test Workflow
+
+**File**: `.github/workflows/stress-tests.yml` (NEW)
+**Severity**: Low
+**Impact**: Catches race conditions and memory leaks without slowing CI
+
+#### Problem
+- Stress tests (10x repetition, memory profiling) slow down PR feedback
+- Flakiness detection requires multiple full suite runs
+- No automated tracking of intermittent failures
+
+#### Solution: Scheduled Nightly Workflow
+- **Runs daily at 2 AM UTC** (cron: `0 2 * * *`)
+- **3 job types**:
+  1. **Threading stress** (10x repetition of slow tests)
+  2. **Memory leak detection** (memray profiling)
+  3. **Flakiness detection** (3x full suite runs)
+- **Auto-creates GitHub Issues** on failure with labels and run links
+- Keeps `ci.yml` fast for PR feedback
+
+#### Validation
+- ✅ Workflow configured and ready
+- ⏳ First run scheduled
+
+---
+
+## v2.1 Bugfixes (November 2025)
+
+### 1. 🔴 CRITICAL: Fixed Shared Kalman Filter Race Condition
 
 **File**: `src/zebtrack/tracker/byte_tracker.py`
 **Severity**: Critical

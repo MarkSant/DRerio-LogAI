@@ -10,6 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
+
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.event_bus import EventBus
 
@@ -374,39 +376,22 @@ class TestArduinoDashboardWidget:
                 msg = f"Background message {i}"
                 messages.append(msg)
                 widget.append_log(msg)
-                time.sleep(0.02)  # Slightly longer delay
+                time.sleep(0.02)  # Small delay for interleaving
 
         # Start background thread
         thread = Thread(target=background_task, daemon=True)
         thread.start()
 
-        # Process UI events while thread runs
-        max_wait = 2.0  # 2 seconds max wait
-        start_time = time.time()
-        while thread.is_alive() and (time.time() - start_time) < max_wait:
-            try:
-                tkinter_root.update()
-
-            except Exception:
-                # Ignore errors from thread timing issues
-                pass
-            time.sleep(0.05)
-
         # Wait for thread to complete
-        thread.join(timeout=1.0)
+        wait_for_thread_exit(thread, timeout=2.0)
 
-        # Final update bursts to process any remaining after() callbacks
+        # Process remaining UI events
         for _ in range(10):
-            try:
-                tkinter_root.update()
+            tkinter_root.update_idletasks()
 
-            except Exception:
-                pass
-            time.sleep(0.05)
-
-        # Verify messages were logged (at least some should appear)
+        # Verify messages were logged
         log_content = widget.log_text.get("1.0", "end")
-        # Due to thread timing, we verify that at least half the messages appear
+        wait_for_condition(lambda: sum(1 for msg in messages if msg in log_content) >= len(messages) // 2, timeout=1.0)
         found_count = sum(1 for msg in messages if msg in log_content)
         assert found_count >= len(messages) // 2, (
             f"Expected at least {len(messages) // 2} messages in log, "

@@ -28,7 +28,7 @@ def test_slow_test_with_timeout():
     that slow tests are properly handled by the timeout configuration.
     With the default 300s timeout, this should pass without issues.
     """
-    # Sleep for 2 seconds (should pass with 300s timeout)
+    # intentional 2s delay - testing slow test timeout handling
     time.sleep(2)
     assert True
 

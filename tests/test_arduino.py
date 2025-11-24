@@ -30,7 +30,7 @@ def fake_serial(monkeypatch):
         def readline(self):
             if self._messages:
                 return self._messages.pop(0)
-            time.sleep(0.01)
+            time.sleep(0.01)  # intentional delay for mock serial read
             return b""
 
         def close(self):

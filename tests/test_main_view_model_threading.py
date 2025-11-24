@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 
 from tests.helpers.controller_factory import create_test_controller
+from tests.utils.wait_helpers import wait_for_thread_exit
 
 
 @pytest.fixture
@@ -202,7 +203,7 @@ class TestMainViewModelThreadLifecycle:
         # Create a simple processing thread
         def processing_worker():
             while not main_view_model.cancel_event.is_set():
-                time.sleep(0.05)
+                time.sleep(0.05)  # intentional interleaving delay
 
         main_view_model.processing_thread = threading.Thread(target=processing_worker, daemon=False)
         main_view_model.processing_thread.start()
@@ -212,7 +213,7 @@ class TestMainViewModelThreadLifecycle:
 
         # Stop thread
         main_view_model.cancel_event.set()
-        main_view_model.processing_thread.join(timeout=2.0)
+        wait_for_thread_exit(main_view_model.processing_thread, timeout=2.0)
 
         # Verify thread stopped
         assert not main_view_model.processing_thread.is_alive()
@@ -223,7 +224,7 @@ class TestMainViewModelThreadLifecycle:
 
         def worker():
             while not main_view_model.cancel_event.is_set():
-                time.sleep(0.05)
+                time.sleep(0.05)  # intentional interleaving delay
             cancel_detected[0] = True
 
         main_view_model.cancel_event.clear()
@@ -231,11 +232,11 @@ class TestMainViewModelThreadLifecycle:
         main_view_model.processing_thread.start()
 
         # Give thread time to start
-        time.sleep(0.1)
+        time.sleep(0.1)  # intentional interleaving delay
 
         # Signal cancellation
         main_view_model.cancel_event.set()
-        main_view_model.processing_thread.join(timeout=2.0)
+        wait_for_thread_exit(main_view_model.processing_thread, timeout=2.0)
 
         # Verify cancel was detected
         assert cancel_detected[0] is True
@@ -248,17 +249,17 @@ class TestMainViewModelThreadLifecycle:
 
             def worker():
                 while not main_view_model.cancel_event.is_set():
-                    time.sleep(0.05)
+                    time.sleep(0.05)  # intentional interleaving delay
 
             main_view_model.processing_thread = threading.Thread(target=worker, daemon=False)
             main_view_model.processing_thread.start()
 
             # Brief run
-            time.sleep(0.1)
+            time.sleep(0.1)  # intentional interleaving delay
 
             # Stop
             main_view_model.cancel_event.set()
-            main_view_model.processing_thread.join(timeout=2.0)
+            wait_for_thread_exit(main_view_model.processing_thread, timeout=2.0)
 
             assert not main_view_model.processing_thread.is_alive()
 
@@ -267,7 +268,7 @@ class TestMainViewModelThreadLifecycle:
 
         def long_running_worker():
             # Simulate stuck thread
-            time.sleep(10.0)
+            time.sleep(10.0)  # intentional interleaving delay
 
         main_view_model.processing_thread = threading.Thread(
             target=long_running_worker, daemon=False
@@ -276,7 +277,7 @@ class TestMainViewModelThreadLifecycle:
 
         # Join with short timeout
         start_time = time.time()
-        main_view_model.processing_thread.join(timeout=0.5)
+        wait_for_thread_exit(main_view_model.processing_thread, timeout=0.5)
         elapsed = time.time() - start_time
 
         # Should timeout in ~0.5s, not wait for full 10s
@@ -297,7 +298,7 @@ class TestMainViewModelConcurrentOperations:
                         np.zeros((480, 640, 3)), f"worker_{worker_id}"
                     )
                     detection_calls.append((worker_id, i))
-                    time.sleep(0.05)
+                    time.sleep(0.05)  # intentional interleaving delay
                 except Exception as e:
                     detection_calls.append((worker_id, f"error: {e}"))
 
@@ -310,7 +311,7 @@ class TestMainViewModelConcurrentOperations:
 
         # Wait for completion
         for worker in workers:
-            worker.join(timeout=3.0)
+            wait_for_thread_exit(worker, timeout=3.0)
 
         # Verify all workers completed
         for worker in workers:
@@ -328,7 +329,7 @@ class TestMainViewModelConcurrentOperations:
                     source=f"thread_{thread_id}",
                     is_processing=(i % 2 == 0),
                 )
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         # Start multiple state updater threads
         updaters = []
@@ -339,7 +340,7 @@ class TestMainViewModelConcurrentOperations:
 
         # Wait for completion
         for updater in updaters:
-            updater.join(timeout=2.0)
+            wait_for_thread_exit(updater, timeout=2.0)
 
         # All threads should complete
         for updater in updaters:
@@ -354,7 +355,7 @@ class TestMainViewModelConcurrentOperations:
                 main_view_model.ui_coordinator.schedule(
                     lambda tid=thread_id, idx=i: scheduled_calls.append((tid, idx))
                 )
-                time.sleep(0.01)
+                time.sleep(0.01)  # intentional interleaving delay
 
         # Start multiple UI scheduler threads
         schedulers = []
@@ -365,7 +366,7 @@ class TestMainViewModelConcurrentOperations:
 
         # Wait for completion
         for scheduler in schedulers:
-            scheduler.join(timeout=2.0)
+            wait_for_thread_exit(scheduler, timeout=2.0)
 
         # All threads should complete
         for scheduler in schedulers:
@@ -383,7 +384,7 @@ class TestMainViewModelRaceConditions:
 
         def cancel_worker():
             main_view_model.cancel_event.set()
-            time.sleep(0.05)
+            time.sleep(0.05)  # intentional interleaving delay
 
         # Start multiple cancel workers
         workers = []
@@ -394,7 +395,7 @@ class TestMainViewModelRaceConditions:
 
         # Wait for completion
         for worker in workers:
-            worker.join(timeout=2.0)
+            wait_for_thread_exit(worker, timeout=2.0)
 
         # All should complete, event should be set
         for worker in workers:
@@ -407,7 +408,7 @@ class TestMainViewModelRaceConditions:
 
         def worker1():
             while not main_view_model.cancel_event.is_set():
-                time.sleep(0.05)
+                time.sleep(0.05)  # intentional interleaving delay
 
         # Start first thread
         main_view_model.processing_thread = threading.Thread(target=worker1, daemon=False)
@@ -415,18 +416,18 @@ class TestMainViewModelRaceConditions:
         thread1 = main_view_model.processing_thread
 
         # Let it run briefly
-        time.sleep(0.1)
+        time.sleep(0.1)  # intentional interleaving delay
 
         # Stop and replace
         main_view_model.cancel_event.set()
-        thread1.join(timeout=2.0)
+        wait_for_thread_exit(thread1, timeout=2.0)
 
         # Start new thread
         main_view_model.cancel_event.clear()
 
         def worker2():
             while not main_view_model.cancel_event.is_set():
-                time.sleep(0.05)
+                time.sleep(0.05)  # intentional interleaving delay
 
         main_view_model.processing_thread = threading.Thread(target=worker2, daemon=False)
         main_view_model.processing_thread.start()
@@ -438,7 +439,7 @@ class TestMainViewModelRaceConditions:
 
         # Cleanup
         main_view_model.cancel_event.set()
-        thread2.join(timeout=2.0)
+        wait_for_thread_exit(thread2, timeout=2.0)
 
 
 class TestMainViewModelErrorHandling:
@@ -461,7 +462,7 @@ class TestMainViewModelErrorHandling:
 
         thread = threading.Thread(target=worker_with_error_handling, daemon=False)
         thread.start()
-        thread.join(timeout=2.0)
+        wait_for_thread_exit(thread, timeout=2.0)
 
         # Thread should complete and exception should be caught
         assert not thread.is_alive()
@@ -487,7 +488,7 @@ class TestMainViewModelErrorHandling:
 
         thread = threading.Thread(target=worker_with_error_handling, daemon=False)
         thread.start()
-        thread.join(timeout=2.0)
+        wait_for_thread_exit(thread, timeout=2.0)
 
         # Thread should complete
         assert not thread.is_alive()
@@ -525,7 +526,7 @@ class TestMainViewModelProcessingWorker:
 
         def worker():
             while not main_view_model.cancel_event.is_set():
-                time.sleep(0.05)
+                time.sleep(0.05)  # intentional interleaving delay
 
         main_view_model.processing_thread = threading.Thread(target=worker, daemon=False)
         main_view_model.processing_thread.start()
@@ -535,7 +536,7 @@ class TestMainViewModelProcessingWorker:
 
         # Cancel both
         main_view_model.cancel_event.set()
-        main_view_model.processing_thread.join(timeout=2.0)
+        wait_for_thread_exit(main_view_model.processing_thread, timeout=2.0)
 
         # Thread should stop
         assert not main_view_model.processing_thread.is_alive()

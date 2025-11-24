@@ -274,6 +274,10 @@ class TestObserverExceptionHandling:
         state = state_mgr.get_recording_state()
         assert state.is_recording is True
 
+        # Wait for async observers to complete (they run in ThreadPoolExecutor)
+        from tests.utils.wait_helpers import wait_for_condition
+        wait_for_condition(lambda: len(working_calls) > 0, timeout=1.0)
+
         # Verify working observer was called
         assert len(working_calls) == 1
         assert working_calls[0][1] == "is_recording"
@@ -381,6 +385,11 @@ class TestThreadSafety:
             t.start()
         for t in threads:
             t.join()
+
+        # Wait for async observers to complete (they run in ThreadPoolExecutor)
+        from tests.utils.wait_helpers import wait_for_condition
+
+        wait_for_condition(lambda: observer.call_count >= 10, timeout=2.0)
 
         # Observer should be called twice per update (current_frame + total_frames)
         assert observer.call_count == 10

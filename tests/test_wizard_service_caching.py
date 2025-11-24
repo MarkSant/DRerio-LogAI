@@ -10,6 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
+from tests.utils.wait_helpers import wait_for_condition
+
 from zebtrack.core.wizard_service import WizardService
 
 
@@ -131,7 +133,7 @@ class TestWizardServiceCaching:
             cameras1 = WizardService.detect_available_cameras()
             first_call_count = mock_video_capture.call_count
 
-            # Wait for cache to expire
+            # Wait for cache to expire (intentional delay for TTL test)
             time.sleep(0.15)
 
             # Second call should re-detect because cache expired
@@ -172,7 +174,7 @@ class TestWizardServiceCaching:
         mock_cap.read.return_value = (True, valid_frame)
 
         def delayed_capture(*args, **kwargs):
-            time.sleep(0.01)  # Simulate 10ms detection time
+            time.sleep(0.01)  # Intentional: simulate 10ms detection time
             return mock_cap
 
         mock_video_capture.side_effect = delayed_capture

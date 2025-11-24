@@ -436,9 +436,26 @@ class MainViewModel:
         if not camera_release_success:
             log.critical(
                 "controller.camera.zombie_detected",
-                message="Camera thread did not shut down cleanly; forcing exit",
+                message="Camera thread did not shut down cleanly",
             )
-            sys.exit(70)
+            # v2.2: Graceful shutdown instead of sys.exit(70)
+            # Publish fatal error event for UI notification
+            if self.ui_event_bus:
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                self.ui_event_bus.publish(
+                    Event(
+                        UIEvents.ERROR_OCCURRED,
+                        {
+                            "title": "Erro Crítico",
+                            "message": (
+                                "A thread da câmera não foi finalizada corretamente. "
+                                "O aplicativo será encerrado."
+                            ),
+                        },
+                    )
+                )
+            # Allow natural shutdown - don't force with sys.exit()
+            # Application will close via root.destroy() in on_close()
 
         self._shutdown_arduino_manager()
         log.info("controller.shutdown.complete")

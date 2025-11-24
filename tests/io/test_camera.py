@@ -7,6 +7,8 @@ import cv2
 import numpy as np
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
+
 
 @pytest.fixture
 def camera_and_mock():
@@ -79,13 +81,8 @@ def test_camera_reconnects_successfully_and_updates_dimensions(camera_and_mock, 
     )
     mock_vc.get.side_effect = itertools.chain(get_sequence, itertools.repeat(60.0))
 
-    # Wait enough time for reconnect logic (real time now)
-    # Defaults: sleep(0.1) in capture failure. retry_delay 0.05.
-    # Sequence: True -> read (False) -> sleep 0.1 -> False (isOpened) -> reconnect.
-    # Reconnect (attempt 1): wait 0.05.
-    # Reconnect (attempt 2): wait 0.05.
-    # True (isOpened).
-    time.sleep(1.0)
+    # Wait for reconnect logic to complete
+    wait_for_condition(lambda: mock_vc.open.call_count >= 2, timeout=2.0)
 
     assert camera._thread.is_alive()
     # Open called 2 times (attempt 1, attempt 2)
@@ -147,7 +144,7 @@ def test_camera_reconnects_indefinitely_when_limits_are_zero(camera_and_mock, mo
     mock_vc.isOpened.side_effect = itertools.repeat(False)
     mock_vc.read.side_effect = itertools.repeat((False, None))
 
-    time.sleep(0.2)
+    wait_for_condition(lambda: mock_vc.open.call_count > 2, timeout=1.0)
     assert camera._thread.is_alive()
     # 0.2s / 0.01s = ~20 calls. Should be > 2.
     assert mock_vc.open.call_count > 2

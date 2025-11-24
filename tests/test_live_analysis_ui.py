@@ -12,6 +12,8 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition
+
 from zebtrack.ui.dialogs.live_analysis_dialog import LiveAnalysisDialog
 from zebtrack.ui.dialogs.live_preview_window import LivePreviewWindow
 
@@ -37,7 +39,7 @@ def process_tk_events(root, iterations=10):
     """Helper to process Tkinter events including after() callbacks."""
     for _ in range(iterations):
         root.update()
-        time.sleep(0.01)
+        root.update_idletasks()
 
 
 # ==============================================================================
@@ -106,9 +108,10 @@ class TestLiveAnalysisDialog:
             dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
 
             # Process the after() callback that calls _detect_cameras
-            for _ in range(10):
-                tkinter_root.update()
-                time.sleep(0.01)
+            # Need to process Tk events first to trigger the scheduled callback
+            tkinter_root.update_idletasks()
+            tkinter_root.update()
+            wait_for_condition(lambda: len(dialog.camera_index_map) >= 2, timeout=1.0)
 
             # Verify camera index map populated
             assert len(dialog.camera_index_map) == 2
@@ -430,7 +433,11 @@ class TestLiveAnalysisDialog:
                 mock_detect.return_value = mock_cameras
 
                 dialog = LiveAnalysisDialog(tkinter_root, settings_obj=test_settings)
-                process_tk_events(tkinter_root)
+
+                # Process events to trigger camera detection callback
+                tkinter_root.update_idletasks()
+                tkinter_root.update()
+                wait_for_condition(lambda: len(dialog.camera_index_map) >= 1, timeout=1.0)
 
                 # Select camera
                 dialog.camera_combo.current(0)
@@ -582,11 +589,12 @@ class TestLivePreviewWindow:
 
         # Update multiple frames
         window.update_frame(frame)
-        time.sleep(0.05)  # 50ms
+        tkinter_root.update_idletasks()
         window.update_frame(frame)
         tkinter_root.update_idletasks()
 
-        # FPS should be calculated (non-zero)
+        # FPS should be calculated (non-zero) after multiple updates
+        wait_for_condition(lambda: window.current_fps > 0, timeout=1.0)
         assert window.current_fps > 0
 
         window.destroy()
@@ -653,13 +661,17 @@ class TestLivePreviewWindow:
         )
         tkinter_root.update_idletasks()
 
-        # Wait for duration to expire
-        time.sleep(0.2)
-        tkinter_root.update_idletasks()
+        # Wait for auto-stop to trigger (process events while waiting)
+        def check_stopped_with_events():
+            for _ in range(20):  # 20 iterations × ~10ms = ~200ms
+                tkinter_root.update()
+                tkinter_root.update_idletasks()
+                if window.is_stopped:
+                    return True
+                time.sleep(0.01)  # intentional Tk event loop delay
+            return window.is_stopped
 
-        # Trigger timer update manually
-        window._update_timer()
-        tkinter_root.update_idletasks()
+        assert check_stopped_with_events() is True
 
         # Verify auto-stopped
         assert window.is_stopped is True
@@ -743,12 +755,12 @@ class TestLivePreviewWindow:
         )
         tkinter_root.update_idletasks()
 
-        # Wait a bit
-        time.sleep(0.2)
-
         # Manually trigger timer update
         window._update_timer()
         tkinter_root.update_idletasks()
+
+        # Wait for timer label to update
+        wait_for_condition(lambda: "Tempo:" in window.timer_label.cget("text"), timeout=1.0)
 
         # Verify timer label contains expected text
         timer_text = window.timer_label.cget("text")

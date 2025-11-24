@@ -12,6 +12,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition
 from zebtrack.core.project_service import (
     CONFIG_FILE_NAME,
     ProjectService,
@@ -215,12 +216,15 @@ class TestProjectServiceLoadSave:
         service.save_project_config(str(project_path), project_data)
         first_timestamp = project_data.get("last_modified")
 
-        # Small delay to ensure timestamp difference
+        # Save again - wait until timestamp would differ
         import time
+        start_time = time.time()
+        wait_for_condition(
+            lambda: time.time() - start_time > 0.01,
+            timeout=1.0,
+            error_msg="Timestamp difference wait timed out"
+        )
 
-        time.sleep(0.01)
-
-        # Save again
         service.save_project_config(str(project_path), project_data)
         loaded_data = service.load_project_config(str(project_path))
 

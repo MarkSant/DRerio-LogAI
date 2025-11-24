@@ -11,6 +11,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
+
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.io.camera import Camera
@@ -90,8 +92,9 @@ def test_video_processing_error_recovery(
 
             recorder.stop_recording()
 
-            # Give Windows time to flush
-            time.sleep(0.1)
+            # Wait for file flush
+            coords_file = results_dir / f"3_CoordMovimento_{video_name}.parquet"
+            wait_for_condition(lambda: coords_file.exists(), timeout=1.0)
 
             # Track success
             integration_state_manager.update_processing_state(
@@ -247,11 +250,11 @@ def test_schema_validation_prevents_corruption(
     integration_recorder._flush_detection_data(force=True)
     integration_recorder._close_parquet_writer()  # Close writer to create valid Parquet file
 
-    # Give Windows time to flush
-    time.sleep(0.1)
+    # Wait for file flush
+    coords_file = integration_output_dir / "3_CoordMovimento_test_video.parquet"
+    wait_for_condition(lambda: coords_file.exists(), timeout=1.0)
 
     # Verify Parquet file was created with 5 rows
-    coords_file = integration_output_dir / "3_CoordMovimento_test_video.parquet"
     assert coords_file.exists()
     verify_parquet_row_count(coords_file, 5)
 
@@ -342,8 +345,8 @@ def test_recorder_error_recovery_new_session(temp_project_dir):
     # Stop session 1 to save the file (despite error)
     recorder.stop_recording()
 
-    # Give Windows time to flush
-    time.sleep(0.1)
+    # Wait for session 1 files to flush
+    wait_for_condition(lambda: len(list(session1_dir.glob("*.parquet"))) > 0, timeout=1.0)
 
     # Session 2: Start fresh
     session2_dir = results_dir / "session2"
@@ -364,13 +367,11 @@ def test_recorder_error_recovery_new_session(temp_project_dir):
 
     recorder.stop_recording()
 
-    # Give Windows time to flush
-    time.sleep(0.1)
+    # Wait for session 2 file flush
+    session2_file = session2_dir / "3_CoordMovimento_test_session2.parquet"
+    wait_for_condition(lambda: session2_file.exists(), timeout=1.0)
 
     # Verify session files exist
-    # Session 1 file may not exist due to force_stop after schema error
-    # (recorder discards data on critical errors)
-    session2_file = session2_dir / "3_CoordMovimento_test_session2.parquet"
 
     # The test focuses on verifying session 2 can start successfully after error
 
@@ -424,6 +425,13 @@ def test_state_manager_observer_pattern(temp_project_dir):
         total_frames=1000,
     )
 
+    # Wait for async observers to complete (they run in ThreadPoolExecutor)
+    from tests.utils.wait_helpers import wait_for_condition
+
+    wait_for_condition(
+        lambda: len(observer1_calls) >= 1 and len(observer2_calls) >= 1, timeout=1.0
+    )
+
     # Verify observers were called (observer1 for project, observer2 for recording)
     assert len(observer1_calls) >= 1, "Observer1 should be called for project updates"
     assert len(observer2_calls) >= 1, "Observer2 should be called for recording updates"
@@ -457,7 +465,7 @@ def test_concurrent_state_updates():
                     total_frames=1000,
                 )
                 update_count[0] += 1
-                time.sleep(0.001)
+                time.sleep(0.001)  # simulate processing time (intentional)
         except Exception as e:
             errors.append((worker_id, str(e)))
 
@@ -470,7 +478,7 @@ def test_concurrent_state_updates():
 
     # Wait for all workers
     for thread in workers:
-        thread.join(timeout=5)
+        wait_for_thread_exit(thread, timeout=5.0)
 
     # Verify no errors occurred
     assert len(errors) == 0, f"Errors occurred: {errors}"

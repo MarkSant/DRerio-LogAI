@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests.utils.wait_helpers import wait_for_thread_exit
 from zebtrack.core.state_manager import StateCategory, StateManager
 
 
@@ -32,7 +33,7 @@ def test_1000_concurrent_updates_no_deadlock():
     for t in threads:
         t.start()
     for t in threads:
-        t.join(timeout=10)  # 10s max
+        wait_for_thread_exit(t, timeout=10)  # 10s max
 
     elapsed = time.time() - start
 
@@ -49,14 +50,14 @@ def test_observers_do_not_block_state_updates():
     fast_updates_completed = []
 
     def slow_observer(category, key, old_value, new_value):
-        time.sleep(0.5)  # Simulate slow callback
+        time.sleep(0.5)  # intentional interleaving delay
         slow_observer_called.set()
 
     def fast_update_worker():
         for i in range(10):
             mgr.update_processing_state(source="fast", current_frame=i)
             fast_updates_completed.append(i)
-            time.sleep(0.01)
+            time.sleep(0.01)  # intentional interleaving delay
 
     mgr.subscribe(StateCategory.PROCESSING, slow_observer)
 
@@ -66,7 +67,7 @@ def test_observers_do_not_block_state_updates():
     # Start fast updates immediately
     fast_thread = threading.Thread(target=fast_update_worker)
     fast_thread.start()
-    fast_thread.join(timeout=5)
+    wait_for_thread_exit(fast_thread, timeout=5)
 
     assert len(fast_updates_completed) == 10, "Fast updates should not be blocked"
     assert slow_observer_called.wait(timeout=2), "Slow observer should complete"
@@ -87,7 +88,7 @@ def test_100_observers_registered_concurrently():
     for t in threads:
         t.start()
     for t in threads:
-        t.join()
+        wait_for_thread_exit(t)
 
     assert mgr.get_observer_count(StateCategory.RECORDING) == 100
 
@@ -102,14 +103,14 @@ def test_subscribe_unsubscribe_race_condition():
     def subscribe_unsubscribe_worker(obs):
         for _ in range(10):
             mgr.subscribe(StateCategory.RECORDING, obs)
-            time.sleep(0.001)
+            time.sleep(0.001)  # intentional interleaving delay
             mgr.unsubscribe(StateCategory.RECORDING, obs)
 
     def update_worker():
         for i in range(50):
             try:
                 mgr.update_recording_state(source="test", is_recording=bool(i % 2))
-                time.sleep(0.001)
+                time.sleep(0.001)  # intentional interleaving delay
             except Exception as e:
                 errors.append(e)
 
@@ -123,8 +124,8 @@ def test_subscribe_unsubscribe_race_condition():
     update_thread.start()
 
     for t in sub_threads:
-        t.join()
-    update_thread.join()
+        wait_for_thread_exit(t)
+    wait_for_thread_exit(update_thread)
 
     assert len(errors) == 0, f"Race condition errors: {errors}"
 
