@@ -298,3 +298,26 @@ class UICoordinator:
             view: View object with update_idletasks method
         """
         self.update_view(view, "update_idletasks")
+
+    def ask_ok_cancel(self, title: str, message: str) -> bool:
+        """
+        Show OK/Cancel dialog to user.
+
+        Args:
+            title: Dialog title
+            message: Dialog message
+
+        Returns:
+            True if user clicked OK, False otherwise
+        """
+        try:
+            from tkinter import messagebox
+            return messagebox.askokcancel(title, message)
+        except Exception as e:
+            log.error(
+                "ui_coordinator.ask_ok_cancel.failed",
+                title=title,
+                error=str(e),
+            )
+            # Return False as safe default (don't proceed with destructive action)
+            return False

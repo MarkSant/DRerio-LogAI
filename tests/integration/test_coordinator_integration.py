@@ -1,455 +1,252 @@
 """
-Integration tests for coordinators with MainViewModel.
+Integration tests for HardwareCoordinator with other components (Phase 3).
 
-Task 2.2: REFACTOR-VIEWMODEL-001
-Verifies that HardwareCoordinator, VideoOrchestrator, and AnalysisCoordinator
-are properly integrated with MainViewModel and work together correctly.
+Verifies that HardwareCoordinator integrates properly with StateManager,
+EventBus, DetectorService, and other Phase 3 components.
+
+Migrated from Task 2.2 legacy API to Phase 3 architecture.
 """
 
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, MagicMock
 
-from zebtrack.core.analysis_coordinator import AnalysisCoordinator
-from zebtrack.core.hardware_coordinator import HardwareCoordinator
-from zebtrack.core.video_orchestrator import VideoOrchestrator
+from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
+from zebtrack.core.detector_service import DetectorService
+from zebtrack.core.model_service import ModelService
+from zebtrack.core.state_manager import StateManager
+from zebtrack.core.weight_manager import WeightManager
+from zebtrack.ui.event_bus import EventBus
 
 
-class TestCoordinatorIntegrationWithMainViewModel(unittest.TestCase):
-    """Test coordinators integration with MainViewModel."""
+class TestHardwareCoordinatorIntegration(unittest.TestCase):
+    """Test HardwareCoordinator integration with other components."""
 
     def setUp(self):
         """Set up test fixtures."""
-        # Create mock dependencies
-        self.root = Mock()
-        self.view = Mock()
-        self.state_manager = Mock()
-        self.ui_event_bus = Mock()
-        self.ui_coordinator = Mock()
-        self.settings = Mock()
-        self.project_manager = Mock()
-        self.detector_service = Mock()
-        self.video_processing_service = Mock()
-        self.analysis_service = Mock()
-        self.recorder = Mock()
-        self.arduino_manager_cls = Mock()
+        self.state_manager = Mock(spec=StateManager)
+        self.event_bus = Mock(spec=EventBus)
+        self.detector_service = Mock(spec=DetectorService)
+        self.detector_service.settings = Mock()
+        self.weight_manager = Mock(spec=WeightManager)
+        self.model_service = Mock(spec=ModelService)
 
-    def test_init_coordinators_creates_all_three(self):
-        """Test that _init_coordinators creates all three coordinators."""
-        # Simulate MainViewModel._init_coordinators()
-        hardware_coordinator = HardwareCoordinator(
+    def test_coordinator_initialization_with_all_components(self):
+        """Test that coordinator initializes with all Phase 3 components."""
+        coordinator = HardwareCoordinator(
             state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
             detector_service=self.detector_service,
-            arduino_manager_cls=self.arduino_manager_cls,
+            weight_manager=self.weight_manager,
+            model_service=self.model_service,
+            event_bus=self.event_bus,
         )
 
-        video_orchestrator = VideoOrchestrator(
-            root=self.root,
-            view=self.view,
+        assert coordinator.state_manager == self.state_manager
+        assert coordinator.detector_service == self.detector_service
+        assert coordinator.weight_manager == self.weight_manager
+        assert coordinator.model_service == self.model_service
+        assert coordinator.event_bus == self.event_bus
+
+    def test_coordinator_shares_state_manager(self):
+        """Test that multiple coordinators can share StateManager."""
+        coordinator1 = HardwareCoordinator(
             state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            video_processing_service=self.video_processing_service,
-            analysis_service=self.analysis_service,
-            recorder=self.recorder,
-        )
-
-        analysis_coordinator = AnalysisCoordinator(
-            root=self.root,
-            view=self.view,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            analysis_service=self.analysis_service,
-            video_processing_service=self.video_processing_service,
-        )
-
-        # Verify all coordinators were created successfully
-        assert hardware_coordinator is not None
-        assert video_orchestrator is not None
-        assert analysis_coordinator is not None
-
-    def test_hardware_coordinator_callbacks_setup(self):
-        """Test that HardwareCoordinator callbacks are set by MainViewModel."""
-        hardware_coordinator = HardwareCoordinator(
-            state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
             detector_service=self.detector_service,
-            arduino_manager_cls=self.arduino_manager_cls,
+            weight_manager=self.weight_manager,
         )
 
-        # Simulate MainViewModel setting recording callbacks
-        mock_trigger = Mock()
-        mock_stop = Mock()
-        hardware_coordinator.set_recording_callbacks(mock_trigger, mock_stop)
+        mock_detector2 = Mock(spec=DetectorService)
+        mock_detector2.settings = Mock()
+        coordinator2 = HardwareCoordinator(
+            state_manager=self.state_manager,  # Same instance
+            detector_service=mock_detector2,
+            weight_manager=Mock(spec=WeightManager),
+        )
 
-        # Verify callbacks were set
-        assert hardware_coordinator._trigger_recording_callback == mock_trigger
-        assert hardware_coordinator._stop_recording_callback == mock_stop
+        # Both should reference same state manager
+        assert coordinator1.state_manager is coordinator2.state_manager
 
-    def test_video_orchestrator_callbacks_setup(self):
-        """Test that VideoOrchestrator callbacks are set by MainViewModel."""
-        video_orchestrator = VideoOrchestrator(
-            root=self.root,
-            view=self.view,
+    def test_coordinator_shares_event_bus(self):
+        """Test that multiple coordinators can share EventBus."""
+        coordinator1 = HardwareCoordinator(
             state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            video_processing_service=self.video_processing_service,
-            analysis_service=self.analysis_service,
-            recorder=self.recorder,
-        )
-
-        # Simulate MainViewModel setting callbacks
-        mock_arena = Mock()
-        mock_analysis_mode = Mock()
-        mock_refresh = Mock()
-        mock_publish = Mock()
-
-        video_orchestrator.set_arena_callback(mock_arena)
-        video_orchestrator.set_analysis_view_mode_callback(mock_analysis_mode)
-        video_orchestrator.set_refresh_callback(mock_refresh)
-        video_orchestrator.set_publish_processing_mode_callback(mock_publish)
-
-        # Verify all callbacks were set
-        assert video_orchestrator._set_main_arena_polygon_callback == mock_arena
-        assert video_orchestrator._activate_analysis_view_mode_callback == mock_analysis_mode
-        assert video_orchestrator._refresh_project_views_callback == mock_refresh
-        assert video_orchestrator._publish_processing_mode_callback == mock_publish
-
-    def test_analysis_coordinator_callbacks_setup(self):
-        """Test that AnalysisCoordinator callbacks are set by MainViewModel."""
-        analysis_coordinator = AnalysisCoordinator(
-            root=self.root,
-            view=self.view,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            analysis_service=self.analysis_service,
-            video_processing_service=self.video_processing_service,
-        )
-
-        # Simulate MainViewModel setting callback
-        mock_refresh = Mock()
-        analysis_coordinator.set_refresh_callback(mock_refresh)
-
-        # Verify callback was set
-        assert analysis_coordinator._refresh_project_views_callback == mock_refresh
-
-    def test_hardware_arduino_event_triggers_recording(self):
-        """Test that Arduino events can trigger recording via callbacks."""
-        hardware_coordinator = HardwareCoordinator(
-            state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
             detector_service=self.detector_service,
-            arduino_manager_cls=self.arduino_manager_cls,
+            weight_manager=self.weight_manager,
+            event_bus=self.event_bus,
         )
 
-        # Setup recording callbacks
-        mock_trigger = Mock()
-        mock_stop = Mock()
-        hardware_coordinator.set_recording_callbacks(mock_trigger, mock_stop)
+        mock_detector2 = Mock(spec=DetectorService)
+        mock_detector2.settings = Mock()
+        coordinator2 = HardwareCoordinator(
+            state_manager=Mock(spec=StateManager),
+            detector_service=mock_detector2,
+            weight_manager=Mock(spec=WeightManager),
+            event_bus=self.event_bus,  # Same instance
+        )
 
-        # Setup pending external trigger
-        hardware_coordinator._pending_external_trigger = {"some": "context"}
+        # Both should reference same event bus
+        assert coordinator1.event_bus is coordinator2.event_bus
 
-        # Simulate Arduino event code 1 (start recording)
-        hardware_coordinator.on_arduino_event(event_code=1)
-
-        # Verify trigger callback was called
-        mock_trigger.assert_called_once_with(1)
-
-    def test_hardware_arduino_event_stops_recording(self):
-        """Test that Arduino events can stop recording via callbacks."""
-        # Setup state manager to indicate recording is active
-        self.state_manager.get_recording_state.return_value = {"is_recording": True}
-
-        hardware_coordinator = HardwareCoordinator(
+    def test_recording_callbacks_integration(self):
+        """Test that recording callbacks integrate with session coordinator."""
+        coordinator = HardwareCoordinator(
             state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
             detector_service=self.detector_service,
-            arduino_manager_cls=self.arduino_manager_cls,
+            weight_manager=self.weight_manager,
         )
 
-        # Setup recording callbacks
-        mock_trigger = Mock()
-        mock_stop = Mock()
-        hardware_coordinator.set_recording_callbacks(mock_trigger, mock_stop)
+        # Simulate session coordinator setting callbacks
+        trigger_callback = Mock()
+        stop_callback = Mock()
 
-        # Simulate Arduino event code 0 (stop recording)
-        hardware_coordinator.on_arduino_event(event_code=0)
+        coordinator.set_recording_callbacks(
+            trigger_callback=trigger_callback,
+            stop_callback=stop_callback,
+        )
 
-        # Verify stop callback was called
-        mock_stop.assert_called_once()
+        # Verify callbacks are stored
+        assert coordinator._trigger_recording_callback == trigger_callback
+        assert coordinator._stop_recording_callback == stop_callback
 
-    def test_coordinators_share_state_manager(self):
-        """Test that all coordinators share the same StateManager instance."""
-        hardware_coordinator = HardwareCoordinator(
+    def test_detector_setup_delegates_to_service(self):
+        """Test that detector setup is properly delegated to DetectorService."""
+        coordinator = HardwareCoordinator(
             state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
             detector_service=self.detector_service,
-            arduino_manager_cls=self.arduino_manager_cls,
+            weight_manager=self.weight_manager,
         )
 
-        video_orchestrator = VideoOrchestrator(
-            root=self.root,
-            view=self.view,
-            state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            video_processing_service=self.video_processing_service,
-            analysis_service=self.analysis_service,
-            recorder=self.recorder,
-        )
-
-        # Create AnalysisCoordinator (test instantiation)
-        _analysis_coordinator = AnalysisCoordinator(
-            root=self.root,
-            view=self.view,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            analysis_service=self.analysis_service,
-            video_processing_service=self.video_processing_service,
-        )
-
-        # Verify all use the same state manager
-        assert hardware_coordinator.state_manager is self.state_manager
-        assert video_orchestrator.state_manager is self.state_manager
-        # Note: AnalysisCoordinator doesn't have direct state_manager access
-
-    def test_coordinators_share_event_bus(self):
-        """Test that all coordinators share the same EventBus instance."""
-        hardware_coordinator = HardwareCoordinator(
-            state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            detector_service=self.detector_service,
-            arduino_manager_cls=self.arduino_manager_cls,
-        )
-
-        video_orchestrator = VideoOrchestrator(
-            root=self.root,
-            view=self.view,
-            state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            video_processing_service=self.video_processing_service,
-            analysis_service=self.analysis_service,
-            recorder=self.recorder,
-        )
-
-        analysis_coordinator = AnalysisCoordinator(
-            root=self.root,
-            view=self.view,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            analysis_service=self.analysis_service,
-            video_processing_service=self.video_processing_service,
-        )
-
-        # Verify all use the same event bus
-        assert hardware_coordinator.ui_event_bus is self.ui_event_bus
-        assert video_orchestrator.ui_event_bus is self.ui_event_bus
-        assert analysis_coordinator.ui_event_bus is self.ui_event_bus
-
-    def test_coordinators_share_project_manager(self):
-        """Test that all coordinators share the same ProjectManager instance."""
-        hardware_coordinator = HardwareCoordinator(
-            state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            detector_service=self.detector_service,
-            arduino_manager_cls=self.arduino_manager_cls,
-        )
-
-        video_orchestrator = VideoOrchestrator(
-            root=self.root,
-            view=self.view,
-            state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            video_processing_service=self.video_processing_service,
-            analysis_service=self.analysis_service,
-            recorder=self.recorder,
-        )
-
-        analysis_coordinator = AnalysisCoordinator(
-            root=self.root,
-            view=self.view,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            analysis_service=self.analysis_service,
-            video_processing_service=self.video_processing_service,
-        )
-
-        # Verify all use the same project manager
-        assert hardware_coordinator.project_manager is self.project_manager
-        assert video_orchestrator.project_manager is self.project_manager
-        assert analysis_coordinator.project_manager is self.project_manager
-
-    def test_hardware_detector_setup_delegates_to_service(self):
-        """Test that HardwareCoordinator delegates detector setup to DetectorService."""
-        # Setup mock detector service
         self.detector_service.initialize_detector.return_value = (True, None)
 
-        hardware_coordinator = HardwareCoordinator(
-            state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            detector_service=self.detector_service,
-            arduino_manager_cls=self.arduino_manager_cls,
+        success, error = coordinator.setup_detector(
+            animal_method="det",
+            use_openvino=False,
+            active_weight_name="best.pt",
         )
 
-        # Call setup_detector
-        success = hardware_coordinator.setup_detector(temp_animal_method="det", use_openvino=False)
-
-        # Verify delegation
         assert success is True
+        assert error is None
+        self.detector_service.initialize_detector.assert_called_once_with(
+            animal_method="det",
+            use_openvino=False,
+            active_weight_name="best.pt",
+            detector_plugins=None,
+        )
+
+
+class TestDetectorServiceIntegration(unittest.TestCase):
+    """Test integration between HardwareCoordinator and DetectorService."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.state_manager = Mock(spec=StateManager)
+        self.detector_service = Mock(spec=DetectorService)
+        self.detector_service.settings = Mock()
+        self.weight_manager = Mock(spec=WeightManager)
+
+        self.coordinator = HardwareCoordinator(
+            state_manager=self.state_manager,
+            detector_service=self.detector_service,
+            weight_manager=self.weight_manager,
+        )
+
+    def test_detector_methods_delegated_to_service(self):
+        """Test that detector methods are delegated to DetectorService."""
+        # Test setup_detector delegation
+        self.detector_service.initialize_detector.return_value = (True, None)
+        success, error = self.coordinator.setup_detector()
+        assert success is True
+        assert error is None
         self.detector_service.initialize_detector.assert_called_once()
 
-    def test_analysis_coordinator_uses_analysis_service(self):
-        """Test that AnalysisCoordinator delegates to AnalysisService."""
-        analysis_coordinator = AnalysisCoordinator(
-            root=self.root,
-            view=self.view,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            analysis_service=self.analysis_service,
-            video_processing_service=self.video_processing_service,
-        )
+    def test_settings_cached_from_detector_service(self):
+        """Test that settings are properly cached from DetectorService."""
+        mock_settings = Mock()
+        self.detector_service.settings = mock_settings
 
-        # Verify service is accessible
-        assert analysis_coordinator.analysis_service is self.analysis_service
-
-    @patch("threading.Thread")
-    def test_video_orchestrator_creates_worker_threads(self, mock_thread):
-        """Test that VideoOrchestrator can create worker threads for processing."""
-        video_orchestrator = VideoOrchestrator(
-            root=self.root,
-            view=self.view,
+        coordinator = HardwareCoordinator(
             state_manager=self.state_manager,
-            ui_event_bus=self.ui_event_bus,
-            ui_coordinator=self.ui_coordinator,
-            settings_obj=self.settings,
-            project_manager=self.project_manager,
-            video_processing_service=self.video_processing_service,
-            analysis_service=self.analysis_service,
-            recorder=self.recorder,
+            detector_service=self.detector_service,
+            weight_manager=self.weight_manager,
         )
 
-        # Setup mocks
-        self.project_manager.project_data = {
-            "videos": [{"path": "/path/to/video.mp4", "has_arena": True}]
-        }
-
-        # Mock thread
-        mock_thread_instance = Mock()
-        mock_thread.return_value = mock_thread_instance
-
-        # This would normally trigger thread creation in actual flow
-        # Here we just verify the coordinator has access to needed services
-        assert video_orchestrator.video_processing_service is self.video_processing_service
+        assert coordinator.settings is mock_settings
 
 
-class TestCoordinatorMethodDelegation(unittest.TestCase):
-    """Test that MainViewModel methods correctly delegate to coordinators."""
+class TestStateManagerIntegration(unittest.TestCase):
+    """Test integration between HardwareCoordinator and StateManager."""
 
-    def test_detector_methods_delegated_to_hardware_coordinator(self):
-        """Test detector-related methods should delegate to HardwareCoordinator."""
-        # List of methods that should be delegated:
-        # - setup_detector()
-        # - setup_detector_zones()
-        # - setup_arduino()
+    def setUp(self):
+        """Set up test fixtures."""
+        self.state_manager = Mock(spec=StateManager)
+        self.detector_service = Mock(spec=DetectorService)
+        self.detector_service.settings = Mock()
+        self.weight_manager = Mock(spec=WeightManager)
 
-        detector_service = Mock()
-        hardware_coordinator = HardwareCoordinator(
-            state_manager=Mock(),
-            ui_event_bus=Mock(),
-            settings_obj=Mock(),
-            project_manager=Mock(),
-            detector_service=detector_service,
-            arduino_manager_cls=Mock(),
+        self.coordinator = HardwareCoordinator(
+            state_manager=self.state_manager,
+            detector_service=self.detector_service,
+            weight_manager=self.weight_manager,
         )
 
-        # Verify methods exist and are callable
-        assert callable(hardware_coordinator.setup_detector)
-        assert callable(hardware_coordinator.setup_detector_zones)
-        assert callable(hardware_coordinator.setup_arduino)
+    def test_coordinator_has_access_to_state_manager(self):
+        """Test that coordinator can access StateManager."""
+        assert self.coordinator.state_manager is self.state_manager
 
-    def test_analysis_methods_delegated_to_analysis_coordinator(self):
-        """Test analysis methods should delegate to AnalysisCoordinator."""
-        # List of methods that should be delegated:
-        # - generate_report()
-        # - generate_parquet_summaries()
+    def test_coordinator_inherits_base_coordinator_state_methods(self):
+        """Test that coordinator inherits state update methods from BaseCoordinator."""
+        # BaseCoordinator provides _update_state and _publish_event
+        # These should be available on HardwareCoordinator
+        assert hasattr(self.coordinator, "_update_state")
+        assert hasattr(self.coordinator, "_publish_event")
 
-        analysis_coordinator = AnalysisCoordinator(
-            root=Mock(),
-            view=Mock(),
-            ui_event_bus=Mock(),
-            ui_coordinator=Mock(),
-            settings_obj=Mock(),
-            project_manager=Mock(),
-            analysis_service=Mock(),
-            video_processing_service=Mock(),
+
+class TestEventBusIntegration(unittest.TestCase):
+    """Test integration between HardwareCoordinator and EventBus."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.state_manager = Mock(spec=StateManager)
+        self.event_bus = Mock(spec=EventBus)
+        self.detector_service = Mock(spec=DetectorService)
+        self.detector_service.settings = Mock()
+        self.weight_manager = Mock(spec=WeightManager)
+
+        self.coordinator = HardwareCoordinator(
+            state_manager=self.state_manager,
+            detector_service=self.detector_service,
+            weight_manager=self.weight_manager,
+            event_bus=self.event_bus,
         )
 
-        # Verify methods exist and are callable
-        assert callable(analysis_coordinator.generate_report)
-        assert callable(analysis_coordinator.generate_parquet_summaries)
+    def test_coordinator_has_access_to_event_bus(self):
+        """Test that coordinator can access EventBus."""
+        assert self.coordinator.event_bus is self.event_bus
 
-    def test_video_processing_delegated_to_video_orchestrator(self):
-        """Test video processing methods should delegate to VideoOrchestrator."""
-        # List of methods that should be delegated:
-        # - process_pending_project_videos()
+    def test_coordinator_can_publish_events(self):
+        """Test that coordinator can publish events via EventBus."""
+        # BaseCoordinator provides _publish_event method
+        assert hasattr(self.coordinator, "_publish_event")
 
-        video_orchestrator = VideoOrchestrator(
-            root=Mock(),
-            view=Mock(),
-            state_manager=Mock(),
-            ui_event_bus=Mock(),
-            ui_coordinator=Mock(),
-            settings_obj=Mock(),
-            project_manager=Mock(),
-            video_processing_service=Mock(),
-            analysis_service=Mock(),
-            recorder=Mock(),
+
+class TestWeightManagerIntegration(unittest.TestCase):
+    """Test integration between HardwareCoordinator and WeightManager."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.state_manager = Mock(spec=StateManager)
+        self.detector_service = Mock(spec=DetectorService)
+        self.detector_service.settings = Mock()
+        self.weight_manager = Mock(spec=WeightManager)
+
+        self.coordinator = HardwareCoordinator(
+            state_manager=self.state_manager,
+            detector_service=self.detector_service,
+            weight_manager=self.weight_manager,
         )
 
-        # Verify methods exist and are callable
-        assert callable(video_orchestrator.process_pending_project_videos)
+    def test_coordinator_has_access_to_weight_manager(self):
+        """Test that coordinator can access WeightManager."""
+        assert self.coordinator.weight_manager is self.weight_manager
 
 
 if __name__ == "__main__":

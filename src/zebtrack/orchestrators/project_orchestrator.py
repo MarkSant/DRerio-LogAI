@@ -70,6 +70,11 @@ class ProjectOrchestrator:
         self.main_view_model.project_manager = new_project_manager
         self.project_manager = new_project_manager
 
+        # Notify all services about the new project manager (if event bus available)
+        if hasattr(self, 'ui_event_bus') and self.ui_event_bus:
+            from zebtrack.ui.events import Events
+            self.ui_event_bus.publish_event(Events.PROJECT_MANAGER_REPLACED, {"new_manager": new_project_manager})
+
     def create_project_workflow(self, **kwargs):
         """Create project workflow orchestration.
 

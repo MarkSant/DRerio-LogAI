@@ -136,6 +136,8 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         # Update reference
         self.project_manager = new_project_manager
 
+        # Notify all services about the new project manager
+        self._publish_event(Events.PROJECT_MANAGER_REPLACED, {"new_manager": new_project_manager})
         self._publish_event(Events.PROJECT_CLOSED, {})
         self.logger.info("project.close.complete")
 

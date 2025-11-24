@@ -7,6 +7,13 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch, call
 
+# Check if YOLOv8 detector is available
+try:
+    from zebtrack.plugins.yolov8_zebrafish_detector import YOLOv8ZebrafishDetector
+    YOLOV8_AVAILABLE = True
+except ImportError:
+    YOLOV8_AVAILABLE = False
+
 
 @pytest.mark.integration
 class TestOverlayIntegration:
@@ -47,37 +54,34 @@ class TestOverlayIntegration:
         # Check that draw_overlay is called somewhere in the service
         assert 'draw_overlay' in source, "VideoProcessingService should call draw_overlay"
 
+    @pytest.mark.skipif(not YOLOV8_AVAILABLE, reason="YOLOv8 detector not available")
     def test_bounding_box_drawing_in_detector(self):
         """Test that detector's draw_overlay draws bounding boxes."""
         # Import a real detector to test its draw_overlay implementation
-        try:
-            from zebtrack.plugins.yolov8_zebrafish_detector import YOLOv8ZebrafishDetector
+        from zebtrack.plugins.yolov8_zebrafish_detector import YOLOv8ZebrafishDetector
 
-            # Create detector instance with mock model
-            with patch('zebtrack.plugins.yolov8_zebrafish_detector.YOLO') as mock_yolo:
-                mock_model = MagicMock()
-                mock_yolo.return_value = mock_model
+        # Create detector instance with mock model
+        with patch('zebtrack.plugins.yolov8_zebrafish_detector.YOLO') as mock_yolo:
+            mock_model = MagicMock()
+            mock_yolo.return_value = mock_model
 
-                detector = YOLOv8ZebrafishDetector(
-                    weights_path="dummy.pt",
-                    device="cpu"
-                )
+            detector = YOLOv8ZebrafishDetector(
+                weights_path="dummy.pt",
+                device="cpu"
+            )
 
-                # Create test frame and detections
-                frame = np.zeros((480, 640, 3), dtype=np.uint8)
-                detections = [
-                    {"bbox": [10, 10, 50, 50], "conf": 0.9, "track_id": 1}
-                ]
+            # Create test frame and detections
+            frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            detections = [
+                {"bbox": [10, 10, 50, 50], "conf": 0.9, "track_id": 1}
+            ]
 
-                # Act - draw overlay
-                result = detector.draw_overlay(frame.copy(), detections)
+            # Act - draw overlay
+            result = detector.draw_overlay(frame.copy(), detections)
 
-                # Assert - result should be a numpy array (modified frame)
-                assert isinstance(result, np.ndarray)
-                assert result.shape == frame.shape
-
-        except ImportError:
-            pytest.skip("YOLOv8 detector not available")
+            # Assert - result should be a numpy array (modified frame)
+            assert isinstance(result, np.ndarray)
+            assert result.shape == frame.shape
 
     @pytest.mark.gui
     def test_display_analysis_frame_does_not_redraw(self, gui_fixture):

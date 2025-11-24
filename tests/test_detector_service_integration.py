@@ -282,62 +282,6 @@ class TestDetectorServiceIntegration(unittest.TestCase):
         self.assertAlmostEqual(params["track_threshold"], 0.32)
         self.assertAlmostEqual(params["match_threshold"], 0.22)
 
-    @unittest.skip("Obsolete: ProjectOrchestrator mocks prevent callback execution")
-    def test_wizard_metadata_triggers_detector_override_application(self):
-        """Detector overrides captured by wizard should be applied post-creation."""
-
-        wizard_metadata = {
-            "detector_parameters": {
-                "confidence_threshold": 0.31,
-                "nms_threshold": 0.47,
-                "track_threshold": 0.29,
-                "match_threshold": 0.18,
-            }
-        }
-
-        project_result = {
-            "success": True,
-            "animal_method": "seg",
-            "wizard_metadata": wizard_metadata,
-            "project_path": None,
-            "import_success": None,
-        }
-
-        workflow_mock = MagicMock()
-        workflow_mock.create_project.return_value = project_result
-        workflow_mock.set_global_model_defaults = MagicMock()
-        self.controller.project_workflow_service = workflow_mock
-
-        self.controller.ui_event_bus = MagicMock()
-
-        with (
-            patch.object(self.controller, "setup_detector", return_value=True),
-            patch.object(self.controller, "update_openvino_status"),
-            patch.object(self.controller, "_show_post_creation_guide"),
-            patch.object(self.controller, "_apply_wizard_detector_overrides") as mock_apply,
-        ):
-            self.controller.create_project_workflow(
-                project_path="/tmp/test_project",
-                project_type="pre-recorded",
-                animals_per_aquarium=1,
-                num_aquariums=1,
-                aquarium_width_cm=10.0,
-                aquarium_height_cm=10.0,
-                video_files=["/tmp/test.mp4"],
-                detector_parameters={
-                    "confidence_threshold": 0.31,
-                    "nms_threshold": 0.47,
-                    "track_threshold": 0.29,
-                    "match_threshold": 0.18,
-                },
-            )
-
-        # The call will have the full wizard_metadata structure,
-        # but we only care about detector_parameters
-        mock_apply.assert_called_once()
-        actual_call = mock_apply.call_args[0][0]
-        assert actual_call["detector_parameters"] == wizard_metadata["detector_parameters"]
-
     def test_apply_wizard_detector_overrides_normalizes_parameters(self):
         """Helper should normalize values and update detector parameters in project scope."""
 

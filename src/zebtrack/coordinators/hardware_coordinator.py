@@ -172,6 +172,10 @@ class HardwareCoordinator(BaseCoordinator):
         # Cache settings from detector_service
         self.settings = detector_service.settings
 
+        # Recording callbacks (for session coordinator integration)
+        self._trigger_recording_callback: Callable[[int], None] | None = None
+        self._stop_recording_callback: Callable[[], None] | None = None
+
         log.info(
             "hardware_coordinator.initialized",
             has_model_service=model_service is not None,
@@ -1621,6 +1625,31 @@ class HardwareCoordinator(BaseCoordinator):
             callback: Function to call for weight conversion
         """
         self._convert_weight_callback = callback
+
+    def set_recording_callbacks(
+        self,
+        trigger_callback: Callable[[int], None] | None,
+        stop_callback: Callable[[], None] | None,
+    ) -> None:
+        """Set callbacks for recording events from session coordinator.
+
+        This method allows the SessionCoordinator to register callbacks that will
+        be invoked when recording operations are needed. This is part of the
+        coordinator integration pattern.
+
+        Args:
+            trigger_callback: Function to call when recording should start.
+                            Accepts event_code (int) as parameter.
+            stop_callback: Function to call when recording should stop.
+                          No parameters.
+        """
+        self._trigger_recording_callback = trigger_callback
+        self._stop_recording_callback = stop_callback
+        log.info(
+            "hardware_coordinator.recording_callbacks_set",
+            has_trigger=trigger_callback is not None,
+            has_stop=stop_callback is not None,
+        )
 
     def __repr__(self) -> str:
         """Return string representation of HardwareCoordinator."""

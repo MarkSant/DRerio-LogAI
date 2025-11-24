@@ -115,6 +115,8 @@ class Events:
     PROJECT_CREATE = "project:create"
     PROJECT_OPEN = "project:open"
     PROJECT_CLOSE = "project:close"
+    PROJECT_CLOSED = "project:closed"  # Internal event after project is closed
+    PROJECT_MANAGER_REPLACED = "project:manager_replaced"  # Internal event for service updates
     PROJECT_PROCESS_VIDEOS = "project:process_videos"
     PROJECT_ADD_VIDEOS = "project:add_videos"
     PROJECT_GENERATE_SUMMARIES = "project:generate_summaries"

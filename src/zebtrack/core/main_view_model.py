@@ -500,6 +500,7 @@ class MainViewModel:
             dispatcher = self._create_event_dispatcher(event_name)
             self.ui_event_bus.subscribe(event_name, dispatcher)
 
+        # Subscribe to internal event for project manager replacement
         self.ui_event_bus.subscribe(
             Events.PROJECT_MANAGER_REPLACED,
             self._handle_project_manager_replaced,
