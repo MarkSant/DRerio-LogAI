@@ -1181,7 +1181,7 @@ class ApplicationGUI:
 
         # Pass wizard data directly to controller (via ProjectWorkflowService)
         # The service now handles data enrichment and processing internally
-        self.event_dispatcher.publish_event(Events.WIZARD_CREATE_PROJECT, wizard.result)
+        self.event_dispatcher.publish_event(Events.PROJECT_CREATE, wizard.result)
 
     def _open_project_workflow(self):
         """Handle the UI part of opening a project, then call the controller."""
@@ -1833,6 +1833,28 @@ class ApplicationGUI:
         if hasattr(self, "project_overview_widget") and self.project_overview_widget:
             return self.project_overview_widget.project_overview_tree
         return None
+
+    def update_reports_tree(self):
+        """Delegate to ProjectViewManager to update the reports tree."""
+        if self.project_view_manager:
+            self.project_view_manager.update_reports_tree()
+
+    def get_current_detector_parameters(self) -> dict:
+        """Delegate to controller to get current detector parameters."""
+        if self.controller:
+            return self.controller.get_current_detector_parameters()
+        return {}
+
+    def publish_video_hierarchy_snapshot(self, snapshot: list):
+        """Delegate event publishing to EventBusV2."""
+        if self.event_bus_v2:
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
+                    data={"snapshot": snapshot},
+                    source="ApplicationGUI.publish_video_hierarchy_snapshot",
+                )
+            )
 
 if __name__ == "__main__":
     # Using print is fine here as it's for direct execution feedback
