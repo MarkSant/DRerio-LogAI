@@ -172,6 +172,19 @@ class ProjectOverviewWidget(BaseWidget):
 
     # Public API for updating widget state
 
+    def update_summary(self, status_counts: dict[str, int]) -> None:
+        """
+        Update summary cards (alias for update_status_counts).
+
+        Args:
+            status_counts: Dictionary mapping status keys to counts
+        """
+        self.update_status_counts(status_counts)
+
+    def update_legend(self) -> None:
+        """Update the legend display (placeholder)."""
+        pass
+
     def update_status_counts(self, counts: dict[str, int]) -> None:
         """
         Update the status card counts.
@@ -211,6 +224,19 @@ class ProjectOverviewWidget(BaseWidget):
         """Collapse a tree item to hide its children."""
         if self.project_overview_tree:
             self.project_overview_tree.item(item_id, open=False)
+
+    def update_tree(self, snapshot: list[dict]) -> None:
+        """Update tree with new snapshot data."""
+        hierarchy_data = {"groups": snapshot}
+        # Build simplified video index for context menus
+        video_index = {}
+        for group in snapshot:
+            for day in group.get("days", []):
+                for video in day.get("videos", []):
+                    if "path" in video:
+                        video_index[video["path"]] = video
+
+        self.populate_tree_with_hierarchy(hierarchy_data, video_index)
 
     def populate_tree_with_hierarchy(self, hierarchy_data: dict, video_index: dict) -> None:
         """

@@ -169,6 +169,7 @@ class WidgetFactory:
         commands = {
             'calibration': self.gui._open_global_calibration_window,
             'single_analysis': self.gui._on_analyze_single_video_clicked,
+            'live_camera': lambda: self.gui.controller.start_live_camera_analysis(),
             'create_project': self.gui._create_project_workflow,
             'open_project': self.gui._open_project_workflow
         }
@@ -210,11 +211,12 @@ class WidgetFactory:
 
         self.gui.zone_summary_frame, self.gui.zone_summary_cards = PanelBuilder.create_zone_summary_cards(
             self.gui.zone_controls_frame,
-            self.gui._get_zone_summary_helper_text()
+            self.get_zone_summary_helper_text()
         )
 
         # Initial update
-        self.gui._update_zone_summary_cards()
+        if hasattr(self.gui, "project_view_manager"):
+            self.gui.project_view_manager.update_zone_summary_cards()
 
     def create_drawing_buttons(self):
         """
@@ -226,8 +228,8 @@ class WidgetFactory:
             self.gui._drawing_buttons_frame.destroy()
 
         commands = {
-            'undo': lambda: self.gui._on_drawing_undo(None),
-            'redo': lambda: self.gui._on_drawing_redo(None)
+            'undo': lambda: self.gui.drawing_state_manager.undo(),
+            'redo': lambda: self.gui.drawing_state_manager.redo()
         }
 
         self.gui._drawing_buttons_frame = ButtonFactory.create_floating_drawing_buttons(
@@ -255,7 +257,7 @@ class WidgetFactory:
         refresh_button = ttk.Button(
             self.gui.progress_grid_frame,
             text="Atualizar Grade",
-            command=self.gui._render_progress_grid,
+            command=self.render_progress_grid,
         )
         refresh_button.pack(side="bottom", pady=10)
 
@@ -350,7 +352,8 @@ class WidgetFactory:
         # Bind events for proper scrolling behavior
         self.gui.zone_controls_frame.bind("<Configure>", self.on_frame_configure)
         self.gui.controls_canvas.bind("<Configure>", self.on_canvas_configure_scroll)
-        self.gui._bind_mousewheel()
+        # Mousewheel binding should be handled by UI Coordinator or event handler
+        # self.gui._bind_mousewheel()
 
     # ===========================================================================
     # CATEGORIA 4: CONSTRUTORES DE ABAS DELEGADORAS
@@ -380,17 +383,17 @@ class WidgetFactory:
         # Connect events
         if self.gui.event_bus:
             self.gui._event_bus_handlers["config.save_requested"] = (
-                lambda data: self.gui._on_save_global_config_from_widget(data["values"])
+                lambda data: self.on_save_global_config_from_widget(data["values"])
             )
             self.gui._event_bus_handlers["config.reset_requested"] = (
-                lambda data: self.gui._on_reset_global_config_form_widget()
+                lambda data: self.on_reset_global_config_form_widget()
             )
             self.gui._event_bus_handlers["config.roi_rule_changed"] = (
-                lambda data: self.gui._on_roi_rule_change_widget(data["rule"])
+                lambda data: self.update_roi_rule_ui(data["rule"])
             )
 
         # Load current values
-        self.gui._reload_config_editor_values_widget()
+        self.reload_config_editor_values_widget()
 
     def create_analysis_tab_widget(self):
         """
@@ -528,7 +531,7 @@ class WidgetFactory:
         ttk.Button(
             self.gui.project_overview_frame,
             text="Ir para Processamento e Relatórios →",
-            command=self.gui._navigate_to_processing_reports_tab,
+            command=self.gui.project_view_manager.navigate_to_processing_reports_tab,
         ).pack(fill="x", padx=5, pady=(0, 5))
 
     # ===========================================================================
@@ -584,10 +587,10 @@ class WidgetFactory:
         self.gui.notebook.bind("<<NotebookTabChanged>>", self.gui._on_tab_changed)
 
         # Create the tabs
-        self.gui._create_main_controls_tab()
+        self.gui.tab_builder.build_main_controls_tab()
         if self.gui.controller.project_manager.get_project_type() == "live":
             self.create_progress_grid_tab()
-        self.gui._create_roi_analysis_tab()
+        self.gui.tab_builder.build_zone_tab()
         self.create_processing_reports_tab()  # New unified tab
         self.create_analysis_tab_widget()
         self.create_configuration_tab_widget()

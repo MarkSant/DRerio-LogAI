@@ -279,7 +279,7 @@ class CanvasManager:
             win_h = min(int(screen_h * 0.8), h + 150)  # Account for window decorations
 
             # Import the utility function
-            from zebtrack.ui.utils import set_geometry_if_not_maximized
+            from zebtrack.ui.window_utils import set_geometry_if_not_maximized
 
             set_geometry_if_not_maximized(self.gui.root, f"{win_w}x{win_h}")
             self.gui.root.update_idletasks()
@@ -372,7 +372,7 @@ class CanvasManager:
 
         # Preserve drawing type before cleaning
         preserved_drawing_type = self.gui.drawing_state_manager.drawing_type
-        self.gui._stop_drawing()  # Ensure clean state
+        self.stop_drawing()  # Ensure clean state
         self.gui.drawing_state_manager.drawing_type = preserved_drawing_type  # Restore
 
         self.gui.drawing_state_manager.start_polygon_drawing()
@@ -457,7 +457,7 @@ class CanvasManager:
         zone_name = item["values"][0]
 
         # Check if we are already in drawing mode
-        if self.gui.drawing_mode is not None:
+        if self.gui.drawing_state_manager.mode is not None:
             self.gui.show_warning(
                 "Modo de Desenho Ativo",
                 "Finalize o desenho atual antes de editar vértices de outra zona.",
@@ -774,11 +774,11 @@ class CanvasManager:
         self.stop_drawing()
         self.gui.drawing_mode = "circle"
         self.gui.current_circle_center = None
-        self.gui.roi_canvas.config(cursor="crosshair")
+        self.gui.video_display.canvas.config(cursor="crosshair")
 
-        self.gui.roi_canvas.bind("<ButtonPress-1>", self.on_canvas_press_circle)
-        self.gui.roi_canvas.bind("<B1-Motion>", self.on_canvas_drag_circle)
-        self.gui.roi_canvas.bind("<ButtonRelease-1>", self.on_canvas_release_circle)
+        self.gui.video_display.canvas.bind("<ButtonPress-1>", self.on_canvas_press_circle)
+        self.gui.video_display.canvas.bind("<B1-Motion>", self.on_canvas_drag_circle)
+        self.gui.video_display.canvas.bind("<ButtonRelease-1>", self.on_canvas_release_circle)
         self.gui.set_status("Modo de Desenho (Círculo): Clique e arraste para definir o raio.")
 
     def on_canvas_press_circle(self, event):
@@ -790,10 +790,10 @@ class CanvasManager:
         if self.gui.drawing_mode != "circle" or not self.gui.current_circle_center:
             return
 
-        self.gui.roi_canvas.delete("elastic_line")
+        self.gui.video_display.canvas.delete("elastic_line")
         cx, cy = self.gui.current_circle_center
         radius = ((event.x - cx) ** 2 + (event.y - cy) ** 2) ** 0.5
-        self.gui.roi_canvas.create_oval(
+        self.gui.video_display.canvas.create_oval(
             cx - radius,
             cy - radius,
             cx + radius,
@@ -822,16 +822,15 @@ class CanvasManager:
             self.stop_drawing()
             return
 
-        current_arena_id = self.gui.arena_selector_var.get()
-        if not current_arena_id:
-            self.gui.show_error("Erro", "Nenhum aquário ativo selecionado.")
-            self.stop_drawing()
-            return
+        # Fallback for arena selector if not present
+        current_arena_id = "arena_1"
+        if hasattr(self.gui, "arena_selector_var"):
+             current_arena_id = self.gui.arena_selector_var.get() or "arena_1"
 
         new_roi = {"name": roi_name, "type": "circle", "coords": (cx, cy, radius)}
         self.gui.roi_data.setdefault(current_arena_id, []).append(new_roi)
 
-        self.gui.roi_canvas.create_oval(
+        self.gui.video_display.canvas.create_oval(
             cx - radius,
             cy - radius,
             cx + radius,
@@ -841,7 +840,11 @@ class CanvasManager:
             stipple="gray25",
             width=2,
         )
-        self.gui.roi_listbox.insert("", "end", values=(roi_name,))
+        
+        if hasattr(self.gui, "zone_controls") and self.gui.zone_controls and self.gui.zone_controls.zone_listbox:
+             self.gui.zone_controls.zone_listbox.insert("", "end", values=(roi_name,))
+        elif hasattr(self.gui, "roi_listbox") and self.gui.roi_listbox:
+             self.gui.roi_listbox.insert("", "end", values=(roi_name,))
 
         self.stop_drawing()
 

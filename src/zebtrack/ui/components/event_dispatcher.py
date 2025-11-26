@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Callable
 import structlog
 
 from zebtrack.ui.events import Events
+from zebtrack.ui.event_bus import EventType
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.event_bus import EventBus
@@ -210,14 +211,30 @@ class EventDispatcher:
 
     def _handle_setup_zone_definition_for_single_video(self, data: dict) -> None:
         """Handler for single video zone setup event."""
-        if not self.gui: return
+        self.log.info(
+            "event_dispatcher._handle_setup_zone_definition_for_single_video.called",
+            has_gui=bool(self.gui),
+            video_path=data.get("video_path"),
+        )
+        if not self.gui:
+            self.log.error("event_dispatcher._handle_setup_zone_definition_for_single_video.no_gui")
+            return
         video_path = data.get("video_path")
         config = data.get("config")
         if video_path and config:
             if hasattr(self.gui, "setup_zone_definition_for_single_video"):
+                self.log.info(
+                    "event_dispatcher._handle_setup_zone_definition_for_single_video.calling_gui_method"
+                )
                 self.gui.setup_zone_definition_for_single_video(video_path, config)
             else:
                 self.log.error("gui.missing_method", method="setup_zone_definition_for_single_video")
+        else:
+            self.log.error(
+                "event_dispatcher._handle_setup_zone_definition_for_single_video.missing_data",
+                has_video_path=bool(video_path),
+                has_config=bool(config),
+            )
 
     def subscribe_zone_component_events(self) -> None:
         """Subscribe to events emitted by ZoneControlsWidget."""
@@ -266,8 +283,8 @@ class EventDispatcher:
              lambda d: self.gui.canvas_manager.discard_arena())
 
         # ROI Settings
-        self.event_bus.subscribe(Events.ZONE_APPLY_ROI_SETTINGS,
-            lambda d: self.gui._on_apply_roi_settings())
+        self.event_bus.subscribe(Events.DETECTOR_UPDATE_PARAMETERS,
+            lambda d: self.gui._on_apply_roi_settings(d))
 
     def schedule_event_bus_poll(self) -> None:
         """Schedule the event bus polling loop."""
@@ -279,15 +296,106 @@ class EventDispatcher:
         if not self.gui: return
 
         if self.event_bus:
-            # Assuming EventBus has a process_events or similar method for Tkinter integration
-            # If EventBus is purely callback-based (immediate), this might just be a keep-alive
-            # Checking EventBus implementation: usually direct calls don't need polling
-            # UNLESS we are crossing threads.
-            # If EventBus uses a queue, we need to process it.
-            if hasattr(self.event_bus, "process_events"):
+            # Check if it has a drain method (standard queue-based bus)
+            if hasattr(self.event_bus, "drain"):
+                # Process up to e.g. 20 events per tick to avoid freezing UI
+                events = self.event_bus.drain(max_items=20)
+                for event in events:
+                    try:
+                        if event.type == EventType.NAMED:
+                            # Dispatch named event
+                            if hasattr(self.event_bus, "dispatch_named_event"):
+                                self.event_bus.dispatch_named_event(event.payload)
+                        elif event.type == EventType.CALLABLE:
+                            # Execute callable event
+                            event.payload.execute()
+                    except Exception as e:
+                        self.log.error("event_dispatcher.poll_error", error=str(e))
+
+            # Fallback for other implementations (process_events/process_queue)
+            elif hasattr(self.event_bus, "process_events"):
                 self.event_bus.process_events()
             elif hasattr(self.event_bus, "process_queue"):
                 self.event_bus.process_queue()
 
         # Reschedule
         self.schedule_event_bus_poll()
+
+    # --- High-Level UI Action Handlers ---
+
+    def publish_event(self, event_name: str, data: dict | None = None) -> bool:
+        """Publish a named event through the event bus.
+
+        Args:
+            event_name: Name of the event to publish
+            data: Optional dictionary with event data
+
+        Returns:
+            True if event was successfully published, False otherwise
+        """
+        if not self.event_bus:
+            self.log.warning("event_dispatcher.publish_event.no_event_bus", event_name=event_name)
+            return False
+
+        return self.event_bus.publish_event(event_name, data or {})
+
+    def handle_analyze_single_video_clicked(self) -> None:
+        """Handle the 'Analyze Single Video' action.
+
+        Opens the SingleVideoConfigDialog to configure analysis parameters,
+        then publishes the VIDEO_ANALYZE_SINGLE event with the configuration.
+        """
+        self.log.info("event_dispatcher.handle_analyze_single_video_clicked.START")
+
+        if not self.gui:
+            self.log.error("event_dispatcher.handle_analyze_single_video_clicked.no_gui")
+            return
+
+        # Import the dialog
+        from zebtrack.ui.dialogs import SingleVideoConfigDialog
+        self.log.info("event_dispatcher.handle_analyze_single_video_clicked.dialog_imported")
+
+        # Get settings from controller
+        settings = None
+        if hasattr(self.gui, "controller") and self.gui.controller:
+            settings = getattr(self.gui.controller, "settings", None)
+        self.log.info(
+            "event_dispatcher.handle_analyze_single_video_clicked.settings_retrieved",
+            has_settings=bool(settings)
+        )
+
+        # Open configuration dialog
+        self.log.info("event_dispatcher.handle_analyze_single_video_clicked.opening_dialog")
+        dialog = SingleVideoConfigDialog(self.gui.root, settings_obj=settings)
+        self.log.info(
+            "event_dispatcher.handle_analyze_single_video_clicked.dialog_closed",
+            has_result=bool(dialog.result)
+        )
+
+        if not dialog.result:
+            self.log.info("event_dispatcher.handle_analyze_single_video_clicked.user_cancelled")
+            return  # User cancelled
+
+        # Get configuration from dialog
+        config = dialog.result
+        video_path = config.get("video_path")
+        self.log.info(
+            "event_dispatcher.handle_analyze_single_video_clicked.config_retrieved",
+            video_path=video_path,
+            has_config=bool(config)
+        )
+
+        if not video_path:
+            self.log.warning("event_dispatcher.handle_analyze_single_video_clicked.no_video_path")
+            return
+
+        # Publish the event for single video analysis with full configuration
+        self.log.info(
+            "event_dispatcher.handle_analyze_single_video_clicked.publishing_event",
+            event_name=Events.VIDEO_ANALYZE_SINGLE,
+            video_path=video_path
+        )
+        self.publish_event(
+            Events.VIDEO_ANALYZE_SINGLE, {"video_path": video_path, "config": config}
+        )
+        self.log.info("event_dispatcher.handle_analyze_single_video_clicked.event_published")

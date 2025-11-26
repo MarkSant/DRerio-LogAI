@@ -6,7 +6,6 @@ Extracted from gui.py for better modularity.
 
 from tkinter import (
     BooleanVar,
-    IntVar,
     StringVar,
     filedialog,
     messagebox,
@@ -33,6 +32,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             parent: Parent widget.
             settings_obj: Settings object with configuration.
         """
+        log.info("single_video_dialog.__init__")
         self.result = None
         self.settings = settings_obj
         super().__init__(parent, "Configuração de Análise de Vídeo Único")
@@ -47,11 +47,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             The initial focus widget.
         """
         # --- Tkinter Variables ---
-        self.source_type_var = StringVar(value="video")  # "video" or "camera"
         self.video_path_var = StringVar(value="")
-        self.camera_index_var = IntVar(value=0)
-        self.camera_selection_var = StringVar(value="")  # For combobox display
-        self.camera_index_map = {}  # Map camera description to index
         self.num_aquariums_var = StringVar(value="1")
         self.animals_per_aquarium_var = StringVar(value="1")
         self.aquarium_width_var = StringVar(value="10.0")
@@ -95,12 +91,6 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         self.animal_method_var = StringVar(value=animal_method_default)
         self.use_openvino_var = BooleanVar(value=True)  # OpenVINO enabled by default
 
-        # Duration configuration (for camera analysis)
-        duration_default = "300.0"  # 5 minutes default
-        if self.settings and hasattr(self.settings, "live_analysis"):
-            duration_default = str(self.settings.live_analysis.default_duration_s)
-        self.duration_var = StringVar(value=duration_default)
-
         # --- Layout ---
         main_frame = ttk.Frame(master, padding=10)
         main_frame.pack(expand=True, fill="both")
@@ -110,88 +100,25 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         main_frame.columnconfigure(1, weight=1)
         main_frame.rowconfigure(1, weight=1)
 
-        # --- Source Selection (Full Width) ---
-        source_frame = ttk.LabelFrame(main_frame, text="Seleção de Origem", padding=10)
+        # --- Video File Selection (Full Width) ---
+        source_frame = ttk.LabelFrame(main_frame, text="Arquivo de Vídeo", padding=10)
         source_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
         source_frame.columnconfigure(0, weight=1)
 
-        # Source type selection
-        type_container = ttk.Frame(source_frame)
-        type_container.pack(fill="x", pady=(0, 10))
-
-        ttk.Radiobutton(
-            type_container,
-            text="Arquivo de Vídeo",
-            variable=self.source_type_var,
-            value="video",
-            command=self._on_source_type_changed,
-        ).pack(side="left", padx=5)
-
-        ttk.Radiobutton(
-            type_container,
-            text="Câmera ao Vivo",
-            variable=self.source_type_var,
-            value="camera",
-            command=self._on_source_type_changed,
-        ).pack(side="left", padx=5)
-
         # Video file selection
-        self.video_select_container = ttk.Frame(source_frame)
-        self.video_select_container.pack(fill="x")
-        self.video_select_container.columnconfigure(0, weight=1)
+        video_container = ttk.Frame(source_frame)
+        video_container.pack(fill="x")
+        video_container.columnconfigure(0, weight=1)
 
         self.video_entry = ttk.Entry(
-            self.video_select_container, textvariable=self.video_path_var, state="readonly"
+            video_container, textvariable=self.video_path_var, state="readonly"
         )
         self.video_entry.grid(row=0, column=0, sticky="ew", padx=(0, 5))
 
         self.browse_btn = ttk.Button(
-            self.video_select_container, text="Procurar...", command=self._browse_video, width=12
+            video_container, text="Procurar...", command=self._browse_video, width=12
         )
         self.browse_btn.grid(row=0, column=1, sticky="e")
-
-        # Camera selection
-        self.camera_select_container = ttk.Frame(source_frame)
-        self.camera_select_container.columnconfigure(0, weight=0)
-        self.camera_select_container.columnconfigure(1, weight=1)
-
-        ttk.Label(self.camera_select_container, text="Câmera:").grid(
-            row=0, column=0, sticky="w", padx=(0, 5)
-        )
-
-        self.camera_combo = ttk.Combobox(
-            self.camera_select_container,
-            textvariable=self.camera_selection_var,
-            state="readonly",
-            width=40,
-        )
-        self.camera_combo.grid(row=0, column=1, sticky="ew", padx=(0, 5))
-
-        ttk.Button(
-            self.camera_select_container,
-            text="Detectar Câmeras",
-            command=self._detect_cameras,
-        ).grid(row=0, column=2, sticky="w", padx=5)
-
-        # Duration selection (only for camera)
-        self.duration_container = ttk.Frame(source_frame)
-        self.duration_container.columnconfigure(0, weight=0)
-        self.duration_container.columnconfigure(1, weight=1)
-
-        ttk.Label(self.duration_container, text="Duração da Gravação (s):").grid(
-            row=0, column=0, sticky="w", padx=(0, 5), pady=(10, 0)
-        )
-
-        ttk.Entry(self.duration_container, textvariable=self.duration_var, width=10).grid(
-            row=0, column=1, sticky="w", padx=(0, 5), pady=(10, 0)
-        )
-
-        ttk.Label(
-            self.duration_container,
-            text="⏱ Tempo de gravação (10s a 3600s / 1h)",
-            font=("TkDefaultFont", 8),
-            foreground="#555",
-        ).grid(row=1, column=0, columnspan=2, sticky="w", padx=(0, 5), pady=(2, 0))
 
         # Create two-column layout
         left_column = ttk.Frame(main_frame)
@@ -381,19 +308,6 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
 
         return main_frame
 
-    def _on_source_type_changed(self):
-        """Handle source type change between video and camera."""
-        source_type = self.source_type_var.get()
-
-        if source_type == "video":
-            self.video_select_container.pack(fill="x")
-            self.camera_select_container.pack_forget()
-            self.duration_container.pack_forget()
-        else:  # camera
-            self.video_select_container.pack_forget()
-            self.camera_select_container.pack(fill="x")
-            self.duration_container.pack(fill="x")
-
     def _browse_video(self):
         """Open file dialog to select a video file."""
         video_path = filedialog.askopenfilename(
@@ -404,88 +318,20 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
         if video_path:
             self.video_path_var.set(video_path)
 
-    def _detect_cameras(self):
-        """Detect available cameras and update UI."""
-        try:
-            # Import wizard service to use camera detection
-            import time
-
-            from zebtrack.core.wizard_service import WizardService
-
-            cameras = WizardService.detect_available_cameras()
-
-            # CRITICAL: Add delay to allow Windows/DirectShow to fully release cameras
-            # Without this, camera 0 may remain locked and cause freezes when trying to open it
-            log.info("single_video_config.camera_detection_complete_waiting_for_release")
-            time.sleep(0.5)  # 500ms delay to ensure cameras are fully released
-            log.info("single_video_config.cameras_released")
-
-            if not cameras:
-                messagebox.showinfo(
-                    "Câmeras",
-                    (
-                        "Nenhuma câmera detectada.\n\n"
-                        "Verifique se a câmera está conectada e não está sendo "
-                        "usada por outro aplicativo."
-                    ),
-                )
-                self.camera_combo["values"] = []
-                self.camera_index_map.clear()
-                return
-
-            # Build display list with camera names and map to indices
-            camera_list = []
-            self.camera_index_map.clear()
-
-            for cam in cameras:
-                description = cam.get("description", f"Câmera {cam['index']}")
-                camera_list.append(description)
-                self.camera_index_map[description] = cam["index"]
-                log.info(
-                    "single_video_config.camera_mapped",
-                    description=description,
-                    real_index=cam["index"],
-                )
-
-            # Update combobox
-            self.camera_combo["values"] = camera_list
-
-            # Auto-select first camera if none selected
-            if not self.camera_selection_var.get() and camera_list:
-                self.camera_selection_var.set(camera_list[0])
-
-            messagebox.showinfo(
-                "Câmeras Detectadas",
-                f"{len(cameras)} câmera(s) detectada(s).\n\nSelecione a câmera desejada na lista.",
-            )
-
-        except Exception as e:
-            log.error("single_video_config.detect_cameras_error", error=str(e), exc_info=True)
-            messagebox.showerror("Erro", f"Erro ao detectar câmeras:\n{e}")
-
     def validate(self):
         """Validate video file and configuration settings.
 
         Returns:
             True if configuration is valid, False otherwise.
         """
-        # Check if source was selected
-        source_type = self.source_type_var.get()
+        log.info("single_video_dialog.validate.START")
 
-        if source_type == "video":
-            if not self.video_path_var.get():
-                messagebox.showerror(
-                    "Erro", "Por favor, selecione um arquivo de vídeo antes de continuar."
-                )
-                return False
-        elif source_type == "camera":
-            if not self.camera_selection_var.get():
-                messagebox.showerror(
-                    "Erro",
-                    "Por favor, detecte e selecione uma câmera antes de continuar.\n\n"
-                    "Clique em 'Detectar Câmeras' para ver as câmeras disponíveis.",
-                )
-                return False
+        # Check if video file was selected
+        if not self.video_path_var.get():
+            messagebox.showerror(
+                "Erro", "Por favor, selecione um arquivo de vídeo antes de continuar."
+            )
+            return False
 
         try:
             num_aquariums = int(self.num_aquariums_var.get())
@@ -499,12 +345,6 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             smoothing_polyorder = int(self.smoothing_polyorder_var.get())
             analysis_interval = int(self.analysis_interval_var.get())
             display_interval = int(self.display_interval_var.get())
-
-            # Validate duration for camera analysis
-            if source_type == "camera":
-                duration_s = float(self.duration_var.get())
-                if duration_s < 10 or duration_s > 3600:
-                    raise ValueError("A duração da gravação deve estar entre 10s e 3600s (1 hora).")
 
             if num_aquariums <= 0 or animals_per_aquarium <= 0:
                 raise ValueError("Os valores devem ser positivos.")
@@ -526,41 +366,28 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
                 "positivos.",
             )
             return False
+
+        log.info("single_video_dialog.validate.SUCCESS")
         return True
 
     def apply(self):
         """Apply the single video configuration to result dictionary."""
+        log.info("single_video_dialog.apply.START")
+
         analysis_interval = int(self.analysis_interval_var.get())
         display_interval = int(self.display_interval_var.get())
         num_aquariums = int(self.num_aquariums_var.get())
         animals_per_aquarium = int(self.animals_per_aquarium_var.get())
-        source_type = self.source_type_var.get()
-
-        # Get camera index from mapping if camera source
-        camera_index = None
-        if source_type == "camera":
-            camera_description = self.camera_selection_var.get()
-            camera_index = self.camera_index_map.get(camera_description, 0)
-            log.info(
-                "single_video_dialog.camera_selected",
-                camera_description=camera_description,
-                mapped_camera_index=camera_index,
-            )
 
         log.info(
-            "single_video_dialog.apply",
+            "single_video_dialog.apply.values_parsed",
             analysis_interval=analysis_interval,
             display_interval=display_interval,
-            source_type=source_type,
-            video_path=self.video_path_var.get() if source_type == "video" else None,
-            camera_index=camera_index,
+            video_path=self.video_path_var.get(),
         )
 
         self.result = {
-            "source_type": source_type,
-            "video_path": self.video_path_var.get() if source_type == "video" else None,
-            "camera_index": camera_index,
-            "duration_s": float(self.duration_var.get()) if source_type == "camera" else None,
+            "video_path": self.video_path_var.get(),
             "num_aquariums": num_aquariums,
             "animals_per_aquarium": animals_per_aquarium,
             "aquarium_width_cm": float(self.aquarium_width_var.get()),
@@ -577,3 +404,9 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             "use_openvino": self.use_openvino_var.get(),
             "use_single_subject_tracker": animals_per_aquarium == 1,
         }
+
+        log.info(
+            "single_video_dialog.apply.END",
+            result_set=bool(self.result),
+            video_path=self.result.get("video_path") if self.result else None,
+        )

@@ -43,6 +43,10 @@ class LiveAnalysisDialog(Dialog):
     - Detect and select available cameras
     - Set analysis duration and intervals
     - Configure recording options
+    - Configure calibration parameters
+    - Configure behavioral analysis parameters
+    - Configure trajectory smoothing
+    - Configure detection methods
     - Start immediate analysis
 
     Result:
@@ -52,7 +56,20 @@ class LiveAnalysisDialog(Dialog):
             - analysis_interval_frames: int
             - display_interval_frames: int
             - record_video: bool
-            - experiment_id: str (optional)
+            - experiment_id: str
+            - num_aquariums: int
+            - animals_per_aquarium: int
+            - aquarium_width_cm: float
+            - aquarium_height_cm: float
+            - sharp_turn_threshold_deg_s: float
+            - freezing_velocity_threshold: float
+            - freezing_min_duration_s: float
+            - smoothing_window_length: int
+            - smoothing_polyorder: int
+            - aquarium_method: str
+            - animal_method: str
+            - use_openvino: bool
+            - use_single_subject_tracker: bool
         or None if cancelled
     """
 
@@ -77,6 +94,48 @@ class LiveAnalysisDialog(Dialog):
         self.display_interval_var = IntVar(value=10)
         self.record_video_var = BooleanVar(value=True)
         self.experiment_id_var = StringVar(value="")
+
+        # Calibration parameters
+        self.num_aquariums_var = IntVar(value=1)
+        self.animals_per_aquarium_var = IntVar(value=1)
+        self.aquarium_width_var = DoubleVar(value=10.0)
+        self.aquarium_height_var = DoubleVar(value=10.0)
+
+        # Behavior analysis parameters
+        sharp_turn_default = 180.0
+        freeze_thresh_default = 0.5
+        freeze_dur_default = 1.0
+        if settings_obj and hasattr(settings_obj, "video_processing"):
+            sharp_turn_default = settings_obj.video_processing.sharp_turn_threshold_deg_s
+            freeze_thresh_default = settings_obj.video_processing.freezing_velocity_threshold
+            freeze_dur_default = settings_obj.video_processing.freezing_min_duration_s
+
+        self.sharp_turn_var = DoubleVar(value=sharp_turn_default)
+        self.freeze_thresh_var = DoubleVar(value=freeze_thresh_default)
+        self.freeze_dur_var = DoubleVar(value=freeze_dur_default)
+
+        # Smoothing parameters
+        smoothing_window_default = 5
+        smoothing_polyorder_default = 2
+        if settings_obj and hasattr(settings_obj, "trajectory_smoothing"):
+            smoothing_window_default = settings_obj.trajectory_smoothing.window_length
+            smoothing_polyorder_default = settings_obj.trajectory_smoothing.polyorder
+
+        self.smoothing_window_var = IntVar(value=smoothing_window_default)
+        self.smoothing_polyorder_var = IntVar(value=smoothing_polyorder_default)
+
+        # Detection method parameters
+        aquarium_method_default = "seg"
+        animal_method_default = "seg"
+        use_openvino_default = True
+        if settings_obj and hasattr(settings_obj, "model_selection"):
+            aquarium_method_default = settings_obj.model_selection.aquarium_method
+            animal_method_default = settings_obj.model_selection.animal_method
+            use_openvino_default = settings_obj.model_selection.use_openvino
+
+        self.aquarium_method_var = StringVar(value=aquarium_method_default)
+        self.animal_method_var = StringVar(value=animal_method_default)
+        self.use_openvino_var = BooleanVar(value=use_openvino_default)
 
         super().__init__(parent, title="Analisar Câmera ao Vivo")
 
@@ -227,6 +286,122 @@ class LiveAnalysisDialog(Dialog):
             "Identificador opcional para o experimento (padrão: camera_TIMESTAMP).",
         )
 
+        # Calibration parameters
+        calibration_frame = LabelFrame(master, text="Calibração", padx=15, pady=10)
+        calibration_frame.pack(fill="x", pady=(0, 10))
+
+        calib_row1 = Frame(calibration_frame)
+        calib_row1.pack(fill="x", pady=2)
+        Label(calib_row1, text="Número de Aquários:", width=20, anchor="w").pack(side="left")
+        Spinbox(calib_row1, from_=1, to=10, textvariable=self.num_aquariums_var, width=10).pack(
+            side="left", padx=(5, 10)
+        )
+
+        calib_row2 = Frame(calibration_frame)
+        calib_row2.pack(fill="x", pady=2)
+        Label(calib_row2, text="Animais por Aquário:", width=20, anchor="w").pack(side="left")
+        Spinbox(
+            calib_row2, from_=1, to=20, textvariable=self.animals_per_aquarium_var, width=10
+        ).pack(side="left", padx=(5, 10))
+
+        calib_row3 = Frame(calibration_frame)
+        calib_row3.pack(fill="x", pady=2)
+        Label(calib_row3, text="Largura do Aquário (cm):", width=20, anchor="w").pack(side="left")
+        Spinbox(
+            calib_row3, from_=1.0, to=100.0, textvariable=self.aquarium_width_var, width=10
+        ).pack(side="left", padx=(5, 10))
+
+        calib_row4 = Frame(calibration_frame)
+        calib_row4.pack(fill="x", pady=2)
+        Label(calib_row4, text="Altura do Aquário (cm):", width=20, anchor="w").pack(side="left")
+        Spinbox(
+            calib_row4, from_=1.0, to=100.0, textvariable=self.aquarium_height_var, width=10
+        ).pack(side="left", padx=(5, 10))
+
+        # Behavior analysis parameters
+        behavior_frame = LabelFrame(
+            master, text="Parâmetros de Análise Comportamental", padx=15, pady=10
+        )
+        behavior_frame.pack(fill="x", pady=(0, 10))
+
+        behav_row1 = Frame(behavior_frame)
+        behav_row1.pack(fill="x", pady=2)
+        Label(behav_row1, text="Limiar Curva (graus/s):", width=20, anchor="w").pack(side="left")
+        Spinbox(
+            behav_row1, from_=0.0, to=360.0, textvariable=self.sharp_turn_var, width=10
+        ).pack(side="left", padx=(5, 10))
+
+        behav_row2 = Frame(behavior_frame)
+        behav_row2.pack(fill="x", pady=2)
+        Label(behav_row2, text="Limiar Congelamento (cm/s):", width=20, anchor="w").pack(
+            side="left"
+        )
+        Spinbox(
+            behav_row2, from_=0.0, to=10.0, textvariable=self.freeze_thresh_var, width=10
+        ).pack(side="left", padx=(5, 10))
+
+        behav_row3 = Frame(behavior_frame)
+        behav_row3.pack(fill="x", pady=2)
+        Label(behav_row3, text="Duração Mín. Congelamento (s):", width=20, anchor="w").pack(
+            side="left"
+        )
+        Spinbox(behav_row3, from_=0.0, to=10.0, textvariable=self.freeze_dur_var, width=10).pack(
+            side="left", padx=(5, 10)
+        )
+
+        # Smoothing parameters
+        smoothing_frame = LabelFrame(master, text="Suavização de Trajetória", padx=15, pady=10)
+        smoothing_frame.pack(fill="x", pady=(0, 10))
+
+        smooth_row1 = Frame(smoothing_frame)
+        smooth_row1.pack(fill="x", pady=2)
+        Label(smooth_row1, text="Janela de Suavização:", width=20, anchor="w").pack(side="left")
+        Spinbox(
+            smooth_row1, from_=3, to=21, textvariable=self.smoothing_window_var, width=10
+        ).pack(side="left", padx=(5, 10))
+        ToolTip(smooth_row1, "Deve ser ímpar (3, 5, 7, etc)")
+
+        smooth_row2 = Frame(smoothing_frame)
+        smooth_row2.pack(fill="x", pady=2)
+        Label(smooth_row2, text="Ordem do Polinômio:", width=20, anchor="w").pack(side="left")
+        Spinbox(
+            smooth_row2, from_=1, to=5, textvariable=self.smoothing_polyorder_var, width=10
+        ).pack(side="left", padx=(5, 10))
+
+        # Detection methods
+        method_frame = LabelFrame(master, text="Métodos de Detecção", padx=15, pady=10)
+        method_frame.pack(fill="x", pady=(0, 10))
+
+        method_row1 = Frame(method_frame)
+        method_row1.pack(fill="x", pady=2)
+        Label(method_row1, text="Método para Aquário:", width=20, anchor="w").pack(side="left")
+        ttk.Combobox(
+            method_row1,
+            textvariable=self.aquarium_method_var,
+            values=["seg", "det"],
+            state="readonly",
+            width=8,
+        ).pack(side="left", padx=(5, 10))
+
+        method_row2 = Frame(method_frame)
+        method_row2.pack(fill="x", pady=2)
+        Label(method_row2, text="Método para Animais:", width=20, anchor="w").pack(side="left")
+        ttk.Combobox(
+            method_row2,
+            textvariable=self.animal_method_var,
+            values=["seg", "det"],
+            state="readonly",
+            width=8,
+        ).pack(side="left", padx=(5, 10))
+
+        method_row3 = Frame(method_frame)
+        method_row3.pack(fill="x", pady=2)
+        ttk.Checkbutton(
+            method_row3,
+            text="Usar OpenVINO (acelera inferência em CPU)",
+            variable=self.use_openvino_var,
+        ).pack(anchor="w")
+
         # Auto-detect cameras on show
         self.after(100, self._detect_cameras)
 
@@ -359,6 +534,65 @@ class LiveAnalysisDialog(Dialog):
             )
             return False
 
+        # Validate calibration parameters
+        try:
+            num_aquariums = int(self.num_aquariums_var.get())
+            animals_per_aquarium = int(self.animals_per_aquarium_var.get())
+            aquarium_width = float(self.aquarium_width_var.get())
+            aquarium_height = float(self.aquarium_height_var.get())
+
+            if num_aquariums < 1 or animals_per_aquarium < 1:
+                raise ValueError("Número de aquários e animais devem ser >= 1")
+            if aquarium_width <= 0 or aquarium_height <= 0:
+                raise ValueError("Dimensões do aquário devem ser positivas")
+
+        except (ValueError, TypeError) as e:
+            messagebox.showerror(
+                "Parâmetro de Calibração Inválido",
+                f"Erro na calibração:\n{e}",
+                parent=self,
+            )
+            return False
+
+        # Validate behavior parameters
+        try:
+            sharp_turn = float(self.sharp_turn_var.get())
+            freeze_thresh = float(self.freeze_thresh_var.get())
+            freeze_dur = float(self.freeze_dur_var.get())
+
+            if sharp_turn < 0 or freeze_thresh < 0 or freeze_dur < 0:
+                raise ValueError("Parâmetros comportamentais devem ser não-negativos")
+
+        except (ValueError, TypeError) as e:
+            messagebox.showerror(
+                "Parâmetro Comportamental Inválido",
+                f"Erro nos parâmetros comportamentais:\n{e}",
+                parent=self,
+            )
+            return False
+
+        # Validate smoothing parameters
+        try:
+            smoothing_window = int(self.smoothing_window_var.get())
+            smoothing_polyorder = int(self.smoothing_polyorder_var.get())
+
+            if smoothing_window < 3:
+                raise ValueError("Janela de suavização deve ser >= 3")
+            if smoothing_window % 2 == 0:
+                raise ValueError("Janela de suavização deve ser ímpar")
+            if smoothing_polyorder < 1:
+                raise ValueError("Ordem do polinômio deve ser >= 1")
+            if smoothing_polyorder >= smoothing_window:
+                raise ValueError("Ordem do polinômio deve ser menor que a janela")
+
+        except (ValueError, TypeError) as e:
+            messagebox.showerror(
+                "Parâmetro de Suavização Inválido",
+                f"Erro nos parâmetros de suavização:\n{e}",
+                parent=self,
+            )
+            return False
+
         return True
 
     def apply(self):
@@ -379,6 +613,23 @@ class LiveAnalysisDialog(Dialog):
             "display_interval_frames": int(self.display_interval_var.get()),
             "record_video": bool(self.record_video_var.get()),
             "experiment_id": experiment_id,
+            # Calibration parameters
+            "num_aquariums": int(self.num_aquariums_var.get()),
+            "animals_per_aquarium": int(self.animals_per_aquarium_var.get()),
+            "aquarium_width_cm": float(self.aquarium_width_var.get()),
+            "aquarium_height_cm": float(self.aquarium_height_var.get()),
+            # Behavior parameters
+            "sharp_turn_threshold_deg_s": float(self.sharp_turn_var.get()),
+            "freezing_velocity_threshold": float(self.freeze_thresh_var.get()),
+            "freezing_min_duration_s": float(self.freeze_dur_var.get()),
+            # Smoothing parameters
+            "smoothing_window_length": int(self.smoothing_window_var.get()),
+            "smoothing_polyorder": int(self.smoothing_polyorder_var.get()),
+            # Detection methods
+            "aquarium_method": self.aquarium_method_var.get(),
+            "animal_method": self.animal_method_var.get(),
+            "use_openvino": bool(self.use_openvino_var.get()),
+            "use_single_subject_tracker": int(self.animals_per_aquarium_var.get()) == 1,
         }
 
         log.info(
@@ -386,6 +637,8 @@ class LiveAnalysisDialog(Dialog):
             camera_index=camera_index,
             duration_s=self.result["duration_s"],
             experiment_id=experiment_id,
+            num_aquariums=self.result["num_aquariums"],
+            animals_per_aquarium=self.result["animals_per_aquarium"],
         )
 
 

@@ -21,12 +21,11 @@ class TabBuilder:
         self.gui = gui
         # Use project_manager injected into GUI (Phase 4 dependency injection)
         self.project_manager = gui.project_manager
-        self.notebook = gui.notebook
 
     def build_main_controls_tab(self) -> ttk.Frame:
         """Constrói aba de controles principais baseada no tipo de projeto."""
-        self.gui.main_controls_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.gui.main_controls_frame, text="Controle Principal")
+        self.gui.main_controls_frame = ttk.Frame(self.gui.notebook, padding="10")
+        self.gui.notebook.add(self.gui.main_controls_frame, text="Controle Principal")
 
         project_type = self.project_manager.get_project_type()
         self.gui.process_video_btn = None
@@ -80,8 +79,8 @@ class TabBuilder:
         self.gui._drawing_buttons_frame = None
 
         # 1. Create the main frame for the tab and rename it
-        self.gui.zone_tab_frame = ttk.Frame(self.notebook, padding="10")
-        self.notebook.add(self.gui.zone_tab_frame, text="Configuração de Zonas")
+        self.gui.zone_tab_frame = ttk.Frame(self.gui.notebook, padding="10")
+        self.gui.notebook.add(self.gui.zone_tab_frame, text="Configuração de Zonas")
 
         # 2. Create the PanedWindow for side-by-side panels
         main_pane = ttk.PanedWindow(self.gui.zone_tab_frame, orient="horizontal")

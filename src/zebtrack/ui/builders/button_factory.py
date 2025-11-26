@@ -25,7 +25,8 @@ class ButtonFactory:
         Args:
             parent: Parent widget
             commands: Dictionary mapping action names to callback functions.
-                     Expected keys: 'calibration', 'single_analysis', 'create_project', 'open_project'
+                     Expected keys: 'calibration', 'single_analysis', 'live_camera',
+                     'create_project', 'open_project'
 
         Returns:
             The created LabelFrame containing the buttons
@@ -43,6 +44,12 @@ class ButtonFactory:
             project_actions_frame,
             text="Analisar Vídeo Único",
             command=commands.get('single_analysis'),
+        ).pack(fill="x", padx=10, pady=5)
+
+        ttk.Button(
+            project_actions_frame,
+            text="Analisar Câmera ao Vivo",
+            command=commands.get('live_camera'),
         ).pack(fill="x", padx=10, pady=5)
 
         ttk.Button(

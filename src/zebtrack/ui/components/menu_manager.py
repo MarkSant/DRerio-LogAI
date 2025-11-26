@@ -42,19 +42,9 @@ class MenuManager:
         # File menu
         file_menu = Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Arquivo", menu=file_menu)
-        file_menu.add_command(
-            label="Analisar Câmera ao Vivo...",
-            # Defer call to allow controller initialization
-            command=lambda: self.gui.controller.start_live_camera_analysis(),
-            accelerator="Ctrl+L",
-        )
-        file_menu.add_separator()
         file_menu.add_command(label="Sair", command=self.gui.root.quit, accelerator="Ctrl+Q")
 
         # Bind keyboard shortcuts
-        self.gui.root.bind(
-            "<Control-l>", lambda e: self.gui.controller.start_live_camera_analysis()
-        )
         self.gui.root.bind("<Control-q>", lambda e: self.gui.root.quit())
 
         # Help menu

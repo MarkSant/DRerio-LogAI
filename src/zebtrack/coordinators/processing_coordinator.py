@@ -1025,29 +1025,32 @@ class ProcessingCoordinator(BaseCoordinator):
                 )
                 return False
 
-            # Validation 2: Project exists
-            if not self.project_manager.project_path:
-                log.error("controller.polygon.no_project")
-                # For single video workflow, create temporary project
-                if self.view and hasattr(self.view, "pending_single_video_path") and self.view.pending_single_video_path:
-                    temp_dir = tempfile.mkdtemp(prefix="zebtrack_temp_")
-                    self.project_manager.project_path = temp_dir
-                    self.project_manager.project_data = {
-                        "project_name": "Temporary Single Video Project",
-                        "project_type": "single_video",
-                        "detection_zones": {},
-                    }
-                    log.warning("controller.polygon.created_temp_project", path=temp_dir)
-                else:
-                    return False
+            # Check if we are in single video mode (active video set but no project path)
+            active_video = self.project_manager.get_active_zone_video()
+
+            # Validation 2: Project exists or Active Video exists
+            if not self.project_manager.project_path and not active_video:
+                log.error("controller.polygon.no_project_or_video")
+                return False
 
             # Validation 3: Data structure
-            if "detection_zones" not in self.project_manager.project_data:
+            if self.project_manager.project_path and "detection_zones" not in self.project_manager.project_data:
                 self.project_manager.save_zone_data(ZoneData(), persist=False)
                 log.info("controller.polygon.initialized_detection_zones")
 
             # Save
-            self.project_manager.update_main_polygon(points)
+            if not self.project_manager.project_path and active_video:
+                 # Single video mode: direct save to sidecar
+                 zone_data = self.project_manager.get_zone_data(video_path=active_video)
+                 if not zone_data:
+                     zone_data = ZoneData()
+                 zone_data.polygon = points
+                 self.project_manager.save_zone_data(
+                     zone_data, video_path=active_video, persist=False
+                 )
+            else:
+                 # Project mode
+                 self.project_manager.update_main_polygon(points)
 
             # Force visual update
             self._publish_event(Events.UI_REDRAW_ZONES, {})
@@ -1081,12 +1084,13 @@ class ProcessingCoordinator(BaseCoordinator):
         try:
             log.info("controller.zone.add_roi", name=name, points=len(roi_points))
 
-            # Validate project exists
-            if not self.project_manager.project_path:
-                log.error("controller.zone.add_roi.no_project", name=name)
+            # Validate project exists OR active video
+            active_video = self.project_manager.get_active_zone_video()
+            if not self.project_manager.project_path and not active_video:
+                log.error("controller.zone.add_roi.no_project_or_video", name=name)
                 return False
 
-            zone_data = self.project_manager.get_zone_data()
+            zone_data = self.project_manager.get_zone_data(video_path=active_video)
 
             # Validate ROI is within main arena
             if zone_data.polygon and len(zone_data.polygon) >= 3:
@@ -1183,7 +1187,14 @@ class ProcessingCoordinator(BaseCoordinator):
             zone_data.roi_colors.append(color)
 
             # Save and reload zones in detector
-            self.project_manager.save_zone_data(zone_data)
+            # If no project path, pass video_path explicitly to persist to sidecar
+            save_path = active_video if (not self.project_manager.project_path and active_video) else None
+            
+            # Determine persist flag
+            should_persist = bool(self.project_manager.project_path)
+            
+            self.project_manager.save_zone_data(zone_data, video_path=save_path, persist=should_persist)
+
             if self.detector:
                 self._publish_event(Events.DETECTOR_UPDATE_ZONES, {})
             log.info("controller.zone.add_roi.success", name=name)

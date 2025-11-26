@@ -559,6 +559,10 @@ class ApplicationGUI:
         # Ensure analysis UI starts hidden
         self.hide_progress_bar()
 
+    def _on_canvas_configure(self, event):
+        """Handle canvas resize events."""
+        self.canvas_manager.on_canvas_configure(event)
+
     def _on_reset_global_config_form_widget(self) -> None:
         """Reset ConfigEditorWidget form fields to reflect current settings object."""
         self._reload_config_editor_values_widget()
@@ -789,6 +793,21 @@ class ApplicationGUI:
         """Apply template. Delegates to ROITemplateManager."""
         return self.roi_template_manager.apply_template()
 
+    def _filter_video_tree(self) -> None:
+        """Filter video tree based on search text. Delegates to ProjectViewManager."""
+        if not hasattr(self, 'zone_controls') or not self.zone_controls:
+            return
+        search_text = self.zone_controls.video_search_var.get()
+        self.project_view_manager._populate_video_selector_tree(filter_text=search_text)
+
+    def _refresh_video_selector_tree(self) -> None:
+        """Refresh video selector tree. Delegates to ProjectViewManager."""
+        self.project_view_manager._populate_video_selector_tree(filter_text=None)
+
+    def _on_apply_roi_settings(self, params: dict | None = None) -> None:
+        """Apply ROI settings. Delegates to controller."""
+        if params and self.controller:
+            self.controller.update_detector_parameters(params)
 
 
 
@@ -1175,11 +1194,25 @@ class ApplicationGUI:
     @public_api
     def _on_analyze_single_video_clicked(self):
         """Handle single video analysis. Delegates to EventDispatcher."""
-        return self.event_dispatcher.handle_analyze_single_video_clicked()
+        log.info("gui._on_analyze_single_video_clicked.START")
+        try:
+            result = self.event_dispatcher.handle_analyze_single_video_clicked()
+            log.info("gui._on_analyze_single_video_clicked.END", result=result)
+            return result
+        except Exception as e:
+            log.error("gui._on_analyze_single_video_clicked.ERROR", error=str(e))
+            # We don't raise here to avoid crashing the UI loop for a single button click
+            # raise 
+            self.show_error("Erro", f"Falha ao iniciar análise: {e}")
 
     @public_api
     def setup_zone_definition_for_single_video(self, video_path: str, config: dict):
         """Prepare and display the zone configuration tab for a single video."""
+        log.info(
+            "gui.setup_zone_definition_for_single_video.called",
+            video_path=video_path,
+            has_config=bool(config),
+        )
         # Reset analysis UI elements for a clean setup
         self.hide_progress_bar()
         self.analysis_status_var.set("Nenhuma análise em andamento.")
@@ -1648,6 +1681,158 @@ class ApplicationGUI:
 # Compatibility layer removed as part of Phase 6 cleanup.
 # All legacy properties have been migrated to direct component access.
 
+
+    def _filter_video_tree(self):
+        """Filter video tree based on search text."""
+        if hasattr(self, "video_search_var"):
+            self.project_view_manager._populate_video_selector_tree(self.video_search_var.get())
+
+    def _refresh_video_selector_tree(self):
+        """Refresh the video selector tree."""
+        self.project_view_manager._populate_video_selector_tree()
+
+    def _on_video_tree_double_click(self, event):
+        """Handle double click on video tree."""
+        self.canvas_manager.load_selected_video_frame()
+
+    def _load_selected_video_frame(self):
+        """Load selected video frame."""
+        self.canvas_manager.load_selected_video_frame()
+
+    def _on_zone_right_click(self, event):
+        """Handle right click on zone list."""
+        self.menu_manager.show_roi_context_menu(event)
+
+    def _on_zone_double_click(self, event):
+        """Handle double click on zone list."""
+        self.canvas_manager.edit_selected_zone_vertices()
+
+    def _on_save_arena(self):
+        """Save arena."""
+        self.canvas_manager.save_arena()
+
+    def _on_discard_arena(self):
+        """Discard arena changes."""
+        self.canvas_manager.discard_arena()
+
+    def _on_apply_roi_settings(self):
+        """Apply ROI settings."""
+        # Save settings logic
+        try:
+            self.controller.settings.roi_inclusion_rule = self.roi_inclusion_rule_var.get()
+            self.controller.settings.roi_buffer_radius_value = float(self.roi_buffer_radius_var.get())
+            self.controller.settings.roi_min_bbox_overlap_ratio = float(self.roi_overlap_ratio_var.get())
+            
+            if self.controller.project_manager.project_path:
+                self.controller.project_manager._save_settings_snapshot()
+            
+            self.show_info("Sucesso", "Configurações de ROI aplicadas.")
+        except ValueError:
+            self.show_error("Erro", "Valores inválidos para parâmetros de ROI.")
+
+    # ROI Template Delegates
+    def _on_template_combobox_changed(self, event=None):
+        self.roi_template_manager.on_template_combobox_changed(event)
+
+    def _on_apply_roi_template(self):
+        self.roi_template_manager.apply_selected_template()
+
+    def _on_save_roi_template(self):
+        self.roi_template_manager.save_current_as_template()
+
+    def _on_import_and_apply_roi_template(self):
+        self.roi_template_manager.import_template()
+
+    def _on_delete_roi_template(self):
+        self.roi_template_manager.delete_selected_template()
+
+    def _on_drawing_undo(self, _event=None):
+        """Undo the last drawing action."""
+        self.drawing_state_manager.undo()
+
+    def _on_drawing_redo(self, _event=None):
+        """Redo the last undone drawing action."""
+        self.drawing_state_manager.redo()
+
+    def _create_drawing_buttons(self):
+        """Create drawing buttons. Delegates to WidgetFactory."""
+        self.widget_factory.create_drawing_buttons()
+
+    def _render_progress_grid(self):
+        """Render the progress grid. Delegates to WidgetFactory."""
+        self.widget_factory.render_progress_grid()
+
+    def _bind_mousewheel(self):
+        """Bind mousewheel events to the controls canvas."""
+        if hasattr(self, "controls_canvas") and self.controls_canvas:
+            self.controls_canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+            self.controls_canvas.bind_all("<Button-4>", self._on_mousewheel)
+            self.controls_canvas.bind_all("<Button-5>", self._on_mousewheel)
+
+    def _on_mousewheel(self, event):
+        """Handle mousewheel scrolling."""
+        if hasattr(self, "controls_canvas") and self.controls_canvas:
+            if event.num == 5 or event.delta < 0:
+                self.controls_canvas.yview_scroll(1, "units")
+            elif event.num == 4 or event.delta > 0:
+                self.controls_canvas.yview_scroll(-1, "units")
+
+    def _cleanup_single_analysis_button(self):
+        """Remove the single analysis button if it exists."""
+        if self.start_single_analysis_btn:
+            self.start_single_analysis_btn.destroy()
+            self.start_single_analysis_btn = None
+
+    def _reset_analysis_widgets(self):
+        """Reset analysis widgets."""
+        # Add logic if needed, or just pass if logic is elsewhere
+        pass
+
+    def _refresh_processing_reports_tab(self) -> None:
+        """Refresh the processing reports tab."""
+        self.project_view_manager.refresh_processing_reports_tab()
+
+    def _resolve_processing_reports_video_paths(self, selection=None) -> list[str]:
+        """Resolve video paths from processing reports selection."""
+        return self.project_view_manager.resolve_processing_reports_video_paths(selection)
+
+    def _subscribe_zone_component_events(self) -> None:
+        """Delegate subscription of zone component events to EventDispatcher."""
+        self.event_dispatcher.subscribe_zone_component_events()
+
+    def _update_zone_summary_cards(self, all_videos=None) -> None:
+        """Delegate zone summary card updates to ProjectViewManager."""
+        self.project_view_manager.update_zone_summary_cards()
+
+    def _get_zone_summary_helper_text(self) -> str:
+        """Delegate helper text retrieval to WidgetFactory."""
+        return self.widget_factory.get_zone_summary_helper_text()
+
+    def _handle_project_refresh_requested(self, data: dict) -> None:
+        """Handle project refresh request from overview widget."""
+        self.project_view_manager.request_overview_refresh(reason="Atualização manual")
+
+    def _handle_project_video_double_click(self, data: dict) -> None:
+        """Handle video double-click from overview widget."""
+        item_id = data.get("item_id")
+        if item_id:
+            self.project_view_manager.handle_project_overview_double_click(item_id)
+
+    def _handle_project_video_right_click(self, data: dict) -> None:
+        """Handle video right-click from overview widget."""
+        # We pass explicit coordinates if available
+        x = data.get("x")
+        y = data.get("y")
+        item_id = data.get("item_id")
+        if x is not None and y is not None and item_id:
+            self.menu_manager.show_project_overview_context_menu(item_id, x, y)
+
+    @property
+    def project_overview_tree(self):
+        """Access the treeview within the project overview widget."""
+        if hasattr(self, "project_overview_widget") and self.project_overview_widget:
+            return self.project_overview_widget.project_overview_tree
+        return None
 
 if __name__ == "__main__":
     # Using print is fine here as it's for direct execution feedback

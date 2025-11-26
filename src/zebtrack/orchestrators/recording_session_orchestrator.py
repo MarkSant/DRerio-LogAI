@@ -430,13 +430,14 @@ class RecordingSessionOrchestrator:
         day: int | None = None,
         group: str | None = None,
         cobaia: str | None = None,
+        **kwargs
     ):
         """
         Start a recording session (live mode) with zone validation.
 
         Sprint 15: Simplified by extracting external trigger logic.
         """
-        log.info("controller.recording.start")
+        log.info("controller.recording.start", extra_args=kwargs)
 
         self.project_manager.set_active_zone_video(None)
         self._clear_external_trigger_wait()

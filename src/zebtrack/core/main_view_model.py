@@ -6,7 +6,6 @@ and orchestrates video processing workflows with dependency injection.
 
 from __future__ import annotations
 
-import sys
 import threading
 from contextlib import contextmanager
 from pathlib import Path
@@ -169,6 +168,7 @@ class MainViewModel:
         self.report_results_paths = {}
         self.timed_recording_job = None
         self._pending_external_trigger = None
+        self._using_project_overrides = False  # Model override flag (managed by orchestrators)
 
         # Event bus flag
         self.ui_event_bus = self.event_dispatcher.event_bus
@@ -261,10 +261,10 @@ class MainViewModel:
     # Event Handlers Delegates (Added for Event Mapping Refactor)
     # =========================================================================
 
-    def start_recording(self):
+    def start_recording(self, **kwargs):
         """Delegates recording start to recording session orchestrator."""
         if self.recording_session_orchestrator:
-            self.recording_session_orchestrator.start_recording()
+            self.recording_session_orchestrator.start_recording(**kwargs)
 
     def stop_recording(self):
         """Delegates recording stop to recording session orchestrator."""
@@ -351,6 +351,32 @@ class MainViewModel:
             "use_openvino": detector_state.use_openvino,
         }
 
+    def _update_global_model_defaults(
+        self,
+        active_weight: str | None = None,
+        use_openvino: bool | None = None
+    ) -> None:
+        """Update global model defaults in state manager.
+
+        This method provides a way to persist changes to global defaults
+        that would normally be lost with the read-only property.
+
+        Args:
+            active_weight: Weight name to save as global default (None = no update)
+            use_openvino: OpenVINO usage to save as global default (None = no update)
+        """
+        updates = {}
+        if active_weight is not None:
+            updates["active_weight_name"] = active_weight
+        if use_openvino is not None:
+            updates["use_openvino"] = use_openvino
+
+        if updates:
+            self.state_manager.update_detector_state(
+                source="main_view_model.update_global_defaults",
+                **updates
+            )
+
     @property
     def detector(self) -> Detector | None:
         return self.detector_service.detector
@@ -409,6 +435,18 @@ class MainViewModel:
         return self.model_service.get_openvino_status(
             weight_name=self.active_weight_name, use_openvino=self.use_openvino
         )
+
+    @contextmanager
+    def global_calibration_session(self):
+        """Context manager for global calibration mode. Delegates to CalibrationOrchestrator."""
+        with self.calibration_orchestrator.global_calibration_session():
+            yield
+
+    @contextmanager
+    def project_calibration_session(self):
+        """Context manager for project calibration mode. Delegates to ProjectOrchestrator."""
+        with self.project_orchestrator.project_calibration_session():
+            yield
 
     def on_close(self):
         if self.dialog_coordinator.confirm_exit():
@@ -611,10 +649,16 @@ class MainViewModel:
                  return
 
         # UI Event dispatched here, listened by EventDispatcher in GUI
+        log.info(
+            "main_view_model.start_single_video_workflow.publishing_ui_event",
+            video_path=str(video_path),
+            has_ui_event_bus=bool(self.ui_event_bus),
+        )
         self.ui_event_bus.publish_event(
             "ui:setup_zone_definition_for_single_video",
             {"video_path": video_path, "config": config},
         )
+        log.info("main_view_model.start_single_video_workflow.ui_event_published")
 
     def cancel_current_analysis(self) -> None:
         worker_running = bool(self.processing_worker and self.processing_worker.is_running)
@@ -732,3 +776,101 @@ class MainViewModel:
                 params=overrides,
                 scope="project"
             )
+
+    # =========================================================================
+    # Delegation Methods (Restored for Backward Compatibility)
+    # =========================================================================
+
+    def get_calibration_scope_info(self) -> dict:
+        """Get calibration scope info (global vs project)."""
+        if self.calibration_orchestrator:
+            return self.calibration_orchestrator.get_calibration_scope_info()
+        return {"scope": "global", "label": "Global", "detail": "N/A", "project_loaded": False}
+
+    def get_all_weight_names(self) -> list[str]:
+        """Get all available weight names."""
+        if self.model_service:
+            return self.model_service.get_all_weight_names()
+        return []
+
+    def get_global_model_defaults(self) -> dict:
+        """Get global model default settings."""
+        return self._global_model_defaults
+
+    def resolve_project_model_settings(self, overrides: dict) -> tuple[str | None, bool]:
+        """Resolve effective model settings given project overrides."""
+        if self.project_orchestrator:
+            return self.project_orchestrator.resolve_project_model_settings(overrides)
+        return None, False
+
+    def save_project_model_overrides(self, active_weight: str | None, use_openvino: bool | None) -> None:
+        """Save model overrides to the current project."""
+        if self.project_orchestrator:
+            self.project_orchestrator.save_project_model_overrides(active_weight, use_openvino)
+
+    def has_project_override_settings(self) -> bool:
+        """Check if current project has override settings."""
+        if self.project_orchestrator:
+            return self.project_orchestrator.has_project_override_settings()
+        return False
+
+    def restore_detector_defaults(self, scope: str = "global") -> bool:
+        """Restore detector parameters to defaults for the given scope."""
+        if not self.detector_coordinator:
+            return False
+        
+        if scope == "global":
+            # Reset global tracking state to defaults
+            factory_defaults = self.detector_coordinator.get_factory_detector_parameters()
+            return self.detector_coordinator.update_detector_parameters(
+                params=factory_defaults,
+                scope="global",
+                reset_overrides=True
+            )
+        elif scope == "project":
+            # Reset project overrides
+            # To "restore defaults" for project, we basically clear overrides or set them to global?
+            # CalibrationDialog expects clearing overrides likely.
+            # If DetectorCoordinator supports reset_overrides=True for project scope, we use that.
+            # Checking DetectorCoordinator.update_detector_parameters signature:
+            # it has reset_overrides param.
+            return self.detector_coordinator.update_detector_parameters(
+                params={},
+                scope="project",
+                reset_overrides=True
+            )
+        return False
+
+    def create_new_project(self, **kwargs):
+        """Create a new project (delegate to project orchestrator)."""
+        if self.project_orchestrator:
+            return self.project_orchestrator.create_project_workflow(**kwargs)
+
+    def get_openvino_cache_status(self, weight_name: str = None) -> dict:
+        """Get OpenVINO conversion status."""
+        if not weight_name:
+            weight_name = self.active_weight_name
+        if self.model_service:
+            return self.model_service.check_openvino_conversion_status(weight_name)
+        return {"status": "unknown"}
+
+    def set_main_arena_polygon(self, points: list) -> bool:
+        """Set main arena polygon."""
+        if self.processing_coordinator:
+            return self.processing_coordinator.set_main_arena_polygon(points)
+        return False
+
+    def add_roi_polygon(self, points: list, name: str, color: tuple) -> bool:
+        """Add ROI polygon."""
+        if self.processing_coordinator:
+            return self.processing_coordinator.add_roi_polygon(points, name, color)
+        return False
+
+    def get_arena_data(self, arena_id: str = None):
+        """Get arena/zone data.
+        
+        Legacy support for UI components requesting arena data.
+        """
+        if self.project_manager:
+            return self.project_manager.get_zone_data()
+        return None

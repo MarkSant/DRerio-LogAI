@@ -16,7 +16,8 @@
       "Bash(do echo \"=== $method ===\")",
       "Bash(done)",
       "Bash(wrapper_analysis.txt)",
-      "Bash(wrapper_simple_analysis.txt)"
+      "Bash(wrapper_simple_analysis.txt)",
+      "Bash(for method in \"_filter_video_tree\" \"_on_apply_roi_settings\" \"_on_apply_roi_template\" \"_on_auto_detect_clicked\" \"_on_import_and_apply_roi_template\" \"_on_save_roi_template\" \"_refresh_video_selector_tree\" \"_toggle_canvas_view\" \"setup_interactive_polygon\" \"setup_zone_definition_for_single_video\" \"update_status\")"
     ],
     "deny": [],
     "ask": []

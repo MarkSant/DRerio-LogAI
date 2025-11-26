@@ -16,7 +16,6 @@ from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
     from zebtrack.core.detector_service import DetectorService
-    from zebtrack.core.main_view_model import MainViewModel
     from zebtrack.core.model_service import ModelService
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.project_workflow_service import ProjectWorkflowService
@@ -209,8 +208,8 @@ class UIStateController:
             self.update_openvino_status(dialog)
 
         if not self.main_view_model._using_project_overrides:
-            self.main_view_model._global_model_defaults["active_weight"] = (
-                self.main_view_model.active_weight_name or None
+            self.main_view_model._update_global_model_defaults(
+                active_weight=self.main_view_model.active_weight_name
             )
 
     def load_new_weight(
@@ -270,8 +269,8 @@ class UIStateController:
         self.update_openvino_status(dialog)
 
         if not self.main_view_model._using_project_overrides:
-            self.main_view_model._global_model_defaults["use_openvino"] = (
-                self.main_view_model.use_openvino
+            self.main_view_model._update_global_model_defaults(
+                use_openvino=self.main_view_model.use_openvino
             )
 
     def convert_active_weight_to_openvino(self, dialog):

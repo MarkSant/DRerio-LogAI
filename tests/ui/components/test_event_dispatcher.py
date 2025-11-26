@@ -212,3 +212,62 @@ class TestGetRegisteredCount:
         event_dispatcher.register_handler("event2", mock_handler)
 
         assert event_dispatcher.get_registered_count() == 2
+
+
+class TestZoneComponentEventHandlers:
+    """Testes para handlers de eventos do ZoneControlsWidget."""
+
+    def test_filter_video_tree_delegation(self):
+        """Verifica delegação para ProjectViewManager com texto de busca."""
+        # Arrange
+        mock_gui = MagicMock()
+        mock_gui.zone_controls = MagicMock()
+        mock_gui.zone_controls.video_search_var.get.return_value = "test_search"
+        mock_gui.project_view_manager = MagicMock()
+
+        # Act
+        mock_gui._filter_video_tree = lambda: (
+            mock_gui.zone_controls and
+            mock_gui.project_view_manager._populate_video_selector_tree(
+                filter_text=mock_gui.zone_controls.video_search_var.get()
+            )
+        )
+        mock_gui._filter_video_tree()
+
+        # Assert
+        mock_gui.project_view_manager._populate_video_selector_tree.assert_called_once_with(
+            filter_text="test_search"
+        )
+
+    def test_refresh_video_selector_tree_delegation(self):
+        """Verifica delegação para ProjectViewManager sem filtro."""
+        # Arrange
+        mock_gui = MagicMock()
+        mock_gui.project_view_manager = MagicMock()
+
+        # Act
+        mock_gui._refresh_video_selector_tree = lambda: (
+            mock_gui.project_view_manager._populate_video_selector_tree(filter_text=None)
+        )
+        mock_gui._refresh_video_selector_tree()
+
+        # Assert
+        mock_gui.project_view_manager._populate_video_selector_tree.assert_called_once_with(
+            filter_text=None
+        )
+
+    def test_detector_update_parameters_delegation(self):
+        """Verifica que evento DETECTOR_UPDATE_PARAMETERS chama método correto."""
+        # Arrange
+        mock_gui = MagicMock()
+        mock_gui.controller = MagicMock()
+        params = {"rule": "centroid_in", "buffer_radius": 0.5, "overlap_ratio": 0.1}
+
+        # Act
+        mock_gui._on_apply_roi_settings = lambda p: (
+            mock_gui.controller.update_detector_parameters(p) if p and mock_gui.controller else None
+        )
+        mock_gui._on_apply_roi_settings(params)
+
+        # Assert
+        mock_gui.controller.update_detector_parameters.assert_called_once_with(params)

@@ -330,8 +330,8 @@ class CanvasEventHandler:
             return
 
         try:
-            self.gui.roi_canvas.delete("elastic_line")
-            self.gui.roi_canvas.delete("drawing_aid")
+            self.gui.video_display.canvas.delete("elastic_line")
+            self.gui.video_display.canvas.delete("drawing_aid")
 
             video_points = self.gui.drawing_state_manager.video_points
 

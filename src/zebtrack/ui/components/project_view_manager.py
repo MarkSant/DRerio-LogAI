@@ -418,6 +418,32 @@ class ProjectViewManager:
     # CATEGORIA 4: PIPELINE E VIDEO SELECTOR MANAGEMENT
     # ===========================================================================
 
+    def update_zone_summary_cards(self) -> None:
+        """Update zone summary cards with current project status."""
+        if not hasattr(self.gui, "zone_summary_cards") or not self.gui.zone_summary_cards:
+            return
+
+        pm = self.gui.controller.project_manager
+        all_videos = pm.get_all_videos()
+        counts = self.summarize_batch_data(all_videos)
+
+        # Counts are: total, with_arena, with_rois, with_trajectory, with_summary
+        
+        arena_pending = counts['total'] - counts['with_arena']
+        
+        # Videos that have arena but need ROIs
+        rois_needed = counts['with_arena'] - counts['with_rois']
+        rois_needed = max(0, rois_needed)
+        
+        if "arena_pending" in self.gui.zone_summary_cards:
+            self.gui.zone_summary_cards["arena_pending"].set(str(arena_pending))
+            
+        if "rois_pending" in self.gui.zone_summary_cards:
+            self.gui.zone_summary_cards["rois_pending"].set(str(rois_needed))
+            
+        if "ready_processing" in self.gui.zone_summary_cards:
+            self.gui.zone_summary_cards["ready_processing"].set(str(counts['with_rois']))
+
     def apply_pending_readiness_snapshot(
         self,
         *,
@@ -731,9 +757,12 @@ class ProjectViewManager:
 
         return final_selection
 
-    def resolve_processing_reports_video_paths(self) -> list[str]:
+    def resolve_processing_reports_video_paths(self, selection=None) -> list[str]:
         """
         Resolve selected video paths from processing reports tree.
+
+        Args:
+            selection: Optional list of item IDs. If None, uses current tree selection.
 
         Returns:
             List of selected video paths
@@ -747,7 +776,7 @@ class ProjectViewManager:
         if not tree:
             return []
 
-        selected = tree.selection()
+        selected = selection if selection is not None else tree.selection()
         pm = self.gui.controller.project_manager
         video_paths = []
 
@@ -813,7 +842,8 @@ class ProjectViewManager:
         all_videos = pm.get_all_videos()
 
         # Build hierarchy
-        hierarchy = self.gui._build_report_hierarchy(all_videos, pm)
+        # hierarchy = self.gui._build_report_hierarchy(all_videos, pm) # Legacy call
+        hierarchy = self.gui.validation_manager._build_video_hierarchy_data(all_videos, "")
 
         # Clear existing metadata
         if not hasattr(self.gui, "_processing_reports_tree_metadata"):
