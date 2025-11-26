@@ -196,10 +196,10 @@ class StateSynchronizer:
 
     def _reset_roi_and_visual_frames(self) -> None:
         """Handle ROI canvas and visualization frame teardown."""
-        if hasattr(self.gui, "roi_canvas") and self.gui.roi_canvas:
+        if hasattr(self.gui, "video_display") and self.gui.video_display:
             try:
-                if self.gui.roi_canvas.winfo_exists():
-                    self.gui.roi_canvas.pack_forget()
+                if self.gui.video_display.canvas.winfo_exists():
+                    self.gui.video_display.canvas.pack_forget()
             except Exception:
                 pass
 

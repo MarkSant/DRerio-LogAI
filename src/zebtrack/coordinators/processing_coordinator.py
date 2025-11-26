@@ -1034,7 +1034,8 @@ class ProcessingCoordinator(BaseCoordinator):
                 return False
 
             # Validation 3: Data structure
-            if self.project_manager.project_path and "detection_zones" not in self.project_manager.project_data:
+            project_data = getattr(self.project_manager, "project_data", {})
+            if self.project_manager.project_path and "detection_zones" not in project_data:
                 self.project_manager.save_zone_data(ZoneData(), persist=False)
                 log.info("controller.polygon.initialized_detection_zones")
 

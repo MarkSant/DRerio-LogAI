@@ -66,6 +66,14 @@ class ArduinoDashboardWidget(BaseWidget):
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
+        # Subscribe to Arduino status updates
+        if self.event_bus:
+            from zebtrack.ui.events import Events
+            self.event_bus.subscribe(
+                Events.UI_UPDATE_ARDUINO_STATUS,
+                lambda data: self.update_status(data.get("connected"), data.get("port"))
+            )
+
         # Initialize dashboard state
         self._initialize_state()
 

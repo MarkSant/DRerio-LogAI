@@ -772,7 +772,7 @@ class CanvasManager:
     def start_circle_drawing(self):
         """Activates circle drawing mode."""
         self.stop_drawing()
-        self.gui.drawing_mode = "circle"
+        self.gui.drawing_state_manager.mode = "circle"
         self.gui.current_circle_center = None
         self.gui.video_display.canvas.config(cursor="crosshair")
 
@@ -782,12 +782,12 @@ class CanvasManager:
         self.gui.set_status("Modo de Desenho (Círculo): Clique e arraste para definir o raio.")
 
     def on_canvas_press_circle(self, event):
-        if self.gui.drawing_mode != "circle":
+        if self.gui.drawing_state_manager.mode != "circle":
             return
         self.gui.current_circle_center = (event.x, event.y)
 
     def on_canvas_drag_circle(self, event):
-        if self.gui.drawing_mode != "circle" or not self.gui.current_circle_center:
+        if self.gui.drawing_state_manager.mode != "circle" or not self.gui.current_circle_center:
             return
 
         self.gui.video_display.canvas.delete("elastic_line")
@@ -804,7 +804,7 @@ class CanvasManager:
         )
 
     def on_canvas_release_circle(self, event):
-        if self.gui.drawing_mode != "circle" or not self.gui.current_circle_center:
+        if self.gui.drawing_state_manager.mode != "circle" or not self.gui.current_circle_center:
             return
 
         cx, cy = self.gui.current_circle_center

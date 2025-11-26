@@ -291,8 +291,8 @@ class WidgetFactory:
         Args:
             event: Tkinter configure event
         """
-        # Skip if this is not the main roi_canvas being resized
-        if event and event.widget != self.gui.roi_canvas:
+        # Skip if this is not the main video_display.canvas being resized
+        if event and event.widget != self.gui.video_display.canvas:
             return
 
         if not hasattr(self.gui, "_raw_bg_image") or not self.gui._raw_bg_image:
@@ -302,8 +302,8 @@ class WidgetFactory:
                 return
 
         # Get the current canvas dimensions
-        canvas_width = self.gui.roi_canvas.winfo_width()
-        canvas_height = self.gui.roi_canvas.winfo_height()
+        canvas_width = self.gui.video_display.canvas.winfo_width()
+        canvas_height = self.gui.video_display.canvas.winfo_height()
 
         if canvas_width <= 1 or canvas_height <= 1:
             return
