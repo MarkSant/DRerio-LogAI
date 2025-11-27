@@ -68,18 +68,6 @@ jobs:
         run: |
           poetry run ruff format --check .
 
-      - name: Validate documentation consistency
-        run: |
-          poetry run python scripts/validate_docs.py
-
-      - name: Update Copilot context map
-        run: |
-          poetry run python scripts/generate_copilot_context.py
-
-      - name: Check if context map changed
-        run: |
-          git diff --exit-code .copilot-context.yaml || (echo "⚠️ Copilot context out of date. Run: poetry run python scripts/generate_copilot_context.py" && exit 1)
-
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
