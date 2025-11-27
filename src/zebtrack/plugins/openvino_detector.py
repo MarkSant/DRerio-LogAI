@@ -27,15 +27,24 @@ except ImportError:
 # Substitui imports diretos por bloco compatível com múltiplas versões do ultralytics
 try:
     # Versões onde non_max_suppression está em ops
-    from ultralytics.utils.ops import non_max_suppression, scale_boxes
+    from ultralytics.utils.ops import (
+        non_max_suppression,
+        process_mask,
+        scale_boxes,
+        scale_image,
+    )
 except ImportError:
     try:
         # Fallback para versões que expõem non_max_suppression em utils.nms
         from ultralytics.utils.nms import non_max_suppression  # type: ignore
-        from ultralytics.utils.ops import scale_boxes
+        from ultralytics.utils.ops import (
+            process_mask,
+            scale_boxes,
+            scale_image,
+        )
     except ImportError as e:
         raise ImportError(
-            "Falha ao importar non_max_suppression da biblioteca ultralytics. "
+            "Falha ao importar utilitários da biblioteca ultralytics. "
             "Atualize a dependência ou ajuste o caminho do import."
         ) from e
 
@@ -109,8 +118,25 @@ class OpenVINOPlugin(DetectorPlugin):
         core = ov.Core()
         model = core.read_model(model_xml_path)
         self.compiled_model = core.compile_model(model=model, device_name="AUTO")
+
+        # Identify outputs for detection and segmentation masks
+        self.output_det = None
+        self.output_proto = None
+
+        for output in self.compiled_model.outputs:
+            shape = output.partial_shape
+            # [1, 4+nc+nm, 8400] -> rank 3
+            if len(shape) == 3:
+                self.output_det = output
+            # [1, 32, 160, 160] -> rank 4
+            elif len(shape) == 4:
+                self.output_proto = output
+
+        if self.output_det is None:
+            # Fallback: assume output 0 is detection
+            self.output_det = self.compiled_model.output(0)
+
         self.input_layer = self.compiled_model.input(0)
-        self.output_layer = self.compiled_model.output(0)
         self.infer_request = self.compiled_model.create_infer_request()
 
         # ByteTrack threshold hints consumed by core.detector.Detector
@@ -158,8 +184,12 @@ class OpenVINOPlugin(DetectorPlugin):
 
         input_tensor = self._preprocess(frame)
         self.infer_request.infer({self.input_layer.any_name: input_tensor})
+
         results = self.infer_request.results
-        detections = self._postprocess(results, frame.shape)
+        input_shape = input_tensor.shape[2:]
+
+        # Optimization: Skip mask decoding for tracking (performance)
+        detections, _ = self._postprocess(results, frame.shape, input_shape, decode_masks=False)
 
         predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
         for det in detections:
@@ -197,23 +227,37 @@ class OpenVINOPlugin(DetectorPlugin):
             # 1. Preprocess and get detections from OpenVINO
             input_tensor = self._preprocess(frame)
             self.infer_request.infer({self.input_layer.any_name: input_tensor})
+
             results = self.infer_request.results
-            detections = self._postprocess(results, frame.shape)
+            input_shape = input_tensor.shape[2:]
+
+            # Enable mask decoding for diagnostics
+            detections, masks = self._postprocess(results, frame.shape, input_shape, decode_masks=True)
 
             # 2. Format results for diagnostic reporting
             formatted_results = []
-            for det in detections:
+            for i, det in enumerate(detections):
                 x1, y1, x2, y2, conf = det[:5]  # Extract first 5 elements
                 # Include class_id if available, or assume class 1 for compatibility
                 class_id = det[5] if len(det) > 5 else 1
                 # Use metadata class names if available
                 class_name = self.class_names.get(int(class_id), f"class_{class_id}")
+
+                mask_points = 0
+                has_mask = False
+
+                if masks is not None and i < len(masks) and masks[i] is not None:
+                    mask_points = len(masks[i])
+                    has_mask = True
+
                 formatted_results.append(
                     {
                         "box": [int(x1), int(y1), int(x2), int(y2)],
                         "confidence": float(conf),
                         "class_id": int(class_id),
                         "class_name": class_name,
+                        "has_mask": has_mask,
+                        "mask_points": mask_points
                     }
                 )
             return formatted_results
@@ -232,27 +276,88 @@ class OpenVINOPlugin(DetectorPlugin):
         input_tensor = np.expand_dims(input_tensor, axis=0).astype(np.float32)
         return input_tensor
 
-    def _postprocess(self, result: Any, original_frame_shape: tuple) -> list:
+    def _postprocess(
+        self,
+        results: Any,
+        original_frame_shape: tuple,
+        input_shape: tuple,
+        decode_masks: bool = True,
+    ) -> tuple[np.ndarray, list | None]:
         """Postprocesses the OpenVINO model's output."""
-        output_tensor = result[self.output_layer]
+        output_tensor = results[self.output_det]
+        proto_tensor = (
+            results[self.output_proto]
+            if self.output_proto and self.output_proto in results
+            else None
+        )
+
+        has_mask = proto_tensor is not None
+        nm = 32 if has_mask else 0
+
         assert torch is not None  # mypy: ensure torch is available
         preds = non_max_suppression(
             prediction=torch.from_numpy(output_tensor),
             conf_thres=self.conf_threshold,
             iou_thres=self.nms_threshold,
             agnostic=True,
+            nm=nm,
         )
-        detections = preds[0]
-        if detections is None or len(detections) == 0:
-            log.debug("openvino.postprocess.no_detections_after_nms")
-            return []
 
-        detections[:, :4] = scale_boxes(
-            self.model_input_shape, detections[:, :4], original_frame_shape
+        det = preds[0]
+        if det is None or len(det) == 0:
+            log.debug("openvino.postprocess.no_detections_after_nms")
+            return np.empty((0, 6)), None
+
+        # Handle masks if present and requested
+        final_masks_contours = []
+        if has_mask and decode_masks and len(det) > 0:
+            # Process masks using Ultralytics ops
+            # process_mask returns [N, H, W] masks in input_shape
+            masks = process_mask(
+                torch.from_numpy(proto_tensor[0]),
+                det[:, 6:],
+                det[:, :4],
+                input_shape,
+                upsample=True,
+            )
+
+            # Scale masks to original image size
+            # scale_image expects masks of shape [N, H, W]
+            masks = scale_image(masks, original_frame_shape[:2])
+
+            # Convert binary masks to contours
+            masks_np = masks.cpu().numpy()
+
+            for i in range(len(masks_np)):
+                # mask is float in [0, 1], threshold to binary
+                m = (masks_np[i] > 0.5).astype("uint8") * 255
+                contours, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                if contours:
+                    # Take largest contour
+                    c = max(contours, key=cv2.contourArea)
+                    final_masks_contours.append(c.reshape(-1, 2))
+                else:
+                    final_masks_contours.append(None)
+        else:
+            final_masks_contours = None
+
+        # Scale boxes
+        det[:, :4] = scale_boxes(
+            input_shape, det[:, :4], original_frame_shape
         ).round()
 
         final_detections = []
-        for *xyxy, conf, cls in detections:
+        for i, row in enumerate(det):
+            # Ultralytics NMS returns [x1, y1, x2, y2, conf, cls] (plus masks if not consumed by process_mask?)
+            # Actually process_mask consumes the mask coeffs if we passed them separately?
+            # det has shape [N, 6 + 32] before we sliced it?
+            # No, det comes from NMS.
+            # If nm=32, det[:, 6:] are mask coeffs. det[:, :6] are box+conf+cls.
+
+            xyxy = row[:4].cpu().numpy()
+            conf = float(row[4])
+            cls = int(row[5])
+
             class_id = int(cls)
 
             # Log unexpected class IDs
@@ -264,18 +369,19 @@ class OpenVINOPlugin(DetectorPlugin):
                     confidence=float(conf),
                 )
 
-            # Return all detections without filtering
+            # Return detection tuple
             final_detections.append(
-                (
+                [
                     int(xyxy[0]),
                     int(xyxy[1]),
                     int(xyxy[2]),
                     int(xyxy[3]),
                     float(conf),
                     class_id,
-                )
+                ]
             )
-        return final_detections
+
+        return np.array(final_detections), final_masks_contours
 
     @staticmethod
     def get_name() -> str:

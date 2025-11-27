@@ -609,15 +609,19 @@ class WeightManager:
             # Determina o tipo de modelo e cria metadata apropriado
             weight_type = details.get("type", "seg")
 
+            # Extract real class names from the model
+            class_names = {str(k): v for k, v in model.names.items()}
+            num_classes = len(class_names)
+
             if weight_type == "seg":
                 metadata = {
                     "model_type": "instance_segmentation",
-                    "num_classes": 2,
-                    "class_names": {"0": "aquarium", "1": "zebrafish"},
+                    "num_classes": num_classes,
+                    "class_names": class_names,
                     "task": "segment",
                     "weight_type": "seg",
                     "description": (
-                        "Modelo de segmentação para detecção de peixes individuais (zebrafish)"
+                        "Modelo de segmentação convertido (classes extraídas do modelo)"
                     ),
                     "original_model": os.path.basename(pt_path),
                     "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -625,11 +629,11 @@ class WeightManager:
             else:  # det
                 metadata = {
                     "model_type": "object_detection",
-                    "num_classes": 1,
-                    "class_names": {"0": "aquarium"},
+                    "num_classes": num_classes,
+                    "class_names": class_names,
                     "task": "detect",
                     "weight_type": "det",
-                    "description": "Modelo de detecção para localização de aquários/arenas",
+                    "description": "Modelo de detecção convertido (classes extraídas do modelo)",
                     "original_model": os.path.basename(pt_path),
                     "conversion_date": time.strftime("%Y-%m-%d %H:%M:%S"),
                 }
