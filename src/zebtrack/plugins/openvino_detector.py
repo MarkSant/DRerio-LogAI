@@ -188,7 +188,8 @@ class OpenVINOPlugin(DetectorPlugin):
         results = self.infer_request.results
         input_shape = input_tensor.shape[2:]
 
-        detections, _ = self._postprocess(results, frame.shape, input_shape)
+        # Optimization: Skip mask decoding for tracking (performance)
+        detections, _ = self._postprocess(results, frame.shape, input_shape, decode_masks=False)
 
         predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
         for det in detections:
@@ -230,7 +231,8 @@ class OpenVINOPlugin(DetectorPlugin):
             results = self.infer_request.results
             input_shape = input_tensor.shape[2:]
 
-            detections, masks = self._postprocess(results, frame.shape, input_shape)
+            # Enable mask decoding for diagnostics
+            detections, masks = self._postprocess(results, frame.shape, input_shape, decode_masks=True)
 
             # 2. Format results for diagnostic reporting
             formatted_results = []
@@ -274,10 +276,20 @@ class OpenVINOPlugin(DetectorPlugin):
         input_tensor = np.expand_dims(input_tensor, axis=0).astype(np.float32)
         return input_tensor
 
-    def _postprocess(self, results: Any, original_frame_shape: tuple, input_shape: tuple) -> tuple[np.ndarray, list | None]:
+    def _postprocess(
+        self,
+        results: Any,
+        original_frame_shape: tuple,
+        input_shape: tuple,
+        decode_masks: bool = True,
+    ) -> tuple[np.ndarray, list | None]:
         """Postprocesses the OpenVINO model's output."""
         output_tensor = results[self.output_det]
-        proto_tensor = results[self.output_proto] if self.output_proto and self.output_proto in results else None
+        proto_tensor = (
+            results[self.output_proto]
+            if self.output_proto and self.output_proto in results
+            else None
+        )
 
         has_mask = proto_tensor is not None
         nm = 32 if has_mask else 0
@@ -288,7 +300,7 @@ class OpenVINOPlugin(DetectorPlugin):
             conf_thres=self.conf_threshold,
             iou_thres=self.nms_threshold,
             agnostic=True,
-            nm=nm
+            nm=nm,
         )
 
         det = preds[0]
@@ -296,9 +308,9 @@ class OpenVINOPlugin(DetectorPlugin):
             log.debug("openvino.postprocess.no_detections_after_nms")
             return np.empty((0, 6)), None
 
-        # Handle masks if present
+        # Handle masks if present and requested
         final_masks_contours = []
-        if has_mask and len(det) > 0:
+        if has_mask and decode_masks and len(det) > 0:
             # Process masks using Ultralytics ops
             # process_mask returns [N, H, W] masks in input_shape
             masks = process_mask(
@@ -306,7 +318,7 @@ class OpenVINOPlugin(DetectorPlugin):
                 det[:, 6:],
                 det[:, :4],
                 input_shape,
-                upsample=True
+                upsample=True,
             )
 
             # Scale masks to original image size
@@ -318,7 +330,7 @@ class OpenVINOPlugin(DetectorPlugin):
 
             for i in range(len(masks_np)):
                 # mask is float in [0, 1], threshold to binary
-                m = (masks_np[i] > 0.5).astype('uint8') * 255
+                m = (masks_np[i] > 0.5).astype("uint8") * 255
                 contours, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 if contours:
                     # Take largest contour
