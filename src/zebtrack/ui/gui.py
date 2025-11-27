@@ -1,6 +1,7 @@
 """Este módulo define a interface gráfica principal (GUI) para a aplicação Zebtrack."""
 
 from collections.abc import Callable
+from pathlib import Path
 from tkinter import (
     BooleanVar,
     Button,
@@ -377,6 +378,83 @@ class ApplicationGUI:
         except Exception:
             log.warning("gui.post_init.controller_sync_failed", exc_info=True)
 
+    def set_active_weight_in_dropdown(self, weight_name: str | None) -> None:
+        """Update the active weight display in the Welcome screen."""
+        if weight_name:
+            self._active_weight_display_var.set(f"Peso ativo: {weight_name}")
+        else:
+            self._active_weight_display_var.set("Peso ativo: Nenhum peso selecionado.")
+        
+        # Also update controller state if needed (legacy sync)
+        if self.controller.active_weight_name != weight_name:
+             self.controller.active_weight_name = weight_name
+
+    def update_weights_dropdown(self, weights: list[str]) -> None:
+        """Update the list of available weights (for Welcome screen or future dropdowns)."""
+        self._available_weight_names = weights or []
+
+    def update_openvino_checkbox(self, is_checked: bool) -> None:
+        """Update the OpenVINO status display."""
+        self._openvino_enabled = is_checked
+        status = "Ativado" if is_checked else "Desativado"
+        self._openvino_display_var.set(f"OpenVINO: {status}")
+
+    def update_openvino_status_display(self, status: str) -> None:
+        """Update the detailed OpenVINO status message."""
+        self._openvino_status_message = status
+        # You might want to update a specific label if it exists, 
+        # currently just updating internal state which might be used by refresh logic
+        pass
+
+    def handle_request_weight_type(self, filepath: str) -> None:
+        """Handle request to identify weight type."""
+        from tkinter import simpledialog
+        
+        weight_type = simpledialog.askstring(
+            "Tipo do Modelo",
+            "O tipo do modelo não pôde ser determinado automaticamente.\n"
+            "Digite 'seg' para Segmentação ou 'det' para Detecção:",
+            parent=self.root
+        )
+        
+        if weight_type:
+            # Normalize input
+            weight_type = weight_type.lower().strip()
+            if weight_type in ["seg", "segmentation", "segmentação"]:
+                weight_type = "seg"
+            elif weight_type in ["det", "detection", "detecção"]:
+                weight_type = "det"
+            
+            # Resume workflow
+            self.controller.load_new_weight(filepath=filepath, weight_type=weight_type)
+
+    def handle_request_weight_action(self, filepath: str, weight_type: str) -> None:
+        """Handle request for action on new weight."""
+        from tkinter import messagebox
+        
+        type_label = "Segmentação" if weight_type == "seg" else "Detecção"
+        
+        response = messagebox.askyesnocancel(
+            "Novo Peso Encontrado",
+            f"O arquivo '{Path(filepath).name}' foi identificado como modelo de {type_label}.\n\n"
+            "Deseja defini-lo como o novo padrão para {type_label}?\n"
+            "Sim: Define como padrão\n"
+            "Não: Apenas adiciona à lista\n"
+            "Cancelar: Aborta a operação",
+            parent=self.root
+        )
+        
+        choice = None
+        if response is True:
+            choice = "yes"
+        elif response is False:
+            choice = "no"
+        else:
+            choice = "cancel"
+            
+        if choice != "cancel":
+            self.controller.load_new_weight(filepath=filepath, weight_type=weight_type, choice=choice)
+
     # --- Event bus helpers -------------------------------------------------
 
     @staticmethod
@@ -450,26 +528,18 @@ class ApplicationGUI:
                 pass
 
             try:
-                self._ttkbootstrap_style = ttkb.Style(theme=theme_name, master=self.root)
+                self._ttkbootstrap_style = ttkb.Style(theme=theme_name)
             except TypeError:
-                # Older/newer mismatch: try without the master kwarg
+                # Older versions might require master or behave differently
                 try:
-                    self._ttkbootstrap_style = ttkb.Style(theme=theme_name)
-                    log.warning(
-                        "ui.theme.bootstrap_master_removed",
-                        message=(
-                            "ttkbootstrap.Style no longer accepts 'master'; "
-                            "initialized Style without master keyword"
-                        ),
-                        ttkbootstrap_version=ttk_version,
-                        theme=theme_name,
-                    )
+                    self._ttkbootstrap_style = ttkb.Style(theme=theme_name, master=self.root)
                 except Exception as e:
                     log.warning(
                         "ui.theme.bootstrap_failed_internal",
                         theme=theme_name,
                         error=str(e),
                     )
+                    raise e  # Re-raise to be caught by outer block
                     raise e  # Re-raise to be caught by outer block
 
             # Configure theme usage and root background

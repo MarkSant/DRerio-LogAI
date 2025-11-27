@@ -200,23 +200,31 @@ class YOLOModelSettings(BaseModel):
         to load (useful for development/testing). Application will fail at
         detection time if model is truly missing.
         """
-        path_obj = Path(v)
+        # 1. Check absolute path or relative to CWD
+        path_cwd = Path(v)
+        if path_cwd.exists() and path_cwd.is_file():
+            return str(path_cwd.resolve())
 
-        # If not absolute, try relative to project root
-        if not path_obj.is_absolute():
-            # Try to resolve relative to settings file location (project root)
-            project_root = Path(__file__).parent.parent
-            path_obj = project_root / v
+        # 2. Check relative to project root (assuming src layout)
+        # Location: src/zebtrack/settings.py
+        # .parent -> src/zebtrack
+        # .parent.parent -> src
+        # .parent.parent.parent -> Project Root
+        project_root = Path(__file__).parent.parent.parent
+        path_project = project_root / v
 
-        if not path_obj.exists():
-            log.warning(
-                "yolo_model.path.not_found",
-                path=v,
-                resolved_path=str(path_obj),
-                message="Model file not found. Detection will fail until model is available.",
-            )
-            # Return original path (don't fail configuration load)
-            return v
+        if path_project.exists() and path_project.is_file():
+            return str(path_project.resolve())
+
+        # 3. Fallback / Not Found logic
+        # Use the CWD path for the warning message as it's the most intuitive context
+        log.warning(
+            "yolo_model.path.not_found",
+            path=v,
+            resolved_path=str(path_project),
+            message="Model file not found. Detection will fail until model is available.",
+        )
+        return v
 
         if not path_obj.is_file():
             log.warning(

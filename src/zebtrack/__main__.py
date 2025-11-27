@@ -435,6 +435,9 @@ def main():
             project_manager=project_manager,
             recording_service=recording_service,
             detector_service=detector_service,
+            settings_obj=settings_obj,
+            recorder=recorder_factory.get_recorder(),
+            event_bus=event_bus,
             root=root,
         )
 

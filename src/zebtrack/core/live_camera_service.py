@@ -54,22 +54,28 @@ class LiveCameraService:
 
     def __init__(
         self,
-        controller: MainViewModel,
+        controller: MainViewModel | None,
         state_manager: StateManager,
         project_manager: ProjectManager,
         recording_service: RecordingService,
         detector_service: DetectorService,
+        settings_obj: Any,  # Settings
+        recorder: Any,      # Recorder
+        event_bus: EventBus,  # Injected EventBus
         root: Misc | None = None,
     ):
         """
         Initialize LiveCameraService.
 
         Args:
-            controller: MainViewModel controller for accessing resources
+            controller: MainViewModel controller (optional/legacy)
             state_manager: StateManager for centralized state tracking
             project_manager: ProjectManager for project-specific data
             recording_service: RecordingService for recording coordination
             detector_service: DetectorService for detection operations
+            settings_obj: Settings object
+            recorder: Recorder instance
+            event_bus: EventBus for UI notifications
             root: Tkinter root for UI updates
         """
         self.controller = controller
@@ -77,6 +83,9 @@ class LiveCameraService:
         self.project_manager = project_manager
         self.recording_service = recording_service
         self.detector_service = detector_service
+        self.settings = settings_obj
+        self.recorder = recorder
+        self.event_bus = event_bus
         self.root = root
 
         # Threading infrastructure
@@ -98,6 +107,15 @@ class LiveCameraService:
         self._analysis_completed = False
         self._last_detections: list = []
         self._saved_detector_context: str | None = None  # Task 2.0b: Store original detector context
+        self._session_duration_s: float = 0.0
+
+        # Aquarium detection phase state
+        self._aquarium_detection_phase: bool = False
+        self._aquarium_detection_frames: int = 0
+        self._aquarium_detection_max_frames: int = 30  # ~1-2 seconds at 20fps
+        self._detected_aquarium_bboxes: list[tuple[int, int, int, int]] = []  # Collect multiple detections
+        self._arena_defined_event = threading.Event()  # Signal when arena is ready
+        self._animals_per_aquarium: int = 1  # Default to single subject
 
     # Thread-safe properties for shared state
     @property
@@ -191,6 +209,7 @@ class LiveCameraService:
         display_interval_frames: int = 1,
         record_video: bool = True,
         output_base_dir: str | None = None,
+        animals_per_aquarium: int = 1,
     ) -> bool:
         """
         Start a live camera analysis session.
@@ -203,6 +222,7 @@ class LiveCameraService:
             display_interval_frames: Display every N frames
             record_video: Whether to record video
             output_base_dir: Custom output directory (default: live_analysis_sessions/)
+            animals_per_aquarium: Number of animals per aquarium (affects tracking mode)
 
         Returns:
             True if session started successfully, False otherwise
@@ -214,6 +234,7 @@ class LiveCameraService:
             experiment_id=experiment_id,
             analysis_interval=analysis_interval_frames,
             display_interval=display_interval_frames,
+            animals_per_aquarium=animals_per_aquarium,
         )
 
         # Store configuration
@@ -222,6 +243,8 @@ class LiveCameraService:
         self.is_capturing_for_video = record_video
         self.analysis_completed = False  # Reset flag for new session
         self.set_last_detections([])  # Reset cached detections for new session
+        self._animals_per_aquarium = animals_per_aquarium
+        self._experiment_id = experiment_id  # Store for later use in recorder
 
         # Create preview window FIRST (so we can show status updates)
         if not getattr(self.controller, "_disable_live_preview_window", False):
@@ -291,70 +314,92 @@ class LiveCameraService:
 
         # Setup detector if needed
         if not self.detector_service.detector:
-            if not self.controller.setup_detector():
+            # Initialize detector directly using service
+            success, _ = self.detector_service.initialize_detector(
+                animal_method=self.settings.model_selection.animal_method,
+                use_openvino=self.settings.model_selection.use_openvino,
+                active_weight_name=self.settings.weights.det_filename 
+                if self.settings.model_selection.animal_method == 'det' 
+                else self.settings.weights.seg_filename
+            )
+            if not success:
                 log.error("live_camera_service.detector_setup_failed")
                 return False
 
-        # Apply zones to detector if available
+        # ✅ Check if we need aquarium detection phase
         zone_data = self.project_manager.get_zone_data() if self.project_manager else None
-        if zone_data and self.camera:
-            # CRITICAL: Use actual camera dimensions for correct zone rescaling
-            self.detector_service.configure_zones(
-                zone_data=zone_data,
-                width=self.camera.actual_width,
-                height=self.camera.actual_height,
-            )
 
-        # ✅ FIX: Set detector to diagnostic mode for single video analysis
-        # This accepts ALL classes (aquarium AND zebrafish) without filtering
-        # Critical for default arena which may catch aquarium detections (class_id=0)
+        if not zone_data or not zone_data.polygon:
+            # No predefined arena - enter aquarium detection phase
+            self._aquarium_detection_phase = True
+            self._aquarium_detection_frames = 0
+            self._detected_aquarium_bboxes = []
+            self._arena_defined_event.clear()
 
-        # 🔍 DEBUG: Log detector service status
-        log.info(
-            "live_camera_service.detector_diagnostic_debug",
-            has_detector_service=self.detector_service is not None,
-            has_detector=self.detector_service.detector is not None
-            if self.detector_service
-            else False,
-            detector_type=type(self.detector_service.detector).__name__
-            if (self.detector_service and self.detector_service.detector)
-            else "None",
-        )
-
-        if self.detector_service and self.detector_service.detector:
-            # Log context BEFORE setting
-            old_context = getattr(self.detector_service.detector, "_context", "unknown")
             log.info(
-                "live_camera_service.detector_context_before",
-                old_context=old_context,
+                "live_camera_service.aquarium_detection_phase_start",
+                max_frames=self._aquarium_detection_max_frames,
+                reason="no_predefined_arena",
             )
 
-            # Task 2.0b: Save original context for restoration in stop_session()
-            self._saved_detector_context = old_context
+            # Set detector to TRACKING mode but aquarium NOT defined yet
+            # This makes it detect only aquarium (class_id=0)
+            if self.detector_service and self.detector_service.detector:
+                old_context = getattr(self.detector_service.detector, "_context", "unknown")
+                self._saved_detector_context = old_context
 
-            # Set diagnostic mode
-            self.detector_service.detector.set_context("diagnostic")
+                self.detector_service.detector.set_context("tracking")
+                self.detector_service.detector.set_aquarium_region_defined(False)  # Will detect class 0
 
-            # Verify context AFTER setting
-            new_context = getattr(self.detector_service.detector, "_context", "unknown")
-            log.info(
-                "live_camera_service.detector_context_set",
-                context="diagnostic",
-                old_context=old_context,
-                new_context=new_context,
-                verification_passed=(new_context == "diagnostic"),
-                reason="accept_all_classes_for_single_video_analysis",
-            )
+                # ✅ CRITICAL: Must call set_zones() before detect() to avoid RuntimeError
+                # Use empty zone for now - will be defined after aquarium detection
+                if self.camera:
+                    from zebtrack.core.detector import ZoneData
+                    empty_zone = ZoneData()
+                    self.detector_service.detector.set_zones(
+                        zones=empty_zone,
+                        actual_width=self.camera.actual_width,
+                        actual_height=self.camera.actual_height,
+                    )
+
+                log.info(
+                    "live_camera_service.detector_aquarium_detection_mode",
+                    context="tracking",
+                    aquarium_defined=False,
+                    target_class="aquarium(0)",
+                )
         else:
-            # Task 2.0b: No detector, mark as None so we don't try to restore later
-            self._saved_detector_context = None
-            log.warning(
-                "live_camera_service.detector_not_available",
-                has_detector_service=self.detector_service is not None,
-                has_detector=self.detector_service.detector is not None
-                if self.detector_service
-                else False,
-            )
+            # Predefined arena exists - skip detection phase
+            self._aquarium_detection_phase = False
+            self._arena_defined_event.set()
+
+            # Apply predefined zones
+            if self.camera:
+                self.detector_service.configure_zones(
+                    zone_data=zone_data,
+                    width=self.camera.actual_width,
+                    height=self.camera.actual_height,
+                )
+
+            # Set detector to tracking mode with aquarium defined
+            if self.detector_service and self.detector_service.detector:
+                old_context = getattr(self.detector_service.detector, "_context", "unknown")
+                self._saved_detector_context = old_context
+
+                self.detector_service.detector.set_context("tracking")
+                self.detector_service.detector.set_aquarium_region_defined(True)
+
+                # Configure tracking based on animals count
+                use_single_subject = (self._animals_per_aquarium == 1)
+                self.detector_service.detector.set_single_subject_mode(use_single_subject)
+
+                log.info(
+                    "live_camera_service.detector_predefined_arena",
+                    context="tracking",
+                    aquarium_defined=True,
+                    single_subject_mode=use_single_subject,
+                    animals_per_aquarium=self._animals_per_aquarium,
+                )
 
         # Show thread startup status
         if self.preview_window:
@@ -371,55 +416,66 @@ class LiveCameraService:
         )
 
         # ========================================================================
-        # ✅ NOVA IMPLEMENTAÇÃO: Gravação leve DENTRO de LiveCameraService
+        # ✅ RECORDING START LOGIC - depends on detection phase
         # ========================================================================
-        # Substituiu chamada a RecordingService (linha 209 REMOVIDA)
-        # LiveCameraService agora é autossuficiente e não polui estado global
+        # Store session duration for later use
+        self._session_duration_s = duration_s
 
-        # Initialize lightweight recorder for standalone analysis
-        if record_video and self.controller.recorder:
-            # Get zone data for recorder (use empty ZoneData if none available)
-            from zebtrack.core.detector import ZoneData
+        # If aquarium detection phase: DON'T start recorder yet (wait for arena)
+        # If predefined arena: Start recorder immediately
+        if not self._aquarium_detection_phase:
+            # Arena already defined - start recording immediately
+            if record_video and self.recorder:
+                from zebtrack.core.detector import ZoneData
 
-            recorder_zones = zone_data if zone_data else ZoneData()
+                recorder_zones = zone_data if zone_data else ZoneData()
 
-            # Start recorder directly (no RecordingService intermediary)
-            try:
-                recorder_started = self.controller.recorder.start_recording(
-                    output_folder=str(output_dir),
-                    frame_width=self.camera.actual_width if self.camera else 640,
-                    frame_height=self.camera.actual_height if self.camera else 480,
-                    zones=recorder_zones,
-                    is_video_file=False,  # We want to record video
-                    base_name=f"{experiment_id}_{timestamp}",
-                )
+                try:
+                    recorder_started = self.recorder.start_recording(
+                        output_folder=str(output_dir),
+                        frame_width=self.camera.actual_width if self.camera else 640,
+                        frame_height=self.camera.actual_height if self.camera else 480,
+                        zones=recorder_zones,
+                        is_video_file=False,
+                        base_name=f"{experiment_id}_{timestamp}",
+                    )
 
-                if not recorder_started:
-                    log.error("live_camera_service.recorder_start_failed")
+                    if not recorder_started:
+                        log.error("live_camera_service.recorder_start_failed")
+                        self.stop_session()
+                        return False
+
+                    log.info(
+                        "live_camera_service.recorder_started",
+                        output_dir=str(output_dir),
+                        base_name=f"{experiment_id}_{timestamp}",
+                    )
+
+                except Exception as e:
+                    log.error(
+                        "live_camera_service.recorder_init_error",
+                        error=str(e),
+                        exc_info=True,
+                    )
                     self.stop_session()
                     return False
 
-                log.info(
-                    "live_camera_service.recorder_started",
-                    output_dir=str(output_dir),
-                    base_name=f"{experiment_id}_{timestamp}",
-                )
+            # Timer will be started by _on_session_active when first frame arrives
+            log.info("live_camera_service.recorder_ready", aquarium_detection_phase=False)
+        else:
+            # Aquarium detection phase - recorder will start AFTER arena is defined
+            log.info(
+                "live_camera_service.recorder_delayed",
+                reason="waiting_for_aquarium_detection",
+                max_frames=self._aquarium_detection_max_frames,
+            )
 
-            except Exception as e:
-                log.error(
-                    "live_camera_service.recorder_init_error",
-                    error=str(e),
-                    exc_info=True,
-                )
-                self.stop_session()
-                return False
-
-        # Setup session completion timer (replaces RecordingService timer)
-        self._setup_session_timer(duration_s, output_dir)
-
-        # Update status to recording
+        # Update status
         if self.preview_window:
-            self.preview_window.update_status_text("● Gravando", color="red")
+            if self._aquarium_detection_phase:
+                self.preview_window.update_status_text("🔍 Procurando aquário...", color="yellow")
+            else:
+                self.preview_window.update_status_text("⏳ Aguardando vídeo...", color="orange")
 
         log.info("live_camera_service.session_started", output_dir=str(output_dir))
         return True
@@ -437,9 +493,9 @@ class LiveCameraService:
                 log.warning("live_camera_service.timer_cancel_error", error=str(e))
 
         # ✅ NOVO: Parar recorder diretamente (não via RecordingService)
-        if self.controller.recorder:
+        if self.recorder:
             try:
-                self.controller.recorder.stop_recording()
+                self.recorder.stop_recording()
                 log.info("live_camera_service.recorder_stopped")
             except Exception as e:
                 log.warning("live_camera_service.recorder_stop_error", error=str(e))
@@ -504,7 +560,7 @@ class LiveCameraService:
             log.info("live_camera_service.setting_up_camera", camera_index=camera_index)
 
             # Create temporary settings with desired camera index and force 720p resolution
-            temp_settings = self.controller.settings.model_copy(deep=True)
+            temp_settings = self.settings.model_copy(deep=True)
             log.info(
                 "live_camera_service.settings_before_override",
                 original_index=temp_settings.camera.index,
@@ -680,8 +736,8 @@ class LiveCameraService:
                 # Control capture rate
                 default_fps = 30.0
                 fps = (
-                    self.controller.settings.video_processing.fps
-                    if self.controller.settings
+                    self.settings.video_processing.fps
+                    if self.settings
                     else default_fps
                 )
                 time.sleep(1 / (fps * 1.5))
@@ -696,6 +752,7 @@ class LiveCameraService:
         """Thread loop for processing frames with detection."""
         log.info("live_camera_service.processing_loop_started")
         processed_count = 0
+        first_frame_active = False
 
         while not self.exit_event.is_set():
             try:
@@ -704,6 +761,65 @@ class LiveCameraService:
                 continue
 
             try:
+                # Trigger session timer on first frame
+                if not first_frame_active:
+                    first_frame_active = True
+                    if self.root:
+                        self.root.after(0, self._on_session_active)
+
+                # ✅ PHASE 1: Aquarium Detection (if needed)
+                if self._aquarium_detection_phase:
+                    # Update preview status
+                    if self.preview_window and frame_number % 5 == 0:
+                        self.preview_window.update_status_text(
+                            f"🔍 Detectando aquário... ({self._aquarium_detection_frames}/{self._aquarium_detection_max_frames})",
+                            color="yellow"
+                        )
+
+                    # Run detection to find aquarium (class_id=0)
+                    detector = self.detector_service.detector
+                    if detector:
+                        detections, _ = detector.detect(frame, "live")
+
+                        # Collect aquarium bboxes (class_id=0)
+                        for det in detections:
+                            if len(det) >= 7:
+                                x1, y1, x2, y2, conf, track_id, class_id = det
+                                if class_id == 0:  # Aquarium class
+                                    self._detected_aquarium_bboxes.append((int(x1), int(y1), int(x2), int(y2)))
+                                    log.info(
+                                        "live_camera_service.aquarium_detected",
+                                        frame=frame_number,
+                                        bbox=(int(x1), int(y1), int(x2), int(y2)),
+                                        total_collected=len(self._detected_aquarium_bboxes),
+                                    )
+
+                    self._aquarium_detection_frames += 1
+
+                    # Check if detection phase is complete
+                    if (self._aquarium_detection_frames >= self._aquarium_detection_max_frames or
+                        len(self._detected_aquarium_bboxes) >= 10):
+
+                        log.info(
+                            "live_camera_service.aquarium_detection_complete",
+                            frames_analyzed=self._aquarium_detection_frames,
+                            detections_collected=len(self._detected_aquarium_bboxes),
+                        )
+
+                        # Define arena and switch to animal tracking
+                        self._define_arena_from_detections()
+
+                        # NOW start recording (after arena is defined)
+                        self._start_recording_after_arena()
+
+                        # Update preview status
+                        if self.preview_window:
+                            self.preview_window.update_status_text("● Gravando", color="red")
+
+                    # Skip rest of processing during detection phase
+                    continue
+
+                # ✅ PHASE 2: Normal Processing (after arena is defined)
                 # Determine if we should process/display this frame
                 should_analyze = (frame_number % self.analysis_interval_frames) == 0
                 should_display = (frame_number % self.display_interval_frames) == 0
@@ -732,19 +848,41 @@ class LiveCameraService:
                         # Cache detections for persistent overlay on non-analyzed frames
                         self.set_last_detections(detections)
 
+                        # 🔍 DEBUG: Log detection result
+                        log.info(
+                            "live_camera_service.detection_result",
+                            frame_number=frame_number,
+                            num_detections=len(detections),
+                            has_recorder=self.recorder is not None,
+                            recorder_start_time=self.recorder.start_time if self.recorder else None,
+                        )
+
                         # Record detections
-                        if self.controller.recorder and self.controller.recorder.start_time:
+                        if self.recorder and self.recorder.start_time:
                             if detections:
-                                timestamp = time.time() - self.controller.recorder.start_time
-                                self.controller.recorder.write_detection_data(
+                                timestamp = time.time() - self.recorder.start_time
+                                self.recorder.write_detection_data(
                                     timestamp, frame_number, detections
                                 )
-                                # 🔍 DEBUG: Log detection writes
-                                log.debug(
+                                # 🔍 INFO: Log detection writes (changed from DEBUG to INFO)
+                                log.info(
                                     "live_camera_service.detection_written",
                                     frame_number=frame_number,
                                     num_detections=len(detections),
+                                    timestamp=timestamp,
                                 )
+                            else:
+                                log.info(
+                                    "live_camera_service.detection_skipped_empty",
+                                    frame_number=frame_number,
+                                )
+                        else:
+                            log.warning(
+                                "live_camera_service.detection_skipped_no_recorder",
+                                frame_number=frame_number,
+                                has_recorder=self.recorder is not None,
+                                recorder_start_time=self.recorder.start_time if self.recorder else None,
+                            )
                 else:
                     # Use cached detections for overlay on non-analyzed frames
                     # This makes bounding boxes persist instead of flickering
@@ -763,14 +901,14 @@ class LiveCameraService:
 
                 # ✅ CRITICAL FIX: Write video frame to MP4/AVI
                 # Previously frames were queued but never written, causing no video output
-                if self.is_capturing_for_video and self.controller.recorder:
+                if self.is_capturing_for_video and self.recorder:
                     # Additional check: only write if recorder is still recording
                     if (
-                        self.controller.recorder.is_recording
-                        and self.controller.recorder.video_writer
+                        self.recorder.is_recording
+                        and self.recorder.video_writer
                     ):
                         try:
-                            self.controller.recorder.write_video_frame(frame)
+                            self.recorder.write_video_frame(frame)
                             log.debug(
                                 "live_camera_service.frame_written",
                                 frame_number=frame_number,
@@ -807,6 +945,26 @@ class LiveCameraService:
                 log.error("live_camera_service.processing_error", error=str(e), exc_info=True)
 
         log.info("live_camera_service.processing_loop_finished", processed=processed_count)
+
+    def _on_session_active(self):
+        """Called when the first frame is processed to start the timer."""
+        log.info("live_camera_service.first_frame_active")
+
+        # ✅ FIX: Only start timer if NOT in aquarium detection phase
+        # Timer will be started in _start_recording_after_arena() instead
+        if not self._aquarium_detection_phase:
+            # Start the session timer now that we have video
+            if self.current_output_dir and self._session_duration_s > 0:
+                self._setup_session_timer(self._session_duration_s, self.current_output_dir)
+
+            # Update UI status
+            if self.preview_window:
+                self.preview_window.update_status_text("● Gravando", color="red")
+        else:
+            log.info(
+                "live_camera_service.timer_delayed_for_aquarium_detection",
+                reason="waiting_for_arena_definition",
+            )
 
     def _setup_session_timer(self, duration_s: float, output_dir: Path):
         """
@@ -904,6 +1062,15 @@ class LiveCameraService:
 
                 df = pd.read_parquet(trajectory_file)
 
+                # 🔍 INFO: Log DataFrame info
+                log.info(
+                    "live_camera_service.trajectory_loaded",
+                    file=str(trajectory_file),
+                    num_rows=len(df),
+                    is_empty=df.empty,
+                    columns=list(df.columns) if not df.empty else [],
+                )
+
                 if df.empty:
                     log.warning("live_camera_service.empty_trajectory")
                     # Task 2.0c: Schedule UI update in main thread
@@ -971,7 +1138,7 @@ class LiveCameraService:
         reason: str | None = None,
     ):
         """Show completion message with analysis results."""
-        if not self.controller.ui_event_bus:
+        if not self.event_bus:
             return
 
         from zebtrack.ui.events import Events
@@ -1008,10 +1175,145 @@ class LiveCameraService:
             )
             title = "Gravação Concluída"
 
-        self.controller.ui_event_bus.publish_event(
+        self.event_bus.publish_event(
             Events.UI_SHOW_INFO,
             {"title": title, "message": message},
         )
+
+    def _start_recording_after_arena(self):
+        """
+        Start recorder and timer AFTER arena has been defined.
+
+        This ensures we only record animal detections, not the aquarium detection phase.
+        """
+        # Get zone data for recorder
+        from zebtrack.core.detector import ZoneData
+
+        zone_data = self.project_manager.get_zone_data() if self.project_manager else ZoneData()
+
+        # Start recorder
+        if self.is_capturing_for_video and self.recorder:
+            try:
+                recorder_started = self.recorder.start_recording(
+                    output_folder=str(self.current_output_dir),
+                    frame_width=self.camera.actual_width if self.camera else 640,
+                    frame_height=self.camera.actual_height if self.camera else 480,
+                    zones=zone_data,
+                    is_video_file=False,  # We want to record video
+                    base_name=f"{self._experiment_id}",
+                )
+
+                if not recorder_started:
+                    log.error("live_camera_service.recorder_start_failed_after_arena")
+                    return
+
+                log.info(
+                    "live_camera_service.recorder_started_after_arena",
+                    output_dir=str(self.current_output_dir),
+                )
+
+            except Exception as e:
+                log.error(
+                    "live_camera_service.recorder_init_error_after_arena",
+                    error=str(e),
+                    exc_info=True,
+                )
+                return
+
+        # Start session timer NOW (after arena defined)
+        if self.current_output_dir and self._session_duration_s > 0:
+            self._setup_session_timer(self._session_duration_s, self.current_output_dir)
+            log.info(
+                "live_camera_service.timer_started_after_arena",
+                duration_s=self._session_duration_s,
+            )
+
+    def _define_arena_from_detections(self):
+        """
+        Define arena based on collected aquarium detections or fallback to default.
+
+        Called after aquarium detection phase completes (30 frames or manual stop).
+        """
+        import math
+        from zebtrack.core.detector import ZoneData
+
+        w = self.camera.actual_width if self.camera else 1280
+        h = self.camera.actual_height if self.camera else 720
+
+        if self._detected_aquarium_bboxes:
+            # Use median of detected bboxes to create arena
+            import numpy as np
+
+            bboxes_array = np.array(self._detected_aquarium_bboxes)
+            x1 = int(np.median(bboxes_array[:, 0]))
+            y1 = int(np.median(bboxes_array[:, 1]))
+            x2 = int(np.median(bboxes_array[:, 2]))
+            y2 = int(np.median(bboxes_array[:, 3]))
+
+            # Create polygon from bbox
+            arena_polygon = [
+                [x1, y1],
+                [x2, y1],
+                [x2, y2],
+                [x1, y2],
+            ]
+
+            log.info(
+                "live_camera_service.arena_from_aquarium_detection",
+                num_detections=len(self._detected_aquarium_bboxes),
+                bbox=(x1, y1, x2, y2),
+            )
+        else:
+            # Fallback: Create default arena 2x larger than old default
+            area_ratio = 3.0  # 2x larger than old 6.0
+            side = math.sqrt((w * h) / area_ratio)
+            cx, cy = w / 2, h / 2
+            half = side / 2
+
+            arena_polygon = [
+                [cx - half, cy - half],
+                [cx + half, cy - half],
+                [cx + half, cy + half],
+                [cx - half, cy + half],
+            ]
+
+            log.info(
+                "live_camera_service.arena_fallback_2x",
+                width=w,
+                height=h,
+                side=side,
+                reason="no_aquarium_detected",
+            )
+
+        # Save and apply zone
+        zone_data = ZoneData(polygon=arena_polygon)
+        self.project_manager.save_zone_data(zone_data, video_path=None, persist=False)
+
+        if self.camera:
+            self.detector_service.configure_zones(
+                zone_data=zone_data,
+                width=self.camera.actual_width,
+                height=self.camera.actual_height,
+            )
+
+        # Switch detector to detect animals (class_id=1)
+        if self.detector_service and self.detector_service.detector:
+            self.detector_service.detector.set_aquarium_region_defined(True)
+
+            # Configure tracking mode
+            use_single_subject = (self._animals_per_aquarium == 1)
+            self.detector_service.detector.set_single_subject_mode(use_single_subject)
+
+            log.info(
+                "live_camera_service.detector_switched_to_animals",
+                aquarium_defined=True,
+                single_subject_mode=use_single_subject,
+                animals_per_aquarium=self._animals_per_aquarium,
+            )
+
+        # Signal that arena is ready
+        self._arena_defined_event.set()
+        self._aquarium_detection_phase = False
 
     def _clear_queues(self):
         """Clear all queues."""

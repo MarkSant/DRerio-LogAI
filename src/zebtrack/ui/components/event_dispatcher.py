@@ -212,6 +212,50 @@ class EventDispatcher:
                 immediate=d.get("immediate", False)
             ))
 
+        # Weight Management
+        self.event_bus.subscribe(Events.UI_SET_ACTIVE_WEIGHT,
+            lambda d: self.gui.set_active_weight_in_dropdown(d.get("weight_name")))
+        self.event_bus.subscribe(Events.UI_UPDATE_OPENVINO_STATUS,
+            lambda d: self.gui.update_openvino_status_display(d.get("status")))
+        self.event_bus.subscribe(Events.UI_UPDATE_OPENVINO_CHECKBOX,
+            lambda d: self.gui.update_openvino_checkbox(d.get("is_checked")))
+        self.event_bus.subscribe(Events.UI_UPDATE_WEIGHTS_LIST,
+            lambda d: self.gui.update_weights_dropdown(d.get("weights")))
+
+        # Arduino / Hardware
+        self.event_bus.subscribe(Events.UI_UPDATE_ARDUINO_STATUS,
+            lambda d: self.gui.arduino_dashboard_widget.update_status(d.get("connected"), d.get("port")) 
+            if self.gui.arduino_dashboard_widget else None)
+        self.event_bus.subscribe(Events.UI_APPEND_ARDUINO_LOG,
+            lambda d: self.gui.arduino_dashboard_widget.append_log(d.get("message"))
+            if self.gui.arduino_dashboard_widget else None)
+
+        # View Navigation & Modes
+        self.event_bus.subscribe(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW,
+            lambda d: self.gui.start_analysis_view_mode())
+        self.event_bus.subscribe(Events.UI_NAVIGATE_FROM_ANALYSIS_VIEW,
+            lambda d: self.gui.stop_analysis_view_mode())
+        self.event_bus.subscribe(Events.UI_UPDATE_PROCESSING_MODE,
+            lambda d: self.gui.update_processing_mode(d.get("report")))
+        
+        # General UI
+        self.event_bus.subscribe(Events.UI_UPDATE_BUTTON_STATE,
+            lambda d: self.gui.update_button_state(d.get("button_name"), d.get("state")))
+        self.event_bus.subscribe(Events.UI_DISPLAY_VIDEO_FRAME,
+            lambda d: self.gui.canvas_manager.display_roi_video_frame(d.get("video_path")))
+
+        # Zone Updates
+        self.event_bus.subscribe(Events.UI_REDRAW_ZONES,
+            lambda d: self.gui.canvas_manager.redraw_zones(d.get("zone_data")))
+        self.event_bus.subscribe(Events.UI_UPDATE_ZONE_LIST,
+            lambda d: self.gui.project_view_manager.refresh_zone_list())
+
+        # Weight Management Interactive Requests
+        self.event_bus.subscribe(Events.UI_REQUEST_WEIGHT_TYPE,
+            lambda d: self.gui.handle_request_weight_type(d.get("filepath")))
+        self.event_bus.subscribe(Events.UI_REQUEST_WEIGHT_ACTION,
+            lambda d: self.gui.handle_request_weight_action(d.get("filepath"), d.get("weight_type")))
+
     def _handle_setup_interactive_polygon(self, polygon_data) -> None:
         """Handle legacy interactive polygon requests from the event bus."""
         if not self.gui:

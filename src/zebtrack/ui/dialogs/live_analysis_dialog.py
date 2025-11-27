@@ -146,266 +146,165 @@ class LiveAnalysisDialog(Dialog):
 
     def body(self, master):
         """Create dialog body."""
+        # Main container with padding
+        container = ttk.Frame(master, padding=10)
+        container.pack(fill="both", expand=True)
+
         # Title
         title = Label(
-            master,
+            container,
             text="Análise de Câmera ao Vivo",
             font=("TkDefaultFont", 12, "bold"),
         )
-        title.pack(pady=(0, 10))
+        title.pack(pady=(0, 5))
 
         subtitle = Label(
-            master,
-            text="Configure e inicie uma sessão de análise em tempo real da câmera.",
+            container,
+            text="Configure e inicie uma sessão de análise em tempo real.",
             fg="gray",
         )
-        subtitle.pack(pady=(0, 20))
+        subtitle.pack(pady=(0, 15))
 
-        # Camera selection
-        camera_frame = LabelFrame(master, text="Câmera", padx=15, pady=10)
+        # --- Camera Selection (Top) ---
+        camera_frame = ttk.LabelFrame(container, text="Seleção de Câmera", padding=10)
         camera_frame.pack(fill="x", pady=(0, 10))
 
-        camera_row = Frame(camera_frame)
-        camera_row.pack(fill="x", pady=5)
-
-        Label(camera_row, text="Selecionar Câmera:", width=20, anchor="w").pack(side="left")
-
+        # Grid for camera selection
+        camera_frame.columnconfigure(1, weight=1)
+        
+        ttk.Label(camera_frame, text="Dispositivo:").grid(row=0, column=0, padx=5, sticky="w")
+        
         self.camera_combo = ttk.Combobox(
-            camera_row,
+            camera_frame,
             textvariable=self.camera_selection_var,
-            width=40,
             state="readonly",
         )
-        self.camera_combo.pack(side="left", padx=(5, 10))
+        self.camera_combo.grid(row=0, column=1, padx=5, sticky="ew")
         ToolTip(self.camera_combo, "Selecione a câmera para análise ao vivo.")
 
-        Button(camera_row, text="🔍 Detectar", command=self._detect_cameras, width=10).pack(
-            side="left", padx=5
+        ttk.Button(camera_frame, text="🔍 Detectar", command=self._detect_cameras, width=10).grid(
+            row=0, column=2, padx=5
         )
 
-        self.camera_status_label = Label(camera_row, text="", fg="gray")
-        self.camera_status_label.pack(side="left", padx=5)
+        self.camera_status_label = Label(camera_frame, text="", fg="gray")
+        self.camera_status_label.grid(row=1, column=1, sticky="w", padx=5)
 
-        # Duration settings
-        duration_frame = LabelFrame(master, text="Duração", padx=15, pady=10)
+        # --- Configuration Grid (2 Columns) ---
+        config_container = ttk.Frame(container)
+        config_container.pack(fill="both", expand=True)
+        config_container.columnconfigure(0, weight=1)
+        config_container.columnconfigure(1, weight=1)
+
+        # Left Column: Timing & Processing
+        left_col = ttk.Frame(config_container)
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+
+        # Duration Settings
+        duration_frame = ttk.LabelFrame(left_col, text="Duração e Intervalos", padding=10)
         duration_frame.pack(fill="x", pady=(0, 10))
 
-        duration_row = Frame(duration_frame)
-        duration_row.pack(fill="x", pady=5)
+        # Grid for duration/intervals
+        duration_frame.columnconfigure(1, weight=1)
 
-        Label(duration_row, text="Duração (segundos):", width=20, anchor="w").pack(side="left")
-
-        duration_spinbox = Spinbox(
-            duration_row,
+        # Duration
+        ttk.Label(duration_frame, text="Duração (s):").grid(row=0, column=0, padx=5, pady=2, sticky="w")
+        duration_spin = Spinbox(
+            duration_frame,
             from_=10,
             to=7200,
             textvariable=self.duration_var,
-            width=10,
+            width=8,
         )
-        duration_spinbox.pack(side="left", padx=(5, 10))
-        ToolTip(duration_spinbox, "Duração máxima da análise em segundos (10-7200).")
+        duration_spin.grid(row=0, column=1, padx=5, pady=2, sticky="w")
+        
+        # Quick buttons for duration
+        quick_btns = ttk.Frame(duration_frame)
+        quick_btns.grid(row=0, column=2, padx=5, pady=2)
+        ttk.Button(quick_btns, text="1m", width=4, command=lambda: self.duration_var.set(60)).pack(side="left", padx=1)
+        ttk.Button(quick_btns, text="5m", width=4, command=lambda: self.duration_var.set(300)).pack(side="left", padx=1)
 
-        # Quick duration buttons
-        Button(duration_row, text="1 min", command=lambda: self.duration_var.set(60), width=6).pack(
-            side="left", padx=2
-        )
-        Button(
-            duration_row, text="5 min", command=lambda: self.duration_var.set(300), width=6
-        ).pack(side="left", padx=2)
-        Button(
-            duration_row, text="10 min", command=lambda: self.duration_var.set(600), width=6
-        ).pack(side="left", padx=2)
-        Button(
-            duration_row, text="30 min", command=lambda: self.duration_var.set(1800), width=6
-        ).pack(side="left", padx=2)
-
-        # Processing intervals
-        intervals_frame = LabelFrame(master, text="Intervalos de Processamento", padx=15, pady=10)
-        intervals_frame.pack(fill="x", pady=(0, 10))
-
-        analysis_row = Frame(intervals_frame)
-        analysis_row.pack(fill="x", pady=5)
-
-        Label(analysis_row, text="Intervalo de Análise:", width=20, anchor="w").pack(side="left")
-
-        analysis_spinbox = Spinbox(
-            analysis_row,
+        # Analysis Interval
+        ttk.Label(duration_frame, text="Analisar a cada:").grid(row=1, column=0, padx=5, pady=2, sticky="w")
+        analysis_spin = Spinbox(
+            duration_frame,
             from_=1,
             to=60,
             textvariable=self.analysis_interval_var,
-            width=10,
+            width=8,
         )
-        analysis_spinbox.pack(side="left", padx=(5, 10))
-        ToolTip(
-            analysis_spinbox,
-            "Processar detecções a cada N frames (menor = mais preciso, maior = mais rápido).",
-        )
+        analysis_spin.grid(row=1, column=1, padx=5, pady=2, sticky="w")
+        ttk.Label(duration_frame, text="frames").grid(row=1, column=2, sticky="w")
 
-        display_row = Frame(intervals_frame)
-        display_row.pack(fill="x", pady=5)
-
-        Label(display_row, text="Intervalo de Exibição:", width=20, anchor="w").pack(side="left")
-
-        display_spinbox = Spinbox(
-            display_row,
+        # Display Interval
+        ttk.Label(duration_frame, text="Exibir a cada:").grid(row=2, column=0, padx=5, pady=2, sticky="w")
+        display_spin = Spinbox(
+            duration_frame,
             from_=1,
             to=60,
             textvariable=self.display_interval_var,
-            width=10,
+            width=8,
         )
-        display_spinbox.pack(side="left", padx=(5, 10))
-        ToolTip(
-            display_spinbox, "Atualizar visualização a cada N frames (maior = menos carga de UI)."
-        )
+        display_spin.grid(row=2, column=1, padx=5, pady=2, sticky="w")
+        ttk.Label(duration_frame, text="frames").grid(row=2, column=2, sticky="w")
 
-        # Recording options
-        options_frame = LabelFrame(master, text="Opções", padx=15, pady=10)
+        # Right Column: Options & ID
+        right_col = ttk.Frame(config_container)
+        right_col.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+
+        # Options Settings
+        options_frame = ttk.LabelFrame(right_col, text="Opções da Sessão", padding=10)
         options_frame.pack(fill="x", pady=(0, 10))
+        
+        options_frame.columnconfigure(1, weight=1)
 
-        record_cb = ttk.Checkbutton(
-            options_frame,
-            text="Gravar vídeo com overlay de detecções",
-            variable=self.record_video_var,
-        )
-        record_cb.pack(anchor="w", pady=5)
-        ToolTip(
-            record_cb,
-            "Salvar vídeo com bounding boxes e rastreamento visualizado (aumenta uso de disco).",
-        )
+        # Experiment ID
+        ttk.Label(options_frame, text="ID Experimento:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        id_entry = ttk.Entry(options_frame, textvariable=self.experiment_id_var)
+        id_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        ToolTip(id_entry, "Nome opcional para a pasta de resultados.")
 
-        # Experiment ID (optional)
-        id_row = Frame(options_frame)
-        id_row.pack(fill="x", pady=5)
-
-        Label(id_row, text="ID do Experimento:", width=20, anchor="w").pack(side="left")
-
-        id_entry = ttk.Entry(id_row, textvariable=self.experiment_id_var, width=30)
-        id_entry.pack(side="left", padx=(5, 0))
-        ToolTip(
-            id_entry,
-            "Identificador opcional para o experimento (padrão: camera_TIMESTAMP).",
-        )
-
-        # Calibration parameters
-        calibration_frame = LabelFrame(master, text="Calibração", padx=15, pady=10)
-        calibration_frame.pack(fill="x", pady=(0, 10))
-
-        calib_row1 = Frame(calibration_frame)
-        calib_row1.pack(fill="x", pady=2)
-        Label(calib_row1, text="Número de Aquários:", width=20, anchor="w").pack(side="left")
-        Spinbox(calib_row1, from_=1, to=10, textvariable=self.num_aquariums_var, width=10).pack(
-            side="left", padx=(5, 10)
-        )
-
-        calib_row2 = Frame(calibration_frame)
-        calib_row2.pack(fill="x", pady=2)
-        Label(calib_row2, text="Animais por Aquário:", width=20, anchor="w").pack(side="left")
-        Spinbox(
-            calib_row2, from_=1, to=20, textvariable=self.animals_per_aquarium_var, width=10
-        ).pack(side="left", padx=(5, 10))
-
-        calib_row3 = Frame(calibration_frame)
-        calib_row3.pack(fill="x", pady=2)
-        Label(calib_row3, text="Largura do Aquário (cm):", width=20, anchor="w").pack(side="left")
-        Spinbox(
-            calib_row3, from_=1.0, to=100.0, textvariable=self.aquarium_width_var, width=10
-        ).pack(side="left", padx=(5, 10))
-
-        calib_row4 = Frame(calibration_frame)
-        calib_row4.pack(fill="x", pady=2)
-        Label(calib_row4, text="Altura do Aquário (cm):", width=20, anchor="w").pack(side="left")
-        Spinbox(
-            calib_row4, from_=1.0, to=100.0, textvariable=self.aquarium_height_var, width=10
-        ).pack(side="left", padx=(5, 10))
-
-        # Behavior analysis parameters
-        behavior_frame = LabelFrame(
-            master, text="Parâmetros de Análise Comportamental", padx=15, pady=10
-        )
-        behavior_frame.pack(fill="x", pady=(0, 10))
-
-        behav_row1 = Frame(behavior_frame)
-        behav_row1.pack(fill="x", pady=2)
-        Label(behav_row1, text="Limiar Curva (graus/s):", width=20, anchor="w").pack(side="left")
-        Spinbox(
-            behav_row1, from_=0.0, to=360.0, textvariable=self.sharp_turn_var, width=10
-        ).pack(side="left", padx=(5, 10))
-
-        behav_row2 = Frame(behavior_frame)
-        behav_row2.pack(fill="x", pady=2)
-        Label(behav_row2, text="Limiar Congelamento (cm/s):", width=20, anchor="w").pack(
-            side="left"
-        )
-        Spinbox(
-            behav_row2, from_=0.0, to=10.0, textvariable=self.freeze_thresh_var, width=10
-        ).pack(side="left", padx=(5, 10))
-
-        behav_row3 = Frame(behavior_frame)
-        behav_row3.pack(fill="x", pady=2)
-        Label(behav_row3, text="Duração Mín. Congelamento (s):", width=20, anchor="w").pack(
-            side="left"
-        )
-        Spinbox(behav_row3, from_=0.0, to=10.0, textvariable=self.freeze_dur_var, width=10).pack(
-            side="left", padx=(5, 10)
-        )
-
-        # Smoothing parameters
-        smoothing_frame = LabelFrame(master, text="Suavização de Trajetória", padx=15, pady=10)
-        smoothing_frame.pack(fill="x", pady=(0, 10))
-
-        smooth_row1 = Frame(smoothing_frame)
-        smooth_row1.pack(fill="x", pady=2)
-        Label(smooth_row1, text="Janela de Suavização:", width=20, anchor="w").pack(side="left")
-        Spinbox(
-            smooth_row1, from_=3, to=21, textvariable=self.smoothing_window_var, width=10
-        ).pack(side="left", padx=(5, 10))
-        ToolTip(smooth_row1, "Deve ser ímpar (3, 5, 7, etc)")
-
-        smooth_row2 = Frame(smoothing_frame)
-        smooth_row2.pack(fill="x", pady=2)
-        Label(smooth_row2, text="Ordem do Polinômio:", width=20, anchor="w").pack(side="left")
-        Spinbox(
-            smooth_row2, from_=1, to=5, textvariable=self.smoothing_polyorder_var, width=10
-        ).pack(side="left", padx=(5, 10))
-
-        # Detection methods
-        method_frame = LabelFrame(master, text="Métodos de Detecção", padx=15, pady=10)
-        method_frame.pack(fill="x", pady=(0, 10))
-
-        method_row1 = Frame(method_frame)
-        method_row1.pack(fill="x", pady=2)
-        Label(method_row1, text="Método para Aquário:", width=20, anchor="w").pack(side="left")
-        ttk.Combobox(
-            method_row1,
-            textvariable=self.aquarium_method_var,
-            values=["seg", "det"],
-            state="readonly",
-            width=8,
-        ).pack(side="left", padx=(5, 10))
-
-        method_row2 = Frame(method_frame)
-        method_row2.pack(fill="x", pady=2)
-        Label(method_row2, text="Método para Animais:", width=20, anchor="w").pack(side="left")
-        ttk.Combobox(
-            method_row2,
-            textvariable=self.animal_method_var,
-            values=["seg", "det"],
-            state="readonly",
-            width=8,
-        ).pack(side="left", padx=(5, 10))
-
-        method_row3 = Frame(method_frame)
-        method_row3.pack(fill="x", pady=2)
+        # Checkboxes
         ttk.Checkbutton(
-            method_row3,
-            text="Usar OpenVINO (acelera inferência em CPU)",
+            options_frame,
+            text="Gravar vídeo com overlay",
+            variable=self.record_video_var,
+        ).grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="w")
+
+        # OpenVINO Option
+        ttk.Checkbutton(
+            options_frame,
+            text="Usar aceleração OpenVINO",
             variable=self.use_openvino_var,
-        ).pack(anchor="w")
+        ).grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="w")
 
-        # Auto-detect cameras on show
+        # --- Calibration & Detection (Bottom, simplified) ---
+        adv_frame = ttk.LabelFrame(container, text="Parâmetros Avançados", padding=10)
+        adv_frame.pack(fill="x", pady=(0, 10))
+        
+        # Use a grid for compact layout
+        adv_frame.columnconfigure(1, weight=1)
+        adv_frame.columnconfigure(3, weight=1)
+
+        # Row 0: Model Methods
+        ttk.Label(adv_frame, text="Detecção Aquário:").grid(row=0, column=0, padx=5, sticky="w")
+        ttk.Combobox(adv_frame, textvariable=self.aquarium_method_var, values=["seg", "det"], width=5, state="readonly").grid(row=0, column=1, padx=5, sticky="w")
+        
+        ttk.Label(adv_frame, text="Rastreamento:").grid(row=0, column=2, padx=5, sticky="w")
+        ttk.Combobox(adv_frame, textvariable=self.animal_method_var, values=["seg", "det"], width=5, state="readonly").grid(row=0, column=3, padx=5, sticky="w")
+
+        # Row 1: Physical setup
+        ttk.Label(adv_frame, text="Num. Aquários:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        Spinbox(adv_frame, from_=1, to=10, textvariable=self.num_aquariums_var, width=5).grid(row=1, column=1, padx=5, sticky="w")
+
+        ttk.Label(adv_frame, text="Animais/Aquário:").grid(row=1, column=2, padx=5, pady=5, sticky="w")
+        Spinbox(adv_frame, from_=1, to=100, textvariable=self.animals_per_aquarium_var, width=5).grid(row=1, column=3, padx=5, sticky="w")
+
+        # Auto-detect on open
         self.after(100, self._detect_cameras)
+        
+        return self.camera_combo
 
-        return self.camera_combo  # Initial focus
+
 
     def buttonbox(self):
         """Create custom button box with Start and Cancel."""

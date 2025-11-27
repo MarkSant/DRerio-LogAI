@@ -207,7 +207,20 @@ class Recorder:
     def write_detection_data(self, timestamp, frame_number, detections):
         """Appends detection data to an in-memory list."""
         if not self.is_recording:
+            log.warning(
+                "recorder.write_detection_data.not_recording",
+                frame=frame_number,
+                num_detections=len(detections),
+            )
             return
+
+        # 🔍 INFO: Log incoming detection data
+        log.info(
+            "recorder.write_detection_data.start",
+            frame=frame_number,
+            num_detections=len(detections),
+            buffer_size_before=len(self.detection_data),
+        )
 
         for detection in detections:
             # Support both 6-element (old) and 7-element (new) tuples
@@ -243,10 +256,13 @@ class Recorder:
                 data_point["y_cm"] = y_center / self.pixel_per_cm_ratio[1]
 
             self.detection_data.append(data_point)
-        log.debug(
+
+        # 🔍 INFO: Log buffer state after append (changed from DEBUG to INFO)
+        log.info(
             "recorder.detections.appended",
             count=len(detections),
             frame=frame_number,
+            buffer_size_after=len(self.detection_data),
         )
 
         self._flush_detection_data()
@@ -306,9 +322,23 @@ class Recorder:
         return (time.time() - self._last_flush_time) >= self._flush_interval_seconds
 
     def _flush_detection_data(self, force: bool = False) -> None:
+        # 🔍 INFO: Log flush attempt
+        log.info(
+            "recorder.flush.attempt",
+            buffer_size=len(self.detection_data),
+            force=force,
+            should_flush=self._should_flush() if not force else True,
+        )
+
         if not self.detection_data:
+            log.info("recorder.flush.skipped_empty_buffer")
             return
         if not force and not self._should_flush():
+            log.info(
+                "recorder.flush.skipped_threshold",
+                buffer_size=len(self.detection_data),
+                threshold=self._flush_row_threshold,
+            )
             return
 
         try:
@@ -328,6 +358,7 @@ class Recorder:
             if df.empty:
                 self.detection_data.clear()
                 self._last_flush_time = time.time()
+                log.info("recorder.flush.skipped_empty_dataframe")
                 return
 
             if not self._parquet_columns:
@@ -343,6 +374,11 @@ class Recorder:
                     self._parquet_schema,
                     compression=self._parquet_compression,
                 )
+                log.info(
+                    "recorder.parquet_writer.created",
+                    path=self._parquet_filename,
+                    schema=str(self._parquet_schema),
+                )
             else:
                 table = pa.Table.from_pandas(df, schema=self._parquet_schema, preserve_index=False)
                 if self._parquet_writer is None:
@@ -356,10 +392,12 @@ class Recorder:
             self._parquet_writer.write_table(table)
             self.detection_data.clear()
             self._last_flush_time = time.time()
-            log.debug(
+            # 🔍 INFO: Log flush success (changed from DEBUG to INFO)
+            log.info(
                 "recorder.flush.success",
                 rows=table.num_rows,
                 force=force,
+                path=self._parquet_filename,
             )
         except ValueError as e:
             # Critical error, stop recording to clean up resources

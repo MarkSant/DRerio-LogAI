@@ -794,17 +794,23 @@ class SessionCoordinator(BaseCoordinator):
         """
         log.info("session_coordinator.live_analysis.start", camera_index=camera_index)
 
+        config = {}
+
         # Get configuration from dialog or use defaults
         if camera_index is not None:
             # Use camera directly with default settings
+            duration_s = 300.0
             if hasattr(self.settings, "live_analysis"):
                 duration_s = self.settings.live_analysis.default_duration_s
-            else:
-                duration_s = 300
-            experiment_id = f"camera_{camera_index}"
-            analysis_interval_frames = 1
-            display_interval_frames = 1
-            record_video = True
+            
+            config = {
+                "camera_index": camera_index,
+                "duration_s": duration_s,
+                "experiment_id": f"camera_{camera_index}",
+                "analysis_interval_frames": 1,
+                "display_interval_frames": 1,
+                "record_video": True
+            }
         else:
             # Show configuration dialog
             if not self.root:
@@ -820,36 +826,9 @@ class SessionCoordinator(BaseCoordinator):
                 return
 
             config = dialog.result
-            camera_index = config["camera_index"]
-            duration_s = config["duration_s"]
-            experiment_id = config["experiment_id"]
-            analysis_interval_frames = config.get("analysis_interval_frames", 1)
-            display_interval_frames = config.get("display_interval_frames", 1)
-            record_video = config.get("record_video", True)
 
-        # Delegate to LiveCameraService
-        success = self.live_camera_service.start_session(
-            camera_index=camera_index,
-            duration_s=duration_s,
-            experiment_id=experiment_id,
-            analysis_interval_frames=analysis_interval_frames,
-            display_interval_frames=display_interval_frames,
-            record_video=record_video,
-        )
-
-        if success and self.event_bus:
-            self.event_bus.publish_event(
-                Events.UI_SET_STATUS,
-                {"message": f"Analisando câmera {camera_index} por {duration_s}s..."},
-            )
-        elif not success and self.event_bus:
-            self.event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro na Análise",
-                    "message": "Falha ao iniciar análise de câmera.",
-                },
-            )
+        # Delegate to unified start method
+        self.start_session_from_config(config)
 
     def start_session_from_config(self, config: dict) -> bool:
         """Start live camera analysis with full configuration from SingleVideoConfigDialog.
@@ -886,6 +865,34 @@ class SessionCoordinator(BaseCoordinator):
         # Video recording (optional)
         record_video = config.get("record_video", True)
 
+        # ✅ FIX: Update settings with dialog configuration BEFORE starting session
+        # This ensures LiveCameraService uses the correct model/weights
+        animal_method = config.get("animal_method")
+        aquarium_method = config.get("aquarium_method")
+        use_openvino = config.get("use_openvino")
+        use_single_subject_tracker = config.get("use_single_subject_tracker")
+
+        if animal_method is not None:
+            self.settings.model_selection.animal_method = animal_method
+            log.info("session_coordinator.live_analysis.animal_method_updated", value=animal_method)
+
+        if aquarium_method is not None:
+            self.settings.model_selection.aquarium_method = aquarium_method
+            log.info("session_coordinator.live_analysis.aquarium_method_updated", value=aquarium_method)
+
+        if use_openvino is not None:
+            self.settings.model_selection.use_openvino = use_openvino
+            log.info("session_coordinator.live_analysis.use_openvino_updated", value=use_openvino)
+
+        if use_single_subject_tracker is not None:
+            # Update detector service if already initialized
+            if self.detector_service and self.detector_service.detector:
+                self.detector_service.detector.set_single_subject_mode(use_single_subject_tracker)
+                log.info(
+                    "session_coordinator.live_analysis.single_subject_updated",
+                    value=use_single_subject_tracker,
+                )
+
         log.info(
             "session_coordinator.live_analysis.extracted_config",
             camera_index=camera_index,
@@ -893,50 +900,29 @@ class SessionCoordinator(BaseCoordinator):
             analysis_interval=analysis_interval_frames,
             display_interval=display_interval_frames,
             record_video=record_video,
+            animal_method=animal_method,
+            use_openvino=use_openvino,
         )
 
-        # Ensure default arena if none defined
+        # ✅ CHANGED: Do NOT create default arena here anymore
+        # LiveCameraService will handle aquarium detection phase:
+        #   1. Try to detect aquarium (class 0) for ~30 frames
+        #   2. If detected: use aquarium bbox as arena
+        #   3. If not detected: create fallback arena (2x larger than old default)
+        # This ensures arena is optimally sized for the actual aquarium
+
         zone_data = self.project_manager.get_zone_data()
+        log.info(
+            "session_coordinator.live_analysis.arena_check",
+            has_predefined_arena=bool(zone_data and zone_data.polygon),
+        )
 
-        if not zone_data or not zone_data.polygon:
-            log.info("session_coordinator.live_analysis.creating_default_arena")
-
-            # Open camera temporarily to get dimensions
-            temp_settings = self.settings.model_copy(deep=True)
-            temp_settings.camera.index = camera_index
-            temp_settings.camera.desired_width = 1280
-            temp_settings.camera.desired_height = 720
-            temp_camera = Camera(settings_obj=temp_settings)
-
-            if temp_camera.is_opened():
-                w = temp_camera.actual_width
-                h = temp_camera.actual_height
-                temp_camera.release()
-
-                # Create default arena: centered square occupying 1/6 of total frame area
-                area_ratio = 6.0
-                side = math.sqrt((w * h) / area_ratio)
-                cx, cy = w / 2, h / 2
-                half = side / 2
-
-                default_arena = [
-                    [cx - half, cy - half],
-                    [cx + half, cy - half],
-                    [cx + half, cy + half],
-                    [cx - half, cy + half],
-                ]
-
-                zone_data = ZoneData(polygon=default_arena)
-                self.project_manager.save_zone_data(zone_data, video_path=None, persist=False)
-
-                log.info(
-                    "session_coordinator.live_analysis.default_arena_created",
-                    width=w,
-                    height=h,
-                    side=side,
-                )
-            else:
-                log.error("session_coordinator.live_analysis.default_arena_failed")
+        # Extract animals_per_aquarium for tracking configuration
+        animals_per_aquarium = config.get("animals_per_aquarium", 1)
+        log.info(
+            "session_coordinator.live_analysis.tracking_config",
+            animals_per_aquarium=animals_per_aquarium,
+        )
 
         # Delegate to LiveCameraService
         success = self.live_camera_service.start_session(
@@ -946,6 +932,7 @@ class SessionCoordinator(BaseCoordinator):
             analysis_interval_frames=analysis_interval_frames,
             display_interval_frames=display_interval_frames,
             record_video=record_video,
+            animals_per_aquarium=animals_per_aquarium,
         )
 
         # UI feedback

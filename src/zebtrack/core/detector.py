@@ -299,31 +299,50 @@ class Detector:
 
         # 2. Filter detections to only those inside the main polygon
         # This is still necessary for non-rectangular polygons
+        # ✅ FIX: In diagnostic mode without polygon, accept ALL detections
         detections_in_polygon = []
+        has_polygon = self.scaled_polygon.size > 0
+
         if len(predictions) > 0:
             log.info(
                 "detector.predictions_before_polygon_filter",
                 count=len(predictions),
-                has_polygon=self.scaled_polygon.size > 0,
+                has_polygon=has_polygon,
             )
-            for det in predictions:
-                x1, y1, x2, y2, confidence, track_id, class_id = det
-                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-                confidence = float(confidence)
 
-                if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
-                    detections_in_polygon.append((x1, y1, x2, y2, confidence, track_id, class_id))
-                else:
-                    log.debug(
-                        "detector.filtered_outside_polygon",
-                        bbox=(x1, y1, x2, y2),
-                        track_id=track_id,
-                        class_id=class_id,
-                    )
+            # ✅ If no polygon defined and in diagnostic mode OR detecting aquarium, accept all detections
+            if not has_polygon and (self._context == "diagnostic" or not self._aquarium_region_defined):
+                log.info(
+                    "detector.no_polygon_accept_all",
+                    accepting_all_detections=len(predictions),
+                    reason="diagnostic_mode" if self._context == "diagnostic" else "aquarium_detection_phase",
+                    context=self._context,
+                    aquarium_defined=self._aquarium_region_defined,
+                )
+                detections_in_polygon = [
+                    (int(x1), int(y1), int(x2), int(y2), float(confidence), track_id, int(class_id))
+                    for x1, y1, x2, y2, confidence, track_id, class_id in predictions
+                ]
+            else:
+                # Normal polygon filtering
+                for det in predictions:
+                    x1, y1, x2, y2, confidence, track_id, class_id = det
+                    x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                    confidence = float(confidence)
+
+                    if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
+                        detections_in_polygon.append((x1, y1, x2, y2, confidence, track_id, class_id))
+                    else:
+                        log.debug(
+                            "detector.filtered_outside_polygon",
+                            bbox=(x1, y1, x2, y2),
+                            track_id=track_id,
+                            class_id=class_id,
+                        )
         else:
             log.info(
                 "detector.no_predictions_from_model",
-                has_polygon=self.scaled_polygon.size > 0,
+                has_polygon=has_polygon,
             )
 
         # Centralized filtering logic based on context
@@ -383,16 +402,58 @@ class Detector:
                             reason="arena_defined",
                         )
 
-        if self._single_subject_mode:
+        # Apply tracking based on mode
+        if self._context == "diagnostic" or not self._aquarium_region_defined:
+            # Diagnostic mode OR aquarium detection phase: No tracking, preserve all detections as-is
+            # - Diagnostic: single video analysis where we want raw detections
+            # - Aquarium detection: need raw aquarium bboxes, ByteTracker would reject them
+            filtered_detections = [
+                (
+                    int(x1),
+                    int(y1),
+                    int(x2),
+                    int(y2),
+                    float(confidence),
+                    None,  # No track_id
+                    int(class_id),
+                )
+                for x1, y1, x2, y2, confidence, _, class_id in filtered_detections
+            ]
+            log.info(
+                "detector.skip_tracking",
+                num_detections=len(filtered_detections),
+                reason="diagnostic_mode" if self._context == "diagnostic" else "aquarium_detection_phase",
+                context=self._context,
+                aquarium_defined=self._aquarium_region_defined,
+            )
+        elif self._single_subject_mode:
+            # Single subject tracking (lightweight)
             filtered_detections = self._single_subject_tracker.assign(filtered_detections)
+            log.info(
+                "detector.single_subject_tracking.applied",
+                num_detections=len(filtered_detections),
+            )
         else:
+            # Multi-subject tracking with ByteTracker
             filtered_detections = self._apply_byte_tracking(filtered_detections, frame.shape)
+            log.info(
+                "detector.byte_tracking.applied",
+                num_detections=len(filtered_detections),
+            )
 
         end_time = time.perf_counter()
         log.debug(
             "frame.processing.time",
             duration_ms=(end_time - start_time) * 1000,
             plugin=self.plugin.get_name(),
+        )
+
+        # 🔍 INFO: Log final detection count before return
+        log.info(
+            "detector.detect.final_result",
+            num_detections=len(filtered_detections),
+            context=self._context,
+            single_subject_mode=self._single_subject_mode,
         )
 
         # The command logic has been removed as it was tied to the old square ROIs
@@ -467,6 +528,13 @@ class Detector:
     def _apply_byte_tracking(
         self, detections: list[tuple], frame_shape: tuple[int, int, int]
     ) -> list[tuple]:
+        # 🔍 INFO: Log ByteTrack input
+        log.info(
+            "detector.bytetrack.input",
+            num_detections=len(detections),
+            frame_shape=frame_shape,
+        )
+
         if not detections:
             tracker = self._ensure_byte_tracker()
             if tracker is not None:
@@ -476,10 +544,12 @@ class Detector:
                     (frame_shape[0], frame_shape[1]),
                     self._resolve_model_input_shape(),
                 )
+            log.info("detector.bytetrack.output", num_tracks=0, reason="no_input_detections")
             return []
 
         tracker = self._ensure_byte_tracker()
         if tracker is None:
+            log.warning("detector.bytetrack.tracker_init_failed")
             return [
                 (
                     int(x1),
@@ -501,10 +571,23 @@ class Detector:
             dtype=np.float32,
         )
 
+        log.info(
+            "detector.bytetrack.calling_update",
+            det_array_shape=det_array.shape,
+            frame_dims=(frame_shape[0], frame_shape[1]),
+            model_input_shape=self._resolve_model_input_shape(),
+        )
+
         tracks = tracker.update(
             det_array,
             (frame_shape[0], frame_shape[1]),
             self._resolve_model_input_shape(),
+        )
+
+        log.info(
+            "detector.bytetrack.update_result",
+            num_input_detections=len(detections),
+            num_output_tracks=len(tracks),
         )
 
         # Create a proper mapping of tracks to class_ids based on IoU with original detections
@@ -549,6 +632,14 @@ class Detector:
                     int(best_class_id),
                 )
             )
+
+        # 🔍 INFO: Log final ByteTrack output
+        log.info(
+            "detector.bytetrack.output",
+            num_input_detections=len(detections),
+            num_output_tracks=len(tracks),
+            num_results=len(results),
+        )
 
         return results
 

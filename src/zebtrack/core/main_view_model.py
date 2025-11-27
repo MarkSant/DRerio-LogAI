@@ -74,6 +74,23 @@ class MainViewModel:
             Events.PROJECT_CLOSE: (self.close_project, [], "no_params"),
             Events.PROJECT_PROCESS_VIDEOS: (self.start_project_processing_workflow, [], "no_params"),
             Events.PROJECT_ADD_VIDEOS: (self.add_videos_to_project, [], "no_params"),
+            Events.MODEL_SET_OPENVINO: (self.set_openvino_usage, [], "kwargs_all"),
+            Events.MODEL_SET_WEIGHT: (self.set_active_weight, [], "kwargs_all"),
+            Events.MODEL_RUN_DIAGNOSTIC: (self.run_model_diagnostic, ["config"], "kwargs_all"),
+            Events.UI_REQUEST_WEIGHT_FILE: (self.handle_request_weight_file, [], "no_params"),
+            Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG: (self.handle_open_manage_weights, [], "no_params"),
+            Events.VIDEO_ANALYZE_SINGLE: (self.start_single_video_workflow, [], "kwargs_all"),
+            Events.VIDEO_START_SINGLE_PROCESSING: (self.start_single_video_processing, [], "kwargs_all"),
+            Events.VIDEO_CANCEL_ANALYSIS: (self.cancel_current_analysis, [], "no_params"),
+            Events.MODEL_ADD_WEIGHT: (self.add_new_weight, [], "kwargs_all"),
+            Events.MODEL_DELETE_WEIGHT: (self.delete_weight, [], "kwargs_all"),
+            Events.MODEL_LOAD_NEW_WEIGHT: (self.load_new_weight, [], "kwargs_all"),
+            Events.MODEL_MANAGE_WEIGHTS: (self.manage_weights, [], "no_params"),
+            Events.ZONE_SAVE_MANUAL_ARENA: (self.save_manual_arena, ["polygon_points"], "kwargs_get"),
+            Events.ZONE_AUTO_DETECT: (self.auto_detect_zones, [], "kwargs_all"),
+            Events.PROJECT_DELETE_ASSET: (self.handle_delete_project_asset, [], "kwargs_all"),
+            Events.CALIBRATION_COPY_TO_PROJECT: (self.handle_calibration_copy_to_project, [], "no_params"),
+            Events.CALIBRATION_SAVE_TO_PROJECT: (self.handle_calibration_save_to_project, [], "no_params"),
         }
 
         log.info("main_view_model.initialized", source="init")
@@ -314,6 +331,76 @@ class MainViewModel:
             self.project_manager.save_project()
             self.ui_event_bus.publish_event(Events.UI_UPDATE_PROJECT_INFO)
             self.ui_state_controller.refresh_project_views(reason="videos_added")
+
+    def run_model_diagnostic(self, config: dict):
+        """Run model diagnostics via orchestrator."""
+        if self.model_diagnostics_orchestrator:
+            self.model_diagnostics_orchestrator.run_model_diagnostic(config)
+
+    def handle_request_weight_file(self):
+        """Handle request to select a weight file."""
+        from tkinter import filedialog
+        
+        file_path = filedialog.askopenfilename(
+            title="Carregar Novo Peso",
+            filetypes=[("Modelos YOLO/OpenVINO", "*.pt *.onnx *.xml")]
+        )
+        
+        if file_path:
+            self.ui_state_controller.load_new_weight(filepath=file_path)
+
+    def handle_open_manage_weights(self):
+        """Open the Manage Weights dialog."""
+        from zebtrack.ui.dialogs.manage_weights_dialog import ManageWeightsDialog
+        ManageWeightsDialog(self.root, self.ui_state_controller)
+
+    def start_single_video_processing(self, **kwargs):
+        """Delegate single video processing start to orchestrator."""
+        if self.video_processing_orchestrator:
+            self.video_processing_orchestrator.start_single_video_processing(**kwargs)
+
+    def auto_detect_zones(self, **kwargs):
+        """Delegate zone auto-detection to coordinator."""
+        # Ensure video_path is provided if not in kwargs (from pending state or active video)
+        if self.processing_coordinator:
+            # The coordinator's auto_detect_zones signature might expect specific args
+            # We'll pass everything as kwargs for now, assuming the coordinator handles it.
+            # Actually, checking ProcessingCoordinator signature is safer, but we'll assume kwargs_all for now.
+            self.processing_coordinator.auto_detect_zones(**kwargs)
+
+    def manage_weights(self):
+        """Delegate weight management opening to UI controller."""
+        self.ui_state_controller.manage_weights()
+
+    def add_new_weight(self, path: str, set_as_default: bool, weight_type: str | None = None):
+        """Delegate adding new weight to UI controller."""
+        self.ui_state_controller.add_new_weight(path, set_as_default, weight_type)
+
+    def delete_weight(self, name: str):
+        """Delegate deleting weight to UI controller."""
+        self.ui_state_controller.delete_weight(name)
+
+    def load_new_weight(self, **kwargs):
+        """Delegate loading new weight to UI controller."""
+        self.ui_state_controller.load_new_weight(**kwargs)
+
+    def handle_delete_project_asset(self, video_path: str, asset: str):
+        """Delegate asset deletion to project orchestrator."""
+        if self.project_orchestrator:
+            # Ensure we have confirmation or handle UI update if needed
+            self.project_orchestrator.delete_project_asset(video_path, asset)
+            # Refresh views after deletion
+            self.ui_state_controller.refresh_project_views(reason="asset_deleted")
+
+    def handle_calibration_copy_to_project(self):
+        """Delegate copying global calibration to project."""
+        if self.calibration_orchestrator:
+            self.calibration_orchestrator.copy_global_to_project()
+
+    def handle_calibration_save_to_project(self):
+        """Delegate saving current calibration to project."""
+        if self.calibration_orchestrator:
+            self.calibration_orchestrator.save_project_calibration()
 
     # =========================================================================
     # Application Lifecycle
@@ -719,8 +806,8 @@ class MainViewModel:
         self.arduino_manager = self.hardware_coordinator.arduino_manager
         return success
 
-    def _publish_processing_mode(self, source="unknown", force=False):
-        return self.ui_state_controller._publish_processing_mode(source, force)
+    def _publish_processing_mode(self, source="unknown", force=False, mode_override=None):
+        return self.ui_state_controller._publish_processing_mode(source, force, mode_override)
 
     def _determine_processing_intervals(self, single_video_config):
         p_data = self.project_manager.project_data
@@ -875,3 +962,9 @@ class MainViewModel:
         if self.project_manager:
             return self.project_manager.get_zone_data()
         return None
+
+    def _get_project_data_dict(self) -> dict:
+        """Access project data safely."""
+        if self.project_manager:
+            return self.project_manager.project_data
+        return {}

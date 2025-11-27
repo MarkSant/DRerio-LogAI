@@ -300,7 +300,7 @@ class OpenVINOPlugin(DetectorPlugin):
             conf_thres=self.conf_threshold,
             iou_thres=self.nms_threshold,
             agnostic=True,
-            nm=nm,
+            nc=len(self.class_names),  # Explicitly pass number of classes so NMS can infer nm
         )
 
         det = preds[0]
@@ -322,12 +322,20 @@ class OpenVINOPlugin(DetectorPlugin):
             )
 
             # Scale masks to original image size
-            # scale_image expects masks of shape [N, H, W]
-            masks = scale_image(masks, original_frame_shape[:2])
+            # scale_image (ultralytics) expects numpy array in (H, W, C) format for resizing
+            masks_np = masks.cpu().numpy()
+            masks_np = np.transpose(masks_np, (1, 2, 0))
+            
+            masks_np = scale_image(masks_np, original_frame_shape[:2])
+            
+            # Handle single mask case where resize might drop the channel dim
+            if len(masks_np.shape) == 2:
+                masks_np = masks_np[:, :, None]
+                
+            # Transpose back to (N, H, W)
+            masks_np = np.transpose(masks_np, (2, 0, 1))
 
             # Convert binary masks to contours
-            masks_np = masks.cpu().numpy()
-
             for i in range(len(masks_np)):
                 # mask is float in [0, 1], threshold to binary
                 m = (masks_np[i] > 0.5).astype("uint8") * 255

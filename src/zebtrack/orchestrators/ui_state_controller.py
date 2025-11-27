@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.core.weight_manager import OpenVINOExportError
 from zebtrack.ui.events import Events
 
@@ -232,13 +233,17 @@ class UIStateController:
 
         # If type cannot be determined, ask user
         if weight_type is None:
-            self.ui_event_bus.publish_event(Events.UI_REQUEST_WEIGHT_TYPE)
+            self.ui_event_bus.publish_event(
+                Events.UI_REQUEST_WEIGHT_TYPE, 
+                {"filepath": str(filepath)}
+            )
             return
 
         # Ask user what to do with the new weight
         if choice is None:
             self.ui_event_bus.publish_event(
-                Events.UI_REQUEST_WEIGHT_ACTION, {"weight_type": weight_type}
+                Events.UI_REQUEST_WEIGHT_ACTION, 
+                {"weight_type": weight_type, "filepath": str(filepath)}
             )
             return
 
@@ -319,6 +324,30 @@ class UIStateController:
     # ========================================================================
     # Group B: UI Status Updates
     # ========================================================================
+
+    def _publish_processing_mode(
+        self,
+        source: str = "unknown",
+        force: bool = False,
+        mode_override: ProcessingMode | None = None,
+    ) -> None:
+        """
+        Publish the current processing mode to the UI.
+
+        Args:
+            source: Source of the update request (for logging).
+            force: Whether to force update even if mode hasn't changed.
+            mode_override: Force a specific mode for this update.
+        """
+        if mode_override:
+            mode = mode_override
+        elif self.main_view_model and hasattr(self.main_view_model, "_active_processing_mode"):
+            mode = self.main_view_model._active_processing_mode
+        else:
+            mode = ProcessingMode.MULTI_TRACK
+
+        report = ProcessingReport(mode=mode, source=source)
+        self.ui_event_bus.publish_event(Events.UI_UPDATE_PROCESSING_MODE, {"report": report})
 
     def update_openvino_status(self, dialog=None):
         """Update the status label in the GUI based on the current state."""
