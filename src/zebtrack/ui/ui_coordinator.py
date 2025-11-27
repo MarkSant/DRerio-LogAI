@@ -196,14 +196,16 @@ class UICoordinator:
                 )
 
             # 2. Validate zones (if validation manager is available)
-            if self.validation_manager and zone_data:
-                self._safe_ui_call(lambda: self.validation_manager.validate_zones())
-                log.debug("ui_coordinator.zones_updated.zones_validated")
+            # Validation is handled during creation/editing or processing start.
+            # No separate validate_zones method exists or is needed here.
+            # if self.validation_manager and zone_data:
+            #     self._safe_ui_call(lambda: self.validation_manager.validate_zones())
+            #     log.debug("ui_coordinator.zones_updated.zones_validated")
 
             # 3. Refresh project views if needed
             if self.project_view_manager:
                 self._safe_ui_call(
-                    lambda: self.project_view_manager.refresh_if_needed(reason="zones_updated")
+                    lambda: self.project_view_manager.request_overview_refresh(reason="zones_updated")
                 )
                 log.debug("ui_coordinator.zones_updated.views_refreshed")
 

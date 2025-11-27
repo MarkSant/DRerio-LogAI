@@ -42,7 +42,7 @@ def validation_manager_mock():
 def project_view_manager_mock():
     """Fixture providing a mock ProjectViewManager."""
     mock = Mock()
-    mock.refresh_if_needed = Mock()
+    mock.request_overview_refresh = Mock()
     mock._populate_video_selector_tree = Mock()
     mock.apply_pending_readiness_snapshot = Mock()
     mock._build_video_hierarchy_snapshot = Mock()
@@ -52,6 +52,7 @@ def project_view_manager_mock():
 
 @pytest.fixture
 def dialog_manager_mock():
+
     """Fixture providing a mock DialogManager."""
     mock = Mock()
     mock.offer_zone_reuse = Mock()
@@ -137,7 +138,7 @@ def test_workflow_1_zones_updated(ui_coordinator, event_bus, canvas_manager_mock
     # Assert
     canvas_manager_mock.update_zone_listbox.assert_called_once_with(zone_data)
     validation_manager_mock.validate_zones.assert_called_once()
-    project_view_manager_mock.refresh_if_needed.assert_called_once_with(reason="zones_updated")
+    project_view_manager_mock.request_overview_refresh.assert_called_once_with(reason="zones_updated")
     assert ui_coordinator._events_handled == 1
 
 

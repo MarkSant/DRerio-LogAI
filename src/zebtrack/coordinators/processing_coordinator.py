@@ -246,8 +246,16 @@ class ProcessingCoordinator(BaseCoordinator):
             Events.PROJECT_PROCESS_VIDEOS,
             lambda data: self.process_pending_project_videos(data.get("video_paths")),
         )
+        # Auto-detect aquarium event
+        bus.subscribe(
+            Events.ZONE_AUTO_DETECT,
+            lambda data: self.run_aquarium_detection(
+                video_path=data.get("video_path"),
+                stabilization_frames=int(data.get("stabilization_frames", 10)),
+            ),
+        )
 
-        log.info("processing_coordinator.register_handlers.complete", count=2)
+        log.info("processing_coordinator.register_handlers.complete", count=3)
 
     def select_eligible_videos(
         self,
@@ -614,7 +622,11 @@ class ProcessingCoordinator(BaseCoordinator):
                 has_arena=bool(zone_data.polygon),
                 roi_count=len(zone_data.roi_polygons),
             )
-            self.project_manager.save_zone_data(zone_data, video_path)
+            self.project_manager.save_zone_data(
+                zone_data,
+                video_path,
+                persist=bool(self.project_manager.project_path),
+            )
 
         # Update detector with zones
         if self.detector:

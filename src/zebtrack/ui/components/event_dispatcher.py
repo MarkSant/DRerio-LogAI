@@ -149,6 +149,16 @@ class EventDispatcher:
         if not self.gui or not self.event_bus:
             return
 
+        # Import UIEvents to use constants
+        from zebtrack.ui.event_bus_v2 import UIEvents
+
+        # Navigation & Lifecycle
+        self.event_bus.subscribe(Events.UI_NAVIGATE_TO_WELCOME,
+            lambda d: self.gui.widget_factory.create_welcome_frame())
+        
+        self.event_bus.subscribe("project:closed",
+            lambda d: self.gui.state_synchronizer._destroy_notebook_and_main_controls())
+
         # Generic UI updates
         self.event_bus.subscribe(Events.UI_SHOW_INFO,
             lambda d: self.gui.dialog_manager.show_info(d.get("title", "Info"), d.get("message", "")))
@@ -187,6 +197,10 @@ class EventDispatcher:
             lambda d: self.gui.state_synchronizer.update_social_summary(**d))
         self.event_bus.subscribe(Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
             lambda d: self.gui.state_synchronizer.update_analysis_task_status(**d.get("payload", {})))
+        self.event_bus.subscribe(Events.UI_UPDATE_DETECTION_OVERLAY,
+            lambda d: self.gui.update_detection_overlay(
+                detections=d.get("detections"), report=d.get("report")
+            ))
 
         # Project View Updates
         self.event_bus.subscribe(Events.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,

@@ -115,6 +115,14 @@ class CanvasManager:
 
         # Draw the interactive polygon with handles
         self.renderer.draw_interactive_polygon()
+        
+        # Force a redraw after a short delay to ensure handles appear even if
+        # conflicting events (like Treeview focus) clear the canvas or interfere
+        self.gui.root.after(50, self.renderer.draw_interactive_polygon)
+
+        # Show interactive buttons in ZoneControls
+        if hasattr(self.gui, "zone_controls") and self.gui.zone_controls:
+            self.gui.zone_controls.show_interactive_buttons()
 
         log.debug("canvas_manager.setup_interactive_polygon.complete",
                   num_points=len(polygon_list))
@@ -490,6 +498,10 @@ class CanvasManager:
             self.gui.current_editing_zone = "arena"
             self.gui.set_status("Editando vértices da arena principal. Arraste os pontos amarelos.")
 
+            # Explicitly show buttons
+            if hasattr(self.gui, "zone_controls") and self.gui.zone_controls:
+                self.gui.zone_controls.show_interactive_buttons()
+
         else:
             # Edit ROI
             roi_name = zone_name.replace("📍 ", "")
@@ -516,6 +528,10 @@ class CanvasManager:
                 self.gui.set_status(
                     f"Editando vértices da ROI '{roi_name}'. Arraste os pontos amarelos."
                 )
+
+                # Explicitly show buttons
+                if hasattr(self.gui, "zone_controls") and self.gui.zone_controls:
+                    self.gui.zone_controls.show_interactive_buttons()
 
             except (ValueError, IndexError):
                 self.gui.show_error("Erro", f"ROI '{roi_name}' não encontrada.")
@@ -745,15 +761,9 @@ class CanvasManager:
     def clear_interactive_polygon(self):
         """Clear all interactive elements."""
         self.gui.video_display.canvas.delete("interactive_polygon", "handle", "suggested_polygon")
-        try:
-            if (
-                self.gui.zone_controls
-                and self.gui.zone_controls.interactive_buttons_frame
-                and self.gui.zone_controls.interactive_buttons_frame.winfo_exists()
-            ):
-                self.gui.zone_controls.interactive_buttons_frame.pack_forget()
-        except Exception:
-            pass
+        
+        if hasattr(self.gui, "zone_controls") and self.gui.zone_controls:
+            self.gui.zone_controls.hide_interactive_buttons()
 
         self.gui.interactive_polygon_item = None
         self.gui.polygon_handles = []
@@ -858,22 +868,30 @@ class CanvasManager:
         if not selected:
             return
 
-        item = controls.zone_listbox.item(selected[0])
-        roi_name = item["values"][0].replace("📍 ", "")
-
-        # Check if it's an ROI (not main arena)
-        if "Arena Principal" in item["values"][0]:
+        iid = selected[0]
+        
+        # Check if it's an ROI based on ID pattern "roi_{index}"
+        if not iid.startswith("roi_"):
             return
 
-        # Confirmation
-        confirm = self.gui.dialog_manager.confirm_remove_roi(roi_name)
+        zone_data = self.gui._get_zone_data_for_active_context()
+        
+        try:
+            # Extract index from IID (e.g. "roi_0" -> 0)
+            idx = int(iid.split("_")[1])
+            
+            # Verify index validity
+            if idx < 0 or idx >= len(zone_data.roi_names):
+                self.gui.show_error("Erro", "Índice da ROI inválido ou desincronizado.")
+                return
 
-        if confirm:
-            zone_data = self.gui._get_zone_data_for_active_context()
-            try:
-                idx = zone_data.roi_names.index(roi_name)
+            roi_name = zone_data.roi_names[idx]
 
-                # Remove from all lists
+            # Confirmation
+            confirm = self.gui.dialog_manager.confirm_remove_roi(roi_name)
+
+            if confirm:
+                # Remove from all lists using the index
                 zone_data.roi_names.pop(idx)
                 if idx < len(zone_data.roi_polygons):
                     zone_data.roi_polygons.pop(idx)
@@ -881,7 +899,9 @@ class CanvasManager:
                     zone_data.roi_colors.pop(idx)
 
                 # Persist removals
-                self.gui.controller.project_manager.save_zone_data(zone_data)
+                # Fix for single video workflow: do not persist if no project path
+                should_persist = bool(self.gui.controller.project_manager.project_path)
+                self.gui.controller.project_manager.save_zone_data(zone_data, persist=should_persist)
 
                 # Update view
                 self.redraw_zones_from_project_data()
@@ -904,5 +924,6 @@ class CanvasManager:
                         source='CanvasManager.remove_selected_roi'
                     ))
 
-            except ValueError:
-                self.gui.show_error("Erro", "ROI não encontrada")
+        except (ValueError, IndexError, AttributeError) as e:
+            log.error("canvas_manager.remove_roi.error", error=str(e))
+            self.gui.show_error("Erro", f"Falha ao remover ROI: {e}")

@@ -328,6 +328,7 @@ class MainViewModel:
         if self._use_event_bus:
             self._register_event_handlers()
             self.video_processing_orchestrator.register_event_handlers()
+            self.processing_coordinator.register_event_handlers()
 
     # ==================== Properties ====================
 

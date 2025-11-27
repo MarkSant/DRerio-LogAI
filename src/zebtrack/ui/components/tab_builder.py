@@ -87,11 +87,28 @@ class TabBuilder:
         main_pane.pack(expand=True, fill="both")
 
         # 3. Create the control panel on the left with scrollable frame
+        # Reduced weight to make it narrower by default
         left_panel_frame = ttk.Frame(main_pane, padding=5, relief="groove", borderwidth=2)
-        main_pane.add(left_panel_frame, weight=1)
+        main_pane.add(left_panel_frame, weight=1) 
 
-        # ✨ NEW: Create ZoneControlsWidget instead of inline controls
-        self.gui.zone_controls = ZoneControlsWidget(left_panel_frame, event_bus=self.gui.event_bus)
+        # 4. Create the visualization panel on the right
+        self.gui.viz_frame = ttk.Frame(main_pane, padding=5, relief="sunken", borderwidth=2)
+        main_pane.add(self.gui.viz_frame, weight=4)
+
+        # Create containers for relocated controls (Top and Bottom of viz frame)
+        self.gui.viz_top_container = ttk.Frame(self.gui.viz_frame)
+        self.gui.viz_top_container.pack(side="top", fill="x", pady=(0, 5))
+
+        self.gui.viz_bottom_container = ttk.Frame(self.gui.viz_frame)
+        self.gui.viz_bottom_container.pack(side="bottom", fill="x", pady=(5, 0))
+
+        # Update ZoneControlsWidget to accept these containers
+        self.gui.zone_controls = ZoneControlsWidget(
+            left_panel_frame,
+            event_bus=self.gui.event_bus,
+            template_actions_parent=self.gui.viz_bottom_container,
+            drawing_actions_parent=self.gui.viz_top_container
+        )
         self.gui.zone_controls.pack(fill="both", expand=True)
 
         # Keep legacy attributes in sync with the new component state
@@ -99,15 +116,11 @@ class TabBuilder:
         self.gui.zone_controls_frame = self.gui.zone_controls.zone_controls_frame
         self.gui.fixed_button_frame = self.gui.zone_controls.fixed_button_frame
 
-        # 4. Create the visualization panel on the right
-        self.gui.viz_frame = ttk.Frame(main_pane, padding=5, relief="sunken", borderwidth=2)
-        main_pane.add(self.gui.viz_frame, weight=4)
-
         def _on_pane_configure(event=None):
             try:
                 current_pos = main_pane.sashpos(0)
-                if current_pos < 600:
-                    main_pane.sashpos(0, 600)
+                if current_pos < 550:  # Further increased min width
+                    main_pane.sashpos(0, 550)
             except Exception:
                 pass
 
@@ -132,7 +145,8 @@ class TabBuilder:
         def _set_initial_sash():
             try:
                 main_pane.update_idletasks()
-                main_pane.sashpos(0, 640)
+                # Set sash position to a wider default (e.g., 600px)
+                main_pane.sashpos(0, 600)
             except Exception:
                 pass
 

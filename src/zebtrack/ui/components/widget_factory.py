@@ -232,12 +232,15 @@ class WidgetFactory:
             'redo': lambda: self.gui.drawing_state_manager.redo()
         }
 
+        # Use video_display as parent to position buttons over the video, avoiding toolbar overlap
+        parent = self.gui.video_display if hasattr(self.gui, "video_display") else self.gui.viz_frame
+
         self.gui._drawing_buttons_frame = ButtonFactory.create_floating_drawing_buttons(
-            self.gui.viz_frame,
+            parent,
             commands
         )
 
-        # Position the frame in top-right corner of canvas
+        # Position the frame in top-right corner of the video area
         self.gui._drawing_buttons_frame.place(relx=1.0, rely=0.0, anchor="ne", x=-10, y=10)
 
     def create_progress_grid_tab(self):
@@ -1108,61 +1111,23 @@ class WidgetFactory:
         return result[0]
 
     def update_roi_rule_ui(self, rule: str) -> None:
-        """Handle ROI inclusion rule change and update UI accordingly."""
-        # Hide all parameter frames first (only if they exist)
+        """Handle ROI inclusion rule change and update UI accordingly (Legacy/ConfigEditor)."""
+        # This handles updates for the ConfigEditorWidget (Global Settings Tab)
+        # ZoneControlsWidget handles its own UI updates internally.
+        
+        # Hide all parameter frames first (only if they exist in GUI root scope)
         if hasattr(self.gui, "radius_frame") and self.gui.radius_frame:
             self.gui.radius_frame.pack_forget()
         if hasattr(self.gui, "overlap_frame") and self.gui.overlap_frame:
             self.gui.overlap_frame.pack_forget()
 
-        # Show appropriate parameters and help text based on rule
-        if rule == "centroid_in":
-            help_text = (
-                "Considera dentro quando o centróide do animal está dentro do "
-                "polígono da ROI. Simples e rápido; pode perder entradas parciais "
-                "(ex.: cabeça entra primeiro)."
-            )
-
-        elif rule == "centroid_in_on_buffered_roi":
+        # Show appropriate parameters based on rule (Legacy logic for ConfigEditor fallback)
+        if rule == "centroid_in_on_buffered_roi":
             if hasattr(self.gui, "radius_frame") and self.gui.radius_frame:
                 self.gui.radius_frame.pack(fill="x", pady=2)
-            help_text = (
-                "Igual ao centróide, porém com ROI dilatada por r para capturar "
-                "entradas parciais (ex.: cabeça). r em cm se houver calibração; "
-                "senão em px."
-            )
-
-        elif rule == "bbox_intersects":
+        elif rule in ("bbox_intersects", "seg_overlap"):
             if hasattr(self.gui, "overlap_frame") and self.gui.overlap_frame:
                 self.gui.overlap_frame.pack(fill="x", pady=2)
-            if hasattr(self.gui, "overlap_help_label") and self.gui.overlap_help_label:
-                self.gui.overlap_help_label.config(
-                    text="A detecção é considerada dentro da ROI quando a fração de "
-                    "área do bbox contida na ROI atinge este valor."
-                )
-            help_text = (
-                "Considera dentro quando o retângulo do animal (bbox) sobrepõe a "
-                "ROI ao menos pela fração definida. Captura entradas parciais; "
-                "pode superestimar em bordas."
-            )
-
-        elif rule == "seg_overlap":
-            if hasattr(self.gui, "overlap_frame") and self.gui.overlap_frame:
-                self.gui.overlap_frame.pack(fill="x", pady=2)
-            if hasattr(self.gui, "overlap_help_label") and self.gui.overlap_help_label:
-                self.gui.overlap_help_label.config(
-                    text="Requer dados de máscara. Se não houver, selecione outra regra."
-                )
-            help_text = (
-                "Considera dentro com base na sobreposição da máscara do animal com "
-                "a ROI. Requer segmentação; mais preciso e mais custoso."
-            )
-
-        else:
-            help_text = ""
-
-        if hasattr(self.gui, "rule_help_label") and self.gui.rule_help_label:
-            self.gui.rule_help_label.config(text=help_text)
 
     def display_welcome_logo(self):
         """Display the DRerio LogAI logo in the welcome frame."""

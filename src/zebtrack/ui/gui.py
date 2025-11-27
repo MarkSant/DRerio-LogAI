@@ -188,6 +188,23 @@ class ApplicationGUI:
         # Create menu bar
         self.menu_manager.create_menu_bar()
 
+        # --- Legacy Attributes (Shim Layer for Components) ---
+        # These attributes are initialized here to prevent AttributeErrors in components
+        # that still access them directly on the GUI object.
+        self.edited_polygon_points = []
+        self.interactive_polygon_item = None
+        self.polygon_handles = []
+        self.current_editing_zone = None
+        self._dragged_handle_index = None
+        self._drag_offset = (0, 0)
+        self._drag_start_mouse = (0, 0)
+        self._original_image = None
+        self._raw_bg_image = None
+        self._roi_templates_cache = []
+        self.roi_choice_var = StringVar(value="none")
+        self.video_path = None
+        # -----------------------------------------------------
+
         # Dynamic widgets / state variables
         self.zone_summary_frame: ttk.LabelFrame | None = None
         self.zone_summary_cards: dict[str, dict[str, StringVar]] = {}
@@ -283,7 +300,7 @@ class ApplicationGUI:
         # View toggle state for analysis/zone switching
         self.canvas_view_mode = "zones"  # "zones" or "analysis"
         self.analysis_active = False
-        # toggle_view_btn is now a @property that delegates to zone_controls
+        
         self.start_rec_btn: Button | None = None
         self.stop_rec_btn: Button | None = None
         self.process_video_btn: ttk.Button | None = None
@@ -511,11 +528,6 @@ class ApplicationGUI:
             self.canvas_view_mode = (
                 "analysis" if analysis_tab_id and current_tab == analysis_tab_id else "zones"
             )
-            if self.toggle_view_btn:
-                if current_tab == analysis_tab_id:
-                    self.toggle_view_btn.config(text="Ver Configuração de Zonas")
-                else:
-                    self.toggle_view_btn.config(text="Ver Análise em Progresso")
 
     def _create_main_control_frame(self):
         """Create the main UI with tabs for controlling the app."""
@@ -805,9 +817,33 @@ class ApplicationGUI:
         self.project_view_manager._populate_video_selector_tree(filter_text=None)
 
     def _on_apply_roi_settings(self, params: dict | None = None) -> None:
-        """Apply ROI settings. Delegates to controller."""
-        if params and self.controller:
-            self.controller.update_detector_parameters(params)
+        """Apply ROI settings.
+
+        If params are provided (via EventBus), applies them directly.
+        If params are None (via legacy UI button), reads from UI variables.
+        """
+        try:
+            # Case 1: Params provided via Event (e.g. from ConfigEditor or EventDispatcher)
+            if params:
+                if self.controller:
+                    self.controller.update_detector_parameters(params)
+                return
+
+            # Case 2: No params (Legacy UI interaction) - Read from StringVars
+            self.controller.settings.roi_inclusion_rule = self.roi_inclusion_rule_var.get()
+            self.controller.settings.roi_buffer_radius_value = float(self.roi_buffer_radius_var.get())
+            self.controller.settings.roi_min_bbox_overlap_ratio = float(self.roi_overlap_ratio_var.get())
+
+            if self.controller.project_manager.project_path:
+                self.controller.project_manager._save_settings_snapshot()
+
+            self.show_info("Sucesso", "Configurações de ROI aplicadas.")
+
+        except ValueError:
+            self.show_error("Erro", "Valores inválidos para parâmetros de ROI.")
+        except Exception as e:
+            log.error("gui.apply_roi_settings.error", error=str(e))
+            self.show_error("Erro", f"Falha ao aplicar configurações: {str(e)}")
 
 
 
@@ -1303,6 +1339,11 @@ class ApplicationGUI:
             },
         )
 
+    def _clear_interactive_polygon(self):
+        """Delegate clearing interactive polygon to CanvasManager."""
+        if hasattr(self, "canvas_manager"):
+            self.canvas_manager.clear_interactive_polygon()
+
     def _on_start_single_video_processing_clicked(self):
         """Handle the 'Start Analysis' button in the single video flow."""
         # If the user was editing a polygon, prompt for confirmation before saving.
@@ -1402,9 +1443,6 @@ class ApplicationGUI:
         self.canvas_view_mode = "analysis"
         self.notebook.select(self.analysis_tab_frame)
 
-        if self.zone_controls and self.zone_controls.toggle_view_btn:
-            self.zone_controls.toggle_view_btn.config(text="Ver Configuração de Zonas")
-
     def _switch_to_zones_view(self):
         """Switch to zone drawing view."""
         if not self.notebook or not self.zone_tab_frame:
@@ -1412,9 +1450,6 @@ class ApplicationGUI:
 
         self.canvas_view_mode = "zones"
         self.notebook.select(self.zone_tab_frame)
-
-        if self.zone_controls and self.zone_controls.toggle_view_btn:
-            self.zone_controls.toggle_view_btn.config(text="Ver Análise em Progresso")
 
     def start_analysis_view_mode(self):
         """Start analysis - immediately switch to analysis view and enable toggle."""
@@ -1425,8 +1460,6 @@ class ApplicationGUI:
         self.state_synchronizer._set_analysis_metadata_defaults()
         self._reset_analysis_controls()
         self.show_progress_bar()
-        if self.zone_controls and self.zone_controls.toggle_view_btn:
-            self.zone_controls.toggle_view_btn.config(state="normal")
         if self.analysis_display_widget:
             self.analysis_display_widget.enable_cancel_button()
         self._switch_to_analysis_view()
@@ -1434,8 +1467,6 @@ class ApplicationGUI:
     def stop_analysis_view_mode(self):
         """Stop analysis - disable toggle and return to zones view."""
         self.analysis_active = False
-        if self.zone_controls and self.zone_controls.toggle_view_btn:
-            self.zone_controls.toggle_view_btn.config(state="disabled")
         if self.analysis_display_widget:
             self.analysis_display_widget.disable_cancel_button()
         self.hide_progress_bar()
@@ -1715,45 +1746,6 @@ class ApplicationGUI:
         """Discard arena changes."""
         self.canvas_manager.discard_arena()
 
-    def _on_apply_roi_settings(self):
-        """Apply ROI settings."""
-        # Save settings logic
-        try:
-            self.controller.settings.roi_inclusion_rule = self.roi_inclusion_rule_var.get()
-            self.controller.settings.roi_buffer_radius_value = float(self.roi_buffer_radius_var.get())
-            self.controller.settings.roi_min_bbox_overlap_ratio = float(self.roi_overlap_ratio_var.get())
-            
-            if self.controller.project_manager.project_path:
-                self.controller.project_manager._save_settings_snapshot()
-            
-            self.show_info("Sucesso", "Configurações de ROI aplicadas.")
-        except ValueError:
-            self.show_error("Erro", "Valores inválidos para parâmetros de ROI.")
-
-    # ROI Template Delegates
-    def _on_template_combobox_changed(self, event=None):
-        self.roi_template_manager.on_template_combobox_changed(event)
-
-    def _on_apply_roi_template(self):
-        self.roi_template_manager.apply_selected_template()
-
-    def _on_save_roi_template(self):
-        self.roi_template_manager.save_current_as_template()
-
-    def _on_import_and_apply_roi_template(self):
-        self.roi_template_manager.import_template()
-
-    def _on_delete_roi_template(self):
-        self.roi_template_manager.delete_selected_template()
-
-    def _on_drawing_undo(self, _event=None):
-        """Undo the last drawing action."""
-        self.drawing_state_manager.undo()
-
-    def _on_drawing_redo(self, _event=None):
-        """Redo the last undone drawing action."""
-        self.drawing_state_manager.redo()
-
     def _create_drawing_buttons(self):
         """Create drawing buttons. Delegates to WidgetFactory."""
         self.widget_factory.create_drawing_buttons()
@@ -1855,6 +1847,40 @@ class ApplicationGUI:
                     source="ApplicationGUI.publish_video_hierarchy_snapshot",
                 )
             )
+
+    # --- Legacy Methods (Shim Layer for Components) ---
+    # These methods delegate to the appropriate managers to support components
+    # that still call them on the GUI object.
+
+    def _refresh_zone_indicators(self):
+        """Delegate to canvas manager to redraw zones."""
+        if hasattr(self, "canvas_manager"):
+            self.canvas_manager.redraw_zones_from_project_data()
+
+    def _enable_roi_button_if_arena_exists(self):
+        """Delegate to canvas manager to update ROI button state."""
+        if hasattr(self, "canvas_manager"):
+            self.canvas_manager.update_roi_button_state()
+
+    def _maybe_offer_zone_reuse(self, video_path):
+        """Delegate to dialog manager to offer zone reuse."""
+        if hasattr(self, "dialog_manager"):
+            self.dialog_manager.offer_zone_reuse(video_path)
+
+    def _on_handle_press(self, event, handle_index):
+        """Delegate to canvas event handler."""
+        if hasattr(self, "canvas_manager") and self.canvas_manager.event_handler:
+            self.canvas_manager.event_handler.on_handle_press(event, handle_index)
+
+    def _on_handle_drag(self, event):
+        """Delegate to canvas event handler."""
+        if hasattr(self, "canvas_manager") and self.canvas_manager.event_handler:
+            self.canvas_manager.event_handler.on_handle_drag(event)
+
+    def _on_handle_release(self, event):
+        """Delegate to canvas event handler."""
+        if hasattr(self, "canvas_manager") and self.canvas_manager.event_handler:
+            self.canvas_manager.event_handler.on_handle_release(event)
 
 if __name__ == "__main__":
     # Using print is fine here as it's for direct execution feedback
