@@ -605,6 +605,205 @@ class Reporter:
             document.add_paragraph(_("No ROI entry or exit events were recorded."))
         progress_callback(9 / total_steps, _("Event log added"))
 
+    def export_interactive_html_report(self, output_path: Path | str) -> None:
+        """
+        Generate interactive HTML report with Plotly visualizations.
+
+        IMPROVEMENT #4: Creates a standalone HTML file with interactive,
+        zoomable plots that can be shared via email or web hosting.
+
+        Features:
+        - Interactive trajectory plot with velocity colormap
+        - Velocity over time with freezing episodes highlighted
+        - ROI occupancy bar chart
+        - Hoverable tooltips with detailed information
+        - Export to PNG button on each plot
+
+        Args:
+            output_path: Output file path for the HTML report
+        """
+        try:
+            import plotly.graph_objects as go
+            from plotly.subplots import make_subplots
+        except ImportError:
+            log.error(
+                "reporter.plotly_not_installed",
+                message="Plotly is required for interactive HTML reports. "
+                "Install with: pip install plotly",
+            )
+            raise ImportError(
+                "Plotly is not installed. Run: pip install plotly"
+            )
+
+        output_path = Path(output_path) if isinstance(output_path, str) else output_path
+
+        # Ensure we have necessary data
+        if self.behavior_analyzer is None:
+            raise ValueError("BehaviorAnalyzer not available. Cannot generate HTML report.")
+
+        trajectory_df = self.behavior_analyzer.trajectory_data
+
+        # Create subplots
+        fig = make_subplots(
+            rows=2,
+            cols=2,
+            subplot_titles=(
+                "Trajectory (Color = Velocity)",
+                "Velocity Over Time",
+                "ROI Time Spent",
+                "Freezing Episodes",
+            ),
+            specs=[
+                [{"type": "scatter"}, {"type": "scatter"}],
+                [{"type": "bar"}, {"type": "scatter"}],
+            ],
+            vertical_spacing=0.12,
+            horizontal_spacing=0.1,
+        )
+
+        # 1. Trajectory plot (top-left)
+        if "x_cm" in trajectory_df.columns and "y_cm" in trajectory_df.columns:
+            velocity = self.behavior_analyzer.calculate_velocity()
+            fig.add_trace(
+                go.Scatter(
+                    x=trajectory_df["x_cm"],
+                    y=trajectory_df["y_cm"],
+                    mode="lines+markers",
+                    name="Trajectory",
+                    marker=dict(
+                        size=4,
+                        color=velocity,
+                        colorscale="Viridis",
+                        colorbar=dict(title="Velocity (cm/s)", x=0.46),
+                        showscale=True,
+                    ),
+                    line=dict(width=1),
+                    hovertemplate="<b>Position</b><br>X: %{x:.2f} cm<br>Y: %{y:.2f} cm<br>"
+                    + "Velocity: %{marker.color:.2f} cm/s<extra></extra>",
+                ),
+                row=1,
+                col=1,
+            )
+            fig.update_xaxis(title_text="X Position (cm)", row=1, col=1)
+            fig.update_yaxis(title_text="Y Position (cm)", row=1, col=1)
+
+        # 2. Velocity over time (top-right)
+        velocity_ts = self.behavior_analyzer.calculate_velocity()
+        time_seconds = trajectory_df.index.to_numpy() / self.fps
+        fig.add_trace(
+            go.Scatter(
+                x=time_seconds,
+                y=velocity_ts,
+                mode="lines",
+                name="Velocity",
+                line=dict(color="blue", width=1.5),
+                hovertemplate="<b>Velocity</b><br>Time: %{x:.2f} s<br>"
+                + "Speed: %{y:.2f} cm/s<extra></extra>",
+            ),
+            row=1,
+            col=2,
+        )
+
+        # Add freezing threshold line
+        freezing_threshold = self.freezing_threshold or 1.5
+        fig.add_hline(
+            y=freezing_threshold,
+            line_dash="dash",
+            line_color="red",
+            annotation_text=f"Freezing Threshold ({freezing_threshold} cm/s)",
+            row=1,
+            col=2,
+        )
+
+        fig.update_xaxis(title_text="Time (seconds)", row=1, col=2)
+        fig.update_yaxis(title_text="Velocity (cm/s)", row=1, col=2)
+
+        # 3. ROI time spent (bottom-left)
+        if self.roi_analyzer is not None:
+            roi_time = self.roi_analyzer.get_time_spent_in_rois()
+            if roi_time:
+                roi_names = list(roi_time.keys())
+                roi_values = [roi_time[name] for name in roi_names]
+
+                fig.add_trace(
+                    go.Bar(
+                        x=roi_names,
+                        y=roi_values,
+                        name="ROI Time",
+                        marker=dict(color="lightblue"),
+                        hovertemplate="<b>%{x}</b><br>Time: %{y:.2f} s<extra></extra>",
+                    ),
+                    row=2,
+                    col=1,
+                )
+                fig.update_xaxis(title_text="ROI Name", row=2, col=1)
+                fig.update_yaxis(title_text="Time Spent (seconds)", row=2, col=1)
+
+        # 4. Freezing episodes (bottom-right)
+        freezing_episodes = self.behavior_analyzer.detect_freezing_episodes(
+            velocity_threshold=freezing_threshold,
+            min_duration_s=self.freezing_duration or 1.0,
+        )
+
+        if not freezing_episodes.empty:
+            # Plot freezing episodes as scatter points
+            freeze_times = freezing_episodes["start_frame"].to_numpy() / self.fps
+            freeze_durations = freezing_episodes["duration_s"].to_numpy()
+
+            fig.add_trace(
+                go.Scatter(
+                    x=freeze_times,
+                    y=freeze_durations,
+                    mode="markers",
+                    name="Freezing Episodes",
+                    marker=dict(size=10, color="red", symbol="circle"),
+                    hovertemplate="<b>Freezing Episode</b><br>Start: %{x:.2f} s<br>"
+                    + "Duration: %{y:.2f} s<extra></extra>",
+                ),
+                row=2,
+                col=2,
+            )
+            fig.update_xaxis(title_text="Time (seconds)", row=2, col=2)
+            fig.update_yaxis(title_text="Duration (seconds)", row=2, col=2)
+
+        # Update layout
+        metadata = self.metadata or {}
+        experiment_id = metadata.get("experiment_id", "Unknown")
+        subject_id = metadata.get("subject_id", "Unknown")
+
+        fig.update_layout(
+            title_text=f"Interactive Analysis Report - {experiment_id} (Subject: {subject_id})",
+            title_font_size=20,
+            showlegend=False,
+            height=900,
+            width=1400,
+            hovermode="closest",
+        )
+
+        # Export as standalone HTML
+        html_path = str(output_path).replace(".html", "") + ".html"
+        fig.write_html(
+            html_path,
+            config={
+                "displayModeBar": True,
+                "toImageButtonOptions": {
+                    "format": "png",
+                    "filename": f"report_{experiment_id}",
+                    "height": 900,
+                    "width": 1400,
+                    "scale": 2,
+                },
+                "modeBarButtonsToAdd": ["hoverclosest", "hovercompare"],
+            },
+            include_plotlyjs="cdn",  # Use CDN for smaller file size
+        )
+
+        log.info(
+            "reporter.interactive_html_exported",
+            path=html_path,
+            experiment_id=experiment_id,
+        )
+
     @staticmethod
     def export_project_report(aggregated_df: pd.DataFrame, output_path: Path | str):
         """Export aggregated project report with comparative analysis.

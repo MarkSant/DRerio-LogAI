@@ -508,22 +508,29 @@ class DetectorCoordinator(BaseCoordinator):
             )
 
             if success:
-                # Update state with all parameters
+                # Update state with filtered parameters
                 state_update = {
                     "detector_parameters_updated": True,
-                    "last_update_scope": scope,
+                    # Store scope if you want to track it in generic state, but verify model support
+                    # "last_update_scope": scope, 
                 }
-                # Add all params to state
+                
+                # Map and filter params for state update
+                # Valid keys from DetectorState: conf_threshold, track_threshold, match_threshold, track_buffer
+                valid_state_keys = {"conf_threshold", "track_threshold", "match_threshold", "track_buffer"}
+                
                 for key, value in params.items():
-                    state_update[key] = value
+                    # Map confidence_threshold to conf_threshold
+                    if key == "confidence_threshold":
+                        state_update["conf_threshold"] = value
+                    elif key in valid_state_keys:
+                        state_update[key] = value
+                    # Ignore other keys for state update to avoid warnings
 
                 self._update_state(StateCategory.DETECTOR, **state_update)
 
-                # Publish success event
-                self._publish_event(
-                    "DETECTOR_PARAMETERS_UPDATED",
-                    {"params": params, "scope": scope, "reset_overrides": reset_overrides},
-                )
+                # State update is sufficient - no need for event publication
+                # (StateManager already notifies subscribers via state change callbacks)
 
                 log.info(
                     "detector_coordinator.update_detector_parameters.success",
@@ -594,8 +601,8 @@ class DetectorCoordinator(BaseCoordinator):
                 tracking_state_reset=True,
             )
 
-            # Publish success event
-            self._publish_event("TRACKING_STATE_RESET", {})
+            # State update is sufficient - no need for event publication
+            # (StateManager already notifies subscribers via state change callbacks)
 
             log.info("detector_coordinator.reset_tracking_state.success")
             return True

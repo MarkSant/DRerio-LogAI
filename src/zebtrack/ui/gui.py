@@ -360,9 +360,19 @@ class ApplicationGUI:
         controller's state availability.
         """
         try:
-            self.set_active_weight_in_dropdown(self.controller.hardware_vm.active_weight_name)
-            self.update_openvino_checkbox(self.controller.hardware_vm.use_openvino)
-            self.update_openvino_status_display(self.controller.hardware_vm.get_openvino_status())
+            # Prefer hardware_vm if available (post-init), else fallback to controller attrs (bootstrap)
+            if hasattr(self.controller, "hardware_vm"):
+                active_weight = self.controller.hardware_vm.active_weight_name
+                use_openvino = self.controller.hardware_vm.use_openvino
+                ov_status = self.controller.hardware_vm.get_openvino_status()
+            else:
+                active_weight = getattr(self.controller, "active_weight_name", None)
+                use_openvino = getattr(self.controller, "use_openvino", False)
+                ov_status = getattr(self.controller, "get_openvino_status", lambda: "Desconhecido")()
+
+            self.set_active_weight_in_dropdown(active_weight)
+            self.update_openvino_checkbox(use_openvino)
+            self.update_openvino_status_display(ov_status)
         except Exception:
             log.warning("gui.post_init.controller_sync_failed", exc_info=True)
 

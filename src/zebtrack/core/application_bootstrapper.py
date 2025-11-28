@@ -195,8 +195,8 @@ class ApplicationBootstrapper:
 
         # Hardware from step 2/deps
         controller_proxy.detector = self.deps.detector_service.detector
-        controller_proxy.active_weight_name = self._hardware_state["active_weight_name"]
-        controller_proxy.use_openvino = self._hardware_state["use_openvino"]
+        # Note: active_weight_name and use_openvino are passed via BootstrapResult
+        # and assigned in MainViewModel.__init__() to avoid premature assignment
 
         # Runtime state from step 3
         controller_proxy.cancel_event = self._runtime_state["cancel_event"]

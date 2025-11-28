@@ -535,7 +535,7 @@ class VideoProcessingOrchestrator:
 
         video_name = os.path.splitext(os.path.basename(video_path))[0]
         output_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_results")
-        self.main_view_model._prepare_results_directory(output_dir)
+        self.main_view_model.video_processing_service._prepare_results_directory(output_dir)
 
         # 3. Create and start the processing worker
         self.cancel_event.clear()

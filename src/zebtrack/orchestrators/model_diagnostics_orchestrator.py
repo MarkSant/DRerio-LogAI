@@ -181,7 +181,7 @@ class ModelDiagnosticsOrchestrator:
 
         # --- Launch background thread ---
         self.cancel_event.clear()
-        self.main_view_model._publish_processing_mode(
+        self.ui_state_controller._publish_processing_mode(
             source="diagnostic.start",
             force=True,
             mode_override=ProcessingMode.SINGLE_SUBJECT,
@@ -243,7 +243,7 @@ class ModelDiagnosticsOrchestrator:
                 {"title": "Erro ao Carregar Modelo", "message": f"Falha: {e}"},
             )
         finally:
-            self.main_view_model._publish_processing_mode(
+            self.ui_state_controller._publish_processing_mode(
                 source="diagnostic.thread_exit",
                 force=True,
             )
@@ -501,7 +501,7 @@ class ModelDiagnosticsOrchestrator:
                     },
                 )
 
-        self.main_view_model._publish_processing_mode(
+        self.ui_state_controller._publish_processing_mode(
             source="diagnostic.complete",
             force=True,
         )

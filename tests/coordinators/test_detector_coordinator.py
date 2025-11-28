@@ -576,18 +576,6 @@ class TestTrackingState:
         call_args = mock_state_manager.update_state.call_args[1]
         assert call_args["tracking_state_reset"] is True
 
-    def test_reset_tracking_state_publishes_event(
-        self,
-        detector_coordinator,
-        mock_event_bus,
-    ):
-        """Test that reset_tracking_state publishes event."""
-        detector_coordinator.reset_tracking_state()
-
-        mock_event_bus.publish_event.assert_called()
-        call_args = mock_event_bus.publish_event.call_args[0]
-        assert call_args[0] == "TRACKING_STATE_RESET"
-
     def test_reset_tracking_state_service_raises_exception(
         self,
         detector_coordinator,

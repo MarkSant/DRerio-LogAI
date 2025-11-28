@@ -172,7 +172,7 @@ class UIStateController:
                 Events.UI_UPDATE_WEIGHTS_LIST,
                 {"weights": self.main_view_model.get_all_weight_names()},
             )
-            default_name, _ = self.main_view_model._safe_get_default_weight()
+            default_name, _ = self.weight_manager.get_default_weight()
             self.ui_event_bus.publish_event(
                 Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": default_name}
             )
@@ -195,7 +195,9 @@ class UIStateController:
         available = set(self.main_view_model.get_all_weight_names())
 
         if candidate and candidate in available:
+            # Property delegates to hardware_vm automatically
             self.main_view_model.active_weight_name = candidate
+
             logger.info("controller.active_weight.set", name=candidate)
             self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": candidate})
             self.update_openvino_status(dialog)
@@ -204,13 +206,16 @@ class UIStateController:
         else:
             if candidate:
                 logger.warning("controller.active_weight.not_found", name=name)
+            # Property delegates to hardware_vm automatically
             self.main_view_model.active_weight_name = ""
+
             self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": ""})
             self.update_openvino_status(dialog)
 
         if not self.main_view_model._using_project_overrides:
-            self.main_view_model._update_global_model_defaults(
-                active_weight=self.main_view_model.active_weight_name
+            self.project_workflow_service.set_global_model_defaults(
+                active_weight=self.main_view_model.active_weight_name,
+                use_openvino=self.main_view_model.use_openvino
             )
 
     def load_new_weight(
@@ -229,7 +234,8 @@ class UIStateController:
         # Classify weight type by filename
         filename = os.path.basename(filepath)
         if weight_type is None:
-            weight_type = self.main_view_model.classify_weight_type(filename)
+            # Use WeightManager's internal classifier or default to 'seg' if fails
+            weight_type = self.weight_manager._classify_weight_type(filename)
 
         # If type cannot be determined, ask user
         if weight_type is None:
@@ -274,7 +280,8 @@ class UIStateController:
         self.update_openvino_status(dialog)
 
         if not self.main_view_model._using_project_overrides:
-            self.main_view_model._update_global_model_defaults(
+            self.project_workflow_service.set_global_model_defaults(
+                active_weight=self.main_view_model.active_weight_name,
                 use_openvino=self.main_view_model.use_openvino
             )
 

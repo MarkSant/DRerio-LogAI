@@ -5,10 +5,10 @@ This module implements the background processing logic for video analysis,
 bypassing the GIL by using multiprocessing.Process.
 
 Architecture:
-    - ProcessingWorker: A multiprocessing.Process subclass.
-    - Input: Accepts configuration and tasks via constructor (batch mode).
-    - Output: Sends status, progress, and frames via multiprocessing.Queue.
-    - Isolation: Initializes its own Detector and Recorder instances.
+    - ProcessingWorker: A wrapper class that manages the process and callbacks.
+    - _WorkerProcess: The actual multiprocessing.Process subclass.
+    - ProcessingContext: Configuration passed from Coordinator.
+    - ProcessingCallbacks: Callbacks to update UI/State in main process.
 """
 
 from __future__ import annotations
@@ -18,9 +18,10 @@ import os
 import time
 import traceback
 import queue
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -28,17 +29,43 @@ import structlog
 
 from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.io.recorder import Recorder
-from zebtrack.settings import Settings
+# Settings is used at runtime in WorkerConfig
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
 
-# Configure logging for the worker process
-# Note: In a real production app, you might want to configure a queue listener
-# for logs to centralize them, but for now we'll just let them print/log to stderr/file.
 log = structlog.get_logger()
+
+@dataclass
+class ProcessingContext:
+    """Context for processing, passed from Coordinator."""
+    videos_to_process: list[dict]
+    output_base_dir: str
+    cancel_event: threading.Event
+    settings: Any  # Settings object
+    single_video_config: dict | None = None
+    zone_data: Any = None  # ZoneData object or dict
+    analysis_interval_frames: int = 10
+    display_interval_frames: int = 10
+    process_single_video_func: Callable | None = None
+    apply_project_settings_func: Callable | None = None
+    determine_intervals_func: Callable | None = None
+    retry_strategy: str = "stop"
+
+@dataclass
+class ProcessingCallbacks:
+    """Callbacks for processing events."""
+    on_started: Callable[[], None]
+    on_progress: Callable[[float, str, dict | None], None]
+    on_frame_processed: Callable[[Any, Any, Any], None]
+    on_video_completed: Callable[[int, int, str, bool], None]
+    on_error: Callable[[Exception, str], None]
+    on_completed: Callable[[bool, str, dict | None], None]
+    on_fatal_error: Callable[[Exception, str, dict], None]
 
 @dataclass
 class WorkerConfig:
     """Configuration passed to the worker process."""
-    settings: Settings
+    settings: Any
     output_base_dir: str
     tasks: list[dict]  # List of video info dicts
     single_video_mode: bool = False
@@ -48,8 +75,133 @@ class WorkerConfig:
     model_type: str = "yolo"  # 'yolo' or 'openvino'
     zone_data: dict | None = None # serialized ZoneData
 
+class ProcessingWorker:
+    """
+    Wrapper class that manages the worker process and bridges 
+    multiprocessing queues to thread-safe callbacks.
+    """
 
-class ProcessingWorker(multiprocessing.Process):
+    def __init__(self, context: ProcessingContext, callbacks: ProcessingCallbacks):
+        self.context = context
+        self.callbacks = callbacks
+        self.result_queue = multiprocessing.Queue()
+        self.command_queue = multiprocessing.Queue()
+        self.process = None
+
+    def start_in_thread(self) -> threading.Thread:
+        """Start the worker process and the monitoring thread."""
+        
+        # Prepare zone data dictionary
+        z_data = self.context.zone_data
+        z_dict = None
+        if z_data:
+            if isinstance(z_data, dict):
+                z_dict = z_data
+            else:
+                # Serialize ZoneData object
+                z_dict = {
+                    "polygon": getattr(z_data, "polygon", []),
+                    "roi_polygons": getattr(z_data, "roi_polygons", []),
+                    "roi_names": getattr(z_data, "roi_names", []),
+                    "roi_colors": getattr(z_data, "roi_colors", []),
+                }
+
+        # Create WorkerConfig
+        config = WorkerConfig(
+            settings=self.context.settings,
+            output_base_dir=self.context.output_base_dir,
+            tasks=self.context.videos_to_process,
+            single_video_mode=bool(self.context.single_video_config),
+            analysis_interval_frames=self.context.analysis_interval_frames,
+            display_interval_frames=self.context.display_interval_frames,
+            zone_data=z_dict,
+            # Model path logic inside _WorkerProcess will handle defaults
+        )
+
+        self.process = _WorkerProcess(config, self.result_queue, self.command_queue)
+        self.process.start()
+
+        monitor_thread = threading.Thread(target=self._monitor_loop, name="ProcessingMonitor")
+        monitor_thread.daemon = True
+        monitor_thread.start()
+        return monitor_thread
+
+    def _monitor_loop(self):
+        """Monitor results from the worker process."""
+        self.callbacks.on_started()
+
+        while True:
+            # Forward cancellation
+            if self.context.cancel_event.is_set():
+                self.command_queue.put("cancel")
+
+            try:
+                # Poll queue
+                try:
+                    msg = self.result_queue.get(timeout=0.1)
+                except queue.Empty:
+                    if self.process and not self.process.is_alive():
+                        break
+                    continue
+
+                msg_type = msg.get("type")
+
+                if msg_type == "progress":
+                    self.callbacks.on_progress(
+                        msg["fraction"], 
+                        msg["message"], 
+                        msg.get("stats")
+                    )
+                
+                elif msg_type == "frame":
+                    # Pass frame to callback
+                    self.callbacks.on_frame_processed(
+                        msg["frame"], 
+                        None, # Detections (not passed in this simple msg yet)
+                        None  # Info
+                    )
+
+                elif msg_type == "video_completed":
+                    self.callbacks.on_video_completed(
+                        msg["index"],
+                        0, # Total not always passed back in this msg
+                        msg["experiment_id"],
+                        msg["success"]
+                    )
+
+                elif msg_type == "completed":
+                    self.callbacks.on_completed(
+                        msg.get("cancelled", False),
+                        self.context.output_base_dir
+                    )
+                    break
+
+                elif msg_type == "error":
+                    self.callbacks.on_error(
+                        Exception(msg["error"]), 
+                        msg.get("experiment_id", "unknown")
+                    )
+
+                elif msg_type == "fatal_error":
+                    self.callbacks.on_fatal_error(
+                        Exception(msg["error"]),
+                        "Fatal Worker Error",
+                        {"affected_videos": []}
+                    )
+                    break
+
+            except Exception as e:
+                log.error("worker.monitor_loop_error", error=str(e))
+                break
+
+        if self.process:
+            self.process.join(timeout=2.0)
+            if self.process.is_alive():
+                log.warning("worker.process.force_terminate")
+                self.process.terminate()
+
+
+class _WorkerProcess(multiprocessing.Process):
     """
     Worker process that runs video processing in a separate memory space.
     """
@@ -60,14 +212,6 @@ class ProcessingWorker(multiprocessing.Process):
         result_queue: multiprocessing.Queue,
         command_queue: multiprocessing.Queue,
     ):
-        """
-        Initialize the worker.
-
-        Args:
-            config: Static configuration and tasks.
-            result_queue: Queue to send results/progress back to main process.
-            command_queue: Queue to receive commands (like cancel) from main process.
-        """
         super().__init__(name="ZebTrack-ProcessingWorker")
         self.config = config
         self.result_queue = result_queue
@@ -76,9 +220,6 @@ class ProcessingWorker(multiprocessing.Process):
 
     def run(self):
         """Main entry point for the worker process."""
-        # Re-configure structlog if necessary for this process
-        # (structlog configuration is not always inherited perfectly)
-        
         log.info("worker.process.started", pid=os.getpid())
 
         try:
@@ -170,8 +311,6 @@ class ProcessingWorker(multiprocessing.Process):
              model_path = settings.yolo_model.path
 
         if self.config.model_type == "openvino":
-            from zebtrack.plugins.openvino_detector import OpenVINODetector
-            # Note: OpenVINODetector class name might be OpenVINOPlugin in the file
             from zebtrack.plugins.openvino_detector import OpenVINOPlugin
             plugin = OpenVINOPlugin(model_path=model_path, settings_obj=settings)
         else:
@@ -179,7 +318,6 @@ class ProcessingWorker(multiprocessing.Process):
             plugin = UltralyticsDetectorPlugin(model_path=model_path, settings_obj=settings)
 
         # Initialize Detector
-        # Use default base dimensions or from settings
         width = settings.camera.desired_width
         height = settings.camera.desired_height
         detector = Detector(plugin=plugin, base_width=width, base_height=height, settings_obj=settings)
@@ -191,7 +329,7 @@ class ProcessingWorker(multiprocessing.Process):
             zd.roi_polygons = self.config.zone_data.get('roi_polygons', [])
             zd.roi_names = self.config.zone_data.get('roi_names', [])
             zd.roi_colors = self.config.zone_data.get('roi_colors', [])
-            # We'll set zones per video based on actual resolution
+            
             # Store as 'default' zones for the detector
             self._default_zone_data = zd
         else:
@@ -211,7 +349,6 @@ class ProcessingWorker(multiprocessing.Process):
         """Process a single video file."""
         
         # 1. Open Video
-        # Handle numeric strings (e.g., "0") as camera indices
         if isinstance(video_path, str) and video_path.isdigit():
             cap = cv2.VideoCapture(int(video_path))
         else:
@@ -223,33 +360,19 @@ class ProcessingWorker(multiprocessing.Process):
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-
+        
         # 2. Setup Zones & Calibration
-        # If specific zones provided in metadata, use them, else use default
-        # (For now using default passed in config)
         detector.set_zones(self._default_zone_data, width, height)
         
         # 3. Setup Recorder
-        # Determine output path
         if self.config.single_video_mode:
             results_dir = self.config.output_base_dir
         else:
-            # Assuming output_base_dir is the root, structured by experiment?
-            # Or relying on VideoProcessingService to have resolved paths?
-            # To keep worker simple, we assume results_dir is passed or derived simply.
-            # Let's fallback to output_base_dir provided in config.
             results_dir = self.config.output_base_dir
 
         recorder = Recorder(settings_obj=self.config.settings)
         
-        # Create a dummy calibration if needed, or pass real one
-        # For this refactor, we focus on bypass logic. 
-        # We need to check if we have calibration data.
-        # It's usually in ProjectManager. We don't have PM here.
-        # We'll rely on pixel_per_cm_ratio being passed in video_metadata if available
         pixel_ratio = None
-        # (Logic for calibration extraction omitted for brevity/safety - assuming defaults)
 
         recorder.start_recording(
             output_folder=results_dir,
@@ -272,12 +395,10 @@ class ProcessingWorker(multiprocessing.Process):
                 if self._check_cancellation():
                     return False
 
-                # Read frame
                 ret, frame = cap.read()
                 if not ret:
                     break
 
-                # Analyze?
                 should_process = (frame_num % self.config.analysis_interval_frames == 0)
                 detections = []
 
@@ -293,10 +414,8 @@ class ProcessingWorker(multiprocessing.Process):
                     if frame_num % self.config.display_interval_frames == 0:
                         # Draw overlay
                         detector.draw_overlay(frame, detections)
-                        # Send frame to UI (resize to reduce IPC overhead?)
-                        # Converting to simple byte buffer or keep as numpy
-                        # Numpy array over Queue can be heavy.
-                        # Resize for preview
+                        
+                        # Resize for preview if needed
                         preview_frame = frame
                         if width > 1280:
                             scale = 1280 / width
@@ -304,12 +423,11 @@ class ProcessingWorker(multiprocessing.Process):
                         
                         self.result_queue.put({
                             "type": "frame",
-                            "frame": preview_frame, # Will be pickled
+                            "frame": preview_frame,
                             "experiment_id": experiment_id
                         })
                         
                         # Stats update
-                        processed_count = frame_num // self.config.analysis_interval_frames
                         elapsed = time.time() - start_time
                         progress = frame_num / total_frames if total_frames > 0 else 0
                         
@@ -318,7 +436,9 @@ class ProcessingWorker(multiprocessing.Process):
                             "Processando...", experiment_id,
                             stats={
                                 "fps": frame_num / elapsed if elapsed > 0 else 0,
-                                "frame": frame_num
+                                "frame": frame_num,
+                                "total_frames": total_frames,
+                                "current_frame": frame_num
                             }
                         )
 

@@ -453,3 +453,115 @@ class ModelService:
                 log.error("model_service.model_path.pt_not_found", weight=weight_name)
                 return None, None
             return pt_path, details
+
+    def inspect_model(self, weight_name: str) -> dict:
+        """
+        Inspect a YOLO model and return detailed information.
+
+        MELHORIA #4: Model inspection for debugging and validation.
+
+        Args:
+            weight_name: Name of the weight to inspect
+
+        Returns:
+            dict: Model information with keys:
+                - weight_name: str, name of the weight
+                - weight_type: str, type of weight (seg/det)
+                - model_task: str, YOLO task (segment/detect)
+                - class_names: dict, class ID to name mapping
+                - num_classes: int, number of classes
+                - input_shape: int or tuple, model input dimensions
+                - model_path: str, path to model file
+                - is_available: bool, whether model file exists
+
+        Raises:
+            ValueError: If weight not found
+            ImportError: If Ultralytics not available
+        """
+        details = self.weight_manager.get_weight_details(weight_name)
+        if not details:
+            raise ValueError(f"Peso '{weight_name}' não encontrado na configuração.")
+
+        model_path = details.get("path")
+        weight_type = details.get("type", "unknown")
+        is_available = bool(model_path and Path(model_path).exists())
+
+        if not is_available:
+            log.warning(
+                "model_service.inspect.file_not_found",
+                weight=weight_name,
+                path=model_path,
+            )
+            return {
+                "weight_name": weight_name,
+                "weight_type": weight_type,
+                "model_task": "unknown",
+                "class_names": {},
+                "num_classes": 0,
+                "input_shape": None,
+                "model_path": model_path,
+                "is_available": False,
+                "error": f"Model file not found: {model_path}",
+            }
+
+        # Import YOLO temporarily for inspection
+        try:
+            from ultralytics import YOLO
+        except ImportError as e:
+            log.error("model_service.inspect.ultralytics_unavailable", error=str(e))
+            raise ImportError(
+                "Ultralytics package is required for model inspection. "
+                "Please install ultralytics package."
+            ) from e
+
+        try:
+            # Load model
+            model = YOLO(model_path)
+
+            # Extract model information
+            class_names = dict(model.names)
+            num_classes = len(class_names)
+            model_task = model.task  # 'detect', 'segment', 'classify', etc.
+
+            # Get input shape (imgsz can be int or tuple)
+            input_shape = model.model.args.get("imgsz", 640) if hasattr(model, "model") else 640
+
+            result = {
+                "weight_name": weight_name,
+                "weight_type": weight_type,
+                "model_task": model_task,
+                "class_names": class_names,
+                "num_classes": num_classes,
+                "input_shape": input_shape,
+                "model_path": model_path,
+                "is_available": True,
+            }
+
+            log.info(
+                "model_service.inspect.success",
+                weight=weight_name,
+                task=model_task,
+                classes=class_names,
+            )
+
+            return result
+
+        except Exception as e:
+            log.error(
+                "model_service.inspect.failed",
+                weight=weight_name,
+                path=model_path,
+                error=str(e),
+                exc_info=True,
+            )
+            return {
+                "weight_name": weight_name,
+                "weight_type": weight_type,
+                "model_task": "unknown",
+                "class_names": {},
+                "num_classes": 0,
+                "input_shape": None,
+                "model_path": model_path,
+                "is_available": is_available,
+                "error": f"Failed to inspect model: {e}",
+            }

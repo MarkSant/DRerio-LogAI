@@ -37,6 +37,63 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
+# MELHORIA #3: Context manager for detector context restoration
+class DetectorContextManager:
+    """
+    Context manager to ensure detector context is always restored, even on exceptions.
+
+    Usage:
+        with DetectorContextManager(detector, "tracking") as manager:
+            # Do processing with new context
+            pass
+        # Context is automatically restored here
+    """
+
+    def __init__(self, detector_service: DetectorService | None, new_context: str):
+        """
+        Initialize context manager.
+
+        Args:
+            detector_service: DetectorService instance (can be None)
+            new_context: New context to set temporarily
+        """
+        self.detector_service = detector_service
+        self.new_context = new_context
+        self.saved_context: str | None = None
+
+    def __enter__(self) -> DetectorContextManager:
+        """Save current context and set new context."""
+        if self.detector_service and self.detector_service.detector:
+            self.saved_context = getattr(
+                self.detector_service.detector, "_context", "unknown"
+            )
+            log.debug(
+                "detector_context.saved",
+                saved=self.saved_context,
+                new=self.new_context,
+            )
+            self.detector_service.detector.set_context(self.new_context)
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Restore original context, even if exception occurred."""
+        if self.detector_service and self.detector_service.detector and self.saved_context:
+            try:
+                self.detector_service.detector.set_context(self.saved_context)
+                log.debug("detector_context.restored", context=self.saved_context)
+            except Exception as e:
+                log.warning(
+                    "detector_context.restore_failed",
+                    saved_context=self.saved_context,
+                    error=str(e),
+                )
+
+
 class LiveCameraService:
     """
     Service for managing live camera analysis sessions.
@@ -108,6 +165,11 @@ class LiveCameraService:
         self._last_detections: list = []
         self._saved_detector_context: str | None = None  # Task 2.0b: Store original detector context
         self._session_duration_s: float = 0.0
+        self._preview_window_destroyed: bool = False  # MELHORIA #2: Flag to prevent race condition
+
+        # MELHORIA #5: Metrics for dropped frames
+        self._dropped_frames_processing: int = 0  # Frames dropped from frame_queue
+        self._dropped_frames_video: int = 0  # Frames dropped from video_queue
 
         # Aquarium detection phase state
         self._aquarium_detection_phase: bool = False
@@ -154,13 +216,23 @@ class LiveCameraService:
 
     @property
     def timer_id(self) -> str | None:
-        """Thread-safe access to timer ID."""
+        """
+        Thread-safe access to timer ID.
+
+        MELHORIA #6: Atomic timer ID management to prevent race conditions
+        when multiple threads access timer state.
+        """
         with self._lock:
             return self._timer_id
 
     @timer_id.setter
     def timer_id(self, value: str | None) -> None:
-        """Thread-safe setter for timer ID."""
+        """
+        Thread-safe setter for timer ID.
+
+        MELHORIA #6: Atomic timer ID management to prevent race conditions
+        when multiple threads set timer state.
+        """
         with self._lock:
             self._timer_id = value
 
@@ -243,6 +315,9 @@ class LiveCameraService:
         self.set_last_detections([])  # Reset cached detections for new session
         self._animals_per_aquarium = animals_per_aquarium
         self._experiment_id = experiment_id  # Store for later use in recorder
+        self._preview_window_destroyed = False  # MELHORIA #2: Reset flag for new session
+        self._dropped_frames_processing = 0  # MELHORIA #5: Reset dropped frame counters
+        self._dropped_frames_video = 0
 
         # Create preview window FIRST (so we can show status updates)
         if not getattr(self.controller, "_disable_live_preview_window", False):
@@ -511,6 +586,8 @@ class LiveCameraService:
         # Close preview window
         if self.preview_window:
             try:
+                # MELHORIA #2: Set flag before destroying to prevent race conditions
+                self._preview_window_destroyed = True
                 self.preview_window.destroy()
             except Exception as e:
                 log.warning("live_camera_service.preview_close_error", error=str(e))
@@ -723,13 +800,36 @@ class LiveCameraService:
 
                 frame_count += 1
 
+                # MELHORIA #1: Create single copy of frame to share between queues
+                # This reduces memory usage from 5.4MB to 2.7MB per frame (50% reduction)
+                frame_copy = frame.copy()
+
                 # Put frame in processing queue
                 if not self.frame_queue.full():
-                    self.frame_queue.put((frame_count, frame.copy()))
+                    self.frame_queue.put((frame_count, frame_copy))
+                else:
+                    # MELHORIA #5: Track dropped frames for visibility
+                    self._dropped_frames_processing += 1
+                    if self._dropped_frames_processing % 10 == 1:  # Log every 10th drop
+                        log.warning(
+                            "live_camera_service.frame_dropped_processing",
+                            frame_count=frame_count,
+                            total_dropped=self._dropped_frames_processing,
+                        )
 
-                # Put frame in video queue if recording
-                if self.is_capturing_for_video and not self.video_queue.full():
-                    self.video_queue.put(frame.copy())
+                # Put same frame in video queue if recording (reuse same copy)
+                if self.is_capturing_for_video:
+                    if not self.video_queue.full():
+                        self.video_queue.put(frame_copy)
+                    else:
+                        # MELHORIA #5: Track dropped frames for video recording
+                        self._dropped_frames_video += 1
+                        if self._dropped_frames_video % 10 == 1:  # Log every 10th drop
+                            log.warning(
+                                "live_camera_service.frame_dropped_video",
+                                frame_count=frame_count,
+                                total_dropped=self._dropped_frames_video,
+                            )
 
                 # Control capture rate
                 default_fps = 30.0
@@ -744,7 +844,17 @@ class LiveCameraService:
                 log.error("live_camera_service.capture_error", error=str(e), exc_info=True)
                 time.sleep(0.5)
 
-        log.info("live_camera_service.capture_loop_finished", total_frames=frame_count)
+        # MELHORIA #5: Log final metrics including dropped frames
+        drop_rate_proc = (self._dropped_frames_processing / max(frame_count, 1)) * 100
+        drop_rate_vid = (self._dropped_frames_video / max(frame_count, 1)) * 100
+        log.info(
+            "live_camera_service.capture_loop_finished",
+            total_frames=frame_count,
+            dropped_frames_processing=self._dropped_frames_processing,
+            dropped_frames_video=self._dropped_frames_video,
+            drop_rate_processing=f"{drop_rate_proc:.1f}%",
+            drop_rate_video=f"{drop_rate_vid:.1f}%",
+        )
 
     def _processing_loop(self):
         """Thread loop for processing frames with detection."""
@@ -941,13 +1051,20 @@ class LiveCameraService:
                             cv2.LINE_AA,
                         )
 
-                    # Task 1.1: UI Update Thread Safety - Only update if both preview_window and root exist
-                    if self.preview_window and self.root:
+                    # Task 1.1: UI Update Thread Safety - preview_window and root exist
+                    # MELHORIA #2: Check if preview window not destroyed (race condition)
+                    if self.preview_window and self.root and not self._preview_window_destroyed:
                         self.root.after(0, self.preview_window.update_frame, frame, detections)
                     # Do not update if root doesn't exist (prevents crashes in headless/test mode)
 
+                # MELHORIA #4: Explicit frame cleanup to hint garbage collector
+                del frame
+
             except Exception as e:
                 log.error("live_camera_service.processing_error", error=str(e), exc_info=True)
+                # MELHORIA #4: Clean up frame even on exception
+                if "frame" in locals():
+                    del frame
 
         log.info("live_camera_service.processing_loop_finished", processed=processed_count)
 
@@ -1245,6 +1362,7 @@ class LiveCameraService:
         Called after aquarium detection phase completes (30 frames or manual stop).
         """
         import math
+
         from zebtrack.core.detector import ZoneData
 
         w = self.camera.actual_width if self.camera else 1280

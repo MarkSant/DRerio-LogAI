@@ -145,11 +145,11 @@ class CalibrationOrchestrator:
         try:
             yield
         finally:
-            # Save global defaults via state manager
-            self.main_view_model._update_global_model_defaults(
+            # Save global defaults via project workflow service
+            self.main_view_model.project_workflow_service.set_global_model_defaults(
                 active_weight=self.main_view_model.active_weight_name,
                 use_openvino=self.main_view_model.use_openvino
             )
             self.main_view_model._using_project_overrides = previous_flag
             if previous_flag and getattr(self.project_manager, "project_path", None):
-                self.project_orchestrator.apply_project_model_overrides()
+                self.main_view_model.project_orchestrator.apply_project_model_overrides()

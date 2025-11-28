@@ -347,6 +347,7 @@ class ProcessingCoordinator(BaseCoordinator):
         videos_to_process: list[dict],
         output_base_dir: str,
         single_video_config: dict | None = None,
+        zone_data: Any = None,
         process_single_video_func: Callable | None = None,
         apply_project_settings_func: Callable | None = None,
     ) -> ProcessingContext:
@@ -358,7 +359,9 @@ class ProcessingCoordinator(BaseCoordinator):
             videos_to_process=videos_to_process,
             output_base_dir=output_base_dir,
             cancel_event=self.cancel_event,
+            settings=self.settings,
             single_video_config=single_video_config,
+            zone_data=zone_data,
             analysis_interval_frames=10,  # Will be updated by worker
             display_interval_frames=10,  # Will be updated by worker
             process_single_video_func=process_single_video_func,
@@ -672,7 +675,10 @@ class ProcessingCoordinator(BaseCoordinator):
 
         callbacks = self.create_processing_callbacks([video_to_process])
         context = self.create_processing_context(
-            [video_to_process], output_dir, single_video_config=config
+            [video_to_process],
+            output_dir,
+            single_video_config=config,
+            zone_data=zone_data,
         )
 
         self.processing_worker = ProcessingWorker(context, callbacks)

@@ -616,11 +616,8 @@ class HardwareCoordinator(BaseCoordinator):
 
                 self._update_state(StateCategory.DETECTOR, **state_update)
 
-                # Publish success event
-                self._publish_event(
-                    "DETECTOR_PARAMETERS_UPDATED",
-                    {"params": params, "scope": scope, "reset_overrides": reset_overrides},
-                )
+                # State update is sufficient - no need for event publication
+                # (StateManager already notifies subscribers via state change callbacks)
 
                 log.info(
                     "hardware_coordinator.update_detector_parameters.success",
@@ -690,8 +687,8 @@ class HardwareCoordinator(BaseCoordinator):
                 tracking_state_reset=True,
             )
 
-            # Publish success event
-            self._publish_event("TRACKING_STATE_RESET", {})
+            # State update is sufficient - no need for event publication
+            # (StateManager already notifies subscribers via state change callbacks)
 
             log.info("hardware_coordinator.reset_tracking_state.success")
             return True

@@ -144,8 +144,8 @@ class MainViewModel:
         self.event_dispatcher = result.event_dispatcher
 
         # Hardware & Runtime
-        self.active_weight_name = result.active_weight_name
-        self.use_openvino = result.use_openvino
+        # Note: active_weight_name and use_openvino are now properties that delegate to hardware_vm
+        # (initialized in hardware_vm from bootstrap_result values)
         self._hardware_summary = result.hardware_summary
         self._recommended_backend = result.recommended_backend
         self.recorder = result.recorder
@@ -354,12 +354,45 @@ class MainViewModel:
     # ==================== Properties ====================
 
     @property
+    def active_weight_name(self) -> str:
+        """Active weight name - delegates to hardware_vm for single source of truth."""
+        if hasattr(self, "hardware_vm"):
+            return self.hardware_vm.active_weight_name
+        return getattr(self, "_active_weight_name", "")
+
+    @active_weight_name.setter
+    def active_weight_name(self, value: str):
+        if hasattr(self, "hardware_vm"):
+            self.hardware_vm.active_weight_name = value
+        else:
+            self._active_weight_name = value
+
+    @property
+    def use_openvino(self) -> bool:
+        """OpenVINO usage flag - delegates to hardware_vm for single source of truth."""
+        if hasattr(self, "hardware_vm"):
+            return self.hardware_vm.use_openvino
+        return getattr(self, "_use_openvino", False)
+
+    @use_openvino.setter
+    def use_openvino(self, value: bool):
+        if hasattr(self, "hardware_vm"):
+            self.hardware_vm.use_openvino = value
+        else:
+            self._use_openvino = value
+
+    @property
     def recording_service(self) -> RecordingService | None:
-        return self.hardware_vm.recording_service
+        if hasattr(self, "hardware_vm"):
+            return self.hardware_vm.recording_service
+        return getattr(self, "_recording_service", None)
 
     @recording_service.setter
     def recording_service(self, value: RecordingService | None) -> None:
-        self.hardware_vm.recording_service = value
+        if hasattr(self, "hardware_vm"):
+            self.hardware_vm.recording_service = value
+        else:
+            self._recording_service = value
 
     @property
     def _global_model_defaults(self) -> dict:
@@ -371,19 +404,29 @@ class MainViewModel:
 
     @property
     def detector(self) -> Detector | None:
-        return self.hardware_vm.detector
+        if hasattr(self, "hardware_vm"):
+            return self.hardware_vm.detector
+        return getattr(self, "_detector", None)
 
     @detector.setter
     def detector(self, value: Detector | None) -> None:
-        self.hardware_vm.detector = value
+        if hasattr(self, "hardware_vm"):
+            self.hardware_vm.detector = value
+        else:
+            self._detector = value
 
     @detector.deleter
     def detector(self) -> None:
-        self.hardware_vm.detector = None
+        if hasattr(self, "hardware_vm"):
+            self.hardware_vm.detector = None
+        else:
+            self._detector = None
 
     @property
     def detector_initialized(self) -> bool:
-        return self.hardware_vm.detector_initialized
+        if hasattr(self, "hardware_vm"):
+            return self.hardware_vm.detector_initialized
+        return getattr(self, "_detector", None) is not None
 
     @property
     def is_processing(self) -> bool:
@@ -424,7 +467,9 @@ class MainViewModel:
             self.ui_state_controller._show_cancel_feedback()
 
     def get_openvino_status(self) -> str:
-        return self.hardware_vm.get_openvino_status()
+        if hasattr(self, "hardware_vm"):
+            return self.hardware_vm.get_openvino_status()
+        return "Status Indisponível (Inicializando)"
 
     @contextmanager
     def global_calibration_session(self):

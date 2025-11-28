@@ -37,6 +37,7 @@ def settings_obj() -> Settings:
 def test_ultralytics_detector_init_with_settings(mock_ultralytics_import, settings_obj):
     """Test initialization with settings object."""
     mock_model_instance = MagicMock()
+    mock_model_instance.names = {0: "aqua", 1: "zebrafish"}  # Add class names
     mock_ultralytics_import.return_value = mock_model_instance
 
     detector = UltralyticsDetectorPlugin(model_path="model.pt", settings_obj=settings_obj)
@@ -44,14 +45,17 @@ def test_ultralytics_detector_init_with_settings(mock_ultralytics_import, settin
     assert detector.model == mock_model_instance
     assert detector.conf_threshold == settings_obj.yolo_model.confidence_threshold
     assert detector.nms_threshold == settings_obj.yolo_model.nms_threshold
-    assert detector.track_threshold == 0.25
+    assert detector.track_threshold == 0.1  # Updated from 0.25 to match code change
     assert detector.match_threshold == 0.15
     assert detector.track_buffer == 60
+    # Verify class names were extracted
+    assert detector.class_names == {0: "aqua", 1: "zebrafish"}
 
 
 def test_ultralytics_detector_init_without_settings(mock_ultralytics_import):
     """Test initialization without settings object (fallback defaults)."""
     mock_model_instance = MagicMock()
+    mock_model_instance.names = {0: "aqua", 1: "zebrafish"}  # Add class names
     mock_ultralytics_import.return_value = mock_model_instance
 
     detector = UltralyticsDetectorPlugin(model_path="model.pt", settings_obj=None)
@@ -59,7 +63,7 @@ def test_ultralytics_detector_init_without_settings(mock_ultralytics_import):
     assert detector.model == mock_model_instance
     assert detector.conf_threshold == 0.25
     assert detector.nms_threshold == 0.45
-    assert detector.track_threshold == 0.25
+    assert detector.track_threshold == 0.1  # Updated from 0.25 to match code change
     assert detector.match_threshold == 0.15
 
 
@@ -232,6 +236,7 @@ def test_ultralytics_detector_predict_without_masks(mock_ultralytics_import):
 def test_ultralytics_detector_predict_orphan_masks(mock_ultralytics_import):
     """Test predict method with orphan masks (masks without boxes)."""
     mock_model_instance = MagicMock()
+    mock_model_instance.names = {0: "aquarium", 1: "zebrafish"}  # Add class names
     mock_ultralytics_import.return_value = mock_model_instance
 
     # Create mock masks (2 masks but only 1 box)
@@ -281,12 +286,13 @@ def test_ultralytics_detector_get_name():
 def test_ultralytics_detector_set_tracking_parameters(mock_ultralytics_import):
     """Test set_tracking_parameters method."""
     mock_model_instance = MagicMock()
+    mock_model_instance.names = {0: "aqua", 1: "zebrafish"}  # Add class names
     mock_ultralytics_import.return_value = mock_model_instance
 
     detector = UltralyticsDetectorPlugin(model_path="model.pt")
 
-    # Initial values
-    assert detector.track_threshold == 0.25
+    # Initial values (updated to match code change)
+    assert detector.track_threshold == 0.1
     assert detector.match_threshold == 0.15
 
     # Update both parameters

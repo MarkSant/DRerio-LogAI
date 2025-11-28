@@ -170,6 +170,9 @@ class DetectorService:
             else:
                 plugin_instance = plugin_class(model_path=model_path, settings_obj=self.settings)
 
+            # MELHORIA #2: Validar classes esperadas pelo sistema
+            self._validate_model_classes(plugin_instance, model_path)
+
             # ⚡ FORCE LOWER CONFIDENCE THRESHOLD FOR DEBUGGING/ROBUSTNESS
             # The user reported missing detections. We override the default (0.25) to 0.05.
             if hasattr(plugin_instance, "conf_threshold"):
@@ -836,3 +839,82 @@ class DetectorService:
             return True
 
         return None
+
+    def _validate_model_classes(self, plugin_instance: DetectorPlugin, model_path: str) -> None:
+        """
+        Validate that model has expected classes for ZebTrack-AI.
+
+        MELHORIA #2: Validate expected classes to catch incompatible models early.
+
+        Args:
+            plugin_instance: The instantiated detector plugin
+            model_path: Path to the model (for logging)
+
+        Raises:
+            ValueError: If model is missing required classes
+        """
+        plugin_classes = getattr(plugin_instance, "class_names", {})
+
+        if not plugin_classes:
+            log.warning(
+                "detector_service.validate_classes.no_classes",
+                model_path=model_path,
+                message="Plugin has no class_names attribute. Validation skipped.",
+            )
+            return
+
+        # Expected classes for ZebTrack-AI (flexible matching)
+        # Format: class_id -> list of acceptable names (case-insensitive)
+        expected_classes = {
+            0: ["aqua", "aquarium", "tank", "agua"],  # Tank/aquarium class
+            1: ["zebrafish", "fish", "peixe"],  # Fish class
+        }
+
+        missing_classes = []
+        unexpected_names = []
+
+        for class_id, expected_names in expected_classes.items():
+            if class_id not in plugin_classes:
+                missing_classes.append(class_id)
+                continue
+
+            actual_name = plugin_classes[class_id].lower()
+            expected_names_lower = [n.lower() for n in expected_names]
+
+            if actual_name not in expected_names_lower:
+                unexpected_names.append((class_id, actual_name, expected_names))
+
+        # Log validation results
+        if missing_classes:
+            error_msg = (
+                f"Modelo incompatível: classes ausentes {missing_classes}. "
+                f"O modelo deve ter classe 0 (aquário) e classe 1 (zebrafish)."
+            )
+            log.error(
+                "detector_service.validate_classes.missing",
+                model_path=model_path,
+                plugin_classes=plugin_classes,
+                missing=missing_classes,
+            )
+            raise ValueError(error_msg)
+
+        if unexpected_names:
+            for class_id, actual_name, expected in unexpected_names:
+                log.warning(
+                    "detector_service.validate_classes.unexpected_name",
+                    class_id=class_id,
+                    actual_name=actual_name,
+                    expected_names=expected,
+                    model_path=model_path,
+                    message=(
+                        f"Classe {class_id} tem nome '{actual_name}' mas "
+                        f"esperava um de {expected}. "
+                        f"Continuando, mas comportamento pode ser inesperado."
+                    ),
+                )
+        else:
+            log.info(
+                "detector_service.validate_classes.success",
+                model_path=model_path,
+                plugin_classes=plugin_classes,
+            )

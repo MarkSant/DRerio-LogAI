@@ -144,18 +144,58 @@ class OpenVINOPlugin(DetectorPlugin):
         self.match_threshold = 0.15
         self.track_buffer = 60
 
-        # Carrega metadata se existir
+        # Load metadata if exists (Bug Fix: improved fallback)
         metadata_path = os.path.join(model_path, "metadata.json")
-        self.class_names = {0: "aquarium", 1: "zebrafish"}  # Default
+        self.class_names = {}
+        metadata_loaded = False
+
         if os.path.exists(metadata_path):
             try:
                 with open(metadata_path, encoding="utf-8") as f:
                     metadata = json.load(f)
                     if "class_names" in metadata:
                         self.class_names = {int(k): v for k, v in metadata["class_names"].items()}
-                    log.info("openvino.metadata.loaded", classes=self.class_names)
+                        metadata_loaded = True
+                        log.info(
+                            "openvino.metadata.loaded",
+                            classes=self.class_names,
+                            path=metadata_path,
+                        )
             except Exception as e:
-                log.warning("openvino.metadata.load_failed", error=str(e))
+                log.warning("openvino.metadata.load_failed", error=str(e), path=metadata_path)
+
+        # Fallback: Use generic class names if metadata not available
+        if not metadata_loaded:
+            # Infer number of classes from output shape if possible
+            num_classes = 2  # Default assumption for ZebTrack-AI
+            if self.output_det:
+                try:
+                    # Detection output shape: [1, 4+nc+nm, 8400]
+                    # For segmentation: nc=2 (classes), nm=32 (mask coeffs)
+                    # So dim[1] = 4 + nc + 32 = 38 for 2 classes
+                    output_channels = self.output_det.partial_shape[1]
+                    if output_channels.is_static:
+                        # Solve: output_channels = 4 (bbox) + nc + 32 (masks)
+                        # For detection only: output_channels = 4 + nc
+                        has_masks = self.output_proto is not None
+                        if has_masks:
+                            num_classes = int(output_channels) - 4 - 32
+                        else:
+                            num_classes = int(output_channels) - 4
+                        num_classes = max(1, num_classes)  # At least 1 class
+                except Exception:
+                    pass  # Keep default
+
+            self.class_names = {i: f"class_{i}" for i in range(num_classes)}
+            log.warning(
+                "openvino.metadata.missing_using_generic",
+                num_classes=num_classes,
+                class_names=self.class_names,
+                message=(
+                    "Consider regenerating OpenVINO model to include metadata.json "
+                    "with proper class names"
+                ),
+            )
 
     def get_context_info(self) -> dict:
         """Get current context and aquarium region status for debugging."""
@@ -232,7 +272,9 @@ class OpenVINOPlugin(DetectorPlugin):
             input_shape = input_tensor.shape[2:]
 
             # Enable mask decoding for diagnostics
-            detections, masks = self._postprocess(results, frame.shape, input_shape, decode_masks=True)
+            detections, masks = self._postprocess(
+                results, frame.shape, input_shape, decode_masks=True
+            )
 
             # 2. Format results for diagnostic reporting
             formatted_results = []
@@ -292,7 +334,6 @@ class OpenVINOPlugin(DetectorPlugin):
         )
 
         has_mask = proto_tensor is not None
-        nm = 32 if has_mask else 0
 
         assert torch is not None  # mypy: ensure torch is available
         preds = non_max_suppression(
@@ -325,13 +366,13 @@ class OpenVINOPlugin(DetectorPlugin):
             # scale_image (ultralytics) expects numpy array in (H, W, C) format for resizing
             masks_np = masks.cpu().numpy()
             masks_np = np.transpose(masks_np, (1, 2, 0))
-            
+
             masks_np = scale_image(masks_np, original_frame_shape[:2])
-            
+
             # Handle single mask case where resize might drop the channel dim
             if len(masks_np.shape) == 2:
                 masks_np = masks_np[:, :, None]
-                
+
             # Transpose back to (N, H, W)
             masks_np = np.transpose(masks_np, (2, 0, 1))
 
@@ -356,10 +397,10 @@ class OpenVINOPlugin(DetectorPlugin):
 
         final_detections = []
         for i, row in enumerate(det):
-            # Ultralytics NMS returns [x1, y1, x2, y2, conf, cls] (plus masks if not consumed by process_mask?)
-            # Actually process_mask consumes the mask coeffs if we passed them separately?
-            # det has shape [N, 6 + 32] before we sliced it?
-            # No, det comes from NMS.
+            # Ultralytics NMS returns [x1, y1, x2, y2, conf, cls]
+            # (plus masks if not consumed by process_mask?)
+            # Actually process_mask consumes the mask coeffs if passed separately?
+            # det has shape [N, 6 + 32] before we sliced it? No, det comes from NMS.
             # If nm=32, det[:, 6:] are mask coeffs. det[:, :6] are box+conf+cls.
 
             xyxy = row[:4].cpu().numpy()

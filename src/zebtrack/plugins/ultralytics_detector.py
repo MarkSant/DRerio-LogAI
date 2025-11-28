@@ -31,6 +31,12 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         assert YOLO is not None
         self.model = YOLO(model_path)
 
+        # Extract class names directly from the model (Bug Fix #1)
+        self.class_names = dict(self.model.names)  # {0: 'aqua', 1: 'zebrafish', ...}
+        import structlog
+        log = structlog.get_logger()
+        log.info("ultralytics.class_names.loaded", names=self.class_names, path=model_path)
+
         # Use injected settings or sensible defaults
         if settings_obj is not None:
             self.conf_threshold = settings_obj.yolo_model.confidence_threshold
@@ -145,12 +151,18 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                     x_max = int(mask_xy[:, 0].max())
                     y_max = int(mask_xy[:, 1].max())
 
+                    # Bug Fix: Use dynamic class names from model
+                    orphan_class_id = 0  # Assume first class (typically aquarium/tank)
+                    orphan_class_name = self.class_names.get(
+                        orphan_class_id, f"class_{orphan_class_id}"
+                    )
+
                     formatted_results.append(
                         {
                             "box": [x_min, y_min, x_max, y_max],
                             "confidence": 0.99,
-                            "class_id": 0,  # Assume aquarium for orphan masks
-                            "class_name": "aquarium",
+                            "class_id": orphan_class_id,
+                            "class_name": orphan_class_name,
                             "has_mask": True,
                             "mask_points": len(mask_xy),
                         }

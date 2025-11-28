@@ -48,8 +48,9 @@ class Recorder:
         self.frame_count = 0
         self.recording_start_frame = 0
         self.detection_data = []
-        self.pixel_per_cm_ratio = None
-        self.calibration = None
+        # BUG FIX #3: Use private attributes for protected properties
+        self._pixel_per_cm_ratio = None
+        self._calibration = None
         self._parquet_writer: pq.ParquetWriter | None = None
         self._parquet_schema: pa.Schema | None = None
         self._parquet_columns: list[str] = []
@@ -87,6 +88,53 @@ class Recorder:
             self._flush_interval_seconds = 5.0
             self._flush_row_threshold = 500
             self._parquet_compression = "snappy"
+
+    @property
+    def pixel_per_cm_ratio(self):
+        """Get pixel-to-cm calibration ratio."""
+        return self._pixel_per_cm_ratio
+
+    @pixel_per_cm_ratio.setter
+    def pixel_per_cm_ratio(self, value):
+        """
+        Set pixel-to-cm calibration ratio.
+
+        BUG FIX #3: Prevent calibration change during active recording to avoid
+        schema inconsistencies in the Parquet file.
+        """
+        if self.is_recording and self._initial_schema_columns is not None:
+            current_has_calib = "x_cm" in self._initial_schema_columns
+            new_has_calib = value is not None
+
+            if current_has_calib != new_has_calib:
+                raise ValueError(
+                    "Cannot change calibration during active recording "
+                    "(Parquet schema would be inconsistent). Stop recording first."
+                )
+
+        self._pixel_per_cm_ratio = value
+
+    @property
+    def calibration(self):
+        """Get calibration object."""
+        return self._calibration
+
+    @calibration.setter
+    def calibration(self, value):
+        """
+        Set calibration object.
+
+        BUG FIX #3: Prevent calibration change during active recording.
+        """
+        if self.is_recording and self._initial_schema_columns is not None:
+            # Calibration change would affect coordinate transformation
+            if (self._calibration is None) != (value is None):
+                raise ValueError(
+                    "Cannot add/remove calibration during active recording "
+                    "(coordinate transformation would be inconsistent)."
+                )
+
+        self._calibration = value
 
     def start_recording(
         self,
@@ -312,6 +360,57 @@ class Recorder:
             )
         return columns
 
+    def _validate_unique_detections(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Remove duplicate detections (same frame + track_id).
+
+        BUG FIX #2: Prevents inflated metrics caused by duplicate detections
+        of the same object in the same frame, which can occur due to ByteTracker
+        errors or model issues.
+
+        Args:
+            df: DataFrame with detection data
+
+        Returns:
+            DataFrame with duplicates removed (keeps first occurrence)
+        """
+        if df.empty:
+            return df
+
+        # Check if required columns exist
+        if "frame" not in df.columns or "track_id" not in df.columns:
+            log.warning(
+                "recorder.duplicate_check_skipped",
+                reason="missing_columns",
+                available_columns=list(df.columns),
+            )
+            return df
+
+        # Identify duplicates
+        duplicates = df.duplicated(subset=["frame", "track_id"], keep="first")
+        num_duplicates = duplicates.sum()
+
+        if num_duplicates > 0:
+            # Get some examples for logging
+            duplicate_examples = df[duplicates][["frame", "track_id"]].head(5).to_dict("records")
+
+            log.warning(
+                "recorder.duplicate_detections_removed",
+                count=int(num_duplicates),
+                total_rows=len(df),
+                percentage=f"{(num_duplicates / len(df)) * 100:.2f}%",
+                examples=duplicate_examples,
+                message=(
+                    "Duplicate detections detected and removed. "
+                    "This may indicate ByteTracker issues or model problems."
+                ),
+            )
+
+            # Remove duplicates
+            df = df[~duplicates].copy()
+
+        return df
+
     def _should_flush(self) -> bool:
         if not self.detection_data:
             return False
@@ -360,6 +459,9 @@ class Recorder:
                 self._last_flush_time = time.time()
                 log.info("recorder.flush.skipped_empty_dataframe")
                 return
+
+            # BUG FIX #2: Remove duplicate detections (same frame + track_id)
+            df = self._validate_unique_detections(df)
 
             if not self._parquet_columns:
                 self._parquet_columns = self._determine_parquet_columns()
