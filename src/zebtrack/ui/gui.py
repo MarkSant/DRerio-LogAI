@@ -360,9 +360,9 @@ class ApplicationGUI:
         controller's state availability.
         """
         try:
-            self.set_active_weight_in_dropdown(self.controller.active_weight_name)
-            self.update_openvino_checkbox(self.controller.use_openvino)
-            self.update_openvino_status_display(self.controller.get_openvino_status())
+            self.set_active_weight_in_dropdown(self.controller.hardware_vm.active_weight_name)
+            self.update_openvino_checkbox(self.controller.hardware_vm.use_openvino)
+            self.update_openvino_status_display(self.controller.hardware_vm.get_openvino_status())
         except Exception:
             log.warning("gui.post_init.controller_sync_failed", exc_info=True)
 
@@ -374,8 +374,8 @@ class ApplicationGUI:
             self._active_weight_display_var.set("Peso ativo: Nenhum peso selecionado.")
 
         # Also update controller state if needed (legacy sync)
-        if self.controller.active_weight_name != weight_name:
-             self.controller.active_weight_name = weight_name
+        if self.controller.hardware_vm.active_weight_name != weight_name:
+             self.controller.hardware_vm.active_weight_name = weight_name
 
     def update_weights_dropdown(self, weights: list[str]) -> None:
         """Update the list of available weights (for Welcome screen or future dropdowns)."""
@@ -414,7 +414,7 @@ class ApplicationGUI:
                 weight_type = "det"
 
             # Resume workflow
-            self.controller.load_new_weight(filepath=filepath, weight_type=weight_type)
+            self.controller.hardware_vm.load_new_weight(filepath=filepath, weight_type=weight_type)
 
     def handle_request_weight_action(self, filepath: str, weight_type: str) -> None:
         """Handle request for action on new weight."""
@@ -441,7 +441,7 @@ class ApplicationGUI:
             choice = "cancel"
 
         if choice != "cancel":
-            self.controller.load_new_weight(filepath=filepath, weight_type=weight_type, choice=choice)
+            self.controller.hardware_vm.load_new_weight(filepath=filepath, weight_type=weight_type, choice=choice)
 
     # --- Event bus helpers -------------------------------------------------
 
@@ -566,9 +566,9 @@ class ApplicationGUI:
 
         with self.controller.project_calibration_session():
             CalibrationDialog(self.root, self.controller)
-        self.update_openvino_checkbox(self.controller.use_openvino)
-        self.set_active_weight_in_dropdown(self.controller.active_weight_name)
-        self.update_openvino_status_display(self.controller.get_openvino_status())
+        self.update_openvino_checkbox(self.controller.hardware_vm.use_openvino)
+        self.set_active_weight_in_dropdown(self.controller.hardware_vm.active_weight_name)
+        self.update_openvino_status_display(self.controller.hardware_vm.get_openvino_status())
 
     def _on_tab_changed(self, event):
         """
@@ -884,7 +884,7 @@ class ApplicationGUI:
             # Case 1: Params provided via Event (e.g. from ConfigEditor or EventDispatcher)
             if params:
                 if self.controller:
-                    self.controller.update_detector_parameters(params)
+                    self.controller.hardware_vm.update_detector_parameters(params)
                 return
 
             # Case 2: No params (Legacy UI interaction) - Read from StringVars
@@ -980,7 +980,7 @@ class ApplicationGUI:
 
             # Only attempt to connect if a port is configured from the dialog
             if self.controller.settings and self.controller.settings.arduino.port:
-                if not self.controller.arduino.connect():
+                if not self.controller.hardware_vm.arduino.connect():
                     self.show_warning(
                         "Aviso do Arduino",
                         f"Não foi possível conectar ao Arduino na porta "
@@ -1002,12 +1002,12 @@ class ApplicationGUI:
                 temp_settings.camera.index = camera_index
 
                 # Initialize camera with modified settings
-                self.controller.camera = Camera(settings_obj=temp_settings)
+                self.controller.hardware_vm.camera = Camera(settings_obj=temp_settings)
 
-                self.controller.active_frame_source = self.controller.camera
-                self.controller.detector.update_scaling(
-                    self.controller.camera.actual_width,
-                    self.controller.camera.actual_height,
+                self.controller.hardware_vm.active_frame_source = self.controller.hardware_vm.camera
+                self.controller.hardware_vm.detector.update_scaling(
+                    self.controller.hardware_vm.camera.actual_width,
+                    self.controller.hardware_vm.camera.actual_height,
                 )
             except OSError as e:
                 self.show_error("Erro na Câmera", str(e))
@@ -1187,10 +1187,10 @@ class ApplicationGUI:
         """Cache available weights so summaries stay consistent."""
         self._available_weight_names = list(weights or [])
         if (
-            self.controller.active_weight_name
-            and self.controller.active_weight_name in self._available_weight_names
+            self.controller.hardware_vm.active_weight_name
+            and self.controller.hardware_vm.active_weight_name in self._available_weight_names
         ):
-            self._update_active_weight_display(self.controller.active_weight_name)
+            self._update_active_weight_display(self.controller.hardware_vm.active_weight_name)
         elif not self._available_weight_names:
             self._update_active_weight_display("")
 
@@ -1412,7 +1412,7 @@ class ApplicationGUI:
                 return
             elif response:
                 # Yes pressed, save polygon
-                self.controller.save_manual_arena(self.edited_polygon_points)
+                self.controller.analysis_vm.save_manual_arena(self.edited_polygon_points)
                 self._clear_interactive_polygon()
             else:
                 # No pressed, discard changes
@@ -1892,7 +1892,7 @@ class ApplicationGUI:
     def get_current_detector_parameters(self) -> dict:
         """Delegate to controller to get current detector parameters."""
         if self.controller:
-            return self.controller.get_current_detector_parameters()
+            return self.controller.hardware_vm.get_current_detector_parameters()
         return {}
 
     def publish_video_hierarchy_snapshot(self, snapshot: list):

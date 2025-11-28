@@ -6,9 +6,7 @@ and orchestrates video processing workflows with dependency injection.
 
 from __future__ import annotations
 
-import threading
 from contextlib import contextmanager
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
@@ -20,7 +18,11 @@ from zebtrack.core.detector import Detector
 from zebtrack.core.processing_mode import ProcessingMode
 from zebtrack.core.recording_service import RecordingService
 from zebtrack.core.state_manager import StateCategory
-from zebtrack.io.arduino_manager import ArduinoManager
+from zebtrack.core.viewmodels.analysis_control_view_model import AnalysisControlViewModel
+from zebtrack.core.viewmodels.hardware_status_view_model import HardwareStatusViewModel
+
+# New ViewModels
+from zebtrack.core.viewmodels.project_view_model import ProjectViewModel
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
@@ -34,14 +36,10 @@ class MainViewModel:
     Main View Model for ZebTrack-AI application.
 
     Refactored to follow Single Responsibility Principle by delegating initialization
-    to ApplicationBootstrapper.
-
-    This class focuses on:
-    - UI-facing state management (via StateManager)
-    - Command handling via event bus
-    - Orchestrating services (ProjectService, AnalysisService)
-    - Hardware setup (detector, Arduino)
-    - Recording control
+    to ApplicationBootstrapper and functionality to specialized ViewModels:
+    - ProjectViewModel: Project management
+    - AnalysisControlViewModel: Analysis control
+    - HardwareStatusViewModel: Hardware/Model status
     """
 
     def __init__(
@@ -55,42 +53,51 @@ class MainViewModel:
             dependencies: Injected dependencies container
             bootstrap_result: Result of ApplicationBootstrapper initialization
         """
-        # 1. Extract core dependencies
+        # 1. Extract core dependencies (kept for facade/legacy access if needed)
         self._extract_dependencies(dependencies)
 
         # 2. Assign bootstrap result components
         self._assign_bootstrap_result(bootstrap_result)
 
-        # 3. Subscribe to state changes
+        # Event bus flag
+        self.ui_event_bus = self.event_dispatcher.event_bus
+        self._use_event_bus = bool(self.ui_event_bus)
+
+        # 3. Initialize Sub-ViewModels
+        self.project_vm = ProjectViewModel(dependencies, bootstrap_result, self.ui_event_bus)
+        self.analysis_vm = AnalysisControlViewModel(dependencies, bootstrap_result, self.ui_event_bus)
+        self.hardware_vm = HardwareStatusViewModel(dependencies, bootstrap_result, self.ui_event_bus)
+
+        # 4. Subscribe to state changes
         self._subscribe_to_state()
 
-        # 4. Setup event handlers mapping
+        # 5. Setup event handlers mapping (Delegating to Sub-VMs)
         self._EVENT_METHOD_MAPPING = {
-            Events.RECORDING_START: (self.start_recording, [], "no_params"),
-            Events.RECORDING_STOP: (self.stop_recording, [], "no_params"),
-            Events.RECORDING_TOGGLE: (self.toggle_recording, [], "no_params"),
-            Events.PROJECT_CREATE: (self.create_project_workflow, ["wizard_data"], "kwargs_all"),
-            Events.PROJECT_OPEN: (self.open_project_workflow, ["project_path"], "positional"),
-            Events.PROJECT_CLOSE: (self.close_project, [], "no_params"),
-            Events.PROJECT_PROCESS_VIDEOS: (self.start_project_processing_workflow, [], "no_params"),
-            Events.PROJECT_ADD_VIDEOS: (self.add_videos_to_project, [], "no_params"),
-            Events.MODEL_SET_OPENVINO: (self.set_openvino_usage, [], "kwargs_all"),
-            Events.MODEL_SET_WEIGHT: (self.set_active_weight, [], "kwargs_all"),
-            Events.MODEL_RUN_DIAGNOSTIC: (self.run_model_diagnostic, ["config"], "kwargs_all"),
-            Events.UI_REQUEST_WEIGHT_FILE: (self.handle_request_weight_file, [], "no_params"),
-            Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG: (self.handle_open_manage_weights, [], "no_params"),
-            Events.VIDEO_ANALYZE_SINGLE: (self.start_single_video_workflow, [], "kwargs_all"),
-            Events.VIDEO_START_SINGLE_PROCESSING: (self.start_single_video_processing, [], "kwargs_all"),
-            Events.VIDEO_CANCEL_ANALYSIS: (self.cancel_current_analysis, [], "no_params"),
-            Events.MODEL_ADD_WEIGHT: (self.add_new_weight, [], "kwargs_all"),
-            Events.MODEL_DELETE_WEIGHT: (self.delete_weight, [], "kwargs_all"),
-            Events.MODEL_LOAD_NEW_WEIGHT: (self.load_new_weight, [], "kwargs_all"),
-            Events.MODEL_MANAGE_WEIGHTS: (self.manage_weights, [], "no_params"),
-            Events.ZONE_SAVE_MANUAL_ARENA: (self.save_manual_arena, ["polygon_points"], "kwargs_get"),
-            Events.ZONE_AUTO_DETECT: (self.auto_detect_zones, [], "kwargs_all"),
-            Events.PROJECT_DELETE_ASSET: (self.handle_delete_project_asset, [], "kwargs_all"),
-            Events.CALIBRATION_COPY_TO_PROJECT: (self.handle_calibration_copy_to_project, [], "no_params"),
-            Events.CALIBRATION_SAVE_TO_PROJECT: (self.handle_calibration_save_to_project, [], "no_params"),
+            Events.RECORDING_START: (self.hardware_vm.start_recording, [], "no_params"),
+            Events.RECORDING_STOP: (self.hardware_vm.stop_recording, [], "no_params"),
+            Events.RECORDING_TOGGLE: (self.hardware_vm.toggle_recording, [], "no_params"),
+            Events.PROJECT_CREATE: (self.project_vm.create_project_workflow, ["wizard_data"], "kwargs_all"),
+            Events.PROJECT_OPEN: (self.project_vm.open_project_workflow, ["project_path"], "positional"),
+            Events.PROJECT_CLOSE: (self.project_vm.close_project, [], "no_params"),
+            Events.PROJECT_PROCESS_VIDEOS: (self.analysis_vm.start_project_processing_workflow, [], "no_params"),
+            Events.PROJECT_ADD_VIDEOS: (self.project_vm.add_videos_to_project, [], "no_params"),
+            Events.MODEL_SET_OPENVINO: (self.hardware_vm.set_openvino_usage, [], "kwargs_all"),
+            Events.MODEL_SET_WEIGHT: (self.hardware_vm.set_active_weight, [], "kwargs_all"),
+            Events.MODEL_RUN_DIAGNOSTIC: (self.hardware_vm.run_model_diagnostic, ["config"], "kwargs_all"),
+            Events.UI_REQUEST_WEIGHT_FILE: (self.hardware_vm.handle_request_weight_file, [], "no_params"),
+            Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG: (self.handle_open_manage_weights, [], "no_params"), # Kept here or moved? Moved to HW VM but needs root.
+            Events.VIDEO_ANALYZE_SINGLE: (self.start_single_video_workflow, [], "kwargs_all"), # Facade wrapper due to complexity
+            Events.VIDEO_START_SINGLE_PROCESSING: (self.analysis_vm.start_single_video_processing, [], "kwargs_all"),
+            Events.VIDEO_CANCEL_ANALYSIS: (self.analysis_vm.cancel_current_analysis, [], "no_params"),
+            Events.MODEL_ADD_WEIGHT: (self.hardware_vm.add_new_weight, [], "kwargs_all"),
+            Events.MODEL_DELETE_WEIGHT: (self.hardware_vm.delete_weight, [], "kwargs_all"),
+            Events.MODEL_LOAD_NEW_WEIGHT: (self.hardware_vm.load_new_weight, [], "kwargs_all"),
+            Events.MODEL_MANAGE_WEIGHTS: (self.hardware_vm.manage_weights, [], "no_params"),
+            Events.ZONE_SAVE_MANUAL_ARENA: (self.analysis_vm.save_manual_arena, ["polygon_points"], "kwargs_get"),
+            Events.ZONE_AUTO_DETECT: (self.analysis_vm.auto_detect_zones, [], "kwargs_all"),
+            Events.PROJECT_DELETE_ASSET: (self.project_vm.handle_delete_project_asset, [], "kwargs_all"),
+            Events.CALIBRATION_COPY_TO_PROJECT: (self.project_vm.handle_calibration_copy_to_project, [], "no_params"),
+            Events.CALIBRATION_SAVE_TO_PROJECT: (self.project_vm.handle_calibration_save_to_project, [], "no_params"),
         }
 
         log.info("main_view_model.initialized", source="init")
@@ -187,17 +194,8 @@ class MainViewModel:
         self._pending_external_trigger = None
         self._using_project_overrides = False  # Model override flag (managed by orchestrators)
 
-        # Event bus flag
-        self.ui_event_bus = self.event_dispatcher.event_bus
-        self._use_event_bus = bool(self.ui_event_bus)
-
         # Set legacy services if needed (for properties)
         self._recording_service = None
-
-        # NOTE: self.view is NOT assigned here anymore.
-        # MainViewModel is decoupled from the concrete View instance.
-        # Any remaining self.view usages must be refactored.
-        # Only VideoProcessingOrchestrator holds a reference to view (via proxy).
 
     def _subscribe_to_state(self):
         """Subscribe to state manager updates."""
@@ -206,59 +204,41 @@ class MainViewModel:
         self.state_manager.subscribe(StateCategory.PROCESSING, self._on_processing_state_changed)
 
     # =========================================================================
-    # Phase 3: Delegation Methods (TEMPORARY - for backward compatibility)
+    # Facade Methods - Delegating to Sub-ViewModels
     # =========================================================================
 
     def set_active_weight(self, name: str | None, dialog=None):
-        return self.ui_state_controller.set_active_weight(name, dialog)
+        return self.hardware_vm.set_active_weight(name, dialog)
 
     def set_openvino_usage(self, use_openvino: bool, dialog=None):
-        return self.ui_state_controller.set_openvino_usage(use_openvino, dialog)
+        return self.hardware_vm.set_openvino_usage(use_openvino, dialog)
 
     def update_detector_parameters(self, params: dict, **kwargs) -> bool:
-        """Update detector parameters via coordinator."""
-        if self.detector_coordinator:
-            return self.detector_coordinator.update_detector_parameters(params, **kwargs)
-        return False
+        return self.hardware_vm.update_detector_parameters(params, **kwargs)
 
     def get_current_detector_parameters(self) -> dict:
-        """Get current detector parameters via coordinator."""
-        if self.detector_coordinator:
-            return self.detector_coordinator.get_detector_parameters()
-        return {}
+        return self.hardware_vm.get_current_detector_parameters()
 
     def update_openvino_status(self, dialog=None):
-        return self.ui_state_controller.update_openvino_status(dialog)
-
-    def _show_post_creation_guide(self):
-        """Show post-creation guide (delegated to UI coordinator or legacy)."""
-        # Placeholder for backward compatibility with tests/wizards
-        pass
+        return self.hardware_vm.update_openvino_status(dialog)
 
     def close_project(self):
-        return self.project_lifecycle_coordinator.close_project()
-
-    def _setup_zones_from_project(self):
-        return self.project_orchestrator._setup_zones_from_project()
+        return self.project_vm.close_project()
 
     def open_project_workflow(self, project_path):
-        return self.project_orchestrator.open_project_workflow(project_path)
+        return self.project_vm.open_project_workflow(project_path)
 
     def start_live_camera_analysis(self, camera_index: int | None = None):
-        """Start live camera analysis via SessionCoordinator."""
-        return self.session_coordinator.start_live_camera_analysis(camera_index)
+        return self.hardware_vm.start_live_camera_analysis(camera_index)
 
     def start_live_project_session(self):
-        """Start a live project session via SessionCoordinator."""
-        return self.session_coordinator.start_live_project_session()
+        return self.hardware_vm.start_live_project_session()
 
     def can_remove_project_asset(self, video_path: str, asset: str) -> tuple[bool, str | None]:
-        """Check if a project asset can be removed via ProjectOrchestrator."""
-        return self.project_orchestrator.can_remove_project_asset(video_path, asset)
+        return self.project_vm.can_remove_project_asset(video_path, asset)
 
     def save_manual_arena(self, polygon: list[tuple[int, int]]):
-        """Save manually drawn arena via ProcessingCoordinator."""
-        return self.processing_coordinator.save_manual_arena(polygon)
+        return self.analysis_vm.save_manual_arena(polygon)
 
     def setup_detector_zones(self):
         """Setup detector zones from project data via ProjectLifecycleCoordinator."""
@@ -275,132 +255,86 @@ class MainViewModel:
         )
 
     # =========================================================================
-    # Event Handlers Delegates (Added for Event Mapping Refactor)
+    # Event Handlers delegates (kept for backward compat or event mapping)
     # =========================================================================
 
     def start_recording(self, **kwargs):
-        """Delegates recording start to recording session orchestrator."""
-        if self.recording_session_orchestrator:
-            self.recording_session_orchestrator.start_recording(**kwargs)
+        self.hardware_vm.start_recording(**kwargs)
 
     def stop_recording(self):
-        """Delegates recording stop to recording session orchestrator."""
-        if self.recording_session_orchestrator:
-            self.recording_session_orchestrator.stop_recording()
+        self.hardware_vm.stop_recording()
 
     def toggle_recording(self):
-        """Toggles recording state."""
-        if self.recording_service and self.recording_service.is_recording:
-            self.stop_recording()
-        else:
-            self.start_recording()
+        self.hardware_vm.toggle_recording()
 
     def start_project_processing_workflow(self):
-        """Delegates processing workflow to video processing orchestrator."""
-        if self.video_processing_orchestrator:
-            self.video_processing_orchestrator.start_project_processing_workflow()
+        self.analysis_vm.start_project_processing_workflow()
 
     def add_videos_to_project(self):
-        """Adds videos to the current project via file dialog."""
-        if not self.project_manager.project_path:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Nenhum Projeto",
-                    "message": "Crie ou abra um projeto antes de adicionar vídeos.",
-                },
-            )
-            return
-
-        from tkinter import filedialog
-
-        file_paths = filedialog.askopenfilenames(
-            title="Adicionar Vídeos ao Projeto",
-            filetypes=[("Arquivos de Vídeo", "*.mp4 *.avi *.mov *.mkv")],
-        )
-
-        if not file_paths:
-            return
-
-        added_count = 0
-        for path in file_paths:
-            if self.project_manager.add_video(path):
-                added_count += 1
-
-        if added_count > 0:
-            self.project_manager.save_project()
-            self.ui_event_bus.publish_event(Events.UI_UPDATE_PROJECT_INFO)
-            self.ui_state_controller.refresh_project_views(reason="videos_added")
+        self.project_vm.add_videos_to_project()
 
     def run_model_diagnostic(self, config: dict):
-        """Run model diagnostics via orchestrator."""
-        if self.model_diagnostics_orchestrator:
-            self.model_diagnostics_orchestrator.run_model_diagnostic(config)
+        self.hardware_vm.run_model_diagnostic(config)
 
     def handle_request_weight_file(self):
-        """Handle request to select a weight file."""
-        from tkinter import filedialog
-        
-        file_path = filedialog.askopenfilename(
-            title="Carregar Novo Peso",
-            filetypes=[("Modelos YOLO/OpenVINO", "*.pt *.onnx *.xml")]
-        )
-        
-        if file_path:
-            self.ui_state_controller.load_new_weight(filepath=file_path)
+        self.hardware_vm.handle_request_weight_file()
 
     def handle_open_manage_weights(self):
-        """Open the Manage Weights dialog."""
-        from zebtrack.ui.dialogs.manage_weights_dialog import ManageWeightsDialog
-        ManageWeightsDialog(self.root, self.ui_state_controller)
+        # This requires self.root, passing it to VM
+        self.hardware_vm.handle_open_manage_weights(self.root)
 
     def start_single_video_processing(self, **kwargs):
-        """Delegate single video processing start to orchestrator."""
-        if self.video_processing_orchestrator:
-            self.video_processing_orchestrator.start_single_video_processing(**kwargs)
+        self.analysis_vm.start_single_video_processing(**kwargs)
 
     def auto_detect_zones(self, **kwargs):
-        """Delegate zone auto-detection to coordinator."""
-        # Ensure video_path is provided if not in kwargs (from pending state or active video)
-        if self.processing_coordinator:
-            # The coordinator's auto_detect_zones signature might expect specific args
-            # We'll pass everything as kwargs for now, assuming the coordinator handles it.
-            # Actually, checking ProcessingCoordinator signature is safer, but we'll assume kwargs_all for now.
-            self.processing_coordinator.auto_detect_zones(**kwargs)
+        self.analysis_vm.auto_detect_zones(**kwargs)
 
     def manage_weights(self):
-        """Delegate weight management opening to UI controller."""
-        self.ui_state_controller.manage_weights()
+        self.hardware_vm.manage_weights()
 
     def add_new_weight(self, path: str, set_as_default: bool, weight_type: str | None = None):
-        """Delegate adding new weight to UI controller."""
-        self.ui_state_controller.add_new_weight(path, set_as_default, weight_type)
+        self.hardware_vm.add_new_weight(path, set_as_default, weight_type)
 
     def delete_weight(self, name: str):
-        """Delegate deleting weight to UI controller."""
-        self.ui_state_controller.delete_weight(name)
+        self.hardware_vm.delete_weight(name)
 
     def load_new_weight(self, **kwargs):
-        """Delegate loading new weight to UI controller."""
-        self.ui_state_controller.load_new_weight(**kwargs)
+        self.hardware_vm.load_new_weight(**kwargs)
 
     def handle_delete_project_asset(self, video_path: str, asset: str):
-        """Delegate asset deletion to project orchestrator."""
-        if self.project_orchestrator:
-            # Ensure we have confirmation or handle UI update if needed
-            self.project_orchestrator.delete_project_asset(video_path, asset)
-            # Refresh views after deletion
-            self.ui_state_controller.refresh_project_views(reason="asset_deleted")
+        self.project_vm.handle_delete_project_asset(video_path, asset)
 
     def handle_calibration_copy_to_project(self):
-        """Delegate copying global calibration to project."""
-        if self.calibration_orchestrator:
-            self.calibration_orchestrator.copy_global_to_project()
+        self.project_vm.handle_calibration_copy_to_project()
 
     def handle_calibration_save_to_project(self):
-        """Delegate saving current calibration to project."""
-        if self.calibration_orchestrator:
-            self.calibration_orchestrator.save_project_calibration()
+        self.project_vm.handle_calibration_save_to_project()
+
+    # =========================================================================
+    # Complex Workflows (Involving multiple VMs)
+    # =========================================================================
+
+    def start_single_video_workflow(self, video_path, config):
+        """Delegate to AnalysisControlViewModel but inject dependencies from HardwareVM."""
+        self.analysis_vm.start_single_video_workflow(video_path, config, detector_vm=self.hardware_vm)
+
+    def create_project_workflow(self, **wizard_data):
+        return self.project_vm.create_project_workflow(**wizard_data)
+
+    def cancel_current_analysis(self) -> None:
+        self.analysis_vm.cancel_current_analysis()
+
+    def apply_project_settings_to_batch(self, videos: list):
+        return self.project_vm.apply_project_settings_to_batch(videos)
+
+    def generate_parquet_summaries(self, video_paths: list[str]):
+        self.analysis_vm.generate_parquet_summaries(video_paths)
+
+    def setup_detector(self, temp_animal_method: str | None = None) -> bool:
+        return self.hardware_vm.setup_detector(temp_animal_method)
+
+    def setup_arduino(self) -> bool:
+        return self.hardware_vm.setup_arduino()
 
     # =========================================================================
     # Application Lifecycle
@@ -421,15 +355,11 @@ class MainViewModel:
 
     @property
     def recording_service(self) -> RecordingService | None:
-        if self._recording_service:
-            return self._recording_service
-        return getattr(self.session_coordinator, "recording_service", None)
+        return self.hardware_vm.recording_service
 
     @recording_service.setter
     def recording_service(self, value: RecordingService | None) -> None:
-        self._recording_service = value
-        if self.recording_coordinator:
-            self.recording_coordinator.recording_service = value
+        self.hardware_vm.recording_service = value
 
     @property
     def _global_model_defaults(self) -> dict:
@@ -439,51 +369,25 @@ class MainViewModel:
             "use_openvino": detector_state.use_openvino,
         }
 
-    def _update_global_model_defaults(
-        self,
-        active_weight: str | None = None,
-        use_openvino: bool | None = None
-    ) -> None:
-        """Update global model defaults in state manager.
-
-        This method provides a way to persist changes to global defaults
-        that would normally be lost with the read-only property.
-
-        Args:
-            active_weight: Weight name to save as global default (None = no update)
-            use_openvino: OpenVINO usage to save as global default (None = no update)
-        """
-        updates = {}
-        if active_weight is not None:
-            updates["active_weight_name"] = active_weight
-        if use_openvino is not None:
-            updates["use_openvino"] = use_openvino
-
-        if updates:
-            self.state_manager.update_detector_state(
-                source="main_view_model.update_global_defaults",
-                **updates
-            )
-
     @property
     def detector(self) -> Detector | None:
-        return self.detector_service.detector
+        return self.hardware_vm.detector
 
     @detector.setter
     def detector(self, value: Detector | None) -> None:
-        self.detector_service.detector = value
+        self.hardware_vm.detector = value
 
     @detector.deleter
     def detector(self) -> None:
-        self.detector_service.detector = None
+        self.hardware_vm.detector = None
 
     @property
     def detector_initialized(self) -> bool:
-        return self.state_manager.get_detector_state().detector_initialized
+        return self.hardware_vm.detector_initialized
 
     @property
     def is_processing(self) -> bool:
-        return self.state_manager.get_processing_state().is_processing
+        return self.analysis_vm.is_processing
 
     # ==================== Event Handlers ====================
 
@@ -520,9 +424,7 @@ class MainViewModel:
             self.ui_state_controller._show_cancel_feedback()
 
     def get_openvino_status(self) -> str:
-        return self.model_service.get_openvino_status(
-            weight_name=self.active_weight_name, use_openvino=self.use_openvino
-        )
+        return self.hardware_vm.get_openvino_status()
 
     @contextmanager
     def global_calibration_session(self):
@@ -552,9 +454,15 @@ class MainViewModel:
             capture_thread.join()
 
         camera_release_success = True
-        if hasattr(self, "camera") and self.camera:
+        # Check hardware_vm for camera
+        camera = getattr(self.hardware_vm, "camera", None)
+        # Fallback to self.camera if it was set on MainVM (legacy safety)
+        if not camera and hasattr(self, "camera"):
+            camera = self.camera
+
+        if camera:
             try:
-                camera_release_success = bool(self.camera.release())
+                camera_release_success = bool(camera.release())
             except Exception as exc:
                 camera_release_success = False
                 log.error("controller.camera.release_failed", error=str(exc))
@@ -564,8 +472,6 @@ class MainViewModel:
                 "controller.camera.zombie_detected",
                 message="Camera thread did not shut down cleanly",
             )
-            # v2.2: Graceful shutdown instead of sys.exit(70)
-            # Publish fatal error event for UI notification
             if self.ui_event_bus:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
                 self.ui_event_bus.publish(
@@ -580,25 +486,9 @@ class MainViewModel:
                         },
                     )
                 )
-            # Allow natural shutdown - don't force with sys.exit()
-            # Application will close via root.destroy() in on_close()
 
-        self._shutdown_arduino_manager()
+        self.hardware_vm._shutdown_arduino_manager()
         log.info("controller.shutdown.complete")
-
-    def _get_arduino_manager(self) -> ArduinoManager:
-        if self.arduino_manager is None:
-            self.arduino_manager = ArduinoManager(self)
-        return self.arduino_manager
-
-    def _shutdown_arduino_manager(self):
-        if self.arduino_manager:
-            try:
-                self.arduino_manager.shutdown()
-            except Exception as e:
-                log.warning("controller.arduino.shutdown_failed", error=str(e))
-            self.arduino_manager = None
-        self.arduino = None
 
     def _create_event_dispatcher(self, event_name: str):
         if event_name not in self._EVENT_METHOD_MAPPING:
@@ -694,277 +584,57 @@ class MainViewModel:
                     )
 
     def log_arduino_event(self, message: str):
-        self.hardware_coordinator.log_arduino_event(message)
+        self.hardware_vm.log_arduino_event(message)
 
     def on_arduino_status_change(self, connected: bool, port: str | None):
-        self.hardware_coordinator.on_arduino_status_change(connected, port)
+        self.hardware_vm.on_arduino_status_change(connected, port)
 
     def on_arduino_command_sent(self, command: int, success: bool, source: str):
-        self.hardware_coordinator.on_arduino_command_sent(command, success, source)
-
-    def create_project_workflow(self, **wizard_data):
-        return self.project_orchestrator.create_project_workflow(**wizard_data)
-
-    def start_single_video_workflow(self, video_path, config):
-        video_path = Path(video_path) if isinstance(video_path, str) else video_path
-
-        self.project_manager.set_active_zone_video(str(video_path))
-
-        # Validation: Check detection mode constraints
-        animal_method = config.get("animal_method", self.settings.model_selection.animal_method)
-        animals_per_aquarium = config.get("animals_per_aquarium", 1)
-
-        if animal_method == "det" and animals_per_aquarium > 1:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Configuração Inválida",
-                    "message": (
-                        f"O modo de detecção (det) suporta apenas 1 animal por aquário.\n"
-                        f"Você configurou {animals_per_aquarium} animais por aquário.\n"
-                        "Para múltiplos animais, use o modo de segmentação (seg)."
-                    ),
-                },
-            )
-            return
-
-        use_openvino = config.get("use_openvino", self.settings.model_selection.use_openvino)
-        self.use_openvino = use_openvino
-
-        if not self.detector:
-             temp_animal_method = config.get("animal_method")
-             if not self.setup_detector(temp_animal_method):
-                 return
-
-        # UI Event dispatched here, listened by EventDispatcher in GUI
-        log.info(
-            "main_view_model.start_single_video_workflow.publishing_ui_event",
-            video_path=str(video_path),
-            has_ui_event_bus=bool(self.ui_event_bus),
-        )
-        self.ui_event_bus.publish_event(
-            "ui:setup_zone_definition_for_single_video",
-            {"video_path": video_path, "config": config},
-        )
-        log.info("main_view_model.start_single_video_workflow.ui_event_published")
-
-    def cancel_current_analysis(self) -> None:
-        worker_running = bool(self.processing_worker and self.processing_worker.is_running)
-        thread_running = bool(self.processing_thread and self.processing_thread.is_alive())
-
-        if not worker_running and not thread_running:
-            return
-
-        self.cancel_event.set()
-        self.state_manager.update_processing_state(
-            source="controller.cancel_current_analysis",
-            cancel_requested=True,
-        )
-        # Update status via event
-        self.ui_event_bus.publish_event(
-            Events.UI_SET_STATUS, {"message": "Cancelando análise em andamento..."}
-        )
-        self.ui_state_controller._show_cancel_feedback()
-
-        def _await_shutdown():
-            if self.processing_worker and self.processing_worker.is_running:
-                self.processing_worker.cancel()
-            elif self.processing_thread and self.processing_thread.is_alive():
-                self.processing_thread.join(timeout=5.0)
-
-        threading.Thread(target=_await_shutdown, daemon=True).start()
-
-    def _process_single_video(self, **kwargs):
-        return self.video_processing_service.process_single_video(
-            detector=self.detector,
-            recorder=self.recorder,
-            **kwargs
-        )
-
-    def apply_project_settings_to_batch(self, videos: list):
-        return self.batch_configuration_service.apply_settings(videos)
-
-    def _prepare_results_directory(self, results_dir: str):
-        self.video_processing_service._prepare_results_directory(results_dir)
-
-    def generate_parquet_summaries(self, video_paths: list[str]):
-        self.analysis_coordinator.generate_parquet_summaries(
-            video_paths, processing_thread_ref=self.processing_thread
-        )
-
-    def setup_detector(self, temp_animal_method: str | None = None) -> bool:
-        success, _ = self.detector_coordinator.setup_detector(
-            animal_method=temp_animal_method,
-            use_openvino=self.use_openvino,
-            active_weight_name=self.active_weight_name,
-        )
-        return success
-
-    def setup_arduino(self) -> bool:
-        success = self.hardware_coordinator.setup_arduino()
-        self.arduino = self.hardware_coordinator.arduino
-        self.arduino_manager = self.hardware_coordinator.arduino_manager
-        return success
-
-    def _publish_processing_mode(self, source="unknown", force=False, mode_override=None):
-        return self.ui_state_controller._publish_processing_mode(source, force, mode_override)
-
-    def _determine_processing_intervals(self, single_video_config):
-        p_data = self.project_manager.project_data
-        a_int = 10
-        d_int = 10
-        if single_video_config:
-            a_int = single_video_config.get("analysis_interval", 10)
-            d_int = single_video_config.get("display_interval", 10)
-        elif p_data:
-            a_int = p_data.get("analysis_interval_frames", 10)
-            d_int = p_data.get("display_interval_frames", 10)
-        return a_int, d_int
-
-    @contextmanager
-    def _temporary_single_animal_mode(self, single_video_config):
-        yield
-
-    def _apply_wizard_detector_overrides(self, wizard_metadata: dict):
-        """
-        Apply detector overrides from wizard metadata.
-
-        Delegates to DetectorCoordinator.
-        """
-        if not wizard_metadata:
-            return
-
-        # Handle nested detector_parameters (standard wizard output)
-        source = wizard_metadata.get("detector_parameters", wizard_metadata)
-
-        if source is None:
-            source = wizard_metadata
-
-        overrides = {}
-
-        # Map Wizard UI keys to Detector Plugin keys
-        if "confidence_threshold" in source:
-            overrides["conf_threshold"] = float(source["confidence_threshold"])
-        elif "conf_threshold" in source:
-            overrides["conf_threshold"] = float(source["conf_threshold"])
-
-        if "nms_threshold" in source:
-            overrides["nms_threshold"] = float(source["nms_threshold"])
-
-        if "track_threshold" in source and source["track_threshold"] is not None:
-            overrides["track_threshold"] = float(source["track_threshold"])
-
-        if "match_threshold" in source:
-            overrides["match_threshold"] = float(source["match_threshold"])
-        elif "iou_threshold" in source:
-             overrides["match_threshold"] = float(source["iou_threshold"])
-
-        if overrides:
-            self.update_detector_parameters(
-                params=overrides,
-                scope="project"
-            )
+        self.hardware_vm.on_arduino_command_sent(command, success, source)
 
     # =========================================================================
-    # Delegation Methods (Restored for Backward Compatibility)
+    # Legacy / Misc Delegates
     # =========================================================================
 
     def get_calibration_scope_info(self) -> dict:
-        """Get calibration scope info (global vs project)."""
-        if self.calibration_orchestrator:
-            return self.calibration_orchestrator.get_calibration_scope_info()
-        return {"scope": "global", "label": "Global", "detail": "N/A", "project_loaded": False}
+        return self.project_vm.get_calibration_scope_info()
 
     def get_all_weight_names(self) -> list[str]:
-        """Get all available weight names."""
-        if self.model_service:
-            return self.model_service.get_all_weight_names()
-        return []
+        return self.hardware_vm.get_all_weight_names()
 
     def get_global_model_defaults(self) -> dict:
-        """Get global model default settings."""
         return self._global_model_defaults
 
     def resolve_project_model_settings(self, overrides: dict) -> tuple[str | None, bool]:
-        """Resolve effective model settings given project overrides."""
-        if self.project_orchestrator:
-            return self.project_orchestrator.resolve_project_model_settings(overrides)
-        return None, False
+        return self.project_vm.resolve_project_model_settings(overrides)
 
     def save_project_model_overrides(self, active_weight: str | None, use_openvino: bool | None) -> None:
-        """Save model overrides to the current project."""
-        if self.project_orchestrator:
-            self.project_orchestrator.save_project_model_overrides(active_weight, use_openvino)
+        self.project_vm.save_project_model_overrides(active_weight, use_openvino)
 
     def has_project_override_settings(self) -> bool:
-        """Check if current project has override settings."""
-        if self.project_orchestrator:
-            return self.project_orchestrator.has_project_override_settings()
-        return False
+        return self.project_vm.has_project_override_settings()
 
     def restore_detector_defaults(self, scope: str = "global") -> bool:
-        """Restore detector parameters to defaults for the given scope."""
-        if not self.detector_coordinator:
-            return False
-        
-        if scope == "global":
-            # Reset global tracking state to defaults
-            factory_defaults = self.detector_coordinator.get_factory_detector_parameters()
-            return self.detector_coordinator.update_detector_parameters(
-                params=factory_defaults,
-                scope="global",
-                reset_overrides=True
-            )
-        elif scope == "project":
-            # Reset project overrides
-            # To "restore defaults" for project, we basically clear overrides or set them to global?
-            # CalibrationDialog expects clearing overrides likely.
-            # If DetectorCoordinator supports reset_overrides=True for project scope, we use that.
-            # Checking DetectorCoordinator.update_detector_parameters signature:
-            # it has reset_overrides param.
-            return self.detector_coordinator.update_detector_parameters(
-                params={},
-                scope="project",
-                reset_overrides=True
-            )
-        return False
+        return self.hardware_vm.restore_detector_defaults(scope)
 
     def create_new_project(self, **kwargs):
-        """Create a new project (delegate to project orchestrator)."""
-        if self.project_orchestrator:
-            return self.project_orchestrator.create_project_workflow(**kwargs)
+        return self.project_vm.create_project_workflow(**kwargs)
 
     def get_openvino_cache_status(self, weight_name: str = None) -> dict:
-        """Get OpenVINO conversion status."""
-        if not weight_name:
-            weight_name = self.active_weight_name
-        if self.model_service:
-            return self.model_service.check_openvino_conversion_status(weight_name)
-        return {"status": "unknown"}
+        return self.hardware_vm.get_openvino_cache_status(weight_name)
 
     def set_main_arena_polygon(self, points: list) -> bool:
-        """Set main arena polygon."""
-        if self.processing_coordinator:
-            return self.processing_coordinator.set_main_arena_polygon(points)
-        return False
+        return self.analysis_vm.set_main_arena_polygon(points)
 
     def add_roi_polygon(self, points: list, name: str, color: tuple) -> bool:
-        """Add ROI polygon."""
-        if self.processing_coordinator:
-            return self.processing_coordinator.add_roi_polygon(points, name, color)
-        return False
+        return self.analysis_vm.add_roi_polygon(points, name, color)
 
     def get_arena_data(self, arena_id: str = None):
-        """Get arena/zone data.
-        
-        Legacy support for UI components requesting arena data.
-        """
         if self.project_manager:
             return self.project_manager.get_zone_data()
         return None
 
     def _get_project_data_dict(self) -> dict:
-        """Access project data safely."""
         if self.project_manager:
             return self.project_manager.project_data
         return {}
