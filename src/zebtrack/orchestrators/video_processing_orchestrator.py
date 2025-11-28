@@ -496,7 +496,9 @@ class VideoProcessingOrchestrator:
 
         # Refresh views so the video appears in Main Control and Reports tabs
         # Ensures the user sees the registered video before processing starts
-        self.main_view_model.ui_state_controller.refresh_project_views(reason="Single video registered", immediate=True)
+        self.main_view_model.ui_state_controller.refresh_project_views(
+            reason="Single video registered", immediate=True
+        )
 
         # 1. Update the detector with the newly created zone data
         # We need to know the video dimensions to set up the zones correctly
@@ -625,7 +627,9 @@ class VideoProcessingOrchestrator:
             return
 
         # 3. Sprint 13: Handle mixed data scenario
-        videos_to_process = self.main_view_model.dialog_coordinator.handle_mixed_data_scenario(scanned_videos)
+        videos_to_process = self.main_view_model.dialog_coordinator.handle_mixed_data_scenario(
+            scanned_videos
+        )
         if videos_to_process is None:
             return  # User cancelled or videos already added
 
@@ -754,8 +758,7 @@ class VideoProcessingOrchestrator:
                 {
                     "title": "Erro",
                     "message": (
-                        "Não foi possível localizar caminhos válidos "
-                        "para os vídeos selecionados."
+                        "Não foi possível localizar caminhos válidos para os vídeos selecionados."
                     ),
                 },
             )

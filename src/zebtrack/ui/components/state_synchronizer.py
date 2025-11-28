@@ -408,7 +408,9 @@ class StateSynchronizer:
                         formatted.append(f"ID {key}: {value:.1f}%")
                 if formatted:
                     if self.gui.analysis_display_widget:
-                        self.gui.analysis_display_widget.set_social_summary("Interações sociais: " + ", ".join(formatted))
+                        self.gui.analysis_display_widget.set_social_summary(
+                            "Interações sociais: " + ", ".join(formatted)
+                        )
                 else:
                     if self.gui.analysis_display_widget:
                         self.gui.analysis_display_widget.set_social_summary(
@@ -421,7 +423,9 @@ class StateSynchronizer:
                     )
         else:
             if self.gui.analysis_display_widget:
-                self.gui.analysis_display_widget.set_social_summary("Interações sociais: aguardando dados.")
+                self.gui.analysis_display_widget.set_social_summary(
+                    "Interações sociais: aguardando dados."
+                )
 
         if tracks and self.gui._active_processing_mode is not ProcessingMode.SINGLE_SUBJECT:
             normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
@@ -477,7 +481,7 @@ class StateSynchronizer:
                 detected_frames=detected_frames,
                 percent=percent,
                 elapsed=elapsed_str,
-                eta=eta_str
+                eta=eta_str,
             )
 
     @staticmethod

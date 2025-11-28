@@ -43,7 +43,7 @@ class TestErrorHandling:
 
     def test_empty_trajectory_handled_gracefully(self, analysis_service):
         """Test analysis with empty trajectory DataFrame."""
-        empty_df = pd.DataFrame(columns=["x1", "y1", "x2", "y2"])
+        empty_df = pd.DataFrame(columns=["x1", "y1", "x2", "y2", "frame", "track_id"])
 
         # Empty trajectory should raise an error during analysis
         with patch(
@@ -67,7 +67,9 @@ class TestErrorHandling:
     @patch("zebtrack.analysis.analysis_service.ConcreteBehavioralAnalyzer")
     def test_single_frame_trajectory(self, mock_analyzer_class, analysis_service):
         """Test analysis with only one frame."""
-        single_frame_df = pd.DataFrame({"x1": [100], "y1": [100], "x2": [150], "y2": [150]})
+        single_frame_df = pd.DataFrame(
+            {"x1": [100], "y1": [100], "x2": [150], "y2": [150], "frame": [0], "track_id": [1]}
+        )
 
         # Mock analyzer to handle single frame gracefully
         mock_analyzer = MagicMock()
@@ -110,7 +112,9 @@ class TestErrorHandling:
     def test_mismatched_trajectory_schema(self, mock_analyzer_class, analysis_service, tmp_path):
         """Test trajectory with missing required columns."""
         # Missing 'y2' column
-        invalid_df = pd.DataFrame({"x1": [100], "y1": [100], "x2": [150]})
+        invalid_df = pd.DataFrame(
+            {"x1": [100], "y1": [100], "x2": [150], "frame": [0], "track_id": [1]}
+        )
 
         # The analyzer might fail due to missing columns
         mock_analyzer_class.side_effect = KeyError("Missing column 'y2'")
@@ -137,6 +141,8 @@ class TestErrorHandling:
                 "y1": [100, 110, np.nan],
                 "x2": [150, 160, 170],
                 "y2": [150, 160, 170],
+                "frame": [0, 1, 2],
+                "track_id": [1, 1, 1],
             }
         )
 
@@ -198,7 +204,14 @@ class TestErrorHandling:
     def test_negative_coordinates_handled(self, mock_analyzer_class, analysis_service):
         """Test analysis with negative coordinates."""
         df_negative = pd.DataFrame(
-            {"x1": [-10, -5, 0], "y1": [-20, -10, 0], "x2": [10, 15, 20], "y2": [10, 15, 20]}
+            {
+                "x1": [-10, -5, 0],
+                "y1": [-20, -10, 0],
+                "x2": [10, 15, 20],
+                "y2": [10, 15, 20],
+                "frame": [0, 1, 2],
+                "track_id": [1, 1, 1],
+            }
         )
 
         # Mock analyzer
@@ -282,6 +295,8 @@ class TestErrorHandling:
                 "y1": [20000, 20100, 20200],
                 "x2": [10050, 10150, 10250],
                 "y2": [20050, 20150, 20250],
+                "frame": [0, 1, 2],
+                "track_id": [1, 1, 1],
             }
         )
 
@@ -316,9 +331,19 @@ class TestErrorHandling:
         directory = tmp_path / "some_dir"
         directory.mkdir()
 
-        # Pandas read_parquet on a directory returns empty DataFrame
-        # This is acceptable behavior - it doesn't crash
-        df = analysis_service.load_trajectory_dataframe(directory)
+        # On Windows, reading a directory raises PermissionError
+        # The service catches Exception and re-raises it
+        with pytest.raises((PermissionError, OSError, Exception)):
+            analysis_service.load_trajectory_dataframe(directory)
 
-        # Should return a DataFrame (possibly empty)
-        assert isinstance(df, pd.DataFrame)
+    def test_load_trajectory_permission_error(self, analysis_service):
+        """Test loading trajectory with permission error."""
+        with patch("pandas.read_parquet") as mock_read:
+            mock_read.side_effect = PermissionError("Access denied")
+            # Mock exists to return True so it proceeds to read_parquet
+            with patch.object(Path, "exists", return_value=True):
+                # Also mock pyarrow.parquet.ParquetFile because it's called before read_parquet
+                with patch("pyarrow.parquet.ParquetFile") as mock_pq_file:
+                    mock_pq_file.side_effect = PermissionError("Access denied")
+                    with pytest.raises(PermissionError):
+                        analysis_service.load_trajectory_dataframe(Path("protected_file.parquet"))

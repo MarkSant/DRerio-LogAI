@@ -148,7 +148,7 @@ class CalibrationOrchestrator:
             # Save global defaults via project workflow service
             self.main_view_model.project_workflow_service.set_global_model_defaults(
                 active_weight=self.main_view_model.active_weight_name,
-                use_openvino=self.main_view_model.use_openvino
+                use_openvino=self.main_view_model.use_openvino,
             )
             self.main_view_model._using_project_overrides = previous_flag
             if previous_flag and getattr(self.project_manager, "project_path", None):

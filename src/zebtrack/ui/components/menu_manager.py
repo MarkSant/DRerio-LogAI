@@ -391,15 +391,13 @@ class MenuManager:
         self.gui.set_status(status_message)
 
         if self.gui.event_bus_v2:
-            self.gui.event_bus_v2.publish(Event(
-                type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                data={
-                    "reason": status_message,
-                    "append_summary": True,
-                    "immediate": True
-                },
-                source="MenuManager.handle_overview_asset_removal"
-            ))
+            self.gui.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                    data={"reason": status_message, "append_summary": True, "immediate": True},
+                    source="MenuManager.handle_overview_asset_removal",
+                )
+            )
 
     def create_roi_context_menu(self):
         """Cria menu de contexto para ROIs."""
@@ -420,9 +418,7 @@ class MenuManager:
             label="🗑️ Remover", command=self.gui.canvas_manager.remove_selected_roi
         )
 
-    def show_roi_context_menu(
-        self, event=None, x=None, y=None, item_id=None
-    ) -> None:
+    def show_roi_context_menu(self, event=None, x=None, y=None, item_id=None) -> None:
         """Show the ROI context menu.
 
         Args:

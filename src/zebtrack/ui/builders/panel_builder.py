@@ -6,7 +6,6 @@ Extracted from WidgetFactory to separate concern of panel construction.
 
 import tkinter as tk
 from tkinter import StringVar, ttk
-from typing import Dict
 
 # Status symbols used in UI
 STATUS_SYMBOLS = {
@@ -16,6 +15,7 @@ STATUS_SYMBOLS = {
     "summary": "\u03a3",  # Σ
 }
 
+
 class PanelBuilder:
     """
     Builder for creating status and info panels.
@@ -23,8 +23,7 @@ class PanelBuilder:
 
     @staticmethod
     def build_model_status_panel(
-        parent: tk.Widget,
-        status_vars: Dict[str, StringVar]
+        parent: tk.Widget, status_vars: dict[str, StringVar]
     ) -> ttk.LabelFrame:
         """
         Create the model status display.
@@ -42,17 +41,17 @@ class PanelBuilder:
 
         ttk.Label(
             model_status_frame,
-            textvariable=status_vars.get('active_weight'),
+            textvariable=status_vars.get("active_weight"),
         ).pack(anchor="w")
 
         ttk.Label(
             model_status_frame,
-            textvariable=status_vars.get('openvino_status'),
+            textvariable=status_vars.get("openvino_status"),
         ).pack(anchor="w", pady=(4, 0))
 
         ttk.Label(
             model_status_frame,
-            textvariable=status_vars.get('hardware_status'),
+            textvariable=status_vars.get("hardware_status"),
             foreground="gray",
         ).pack(anchor="w", pady=(4, 0))
 
@@ -60,9 +59,8 @@ class PanelBuilder:
 
     @staticmethod
     def create_zone_summary_cards(
-        parent: tk.Widget,
-        helper_text: str
-    ) -> tuple[ttk.LabelFrame, Dict[str, Dict[str, StringVar]]]:
+        parent: tk.Widget, helper_text: str
+    ) -> tuple[ttk.LabelFrame, dict[str, dict[str, StringVar]]]:
         """
         Create zone summary cards section.
 

@@ -138,10 +138,7 @@ class ThreadCoordinator:
         Returns:
             True se thread de processamento está viva, False caso contrário
         """
-        return (
-            self.processing_thread is not None
-            and self.processing_thread.is_alive()
-        )
+        return self.processing_thread is not None and self.processing_thread.is_alive()
 
     def is_capture_active(self) -> bool:
         """Verifica se thread de captura está ativa.
@@ -149,10 +146,7 @@ class ThreadCoordinator:
         Returns:
             True se thread de captura está viva, False caso contrário
         """
-        return (
-            self.capture_thread is not None
-            and self.capture_thread.is_alive()
-        )
+        return self.capture_thread is not None and self.capture_thread.is_alive()
 
     def get_active_thread_count(self) -> int:
         """Retorna número de threads ativas.

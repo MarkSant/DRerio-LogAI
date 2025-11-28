@@ -426,11 +426,7 @@ class RecordingSessionOrchestrator:
         return True
 
     def start_recording(
-        self,
-        day: int | None = None,
-        group: str | None = None,
-        cobaia: str | None = None,
-        **kwargs
+        self, day: int | None = None, group: str | None = None, cobaia: str | None = None, **kwargs
     ):
         """
         Start a recording session (live mode) with zone validation.

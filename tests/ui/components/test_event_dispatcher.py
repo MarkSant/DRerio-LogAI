@@ -134,9 +134,7 @@ class TestCreateDispatcher:
 
     def test_dispatcher_unknown_mode(self, event_dispatcher, mock_handler):
         """Testa dispatcher com modo desconhecido."""
-        dispatcher = event_dispatcher._create_dispatcher(
-            mock_handler, None, "unknown_mode"
-        )
+        dispatcher = event_dispatcher._create_dispatcher(mock_handler, None, "unknown_mode")
 
         dispatcher({})
 
@@ -145,6 +143,7 @@ class TestCreateDispatcher:
 
     def test_dispatcher_handler_error(self, event_dispatcher):
         """Testa tratamento de erro em handler."""
+
         def error_handler():
             raise ValueError("Test error")
 
@@ -159,9 +158,7 @@ class TestCreateDispatcher:
 class TestRegisterDirectHandler:
     """Testes de registro de handler direto."""
 
-    def test_register_direct_handler(
-        self, event_dispatcher, mock_event_bus, mock_handler
-    ):
+    def test_register_direct_handler(self, event_dispatcher, mock_event_bus, mock_handler):
         """Testa registro de handler direto."""
         event_dispatcher.register_direct_handler("test_event", mock_handler)
 
@@ -180,9 +177,7 @@ class TestRegisterDirectHandler:
 class TestUnregisterHandler:
     """Testes de remoção de handlers."""
 
-    def test_unregister_existing_handler(
-        self, event_dispatcher, mock_event_bus, mock_handler
-    ):
+    def test_unregister_existing_handler(self, event_dispatcher, mock_event_bus, mock_handler):
         """Testa remoção de handler existente."""
         event_dispatcher.register_handler("test_event", mock_handler)
         assert "test_event" in event_dispatcher.handlers
@@ -227,8 +222,8 @@ class TestZoneComponentEventHandlers:
 
         # Act
         mock_gui._filter_video_tree = lambda: (
-            mock_gui.zone_controls and
-            mock_gui.project_view_manager._populate_video_selector_tree(
+            mock_gui.zone_controls
+            and mock_gui.project_view_manager._populate_video_selector_tree(
                 filter_text=mock_gui.zone_controls.video_search_var.get()
             )
         )

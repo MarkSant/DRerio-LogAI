@@ -183,8 +183,7 @@ class BYTETracker:
         else:
             # Defensive fallback - should not be reached with current detectors
             msg = (
-                f"Unexpected detector output format: "
-                f"{output_results.shape[1]} columns (expected 5)"
+                f"Unexpected detector output format: {output_results.shape[1]} columns (expected 5)"
             )
             raise ValueError(msg)
 

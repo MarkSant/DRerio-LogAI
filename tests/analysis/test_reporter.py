@@ -334,7 +334,9 @@ class TestEdgeCases:
         empty_df = pd.DataFrame(columns=["timestamp", "frame", "track_id"])
 
         # Empty DataFrames should raise ValueError during behavioral analysis
-        with pytest.raises(ValueError, match="Input DataFrame is empty"):
+        with pytest.raises(
+            ValueError, match="Trajectory validation failed: Trajectory dataframe is empty"
+        ):
             # OLD:             Reporter(
             # OLD:                 trajectory_df=empty_df,
             # OLD:                 metadata={},

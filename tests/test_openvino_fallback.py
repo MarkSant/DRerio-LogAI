@@ -65,7 +65,7 @@ class TestOpenVINOFallback:
         from zebtrack.core.application_bootstrapper import ApplicationBootstrapper
 
         # Verify the method exists
-        assert hasattr(ApplicationBootstrapper, '_is_valid_openvino_directory')
+        assert hasattr(ApplicationBootstrapper, "_is_valid_openvino_directory")
 
         # The actual fallback logic is tested through integration tests
         # with full MainViewModel initialization

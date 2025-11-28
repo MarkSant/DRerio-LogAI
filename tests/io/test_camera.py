@@ -1,13 +1,12 @@
 import itertools
 import threading
-import time
 from unittest.mock import MagicMock, patch
 
 import cv2
 import numpy as np
 import pytest
 
-from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
+from tests.utils.wait_helpers import wait_for_condition
 
 
 @pytest.fixture

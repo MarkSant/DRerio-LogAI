@@ -220,7 +220,6 @@ class TestGUIStateObserver:
 
     def test_recording_state_stop_updates_ui(self, mock_gui, controller):
         """Stopping recording should re-enable start button."""
-        import time
         from tests.utils.wait_helpers import wait_for_condition
 
         # Start recording
@@ -235,7 +234,10 @@ class TestGUIStateObserver:
         controller.state_manager.update_recording_state(source="test", is_recording=False)
 
         # Wait for async observers to complete and schedule UI updates
-        wait_for_condition(lambda: len([c for c in mock_gui.root._scheduled_callbacks if c[0] == 0]) > 0, timeout=0.5)
+        wait_for_condition(
+            lambda: len([c for c in mock_gui.root._scheduled_callbacks if c[0] == 0]) > 0,
+            timeout=0.5,
+        )
 
         # Phase 1.2: Process all scheduled UI updates synchronously
         mock_gui.root.update_idletasks()

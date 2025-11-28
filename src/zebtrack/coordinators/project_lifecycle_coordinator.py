@@ -129,7 +129,8 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         # Delegate to adapter which handles all UI coordination
         new_project_manager = self.project_workflow_adapter.close_project(
-            restore_global_defaults_callback=restore_global_defaults_callback or self._restore_global_model_defaults,
+            restore_global_defaults_callback=restore_global_defaults_callback
+            or self._restore_global_model_defaults,
             settings_obj=self.settings,
         )
 
@@ -351,7 +352,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self.logger.info("project.outputs.register.start", video=video_path)
 
         # Register through project manager
-        if hasattr(self.project_manager, '_register_outputs'):
+        if hasattr(self.project_manager, "_register_outputs"):
             self.project_manager._register_outputs(
                 video_path=video_path,
                 results_dir=results_dir,
@@ -488,7 +489,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self.apply_project_model_overrides(
             overrides=overrides,
             active_weight_setter=lambda w: None,  # Will be set by caller
-            use_openvino_setter=lambda v: None,   # Will be set by caller
+            use_openvino_setter=lambda v: None,  # Will be set by caller
         )
 
         message = "Overrides do projeto atualizados a partir desta calibração."
@@ -562,7 +563,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         resolved_weight, resolved_openvino = self.apply_project_model_overrides(
             overrides=overrides,
             active_weight_setter=lambda w: None,  # Will be set by caller
-            use_openvino_setter=lambda v: None,   # Will be set by caller
+            use_openvino_setter=lambda v: None,  # Will be set by caller
         )
 
         self.project_manager.project_data["model_overrides"] = overrides
@@ -601,11 +602,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         overrides_active = self.has_project_override_settings()
         inheriting_globals = project_loaded and not overrides_active
-        scope = (
-            "project"
-            if project_loaded and self._using_project_overrides
-            else "global"
-        )
+        scope = "project" if project_loaded and self._using_project_overrides else "global"
 
         # Check if in single-video analysis mode
         is_single_video_mode = False
@@ -705,9 +702,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         try:
             yield
         finally:
-            self._global_model_defaults["active_weight"] = (
-                get_active_weight_name() or None
-            )
+            self._global_model_defaults["active_weight"] = get_active_weight_name() or None
             self._global_model_defaults["use_openvino"] = get_use_openvino()
             self._using_project_overrides = previous_flag
 
@@ -771,9 +766,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             project_data["model_overrides"] = overrides
         return overrides
 
-    def _persist_project_model_settings(
-        self, weight: str | None, use_openvino: bool
-    ) -> dict:
+    def _persist_project_model_settings(self, weight: str | None, use_openvino: bool) -> dict:
         """Persist model settings to project configuration.
 
         Args:

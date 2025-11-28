@@ -371,11 +371,14 @@ class DialogManager:
         # NEW PATH - Event-Driven Architecture v4.0
         if self.event_bus_v2:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
-            self.event_bus_v2.publish(Event(
-                type=UIEvents.ZONES_UPDATED,
-                data={'zone_data': None},
-                source='DialogManager.import_and_apply_template'
-            ))
+
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.ZONES_UPDATED,
+                    data={"zone_data": None},
+                    source="DialogManager.import_and_apply_template",
+                )
+            )
         else:
             log.warning("gui.roi_templates.import_and_apply.no_event_bus")
             # Fallback for legacy mode if event bus is missing
@@ -468,16 +471,19 @@ class DialogManager:
         # NEW PATH - Event-Driven Architecture v4.0
         if self.event_bus_v2:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
-            self.event_bus_v2.publish(Event(
-                type=UIEvents.READINESS_SNAPSHOT_UPDATED,
-                data={
-                    'ready_with_trajectory': ready_with_trajectory,
-                    'ready_with_zones': ready_with_zones,
-                    'arena_only': arena_only,
-                    'without_arena': without_arena
-                },
-                source='DialogManager.ask_reuse_zones'
-            ))
+
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.READINESS_SNAPSHOT_UPDATED,
+                    data={
+                        "ready_with_trajectory": ready_with_trajectory,
+                        "ready_with_zones": ready_with_zones,
+                        "arena_only": arena_only,
+                        "without_arena": without_arena,
+                    },
+                    source="DialogManager.ask_reuse_zones",
+                )
+            )
         else:
             log.warning("dialog_manager.readiness_snapshot.no_event_bus")
 
@@ -787,21 +793,28 @@ class DialogManager:
 
             if self.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.ZONES_UPDATED,
-                    data={'zone_data': None},
-                    source='DialogManager.offer_zone_reuse'
-                ))
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                    data={'filter_text': None},
-                    source='DialogManager.offer_zone_reuse'
-                ))
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                    data={'reason': status_message, 'append_summary': True},
-                    source='DialogManager.offer_zone_reuse'
-                ))
+
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.ZONES_UPDATED,
+                        data={"zone_data": None},
+                        source="DialogManager.offer_zone_reuse",
+                    )
+                )
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                        data={"filter_text": None},
+                        source="DialogManager.offer_zone_reuse",
+                    )
+                )
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                        data={"reason": status_message, "append_summary": True},
+                        source="DialogManager.offer_zone_reuse",
+                    )
+                )
 
             if not copied_files:
                 self.show_warning(
@@ -819,16 +832,21 @@ class DialogManager:
 
             if self.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                    data={'reason': status_message, 'append_summary': True},
-                    source='DialogManager.offer_zone_reuse'
-                ))
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                    data={'filter_text': None},
-                    source='DialogManager.offer_zone_reuse'
-                ))
+
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                        data={"reason": status_message, "append_summary": True},
+                        source="DialogManager.offer_zone_reuse",
+                    )
+                )
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                        data={"filter_text": None},
+                        source="DialogManager.offer_zone_reuse",
+                    )
+                )
 
     def change_roi_color(self):
         """Change the color of the selected ROI."""
@@ -866,16 +884,21 @@ class DialogManager:
 
             if self.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.ZONES_UPDATED,
-                    data={'zone_data': zone_data},
-                    source='DialogManager.change_roi_color'
-                ))
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                    data={'reason': status_message, 'append_summary': True},
-                    source='DialogManager.change_roi_color'
-                ))
+
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.ZONES_UPDATED,
+                        data={"zone_data": zone_data},
+                        source="DialogManager.change_roi_color",
+                    )
+                )
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                        data={"reason": status_message, "append_summary": True},
+                        source="DialogManager.change_roi_color",
+                    )
+                )
 
         except ValueError:
             self.show_error("Erro", "ROI não encontrada")
@@ -912,16 +935,21 @@ class DialogManager:
 
                 if self.event_bus_v2:
                     from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                    self.event_bus_v2.publish(Event(
-                        type=UIEvents.ZONES_UPDATED,
-                        data={'zone_data': zone_data},
-                        source='DialogManager.rename_selected_roi'
-                    ))
-                    self.event_bus_v2.publish(Event(
-                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                        data={'reason': status_message, 'append_summary': True},
-                        source='DialogManager.rename_selected_roi'
-                    ))
+
+                    self.event_bus_v2.publish(
+                        Event(
+                            type=UIEvents.ZONES_UPDATED,
+                            data={"zone_data": zone_data},
+                            source="DialogManager.rename_selected_roi",
+                        )
+                    )
+                    self.event_bus_v2.publish(
+                        Event(
+                            type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                            data={"reason": status_message, "append_summary": True},
+                            source="DialogManager.rename_selected_roi",
+                        )
+                    )
 
             except ValueError:
                 self.show_error("Erro", "ROI não encontrada")

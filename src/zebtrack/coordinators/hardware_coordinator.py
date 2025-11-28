@@ -30,7 +30,7 @@ import glob
 import os
 import shutil
 import threading
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 import cv2
 import structlog
@@ -283,7 +283,8 @@ class HardwareCoordinator(BaseCoordinator):
                 self._update_state(
                     StateCategory.DETECTOR,
                     is_detector_initialized=True,
-                    animal_method=animal_method or self.detector_service.settings.detection.animal_method,
+                    animal_method=animal_method
+                    or self.detector_service.settings.detection.animal_method,
                     use_openvino=use_openvino,
                 )
 

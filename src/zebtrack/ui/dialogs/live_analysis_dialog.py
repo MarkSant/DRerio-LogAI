@@ -15,7 +15,6 @@ from tkinter import (
     Frame,
     IntVar,
     Label,
-    LabelFrame,
     Spinbox,
     StringVar,
     messagebox,
@@ -171,9 +170,9 @@ class LiveAnalysisDialog(Dialog):
 
         # Grid for camera selection
         camera_frame.columnconfigure(1, weight=1)
-        
+
         ttk.Label(camera_frame, text="Dispositivo:").grid(row=0, column=0, padx=5, sticky="w")
-        
+
         self.camera_combo = ttk.Combobox(
             camera_frame,
             textvariable=self.camera_selection_var,
@@ -207,7 +206,9 @@ class LiveAnalysisDialog(Dialog):
         duration_frame.columnconfigure(1, weight=1)
 
         # Duration
-        ttk.Label(duration_frame, text="Duração (s):").grid(row=0, column=0, padx=5, pady=2, sticky="w")
+        ttk.Label(duration_frame, text="Duração (s):").grid(
+            row=0, column=0, padx=5, pady=2, sticky="w"
+        )
         duration_spin = Spinbox(
             duration_frame,
             from_=10,
@@ -216,15 +217,21 @@ class LiveAnalysisDialog(Dialog):
             width=8,
         )
         duration_spin.grid(row=0, column=1, padx=5, pady=2, sticky="w")
-        
+
         # Quick buttons for duration
         quick_btns = ttk.Frame(duration_frame)
         quick_btns.grid(row=0, column=2, padx=5, pady=2)
-        ttk.Button(quick_btns, text="1m", width=4, command=lambda: self.duration_var.set(60)).pack(side="left", padx=1)
-        ttk.Button(quick_btns, text="5m", width=4, command=lambda: self.duration_var.set(300)).pack(side="left", padx=1)
+        ttk.Button(quick_btns, text="1m", width=4, command=lambda: self.duration_var.set(60)).pack(
+            side="left", padx=1
+        )
+        ttk.Button(quick_btns, text="5m", width=4, command=lambda: self.duration_var.set(300)).pack(
+            side="left", padx=1
+        )
 
         # Analysis Interval
-        ttk.Label(duration_frame, text="Analisar a cada:").grid(row=1, column=0, padx=5, pady=2, sticky="w")
+        ttk.Label(duration_frame, text="Analisar a cada:").grid(
+            row=1, column=0, padx=5, pady=2, sticky="w"
+        )
         analysis_spin = Spinbox(
             duration_frame,
             from_=1,
@@ -236,7 +243,9 @@ class LiveAnalysisDialog(Dialog):
         ttk.Label(duration_frame, text="frames").grid(row=1, column=2, sticky="w")
 
         # Display Interval
-        ttk.Label(duration_frame, text="Exibir a cada:").grid(row=2, column=0, padx=5, pady=2, sticky="w")
+        ttk.Label(duration_frame, text="Exibir a cada:").grid(
+            row=2, column=0, padx=5, pady=2, sticky="w"
+        )
         display_spin = Spinbox(
             duration_frame,
             from_=1,
@@ -254,11 +263,13 @@ class LiveAnalysisDialog(Dialog):
         # Options Settings
         options_frame = ttk.LabelFrame(right_col, text="Opções da Sessão", padding=10)
         options_frame.pack(fill="x", pady=(0, 10))
-        
+
         options_frame.columnconfigure(1, weight=1)
 
         # Experiment ID
-        ttk.Label(options_frame, text="ID Experimento:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(options_frame, text="ID Experimento:").grid(
+            row=0, column=0, padx=5, pady=5, sticky="w"
+        )
         id_entry = ttk.Entry(options_frame, textvariable=self.experiment_id_var)
         id_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
         ToolTip(id_entry, "Nome opcional para a pasta de resultados.")
@@ -280,31 +291,49 @@ class LiveAnalysisDialog(Dialog):
         # --- Calibration & Detection (Bottom, simplified) ---
         adv_frame = ttk.LabelFrame(container, text="Parâmetros Avançados", padding=10)
         adv_frame.pack(fill="x", pady=(0, 10))
-        
+
         # Use a grid for compact layout
         adv_frame.columnconfigure(1, weight=1)
         adv_frame.columnconfigure(3, weight=1)
 
         # Row 0: Model Methods
         ttk.Label(adv_frame, text="Detecção Aquário:").grid(row=0, column=0, padx=5, sticky="w")
-        ttk.Combobox(adv_frame, textvariable=self.aquarium_method_var, values=["seg", "det"], width=5, state="readonly").grid(row=0, column=1, padx=5, sticky="w")
-        
+        ttk.Combobox(
+            adv_frame,
+            textvariable=self.aquarium_method_var,
+            values=["seg", "det"],
+            width=5,
+            state="readonly",
+        ).grid(row=0, column=1, padx=5, sticky="w")
+
         ttk.Label(adv_frame, text="Rastreamento:").grid(row=0, column=2, padx=5, sticky="w")
-        ttk.Combobox(adv_frame, textvariable=self.animal_method_var, values=["seg", "det"], width=5, state="readonly").grid(row=0, column=3, padx=5, sticky="w")
+        ttk.Combobox(
+            adv_frame,
+            textvariable=self.animal_method_var,
+            values=["seg", "det"],
+            width=5,
+            state="readonly",
+        ).grid(row=0, column=3, padx=5, sticky="w")
 
         # Row 1: Physical setup
-        ttk.Label(adv_frame, text="Num. Aquários:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        Spinbox(adv_frame, from_=1, to=10, textvariable=self.num_aquariums_var, width=5).grid(row=1, column=1, padx=5, sticky="w")
+        ttk.Label(adv_frame, text="Num. Aquários:").grid(
+            row=1, column=0, padx=5, pady=5, sticky="w"
+        )
+        Spinbox(adv_frame, from_=1, to=10, textvariable=self.num_aquariums_var, width=5).grid(
+            row=1, column=1, padx=5, sticky="w"
+        )
 
-        ttk.Label(adv_frame, text="Animais/Aquário:").grid(row=1, column=2, padx=5, pady=5, sticky="w")
-        Spinbox(adv_frame, from_=1, to=100, textvariable=self.animals_per_aquarium_var, width=5).grid(row=1, column=3, padx=5, sticky="w")
+        ttk.Label(adv_frame, text="Animais/Aquário:").grid(
+            row=1, column=2, padx=5, pady=5, sticky="w"
+        )
+        Spinbox(
+            adv_frame, from_=1, to=100, textvariable=self.animals_per_aquarium_var, width=5
+        ).grid(row=1, column=3, padx=5, sticky="w")
 
         # Auto-detect on open
         self.after(100, self._detect_cameras)
-        
+
         return self.camera_combo
-
-
 
     def buttonbox(self):
         """Create custom button box with Start and Cancel."""

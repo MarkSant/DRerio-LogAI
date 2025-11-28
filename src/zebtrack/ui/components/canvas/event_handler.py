@@ -76,7 +76,9 @@ class CanvasEventHandler:
         canvas_x = float(event.x) + self.gui._drag_offset[0]
         canvas_y = float(event.y) + self.gui._drag_offset[1]
 
-        snapped_point = self.manager.apply_snapping(canvas_x, canvas_y, exclude_current_polygon=True)
+        snapped_point = self.manager.apply_snapping(
+            canvas_x, canvas_y, exclude_current_polygon=True
+        )
         if snapped_point:
             canvas_x, canvas_y = snapped_point
 
@@ -336,13 +338,12 @@ class CanvasEventHandler:
             video_points = self.gui.drawing_state_manager.video_points
 
             success = self.gui.polygon_drawing_service.complete_polygon(
-                self.gui.drawing_state_manager.drawing_type,
-                video_points,
-                self.gui
+                self.gui.drawing_state_manager.drawing_type, video_points, self.gui
             )
 
             if success:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
                 status_message = (
                     f"✓ {self.gui.drawing_state_manager.drawing_type.title()} definida com sucesso!"
                 )
@@ -353,11 +354,13 @@ class CanvasEventHandler:
                 )
 
                 if self.manager.event_bus_v2:
-                    self.manager.event_bus_v2.publish(Event(
-                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                        data={"reason": status_message, "append_summary": True},
-                        source="CanvasEventHandler.on_canvas_double_click"
-                    ))
+                    self.manager.event_bus_v2.publish(
+                        Event(
+                            type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                            data={"reason": status_message, "append_summary": True},
+                            source="CanvasEventHandler.on_canvas_double_click",
+                        )
+                    )
 
                 self.manager.stop_drawing()
             else:

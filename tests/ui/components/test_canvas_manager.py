@@ -78,7 +78,7 @@ def mock_gui(tkinter_root, mock_controller):
     gui.track_selector_widget.winfo_height = Mock(return_value=30)
     gui.track_selector_widget.update_idletasks = Mock()
     gui.analysis_video_label = Mock()
-    gui.analysis_video_label.winfo_exists.return_value = True # Ensure exists
+    gui.analysis_video_label.winfo_exists.return_value = True  # Ensure exists
     gui.analysis_status_label = Mock()
     gui.analysis_status_label.winfo_height = Mock(return_value=20)
     gui.analysis_status_label.update_idletasks = Mock()
@@ -480,7 +480,13 @@ class TestInteractivePolygonDrawing:
         canvas_manager._bg_offset = (0, 0)
 
         # Mock return values for finding tags since we use Mock canvas
-        mock_gui.video_display.canvas.find_withtag.side_effect = lambda tag: [1] if tag == "interactive_polygon" else [1, 2, 3, 4] if tag == "handle" else []
+        mock_gui.video_display.canvas.find_withtag.side_effect = (
+            lambda tag: [1]
+            if tag == "interactive_polygon"
+            else [1, 2, 3, 4]
+            if tag == "handle"
+            else []
+        )
 
         canvas_manager.renderer.draw_interactive_polygon()
 
@@ -624,6 +630,7 @@ class TestZoneDrawing:
 @pytest.mark.gui
 class TestFrameDisplay:
     """Tests for frame display methods."""
+
     # Note: display_frame logic might have moved out or relies on cv2/PIL which are hard to mock
     # perfectly in this context if structure changed significantly.
     pass
@@ -632,6 +639,7 @@ class TestFrameDisplay:
 @pytest.mark.gui
 class TestDetectionOverlay:
     """Tests for detection overlay methods."""
+
     # These tests target methods that were in CanvasManager but might have moved.
     # If they are still there or moved to a helper, they need updating.
     # Based on recent file read, these methods seem missing from the new CanvasManager.

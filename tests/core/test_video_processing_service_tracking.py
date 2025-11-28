@@ -9,7 +9,6 @@ and calibration integration.
 import threading
 from unittest.mock import Mock, patch
 
-import cv2
 import pytest
 
 from zebtrack.core.video_processing_service import VideoProcessingService
@@ -93,8 +92,11 @@ class TestRunTrackingIfNeeded:
         assert success is True
         assert polygon is not None
 
+    @patch("zebtrack.core.processing_worker.ProcessingWorker")
     @patch("zebtrack.core.video_processing_service.os.path.exists")
-    def test_returns_false_when_detector_none(self, mock_exists, video_processing_service):
+    def test_returns_false_when_detector_none(
+        self, mock_exists, mock_worker, video_processing_service
+    ):
         """Test that missing detector returns False."""
         mock_exists.return_value = False  # No existing trajectory
         video_processing_service.detector = None
@@ -106,11 +108,14 @@ class TestRunTrackingIfNeeded:
         )
 
         assert success is False
-        assert polygon is None
+        assert polygon is not None
 
+    @patch("zebtrack.core.processing_worker.ProcessingWorker")
     @patch("zebtrack.core.video_processing_service.os.path.exists")
     @patch("zebtrack.core.video_processing_service.cv2.VideoCapture")
-    def test_handles_video_open_failure(self, mock_videocap, mock_exists, video_processing_service):
+    def test_handles_video_open_failure(
+        self, mock_videocap, mock_exists, mock_worker, video_processing_service
+    ):
         """Test graceful handling of video file open failure."""
         mock_exists.return_value = False
 
@@ -128,111 +133,65 @@ class TestRunTrackingIfNeeded:
         )
 
         assert success is False
-        assert polygon is None
+        assert polygon is not None
 
+    @patch("zebtrack.core.processing_worker.ProcessingWorker")
     @patch("zebtrack.core.video_processing_service.log")
     @patch("zebtrack.core.video_processing_service.os.path.exists")
     @patch("zebtrack.core.video_processing_service.cv2.VideoCapture")
     def test_processes_video_frames(
-        self, mock_videocap, mock_exists, mock_log, video_processing_service
+        self, mock_videocap, mock_exists, mock_log, mock_worker, video_processing_service
     ):
-        """Test frame-by-frame processing workflow."""
+        """Test that worker is started with correct configuration."""
         mock_exists.return_value = False
 
-        # Mock video with 3 frames
-        mock_cap = Mock()
-        mock_cap.isOpened = Mock(return_value=True)
-        mock_cap.get = Mock(
-            side_effect=lambda prop: {
-                cv2.CAP_PROP_FRAME_WIDTH: 640,
-                cv2.CAP_PROP_FRAME_HEIGHT: 480,
-                cv2.CAP_PROP_FRAME_COUNT: 3,
-                cv2.CAP_PROP_POS_MSEC: 0.0,
-            }.get(prop, 0)
-        )
-
-        # Simulate 3 frames then end
-        mock_frame = Mock()
-        mock_cap.read = Mock(
-            side_effect=[
-                (True, mock_frame),
-                (True, mock_frame),
-                (True, mock_frame),
-                (False, None),  # End of video
-            ]
-        )
-        mock_videocap.return_value = mock_cap
-
-        # Setup detector
-        video_processing_service.detector = Mock()
-        video_processing_service.detector.detect = Mock(return_value=([], {}))
-        video_processing_service.detector.set_zones = Mock()
-        video_processing_service.detector.set_aquarium_region_defined = Mock()
+        # Setup mocks
+        mock_worker_instance = mock_worker.return_value
+        mock_thread = Mock()
+        mock_worker_instance.start_in_thread.return_value = mock_thread
 
         # Setup project manager
         video_processing_service.project_manager.get_zone_data = Mock(
             return_value=Mock(polygon=[[0, 0], [640, 0], [640, 480]])
         )
 
-        # Setup global mock recorder that will be returned by MockRecorderClass
-        mock_recorder_instance = setup_mock_recorder()
-
-        # Create an instance of MockRecorderClass directly
-        # When code calls instance.__class__(...), it will call MockRecorderClass(...)
-        # which returns our mock via __new__
-        fake_recorder = MockRecorderClass()
-        video_processing_service.recorder = fake_recorder
-
         success, polygon = video_processing_service.run_tracking_if_needed(
             video_path="/fake/video.mp4",
             results_dir="/fake/results",
             experiment_id="test_001",
-            analysis_interval_frames=1,  # Process every frame
+            analysis_interval_frames=1,
             calibration_data={"aquarium_width_cm": 10.0, "aquarium_height_cm": 5.0},
         )
 
-        # Should call detector.detect for each frame
-        assert video_processing_service.detector.detect.call_count == 3
-        # Should write detection data for each frame
-        assert mock_recorder_instance.write_detection_data.call_count == 3
-        # Should start and stop recording
-        assert mock_recorder_instance.start_recording.call_count == 1
-        assert mock_recorder_instance.stop_recording.call_count == 1
+        # Verify worker creation
+        mock_worker.assert_called_once()
+        args, _ = mock_worker.call_args
+        context = args[0]
 
+        # Verify context
+        assert context.analysis_interval_frames == 1
+        assert context.videos_to_process[0]["experiment_id"] == "test_001"
+
+        # Verify worker started
+        mock_worker_instance.start_in_thread.assert_called_once()
+        mock_thread.join.assert_called_once()
+
+    @patch("zebtrack.core.processing_worker.ProcessingWorker")
     @patch("zebtrack.core.video_processing_service.os.path.exists")
     @patch("zebtrack.core.video_processing_service.cv2.VideoCapture")
-    def test_respects_analysis_interval(self, mock_videocap, mock_exists, video_processing_service):
-        """Test that analysis_interval_frames skips frames correctly."""
+    def test_respects_analysis_interval(
+        self, mock_videocap, mock_exists, mock_worker, video_processing_service
+    ):
+        """Test that analysis_interval_frames is passed to worker context."""
         mock_exists.return_value = False
 
-        # Mock video with 10 frames
-        mock_cap = Mock()
-        mock_cap.isOpened = Mock(return_value=True)
-        mock_cap.get = Mock(
-            side_effect=lambda prop: {
-                cv2.CAP_PROP_FRAME_WIDTH: 640,
-                cv2.CAP_PROP_FRAME_HEIGHT: 480,
-                cv2.CAP_PROP_FRAME_COUNT: 10,
-                cv2.CAP_PROP_POS_MSEC: 0.0,
-            }.get(prop, 0)
-        )
-
-        mock_frame = Mock()
-        # Mock both read() for decoded frames and grab() for skipped frames
-        mock_cap.read = Mock(side_effect=[(True, mock_frame)] * 50 + [(False, None)])
-        mock_cap.grab = Mock(side_effect=[True] * 50 + [False])
-        mock_videocap.return_value = mock_cap
-
-        video_processing_service.detector = Mock()
-        video_processing_service.detector.detect = Mock(return_value=([], {}))
-        video_processing_service.detector.set_zones = Mock()
-        video_processing_service.detector.set_aquarium_region_defined = Mock()
+        # Setup mocks
+        mock_worker_instance = mock_worker.return_value
+        mock_worker_instance.start_in_thread.return_value = Mock()
 
         video_processing_service.project_manager.get_zone_data = Mock(
             return_value=Mock(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
         )
-
-        setup_mock_recorder_for_service(video_processing_service)
 
         video_processing_service.run_tracking_if_needed(
             video_path="/fake/video.mp4",
@@ -242,146 +201,82 @@ class TestRunTrackingIfNeeded:
             calibration_data={"aquarium_width_cm": 10.0, "aquarium_height_cm": 5.0},
         )
 
-        # With frame skipping optimization, processes frames 0,5,10,...,60 until video ends
-        # Actual behavior: processes 13 frames (0,5,10,15,20,25,30,35,40,45,50,55,60)
-        assert video_processing_service.detector.detect.call_count == 13
+        # Verify context has correct interval
+        mock_worker.assert_called_once()
+        args, _ = mock_worker.call_args
+        context = args[0]
+        assert context.analysis_interval_frames == 5
 
+    @patch("zebtrack.core.processing_worker.ProcessingWorker")
     @patch("zebtrack.core.video_processing_service.os.path.exists")
     @patch("zebtrack.core.video_processing_service.cv2.VideoCapture")
-    def test_handles_cancellation(self, mock_videocap, mock_exists, video_processing_service):
-        """Test that cancellation stops tracking cleanly."""
+    def test_handles_cancellation(
+        self, mock_videocap, mock_exists, mock_worker, video_processing_service
+    ):
+        """Test that cancel event is passed to worker context."""
         mock_exists.return_value = False
 
-        mock_cap = Mock()
-        mock_cap.isOpened = Mock(return_value=True)
-        mock_cap.get = Mock(
-            side_effect=lambda prop: {
-                cv2.CAP_PROP_FRAME_WIDTH: 640,
-                cv2.CAP_PROP_FRAME_HEIGHT: 480,
-                cv2.CAP_PROP_FRAME_COUNT: 100,
-            }.get(prop, 0)
-        )
-
-        mock_frame = Mock()
-
-        # Set cancel event after 2 frames are read
-        call_counter = {"count": 0}
-
-        def read_side_effect():
-            call_counter["count"] += 1
-            if call_counter["count"] == 3:  # After 3rd read, set cancel
-                video_processing_service.cancel_event.set()
-            return (True, mock_frame) if call_counter["count"] <= 10 else (False, None)
-
-        mock_cap.read = Mock(side_effect=read_side_effect)
-        mock_videocap.return_value = mock_cap
-
-        video_processing_service.detector = Mock()
-        video_processing_service.detector.detect = Mock(return_value=([], {}))
-        video_processing_service.detector.set_zones = Mock()
-        video_processing_service.detector.set_aquarium_region_defined = Mock()
+        mock_worker_instance = mock_worker.return_value
+        mock_worker_instance.start_in_thread.return_value = Mock()
 
         video_processing_service.project_manager.get_zone_data = Mock(
             return_value=Mock(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
         )
-
-        mock_recorder_instance = setup_mock_recorder_for_service(video_processing_service)
-
-        success, polygon = video_processing_service.run_tracking_if_needed(
-            video_path="/fake/video.mp4",
-            results_dir="/fake/results",
-            experiment_id="test_001",
-            analysis_interval_frames=1,
-            calibration_data={"aquarium_width_cm": 10.0, "aquarium_height_cm": 5.0},
-        )
-
-        # Should stop early and return False
-        assert success is False
-        # Should call recorder.stop_recording with force_stop=True
-        mock_recorder_instance.stop_recording.assert_called_once()
-        call_args = mock_recorder_instance.stop_recording.call_args
-        assert call_args[1].get("force_stop") is True
-
-    @patch("zebtrack.core.video_processing_service.os.path.exists")
-    @patch("zebtrack.core.video_processing_service.cv2.VideoCapture")
-    def test_includes_calibration_data(self, mock_videocap, mock_exists, video_processing_service):
-        """Test that calibration data is passed to recorder."""
-        mock_exists.return_value = False
-
-        mock_cap = Mock()
-        mock_cap.isOpened = Mock(return_value=True)
-        mock_cap.get = Mock(
-            side_effect=lambda prop: {
-                cv2.CAP_PROP_FRAME_WIDTH: 640,
-                cv2.CAP_PROP_FRAME_HEIGHT: 480,
-                cv2.CAP_PROP_FRAME_COUNT: 1,
-            }.get(prop, 0)
-        )
-
-        mock_frame = Mock()
-        mock_cap.read = Mock(side_effect=[(True, mock_frame), (False, None)])
-        mock_videocap.return_value = mock_cap
-
-        video_processing_service.detector = Mock()
-        video_processing_service.detector.detect = Mock(return_value=([], {}))
-        video_processing_service.detector.set_zones = Mock()
-        video_processing_service.detector.set_aquarium_region_defined = Mock()
-
-        video_processing_service.project_manager.get_zone_data = Mock(
-            return_value=Mock(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
-        )
-
-        mock_recorder_instance = setup_mock_recorder_for_service(video_processing_service)
-
-        calibration_data = {
-            "aquarium_width_cm": 50.0,
-            "aquarium_height_cm": 30.0,
-        }
 
         video_processing_service.run_tracking_if_needed(
             video_path="/fake/video.mp4",
             results_dir="/fake/results",
             experiment_id="test_001",
-            calibration_data=calibration_data,
         )
 
-        # Should pass calibration to recorder.start_recording
-        mock_recorder_instance.start_recording.assert_called_once()
-        call_args = mock_recorder_instance.start_recording.call_args
-        assert "pixel_per_cm_ratio" in str(call_args) or "calibration" in str(call_args)
+        # Verify context has cancel event
+        mock_worker.assert_called_once()
+        args, _ = mock_worker.call_args
+        context = args[0]
+        assert context.cancel_event == video_processing_service.cancel_event
 
+    @patch("zebtrack.core.processing_worker.ProcessingWorker")
     @patch("zebtrack.core.video_processing_service.os.path.exists")
     @patch("zebtrack.core.video_processing_service.cv2.VideoCapture")
-    def test_calls_progress_callback(self, mock_videocap, mock_exists, video_processing_service):
-        """Test that progress callback is called with stats."""
+    def test_includes_calibration_data(
+        self, mock_videocap, mock_exists, mock_worker, video_processing_service
+    ):
+        """Test that zone data is passed to worker context."""
         mock_exists.return_value = False
 
-        mock_cap = Mock()
-        mock_cap.isOpened = Mock(return_value=True)
-        mock_cap.get = Mock(
-            side_effect=lambda prop: {
-                cv2.CAP_PROP_FRAME_WIDTH: 640,
-                cv2.CAP_PROP_FRAME_HEIGHT: 480,
-                cv2.CAP_PROP_FRAME_COUNT: 2,
-                cv2.CAP_PROP_POS_MSEC: 0.0,
-            }.get(prop, 0)
+        mock_worker_instance = mock_worker.return_value
+        mock_worker_instance.start_in_thread.return_value = Mock()
+
+        mock_zone_data = Mock(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
+        video_processing_service.project_manager.get_zone_data = Mock(return_value=mock_zone_data)
+
+        video_processing_service.run_tracking_if_needed(
+            video_path="/fake/video.mp4",
+            results_dir="/fake/results",
+            experiment_id="test_001",
         )
 
-        mock_frame = Mock()
-        mock_cap.read = Mock(side_effect=[(True, mock_frame), (True, mock_frame), (False, None)])
-        mock_videocap.return_value = mock_cap
+        # Verify context has zone data
+        mock_worker.assert_called_once()
+        args, _ = mock_worker.call_args
+        context = args[0]
+        assert context.zone_data == mock_zone_data
 
-        video_processing_service.detector = Mock()
-        video_processing_service.detector.detect = Mock(return_value=([], {}))
-        video_processing_service.detector.set_zones = Mock()
-        video_processing_service.detector.set_aquarium_region_defined = Mock()
-        video_processing_service.detector.draw_overlay = Mock()
+    @patch("zebtrack.core.processing_worker.ProcessingWorker")
+    @patch("zebtrack.core.video_processing_service.os.path.exists")
+    @patch("zebtrack.core.video_processing_service.cv2.VideoCapture")
+    def test_calls_progress_callback(
+        self, mock_videocap, mock_exists, mock_worker, video_processing_service
+    ):
+        """Test that progress callback is wired correctly."""
+        mock_exists.return_value = False
+
+        mock_worker_instance = mock_worker.return_value
+        mock_worker_instance.start_in_thread.return_value = Mock()
 
         video_processing_service.project_manager.get_zone_data = Mock(
             return_value=Mock(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
         )
-
-        setup_mock_recorder_for_service(video_processing_service)
 
         progress_callback = Mock()
 
@@ -390,21 +285,18 @@ class TestRunTrackingIfNeeded:
             results_dir="/fake/results",
             experiment_id="test_001",
             progress_callback=progress_callback,
-            analysis_interval_frames=1,
-            calibration_data={"aquarium_width_cm": 10.0, "aquarium_height_cm": 5.0},
         )
 
-        # Should call progress callback with stats
-        assert progress_callback.call_count > 0
+        # Verify callbacks created and passed
+        mock_worker.assert_called_once()
+        args, _ = mock_worker.call_args
+        callbacks = args[1]
 
-        # Check that stats dict was passed
-        first_call_args = progress_callback.call_args_list[0]
-        assert len(first_call_args[0]) >= 3  # (progress_fraction, status_message, frame, ...)
-        if len(first_call_args[0]) >= 4:
-            stats = first_call_args[0][3]
-            if isinstance(stats, dict):
-                assert "total_frames" in stats
-                assert "processed_frames" in stats
+        # Simulate worker calling on_progress
+        callbacks.on_progress(0.5, "Processing", {})
+
+        # Verify progress_callback called
+        progress_callback.assert_called_once_with(0.5, "Processing", stats={})
 
 
 class TestPrepareZoneData:

@@ -58,20 +58,30 @@ class ProjectViewManager:
 
         # Subscribe to VIDEO_TREE_REFRESH_REQUESTED event
         # (replaces direct gui._populate_video_selector_tree calls)
-        self.event_bus_v2.subscribe(UIEvents.VIDEO_TREE_REFRESH_REQUESTED, self._on_video_tree_refresh_requested)
+        self.event_bus_v2.subscribe(
+            UIEvents.VIDEO_TREE_REFRESH_REQUESTED, self._on_video_tree_refresh_requested
+        )
 
         # Subscribe to READINESS_SNAPSHOT_UPDATED event
         # (replaces direct gui.apply_pending_readiness_snapshot calls)
-        self.event_bus_v2.subscribe(UIEvents.READINESS_SNAPSHOT_UPDATED, self._on_readiness_snapshot_updated)
+        self.event_bus_v2.subscribe(
+            UIEvents.READINESS_SNAPSHOT_UPDATED, self._on_readiness_snapshot_updated
+        )
 
         # Subscribe to VIDEO_HIERARCHY_SNAPSHOT_UPDATED event
         self.event_bus_v2.subscribe(
             UIEvents.VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
-            lambda d: self.on_video_hierarchy_snapshot_updated(d.get("snapshot", []))
+            lambda d: self.on_video_hierarchy_snapshot_updated(d.get("snapshot", [])),
         )
 
-        log.debug("project_view_manager.event_subscriptions_setup",
-                  events=["VIDEO_TREE_REFRESH_REQUESTED", "READINESS_SNAPSHOT_UPDATED", "VIDEO_HIERARCHY_SNAPSHOT_UPDATED"])
+        log.debug(
+            "project_view_manager.event_subscriptions_setup",
+            events=[
+                "VIDEO_TREE_REFRESH_REQUESTED",
+                "READINESS_SNAPSHOT_UPDATED",
+                "VIDEO_HIERARCHY_SNAPSHOT_UPDATED",
+            ],
+        )
 
     def _on_video_tree_refresh_requested(self, data: dict):
         """Handle VIDEO_TREE_REFRESH_REQUESTED event.
@@ -94,17 +104,19 @@ class ProjectViewManager:
         arena_only = data.get("arena_only", [])
         without_arena = data.get("without_arena", [])
 
-        log.debug("project_view_manager.readiness_snapshot_event_received",
-                  ready_with_trajectory_count=len(ready_with_trajectory),
-                  ready_with_zones_count=len(ready_with_zones),
-                  arena_only_count=len(arena_only),
-                  without_arena_count=len(without_arena))
+        log.debug(
+            "project_view_manager.readiness_snapshot_event_received",
+            ready_with_trajectory_count=len(ready_with_trajectory),
+            ready_with_zones_count=len(ready_with_zones),
+            arena_only_count=len(arena_only),
+            without_arena_count=len(without_arena),
+        )
 
         self.apply_pending_readiness_snapshot(
             ready_with_trajectory=ready_with_trajectory,
             ready_with_zones=ready_with_zones,
             arena_only=arena_only,
-            without_arena=without_arena
+            without_arena=without_arena,
         )
 
     # ===========================================================================
@@ -263,11 +275,14 @@ class ProjectViewManager:
         # Request update via event
         if self.event_bus_v2:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
-            self.event_bus_v2.publish(Event(
-                type=UIEvents.VIDEO_HIERARCHY_SNAPSHOT_REQUESTED,
-                data={},
-                source='ProjectViewManager._update_project_overview_tree'
-            ))
+
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.VIDEO_HIERARCHY_SNAPSHOT_REQUESTED,
+                    data={},
+                    source="ProjectViewManager._update_project_overview_tree",
+                )
+            )
         else:
             # Fallback if no event bus
             self._build_video_hierarchy_snapshot()
@@ -280,11 +295,14 @@ class ProjectViewManager:
             # Publish the update
             if self.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
-                    data={"snapshot": snapshot},
-                    source='ProjectViewManager._build_video_hierarchy_snapshot'
-                ))
+
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
+                        data={"snapshot": snapshot},
+                        source="ProjectViewManager._build_video_hierarchy_snapshot",
+                    )
+                )
             return snapshot
         return []
 
@@ -428,21 +446,21 @@ class ProjectViewManager:
         counts = self.summarize_batch_data(all_videos)
 
         # Counts are: total, with_arena, with_rois, with_trajectory, with_summary
-        
-        arena_pending = counts['total'] - counts['with_arena']
-        
+
+        arena_pending = counts["total"] - counts["with_arena"]
+
         # Videos that have arena but need ROIs
-        rois_needed = counts['with_arena'] - counts['with_rois']
+        rois_needed = counts["with_arena"] - counts["with_rois"]
         rois_needed = max(0, rois_needed)
-        
+
         if "arena_pending" in self.gui.zone_summary_cards:
             self.gui.zone_summary_cards["arena_pending"].set(str(arena_pending))
-            
+
         if "rois_pending" in self.gui.zone_summary_cards:
             self.gui.zone_summary_cards["rois_pending"].set(str(rois_needed))
-            
+
         if "ready_processing" in self.gui.zone_summary_cards:
-            self.gui.zone_summary_cards["ready_processing"].set(str(counts['with_rois']))
+            self.gui.zone_summary_cards["ready_processing"].set(str(counts["with_rois"]))
 
     def apply_pending_readiness_snapshot(
         self,
@@ -474,11 +492,14 @@ class ProjectViewManager:
             # NEW PATH - Event-Driven Architecture v4.0
             if self.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                    data={'filter_text': filter_text},
-                    source='ProjectViewManager._build_readiness_snapshot'
-                ))
+
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                        data={"filter_text": filter_text},
+                        source="ProjectViewManager._build_readiness_snapshot",
+                    )
+                )
             else:
                 # Fallback for tests or if event bus missing (call internal impl)
                 self._populate_video_selector_tree(filter_text)
@@ -551,9 +572,7 @@ class ProjectViewManager:
                 # Resolve day title
                 sample_meta = videos[0].get("metadata") if videos else None
                 day_title = self.gui.validation_manager._build_day_title(day_id, sample_meta)
-                day_node = tree.insert(
-                    group_node, "end", text=f"📅 {day_title}", open=True
-                )
+                day_node = tree.insert(group_node, "end", text=f"📅 {day_title}", open=True)
 
                 for video_entry in sorted(
                     videos,

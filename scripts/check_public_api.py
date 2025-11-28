@@ -1,6 +1,7 @@
 """
 CI Script to verify public API decorators.
 """
+
 import sys
 from pathlib import Path
 
@@ -24,8 +25,9 @@ EXPECTED_PUBLIC_API = [
     "apply_pending_readiness_snapshot",
     "update_processing_stats",
     "update_social_summary",
-    "update_analysis_task_status"
+    "update_analysis_task_status",
 ]
+
 
 def main():
     missing = []
@@ -36,9 +38,9 @@ def main():
             continue
 
         method = getattr(ApplicationGUI, method_name)
-        if not hasattr(method, '__public_api__'):
-             print(f"❌ Missing @public_api: {method_name}")
-             missing.append(method_name)
+        if not hasattr(method, "__public_api__"):
+            print(f"❌ Missing @public_api: {method_name}")
+            missing.append(method_name)
 
     if missing:
         print(f"Found {len(missing)} violations.")
@@ -46,6 +48,7 @@ def main():
 
     print("✅ All public API methods verified.")
     sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

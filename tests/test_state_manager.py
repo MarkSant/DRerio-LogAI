@@ -6,7 +6,6 @@ observer notifications, history tracking, and thread safety.
 """
 
 import threading
-import time
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -589,7 +588,6 @@ class TestIntegrationScenarios:
 
     def test_project_workflow(self):
         """Test complete project open → process → close workflow."""
-        import time
 
         mgr = StateManager()
         changes = []
@@ -680,7 +678,6 @@ class TestIntegrationScenarios:
 
     def test_ui_view_mode_switching(self):
         """Test UI view mode transitions."""
-        import time
 
         mgr = StateManager()
         view_changes = []

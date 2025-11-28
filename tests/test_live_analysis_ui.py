@@ -13,7 +13,6 @@ import numpy as np
 import pytest
 
 from tests.utils.wait_helpers import wait_for_condition
-
 from zebtrack.ui.dialogs.live_analysis_dialog import LiveAnalysisDialog
 from zebtrack.ui.dialogs.live_preview_window import LivePreviewWindow
 
@@ -661,6 +660,9 @@ class TestLivePreviewWindow:
         )
         tkinter_root.update_idletasks()
 
+        # Start the timer
+        window.start_timer()
+
         # Wait for auto-stop to trigger (process events while waiting)
         def check_stopped_with_events():
             for _ in range(20):  # 20 iterations × ~10ms = ~200ms
@@ -755,12 +757,15 @@ class TestLivePreviewWindow:
         )
         tkinter_root.update_idletasks()
 
+        # Start the timer
+        window.start_timer()
+
         # Manually trigger timer update
         window._update_timer()
         tkinter_root.update_idletasks()
 
         # Wait for timer label to update
-        wait_for_condition(lambda: "Tempo:" in window.timer_label.cget("text"), timeout=1.0)
+        wait_for_condition(lambda: "Restante:" in window.timer_label.cget("text"), timeout=1.0)
 
         # Verify timer label contains expected text
         timer_text = window.timer_label.cget("text")

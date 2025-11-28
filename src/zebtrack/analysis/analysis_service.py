@@ -58,9 +58,7 @@ class AnalysisService:
     - Coordinating BehavioralAnalyzer and ROIAnalyzer
     """
 
-    def __init__(
-        self, settings_obj: "Settings | None" = None, enable_metrics_cache: bool = False
-    ):
+    def __init__(self, settings_obj: "Settings | None" = None, enable_metrics_cache: bool = False):
         """Initialize the AnalysisService.
 
         Args:
@@ -92,6 +90,7 @@ class AnalysisService:
         freezing_min_duration: float,
         smoothing_window_length: int | None = None,
         smoothing_polyorder: int | None = None,
+        max_plausible_speed_cm_s: float = 50.0,
     ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None]:
         """
         Run a complete analysis pipeline on the given trajectory data.
@@ -129,7 +128,7 @@ class AnalysisService:
         # Production code typically has much longer trajectories
         validator = TrajectoryQualityValidator(
             fps=fps,
-            max_plausible_speed_cm_s=50.0,  # Zebrafish max speed from literature
+            max_plausible_speed_cm_s=max_plausible_speed_cm_s,
             min_trajectory_frames=3,  # Minimum viable trajectory (allows tests)
         )
 
@@ -173,7 +172,9 @@ class AnalysisService:
         angular_settings = self.settings.angular_velocity
 
         # v2.2: Memory optimization - only copy required columns
-        available_cols = [col for col in REQUIRED_TRAJECTORY_COLUMNS if col in trajectory_df.columns]
+        available_cols = [
+            col for col in REQUIRED_TRAJECTORY_COLUMNS if col in trajectory_df.columns
+        ]
         trajectory_subset = trajectory_df[available_cols].copy()
 
         b_analyzer = ConcreteBehavioralAnalyzer(
@@ -253,6 +254,7 @@ class AnalysisService:
         freezing_min_duration: float,
         smoothing_window_length: int | None = None,
         smoothing_polyorder: int | None = None,
+        max_plausible_speed_cm_s: float = 50.0,
         # Optional parameters
         video_path: str | None = None,
         calibration=None,
@@ -315,6 +317,7 @@ class AnalysisService:
             freezing_min_duration=freezing_min_duration,
             smoothing_window_length=smoothing_window_length,
             smoothing_polyorder=smoothing_polyorder,
+            max_plausible_speed_cm_s=max_plausible_speed_cm_s,
         )
 
         # Wrap in DTO
@@ -379,11 +382,11 @@ class AnalysisService:
                 "track_id",
                 "x_center_px",  # Preferred
                 "y_center_px",  # Preferred
-                "x1",           # Required for bbox
-                "y1",           # Required for bbox
-                "x2",           # Required for bbox
-                "y2",           # Required for bbox
-                "confidence",   # Optional
+                "x1",  # Required for bbox
+                "y1",  # Required for bbox
+                "x2",  # Required for bbox
+                "y2",  # Required for bbox
+                "confidence",  # Optional
             ]
 
             # Optional calibration columns
@@ -762,7 +765,7 @@ class AnalysisService:
                             "profile": name,
                             "stats": None,
                             "tracks": [],
-                        }
+                        },
                     ),
                 )
 
@@ -845,7 +848,7 @@ class AnalysisService:
         controller._publish_processing_mode(source="processing.finalize", force=True)
         controller.ui_event_bus.publish_event(
             Events.UI_REFRESH_PROJECT_VIEWS,
-            {"reason": "Analysis completed", "append_summary": True}
+            {"reason": "Analysis completed", "append_summary": True},
         )
 
         def _refresh_views(*, immediate: bool) -> None:

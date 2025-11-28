@@ -947,8 +947,7 @@ class ProjectManager:
         valid_types = ["Pre-recorded", "Live"]
         if not any(project_type.lower() == vt.lower() for vt in valid_types):
             raise ValueError(
-                f"project_type deve ser um de: {', '.join(valid_types)}\n"
-                f"Recebido: {project_type}"
+                f"project_type deve ser um de: {', '.join(valid_types)}\nRecebido: {project_type}"
             )
 
     def create_new_project(

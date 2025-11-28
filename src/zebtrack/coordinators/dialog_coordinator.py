@@ -47,7 +47,8 @@ class DialogCoordinator:
             ui_coordinator: Coordenador de UI
             event_bus: Bus de eventos (opcional)
             state_manager: Gerenciador de estado
-            project_manager: Gerenciador de projetos (opcional, mas necessário para validação de zonas)
+            project_manager: Gerenciador de projetos (opcional,
+                mas necessário para validação de zonas)
             video_metadata_service: Serviço de metadados de vídeo (opcional)
         """
         self.ui_coordinator = ui_coordinator
@@ -63,9 +64,7 @@ class DialogCoordinator:
         Returns:
             True se usuário confirmou, False caso contrário
         """
-        return self.ui_coordinator.ask_ok_cancel(
-            "Sair", "Deseja realmente sair?"
-        )
+        return self.ui_coordinator.ask_ok_cancel("Sair", "Deseja realmente sair?")
 
     def handle_mixed_data_scenario(
         self,
@@ -85,14 +84,10 @@ class DialogCoordinator:
 
         if with_data and without_data:
             # Caso misto: alguns têm dados, outros não
-            return self._handle_mixed_case(
-                scanned_videos, with_data, without_data
-            )
+            return self._handle_mixed_case(scanned_videos, with_data, without_data)
         elif with_data and not without_data:
             # Todos os vídeos selecionados têm dados
-            return self._handle_all_have_data(
-                scanned_videos, with_data
-            )
+            return self._handle_all_have_data(scanned_videos, with_data)
         else:
             # Nenhum vídeo tem dados, processar todos
             return without_data
@@ -173,7 +168,7 @@ class DialogCoordinator:
     def validate_zones_with_ui(self) -> bool:
         """
         Validate that zones are defined, with UI dialogs for user interaction.
-        
+
         Ported from UIStateController.
         Handles complex zone validation including main arena validation.
 
@@ -201,6 +196,7 @@ class DialogCoordinator:
                 # Switch to zone tab and guide user
                 if self.event_bus:
                     from zebtrack.ui.events import Events
+
                     self.event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
 
                     # Load frame from first video if available
@@ -236,9 +232,7 @@ class DialogCoordinator:
                 if first_video:
                     try:
                         # Use VideoMetadataService to get dimensions
-                        dimensions = self.video_metadata_service.get_video_dimensions(
-                            first_video
-                        )
+                        dimensions = self.video_metadata_service.get_video_dimensions(first_video)
                         if not dimensions:
                             self.show_error("Erro", "Não foi possível obter dimensões do vídeo")
                             return False
@@ -269,9 +263,7 @@ class DialogCoordinator:
                             # Trigger redraw
                             self.event_bus.publish_event(Events.UI_REDRAW_ZONES)
                     except Exception as e:
-                        self.show_error(
-                            "Erro", f"Não foi possível criar arena padrão: {e}"
-                        )
+                        self.show_error("Erro", f"Não foi possível criar arena padrão: {e}")
                         return False
                 else:
                     self.show_error("Erro", "Nenhum vídeo encontrado no projeto")

@@ -186,7 +186,7 @@ class EventBusV2:
                 if elapsed_ms > SLOW_HANDLER_THRESHOLD_MS:
                     log.warning(
                         "event_bus.slow_handler",
-                        handler=handler.__name__ if hasattr(handler, '__name__') else str(handler),
+                        handler=handler.__name__ if hasattr(handler, "__name__") else str(handler),
                         elapsed_ms=elapsed_ms,
                         threshold_ms=SLOW_HANDLER_THRESHOLD_MS,
                         event_type=event.type.name,

@@ -70,9 +70,7 @@ def mock_video_selection_service():
     """Create mock VideoSelectionService."""
     service = MagicMock()
     service.select_pending_videos.return_value = MagicMock(
-        success=True,
-        selected_videos=[],
-        errors=[]
+        success=True, selected_videos=[], errors=[]
     )
     return service
 
@@ -212,16 +210,14 @@ class TestProcessingCoordinatorInitialization:
 class TestValidation:
     """Test validation methods in ProcessingCoordinator."""
 
-    def test_validate_can_start_processing_returns_validation_result(
-        self, processing_coordinator
-    ):
+    def test_validate_can_start_processing_returns_validation_result(self, processing_coordinator):
         """Test that validate_can_start_processing returns ValidationResult."""
         result = processing_coordinator.validate_can_start_processing()
 
         assert isinstance(result, ValidationResult)
-        assert hasattr(result, 'is_valid')
-        assert hasattr(result, 'error_code')
-        assert hasattr(result, 'error_message')
+        assert hasattr(result, "is_valid")
+        assert hasattr(result, "error_code")
+        assert hasattr(result, "error_message")
 
     def test_validation_result_success_factory(self):
         """Test ValidationResult.success() factory method."""
@@ -234,8 +230,7 @@ class TestValidation:
     def test_validation_result_failure_factory(self):
         """Test ValidationResult.failure() factory method."""
         result = ValidationResult.failure(
-            error_code="TEST_ERROR",
-            error_message="Test error message"
+            error_code="TEST_ERROR", error_message="Test error message"
         )
 
         assert result.is_valid is False
@@ -253,12 +248,10 @@ class TestSingleVideoProcessing:
 
     def test_start_single_video_processing_exists(self, processing_coordinator):
         """Test that start_single_video_processing method exists."""
-        assert hasattr(processing_coordinator, 'start_single_video_processing')
+        assert hasattr(processing_coordinator, "start_single_video_processing")
         assert callable(processing_coordinator.start_single_video_processing)
 
-    def test_start_single_video_accepts_video_path(
-        self, processing_coordinator, tmp_path
-    ):
+    def test_start_single_video_accepts_video_path(self, processing_coordinator, tmp_path):
         """Test that start_single_video_processing accepts video_path parameter."""
         # Create a dummy video file
         video_path = tmp_path / "test_video.mp4"
@@ -285,7 +278,7 @@ class TestPendingVideosProcessing:
 
     def test_process_pending_project_videos_exists(self, processing_coordinator):
         """Test that process_pending_project_videos method exists."""
-        assert hasattr(processing_coordinator, 'process_pending_project_videos')
+        assert hasattr(processing_coordinator, "process_pending_project_videos")
         assert callable(processing_coordinator.process_pending_project_videos)
 
     def test_process_pending_uses_video_selection_service(
@@ -294,9 +287,7 @@ class TestPendingVideosProcessing:
         """Test that process_pending_project_videos uses VideoSelectionService."""
         # Setup mock to return no videos
         mock_video_selection_service.select_pending_videos.return_value = MagicMock(
-            success=True,
-            selected_videos=[],
-            errors=[]
+            success=True, selected_videos=[], errors=[]
         )
 
         # Try to call the method
@@ -320,17 +311,17 @@ class TestZoneAndArenaManagement:
 
     def test_set_main_arena_polygon_exists(self, processing_coordinator):
         """Test that set_main_arena_polygon method exists."""
-        assert hasattr(processing_coordinator, 'set_main_arena_polygon')
+        assert hasattr(processing_coordinator, "set_main_arena_polygon")
         assert callable(processing_coordinator.set_main_arena_polygon)
 
     def test_save_manual_arena_exists(self, processing_coordinator):
         """Test that save_manual_arena method exists."""
-        assert hasattr(processing_coordinator, 'save_manual_arena')
+        assert hasattr(processing_coordinator, "save_manual_arena")
         assert callable(processing_coordinator.save_manual_arena)
 
     def test_add_roi_polygon_exists(self, processing_coordinator):
         """Test that add_roi_polygon method exists."""
-        assert hasattr(processing_coordinator, 'add_roi_polygon')
+        assert hasattr(processing_coordinator, "add_roi_polygon")
         assert callable(processing_coordinator.add_roi_polygon)
 
 
@@ -344,17 +335,17 @@ class TestUtilityMethods:
 
     def test_select_eligible_videos_exists(self, processing_coordinator):
         """Test that select_eligible_videos method exists."""
-        assert hasattr(processing_coordinator, 'select_eligible_videos')
+        assert hasattr(processing_coordinator, "select_eligible_videos")
         assert callable(processing_coordinator.select_eligible_videos)
 
     def test_create_processing_context_exists(self, processing_coordinator):
         """Test that create_processing_context method exists."""
-        assert hasattr(processing_coordinator, 'create_processing_context')
+        assert hasattr(processing_coordinator, "create_processing_context")
         assert callable(processing_coordinator.create_processing_context)
 
     def test_create_processing_callbacks_exists(self, processing_coordinator):
         """Test that create_processing_callbacks method exists."""
-        assert hasattr(processing_coordinator, 'create_processing_callbacks')
+        assert hasattr(processing_coordinator, "create_processing_callbacks")
         assert callable(processing_coordinator.create_processing_callbacks)
 
 

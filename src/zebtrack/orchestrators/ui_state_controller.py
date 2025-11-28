@@ -215,7 +215,7 @@ class UIStateController:
         if not self.main_view_model._using_project_overrides:
             self.project_workflow_service.set_global_model_defaults(
                 active_weight=self.main_view_model.active_weight_name,
-                use_openvino=self.main_view_model.use_openvino
+                use_openvino=self.main_view_model.use_openvino,
             )
 
     def load_new_weight(
@@ -240,16 +240,15 @@ class UIStateController:
         # If type cannot be determined, ask user
         if weight_type is None:
             self.ui_event_bus.publish_event(
-                Events.UI_REQUEST_WEIGHT_TYPE, 
-                {"filepath": str(filepath)}
+                Events.UI_REQUEST_WEIGHT_TYPE, {"filepath": str(filepath)}
             )
             return
 
         # Ask user what to do with the new weight
         if choice is None:
             self.ui_event_bus.publish_event(
-                Events.UI_REQUEST_WEIGHT_ACTION, 
-                {"weight_type": weight_type, "filepath": str(filepath)}
+                Events.UI_REQUEST_WEIGHT_ACTION,
+                {"weight_type": weight_type, "filepath": str(filepath)},
             )
             return
 
@@ -282,7 +281,7 @@ class UIStateController:
         if not self.main_view_model._using_project_overrides:
             self.project_workflow_service.set_global_model_defaults(
                 active_weight=self.main_view_model.active_weight_name,
-                use_openvino=self.main_view_model.use_openvino
+                use_openvino=self.main_view_model.use_openvino,
             )
 
     def convert_active_weight_to_openvino(self, dialog):

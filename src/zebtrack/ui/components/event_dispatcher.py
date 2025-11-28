@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Callable
 
 import structlog
 
-from zebtrack.ui.events import Events
 from zebtrack.ui.event_bus import EventType
+from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.event_bus import EventBus
@@ -83,6 +83,7 @@ class EventDispatcher:
         mode: str,
     ) -> Callable:
         """Cria função dispatcher que adapta event data para handler."""
+
         def dispatcher(data: dict) -> None:
             try:
                 if mode == self.MODE_NO_PARAMS:
@@ -100,6 +101,7 @@ class EventDispatcher:
                     handler(*args)
             except Exception as e:
                 self.log.error("event_dispatcher.handler_error", error=str(e), mode=mode)
+
         return dispatcher
 
     def register_direct_handler(self, event_name: str, handler: Callable) -> None:
@@ -150,111 +152,180 @@ class EventDispatcher:
             return
 
         # Import UIEvents to use constants
-        from zebtrack.ui.event_bus_v2 import UIEvents
 
         # Navigation & Lifecycle
-        self.event_bus.subscribe(Events.UI_NAVIGATE_TO_WELCOME,
-            lambda d: self.gui.widget_factory.create_welcome_frame())
-        
-        self.event_bus.subscribe("project:closed",
-            lambda d: self.gui.state_synchronizer._destroy_notebook_and_main_controls())
+        self.event_bus.subscribe(
+            Events.UI_NAVIGATE_TO_WELCOME, lambda d: self.gui.widget_factory.create_welcome_frame()
+        )
+
+        self.event_bus.subscribe(
+            "project:closed",
+            lambda d: self.gui.state_synchronizer._destroy_notebook_and_main_controls(),
+        )
 
         # Generic UI updates
-        self.event_bus.subscribe(Events.UI_SHOW_INFO,
-            lambda d: self.gui.dialog_manager.show_info(d.get("title", "Info"), d.get("message", "")))
-        self.event_bus.subscribe(Events.UI_SHOW_WARNING,
-            lambda d: self.gui.dialog_manager.show_warning(d.get("title", "Aviso"), d.get("message", "")))
-        self.event_bus.subscribe(Events.UI_SHOW_ERROR,
-            lambda d: self.gui.dialog_manager.show_error(d.get("title", "Erro"), d.get("message", "")))
+        self.event_bus.subscribe(
+            Events.UI_SHOW_INFO,
+            lambda d: self.gui.dialog_manager.show_info(
+                d.get("title", "Info"), d.get("message", "")
+            ),
+        )
+        self.event_bus.subscribe(
+            Events.UI_SHOW_WARNING,
+            lambda d: self.gui.dialog_manager.show_warning(
+                d.get("title", "Aviso"), d.get("message", "")
+            ),
+        )
+        self.event_bus.subscribe(
+            Events.UI_SHOW_ERROR,
+            lambda d: self.gui.dialog_manager.show_error(
+                d.get("title", "Erro"), d.get("message", "")
+            ),
+        )
 
         # External Triggers
-        self.event_bus.subscribe(Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
+        self.event_bus.subscribe(
+            Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
             lambda d: self.gui.dialog_manager.show_external_trigger_notice(
-                d.get("session_label", ""),
-                **{k: v for k, v in d.items() if k != "session_label"}
-            ))
-        self.event_bus.subscribe(Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE,
-            lambda d: self.gui.dialog_manager.clear_external_trigger_notice())
+                d.get("session_label", ""), **{k: v for k, v in d.items() if k != "session_label"}
+            ),
+        )
+        self.event_bus.subscribe(
+            Events.UI_CLEAR_EXTERNAL_TRIGGER_NOTICE,
+            lambda d: self.gui.dialog_manager.clear_external_trigger_notice(),
+        )
 
         # Status updates
-        self.event_bus.subscribe(Events.UI_SET_STATUS,
-            lambda d: self.gui.status_var.set(d.get("message", "")))
+        self.event_bus.subscribe(
+            Events.UI_SET_STATUS, lambda d: self.gui.status_var.set(d.get("message", ""))
+        )
 
         # View navigation
-        self.event_bus.subscribe(Events.UI_SELECT_TAB,
-            lambda d: self.gui.notebook.select(getattr(self.gui, f"{d.get('tab_name')}_frame", 0)))
+        self.event_bus.subscribe(
+            Events.UI_SELECT_TAB,
+            lambda d: self.gui.notebook.select(getattr(self.gui, f"{d.get('tab_name')}_frame", 0)),
+        )
 
         # Single video zone setup (Decoupling from MainViewModel)
         self.event_bus.subscribe(
             "ui:setup_zone_definition_for_single_video",
-            self._handle_setup_zone_definition_for_single_video
+            self._handle_setup_zone_definition_for_single_video,
         )
 
         # Analysis Updates
-        self.event_bus.subscribe(Events.UI_UPDATE_PROCESSING_STATS,
-            lambda d: self.gui.state_synchronizer.update_processing_stats(**d))
-        self.event_bus.subscribe(Events.UI_UPDATE_SOCIAL_SUMMARY,
-            lambda d: self.gui.state_synchronizer.update_social_summary(**d))
-        self.event_bus.subscribe(Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
-            lambda d: self.gui.state_synchronizer.update_analysis_task_status(**d.get("payload", {})))
-        self.event_bus.subscribe(Events.UI_UPDATE_DETECTION_OVERLAY,
+        self.event_bus.subscribe(
+            Events.UI_UPDATE_PROCESSING_STATS,
+            lambda d: self.gui.state_synchronizer.update_processing_stats(**d),
+        )
+        self.event_bus.subscribe(
+            Events.UI_UPDATE_SOCIAL_SUMMARY,
+            lambda d: self.gui.state_synchronizer.update_social_summary(**d),
+        )
+        self.event_bus.subscribe(
+            Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
+            lambda d: self.gui.state_synchronizer.update_analysis_task_status(
+                **d.get("payload", {})
+            ),
+        )
+        self.event_bus.subscribe(
+            Events.UI_UPDATE_DETECTION_OVERLAY,
             lambda d: self.gui.update_detection_overlay(
                 detections=d.get("detections"), report=d.get("report")
-            ))
+            ),
+        )
 
         # Project View Updates
-        self.event_bus.subscribe(Events.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
-            lambda d: self.gui.project_view_manager.on_video_hierarchy_snapshot_updated(d.get("snapshot", [])))
-        self.event_bus.subscribe(Events.UI_REFRESH_PROJECT_VIEWS,
+        self.event_bus.subscribe(
+            Events.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
+            lambda d: self.gui.project_view_manager.on_video_hierarchy_snapshot_updated(
+                d.get("snapshot", [])
+            ),
+        )
+        self.event_bus.subscribe(
+            Events.UI_REFRESH_PROJECT_VIEWS,
             lambda d: self.gui.project_view_manager.refresh_project_views(
                 reason=d.get("reason"),
                 append_summary=d.get("append_summary", False),
-                immediate=d.get("immediate", False)
-            ))
+                immediate=d.get("immediate", False),
+            ),
+        )
 
         # Weight Management
-        self.event_bus.subscribe(Events.UI_SET_ACTIVE_WEIGHT,
-            lambda d: self.gui.set_active_weight_in_dropdown(d.get("weight_name")))
-        self.event_bus.subscribe(Events.UI_UPDATE_OPENVINO_STATUS,
-            lambda d: self.gui.update_openvino_status_display(d.get("status")))
-        self.event_bus.subscribe(Events.UI_UPDATE_OPENVINO_CHECKBOX,
-            lambda d: self.gui.update_openvino_checkbox(d.get("is_checked")))
-        self.event_bus.subscribe(Events.UI_UPDATE_WEIGHTS_LIST,
-            lambda d: self.gui.update_weights_dropdown(d.get("weights")))
+        self.event_bus.subscribe(
+            Events.UI_SET_ACTIVE_WEIGHT,
+            lambda d: self.gui.set_active_weight_in_dropdown(d.get("weight_name")),
+        )
+        self.event_bus.subscribe(
+            Events.UI_UPDATE_OPENVINO_STATUS,
+            lambda d: self.gui.update_openvino_status_display(d.get("status")),
+        )
+        self.event_bus.subscribe(
+            Events.UI_UPDATE_OPENVINO_CHECKBOX,
+            lambda d: self.gui.update_openvino_checkbox(d.get("is_checked")),
+        )
+        self.event_bus.subscribe(
+            Events.UI_UPDATE_WEIGHTS_LIST,
+            lambda d: self.gui.update_weights_dropdown(d.get("weights")),
+        )
 
         # Arduino / Hardware
-        self.event_bus.subscribe(Events.UI_UPDATE_ARDUINO_STATUS,
-            lambda d: self.gui.arduino_dashboard_widget.update_status(d.get("connected"), d.get("port")) 
-            if self.gui.arduino_dashboard_widget else None)
-        self.event_bus.subscribe(Events.UI_APPEND_ARDUINO_LOG,
+        self.event_bus.subscribe(
+            Events.UI_UPDATE_ARDUINO_STATUS,
+            lambda d: self.gui.arduino_dashboard_widget.update_status(
+                d.get("connected"), d.get("port")
+            )
+            if self.gui.arduino_dashboard_widget
+            else None,
+        )
+        self.event_bus.subscribe(
+            Events.UI_APPEND_ARDUINO_LOG,
             lambda d: self.gui.arduino_dashboard_widget.append_log(d.get("message"))
-            if self.gui.arduino_dashboard_widget else None)
+            if self.gui.arduino_dashboard_widget
+            else None,
+        )
 
         # View Navigation & Modes
-        self.event_bus.subscribe(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW,
-            lambda d: self.gui.start_analysis_view_mode())
-        self.event_bus.subscribe(Events.UI_NAVIGATE_FROM_ANALYSIS_VIEW,
-            lambda d: self.gui.stop_analysis_view_mode())
-        self.event_bus.subscribe(Events.UI_UPDATE_PROCESSING_MODE,
-            lambda d: self.gui.update_processing_mode(d.get("report")))
-        
+        self.event_bus.subscribe(
+            Events.UI_NAVIGATE_TO_ANALYSIS_VIEW, lambda d: self.gui.start_analysis_view_mode()
+        )
+        self.event_bus.subscribe(
+            Events.UI_NAVIGATE_FROM_ANALYSIS_VIEW, lambda d: self.gui.stop_analysis_view_mode()
+        )
+        self.event_bus.subscribe(
+            Events.UI_UPDATE_PROCESSING_MODE,
+            lambda d: self.gui.update_processing_mode(d.get("report")),
+        )
+
         # General UI
-        self.event_bus.subscribe(Events.UI_UPDATE_BUTTON_STATE,
-            lambda d: self.gui.update_button_state(d.get("button_name"), d.get("state")))
-        self.event_bus.subscribe(Events.UI_DISPLAY_VIDEO_FRAME,
-            lambda d: self.gui.canvas_manager.display_roi_video_frame(d.get("video_path")))
+        self.event_bus.subscribe(
+            Events.UI_UPDATE_BUTTON_STATE,
+            lambda d: self.gui.update_button_state(d.get("button_name"), d.get("state")),
+        )
+        self.event_bus.subscribe(
+            Events.UI_DISPLAY_VIDEO_FRAME,
+            lambda d: self.gui.canvas_manager.display_roi_video_frame(d.get("video_path")),
+        )
 
         # Zone Updates
-        self.event_bus.subscribe(Events.UI_REDRAW_ZONES,
-            lambda d: self.gui.canvas_manager.redraw_zones(d.get("zone_data")))
-        self.event_bus.subscribe(Events.UI_UPDATE_ZONE_LIST,
-            lambda d: self.gui.project_view_manager.refresh_zone_list())
+        self.event_bus.subscribe(
+            Events.UI_REDRAW_ZONES,
+            lambda d: self.gui.canvas_manager.redraw_zones(d.get("zone_data")),
+        )
+        self.event_bus.subscribe(
+            Events.UI_UPDATE_ZONE_LIST, lambda d: self.gui.project_view_manager.refresh_zone_list()
+        )
 
         # Weight Management Interactive Requests
-        self.event_bus.subscribe(Events.UI_REQUEST_WEIGHT_TYPE,
-            lambda d: self.gui.handle_request_weight_type(d.get("filepath")))
-        self.event_bus.subscribe(Events.UI_REQUEST_WEIGHT_ACTION,
-            lambda d: self.gui.handle_request_weight_action(d.get("filepath"), d.get("weight_type")))
+        self.event_bus.subscribe(
+            Events.UI_REQUEST_WEIGHT_TYPE,
+            lambda d: self.gui.handle_request_weight_type(d.get("filepath")),
+        )
+        self.event_bus.subscribe(
+            Events.UI_REQUEST_WEIGHT_ACTION,
+            lambda d: self.gui.handle_request_weight_action(
+                d.get("filepath"), d.get("weight_type")
+            ),
+        )
 
     def _handle_setup_interactive_polygon(self, polygon_data) -> None:
         """Handle legacy interactive polygon requests from the event bus."""
@@ -286,7 +357,9 @@ class EventDispatcher:
                 )
                 self.gui.setup_zone_definition_for_single_video(video_path, config)
             else:
-                self.log.error("gui.missing_method", method="setup_zone_definition_for_single_video")
+                self.log.error(
+                    "gui.missing_method", method="setup_zone_definition_for_single_video"
+                )
         else:
             self.log.error(
                 "event_dispatcher._handle_setup_zone_definition_for_single_video.missing_data",
@@ -296,62 +369,86 @@ class EventDispatcher:
 
     def subscribe_zone_component_events(self) -> None:
         """Subscribe to events emitted by ZoneControlsWidget."""
-        if not self.gui or not self.event_bus: return
+        if not self.gui or not self.event_bus:
+            return
 
         # Drawing Actions
-        self.event_bus.subscribe(Events.ZONE_AUTO_DETECT_CLICKED,
-            lambda d: self.gui._on_auto_detect_clicked(stabilization_frames=d.get("stabilization_frames")))
-        self.event_bus.subscribe(Events.ZONE_DRAW_ARENA,
-            lambda d: self.gui.canvas_manager.start_main_arena_drawing())
-        self.event_bus.subscribe(Events.ZONE_DRAW_ROI,
-            lambda d: self.gui.canvas_manager.start_roi_drawing())
-        self.event_bus.subscribe(Events.ZONE_TOGGLE_VIEW,
-            lambda d: self.gui._toggle_canvas_view())
+        self.event_bus.subscribe(
+            Events.ZONE_AUTO_DETECT_CLICKED,
+            lambda d: self.gui._on_auto_detect_clicked(
+                stabilization_frames=d.get("stabilization_frames")
+            ),
+        )
+        self.event_bus.subscribe(
+            Events.ZONE_DRAW_ARENA, lambda d: self.gui.canvas_manager.start_main_arena_drawing()
+        )
+        self.event_bus.subscribe(
+            Events.ZONE_DRAW_ROI, lambda d: self.gui.canvas_manager.start_roi_drawing()
+        )
+        self.event_bus.subscribe(Events.ZONE_TOGGLE_VIEW, lambda d: self.gui._toggle_canvas_view())
 
         # ROI Templates
-        self.event_bus.subscribe(Events.ZONE_TEMPLATE_APPLY,
-            lambda d: self.gui._on_apply_roi_template())
-        self.event_bus.subscribe(Events.ZONE_TEMPLATE_SAVE,
-            lambda d: self.gui._on_save_roi_template())
-        self.event_bus.subscribe(Events.ZONE_TEMPLATE_IMPORT,
-            lambda d: self.gui._on_import_and_apply_roi_template())
+        self.event_bus.subscribe(
+            Events.ZONE_TEMPLATE_APPLY, lambda d: self.gui._on_apply_roi_template()
+        )
+        self.event_bus.subscribe(
+            Events.ZONE_TEMPLATE_SAVE, lambda d: self.gui._on_save_roi_template()
+        )
+        self.event_bus.subscribe(
+            Events.ZONE_TEMPLATE_IMPORT, lambda d: self.gui._on_import_and_apply_roi_template()
+        )
 
         # Video Selector
-        self.event_bus.subscribe(Events.ZONE_VIDEO_SEARCH_CHANGED,
-            lambda d: self.gui._filter_video_tree())
-        self.event_bus.subscribe(Events.ZONE_VIDEO_REFRESH,
-            lambda d: self.gui._refresh_video_selector_tree())
-        self.event_bus.subscribe(Events.ZONE_VIDEO_DOUBLE_CLICK,
-             lambda d: self.gui.canvas_manager.load_selected_video_frame())
-        self.event_bus.subscribe(Events.ZONE_VIDEO_FRAME_LOAD,
-             lambda d: self.gui.canvas_manager.load_selected_video_frame())
+        self.event_bus.subscribe(
+            Events.ZONE_VIDEO_SEARCH_CHANGED, lambda d: self.gui._filter_video_tree()
+        )
+        self.event_bus.subscribe(
+            Events.ZONE_VIDEO_REFRESH, lambda d: self.gui._refresh_video_selector_tree()
+        )
+        self.event_bus.subscribe(
+            Events.ZONE_VIDEO_DOUBLE_CLICK,
+            lambda d: self.gui.canvas_manager.load_selected_video_frame(),
+        )
+        self.event_bus.subscribe(
+            Events.ZONE_VIDEO_FRAME_LOAD,
+            lambda d: self.gui.canvas_manager.load_selected_video_frame(),
+        )
 
         # Zone List
-        self.event_bus.subscribe(Events.ZONE_LIST_ITEM_DOUBLE_CLICK,
-             lambda d: self.gui.canvas_manager.edit_selected_zone_vertices())
-        self.event_bus.subscribe(Events.ZONE_LIST_ITEM_RIGHT_CLICK,
-             lambda d: self.gui.menu_manager.show_roi_context_menu(
-                 x=d.get("x"), y=d.get("y"), item_id=d.get("item_id")
-             ))
+        self.event_bus.subscribe(
+            Events.ZONE_LIST_ITEM_DOUBLE_CLICK,
+            lambda d: self.gui.canvas_manager.edit_selected_zone_vertices(),
+        )
+        self.event_bus.subscribe(
+            Events.ZONE_LIST_ITEM_RIGHT_CLICK,
+            lambda d: self.gui.menu_manager.show_roi_context_menu(
+                x=d.get("x"), y=d.get("y"), item_id=d.get("item_id")
+            ),
+        )
 
         # Interactive Editing
-        self.event_bus.subscribe(Events.ZONE_SAVE_ARENA,
-             lambda d: self.gui.canvas_manager.save_arena())
-        self.event_bus.subscribe(Events.ZONE_DISCARD_ARENA,
-             lambda d: self.gui.canvas_manager.discard_arena())
+        self.event_bus.subscribe(
+            Events.ZONE_SAVE_ARENA, lambda d: self.gui.canvas_manager.save_arena()
+        )
+        self.event_bus.subscribe(
+            Events.ZONE_DISCARD_ARENA, lambda d: self.gui.canvas_manager.discard_arena()
+        )
 
         # ROI Settings
-        self.event_bus.subscribe(Events.DETECTOR_UPDATE_PARAMETERS,
-            lambda d: self.gui._on_apply_roi_settings(d))
+        self.event_bus.subscribe(
+            Events.DETECTOR_UPDATE_PARAMETERS, lambda d: self.gui._on_apply_roi_settings(d)
+        )
 
     def schedule_event_bus_poll(self) -> None:
         """Schedule the event bus polling loop."""
-        if not self.gui: return
+        if not self.gui:
+            return
         self.gui.root.after(self.gui._event_bus_poll_interval_ms, self.poll_event_bus)
 
     def poll_event_bus(self) -> None:
         """Poll the event bus for pending events."""
-        if not self.gui: return
+        if not self.gui:
+            return
 
         if self.event_bus:
             # Check if it has a drain method (standard queue-based bus)
@@ -411,6 +508,7 @@ class EventDispatcher:
 
         # Import the dialog
         from zebtrack.ui.dialogs import SingleVideoConfigDialog
+
         self.log.info("event_dispatcher.handle_analyze_single_video_clicked.dialog_imported")
 
         # Get settings from controller
@@ -419,7 +517,7 @@ class EventDispatcher:
             settings = getattr(self.gui.controller, "settings", None)
         self.log.info(
             "event_dispatcher.handle_analyze_single_video_clicked.settings_retrieved",
-            has_settings=bool(settings)
+            has_settings=bool(settings),
         )
 
         # Open configuration dialog
@@ -427,7 +525,7 @@ class EventDispatcher:
         dialog = SingleVideoConfigDialog(self.gui.root, settings_obj=settings)
         self.log.info(
             "event_dispatcher.handle_analyze_single_video_clicked.dialog_closed",
-            has_result=bool(dialog.result)
+            has_result=bool(dialog.result),
         )
 
         if not dialog.result:
@@ -440,7 +538,7 @@ class EventDispatcher:
         self.log.info(
             "event_dispatcher.handle_analyze_single_video_clicked.config_retrieved",
             video_path=video_path,
-            has_config=bool(config)
+            has_config=bool(config),
         )
 
         if not video_path:
@@ -451,7 +549,7 @@ class EventDispatcher:
         self.log.info(
             "event_dispatcher.handle_analyze_single_video_clicked.publishing_event",
             event_name=Events.VIDEO_ANALYZE_SINGLE,
-            video_path=video_path
+            video_path=video_path,
         )
         self.publish_event(
             Events.VIDEO_ANALYZE_SINGLE, {"video_path": video_path, "config": config}

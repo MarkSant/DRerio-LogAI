@@ -130,7 +130,6 @@ class WidgetFactory:
         digest = hashlib.blake2b(digest_source, digest_size=8).hexdigest()
         return f"file_{digest}"
 
-
     def build_track_options(self, detections: list[tuple]) -> list[str]:
         """
         Build list of track IDs from detections for selector.
@@ -167,11 +166,11 @@ class WidgetFactory:
             parent: Parent frame to add buttons to
         """
         commands = {
-            'calibration': self.gui._open_global_calibration_window,
-            'single_analysis': self.gui._on_analyze_single_video_clicked,
-            'live_camera': lambda: self.gui.controller.start_live_camera_analysis(),
-            'create_project': self.gui._create_project_workflow,
-            'open_project': self.gui._open_project_workflow
+            "calibration": self.gui._open_global_calibration_window,
+            "single_analysis": self.gui._on_analyze_single_video_clicked,
+            "live_camera": lambda: self.gui.controller.start_live_camera_analysis(),
+            "create_project": self.gui._create_project_workflow,
+            "open_project": self.gui._open_project_workflow,
         }
 
         ButtonFactory.create_project_action_buttons(parent, commands)
@@ -184,9 +183,9 @@ class WidgetFactory:
             parent: Parent frame to add labels to
         """
         status_vars = {
-            'active_weight': self.gui._active_weight_display_var,
-            'openvino_status': self.gui._openvino_display_var,
-            'hardware_status': self.gui._gpu_hardware_display_var
+            "active_weight": self.gui._active_weight_display_var,
+            "openvino_status": self.gui._openvino_display_var,
+            "hardware_status": self.gui._gpu_hardware_display_var,
         }
 
         PanelBuilder.build_model_status_panel(parent, status_vars)
@@ -209,9 +208,10 @@ class WidgetFactory:
             except Exception:
                 pass
 
-        self.gui.zone_summary_frame, self.gui.zone_summary_cards = PanelBuilder.create_zone_summary_cards(
-            self.gui.zone_controls_frame,
-            self.get_zone_summary_helper_text()
+        self.gui.zone_summary_frame, self.gui.zone_summary_cards = (
+            PanelBuilder.create_zone_summary_cards(
+                self.gui.zone_controls_frame, self.get_zone_summary_helper_text()
+            )
         )
 
         # Initial update
@@ -228,16 +228,17 @@ class WidgetFactory:
             self.gui._drawing_buttons_frame.destroy()
 
         commands = {
-            'undo': lambda: self.gui.drawing_state_manager.undo(),
-            'redo': lambda: self.gui.drawing_state_manager.redo()
+            "undo": lambda: self.gui.drawing_state_manager.undo(),
+            "redo": lambda: self.gui.drawing_state_manager.redo(),
         }
 
         # Use video_display as parent to position buttons over the video, avoiding toolbar overlap
-        parent = self.gui.video_display if hasattr(self.gui, "video_display") else self.gui.viz_frame
+        parent = (
+            self.gui.video_display if hasattr(self.gui, "video_display") else self.gui.viz_frame
+        )
 
         self.gui._drawing_buttons_frame = ButtonFactory.create_floating_drawing_buttons(
-            parent,
-            commands
+            parent, commands
         )
 
         # Position the frame in top-right corner of the video area
@@ -860,7 +861,6 @@ class WidgetFactory:
         )
         style.configure("Zebtrack.TNotebook", padding=(4, 4))
 
-
     def create_template_rois(self) -> None:
         """Open a dialog to create ROIs from a template."""
         import numpy as np
@@ -998,7 +998,8 @@ class WidgetFactory:
                     background=color,
                     width=15,
                     height=3,
-                    command=lambda d=day, g=group_name: self.gui.dialog_manager.handle_grid_cell_click(d, g),
+                    command=lambda d=day,
+                    g=group_name: self.gui.dialog_manager.handle_grid_cell_click(d, g),
                 )
                 cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
 
@@ -1006,7 +1007,6 @@ class WidgetFactory:
             self.gui.grid_container.columnconfigure(col_index, weight=1)
         for row_index in range(days + 1):
             self.gui.grid_container.rowconfigure(row_index, weight=1)
-
 
     def reload_config_editor_values(self) -> None:
         """Load current settings into ConfigEditorWidget."""
@@ -1114,7 +1114,7 @@ class WidgetFactory:
         """Handle ROI inclusion rule change and update UI accordingly (Legacy/ConfigEditor)."""
         # This handles updates for the ConfigEditorWidget (Global Settings Tab)
         # ZoneControlsWidget handles its own UI updates internally.
-        
+
         # Hide all parameter frames first (only if they exist in GUI root scope)
         if hasattr(self.gui, "radius_frame") and self.gui.radius_frame:
             self.gui.radius_frame.pack_forget()
@@ -1175,4 +1175,3 @@ class WidgetFactory:
                 font=("Helvetica", 16),
             ).pack(pady=(0, 15))
             log.warning("welcome.logo.load_error", error=str(e))
-

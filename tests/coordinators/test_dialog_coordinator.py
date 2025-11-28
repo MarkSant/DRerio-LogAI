@@ -44,7 +44,9 @@ def mock_project_manager():
 
 
 @pytest.fixture
-def dialog_coordinator(mock_ui_coordinator, mock_event_bus, mock_state_manager, mock_project_manager):
+def dialog_coordinator(
+    mock_ui_coordinator, mock_event_bus, mock_state_manager, mock_project_manager
+):
     """Cria instância de DialogCoordinator para testes."""
     return DialogCoordinator(
         mock_ui_coordinator, mock_event_bus, mock_state_manager, mock_project_manager
@@ -58,9 +60,7 @@ class TestDialogCoordinatorInitialization:
         self, mock_ui_coordinator, mock_event_bus, mock_state_manager
     ):
         """Testa que dependências são armazenadas corretamente."""
-        coordinator = DialogCoordinator(
-            mock_ui_coordinator, mock_event_bus, mock_state_manager
-        )
+        coordinator = DialogCoordinator(mock_ui_coordinator, mock_event_bus, mock_state_manager)
 
         assert coordinator.ui_coordinator is mock_ui_coordinator
         assert coordinator.event_bus is mock_event_bus
@@ -78,9 +78,7 @@ class TestConfirmExit:
         result = dialog_coordinator.confirm_exit()
 
         assert result is True
-        mock_ui_coordinator.ask_ok_cancel.assert_called_once_with(
-            "Sair", "Deseja realmente sair?"
-        )
+        mock_ui_coordinator.ask_ok_cancel.assert_called_once_with("Sair", "Deseja realmente sair?")
 
     def test_confirm_exit_no(self, dialog_coordinator, mock_ui_coordinator):
         """Testa confirmação de saída quando usuário cancela."""
@@ -94,9 +92,7 @@ class TestConfirmExit:
 class TestHandleMixedDataScenario:
     """Testes de tratamento de cenário de dados mistos."""
 
-    def test_mixed_case_reprocess_all(
-        self, dialog_coordinator, mock_ui_coordinator
-    ):
+    def test_mixed_case_reprocess_all(self, dialog_coordinator, mock_ui_coordinator):
         """Testa caso misto quando usuário escolhe reprocessar todos."""
         scanned_videos = [
             {"path": "video1.mp4", "has_data": True},
@@ -104,16 +100,12 @@ class TestHandleMixedDataScenario:
         ]
         mock_ui_coordinator.ask_ok_cancel.return_value = True
 
-        result = dialog_coordinator.handle_mixed_data_scenario(
-            scanned_videos
-        )
+        result = dialog_coordinator.handle_mixed_data_scenario(scanned_videos)
 
         assert result == scanned_videos
         assert len(result) == 2
 
-    def test_mixed_case_skip_existing(
-        self, dialog_coordinator, mock_ui_coordinator
-    ):
+    def test_mixed_case_skip_existing(self, dialog_coordinator, mock_ui_coordinator):
         """Testa caso misto quando usuário escolhe pular existentes."""
         scanned_videos = [
             {"path": "video1.mp4", "has_data": True},
@@ -121,16 +113,12 @@ class TestHandleMixedDataScenario:
         ]
         mock_ui_coordinator.ask_ok_cancel.return_value = False
 
-        result = dialog_coordinator.handle_mixed_data_scenario(
-            scanned_videos
-        )
+        result = dialog_coordinator.handle_mixed_data_scenario(scanned_videos)
 
         assert len(result) == 1
         assert result[0]["path"] == "video2.mp4"
 
-    def test_all_have_data_reprocess(
-        self, dialog_coordinator, mock_ui_coordinator
-    ):
+    def test_all_have_data_reprocess(self, dialog_coordinator, mock_ui_coordinator):
         """Testa quando todos têm dados e usuário escolhe reprocessar."""
         scanned_videos = [
             {"path": "video1.mp4", "has_data": True},
@@ -138,9 +126,7 @@ class TestHandleMixedDataScenario:
         ]
         mock_ui_coordinator.ask_ok_cancel.return_value = True
 
-        result = dialog_coordinator.handle_mixed_data_scenario(
-            scanned_videos
-        )
+        result = dialog_coordinator.handle_mixed_data_scenario(scanned_videos)
 
         assert result == scanned_videos
         assert len(result) == 2
@@ -158,26 +144,20 @@ class TestHandleMixedDataScenario:
         ]
         mock_ui_coordinator.ask_ok_cancel.return_value = False
 
-        result = dialog_coordinator.handle_mixed_data_scenario(
-            scanned_videos
-        )
+        result = dialog_coordinator.handle_mixed_data_scenario(scanned_videos)
 
         assert result is None
         # Verifica que evento foi publicado
         mock_event_bus.publish_event.assert_called_once()
 
-    def test_none_have_data(
-        self, dialog_coordinator
-    ):
+    def test_none_have_data(self, dialog_coordinator):
         """Testa quando nenhum vídeo tem dados."""
         scanned_videos = [
             {"path": "video1.mp4", "has_data": False},
             {"path": "video2.mp4", "has_data": False},
         ]
 
-        result = dialog_coordinator.handle_mixed_data_scenario(
-            scanned_videos
-        )
+        result = dialog_coordinator.handle_mixed_data_scenario(scanned_videos)
 
         assert result == scanned_videos
         assert len(result) == 2
@@ -190,9 +170,7 @@ class TestShowInfo:
         """Testa exibição de diálogo informativo."""
         dialog_coordinator.show_info("Test Title", "Test Message")
 
-        mock_ui_coordinator.show_info.assert_called_once_with(
-            "Test Title", "Test Message"
-        )
+        mock_ui_coordinator.show_info.assert_called_once_with("Test Title", "Test Message")
 
 
 class TestShowError:
@@ -202,9 +180,7 @@ class TestShowError:
         """Testa exibição de diálogo de erro."""
         dialog_coordinator.show_error("Error Title", "Error Message")
 
-        mock_ui_coordinator.show_error.assert_called_once_with(
-            "Error Title", "Error Message"
-        )
+        mock_ui_coordinator.show_error.assert_called_once_with("Error Title", "Error Message")
 
 
 class TestAskYesNo:
@@ -217,9 +193,7 @@ class TestAskYesNo:
         result = dialog_coordinator.ask_yes_no("Confirm", "Are you sure?")
 
         assert result is True
-        mock_ui_coordinator.ask_ok_cancel.assert_called_once_with(
-            "Confirm", "Are you sure?"
-        )
+        mock_ui_coordinator.ask_ok_cancel.assert_called_once_with("Confirm", "Are you sure?")
 
     def test_ask_yes_no_no(self, dialog_coordinator, mock_ui_coordinator):
         """Testa confirmação quando usuário responde não."""
@@ -233,9 +207,7 @@ class TestAskYesNo:
 class TestShowProcessingSkippedInfo:
     """Testes de exibição de informação de processamento ignorado."""
 
-    def test_show_processing_skipped_with_event_bus(
-        self, dialog_coordinator, mock_event_bus
-    ):
+    def test_show_processing_skipped_with_event_bus(self, dialog_coordinator, mock_event_bus):
         """Testa exibição via EventBus quando disponível."""
         dialog_coordinator._show_processing_skipped_info()
 
@@ -245,9 +217,7 @@ class TestShowProcessingSkippedInfo:
         self, mock_ui_coordinator, mock_state_manager
     ):
         """Testa exibição via UICoordinator quando EventBus não disponível."""
-        coordinator = DialogCoordinator(
-            mock_ui_coordinator, None, mock_state_manager
-        )
+        coordinator = DialogCoordinator(mock_ui_coordinator, None, mock_state_manager)
 
         coordinator._show_processing_skipped_info()
 

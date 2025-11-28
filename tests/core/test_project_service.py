@@ -218,11 +218,12 @@ class TestProjectServiceLoadSave:
 
         # Save again - wait until timestamp would differ
         import time
+
         start_time = time.time()
         wait_for_condition(
             lambda: time.time() - start_time > 0.01,
             timeout=1.0,
-            error_msg="Timestamp difference wait timed out"
+            error_msg="Timestamp difference wait timed out",
         )
 
         service.save_project_config(str(project_path), project_data)

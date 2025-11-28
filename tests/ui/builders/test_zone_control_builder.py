@@ -33,7 +33,9 @@ class TestZoneControlBuilder:
     @patch("zebtrack.ui.builders.zone_control_builder.create_scrollbar")
     @patch("zebtrack.ui.builders.zone_control_builder.ttk")
     @patch("zebtrack.ui.builders.zone_control_builder.StringVar")
-    def test_create_zone_control_widgets(self, mock_stringvar, mock_ttk, mock_create_scrollbar, mock_gui):
+    def test_create_zone_control_widgets(
+        self, mock_stringvar, mock_ttk, mock_create_scrollbar, mock_gui
+    ):
         """Test creating all zone control widgets."""
         # Setup mocks
         mock_frame = Mock()
@@ -42,6 +44,7 @@ class TestZoneControlBuilder:
         mock_entry = Mock()
         mock_ttk.Entry.return_value = mock_entry
         from unittest.mock import MagicMock
+
         mock_button = MagicMock()
         mock_button.__getitem__.return_value = "disabled"
         mock_ttk.Button.return_value = mock_button

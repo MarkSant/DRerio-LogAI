@@ -241,9 +241,7 @@ class TestThreadSafety:
 
         def checker(results):
             wait_for_condition(
-                lambda: cancel_event.is_set(),
-                timeout=1.0,
-                error_msg="Cancel event never set"
+                lambda: cancel_event.is_set(), timeout=1.0, error_msg="Cancel event never set"
             )
             results.append(True)
 

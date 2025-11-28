@@ -14,7 +14,6 @@ from zebtrack.io.recorder import Recorder
 def recorder_setup(tmp_path):
     """Set up a temporary directory and a Recorder instance for testing."""
     import gc
-    import time
 
     # Use pytest's tmp_path for unique directory per test (thread-safe)
     test_dir = tmp_path / "recorder_test"
@@ -242,7 +241,6 @@ def test_write_detection_data_coerces_track_id_types(recorder_setup):
     recorder.stop_recording()
 
     # Give Windows time to flush the file to disk
-    import time
 
     time.sleep(0.1)
 
@@ -269,7 +267,6 @@ def test_write_detection_data_handles_multiple_tracks(recorder_setup):
     recorder.stop_recording()
 
     # Give Windows time to flush the file to disk
-    import time
 
     time.sleep(0.1)
 
@@ -431,7 +428,6 @@ class TestRecorderEdgeCases:
         recorder.stop_recording()
 
         # Give Windows time to flush
-        import time
 
         time.sleep(0.1)
 
@@ -519,7 +515,6 @@ class TestRecorderEdgeCases:
         recorder.stop_recording()
 
         # Give Windows time to flush
-        import time
 
         time.sleep(0.1)
 
@@ -553,7 +548,6 @@ class TestRecorderEdgeCases:
         recorder.stop_recording()
 
         # Give Windows time to flush
-        import time
 
         time.sleep(0.1)
 

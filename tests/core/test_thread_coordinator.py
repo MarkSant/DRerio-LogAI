@@ -89,6 +89,7 @@ class TestJoinThreads:
 
     def test_join_threads_with_processing_thread(self, thread_coordinator):
         """Testa join com thread de processamento."""
+
         def worker():
             while not thread_coordinator.program_exit_event.is_set():
                 time.sleep(0.01)  # intentional interleaving delay

@@ -139,7 +139,10 @@ class TrajectoryQualityValidator:
 
         # 3. Check for track_id instability (frequent switches)
         if "track_id" in df.columns:
-            track_changes = (df["track_id"].diff() != 0).sum()
+            # Handle potential None/NaN values in track_id which cause diff() to fail
+            # Use a placeholder that won't collide with valid IDs (usually positive ints)
+            track_series = df["track_id"].fillna(-1)
+            track_changes = (track_series.diff() != 0).sum()
             switch_rate = track_changes / len(df)
 
             if switch_rate > 0.1:  # More than 10% switches

@@ -6,7 +6,6 @@ Task 3.1: Expand Integration Tests.
 
 from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
 
 from zebtrack.core.detector import ZoneData
@@ -101,7 +100,9 @@ class TestGUIComponentIntegration:
     def test_update_analysis_task_status_delegates(self, gui_fixture):
         """Test that update_analysis_task_status delegates to state_synchronizer."""
         # Mock StateSynchronizer
-        with patch.object(gui_fixture.state_synchronizer, "update_analysis_task_status") as mock_update:
+        with patch.object(
+            gui_fixture.state_synchronizer, "update_analysis_task_status"
+        ) as mock_update:
             # Act
             gui_fixture.update_analysis_task_status(index=1, total=5)
 
@@ -116,7 +117,9 @@ class TestGUIComponentIntegration:
             gui_fixture.refresh_project_views(reason="test")
 
             # Assert
-            mock_refresh.assert_called_once_with(reason="test", append_summary=False, immediate=False)
+            mock_refresh.assert_called_once_with(
+                reason="test", append_summary=False, immediate=False
+            )
 
     def test_edit_selected_zone_vertices(self, gui_fixture):
         """Test edit_selected_zone_vertices delegation."""

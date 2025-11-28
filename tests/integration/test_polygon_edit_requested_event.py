@@ -18,14 +18,15 @@ from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 @pytest.fixture(autouse=True)
 def mock_tkinter_vars():
     """Mock tkinter variables to avoid root window requirement."""
-    with patch('tkinter.StringVar') as mock_string_var:
+    with patch("tkinter.StringVar") as mock_string_var:
         mock_var_instance = MagicMock()
         mock_var_instance.get.return_value = ""
         mock_string_var.return_value = mock_var_instance
 
-        with patch('tkinter.BooleanVar'):
-            with patch('tkinter.IntVar'):
+        with patch("tkinter.BooleanVar"):
+            with patch("tkinter.IntVar"):
                 yield
+
 
 @pytest.mark.integration
 class TestPolygonEditRequestedEvent:
@@ -44,15 +45,13 @@ class TestPolygonEditRequestedEvent:
 
         # Act
         polygon = np.array([[0, 0], [100, 0], [100, 100], [0, 100]])
-        event_bus.publish(Event(
-            type=UIEvents.POLYGON_EDIT_REQUESTED,
-            data={'polygon': polygon},
-            source='test'
-        ))
+        event_bus.publish(
+            Event(type=UIEvents.POLYGON_EDIT_REQUESTED, data={"polygon": polygon}, source="test")
+        )
 
         # Assert
         assert len(events_received) == 1
-        assert np.array_equal(events_received[0]['polygon'], polygon)
+        assert np.array_equal(events_received[0]["polygon"], polygon)
 
     def test_canvas_manager_subscribes_to_polygon_edit_requested(self):
         """CanvasManager subscribes to POLYGON_EDIT_REQUESTED and sets up polygon editing."""
@@ -69,14 +68,14 @@ class TestPolygonEditRequestedEvent:
         canvas_manager = CanvasManager(gui_mock, event_bus_v2=event_bus)
 
         # Mock the renderer.draw_interactive_polygon method
-        with patch.object(canvas_manager.renderer, 'draw_interactive_polygon') as mock_draw:
+        with patch.object(canvas_manager.renderer, "draw_interactive_polygon") as mock_draw:
             # Act
             polygon = np.array([[10, 20], [30, 40], [50, 60]])
-            event_bus.publish(Event(
-                type=UIEvents.POLYGON_EDIT_REQUESTED,
-                data={'polygon': polygon},
-                source='test'
-            ))
+            event_bus.publish(
+                Event(
+                    type=UIEvents.POLYGON_EDIT_REQUESTED, data={"polygon": polygon}, source="test"
+                )
+            )
 
             # Assert
             # 1. edited_polygon_points should be populated
@@ -94,7 +93,7 @@ class TestPolygonEditRequestedEvent:
         gui_mock.event_bus_v2 = event_bus
         gui_mock.setup_interactive_polygon = MagicMock()  # Mock OLD PATH
         gui_mock.zone_controls = MagicMock()
-        gui_mock.drawing_mode = None  # Not in drawing mode
+        gui_mock.drawing_state_manager.mode = None  # Not in drawing mode
 
         # Mock zone data
         zone_data_mock = MagicMock()
@@ -124,8 +123,8 @@ class TestPolygonEditRequestedEvent:
 
         # Assert - event was published
         assert len(events_received) >= 1, "POLYGON_EDIT_REQUESTED event should be published"
-        assert events_received[0]['polygon'] is not None
-        assert len(events_received[0]['polygon']) == 4  # 4 vertices for arena
+        assert events_received[0]["polygon"] is not None
+        assert len(events_received[0]["polygon"]) == 4  # 4 vertices for arena
 
     def test_canvas_manager_publishes_polygon_edit_requested_dual_mode_roi(self):
         """CanvasManager publishes POLYGON_EDIT_REQUESTED in dual mode when editing ROI."""
@@ -135,7 +134,7 @@ class TestPolygonEditRequestedEvent:
         gui_mock.event_bus_v2 = event_bus
         gui_mock.setup_interactive_polygon = MagicMock()  # Mock OLD PATH
         gui_mock.zone_controls = MagicMock()
-        gui_mock.drawing_mode = None
+        gui_mock.drawing_state_manager.mode = None
 
         # Mock zone data with ROI
         zone_data_mock = MagicMock()
@@ -143,7 +142,7 @@ class TestPolygonEditRequestedEvent:
         zone_data_mock.roi_names = ["ROI 1", "ROI 2"]
         zone_data_mock.roi_polygons = [
             [[10, 10], [20, 10], [20, 20], [10, 20]],
-            [[30, 30], [40, 30], [40, 40], [30, 40]]
+            [[30, 30], [40, 30], [40, 40], [30, 40]],
         ]
         gui_mock._get_zone_data_for_active_context = MagicMock(return_value=zone_data_mock)
 
@@ -170,8 +169,8 @@ class TestPolygonEditRequestedEvent:
 
         # Assert - event was published
         assert len(events_received) >= 1, "POLYGON_EDIT_REQUESTED event should be published for ROI"
-        assert events_received[0]['polygon'] is not None
-        assert len(events_received[0]['polygon']) == 4  # 4 vertices for ROI
+        assert events_received[0]["polygon"] is not None
+        assert len(events_received[0]["polygon"]) == 4  # 4 vertices for ROI
 
     def test_dual_mode_removed_old_path_does_not_execute(self):
         """Verify Phase 3: Old path is removed, only new path (event) executes."""
@@ -181,7 +180,7 @@ class TestPolygonEditRequestedEvent:
         gui_mock.event_bus_v2 = event_bus
         gui_mock.setup_interactive_polygon = MagicMock()  # Track old path calls
         gui_mock.zone_controls = MagicMock()
-        gui_mock.drawing_mode = None
+        gui_mock.drawing_state_manager.mode = None
 
         zone_data_mock = MagicMock()
         zone_data_mock.polygon = [[0, 0], [100, 0], [100, 100], [0, 100]]
@@ -225,23 +224,23 @@ class TestPolygonEditRequestedEvent:
 
         canvas_manager = CanvasManager(gui_mock, event_bus_v2=event_bus)
 
-        with patch.object(canvas_manager.renderer, 'draw_interactive_polygon'):
+        with patch.object(canvas_manager.renderer, "draw_interactive_polygon"):
             # Test triangle (3 vertices)
             polygon_3 = np.array([[0, 0], [10, 0], [5, 10]])
-            event_bus.publish(Event(
-                type=UIEvents.POLYGON_EDIT_REQUESTED,
-                data={'polygon': polygon_3},
-                source='test'
-            ))
+            event_bus.publish(
+                Event(
+                    type=UIEvents.POLYGON_EDIT_REQUESTED, data={"polygon": polygon_3}, source="test"
+                )
+            )
             assert len(gui_mock.edited_polygon_points) == 3
 
             # Test hexagon (6 vertices)
             polygon_6 = np.array([[0, 0], [10, 0], [15, 10], [10, 20], [0, 20], [-5, 10]])
-            event_bus.publish(Event(
-                type=UIEvents.POLYGON_EDIT_REQUESTED,
-                data={'polygon': polygon_6},
-                source='test'
-            ))
+            event_bus.publish(
+                Event(
+                    type=UIEvents.POLYGON_EDIT_REQUESTED, data={"polygon": polygon_6}, source="test"
+                )
+            )
             assert len(gui_mock.edited_polygon_points) == 6
 
     def test_polygon_coordinates_preserved_correctly(self):
@@ -258,14 +257,14 @@ class TestPolygonEditRequestedEvent:
 
         canvas_manager = CanvasManager(gui_mock, event_bus_v2=event_bus)
 
-        with patch.object(canvas_manager.renderer, 'draw_interactive_polygon'):
+        with patch.object(canvas_manager.renderer, "draw_interactive_polygon"):
             # Act
             polygon = np.array([[123.5, 456.7], [789.1, 234.5], [567.8, 901.2]])
-            event_bus.publish(Event(
-                type=UIEvents.POLYGON_EDIT_REQUESTED,
-                data={'polygon': polygon},
-                source='test'
-            ))
+            event_bus.publish(
+                Event(
+                    type=UIEvents.POLYGON_EDIT_REQUESTED, data={"polygon": polygon}, source="test"
+                )
+            )
 
             # Assert - coordinates preserved with float precision
             assert gui_mock.edited_polygon_points[0] == [123.5, 456.7]
@@ -309,17 +308,15 @@ class TestPolygonEditRequestedEventEdgeCases:
 
         # Act
         polygon = np.array([[0, 0], [10, 10], [20, 0]])
-        event_bus.publish(Event(
-            type=UIEvents.POLYGON_EDIT_REQUESTED,
-            data={'polygon': polygon},
-            source='test'
-        ))
+        event_bus.publish(
+            Event(type=UIEvents.POLYGON_EDIT_REQUESTED, data={"polygon": polygon}, source="test")
+        )
 
         # Assert - both subscribers received the event
         assert len(events_received_1) == 1
         assert len(events_received_2) == 1
-        assert np.array_equal(events_received_1[0]['polygon'], polygon)
-        assert np.array_equal(events_received_2[0]['polygon'], polygon)
+        assert np.array_equal(events_received_1[0]["polygon"], polygon)
+        assert np.array_equal(events_received_2[0]["polygon"], polygon)
 
     def test_unsubscribe_stops_receiving_events(self):
         """Unsubscribing stops receiving events."""
@@ -334,24 +331,18 @@ class TestPolygonEditRequestedEventEdgeCases:
 
         # Act - publish before unsubscribe
         polygon_1 = np.array([[0, 0], [10, 10]])
-        event_bus.publish(Event(
-            type=UIEvents.POLYGON_EDIT_REQUESTED,
-            data={'polygon': polygon_1}
-        ))
+        event_bus.publish(Event(type=UIEvents.POLYGON_EDIT_REQUESTED, data={"polygon": polygon_1}))
 
         # Unsubscribe
         event_bus.unsubscribe(UIEvents.POLYGON_EDIT_REQUESTED, handler)
 
         # Publish after unsubscribe
         polygon_2 = np.array([[20, 20], [30, 30]])
-        event_bus.publish(Event(
-            type=UIEvents.POLYGON_EDIT_REQUESTED,
-            data={'polygon': polygon_2}
-        ))
+        event_bus.publish(Event(type=UIEvents.POLYGON_EDIT_REQUESTED, data={"polygon": polygon_2}))
 
         # Assert - only first event received
         assert len(events_received) == 1
-        assert np.array_equal(events_received[0]['polygon'], polygon_1)
+        assert np.array_equal(events_received[0]["polygon"], polygon_1)
 
     def test_event_with_missing_polygon_uses_none(self):
         """Event handler handles missing polygon gracefully."""
@@ -366,13 +357,15 @@ class TestPolygonEditRequestedEventEdgeCases:
 
         canvas_manager = CanvasManager(gui_mock, event_bus_v2=event_bus)
 
-        with patch.object(canvas_manager.renderer, 'draw_interactive_polygon') as mock_draw:
+        with patch.object(canvas_manager.renderer, "draw_interactive_polygon") as mock_draw:
             # Act - publish event with missing polygon
-            event_bus.publish(Event(
-                type=UIEvents.POLYGON_EDIT_REQUESTED,
-                data={},  # Empty data - no polygon key
-                source='test'
-            ))
+            event_bus.publish(
+                Event(
+                    type=UIEvents.POLYGON_EDIT_REQUESTED,
+                    data={},  # Empty data - no polygon key
+                    source="test",
+                )
+            )
 
             # Assert - edited_polygon_points should NOT be modified (no polygon provided)
             assert gui_mock.edited_polygon_points == ["previous", "data"]
@@ -393,14 +386,16 @@ class TestPolygonEditRequestedEventEdgeCases:
 
         canvas_manager = CanvasManager(gui_mock, event_bus_v2=event_bus)
 
-        with patch.object(canvas_manager.renderer, 'draw_interactive_polygon') as mock_draw:
+        with patch.object(canvas_manager.renderer, "draw_interactive_polygon") as mock_draw:
             # Act - polygon as list (not numpy array)
             polygon_list = [[0, 0], [100, 0], [100, 100], [0, 100]]
-            event_bus.publish(Event(
-                type=UIEvents.POLYGON_EDIT_REQUESTED,
-                data={'polygon': polygon_list},
-                source='test'
-            ))
+            event_bus.publish(
+                Event(
+                    type=UIEvents.POLYGON_EDIT_REQUESTED,
+                    data={"polygon": polygon_list},
+                    source="test",
+                )
+            )
 
             # Assert
             assert gui_mock.edited_polygon_points == polygon_list

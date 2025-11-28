@@ -7,7 +7,6 @@ from zebtrack.core.dependency_container import MainViewModelDependencies
 
 
 class TestApplicationBootstrapper:
-
     @pytest.fixture
     def dependencies(self):
         deps = MagicMock(spec=MainViewModelDependencies)
@@ -36,13 +35,19 @@ class TestApplicationBootstrapper:
         bootstrapper = ApplicationBootstrapper(dependencies)
         assert bootstrapper.deps == dependencies
 
-    @patch('zebtrack.core.application_bootstrapper.ApplicationGUI')
-    @patch('zebtrack.core.application_bootstrapper.Recorder')
-    @patch('zebtrack.core.application_bootstrapper.get_hardware_summary')
-    @patch('zebtrack.core.application_bootstrapper.recommend_backend')
-    def test_initialize_structure(self, mock_backend, mock_hw, mock_recorder, mock_gui, dependencies):
+    @patch("zebtrack.core.application_bootstrapper.ApplicationGUI")
+    @patch("zebtrack.core.application_bootstrapper.Recorder")
+    @patch("zebtrack.core.application_bootstrapper.get_hardware_summary")
+    @patch("zebtrack.core.application_bootstrapper.recommend_backend")
+    def test_initialize_structure(
+        self, mock_backend, mock_hw, mock_recorder, mock_gui, dependencies
+    ):
         # Setup mocks
-        mock_hw.return_value = {"cuda_available": False, "openvino_available": False, "has_intel_gpu": False}
+        mock_hw.return_value = {
+            "cuda_available": False,
+            "openvino_available": False,
+            "has_intel_gpu": False,
+        }
         mock_backend.return_value = "pytorch"
 
         # Mock weight manager response

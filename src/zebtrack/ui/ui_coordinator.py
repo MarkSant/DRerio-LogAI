@@ -143,17 +143,13 @@ class UICoordinator:
         self.event_bus.subscribe(
             UIEvents.PROCESSING_STATS_UPDATED, self._on_processing_stats_updated
         )
-        self.event_bus.subscribe(
-            UIEvents.SOCIAL_SUMMARY_UPDATED, self._on_social_summary_updated
-        )
+        self.event_bus.subscribe(UIEvents.SOCIAL_SUMMARY_UPDATED, self._on_social_summary_updated)
         self.event_bus.subscribe(
             UIEvents.ANALYSIS_TASK_STATUS_UPDATED, self._on_analysis_task_status_updated
         )
 
         # External Trigger Events
-        self.event_bus.subscribe(
-            UIEvents.EXTERNAL_TRIGGER_NOTICE, self._on_external_trigger_notice
-        )
+        self.event_bus.subscribe(UIEvents.EXTERNAL_TRIGGER_NOTICE, self._on_external_trigger_notice)
         self.event_bus.subscribe(
             UIEvents.EXTERNAL_TRIGGER_NOTICE_CLEARED, self._on_external_trigger_notice_cleared
         )
@@ -191,8 +187,7 @@ class UICoordinator:
                 self._safe_ui_call(lambda: self.canvas_manager.update_zone_listbox(zone_data))
                 self._safe_ui_call(lambda: self.canvas_manager.update_roi_button_state())
                 log.debug(
-                    "ui_coordinator.zones_updated.canvas_updated",
-                    has_zones=zone_data is not None
+                    "ui_coordinator.zones_updated.canvas_updated", has_zones=zone_data is not None
                 )
 
             # 2. Validate zones (if validation manager is available)
@@ -205,7 +200,9 @@ class UICoordinator:
             # 3. Refresh project views if needed
             if self.project_view_manager:
                 self._safe_ui_call(
-                    lambda: self.project_view_manager.request_overview_refresh(reason="zones_updated")
+                    lambda: self.project_view_manager.request_overview_refresh(
+                        reason="zones_updated"
+                    )
                 )
                 log.debug("ui_coordinator.zones_updated.views_refreshed")
 

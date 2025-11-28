@@ -34,6 +34,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         # Extract class names directly from the model (Bug Fix #1)
         self.class_names = dict(self.model.names)  # {0: 'aqua', 1: 'zebrafish', ...}
         import structlog
+
         log = structlog.get_logger()
         log.info("ultralytics.class_names.loaded", names=self.class_names, path=model_path)
 

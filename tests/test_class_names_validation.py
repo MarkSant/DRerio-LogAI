@@ -4,9 +4,8 @@ MELHORIA #5: Test suite to ensure class names are correctly extracted
 and validated across Ultralytics and OpenVINO plugins.
 """
 
-import os
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -30,10 +29,14 @@ class TestClassNamesConsistency:
         assert hasattr(plugin, "class_names"), "Plugin missing class_names attribute"
 
         # Class names should be a dict
-        assert isinstance(plugin.class_names, dict), f"class_names should be dict, got {type(plugin.class_names)}"
+        assert isinstance(plugin.class_names, dict), (
+            f"class_names should be dict, got {type(plugin.class_names)}"
+        )
 
         # Should have at least 2 classes for segmentation model
-        assert len(plugin.class_names) >= 2, f"Expected at least 2 classes, got {len(plugin.class_names)}"
+        assert len(plugin.class_names) >= 2, (
+            f"Expected at least 2 classes, got {len(plugin.class_names)}"
+        )
 
         # Class IDs should be integers
         for class_id in plugin.class_names.keys():
@@ -59,7 +62,9 @@ class TestClassNamesConsistency:
         assert hasattr(plugin, "class_names"), "OpenVINO plugin missing class_names"
 
         # Should have loaded from metadata.json
-        assert len(plugin.class_names) >= 2, f"Expected at least 2 classes, got {len(plugin.class_names)}"
+        assert len(plugin.class_names) >= 2, (
+            f"Expected at least 2 classes, got {len(plugin.class_names)}"
+        )
 
         print(f"✓ OpenVINO class names: {plugin.class_names}")
 
@@ -95,7 +100,9 @@ class TestClassNamesConsistency:
                     mock_output_proto.partial_shape = [1, 32, 160, 160]
 
                     mock_compiled.outputs = [mock_output_det, mock_output_proto]
-                    mock_compiled.output = lambda idx: mock_output_det if idx == 0 else mock_output_proto
+                    mock_compiled.output = (
+                        lambda idx: mock_output_det if idx == 0 else mock_output_proto
+                    )
 
                     mock_input = Mock()
                     mock_input.shape = [1, 3, 640, 640]

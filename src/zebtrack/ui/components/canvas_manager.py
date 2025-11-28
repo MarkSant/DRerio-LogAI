@@ -71,7 +71,7 @@ class CanvasManager:
 
         log.debug(
             "canvas_manager.event_subscriptions_setup",
-            events=["ZONES_UPDATED", "POLYGON_EDIT_REQUESTED"]
+            events=["ZONES_UPDATED", "POLYGON_EDIT_REQUESTED"],
         )
 
     def _on_zones_updated(self, data: dict):
@@ -82,8 +82,7 @@ class CanvasManager:
         """
         zone_data = data.get("zone_data")
         log.debug(
-            "canvas_manager.zones_updated_event_received",
-            has_zone_data=zone_data is not None
+            "canvas_manager.zones_updated_event_received", has_zone_data=zone_data is not None
         )
         self.update_zone_listbox(zone_data)
 
@@ -124,8 +123,7 @@ class CanvasManager:
         if hasattr(self.gui, "zone_controls") and self.gui.zone_controls:
             self.gui.zone_controls.show_interactive_buttons()
 
-        log.debug("canvas_manager.setup_interactive_polygon.complete",
-                  num_points=len(polygon_list))
+        log.debug("canvas_manager.setup_interactive_polygon.complete", num_points=len(polygon_list))
 
     # ========== Coordinate Transformation Methods ==========
 
@@ -388,12 +386,8 @@ class CanvasManager:
 
         # Add a persistent instruction label
         # Use zone_controls_frame (Phase 6 fix: use zone_controls.zone_controls_frame)
-        zc_frame = (
-            self.gui.zone_controls.zone_controls_frame if self.gui.zone_controls else None
-        )
-        zc_listbox = (
-            self.gui.zone_controls.zone_listbox if self.gui.zone_controls else None
-        )
+        zc_frame = self.gui.zone_controls.zone_controls_frame if self.gui.zone_controls else None
+        zc_listbox = self.gui.zone_controls.zone_listbox if self.gui.zone_controls else None
 
         if not self.gui.drawing_instruction_label and zc_frame and zc_listbox:
             self.gui.drawing_instruction_label = ttk.Label(
@@ -433,7 +427,9 @@ class CanvasManager:
 
         if self.gui.video_display and self.gui.video_display.canvas:
             self.gui.video_display.canvas.delete("elastic_line")
-            self.gui.video_display.canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
+            self.gui.video_display.canvas.delete(
+                "drawing_aid"
+            )  # Deletes both vertices and fixed lines
             self.gui.video_display.canvas.delete("snap_indicator")  # Clear snap indicators
 
         # Clear coordinate lists
@@ -487,11 +483,14 @@ class CanvasManager:
             # NEW PATH - Event-Driven Architecture v4.0
             if self.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.POLYGON_EDIT_REQUESTED,
-                    data={'polygon': polygon_points},
-                    source='CanvasManager.edit_selected_zone_vertices.arena'
-                ))
+
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.POLYGON_EDIT_REQUESTED,
+                        data={"polygon": polygon_points},
+                        source="CanvasManager.edit_selected_zone_vertices.arena",
+                    )
+                )
             else:
                 # Fallback
                 self.setup_interactive_polygon(polygon_points)
@@ -516,11 +515,14 @@ class CanvasManager:
                 # NEW PATH - Event-Driven Architecture v4.0
                 if self.event_bus_v2:
                     from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                    self.event_bus_v2.publish(Event(
-                        type=UIEvents.POLYGON_EDIT_REQUESTED,
-                        data={'polygon': polygon_points},
-                        source=f'CanvasManager.edit_selected_zone_vertices.roi.{roi_name}'
-                    ))
+
+                    self.event_bus_v2.publish(
+                        Event(
+                            type=UIEvents.POLYGON_EDIT_REQUESTED,
+                            data={"polygon": polygon_points},
+                            source=f"CanvasManager.edit_selected_zone_vertices.roi.{roi_name}",
+                        )
+                    )
                 else:
                     # Fallback
                     self.setup_interactive_polygon(polygon_points)
@@ -592,22 +594,16 @@ class CanvasManager:
             controls.clear_zone_list()
             # Add Arena
             if zone_data.polygon:
-                controls.add_zone_to_list(
-                    "arena", "🏟 Arena Principal", "Polígono", "cyan"
-                )
+                controls.add_zone_to_list("arena", "🏟 Arena Principal", "Polígono", "cyan")
             # Add ROIs
             if zone_data.roi_names:
                 for i, name in enumerate(zone_data.roi_names):
                     color = (
-                        zone_data.roi_colors[i]
-                        if i < len(zone_data.roi_colors)
-                        else (0, 255, 0)
+                        zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 255, 0)
                     )
                     # BGR to Hex
                     color_hex = f"#{color[2]:02x}{color[1]:02x}{color[0]:02x}"
-                    controls.add_zone_to_list(
-                        f"roi_{i}", f"📍 {name}", "ROI", color_hex
-                    )
+                    controls.add_zone_to_list(f"roi_{i}", f"📍 {name}", "ROI", color_hex)
 
     def apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
         """Apply snapping to nearby vertices or edges of existing polygons."""
@@ -692,12 +688,15 @@ class CanvasManager:
             self.update_roi_button_state()
 
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
             if self.event_bus_v2:
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                    data={"reason": status_message, "append_summary": True},
-                    source="CanvasManager.save_arena"
-                ))
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                        data={"reason": status_message, "append_summary": True},
+                        source="CanvasManager.save_arena",
+                    )
+                )
 
         elif isinstance(self.current_editing_zone, tuple) and self.current_editing_zone[0] == "roi":
             # Save ROI
@@ -714,12 +713,15 @@ class CanvasManager:
             self.gui.set_status(status_message)
 
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
             if self.event_bus_v2:
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                    data={"reason": status_message, "append_summary": True},
-                    source="CanvasManager.save_arena"
-                ))
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                        data={"reason": status_message, "append_summary": True},
+                        source="CanvasManager.save_arena",
+                    )
+                )
         else:
             # Fallback
             self.gui.controller.save_manual_arena(self.gui.edited_polygon_points)
@@ -728,23 +730,29 @@ class CanvasManager:
             self.update_roi_button_state()
 
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
             if self.event_bus_v2:
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                    data={"reason": status_message, "append_summary": True},
-                    source="CanvasManager.save_arena"
-                ))
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                        data={"reason": status_message, "append_summary": True},
+                        source="CanvasManager.save_arena",
+                    )
+                )
 
         self.clear_interactive_polygon()
         self.redraw_zones_from_project_data()
 
         from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
         if self.event_bus_v2:
-            self.event_bus_v2.publish(Event(
-                type=UIEvents.ZONES_UPDATED,
-                data={'zone_data': None},
-                source='CanvasManager.save_arena'
-            ))
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.ZONES_UPDATED,
+                    data={"zone_data": None},
+                    source="CanvasManager.save_arena",
+                )
+            )
 
     def discard_arena(self):
         """Discard the interactive polygon."""
@@ -762,7 +770,9 @@ class CanvasManager:
     def clear_interactive_polygon(self):
         """Clear all interactive elements."""
         if self.gui.video_display and self.gui.video_display.canvas:
-            self.gui.video_display.canvas.delete("interactive_polygon", "handle", "suggested_polygon")
+            self.gui.video_display.canvas.delete(
+                "interactive_polygon", "handle", "suggested_polygon"
+            )
 
         if hasattr(self.gui, "zone_controls") and self.gui.zone_controls:
             self.gui.zone_controls.hide_interactive_buttons()
@@ -839,7 +849,7 @@ class CanvasManager:
         # Fallback for arena selector if not present
         current_arena_id = "arena_1"
         if hasattr(self.gui, "arena_selector_var"):
-             current_arena_id = self.gui.arena_selector_var.get() or "arena_1"
+            current_arena_id = self.gui.arena_selector_var.get() or "arena_1"
 
         new_roi = {"name": roi_name, "type": "circle", "coords": (cx, cy, radius)}
         self.gui.roi_data.setdefault(current_arena_id, []).append(new_roi)
@@ -856,10 +866,14 @@ class CanvasManager:
                 width=2,
             )
 
-        if hasattr(self.gui, "zone_controls") and self.gui.zone_controls and self.gui.zone_controls.zone_listbox:
-             self.gui.zone_controls.zone_listbox.insert("", "end", values=(roi_name,))
+        if (
+            hasattr(self.gui, "zone_controls")
+            and self.gui.zone_controls
+            and self.gui.zone_controls.zone_listbox
+        ):
+            self.gui.zone_controls.zone_listbox.insert("", "end", values=(roi_name,))
         elif hasattr(self.gui, "roi_listbox") and self.gui.roi_listbox:
-             self.gui.roi_listbox.insert("", "end", values=(roi_name,))
+            self.gui.roi_listbox.insert("", "end", values=(roi_name,))
 
         self.stop_drawing()
 
@@ -906,7 +920,9 @@ class CanvasManager:
                 # Persist removals
                 # Fix for single video workflow: do not persist if no project path
                 should_persist = bool(self.gui.controller.project_manager.project_path)
-                self.gui.controller.project_manager.save_zone_data(zone_data, persist=should_persist)
+                self.gui.controller.project_manager.save_zone_data(
+                    zone_data, persist=should_persist
+                )
 
                 # Update view
                 self.redraw_zones_from_project_data()
@@ -918,16 +934,21 @@ class CanvasManager:
                 # Refresh project views
                 if self.event_bus_v2:
                     from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                    self.event_bus_v2.publish(Event(
-                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                        data={"reason": status_message, "append_summary": True},
-                        source="CanvasManager.remove_selected_roi"
-                    ))
-                    self.event_bus_v2.publish(Event(
-                        type=UIEvents.ZONES_UPDATED,
-                        data={'zone_data': None},
-                        source='CanvasManager.remove_selected_roi'
-                    ))
+
+                    self.event_bus_v2.publish(
+                        Event(
+                            type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                            data={"reason": status_message, "append_summary": True},
+                            source="CanvasManager.remove_selected_roi",
+                        )
+                    )
+                    self.event_bus_v2.publish(
+                        Event(
+                            type=UIEvents.ZONES_UPDATED,
+                            data={"zone_data": None},
+                            source="CanvasManager.remove_selected_roi",
+                        )
+                    )
 
         except (ValueError, IndexError, AttributeError) as e:
             log.error("canvas_manager.remove_roi.error", error=str(e))

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+
 class ProjectViewModel:
     """
     ViewModel responsible for Project Management workflows.
@@ -100,7 +101,9 @@ class ProjectViewModel:
             return self.project_orchestrator.resolve_project_model_settings(overrides)
         return None, False
 
-    def save_project_model_overrides(self, active_weight: str | None, use_openvino: bool | None) -> None:
+    def save_project_model_overrides(
+        self, active_weight: str | None, use_openvino: bool | None
+    ) -> None:
         if self.project_orchestrator:
             self.project_orchestrator.save_project_model_overrides(active_weight, use_openvino)
 

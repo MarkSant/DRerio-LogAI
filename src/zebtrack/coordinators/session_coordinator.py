@@ -28,7 +28,6 @@ Architecture:
 from __future__ import annotations
 
 import datetime
-import math
 import os
 import tempfile
 import time
@@ -44,7 +43,6 @@ from zebtrack.coordinators.base import (
     CoordinatorValidationError,
 )
 from zebtrack.core.aquarium_detector import AquariumDetector
-from zebtrack.core.detector import ZoneData
 from zebtrack.core.processing_mode import ProcessingMode
 from zebtrack.core.state_manager import StateCategory
 from zebtrack.io.camera import Camera
@@ -802,14 +800,14 @@ class SessionCoordinator(BaseCoordinator):
             duration_s = 300.0
             if hasattr(self.settings, "live_analysis"):
                 duration_s = self.settings.live_analysis.default_duration_s
-            
+
             config = {
                 "camera_index": camera_index,
                 "duration_s": duration_s,
                 "experiment_id": f"camera_{camera_index}",
                 "analysis_interval_frames": 1,
                 "display_interval_frames": 1,
-                "record_video": True
+                "record_video": True,
             }
         else:
             # Show configuration dialog
@@ -842,7 +840,9 @@ class SessionCoordinator(BaseCoordinator):
         Returns:
             True if session started successfully, False otherwise
         """
-        log.info("session_coordinator.live_analysis.start_from_config", config_keys=list(config.keys()))
+        log.info(
+            "session_coordinator.live_analysis.start_from_config", config_keys=list(config.keys())
+        )
 
         # Extract configuration with defaults
         camera_index = config["camera_index"]
@@ -878,7 +878,9 @@ class SessionCoordinator(BaseCoordinator):
 
         if aquarium_method is not None:
             self.settings.model_selection.aquarium_method = aquarium_method
-            log.info("session_coordinator.live_analysis.aquarium_method_updated", value=aquarium_method)
+            log.info(
+                "session_coordinator.live_analysis.aquarium_method_updated", value=aquarium_method
+            )
 
         if use_openvino is not None:
             self.settings.model_selection.use_openvino = use_openvino
@@ -1106,7 +1108,10 @@ class SessionCoordinator(BaseCoordinator):
                         Events.UI_SHOW_WARNING,
                         {
                             "title": "Detecção Falhou",
-                            "message": "Nenhum aquário foi detectado. Por favor, desenhe a área manualmente.",
+                            "message": (
+                                "Nenhum aquário foi detectado. "
+                                "Por favor, desenhe a área manualmente."
+                            ),
                         },
                     )
                 return
@@ -1177,12 +1182,13 @@ class SessionCoordinator(BaseCoordinator):
                             Events.UI_SHOW_ERROR,
                             {
                                 "title": "Calibração Falhou",
-                                "message": "Não foi possível detectar o aquário.\nPor favor, desenhe manualmente.",
+                                "message": (
+                                    "Não foi possível detectar o aquário.\n"
+                                    "Por favor, desenhe manualmente."
+                                ),
                             },
                         )
-                        self.event_bus.publish_event(
-                            Events.UI_SELECT_TAB, {"tab_name": "zone_tab"}
-                        )
+                        self.event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
                     return False
                 else:
                     log.info("session_coordinator.recording.live_zone_validation.success")

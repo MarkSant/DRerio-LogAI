@@ -180,8 +180,7 @@ def mock_bootstrap_result():
 def main_view_model(mock_dependencies, mock_bootstrap_result):
     """Create MainViewModel with mocked dependencies (Phase 3)."""
     controller = MainViewModel(
-        dependencies=mock_dependencies,
-        bootstrap_result=mock_bootstrap_result
+        dependencies=mock_dependencies, bootstrap_result=mock_bootstrap_result
     )
     # Mock the view to avoid UI dependencies (although view is decoupled, tests might access it)
     controller.view = Mock()
@@ -197,8 +196,7 @@ class TestMainViewModelInitialization:
     def test_init_stores_all_dependencies(self, mock_dependencies, mock_bootstrap_result):
         """Test initialization stores all injected dependencies (Phase 3)."""
         controller = MainViewModel(
-            dependencies=mock_dependencies,
-            bootstrap_result=mock_bootstrap_result
+            dependencies=mock_dependencies, bootstrap_result=mock_bootstrap_result
         )
 
         assert controller.root == mock_dependencies.root
@@ -241,4 +239,6 @@ class TestCreateProjectWorkflow:
         main_view_model.create_project_workflow(**wizard_data)
 
         # Should call workflow service through orchestrator
-        main_view_model.project_orchestrator.create_project_workflow.assert_called_once_with(**wizard_data)
+        main_view_model.project_orchestrator.create_project_workflow.assert_called_once_with(
+            **wizard_data
+        )

@@ -15,14 +15,15 @@ from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 @pytest.fixture(autouse=True)
 def mock_tkinter_vars():
     """Mock tkinter variables to avoid root window requirement."""
-    with patch('tkinter.StringVar') as mock_string_var:
+    with patch("tkinter.StringVar") as mock_string_var:
         mock_var_instance = MagicMock()
         mock_var_instance.get.return_value = ""
         mock_string_var.return_value = mock_var_instance
 
-        with patch('tkinter.BooleanVar'):
-            with patch('tkinter.IntVar'):
+        with patch("tkinter.BooleanVar"):
+            with patch("tkinter.IntVar"):
                 yield
+
 
 @pytest.mark.integration
 class TestZonesUpdatedEvent:
@@ -40,15 +41,13 @@ class TestZonesUpdatedEvent:
         event_bus.subscribe(UIEvents.ZONES_UPDATED, handler)
 
         # Act
-        event_bus.publish(Event(
-            type=UIEvents.ZONES_UPDATED,
-            data={'zone_data': None},
-            source='test'
-        ))
+        event_bus.publish(
+            Event(type=UIEvents.ZONES_UPDATED, data={"zone_data": None}, source="test")
+        )
 
         # Assert
         assert len(events_received) == 1
-        assert events_received[0]['zone_data'] is None
+        assert events_received[0]["zone_data"] is None
 
     def test_canvas_manager_subscribes_to_zones_updated(self):
         """CanvasManager subscribes to ZONES_UPDATED and calls update_zone_listbox."""
@@ -62,13 +61,11 @@ class TestZonesUpdatedEvent:
         canvas_manager = CanvasManager(gui_mock, event_bus_v2=event_bus)
 
         # Mock the update_zone_listbox method
-        with patch.object(canvas_manager, 'update_zone_listbox') as mock_update:
+        with patch.object(canvas_manager, "update_zone_listbox") as mock_update:
             # Act
-            event_bus.publish(Event(
-                type=UIEvents.ZONES_UPDATED,
-                data={'zone_data': None},
-                source='test'
-            ))
+            event_bus.publish(
+                Event(type=UIEvents.ZONES_UPDATED, data={"zone_data": None}, source="test")
+            )
 
             # Assert
             mock_update.assert_called_once_with(None)
@@ -97,14 +94,21 @@ class TestZonesUpdatedEvent:
         event_bus.subscribe(UIEvents.ZONES_UPDATED, handler)
 
         # Mock file dialog and dependencies
-        with patch('zebtrack.ui.components.dialog_manager.filedialog.askopenfilename', return_value='/fake/template.json'):
+        with patch(
+            "zebtrack.ui.components.dialog_manager.filedialog.askopenfilename",
+            return_value="/fake/template.json",
+        ):
             # Mock open for json loading
             with patch("builtins.open", new_callable=MagicMock) as mock_open:
-                mock_open.return_value.__enter__.return_value.read.return_value = '{"polygon": [[0,0]]}'
+                mock_open.return_value.__enter__.return_value.read.return_value = (
+                    '{"polygon": [[0,0]]}'
+                )
 
-                with patch("json.load", return_value={"polygon": [[0,0]]}):
+                with patch("json.load", return_value={"polygon": [[0, 0]]}):
                     # Mock save_zone_data
-                    gui_mock.controller.project_manager.get_active_zone_video.return_value = "video.mp4"
+                    gui_mock.controller.project_manager.get_active_zone_video.return_value = (
+                        "video.mp4"
+                    )
 
                     # Act - simulate import_and_apply_roi_template
                     dialog_manager.import_and_apply_roi_template()
@@ -129,7 +133,7 @@ class TestZonesUpdatedEvent:
         project_manager_mock = MagicMock()
 
         # Patch StringVar in the module to avoid root requirement
-        with patch('zebtrack.ui.components.roi_template_manager.StringVar') as mock_string_var:
+        with patch("zebtrack.ui.components.roi_template_manager.StringVar") as mock_string_var:
             mock_var = MagicMock()
             mock_var.get.return_value = ""
             mock_string_var.return_value = mock_var
@@ -149,15 +153,19 @@ class TestZonesUpdatedEvent:
         event_bus.subscribe(UIEvents.ZONES_UPDATED, handler)
 
         # Mock template application
-        roi_manager._cache = [{'name': 'test_template', 'display_name': 'test_template', 'id': '123'}]
-        roi_manager.template_var.set('test_template')
+        roi_manager._cache = [
+            {"name": "test_template", "display_name": "test_template", "id": "123"}
+        ]
+        roi_manager.template_var.set("test_template")
         # Mock variable does not maintain state, so force return value
-        roi_manager.template_var.get.return_value = 'test_template'
+        roi_manager.template_var.get.return_value = "test_template"
 
         # Also patch load_roi_template which is called by apply_template
-        with patch.object(project_manager_mock, 'load_roi_template', return_value=MagicMock()):
-            with patch.object(project_manager_mock, 'save_zone_data'):
-                with patch.object(project_manager_mock, 'get_active_zone_video', return_value='/fake/video.mp4'):
+        with patch.object(project_manager_mock, "load_roi_template", return_value=MagicMock()):
+            with patch.object(project_manager_mock, "save_zone_data"):
+                with patch.object(
+                    project_manager_mock, "get_active_zone_video", return_value="/fake/video.mp4"
+                ):
                     # Act
                     try:
                         roi_manager.apply_template()
@@ -227,7 +235,7 @@ class TestZonesUpdatedEvent:
         # Act - complete arena polygon
         video_points = [[0, 0], [100, 0], [100, 100], [0, 100]]
         try:
-            success = service.complete_polygon('arena', video_points, gui_mock)
+            success = service.complete_polygon("arena", video_points, gui_mock)
         except Exception as e:
             pytest.skip(f"PolygonDrawingService.complete_polygon failed: {e}")
 
@@ -260,11 +268,9 @@ class TestZonesUpdatedEvent:
         gui_mock.update_zone_listbox()
 
         # NEW PATH
-        event_bus.publish(Event(
-            type=UIEvents.ZONES_UPDATED,
-            data={'zone_data': None},
-            source='test_dual_mode'
-        ))
+        event_bus.publish(
+            Event(type=UIEvents.ZONES_UPDATED, data={"zone_data": None}, source="test_dual_mode")
+        )
 
         # Assert both paths executed
         assert gui_mock.update_zone_listbox.call_count >= 1, "Old path should execute"
@@ -306,11 +312,9 @@ class TestZonesUpdatedEventEdgeCases:
         event_bus.subscribe(UIEvents.ZONES_UPDATED, handler2)
 
         # Act
-        event_bus.publish(Event(
-            type=UIEvents.ZONES_UPDATED,
-            data={'zone_data': None},
-            source='test'
-        ))
+        event_bus.publish(
+            Event(type=UIEvents.ZONES_UPDATED, data={"zone_data": None}, source="test")
+        )
 
         # Assert - both subscribers received the event
         assert len(events_received_1) == 1

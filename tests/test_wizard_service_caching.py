@@ -10,8 +10,6 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from tests.utils.wait_helpers import wait_for_condition
-
 from zebtrack.core.wizard_service import WizardService
 
 

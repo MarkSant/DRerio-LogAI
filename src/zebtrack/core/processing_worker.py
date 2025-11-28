@@ -15,29 +15,30 @@ from __future__ import annotations
 
 import multiprocessing
 import os
-import time
-import traceback
 import queue
 import threading
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Callable, TYPE_CHECKING
+import time
+import traceback
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Callable
 
 import cv2
-import numpy as np
 import structlog
 
 from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.io.recorder import Recorder
+
 # Settings is used at runtime in WorkerConfig
 if TYPE_CHECKING:
-    from zebtrack.settings import Settings
+    pass
 
 log = structlog.get_logger()
+
 
 @dataclass
 class ProcessingContext:
     """Context for processing, passed from Coordinator."""
+
     videos_to_process: list[dict]
     output_base_dir: str
     cancel_event: threading.Event
@@ -51,9 +52,11 @@ class ProcessingContext:
     determine_intervals_func: Callable | None = None
     retry_strategy: str = "stop"
 
+
 @dataclass
 class ProcessingCallbacks:
     """Callbacks for processing events."""
+
     on_started: Callable[[], None]
     on_progress: Callable[[float, str, dict | None], None]
     on_frame_processed: Callable[[Any, Any, Any], None]
@@ -62,9 +65,11 @@ class ProcessingCallbacks:
     on_completed: Callable[[bool, str, dict | None], None]
     on_fatal_error: Callable[[Exception, str, dict], None]
 
+
 @dataclass
 class WorkerConfig:
     """Configuration passed to the worker process."""
+
     settings: Any
     output_base_dir: str
     tasks: list[dict]  # List of video info dicts
@@ -73,11 +78,12 @@ class WorkerConfig:
     display_interval_frames: int = 10
     model_path: str = ""
     model_type: str = "yolo"  # 'yolo' or 'openvino'
-    zone_data: dict | None = None # serialized ZoneData
+    zone_data: dict | None = None  # serialized ZoneData
+
 
 class ProcessingWorker:
     """
-    Wrapper class that manages the worker process and bridges 
+    Wrapper class that manages the worker process and bridges
     multiprocessing queues to thread-safe callbacks.
     """
 
@@ -87,10 +93,18 @@ class ProcessingWorker:
         self.result_queue = multiprocessing.Queue()
         self.command_queue = multiprocessing.Queue()
         self.process = None
+        self._monitor_thread = None
+
+    @property
+    def is_running(self) -> bool:
+        """Check if the worker is currently running."""
+        return self._monitor_thread is not None and self._monitor_thread.is_alive()
 
     def start_in_thread(self) -> threading.Thread:
         """Start the worker process and the monitoring thread."""
-        
+        if self.is_running:
+            return self._monitor_thread
+
         # Prepare zone data dictionary
         z_data = self.context.zone_data
         z_dict = None
@@ -121,12 +135,20 @@ class ProcessingWorker:
         self.process = _WorkerProcess(config, self.result_queue, self.command_queue)
         self.process.start()
 
-        monitor_thread = threading.Thread(target=self._monitor_loop, name="ProcessingMonitor")
-        monitor_thread.daemon = True
-        monitor_thread.start()
-        return monitor_thread
+        self._monitor_thread = threading.Thread(target=self._monitor_loop, name="ProcessingMonitor")
+        self._monitor_thread.daemon = True
+        self._monitor_thread.start()
+        return self._monitor_thread
 
-    def _monitor_loop(self):
+    def cancel(self, timeout: float | None = None) -> bool:
+        """Cancel processing."""
+        self.context.cancel_event.set()
+        if self._monitor_thread and self._monitor_thread.is_alive():
+            self._monitor_thread.join(timeout=timeout)
+            return not self._monitor_thread.is_alive()
+        return True
+
+    def _monitor_loop(self):  # noqa: C901
         """Monitor results from the worker process."""
         self.callbacks.on_started()
 
@@ -147,47 +169,55 @@ class ProcessingWorker:
                 msg_type = msg.get("type")
 
                 if msg_type == "progress":
-                    self.callbacks.on_progress(
-                        msg["fraction"], 
-                        msg["message"], 
-                        msg.get("stats")
-                    )
-                
+                    if self.callbacks.on_progress:
+                        self.callbacks.on_progress(
+                            msg["fraction"], msg["message"], msg.get("stats")
+                        )
+
                 elif msg_type == "frame":
                     # Pass frame to callback
-                    self.callbacks.on_frame_processed(
-                        msg["frame"], 
-                        None, # Detections (not passed in this simple msg yet)
-                        None  # Info
-                    )
+                    if self.callbacks.on_frame_processed:
+                        self.callbacks.on_frame_processed(
+                            msg["frame"],
+                            None,  # Detections (not passed in this simple msg yet)
+                            None,  # Info
+                        )
 
                 elif msg_type == "video_completed":
-                    self.callbacks.on_video_completed(
-                        msg["index"],
-                        0, # Total not always passed back in this msg
-                        msg["experiment_id"],
-                        msg["success"]
-                    )
+                    if self.callbacks.on_video_completed:
+                        self.callbacks.on_video_completed(
+                            msg["index"],
+                            0,  # Total not always passed back in this msg
+                            msg["experiment_id"],
+                            msg["success"],
+                        )
 
                 elif msg_type == "completed":
-                    self.callbacks.on_completed(
-                        msg.get("cancelled", False),
-                        self.context.output_base_dir
-                    )
+                    print(f"DEBUG: ProcessingWorker received completed msg: {msg}")
+                    if self.callbacks.on_completed:
+                        self.callbacks.on_completed(
+                            msg.get("cancelled", False),
+                            self.context.output_base_dir,
+                            msg.get("summary"),
+                        )
                     break
 
                 elif msg_type == "error":
-                    self.callbacks.on_error(
-                        Exception(msg["error"]), 
-                        msg.get("experiment_id", "unknown")
-                    )
+                    if self.callbacks.on_error:
+                        self.callbacks.on_error(
+                            Exception(msg["error"]), msg.get("experiment_id", "unknown")
+                        )
 
                 elif msg_type == "fatal_error":
-                    self.callbacks.on_fatal_error(
-                        Exception(msg["error"]),
-                        "Fatal Worker Error",
-                        {"affected_videos": []}
-                    )
+                    error = Exception(msg["error"])
+                    context_str = "Fatal Worker Error"
+                    info = {"affected_videos": []}
+
+                    if self.callbacks.on_fatal_error:
+                        self.callbacks.on_fatal_error(error, context_str, info)
+                    elif self.callbacks.on_error:
+                        # Fallback to normal error callback
+                        self.callbacks.on_error(error, context_str)
                     break
 
             except Exception as e:
@@ -225,10 +255,10 @@ class _WorkerProcess(multiprocessing.Process):
         try:
             # 1. Initialize dependencies
             detector = self._initialize_detector()
-            
+
             # 2. Process tasks
             total_videos = len(self.config.tasks)
-            
+
             for index, video_info in enumerate(self.config.tasks):
                 if self._check_cancellation():
                     break
@@ -247,9 +277,7 @@ class _WorkerProcess(multiprocessing.Process):
                 )
 
                 self._send_progress(
-                    index, total_videos, 0.0, 
-                    f"Iniciando: {experiment_id}", 
-                    experiment_id
+                    index, total_videos, 0.0, f"Iniciando: {experiment_id}", experiment_id
                 )
 
                 try:
@@ -259,41 +287,44 @@ class _WorkerProcess(multiprocessing.Process):
                         video_path=video_path,
                         experiment_id=experiment_id,
                         detector=detector,
-                        video_metadata=video_info
+                        video_metadata=video_info,
                     )
-                    
-                    self.result_queue.put({
-                        "type": "video_completed",
-                        "index": index,
-                        "experiment_id": experiment_id,
-                        "success": success
-                    })
+
+                    self.result_queue.put(
+                        {
+                            "type": "video_completed",
+                            "index": index,
+                            "experiment_id": experiment_id,
+                            "success": success,
+                        }
+                    )
 
                 except Exception as e:
                     log.error(
                         "worker.process.video_error",
                         experiment_id=experiment_id,
                         error=str(e),
-                        exc_info=True
+                        exc_info=True,
                     )
-                    self.result_queue.put({
-                        "type": "error",
-                        "experiment_id": experiment_id,
-                        "error": str(e),
-                        "traceback": traceback.format_exc()
-                    })
-                
+                    self.result_queue.put(
+                        {
+                            "type": "error",
+                            "experiment_id": experiment_id,
+                            "error": str(e),
+                            "traceback": traceback.format_exc(),
+                        }
+                    )
+
                 # Clean up after video
                 import gc
+
                 gc.collect()
 
         except Exception as e:
             log.critical("worker.process.fatal_error", error=str(e), exc_info=True)
-            self.result_queue.put({
-                "type": "fatal_error",
-                "error": str(e),
-                "traceback": traceback.format_exc()
-            })
+            self.result_queue.put(
+                {"type": "fatal_error", "error": str(e), "traceback": traceback.format_exc()}
+            )
         finally:
             self.result_queue.put({"type": "completed", "cancelled": self._cancel_requested})
             log.info("worker.process.finished", pid=os.getpid())
@@ -301,35 +332,39 @@ class _WorkerProcess(multiprocessing.Process):
     def _initialize_detector(self) -> Detector:
         """Initialize the detector with the appropriate plugin."""
         log.info("worker.detector.initializing", type=self.config.model_type)
-        
+
         settings = self.config.settings
-        
+
         # Resolve model path (use settings if not provided in config)
         model_path = self.config.model_path
         if not model_path:
-             # Fallback to settings
-             model_path = settings.yolo_model.path
+            # Fallback to settings
+            model_path = settings.yolo_model.path
 
         if self.config.model_type == "openvino":
             from zebtrack.plugins.openvino_detector import OpenVINOPlugin
+
             plugin = OpenVINOPlugin(model_path=model_path, settings_obj=settings)
         else:
             from zebtrack.plugins.ultralytics_detector import UltralyticsDetectorPlugin
+
             plugin = UltralyticsDetectorPlugin(model_path=model_path, settings_obj=settings)
 
         # Initialize Detector
         width = settings.camera.desired_width
         height = settings.camera.desired_height
-        detector = Detector(plugin=plugin, base_width=width, base_height=height, settings_obj=settings)
+        detector = Detector(
+            plugin=plugin, base_width=width, base_height=height, settings_obj=settings
+        )
 
         # Restore ZoneData
         if self.config.zone_data:
             zd = ZoneData()
-            zd.polygon = self.config.zone_data.get('polygon', [])
-            zd.roi_polygons = self.config.zone_data.get('roi_polygons', [])
-            zd.roi_names = self.config.zone_data.get('roi_names', [])
-            zd.roi_colors = self.config.zone_data.get('roi_colors', [])
-            
+            zd.polygon = self.config.zone_data.get("polygon", [])
+            zd.roi_polygons = self.config.zone_data.get("roi_polygons", [])
+            zd.roi_names = self.config.zone_data.get("roi_names", [])
+            zd.roi_colors = self.config.zone_data.get("roi_colors", [])
+
             # Store as 'default' zones for the detector
             self._default_zone_data = zd
         else:
@@ -344,10 +379,10 @@ class _WorkerProcess(multiprocessing.Process):
         video_path: str,
         experiment_id: str,
         detector: Detector,
-        video_metadata: dict
+        video_metadata: dict,
     ) -> bool:
         """Process a single video file."""
-        
+
         # 1. Open Video
         if isinstance(video_path, str) and video_path.isdigit():
             cap = cv2.VideoCapture(int(video_path))
@@ -360,10 +395,10 @@ class _WorkerProcess(multiprocessing.Process):
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        
+
         # 2. Setup Zones & Calibration
         detector.set_zones(self._default_zone_data, width, height)
-        
+
         # 3. Setup Recorder
         if self.config.single_video_mode:
             results_dir = self.config.output_base_dir
@@ -371,7 +406,7 @@ class _WorkerProcess(multiprocessing.Process):
             results_dir = self.config.output_base_dir
 
         recorder = Recorder(settings_obj=self.config.settings)
-        
+
         pixel_ratio = None
 
         recorder.start_recording(
@@ -381,7 +416,7 @@ class _WorkerProcess(multiprocessing.Process):
             zones=self._default_zone_data,
             is_video_file=True,
             base_name=experiment_id,
-            pixel_per_cm_ratio=pixel_ratio
+            pixel_per_cm_ratio=pixel_ratio,
         )
 
         detector.reset_tracking_state()
@@ -389,7 +424,7 @@ class _WorkerProcess(multiprocessing.Process):
         # 4. Processing Loop
         frame_num = 0
         start_time = time.time()
-        
+
         try:
             while True:
                 if self._check_cancellation():
@@ -399,13 +434,13 @@ class _WorkerProcess(multiprocessing.Process):
                 if not ret:
                     break
 
-                should_process = (frame_num % self.config.analysis_interval_frames == 0)
+                should_process = frame_num % self.config.analysis_interval_frames == 0
                 detections = []
 
                 if should_process:
                     # Detect
                     detections, _ = detector.detect(frame, project_type="pre-recorded")
-                    
+
                     # Record
                     timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
                     recorder.write_detection_data(timestamp, frame_num, detections)
@@ -414,32 +449,37 @@ class _WorkerProcess(multiprocessing.Process):
                     if frame_num % self.config.display_interval_frames == 0:
                         # Draw overlay
                         detector.draw_overlay(frame, detections)
-                        
+
                         # Resize for preview if needed
                         preview_frame = frame
                         if width > 1280:
                             scale = 1280 / width
-                            preview_frame = cv2.resize(frame, (0,0), fx=scale, fy=scale)
-                        
-                        self.result_queue.put({
-                            "type": "frame",
-                            "frame": preview_frame,
-                            "experiment_id": experiment_id
-                        })
-                        
+                            preview_frame = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
+
+                        self.result_queue.put(
+                            {
+                                "type": "frame",
+                                "frame": preview_frame,
+                                "experiment_id": experiment_id,
+                            }
+                        )
+
                         # Stats update
                         elapsed = time.time() - start_time
                         progress = frame_num / total_frames if total_frames > 0 else 0
-                        
+
                         self._send_progress(
-                            index, total_videos, progress,
-                            "Processando...", experiment_id,
+                            index,
+                            total_videos,
+                            progress,
+                            "Processando...",
+                            experiment_id,
                             stats={
                                 "fps": frame_num / elapsed if elapsed > 0 else 0,
                                 "frame": frame_num,
                                 "total_frames": total_frames,
-                                "current_frame": frame_num
-                            }
+                                "current_frame": frame_num,
+                            },
                         )
 
                 frame_num += 1
@@ -462,12 +502,14 @@ class _WorkerProcess(multiprocessing.Process):
         return self._cancel_requested
 
     def _send_progress(self, index, total, fraction, message, experiment_id, stats=None):
-        self.result_queue.put({
-            "type": "progress",
-            "index": index,
-            "total": total,
-            "fraction": fraction,
-            "message": message,
-            "experiment_id": experiment_id,
-            "stats": stats
-        })
+        self.result_queue.put(
+            {
+                "type": "progress",
+                "index": index,
+                "total": total,
+                "fraction": fraction,
+                "message": message,
+                "experiment_id": experiment_id,
+                "stats": stats,
+            }
+        )

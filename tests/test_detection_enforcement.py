@@ -175,8 +175,13 @@ def test_single_video_detection_mode_enforcement():
         # Create mock root
         mock_root = MagicMock()
 
+        # Mock event bus
+        mock_event_bus = MagicMock()
+
         # Create controller using factory
-        controller = create_test_controller(root=mock_root, settings_obj=mock_settings)
+        controller = create_test_controller(
+            root=mock_root, settings_obj=mock_settings, event_bus=mock_event_bus
+        )
 
         # Mock detector
         controller.detector = MagicMock()
@@ -188,15 +193,14 @@ def test_single_video_detection_mode_enforcement():
         }
 
         # This should show an error and return early
-        with patch.object(controller, "ui_event_bus", MagicMock()) as mock_event_bus:
-            controller.start_single_video_workflow("/tmp/test.mp4", config)
+        controller.start_single_video_workflow("/tmp/test.mp4", config)
 
-            # Verify error was shown
-            mock_event_bus.publish_event.assert_called_once()
-            event_name, payload = mock_event_bus.publish_event.call_args[0]
-            assert event_name == "ui:show_error"
-            assert "Configuração Inválida" in payload["title"]
-            assert "modo de detecção (det)" in payload["message"]
+        # Verify error was shown
+        mock_event_bus.publish_event.assert_called_once()
+        event_name, payload = mock_event_bus.publish_event.call_args[0]
+        assert event_name == "ui:show_error"
+        assert "Configuração Inválida" in payload["title"]
+        assert "modo de detecção (det)" in payload["message"]
 
         # Zone setup should not have been called (view is mocked)
         # controller.view.setup_zone_definition_for_single_video would be a MagicMock method

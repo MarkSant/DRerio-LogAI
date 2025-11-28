@@ -33,11 +33,9 @@ class DrawingStateManager:
     def add_point(self, canvas_pt, video_pt, current_pt):
         """Adiciona ponto ao polígono."""
         # Salva em pilha undo antes de adicionar
-        self._history.append((
-            list(self.canvas_points),
-            list(self.video_points),
-            list(self.current_points)
-        ))
+        self._history.append(
+            (list(self.canvas_points), list(self.video_points), list(self.current_points))
+        )
         self._redo_stack.clear()
 
         self.canvas_points.append(canvas_pt)
@@ -50,11 +48,9 @@ class DrawingStateManager:
             return False
 
         # Salva estado atual para redo
-        self._redo_stack.append((
-            self.canvas_points.copy(),
-            self.video_points.copy(),
-            self.current_points.copy()
-        ))
+        self._redo_stack.append(
+            (self.canvas_points.copy(), self.video_points.copy(), self.current_points.copy())
+        )
 
         # Restaura estado anterior
         self.canvas_points, self.video_points, self.current_points = self._history.pop()
@@ -66,11 +62,9 @@ class DrawingStateManager:
             return False
 
         # Salva atual para history
-        self._history.append((
-            self.canvas_points.copy(),
-            self.video_points.copy(),
-            self.current_points.copy()
-        ))
+        self._history.append(
+            (self.canvas_points.copy(), self.video_points.copy(), self.current_points.copy())
+        )
 
         # Restaura estado redo
         self.canvas_points, self.video_points, self.current_points = self._redo_stack.pop()

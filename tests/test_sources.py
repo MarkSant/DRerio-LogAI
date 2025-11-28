@@ -1,5 +1,4 @@
 import os
-import time
 from unittest.mock import MagicMock
 
 import cv2
@@ -7,7 +6,6 @@ import numpy as np
 import pytest
 
 from tests.utils.wait_helpers import wait_for_condition
-
 from zebtrack.io import Camera, FrameSource, VideoFileSource, create_source
 
 

@@ -17,7 +17,6 @@ Total: ~2600 lines consolidated → ~1400 lines (smart delegation to services)
 from __future__ import annotations
 
 import os
-import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -585,7 +584,9 @@ class ProcessingCoordinator(BaseCoordinator):
         )
 
         if not validation_result.is_valid:
-            log.warning("workflow.single_video.validation_failed", code=validation_result.error_code)
+            log.warning(
+                "workflow.single_video.validation_failed", code=validation_result.error_code
+            )
             self._publish_event(
                 Events.UI_SHOW_WARNING,
                 {
@@ -662,7 +663,9 @@ class ProcessingCoordinator(BaseCoordinator):
         scanned_files = ProjectManager.scan_input_paths([str(video_path)])
         if not scanned_files:
             if self.view:
-                self.view.show_error("Erro", "Não foi possível identificar um arquivo de vídeo válido.")
+                self.view.show_error(
+                    "Erro", "Não foi possível identificar um arquivo de vídeo válido."
+                )
             return
         video_to_process = scanned_files[0]
 
@@ -723,7 +726,9 @@ class ProcessingCoordinator(BaseCoordinator):
             check_videos_exist=True,
         )
         if not validation_result.is_valid:
-            log.warning("workflow.pending_videos.validation_failed", code=validation_result.error_code)
+            log.warning(
+                "workflow.pending_videos.validation_failed", code=validation_result.error_code
+            )
             self._publish_event(
                 Events.UI_SHOW_WARNING,
                 {
@@ -784,7 +789,9 @@ class ProcessingCoordinator(BaseCoordinator):
                 Events.UI_SHOW_INFO,
                 {
                     "title": "Processamento",
-                    "message": "Nenhum vídeo elegível foi encontrado com dados suficientes para análise.",
+                    "message": (
+                        "Nenhum vídeo elegível foi encontrado com dados suficientes para análise."
+                    ),
                 },
             )
             return
@@ -892,9 +899,7 @@ class ProcessingCoordinator(BaseCoordinator):
             self.project_manager.set_active_zone_video(video_path)
 
             # Display first frame
-            self._publish_event(
-                Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": str(video_path)}
-            )
+            self._publish_event(Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": str(video_path)})
 
             # Get detection method and model
             aquarium_method = temp_aquarium_method or self.settings.model_selection.aquarium_method
@@ -935,9 +940,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 "controller.aquarium_detection.success",
                 polygon_points=len(main_polygon),
             )
-            self._publish_event(
-                Events.UI_SETUP_INTERACTIVE_POLYGON, {"polygon": main_polygon}
-            )
+            self._publish_event(Events.UI_SETUP_INTERACTIVE_POLYGON, {"polygon": main_polygon})
 
         except Exception as e:
             log.error("controller.aquarium_detection.error", exc_info=True)
@@ -1059,17 +1062,17 @@ class ProcessingCoordinator(BaseCoordinator):
 
             # Save
             if not self.project_manager.project_path and active_video:
-                 # Single video mode: direct save to sidecar
-                 zone_data = self.project_manager.get_zone_data(video_path=active_video)
-                 if not zone_data:
-                     zone_data = ZoneData()
-                 zone_data.polygon = points
-                 self.project_manager.save_zone_data(
-                     zone_data, video_path=active_video, persist=False
-                 )
+                # Single video mode: direct save to sidecar
+                zone_data = self.project_manager.get_zone_data(video_path=active_video)
+                if not zone_data:
+                    zone_data = ZoneData()
+                zone_data.polygon = points
+                self.project_manager.save_zone_data(
+                    zone_data, video_path=active_video, persist=False
+                )
             else:
-                 # Project mode
-                 self.project_manager.update_main_polygon(points)
+                # Project mode
+                self.project_manager.update_main_polygon(points)
 
             # Force visual update
             self._publish_event(Events.UI_REDRAW_ZONES, {})
@@ -1093,9 +1096,7 @@ class ProcessingCoordinator(BaseCoordinator):
             # Update detector zones
             self._publish_event(Events.DETECTOR_UPDATE_ZONES, {})
 
-    def add_roi_polygon(
-        self, roi_points: list[list[int]], name: str, color: tuple[int, int, int]
-    ):
+    def add_roi_polygon(self, roi_points: list[list[int]], name: str, color: tuple[int, int, int]):
         """Add ROI with overlap validation.
 
         Phase 3: Consolidated from ZoneArenaOrchestrator.add_roi_polygon
@@ -1207,12 +1208,16 @@ class ProcessingCoordinator(BaseCoordinator):
 
             # Save and reload zones in detector
             # If no project path, pass video_path explicitly to persist to sidecar
-            save_path = active_video if (not self.project_manager.project_path and active_video) else None
-            
+            save_path = (
+                active_video if (not self.project_manager.project_path and active_video) else None
+            )
+
             # Determine persist flag
             should_persist = bool(self.project_manager.project_path)
-            
-            self.project_manager.save_zone_data(zone_data, video_path=save_path, persist=should_persist)
+
+            self.project_manager.save_zone_data(
+                zone_data, video_path=save_path, persist=should_persist
+            )
 
             if self.detector:
                 self._publish_event(Events.DETECTOR_UPDATE_ZONES, {})
@@ -1321,7 +1326,8 @@ class ProcessingCoordinator(BaseCoordinator):
     ) -> bool | None:
         """Resolve single-subject tracker preference from project or single video config.
 
-        Phase 3: Consolidated from ProcessingConfigOrchestrator._resolve_single_subject_tracker_preference
+        Phase 3: Consolidated from
+        ProcessingConfigOrchestrator._resolve_single_subject_tracker_preference
         """
         log.info(
             "controller.resolve_tracker.entry",
@@ -1643,8 +1649,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 {
                     "title": "Erro",
                     "message": (
-                        "Não foi possível localizar caminhos válidos "
-                        "para os vídeos selecionados."
+                        "Não foi possível localizar caminhos válidos para os vídeos selecionados."
                     ),
                 },
             )

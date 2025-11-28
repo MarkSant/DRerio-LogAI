@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+
 class HardwareStatusViewModel:
     """
     ViewModel responsible for Hardware (Arduino/Camera) and Model (OpenVINO/Weights) status.
@@ -38,7 +39,7 @@ class HardwareStatusViewModel:
 
         self.ui_event_bus = event_bus
 
-        self.arduino = None # Initialized later via setup
+        self.arduino = None  # Initialized later via setup
         self.camera = None
         self.active_frame_source = None
 
@@ -85,15 +86,11 @@ class HardwareStatusViewModel:
         if scope == "global":
             factory_defaults = self.detector_coordinator.get_factory_detector_parameters()
             return self.detector_coordinator.update_detector_parameters(
-                params=factory_defaults,
-                scope="global",
-                reset_overrides=True
+                params=factory_defaults, scope="global", reset_overrides=True
             )
         elif scope == "project":
             return self.detector_coordinator.update_detector_parameters(
-                params={},
-                scope="project",
-                reset_overrides=True
+                params={}, scope="project", reset_overrides=True
             )
         return False
 
@@ -139,7 +136,7 @@ class HardwareStatusViewModel:
             weight_name=self.active_weight_name, use_openvino=self.use_openvino
         )
 
-    def get_openvino_cache_status(self, weight_name: str = None) -> dict:
+    def get_openvino_cache_status(self, weight_name: str | None = None) -> dict:
         if not weight_name:
             weight_name = self.active_weight_name
         if self.model_service:
@@ -173,15 +170,16 @@ class HardwareStatusViewModel:
 
     def handle_request_weight_file(self):
         from tkinter import filedialog
+
         file_path = filedialog.askopenfilename(
-            title="Carregar Novo Peso",
-            filetypes=[("Modelos YOLO/OpenVINO", "*.pt *.onnx *.xml")]
+            title="Carregar Novo Peso", filetypes=[("Modelos YOLO/OpenVINO", "*.pt *.onnx *.xml")]
         )
         if file_path:
             self.ui_state_controller.load_new_weight(filepath=file_path)
 
     def handle_open_manage_weights(self, root):
         from zebtrack.ui.dialogs.manage_weights_dialog import ManageWeightsDialog
+
         ManageWeightsDialog(root, self.ui_state_controller)
 
     # --- Recording / Live Session ---

@@ -1012,7 +1012,6 @@ class TestConfirmationDialogs:
         # No ZONES_UPDATED. So assertions above are correct.
 
 
-
 @pytest.mark.gui
 class TestNotificationDialogs:
     """Tests for notification dialog methods."""

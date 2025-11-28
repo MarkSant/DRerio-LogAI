@@ -10,6 +10,7 @@ def test_start_polygon_drawing():
     assert len(manager.current_points) == 0
     assert len(manager._history) == 0
 
+
 def test_add_point():
     """Testa adição de ponto ao polígono."""
     manager = DrawingStateManager()
@@ -19,6 +20,7 @@ def test_add_point():
 
     assert manager.point_count() == 1
     assert len(manager._history) == 1
+
 
 def test_undo_redo_stack():
     """Testa funcionalidade undo/redo."""
@@ -41,6 +43,7 @@ def test_undo_redo_stack():
     assert success
     assert len(manager.current_points) == 2
 
+
 def test_undo_when_empty():
     """Testa undo quando pilha está vazia."""
     manager = DrawingStateManager()
@@ -48,6 +51,7 @@ def test_undo_when_empty():
 
     success = manager.undo()
     assert not success
+
 
 def test_clear_points():
     """Testa limpeza de pontos."""
@@ -58,6 +62,7 @@ def test_clear_points():
     manager.clear_points()
     assert not manager.has_points()
     assert manager.point_count() == 0
+
 
 def test_has_points():
     """Testa verificação de existência de pontos."""

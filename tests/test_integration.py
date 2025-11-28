@@ -84,7 +84,7 @@ def integration_test_setup(tmp_path):
     video_path = tmp_path / "mock_video.mp4"
 
     try:
-        generate_mock_video(video_path)
+        generate_mock_video(video_path, duration_s=20)
     except RuntimeError as e:
         pytest.skip(f"Cannot generate mock video: {e}")
 
@@ -161,16 +161,6 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
     results_file = tracking_output_dir / f"3_CoordMovimento_{experiment_id}.parquet"
     assert results_file.exists()
 
-    # Load the tracked data
-    trajectory_df = pd.read_parquet(results_file)
-
-    # The reporter needs the bbox columns, add dummy ones.
-    trajectory_df["x1"] = trajectory_df["x_center_px"] - 1
-    trajectory_df["y1"] = trajectory_df["y_center_px"] - 1
-    trajectory_df["x2"] = trajectory_df["x_center_px"] + 1
-    trajectory_df["y2"] = trajectory_df["y_center_px"] + 1
-
-    # Instantiate the Reporter with the tracked data
     # Create mock settings for AnalysisService
     mock_settings = MagicMock()
     mock_settings.trajectory_smoothing = MagicMock()
@@ -186,6 +176,16 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
 
     # MIGRADO PARA v3.0: Usar AnalysisService + Reporter.from_analysis()
     service = AnalysisService(settings_obj=mock_settings)
+
+    # Load the tracked data
+    trajectory_df = pd.read_parquet(results_file)
+
+    # The reporter needs the bbox columns, add dummy ones.
+    trajectory_df["x1"] = trajectory_df["x_center_px"] - 1
+    trajectory_df["y1"] = trajectory_df["y_center_px"] - 1
+    trajectory_df["x2"] = trajectory_df["x_center_px"] + 1
+    trajectory_df["y2"] = trajectory_df["y_center_px"] + 1
+
     analysis = service.run_full_analysis_as_dto(
         arena_polygon_px=arena_polygon,
         fps=fps,
@@ -198,6 +198,7 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
         video_height_px=frame_height,
         freezing_vel_threshold=1.0,
         freezing_min_duration=2.0,
+        max_plausible_speed_cm_s=100.0,  # Higher threshold for integration test
     )
     reporter = Reporter.from_analysis(analysis)
 

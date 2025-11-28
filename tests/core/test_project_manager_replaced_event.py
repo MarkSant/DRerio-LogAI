@@ -9,7 +9,6 @@ import unittest
 from unittest.mock import Mock, patch
 
 from zebtrack.core.main_view_model import MainViewModel
-from zebtrack.ui.events import Events
 
 
 class TestProjectManagerReplacedEvent(unittest.TestCase):
@@ -18,16 +17,16 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
     def test_handler_updates_services_with_project_manager_attribute(self):
         """Test that _handle_project_manager_replaced updates services."""
         # Create minimal controller with mocked __init__
-        with patch.object(MainViewModel, '__init__', return_value=None):
+        with patch.object(MainViewModel, "__init__", return_value=None):
             controller = MainViewModel(None, None)  # type: ignore
 
             # Create new project manager
             new_manager = Mock()
 
             # Create mock services that have project_manager attribute (no _on_project_manager_replaced)
-            mock_service1 = Mock(spec=['project_manager'])  # Only project_manager
+            mock_service1 = Mock(spec=["project_manager"])  # Only project_manager
             mock_service1.project_manager = Mock()
-            mock_service2 = Mock(spec=['project_manager'])  # Only project_manager
+            mock_service2 = Mock(spec=["project_manager"])  # Only project_manager
             mock_service2.project_manager = Mock()
 
             # Set all attributes that the handler accesses
@@ -57,7 +56,7 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
 
     def test_handler_skips_services_without_project_manager(self):
         """Test that services without project_manager are skipped gracefully."""
-        with patch.object(MainViewModel, '__init__', return_value=None):
+        with patch.object(MainViewModel, "__init__", return_value=None):
             controller = MainViewModel(None, None)  # type: ignore
 
             new_manager = Mock()
@@ -85,7 +84,7 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
 
     def test_handler_handles_none_new_manager(self):
         """Test that handler returns early if new_manager is None."""
-        with patch.object(MainViewModel, '__init__', return_value=None):
+        with patch.object(MainViewModel, "__init__", return_value=None):
             controller = MainViewModel(None, None)  # type: ignore
 
             mock_service = Mock()
@@ -116,7 +115,7 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
 
     def test_handler_handles_empty_data(self):
         """Test that handler handles empty event data gracefully."""
-        with patch.object(MainViewModel, '__init__', return_value=None):
+        with patch.object(MainViewModel, "__init__", return_value=None):
             controller = MainViewModel(None, None)  # type: ignore
 
             mock_service = Mock()

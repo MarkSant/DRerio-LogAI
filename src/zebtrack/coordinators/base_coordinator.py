@@ -7,7 +7,6 @@ CRITICAL: This base class NEVER takes MainViewModel as dependency.
 All dependencies must be injected explicitly.
 """
 
-from abc import ABC
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -19,7 +18,7 @@ import structlog
 log = structlog.get_logger()
 
 
-class BaseCoordinator(ABC):
+class BaseCoordinator:
     """Base class for all coordinators (Phase 3 refactoring).
 
     Provides common functionality without coupling to MainViewModel.

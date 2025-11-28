@@ -33,13 +33,16 @@ class ArenaCompletionStrategy(PolygonCompletionStrategy):
             gui.canvas_manager.redraw_zones_from_project_data()
 
             # NEW PATH (v4.0)
-            if hasattr(gui, 'event_bus_v2') and gui.event_bus_v2:
+            if hasattr(gui, "event_bus_v2") and gui.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                gui.event_bus_v2.publish(Event(
-                    type=UIEvents.ZONES_UPDATED,
-                    data={'zone_data': None},
-                    source='ArenaCompletionStrategy.complete'
-                ))
+
+                gui.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.ZONES_UPDATED,
+                        data={"zone_data": None},
+                        source="ArenaCompletionStrategy.complete",
+                    )
+                )
 
             return True
         return False
@@ -61,6 +64,7 @@ class ROICompletionStrategy(PolygonCompletionStrategy):
 
         # Seleciona cor
         from zebtrack.ui.dialogs import ColorSelectionDialog
+
         color_dialog = ColorSelectionDialog(gui.root)
         if not color_dialog.result:
             return False
@@ -76,13 +80,16 @@ class ROICompletionStrategy(PolygonCompletionStrategy):
             gui.canvas_manager.redraw_zones_from_project_data()
 
             # NEW PATH (v4.0)
-            if hasattr(gui, 'event_bus_v2') and gui.event_bus_v2:
+            if hasattr(gui, "event_bus_v2") and gui.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                gui.event_bus_v2.publish(Event(
-                    type=UIEvents.ZONES_UPDATED,
-                    data={'zone_data': None},
-                    source='ROICompletionStrategy.complete'
-                ))
+
+                gui.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.ZONES_UPDATED,
+                        data={"zone_data": None},
+                        source="ROICompletionStrategy.complete",
+                    )
+                )
 
             return True
         return False
@@ -99,10 +106,7 @@ class PolygonDrawingService:
         }
 
     def complete_polygon(
-        self,
-        drawing_type: str,
-        video_points: list,
-        gui: "ApplicationGUI"
+        self, drawing_type: str, video_points: list, gui: "ApplicationGUI"
     ) -> bool:
         """Completa polígono usando strategy apropriada."""
         strategy = self._strategies.get(drawing_type)

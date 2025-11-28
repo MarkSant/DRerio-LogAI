@@ -12,6 +12,7 @@ from zebtrack.ui.window_utils import create_scrollbar
 
 log = structlog.get_logger()
 
+
 class ZoneControlBuilder:
     """
     Builder for creating zone configuration and drawing widgets.
@@ -37,11 +38,14 @@ class ZoneControlBuilder:
         # NEW PATH - Event-Driven Architecture v4.0
         if self.event_bus_v2:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
-            self.event_bus_v2.publish(Event(
-                type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                data={'filter_text': filter_text},
-                source='ZoneControlBuilder._refresh_video_tree_dual_mode'
-            ))
+
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data={"filter_text": filter_text},
+                    source="ZoneControlBuilder._refresh_video_tree_dual_mode",
+                )
+            )
         else:
             log.warning("zone_control_builder.refresh_tree.no_event_bus")
 

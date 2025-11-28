@@ -238,7 +238,7 @@ class Detector:
 
         return False
 
-    def detect(self, frame: np.ndarray, project_type: str):
+    def detect(self, frame: np.ndarray, project_type: str):  # noqa: C901
         """Process a single frame for object detection and state tracking."""
         # Task 1.3: Frame validation to prevent crashes with invalid input
         if frame is None or not isinstance(frame, np.ndarray):
@@ -316,18 +316,25 @@ class Detector:
                 has_polygon=has_polygon,
                 context=self._context,
                 aquarium_defined=self._aquarium_region_defined,
-                polygon_size=self.scaled_polygon.size
+                polygon_size=self.scaled_polygon.size,
             )
 
             import sys
-            sys.stderr.write(f"DEBUG: has_polygon={has_polygon}, context={self._context}, aquarium_defined={self._aquarium_region_defined}, polygon_size={self.scaled_polygon.size}\n")
+
+            sys.stderr.write(
+                f"DEBUG: has_polygon={has_polygon}, context={self._context}, aquarium_defined={self._aquarium_region_defined}, polygon_size={self.scaled_polygon.size}\n"
+            )
 
             # ✅ If no polygon defined and in diagnostic mode OR detecting aquarium, accept all detections
-            if not has_polygon and (self._context == "diagnostic" or not self._aquarium_region_defined):
+            if not has_polygon and (
+                self._context == "diagnostic" or not self._aquarium_region_defined
+            ):
                 log.info(
                     "detector.no_polygon_accept_all",
                     accepting_all_detections=len(predictions),
-                    reason="diagnostic_mode" if self._context == "diagnostic" else "aquarium_detection_phase",
+                    reason="diagnostic_mode"
+                    if self._context == "diagnostic"
+                    else "aquarium_detection_phase",
                     context=self._context,
                     aquarium_defined=self._aquarium_region_defined,
                 )
@@ -343,14 +350,18 @@ class Detector:
                     confidence = float(confidence)
 
                     if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
-                        detections_in_polygon.append((x1, y1, x2, y2, confidence, track_id, class_id))
+                        detections_in_polygon.append(
+                            (x1, y1, x2, y2, confidence, track_id, class_id)
+                        )
                         # 🔍 DEBUG: Log why it passed
                         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
                         log.info(
                             "detector.polygon_filter.passed",
                             bbox=(x1, y1, x2, y2),
                             center=(cx, cy),
-                            polygon_points=self.scaled_polygon.tolist() if hasattr(self.scaled_polygon, "tolist") else "unknown",
+                            polygon_points=self.scaled_polygon.tolist()
+                            if hasattr(self.scaled_polygon, "tolist")
+                            else "unknown",
                         )
                     else:
                         log.info(
@@ -398,7 +409,7 @@ class Detector:
             if not self._aquarium_region_defined:
                 # Before arena is defined, show only aquarium detections (class_id 0)
                 # ✅ FIX: Also accept Class 1 (Fish) if it's "huge" (likely misclassified tank)
-                frame_area = 1280 * 720 # Default fallback
+                frame_area = 1280 * 720  # Default fallback
                 if self._last_width and self._last_height:
                     frame_area = self._last_width * self._last_height
 
@@ -422,7 +433,7 @@ class Detector:
                                 new_class=aquarium_class_id,
                                 det_area=det_area,
                                 frame_area=frame_area,
-                                ratio=det_area/frame_area
+                                ratio=det_area / frame_area,
                             )
                             # Morph to aquarium class
                             class_id = aquarium_class_id
@@ -438,7 +449,7 @@ class Detector:
                             conf=det[4],
                             reason="aquarium_not_defined_target_class_0",
                             det_area=det_area,
-                            ratio=det_area/frame_area
+                            ratio=det_area / frame_area,
                         )
             else:
                 # After arena is defined, show only zebrafish detections (class_id 1)
@@ -459,10 +470,8 @@ class Detector:
 
                     # Check if it's a "fake" aquarium (actually an animal)
                     # Criteria: Class 0 AND Area < 50% of arena
-                    is_fake_aquarium = False
                     if class_id == aquarium_class_id and arena_area > 0:
                         if det_area < (arena_area * 0.5):
-                            is_fake_aquarium = True
                             log.info(
                                 "detector.class_fallback_applied",
                                 bbox=(x1, y1, x2, y2),
@@ -470,7 +479,7 @@ class Detector:
                                 new_class=zebrafish_class_id,
                                 det_area=det_area,
                                 arena_area=arena_area,
-                                ratio=det_area/arena_area
+                                ratio=det_area / arena_area,
                             )
                             # Modify class_id to zebrafish_class_id for this detection
                             class_id = zebrafish_class_id
@@ -507,7 +516,9 @@ class Detector:
             log.info(
                 "detector.skip_tracking",
                 num_detections=len(filtered_detections),
-                reason="diagnostic_mode" if self._context == "diagnostic" else "aquarium_detection_phase",
+                reason="diagnostic_mode"
+                if self._context == "diagnostic"
+                else "aquarium_detection_phase",
                 context=self._context,
                 aquarium_defined=self._aquarium_region_defined,
             )
@@ -839,7 +850,7 @@ class Detector:
                 "detector.bytetrack.initializing",
                 track_thresh=track_thresh,
                 match_thresh=match_thresh,
-                track_buffer=track_buffer
+                track_buffer=track_buffer,
             )
 
             # Get FPS from settings or use default

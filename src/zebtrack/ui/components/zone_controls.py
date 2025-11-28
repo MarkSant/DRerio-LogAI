@@ -45,7 +45,7 @@ class ZoneControlsWidget(BaseWidget):
         event_bus: EventBus | None = None,
         drawing_actions_parent: ttk.Frame | None = None,
         template_actions_parent: ttk.Frame | None = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Initialize the zone controls widget.
@@ -122,10 +122,10 @@ class ZoneControlsWidget(BaseWidget):
 
         # Build individual sections
         # Note: Order matters for the side panel, but external parents are handled independently.
-        
+
         # 1. Top of Viz Frame (if parent provided) OR Top of Left Panel
         self._build_drawing_actions()
-        self._build_interactive_buttons() 
+        self._build_interactive_buttons()
 
         # 2. Left Panel Components (Always in zone_controls_frame)
         self._build_zone_list()
@@ -140,11 +140,11 @@ class ZoneControlsWidget(BaseWidget):
     def _build_drawing_actions(self) -> None:
         """Build the drawing actions section."""
         # Use external parent if provided, else default to side panel
-        parent = self.drawing_actions_parent if self.drawing_actions_parent else self.zone_controls_frame
-        
-        actions_frame = ttk.LabelFrame(
-            parent, text="Ações de Desenho", padding=5
+        parent = (
+            self.drawing_actions_parent if self.drawing_actions_parent else self.zone_controls_frame
         )
+
+        actions_frame = ttk.LabelFrame(parent, text="Ações de Desenho", padding=5)
         # If in side panel, pack vertically. If in top bar, maybe horizontal?
         # For now, let's keep packing simple.
         actions_frame.pack(fill="x", pady=5, padx=5)
@@ -183,7 +183,9 @@ class ZoneControlsWidget(BaseWidget):
         stabilization_frame.pack(fill="x", pady=2, anchor="w")
 
         ttk.Label(stabilization_frame, text="Suavização (frames):").pack(side="left", padx=(0, 5))
-        ttk.Entry(stabilization_frame, textvariable=self.stabilization_frames_var, width=5).pack(side="left")
+        ttk.Entry(stabilization_frame, textvariable=self.stabilization_frames_var, width=5).pack(
+            side="left"
+        )
         ttk.Label(
             stabilization_frame,
             text="(reduz ruído na detecção auto)",
@@ -194,8 +196,10 @@ class ZoneControlsWidget(BaseWidget):
     def _build_interactive_buttons(self) -> None:
         """Build the interactive editing buttons (initially hidden)."""
         # If drawing_actions_parent is provided, these buttons likely go there too
-        parent = self.drawing_actions_parent if self.drawing_actions_parent else self.zone_controls_frame
-        
+        parent = (
+            self.drawing_actions_parent if self.drawing_actions_parent else self.zone_controls_frame
+        )
+
         self.interactive_buttons_frame = ttk.Frame(parent)
 
         self.save_arena_btn = ttk.Button(
@@ -264,12 +268,14 @@ class ZoneControlsWidget(BaseWidget):
     def _build_template_section(self) -> None:
         """Build the ROI template section."""
         # Use external parent if provided, else default to side panel
-        parent = self.template_actions_parent if self.template_actions_parent else self.zone_controls_frame
+        parent = (
+            self.template_actions_parent
+            if self.template_actions_parent
+            else self.zone_controls_frame
+        )
         is_horizontal = self.template_actions_parent is not None
 
-        template_frame = ttk.LabelFrame(
-            parent, text="Templates de ROI", padding=5
-        )
+        template_frame = ttk.LabelFrame(parent, text="Templates de ROI", padding=5)
         template_frame.pack(fill="x", pady=5, padx=5)
 
         # Container for layout
@@ -288,20 +294,22 @@ class ZoneControlsWidget(BaseWidget):
             )
             self.roi_template_combobox.pack(side="left", padx=(0, 5))
 
-            ttk.Button(container, text="Aplicar", command=self._on_apply_template_clicked).pack(side="left", padx=(0, 10))
+            ttk.Button(container, text="Aplicar", command=self._on_apply_template_clicked).pack(
+                side="left", padx=(0, 10)
+            )
 
             ttk.Button(
                 container,
                 text="💾 Salvar",
                 command=self._on_save_template_clicked,
             ).pack(side="left", padx=(0, 5))
-            
+
             ttk.Button(
                 container,
                 text="📂 Importar",
                 command=self._on_import_template_clicked,
             ).pack(side="left")
-            
+
             # Help icon/tooltip could go here instead of full text
         else:
             # Vertical Layout for Side Panel
@@ -318,9 +326,9 @@ class ZoneControlsWidget(BaseWidget):
             )
             self.roi_template_combobox.pack(side="left", fill="x", expand=True)
 
-            ttk.Button(template_selector, text="Aplicar", command=self._on_apply_template_clicked).pack(
-                side="left", padx=4
-            )
+            ttk.Button(
+                template_selector, text="Aplicar", command=self._on_apply_template_clicked
+            ).pack(side="left", padx=4)
 
             # Template actions
             template_actions = ttk.Frame(container)
@@ -388,7 +396,7 @@ class ZoneControlsWidget(BaseWidget):
             tree_container,
             columns=("status", "filename"),
             show="tree headings",
-            height=15, # Increased height for better vertical distribution
+            height=15,  # Increased height for better vertical distribution
             selectmode="browse",
         )
         self.video_selector_tree.heading("#0", text="Hierarquia")
@@ -537,15 +545,13 @@ class ZoneControlsWidget(BaseWidget):
             self.radius_frame,
             text="Dilatação da ROI (cm se calibrado, senão px).",
             font=("TkDefaultFont", 8),
-            foreground="gray"
+            foreground="gray",
         ).pack(side="left")
 
         # Overlap ratio parameter (Initially hidden)
         self.overlap_frame = ttk.Frame(self.roi_inclusion_frame)
         # self.overlap_frame.pack(fill="x", pady=2) # Logic handles visibility
-        ttk.Label(self.overlap_frame, text="Sobreposição mín (0–1):").pack(
-            side="left", padx=(0, 5)
-        )
+        ttk.Label(self.overlap_frame, text="Sobreposição mín (0–1):").pack(side="left", padx=(0, 5))
         ttk.Entry(self.overlap_frame, textvariable=self.roi_overlap_ratio_var, width=10).pack(
             side="left", padx=(0, 10)
         )
@@ -555,7 +561,7 @@ class ZoneControlsWidget(BaseWidget):
             self.roi_inclusion_frame,
             text="",
             font=("TkDefaultFont", 8),
-            wraplength=250, # Adjusted for narrower panel
+            wraplength=250,  # Adjusted for narrower panel
             justify="left",
         )
         self.rule_help_label.pack(fill="x", pady=(5, 0))
@@ -667,21 +673,33 @@ class ZoneControlsWidget(BaseWidget):
     def _on_roi_rule_changed(self, event) -> None:
         """Handle ROI rule change."""
         rule = self.roi_inclusion_rule_var.get()
-        
+
         # Update visibility based on rule
         if rule == "centroid_in_on_buffered_roi":
-            if self.radius_frame: self.radius_frame.pack(fill="x", pady=2, after=self.roi_rule_combo.master)
-            if self.overlap_frame: self.overlap_frame.pack_forget()
-            help_text = "Considera dentro se o centroide estiver na ROI expandida pelo raio de buffer."
+            if self.radius_frame:
+                self.radius_frame.pack(fill="x", pady=2, after=self.roi_rule_combo.master)
+            if self.overlap_frame:
+                self.overlap_frame.pack_forget()
+            help_text = (
+                "Considera dentro se o centroide estiver na ROI expandida pelo raio de buffer."
+            )
         elif rule in ("bbox_intersects", "seg_overlap"):
-            if self.radius_frame: self.radius_frame.pack_forget()
-            if self.overlap_frame: self.overlap_frame.pack(fill="x", pady=2, after=self.roi_rule_combo.master)
-            help_text = "Considera dentro se a caixa/segmentação sobrepuser a ROI acima da fração mínima."
+            if self.radius_frame:
+                self.radius_frame.pack_forget()
+            if self.overlap_frame:
+                self.overlap_frame.pack(fill="x", pady=2, after=self.roi_rule_combo.master)
+            help_text = (
+                "Considera dentro se a caixa/segmentação sobrepuser a ROI acima da fração mínima."
+            )
         else:
             # centroid_in or others
-            if self.radius_frame: self.radius_frame.pack_forget()
-            if self.overlap_frame: self.overlap_frame.pack_forget()
-            help_text = "Considera dentro se o centroide geométrico estiver estritamente dentro da ROI."
+            if self.radius_frame:
+                self.radius_frame.pack_forget()
+            if self.overlap_frame:
+                self.overlap_frame.pack_forget()
+            help_text = (
+                "Considera dentro se o centroide geométrico estiver estritamente dentro da ROI."
+            )
 
         if self.rule_help_label:
             self.rule_help_label.config(text=help_text)
@@ -689,9 +707,7 @@ class ZoneControlsWidget(BaseWidget):
         if not self.event_bus:
             return
 
-        self.event_bus.publish_event(
-            Events.DETECTOR_UPDATE_PARAMETERS, {"rule": rule}
-        )
+        self.event_bus.publish_event(Events.DETECTOR_UPDATE_PARAMETERS, {"rule": rule})
 
     def _on_apply_roi_settings_clicked(self) -> None:
         """Handle apply ROI settings button click."""
@@ -741,7 +757,9 @@ class ZoneControlsWidget(BaseWidget):
             try:
                 if self.interactive_buttons_frame.master == self.roi_inclusion_frame.master:
                     # Pack before ROI inclusion frame if in same container (side panel)
-                    self.interactive_buttons_frame.pack(fill="x", pady=5, before=self.roi_inclusion_frame)
+                    self.interactive_buttons_frame.pack(
+                        fill="x", pady=5, before=self.roi_inclusion_frame
+                    )
                 else:
                     # Pack normally if in different container (top toolbar)
                     self.interactive_buttons_frame.pack(fill="x", pady=5)

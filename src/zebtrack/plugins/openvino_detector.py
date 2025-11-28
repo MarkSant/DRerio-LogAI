@@ -299,7 +299,7 @@ class OpenVINOPlugin(DetectorPlugin):
                         "class_id": int(class_id),
                         "class_name": class_name,
                         "has_mask": has_mask,
-                        "mask_points": mask_points
+                        "mask_points": mask_points,
                     }
                 )
             return formatted_results
@@ -391,9 +391,7 @@ class OpenVINOPlugin(DetectorPlugin):
             final_masks_contours = None
 
         # Scale boxes
-        det[:, :4] = scale_boxes(
-            input_shape, det[:, :4], original_frame_shape
-        ).round()
+        det[:, :4] = scale_boxes(input_shape, det[:, :4], original_frame_shape).round()
 
         final_detections = []
         for i, row in enumerate(det):

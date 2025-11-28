@@ -94,7 +94,9 @@ def create_test_controller(root, **overrides):
         "root": root,
         "test_sync_event": overrides.get("test_sync_event", None),
         # Add other dependencies required by MainViewModelDependencies
-        "project_lifecycle_coordinator": overrides.get("project_lifecycle_coordinator", MagicMock()),
+        "project_lifecycle_coordinator": overrides.get(
+            "project_lifecycle_coordinator", MagicMock()
+        ),
         "hardware_coordinator": overrides.get("hardware_coordinator", MagicMock()),
         "processing_coordinator": overrides.get("processing_coordinator", MagicMock()),
         "session_coordinator": overrides.get("session_coordinator", MagicMock()),
@@ -152,6 +154,7 @@ def create_test_controller(root, **overrides):
         project_workflow_adapter = overrides.get("project_workflow_adapter")
         if not project_workflow_adapter:
             from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
+
             project_workflow_adapter = ProjectWorkflowAdapter(
                 project_workflow_service=project_workflow_service,
                 project_manager=project_manager,
@@ -172,12 +175,18 @@ def create_test_controller(root, **overrides):
 
         # Create Real ProjectOrchestrator
         from zebtrack.orchestrators.project_orchestrator import ProjectOrchestrator
+
         project_orchestrator = ProjectOrchestrator(controller)
 
     else:
         project_orchestrator = overrides.get("project_orchestrator", MagicMock())
         project_workflow_adapter = overrides.get("project_workflow_adapter", MagicMock())
         video_processing_orchestrator = overrides.get("video_processing_orchestrator", MagicMock())
+
+    # Configure event dispatcher with event bus
+    event_bus = overrides.get("event_bus", MagicMock())
+    event_dispatcher = overrides.get("event_dispatcher", MagicMock())
+    event_dispatcher.event_bus = event_bus
 
     # Create BootstrapResult Mock
     bootstrap_result = BootstrapResult(
@@ -189,7 +198,7 @@ def create_test_controller(root, **overrides):
         batch_configuration_service=overrides.get("batch_configuration_service", MagicMock()),
         thread_coordinator=overrides.get("thread_coordinator", MagicMock()),
         dialog_coordinator=overrides.get("dialog_coordinator", MagicMock()),
-        event_dispatcher=overrides.get("event_dispatcher", MagicMock()),
+        event_dispatcher=event_dispatcher,
         active_weight_name="best_seg.pt",
         use_openvino=False,
         hardware_summary={},
@@ -226,8 +235,8 @@ def create_test_controller(root, **overrides):
         # Initialize the proxy
         controller.__init__(dependencies, bootstrap_result)
         # View might be overwritten by init, ensure it's set
-        if not hasattr(controller, 'view') or controller.view is None:
-             controller.view = MagicMock()
+        if not hasattr(controller, "view") or controller.view is None:
+            controller.view = MagicMock()
     else:
         controller = MainViewModel(dependencies, bootstrap_result)
         controller.view = MagicMock()  # Manually assign mock view as it's no longer in init

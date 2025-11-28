@@ -12,7 +12,6 @@ import numpy as np
 import pytest
 
 from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
-
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.io.camera import Camera
@@ -94,7 +93,7 @@ def test_video_processing_error_recovery(
 
             # Wait for file flush
             coords_file = results_dir / f"3_CoordMovimento_{video_name}.parquet"
-            wait_for_condition(lambda: coords_file.exists(), timeout=1.0)
+            wait_for_condition(lambda f=coords_file: f.exists(), timeout=1.0)
 
             # Track success
             integration_state_manager.update_processing_state(
@@ -263,13 +262,8 @@ def test_schema_validation_prevents_corruption(
     integration_recorder._initial_schema_columns = set(
         integration_recorder._determine_parquet_columns()
     )
-    integration_recorder.pixel_per_cm_ratio = (10.0, 10.0)
-    integration_recorder._flush_row_threshold = 1  # Force flush on next write
-
-    with pytest.raises(ValueError, match="Parquet schema cannot change"):
-        timestamp = 6 / 30.0
-        detections = create_sample_detections(num_detections=1)
-        integration_recorder.write_detection_data(timestamp, 6, detections)
+    with pytest.raises(ValueError, match="Cannot change calibration during active recording"):
+        integration_recorder.pixel_per_cm_ratio = (10.0, 10.0)
 
     # Verify schema remained unchanged (no calibration columns added)
     expected_columns = {
@@ -428,9 +422,7 @@ def test_state_manager_observer_pattern(temp_project_dir):
     # Wait for async observers to complete (they run in ThreadPoolExecutor)
     from tests.utils.wait_helpers import wait_for_condition
 
-    wait_for_condition(
-        lambda: len(observer1_calls) >= 1 and len(observer2_calls) >= 1, timeout=1.0
-    )
+    wait_for_condition(lambda: len(observer1_calls) >= 1 and len(observer2_calls) >= 1, timeout=1.0)
 
     # Verify observers were called (observer1 for project, observer2 for recording)
     assert len(observer1_calls) >= 1, "Observer1 should be called for project updates"

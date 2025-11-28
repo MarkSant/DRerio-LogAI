@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+
 class AnalysisControlViewModel:
     """
     ViewModel responsible for Analysis Control workflows (Start/Stop/Pause/Processing).
@@ -83,7 +84,7 @@ class AnalysisControlViewModel:
         # If detector_vm is provided, use it.
         if detector_vm:
             use_openvino = config.get("use_openvino", self.settings.model_selection.use_openvino)
-            detector_vm.use_openvino = use_openvino # setter
+            detector_vm.use_openvino = use_openvino  # setter
 
             if not detector_vm.detector:
                 temp_animal_method = config.get("animal_method")
@@ -152,7 +153,5 @@ class AnalysisControlViewModel:
 
     def _process_single_video(self, detector, **kwargs):
         return self.video_processing_service.process_single_video(
-            detector=detector,
-            recorder=self.recorder,
-            **kwargs
+            detector=detector, recorder=self.recorder, **kwargs
         )

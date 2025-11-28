@@ -8,7 +8,7 @@ Migrated from Task 2.2 legacy API to Phase 3 architecture.
 """
 
 import unittest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
 from zebtrack.core.detector_service import DetectorService

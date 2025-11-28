@@ -276,6 +276,7 @@ class TestObserverExceptionHandling:
 
         # Wait for async observers to complete (they run in ThreadPoolExecutor)
         from tests.utils.wait_helpers import wait_for_condition
+
         wait_for_condition(lambda: len(working_calls) > 0, timeout=1.0)
 
         # Verify working observer was called

@@ -65,8 +65,12 @@ class MainViewModel:
 
         # 3. Initialize Sub-ViewModels
         self.project_vm = ProjectViewModel(dependencies, bootstrap_result, self.ui_event_bus)
-        self.analysis_vm = AnalysisControlViewModel(dependencies, bootstrap_result, self.ui_event_bus)
-        self.hardware_vm = HardwareStatusViewModel(dependencies, bootstrap_result, self.ui_event_bus)
+        self.analysis_vm = AnalysisControlViewModel(
+            dependencies, bootstrap_result, self.ui_event_bus
+        )
+        self.hardware_vm = HardwareStatusViewModel(
+            dependencies, bootstrap_result, self.ui_event_bus
+        )
 
         # 4. Subscribe to state changes
         self._subscribe_to_state()
@@ -76,28 +80,80 @@ class MainViewModel:
             Events.RECORDING_START: (self.hardware_vm.start_recording, [], "no_params"),
             Events.RECORDING_STOP: (self.hardware_vm.stop_recording, [], "no_params"),
             Events.RECORDING_TOGGLE: (self.hardware_vm.toggle_recording, [], "no_params"),
-            Events.PROJECT_CREATE: (self.project_vm.create_project_workflow, ["wizard_data"], "kwargs_all"),
-            Events.PROJECT_OPEN: (self.project_vm.open_project_workflow, ["project_path"], "positional"),
+            Events.PROJECT_CREATE: (
+                self.project_vm.create_project_workflow,
+                ["wizard_data"],
+                "kwargs_all",
+            ),
+            Events.PROJECT_OPEN: (
+                self.project_vm.open_project_workflow,
+                ["project_path"],
+                "positional",
+            ),
             Events.PROJECT_CLOSE: (self.project_vm.close_project, [], "no_params"),
-            Events.PROJECT_PROCESS_VIDEOS: (self.analysis_vm.start_project_processing_workflow, [], "no_params"),
+            Events.PROJECT_PROCESS_VIDEOS: (
+                self.analysis_vm.start_project_processing_workflow,
+                [],
+                "no_params",
+            ),
             Events.PROJECT_ADD_VIDEOS: (self.project_vm.add_videos_to_project, [], "no_params"),
             Events.MODEL_SET_OPENVINO: (self.hardware_vm.set_openvino_usage, [], "kwargs_all"),
             Events.MODEL_SET_WEIGHT: (self.hardware_vm.set_active_weight, [], "kwargs_all"),
-            Events.MODEL_RUN_DIAGNOSTIC: (self.hardware_vm.run_model_diagnostic, ["config"], "kwargs_all"),
-            Events.UI_REQUEST_WEIGHT_FILE: (self.hardware_vm.handle_request_weight_file, [], "no_params"),
-            Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG: (self.handle_open_manage_weights, [], "no_params"), # Kept here or moved? Moved to HW VM but needs root.
-            Events.VIDEO_ANALYZE_SINGLE: (self.start_single_video_workflow, [], "kwargs_all"), # Facade wrapper due to complexity
-            Events.VIDEO_START_SINGLE_PROCESSING: (self.analysis_vm.start_single_video_processing, [], "kwargs_all"),
-            Events.VIDEO_CANCEL_ANALYSIS: (self.analysis_vm.cancel_current_analysis, [], "no_params"),
+            Events.MODEL_RUN_DIAGNOSTIC: (
+                self.hardware_vm.run_model_diagnostic,
+                ["config"],
+                "kwargs_all",
+            ),
+            Events.UI_REQUEST_WEIGHT_FILE: (
+                self.hardware_vm.handle_request_weight_file,
+                [],
+                "no_params",
+            ),
+            Events.UI_OPEN_MANAGE_WEIGHTS_DIALOG: (
+                self.handle_open_manage_weights,
+                [],
+                "no_params",
+            ),  # Kept here or moved? Moved to HW VM but needs root.
+            Events.VIDEO_ANALYZE_SINGLE: (
+                self.start_single_video_workflow,
+                [],
+                "kwargs_all",
+            ),  # Facade wrapper due to complexity
+            Events.VIDEO_START_SINGLE_PROCESSING: (
+                self.analysis_vm.start_single_video_processing,
+                [],
+                "kwargs_all",
+            ),
+            Events.VIDEO_CANCEL_ANALYSIS: (
+                self.analysis_vm.cancel_current_analysis,
+                [],
+                "no_params",
+            ),
             Events.MODEL_ADD_WEIGHT: (self.hardware_vm.add_new_weight, [], "kwargs_all"),
             Events.MODEL_DELETE_WEIGHT: (self.hardware_vm.delete_weight, [], "kwargs_all"),
             Events.MODEL_LOAD_NEW_WEIGHT: (self.hardware_vm.load_new_weight, [], "kwargs_all"),
             Events.MODEL_MANAGE_WEIGHTS: (self.hardware_vm.manage_weights, [], "no_params"),
-            Events.ZONE_SAVE_MANUAL_ARENA: (self.analysis_vm.save_manual_arena, ["polygon_points"], "kwargs_get"),
+            Events.ZONE_SAVE_MANUAL_ARENA: (
+                self.analysis_vm.save_manual_arena,
+                ["polygon_points"],
+                "kwargs_get",
+            ),
             Events.ZONE_AUTO_DETECT: (self.analysis_vm.auto_detect_zones, [], "kwargs_all"),
-            Events.PROJECT_DELETE_ASSET: (self.project_vm.handle_delete_project_asset, [], "kwargs_all"),
-            Events.CALIBRATION_COPY_TO_PROJECT: (self.project_vm.handle_calibration_copy_to_project, [], "no_params"),
-            Events.CALIBRATION_SAVE_TO_PROJECT: (self.project_vm.handle_calibration_save_to_project, [], "no_params"),
+            Events.PROJECT_DELETE_ASSET: (
+                self.project_vm.handle_delete_project_asset,
+                [],
+                "kwargs_all",
+            ),
+            Events.CALIBRATION_COPY_TO_PROJECT: (
+                self.project_vm.handle_calibration_copy_to_project,
+                [],
+                "no_params",
+            ),
+            Events.CALIBRATION_SAVE_TO_PROJECT: (
+                self.project_vm.handle_calibration_save_to_project,
+                [],
+                "no_params",
+            ),
         }
 
         log.info("main_view_model.initialized", source="init")
@@ -188,7 +244,7 @@ class MainViewModel:
         self._cancel_feedback_displayed = False
         self.is_capturing_for_video = False
         self.active_frame_source = None
-        self.arduino = None # Will be set when manager is initialized
+        self.arduino = None  # Will be set when manager is initialized
         self.report_results_paths = {}
         self.timed_recording_job = None
         self._pending_external_trigger = None
@@ -242,6 +298,7 @@ class MainViewModel:
 
     def setup_detector_zones(self):
         """Setup detector zones from project data via ProjectLifecycleCoordinator."""
+
         def _callback():
             # Get active video and zone data
             active_video = self.project_manager.get_active_zone_video()
@@ -316,7 +373,9 @@ class MainViewModel:
 
     def start_single_video_workflow(self, video_path, config):
         """Delegate to AnalysisControlViewModel but inject dependencies from HardwareVM."""
-        self.analysis_vm.start_single_video_workflow(video_path, config, detector_vm=self.hardware_vm)
+        self.analysis_vm.start_single_video_workflow(
+            video_path, config, detector_vm=self.hardware_vm
+        )
 
     def create_project_workflow(self, **wizard_data):
         return self.project_vm.create_project_workflow(**wizard_data)
@@ -519,6 +578,7 @@ class MainViewModel:
             )
             if self.ui_event_bus:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
                 self.ui_event_bus.publish(
                     Event(
                         UIEvents.ERROR_OCCURRED,
@@ -653,7 +713,9 @@ class MainViewModel:
     def resolve_project_model_settings(self, overrides: dict) -> tuple[str | None, bool]:
         return self.project_vm.resolve_project_model_settings(overrides)
 
-    def save_project_model_overrides(self, active_weight: str | None, use_openvino: bool | None) -> None:
+    def save_project_model_overrides(
+        self, active_weight: str | None, use_openvino: bool | None
+    ) -> None:
         self.project_vm.save_project_model_overrides(active_weight, use_openvino)
 
     def has_project_override_settings(self) -> bool:
@@ -665,7 +727,7 @@ class MainViewModel:
     def create_new_project(self, **kwargs):
         return self.project_vm.create_project_workflow(**kwargs)
 
-    def get_openvino_cache_status(self, weight_name: str = None) -> dict:
+    def get_openvino_cache_status(self, weight_name: str | None = None) -> dict:
         return self.hardware_vm.get_openvino_cache_status(weight_name)
 
     def set_main_arena_polygon(self, points: list) -> bool:
@@ -674,7 +736,7 @@ class MainViewModel:
     def add_roi_polygon(self, points: list, name: str, color: tuple) -> bool:
         return self.analysis_vm.add_roi_polygon(points, name, color)
 
-    def get_arena_data(self, arena_id: str = None):
+    def get_arena_data(self, arena_id: str | None = None):
         if self.project_manager:
             return self.project_manager.get_zone_data()
         return None

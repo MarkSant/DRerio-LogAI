@@ -138,7 +138,7 @@ class EventBus:
         """
         # Default to empty dict if None, otherwise use data as-is (dict or Model)
         payload = data if data is not None else {}
-        
+
         event = UIEvent(
             EventType.NAMED,
             NamedEvent(event_name=event_name, data=payload),

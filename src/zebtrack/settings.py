@@ -70,8 +70,7 @@ class CameraSettings(BaseModel):
         gt=0,
         le=7680,
         description=(
-            "The width (pixels) used for defining detection zones. "
-            "Valid range: 1-7680 (8K max)."
+            "The width (pixels) used for defining detection zones. Valid range: 1-7680 (8K max)."
         ),
     )
     desired_height: int = Field(
@@ -79,8 +78,7 @@ class CameraSettings(BaseModel):
         gt=0,
         le=4320,
         description=(
-            "The height (pixels) used for defining detection zones. "
-            "Valid range: 1-4320 (8K max)."
+            "The height (pixels) used for defining detection zones. Valid range: 1-4320 (8K max)."
         ),
     )
     max_reconnect_attempts: int = Field(
@@ -226,25 +224,6 @@ class YOLOModelSettings(BaseModel):
         )
         return v
 
-        if not path_obj.is_file():
-            log.warning(
-                "yolo_model.path.not_file",
-                path=v,
-                message="Model path exists but is not a file",
-            )
-            return v
-
-        # Validate file extension (common model formats)
-        if path_obj.suffix not in [".pt", ".onnx", ".xml"]:
-            log.warning(
-                "yolo_model.path.unusual_extension",
-                path=v,
-                extension=path_obj.suffix,
-                expected=[".pt", ".onnx", ".xml"],
-            )
-
-        # Return absolute path for consistency when file exists
-        return str(path_obj.resolve())
     confidence_threshold: float = Field(
         ...,
         gt=0,

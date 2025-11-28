@@ -71,9 +71,12 @@ class ProjectOrchestrator:
         self.project_manager = new_project_manager
 
         # Notify all services about the new project manager (if event bus available)
-        if hasattr(self, 'ui_event_bus') and self.ui_event_bus:
+        if hasattr(self, "ui_event_bus") and self.ui_event_bus:
             from zebtrack.ui.events import Events
-            self.ui_event_bus.publish_event(Events.PROJECT_MANAGER_REPLACED, {"new_manager": new_project_manager})
+
+            self.ui_event_bus.publish_event(
+                Events.PROJECT_MANAGER_REPLACED, {"new_manager": new_project_manager}
+            )
 
     def create_project_workflow(self, **kwargs):
         """Create project workflow orchestration.
@@ -88,12 +91,50 @@ class ProjectOrchestrator:
             update_openvino_status_callback=self.main_view_model.update_openvino_status,
             get_active_weight_name=lambda: self.main_view_model.active_weight_name,
             get_use_openvino=lambda: self.main_view_model.use_openvino,
-            apply_wizard_overrides_callback=self.main_view_model._apply_wizard_detector_overrides,
+            apply_wizard_overrides_callback=self._apply_wizard_detector_overrides,
             view_suppress_guide_check=lambda: getattr(
                 self.view, "suppress_post_creation_guide", False
             ),
             **kwargs,
         )
+
+    def _apply_wizard_detector_overrides(self, metadata: dict) -> None:
+        """Apply detector overrides from wizard metadata.
+
+        Restored/Moved from MainViewModel.
+        """
+        if not metadata:
+            return
+
+        weight = metadata.get("active_weight")
+        use_openvino = metadata.get("use_openvino")
+
+        self._apply_model_settings(
+            weight, bool(use_openvino) if use_openvino is not None else False
+        )
+
+        # Apply detector parameters if present
+        detector_params = metadata.get("detector_parameters")
+        print(f"DEBUG: detector_params={detector_params}")
+        if detector_params:
+            normalized_params = {}
+            for key, value in detector_params.items():
+                if value is not None:
+                    try:
+                        normalized_params[key] = float(value)
+                    except (ValueError, TypeError):
+                        normalized_params[key] = value
+
+            print(f"DEBUG: normalized_params={normalized_params}")
+            if normalized_params:
+                print(
+                    f"DEBUG: Calling update_detector_parameters on {self.main_view_model} id={id(self.main_view_model)}"
+                )
+                self.main_view_model.update_detector_parameters(normalized_params, scope="project")
+            else:
+                print("DEBUG: normalized_params is empty")
+        else:
+            print("DEBUG: detector_params is empty/None")
 
     def open_project_workflow(self, project_path: Path | str):
         """Load project and configure everything automatically.
@@ -209,11 +250,6 @@ class ProjectOrchestrator:
         summary_excel: str,
         report_path: str,
     ) -> None:
-        """Delegate to VideoProcessingService._register_project_outputs, then refresh views.
-
-        Phase 3: Refactored to delegate to service layer.
-        The refresh_project_views call remains here as it's a MainViewModel responsibility.
-        """
         self.video_processing_service._register_project_outputs(
             video_path=video_path,
             results_dir=results_dir,
@@ -315,7 +351,9 @@ class ProjectOrchestrator:
 
         message = "Configurações globais aplicadas ao projeto."
         self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": message})
-        self.main_view_model.ui_state_controller.refresh_project_views(reason=message, append_summary=True)
+        self.main_view_model.ui_state_controller.refresh_project_views(
+            reason=message, append_summary=True
+        )
 
         return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
 
@@ -360,7 +398,9 @@ class ProjectOrchestrator:
 
         message = "Overrides do projeto atualizados a partir desta calibração."
         self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": message})
-        self.main_view_model.ui_state_controller.refresh_project_views(reason=message, append_summary=True)
+        self.main_view_model.ui_state_controller.refresh_project_views(
+            reason=message, append_summary=True
+        )
 
         return overrides.get("active_weight"), bool(overrides.get("use_openvino"))
 

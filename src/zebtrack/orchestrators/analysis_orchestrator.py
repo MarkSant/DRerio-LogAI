@@ -220,7 +220,9 @@ class AnalysisOrchestrator:
                 )
 
             self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": status_msg})
-            self.main_view_model.ui_state_controller.refresh_project_views(reason=status_msg, append_summary=True)
+            self.main_view_model.ui_state_controller.refresh_project_views(
+                reason=status_msg, append_summary=True
+            )
             self.main_view_model.processing_thread = None
 
         self.root.after(0, finalize)

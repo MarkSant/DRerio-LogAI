@@ -466,8 +466,11 @@ class TestHandleOverviewAssetRemoval:
         if menu_manager.gui.event_bus_v2:
             menu_manager.gui.event_bus_v2.publish.assert_called()
             # Check that the event type is PROJECT_VIEWS_REFRESH_REQUESTED
-            event_calls = [call[0][0] for call in menu_manager.gui.event_bus_v2.publish.call_args_list]
+            event_calls = [
+                call[0][0] for call in menu_manager.gui.event_bus_v2.publish.call_args_list
+            ]
             from zebtrack.ui.event_bus_v2 import UIEvents
+
             assert any(e.type == UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED for e in event_calls)
 
     @patch("zebtrack.ui.components.menu_manager.messagebox")

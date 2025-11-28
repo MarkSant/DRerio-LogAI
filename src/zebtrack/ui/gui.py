@@ -126,9 +126,9 @@ class ApplicationGUI:
                 0,
                 lambda: self.show_error(
                     event.data.get("title", "Erro"),
-                    event.data.get("message", "Ocorreu um erro desconhecido.")
-                )
-            )
+                    event.data.get("message", "Ocorreu um erro desconhecido."),
+                ),
+            ),
         )
 
         self.root.title("DRerio LogAI")
@@ -241,25 +241,13 @@ class ApplicationGUI:
 
         # ROI Inclusion Rule Variables
         self.roi_inclusion_rule_var = StringVar(
-            value=(
-                self.settings.roi_inclusion_rule
-                if self.settings
-                else "bbox_intersects"
-            )
+            value=(self.settings.roi_inclusion_rule if self.settings else "bbox_intersects")
         )
         self.roi_buffer_radius_var = StringVar(
-            value=str(
-                self.settings.roi_buffer_radius_value
-                if self.settings
-                else 0.5
-            )
+            value=str(self.settings.roi_buffer_radius_value if self.settings else 0.5)
         )
         self.roi_overlap_ratio_var = StringVar(
-            value=str(
-                self.settings.roi_min_bbox_overlap_ratio
-                if self.settings
-                else 0.10
-            )
+            value=str(self.settings.roi_min_bbox_overlap_ratio if self.settings else 0.10)
         )
         self.roi_template_var = StringVar(value="")
         # Add trace to log all changes to template var
@@ -286,11 +274,7 @@ class ApplicationGUI:
 
         # User options
         self.processing_interval_var = StringVar(
-            value=str(
-                self.settings.video_processing.processing_interval
-                if self.settings
-                else 10
-            )
+            value=str(self.settings.video_processing.processing_interval if self.settings else 10)
         )
         self.show_preview_var = BooleanVar(value=True)
 
@@ -368,7 +352,9 @@ class ApplicationGUI:
             else:
                 active_weight = getattr(self.controller, "active_weight_name", None)
                 use_openvino = getattr(self.controller, "use_openvino", False)
-                ov_status = getattr(self.controller, "get_openvino_status", lambda: "Desconhecido")()
+                ov_status = getattr(
+                    self.controller, "get_openvino_status", lambda: "Desconhecido"
+                )()
 
             self.set_active_weight_in_dropdown(active_weight)
             self.update_openvino_checkbox(use_openvino)
@@ -376,33 +362,6 @@ class ApplicationGUI:
         except Exception:
             log.warning("gui.post_init.controller_sync_failed", exc_info=True)
 
-    def set_active_weight_in_dropdown(self, weight_name: str | None) -> None:
-        """Update the active weight display in the Welcome screen."""
-        if weight_name:
-            self._active_weight_display_var.set(f"Peso ativo: {weight_name}")
-        else:
-            self._active_weight_display_var.set("Peso ativo: Nenhum peso selecionado.")
-
-        # Also update controller state if needed (legacy sync)
-        if self.controller.hardware_vm.active_weight_name != weight_name:
-             self.controller.hardware_vm.active_weight_name = weight_name
-
-    def update_weights_dropdown(self, weights: list[str]) -> None:
-        """Update the list of available weights (for Welcome screen or future dropdowns)."""
-        self._available_weight_names = weights or []
-
-    def update_openvino_checkbox(self, is_checked: bool) -> None:
-        """Update the OpenVINO status display."""
-        self._openvino_enabled = is_checked
-        status = "Ativado" if is_checked else "Desativado"
-        self._openvino_display_var.set(f"OpenVINO: {status}")
-
-    def update_openvino_status_display(self, status: str) -> None:
-        """Update the detailed OpenVINO status message."""
-        self._openvino_status_message = status
-        # You might want to update a specific label if it exists,
-        # currently just updating internal state which might be used by refresh logic
-        pass
 
     def handle_request_weight_type(self, filepath: str) -> None:
         """Handle request to identify weight type."""
@@ -412,7 +371,7 @@ class ApplicationGUI:
             "Tipo do Modelo",
             "O tipo do modelo não pôde ser determinado automaticamente.\n"
             "Digite 'seg' para Segmentação ou 'det' para Detecção:",
-            parent=self.root
+            parent=self.root,
         )
 
         if weight_type:
@@ -439,7 +398,7 @@ class ApplicationGUI:
             "Sim: Define como padrão\n"
             "Não: Apenas adiciona à lista\n"
             "Cancelar: Aborta a operação",
-            parent=self.root
+            parent=self.root,
         )
 
         choice = None
@@ -451,7 +410,9 @@ class ApplicationGUI:
             choice = "cancel"
 
         if choice != "cancel":
-            self.controller.hardware_vm.load_new_weight(filepath=filepath, weight_type=weight_type, choice=choice)
+            self.controller.hardware_vm.load_new_weight(
+                filepath=filepath, weight_type=weight_type, choice=choice
+            )
 
     # --- Event bus helpers -------------------------------------------------
 
@@ -513,13 +474,13 @@ class ApplicationGUI:
 
         try:
             # Resolving version for logging
-            ttk_version = getattr(ttkb, "__version__", "unknown")
+            getattr(ttkb, "__version__", "unknown")
             try:
                 from importlib.metadata import PackageNotFoundError
                 from importlib.metadata import version as _pkg_version
 
                 try:
-                    ttk_version = _pkg_version("ttkbootstrap")
+                    _pkg_version("ttkbootstrap")
                 except PackageNotFoundError:
                     pass
             except Exception:
@@ -704,20 +665,14 @@ class ApplicationGUI:
                 item_id, event.x_root, event.y_root
             )
 
-
-
     def _on_frame_configure(self, event=None):
         """Update scroll region when frame size changes."""
         self.controls_canvas.configure(scrollregion=self.controls_canvas.bbox("all"))
-
-
 
     def _on_canvas_configure_scroll(self, event=None):
         """Update frame width when canvas size changes."""
         canvas_width = event.width if event else self.controls_canvas.winfo_width()
         self.controls_canvas.itemconfig(self.controls_canvas_window, width=canvas_width)
-
-
 
     def _bind_mousewheel(self):
         """Bind mouse wheel scrolling to the canvas."""
@@ -733,8 +688,6 @@ class ApplicationGUI:
         self.controls_canvas.bind(
             "<Button-5>", lambda e: self.controls_canvas.yview_scroll(1, "units")
         )
-
-
 
     def _recenter_canvas_image(self, canvas_width, canvas_height):
         """Recenter the canvas background image."""
@@ -759,12 +712,6 @@ class ApplicationGUI:
             image=self._canvas_bg_image,
             tags="background_image",
         )
-
-
-
-
-
-
 
     def _on_video_tree_double_click(self, event):
         """Handle double click on video selector."""
@@ -875,7 +822,7 @@ class ApplicationGUI:
 
     def _filter_video_tree(self) -> None:
         """Filter video tree based on search text. Delegates to ProjectViewManager."""
-        if not hasattr(self, 'zone_controls') or not self.zone_controls:
+        if not hasattr(self, "zone_controls") or not self.zone_controls:
             return
         search_text = self.zone_controls.video_search_var.get()
         self.project_view_manager._populate_video_selector_tree(filter_text=search_text)
@@ -899,8 +846,12 @@ class ApplicationGUI:
 
             # Case 2: No params (Legacy UI interaction) - Read from StringVars
             self.controller.settings.roi_inclusion_rule = self.roi_inclusion_rule_var.get()
-            self.controller.settings.roi_buffer_radius_value = float(self.roi_buffer_radius_var.get())
-            self.controller.settings.roi_min_bbox_overlap_ratio = float(self.roi_overlap_ratio_var.get())
+            self.controller.settings.roi_buffer_radius_value = float(
+                self.roi_buffer_radius_var.get()
+            )
+            self.controller.settings.roi_min_bbox_overlap_ratio = float(
+                self.roi_overlap_ratio_var.get()
+            )
 
             if self.controller.project_manager.project_path:
                 self.controller.project_manager._save_settings_snapshot()
@@ -911,9 +862,7 @@ class ApplicationGUI:
             self.show_error("Erro", "Valores inválidos para parâmetros de ROI.")
         except Exception as e:
             log.error("gui.apply_roi_settings.error", error=str(e))
-            self.show_error("Erro", f"Falha ao aplicar configurações: {str(e)}")
-
-
+            self.show_error("Erro", f"Falha ao aplicar configurações: {e!s}")
 
     def _update_window_title(self, project_name: str | None = None) -> None:
         """Update the window title with the project name."""
@@ -1027,11 +976,13 @@ class ApplicationGUI:
             self.update_reports_tree()
 
             if self.event_bus_v2:
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                    data={'filter_text': None},
-                    source='GUI._load_project_view'
-                ))
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                        data={"filter_text": None},
+                        source="GUI._load_project_view",
+                    )
+                )
 
             ready_message = f"Projeto: {pm.get_project_name()} - Pronto."
             self.set_status(ready_message)
@@ -1734,7 +1685,6 @@ class ApplicationGUI:
         """Show a dialog to select one or more files. Delegates to DialogManager."""
         return self.dialog_manager.ask_open_filenames(title, filetypes)
 
-
     @public_api
     def ask_save_filename(self, **options):
         """Show a dialog to select a save file path. Delegates to DialogManager."""
@@ -1776,10 +1726,8 @@ class ApplicationGUI:
         dialog = MissingMetadataDialog(self.root, experiment_id)
         return dialog.result
 
-
-# Compatibility layer removed as part of Phase 6 cleanup.
-# All legacy properties have been migrated to direct component access.
-
+    # Compatibility layer removed as part of Phase 6 cleanup.
+    # All legacy properties have been migrated to direct component access.
 
     def _filter_video_tree(self):
         """Filter video tree based on search text."""
@@ -1950,10 +1898,12 @@ class ApplicationGUI:
         if hasattr(self, "canvas_manager") and self.canvas_manager.event_handler:
             self.canvas_manager.event_handler.on_handle_release(event)
 
+
 if __name__ == "__main__":
     # Using print is fine here as it's for direct execution feedback
     print("Este arquivo deve ser importado, não executado diretamente.")
     print("Execute o script principal da aplicação para iniciar o Zebtrack.")
+
     def _get_zone_data_for_active_context(self) -> ZoneData:
         """
         Retrieve the ZoneData for the current context (active project).

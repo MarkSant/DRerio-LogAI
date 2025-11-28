@@ -137,7 +137,16 @@ class TestAnalysisServiceVideoProcessing:
         mock_roi_analyzer_class.return_value = mock_roi
 
         # Create sample data
-        df = pd.DataFrame({"x1": [100, 110], "y1": [100, 110], "x2": [150, 160], "y2": [150, 160]})
+        df = pd.DataFrame(
+            {
+                "x1": [100, 110],
+                "y1": [100, 110],
+                "x2": [150, 160],
+                "y2": [150, 160],
+                "frame": [0, 1],
+                "track_id": [1, 1],
+            }
+        )
 
         result = analysis_service.run_full_analysis(
             trajectory_df=df,

@@ -7,7 +7,6 @@ race conditions on shared state (Issue: shared_kalman class variable).
 Run with: pytest tests/test_tracker_threading_stress.py -v
 """
 
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
@@ -135,9 +134,9 @@ def test_parallel_trackers_no_shared_state(mock_detections, img_info, img_size):
 
     # If state is corrupted, track counts will vary wildly
     # With independent state, they should be similar
-    assert (
-        std_tracks < mean_tracks * 0.5
-    ), "Track counts should be consistent across trackers (low variance)"
+    assert std_tracks < mean_tracks * 0.5, (
+        "Track counts should be consistent across trackers (low variance)"
+    )
 
 
 @pytest.mark.slow
@@ -164,9 +163,9 @@ def test_rapid_tracker_creation_destruction(mock_detections, img_info, img_size)
 
     # All iterations should produce similar results
     assert all(count >= 0 for count in track_counts), "All track counts should be non-negative"
-    assert (
-        len(set(track_counts)) <= 3
-    ), "Track counts should be consistent (not random due to shared state)"
+    assert len(set(track_counts)) <= 3, (
+        "Track counts should be consistent (not random due to shared state)"
+    )
 
 
 @pytest.mark.slow
@@ -257,9 +256,9 @@ def test_concurrent_multi_predict_calls(mock_detections):
 
     # If filters share state, covariances will diverge wildly
     # With independent state, they should be very similar
-    assert (
-        std_cov < mean_cov * 0.1
-    ), "Covariance predictions should be consistent across threads (no shared state corruption)"
+    assert std_cov < mean_cov * 0.1, (
+        "Covariance predictions should be consistent across threads (no shared state corruption)"
+    )
 
 
 @pytest.mark.slow

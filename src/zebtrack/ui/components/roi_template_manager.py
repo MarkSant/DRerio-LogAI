@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+
 class ROITemplateManager:
     """Gerencia operações de templates de ROI."""
 
@@ -137,8 +138,7 @@ class ROITemplateManager:
         active_video = self._get_active_video()
         if not active_video:
             self.gui.show_warning(
-                "Vídeo não selecionado",
-                "Selecione um vídeo na lista antes de aplicar o template."
+                "Vídeo não selecionado", "Selecione um vídeo na lista antes de aplicar o template."
             )
             return False
 
@@ -165,16 +165,21 @@ class ROITemplateManager:
             # NEW PATH - Event-Driven Architecture v4.0
             if self.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                self.event_bus_v2.publish(Event(
-                    type=UIEvents.ZONES_UPDATED,
-                    data={'zone_data': zone_data},
-                    source='ROITemplateManager.apply_template'
-                ))
+
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.ZONES_UPDATED,
+                        data={"zone_data": zone_data},
+                        source="ROITemplateManager.apply_template",
+                    )
+                )
 
             self.gui._refresh_zone_indicators()
 
             template_name = selected.get("name")
-            self.gui.show_info("Template aplicado", f"As zonas foram atualizadas com o template '{template_name}'.")
+            self.gui.show_info(
+                "Template aplicado", f"As zonas foram atualizadas com o template '{template_name}'."
+            )
             self.gui.set_status(f"Template '{template_name}' aplicado ao vídeo em edição.")
 
             return True
@@ -191,8 +196,7 @@ class ROITemplateManager:
 
         # Confirma com usuário
         confirm = self.gui.ask_ok_cancel(
-            "Confirmar Exclusão",
-            f"Deseja realmente excluir o template '{selected['name']}'?"
+            "Confirmar Exclusão", f"Deseja realmente excluir o template '{selected['name']}'?"
         )
         if not confirm:
             return False
@@ -239,8 +243,7 @@ class ROITemplateManager:
     def _show_template_selection_error(self):
         """Mostra erro quando nenhum template está selecionado."""
         self.gui.show_warning(
-            "Nenhum Template Selecionado",
-            "Por favor, selecione um template primeiro."
+            "Nenhum Template Selecionado", "Por favor, selecione um template primeiro."
         )
 
     def _update_combobox_values(self, display_names: list[str]):
@@ -249,7 +252,7 @@ class ROITemplateManager:
         combobox = self.gui.zone_controls.roi_template_combobox if self.gui.zone_controls else None
 
         if combobox:
-            combobox['values'] = display_names
+            combobox["values"] = display_names
 
             if not display_names:
                 combobox.configure(state="disabled")
@@ -262,8 +265,8 @@ class ROITemplateManager:
         if not display_names:
             self.template_var.set("")
         elif len(display_names) == 1:
-             # Auto select if only 1
-             self.template_var.set(display_names[0])
+            # Auto select if only 1
+            self.template_var.set(display_names[0])
         else:
             self.template_var.set("")
 
@@ -290,7 +293,7 @@ class ROITemplateManager:
         # Need to find the button. gui.py creates it dynamically sometimes.
         # Or check gui.delete_template_btn
 
-        btn = getattr(self.gui, 'delete_template_btn', None)
+        btn = getattr(self.gui, "delete_template_btn", None)
         if not btn:
             # Try self.delete_button if we set it (not currently used in gui.py logic)
             btn = self.delete_button
@@ -298,7 +301,7 @@ class ROITemplateManager:
         if btn:
             selected = self.get_selected_template()
             state = "normal" if selected else "disabled"
-            btn['state'] = state
+            btn["state"] = state
 
     def import_template(self) -> None:
         """Import a template file into the library."""
@@ -351,9 +354,10 @@ class ROITemplateManager:
                 break
 
         if not matched_display and (target_slug or target_file):
-             for entry in self._cache:
-                if (target_slug and entry.get("slug") == target_slug) or \
-                   (target_file and entry.get("file") == target_file):
+            for entry in self._cache:
+                if (target_slug and entry.get("slug") == target_slug) or (
+                    target_file and entry.get("file") == target_file
+                ):
                     matched_display = entry.get("display_name")
                     break
 

@@ -206,6 +206,7 @@ def tkinter_session_root():
         root.update_idletasks()
     except tk.TclError:
         from unittest.mock import MagicMock
+
         warnings.warn("Headless environment detected. Using Mock for Tkinter root.", stacklevel=2)
         root = MagicMock()
         root.tk = MagicMock()
@@ -342,6 +343,7 @@ def tkinter_root(tkinter_session_root):
     """
     # Create a Toplevel window for this test (not a new Tk instance)
     from unittest.mock import MagicMock
+
     if isinstance(tkinter_session_root, MagicMock):
         test_window = MagicMock()
         test_window.master = tkinter_session_root

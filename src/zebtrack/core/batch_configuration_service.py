@@ -182,9 +182,7 @@ class BatchConfigurationService:
         """
         results_path.mkdir(parents=True, exist_ok=True)
 
-    def _save_project_settings(
-        self, results_path: Path, video_info: dict, config: dict
-    ) -> None:
+    def _save_project_settings(self, results_path: Path, video_info: dict, config: dict) -> None:
         """Salva as configurações do projeto em JSON.
 
         Args:
@@ -210,9 +208,7 @@ class BatchConfigurationService:
         with open(settings_file, "w") as f:
             json.dump(settings_data, f, indent=2)
 
-    def _save_zone_data(
-        self, results_path: Path, experiment_id: str, config: dict
-    ) -> None:
+    def _save_zone_data(self, results_path: Path, experiment_id: str, config: dict) -> None:
         """Salva os dados de zonas em JSON (se houver).
 
         Args:

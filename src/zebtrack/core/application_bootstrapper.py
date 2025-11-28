@@ -174,7 +174,9 @@ class ApplicationBootstrapper:
         # Services created in step 1
         controller_proxy.video_selection_service = self._services["video_selection_service"]
         controller_proxy.video_validation_service = self._services["video_validation_service"]
-        controller_proxy.video_classification_service = self._services["video_classification_service"]
+        controller_proxy.video_classification_service = self._services[
+            "video_classification_service"
+        ]
         controller_proxy.model_service = self.deps.model_service
         controller_proxy.detector_service = self.deps.detector_service
         controller_proxy.weight_manager = self.deps.weight_manager
@@ -230,21 +232,17 @@ class ApplicationBootstrapper:
             thread_coordinator=self._services["thread_coordinator"],
             dialog_coordinator=self._services["dialog_coordinator"],
             event_dispatcher=self._services["event_dispatcher"],
-
             active_weight_name=self._hardware_state["active_weight_name"],
             use_openvino=self._hardware_state["use_openvino"],
             hardware_summary=self._hardware_state["hardware_summary"],
             recommended_backend=self._hardware_state["recommended_backend"],
-
             recorder=self._runtime_state["recorder"],
             arduino_manager=self._runtime_state["arduino_manager"],
             frame_queue=self._runtime_state["frame_queue"],
             video_queue=self._runtime_state["video_queue"],
             program_exit_event=self._runtime_state["program_exit_event"],
             cancel_event=self._runtime_state["cancel_event"],
-
             view=self.view,
-
             video_processing_orchestrator=self._orchestrators["video_processing_orchestrator"],
             analysis_orchestrator=self._orchestrators["analysis_orchestrator"],
             recording_session_orchestrator=self._orchestrators["recording_session_orchestrator"],
@@ -254,11 +252,9 @@ class ApplicationBootstrapper:
             zone_arena_orchestrator=self._orchestrators["zone_arena_orchestrator"],
             processing_config_orchestrator=self._orchestrators["processing_config_orchestrator"],
             calibration_orchestrator=self._orchestrators["calibration_orchestrator"],
-
             orchestrators=self._orchestrators["registry"],
             project_workflow_adapter=self._orchestrators["project_workflow_adapter"],
-
-            legacy_coordinators=self._legacy_coordinators
+            legacy_coordinators=self._legacy_coordinators,
         )
 
     def _init_services(self):
@@ -268,7 +264,7 @@ class ApplicationBootstrapper:
         analysis_service = (
             self.deps.analysis_service
             if self.deps.analysis_service is not None
-            else AnalysisService(settings_obj=self.settings)
+            else AnalysisService(settings_obj=self.settings, enable_metrics_cache=True)
         )
 
         # Video processing helper services
@@ -360,7 +356,7 @@ class ApplicationBootstrapper:
             "active_weight_name": active_weight_name,
             "use_openvino": use_openvino,
             "hardware_summary": hardware_summary,
-            "recommended_backend": recommended_backend
+            "recommended_backend": recommended_backend,
         }
 
     def _init_runtime_state(self):
@@ -384,11 +380,11 @@ class ApplicationBootstrapper:
 
         self._runtime_state = {
             "recorder": recorder,
-            "arduino_manager": None, # Will be initialized on demand
+            "arduino_manager": None,  # Will be initialized on demand
             "frame_queue": frame_queue,
             "video_queue": video_queue,
             "program_exit_event": program_exit_event,
-            "cancel_event": cancel_event
+            "cancel_event": cancel_event,
         }
 
         # Configure global model defaults
@@ -405,13 +401,13 @@ class ApplicationBootstrapper:
             # Use event bus from dependencies
             ui_features = getattr(self.settings, "ui_features", None)
             use_event_bus = bool(
-                self.deps.event_bus or
-                (ui_features and getattr(ui_features, "enable_event_queue", False))
+                self.deps.event_bus
+                or (ui_features and getattr(ui_features, "enable_event_queue", False))
             )
 
             self.view = ApplicationGUI(
                 self.deps.root,
-                controller_proxy, # Must pass controller for legacy callbacks
+                controller_proxy,  # Must pass controller for legacy callbacks
                 event_bus=self.deps.event_bus if use_event_bus else None,
                 settings_obj=self.settings,
                 project_manager=self.deps.project_manager,
@@ -422,8 +418,10 @@ class ApplicationBootstrapper:
             self.view.update_gpu_hardware_display(self._hardware_state["hardware_summary"])
 
         # Update OpenVINO status
-        if (self._hardware_state["recommended_backend"] == "openvino"
-            and not self._hardware_state["use_openvino"]):
+        if (
+            self._hardware_state["recommended_backend"] == "openvino"
+            and not self._hardware_state["use_openvino"]
+        ):
             if hasattr(self.view, "update_openvino_status_display"):
                 self.view.update_openvino_status_display(
                     "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
@@ -510,7 +508,7 @@ class ApplicationBootstrapper:
             legacy_coords["recording_coordinator"] = RecordingCoordinator(
                 state_manager=self.state_manager,
                 recording_service=self.deps.recording_service,
-                arduino_manager=None, # Initialized lazily
+                arduino_manager=None,  # Initialized lazily
                 event_bus=self.deps.event_bus,
             )
         controller_proxy.recording_coordinator = legacy_coords["recording_coordinator"]
@@ -536,7 +534,8 @@ class ApplicationBootstrapper:
         # We pass the controller_proxy which should be the 'self' from MainViewModel.__init__
 
         recording_session_orchestrator = RecordingSessionOrchestrator(controller_proxy)
-        # Manual setup for recording service callbacks since we're bypassing _init_orchestrators logic
+        # Manual setup for recording service callbacks since we're bypassing
+        # _init_orchestrators logic
         recording_session_orchestrator._setup_recording_service_callbacks()
         controller_proxy.recording_session_orchestrator = recording_session_orchestrator
 

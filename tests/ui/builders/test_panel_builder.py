@@ -20,9 +20,9 @@ class TestPanelBuilder:
         mock_ttk.Label.return_value = mock_label
 
         status_vars = {
-            'active_weight': Mock(),
-            'openvino_status': Mock(),
-            'hardware_status': Mock()
+            "active_weight": Mock(),
+            "openvino_status": Mock(),
+            "hardware_status": Mock(),
         }
 
         frame = PanelBuilder.build_model_status_panel(parent, status_vars)
@@ -40,7 +40,7 @@ class TestPanelBuilder:
         parent = Mock()
         mock_frame = Mock()
         mock_ttk.LabelFrame.return_value = mock_frame
-        mock_ttk.Frame.return_value = mock_frame # Reuse frame mock for simplicity
+        mock_ttk.Frame.return_value = mock_frame  # Reuse frame mock for simplicity
         mock_label = Mock()
         mock_ttk.Label.return_value = mock_label
 

@@ -13,7 +13,7 @@ class GeometryService:
         canvas_y: float,
         existing_polygons: list[list[tuple]],
         threshold: float = 10.0,
-        exclude_polygon_index: int | None = None
+        exclude_polygon_index: int | None = None,
     ) -> tuple[float, float] | None:
         """
         Aplica snapping a vértices, arestas ou eixos de alinhamento.
@@ -27,8 +27,7 @@ class GeometryService:
         """
         if exclude_polygon_index is not None:
             existing_polygons = [
-                p for i, p in enumerate(existing_polygons)
-                if i != exclude_polygon_index
+                p for i, p in enumerate(existing_polygons) if i != exclude_polygon_index
             ]
 
         # Encontra vértice ou aresta mais próxima
@@ -51,7 +50,7 @@ class GeometryService:
 
             # Snap para vértices
             for vertex in polygon:
-                dist = np.sqrt((canvas_x - vertex[0])**2 + (canvas_y - vertex[1])**2)
+                dist = np.sqrt((canvas_x - vertex[0]) ** 2 + (canvas_y - vertex[1]) ** 2)
                 if dist < min_distance:
                     min_distance = dist
                     closest_point = vertex
@@ -78,7 +77,7 @@ class GeometryService:
         )
 
         if axis_snap is not None:
-            axis_dist = np.sqrt((canvas_x - axis_snap[0])**2 + (canvas_y - axis_snap[1])**2)
+            axis_dist = np.sqrt((canvas_x - axis_snap[0]) ** 2 + (canvas_y - axis_snap[1]) ** 2)
             if axis_dist < min_distance:
                 closest_point = axis_snap
 
@@ -86,8 +85,7 @@ class GeometryService:
 
     @staticmethod
     def clamp_point_to_polygon(
-        point: tuple[float, float],
-        polygon: list[tuple[float, float]]
+        point: tuple[float, float], polygon: list[tuple[float, float]]
     ) -> tuple[float, float]:
         """Clamp ponto para borda mais próxima do polígono se estiver fora."""
         px, py = point
@@ -99,7 +97,7 @@ class GeometryService:
             return point  # Já está dentro
 
         # Encontra ponto de borda mais próximo
-        min_dist = float('inf')
+        min_dist = float("inf")
         closest = point
 
         for i in range(len(polygon)):
@@ -118,9 +116,7 @@ class GeometryService:
 
     @staticmethod
     def _point_to_segment_distance(
-        px: float, py: float,
-        x1: float, y1: float,
-        x2: float, y2: float
+        px: float, py: float, x1: float, y1: float, x2: float, y2: float
     ) -> dict | None:
         """Calcula distância de ponto a segmento de linha."""
         # Vector from p1 to p2

@@ -9,7 +9,6 @@ import time
 import pytest
 
 from tests.utils.wait_helpers import wait_for_condition
-
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.io.recorder import Recorder
@@ -179,6 +178,7 @@ def test_recorder_with_calibration(temp_project_dir, sample_zones):
 
     # Verify calibrated schema
     import pyarrow.parquet as pq
+
     assert coords_file.exists()
 
     table = pq.read_table(str(coords_file))
@@ -304,7 +304,7 @@ def test_multi_video_recording_session(temp_project_dir, sample_zones):
 
         # Wait for file to be flushed
         coords_file = results_dir / f"3_CoordMovimento_{video_name}.parquet"
-        wait_for_condition(lambda: coords_file.exists(), timeout=1.0)
+        wait_for_condition(lambda f=coords_file: f.exists(), timeout=1.0)
 
         # Verify files for this video
         assert coords_file.exists(), f"Missing coords file for {video_name}"

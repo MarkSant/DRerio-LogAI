@@ -17,11 +17,10 @@ def test_apply_snapping_to_vertex():
     result = GeometryService.apply_snapping(-50, -50, polygons, threshold=10)
     assert result is None
 
+
 def test_apply_snapping_to_edge():
     """Testa snapping para aresta."""
-    polygons = [
-        [(0, 0), (100, 0), (100, 100), (0, 100)]
-    ]
+    polygons = [[(0, 0), (100, 0), (100, 100), (0, 100)]]
 
     # Ponto (60, 5).
     # Distância para aresta y=0 é 5. Ponto projetado (60, 0).
@@ -45,6 +44,7 @@ def test_apply_snapping_to_edge():
     assert result[0] == 60
     assert result[1] == 0
 
+
 def test_clamp_point_to_polygon():
     """Testa clamping de ponto para borda de polígono."""
     polygon = [(0, 0), (100, 0), (100, 100), (0, 100)]
@@ -57,12 +57,16 @@ def test_clamp_point_to_polygon():
     result = GeometryService.clamp_point_to_polygon((150, 50), polygon)
     assert result == (100, 50)
 
+
 def test_point_to_segment_distance():
     """Testa cálculo de distância ponto-para-segmento."""
     result = GeometryService._point_to_segment_distance(
-        50, 50,  # Ponto
-        0, 0,    # P1 do segmento
-        100, 0   # P2 do segmento
+        50,
+        50,  # Ponto
+        0,
+        0,  # P1 do segmento
+        100,
+        0,  # P2 do segmento
     )
 
     assert result is not None
@@ -70,11 +74,12 @@ def test_point_to_segment_distance():
     assert result["y"] == 0
     assert result["distance"] == 50
 
+
 def test_apply_snapping_exclude_polygon():
     """Testa exclusão de polígono durante snapping."""
     polygons = [
-        [(0, 0), (10, 0), (10, 10)], # Index 0
-        [(100, 100), (110, 100), (110, 110)] # Index 1
+        [(0, 0), (10, 0), (10, 10)],  # Index 0
+        [(100, 100), (110, 100), (110, 110)],  # Index 1
     ]
 
     # Tenta snap para polygon 0, mas excluindo ele
@@ -84,8 +89,11 @@ def test_apply_snapping_exclude_polygon():
     assert result is None
 
     # Tenta snap para polygon 1
-    result = GeometryService.apply_snapping(105, 105, polygons, threshold=10, exclude_polygon_index=0)
+    result = GeometryService.apply_snapping(
+        105, 105, polygons, threshold=10, exclude_polygon_index=0
+    )
     assert result is not None
+
 
 def test_apply_snapping_to_axis():
     """Testa snapping para alinhamento de eixo (horizontal/vertical)."""

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
+
 class TabBuilder:
     """Constrói abas de notebook para aplicação principal."""
 
@@ -57,15 +58,17 @@ class TabBuilder:
             self._build_live_project_widgets(self.gui.main_controls_frame)
 
         if self.gui.event_bus_v2:
-            self.gui.event_bus_v2.publish(Event(
-                type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
-                data={
-                    "reason": "TabBuilder initialization",
-                    "append_summary": False,
-                    "immediate": False
-                },
-                source="TabBuilder.build_main_controls_tab"
-            ))
+            self.gui.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                    data={
+                        "reason": "TabBuilder initialization",
+                        "append_summary": False,
+                        "immediate": False,
+                    },
+                    source="TabBuilder.build_main_controls_tab",
+                )
+            )
 
         return self.gui.main_controls_frame
 
@@ -89,7 +92,7 @@ class TabBuilder:
         # 3. Create the control panel on the left with scrollable frame
         # Reduced weight to make it narrower by default
         left_panel_frame = ttk.Frame(main_pane, padding=5, relief="groove", borderwidth=2)
-        main_pane.add(left_panel_frame, weight=1) 
+        main_pane.add(left_panel_frame, weight=1)
 
         # 4. Create the visualization panel on the right
         self.gui.viz_frame = ttk.Frame(main_pane, padding=5, relief="sunken", borderwidth=2)
@@ -107,7 +110,7 @@ class TabBuilder:
             left_panel_frame,
             event_bus=self.gui.event_bus,
             template_actions_parent=self.gui.viz_bottom_container,
-            drawing_actions_parent=self.gui.viz_top_container
+            drawing_actions_parent=self.gui.viz_top_container,
         )
         self.gui.zone_controls.pack(fill="both", expand=True)
 
@@ -196,9 +199,7 @@ class TabBuilder:
 
     def _add_interval_settings(self, parent):
         """Adiciona controles de configuração de intervalo."""
-        intervals_frame = ttk.LabelFrame(
-            parent, text="Intervalos de Processamento", padding=10
-        )
+        intervals_frame = ttk.LabelFrame(parent, text="Intervalos de Processamento", padding=10)
         intervals_frame.pack(fill="x", pady=10, padx=10)
 
         analysis_label_frame = ttk.Frame(intervals_frame)
@@ -259,8 +260,12 @@ class TabBuilder:
             pady=6,
         )
         self.gui.external_trigger_notice_label.pack(fill="x", pady=(0, 8))
-        self.gui._external_notice_default_bg = self.gui.external_trigger_notice_label.cget("background")
-        self.gui._external_notice_default_fg = self.gui.external_trigger_notice_label.cget("foreground")
+        self.gui._external_notice_default_bg = self.gui.external_trigger_notice_label.cget(
+            "background"
+        )
+        self.gui._external_notice_default_fg = self.gui.external_trigger_notice_label.cget(
+            "foreground"
+        )
 
         self.gui.arduino_dashboard_widget = ArduinoDashboardWidget(
             parent,
@@ -270,7 +275,9 @@ class TabBuilder:
         self.gui.arduino_dashboard_widget.pack(fill="both", expand=False, pady=(0, 10))
 
         if self.gui.event_bus_v2:
-            self.gui.event_bus_v2.publish(Event(
-                type=UIEvents.EXTERNAL_TRIGGER_NOTICE_CLEARED,
-                source="TabBuilder._build_live_project_widgets"
-            ))
+            self.gui.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.EXTERNAL_TRIGGER_NOTICE_CLEARED,
+                    source="TabBuilder._build_live_project_widgets",
+                )
+            )

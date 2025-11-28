@@ -18,7 +18,7 @@ import threading
 import time
 from pathlib import Path
 from types import TracebackType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import structlog
@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from zebtrack.core.state_manager import StateManager
     from zebtrack.io.camera import Camera
     from zebtrack.ui.dialogs import LivePreviewWindow
+    from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
 
@@ -64,9 +65,7 @@ class DetectorContextManager:
     def __enter__(self) -> DetectorContextManager:
         """Save current context and set new context."""
         if self.detector_service and self.detector_service.detector:
-            self.saved_context = getattr(
-                self.detector_service.detector, "_context", "unknown"
-            )
+            self.saved_context = getattr(self.detector_service.detector, "_context", "unknown")
             log.debug(
                 "detector_context.saved",
                 saved=self.saved_context,
@@ -117,7 +116,7 @@ class LiveCameraService:
         recording_service: RecordingService,
         detector_service: DetectorService,
         settings_obj: Any,  # Settings
-        recorder: Any,      # Recorder
+        recorder: Any,  # Recorder
         event_bus: EventBus,  # Injected EventBus
         root: Misc | None = None,
     ):
@@ -163,7 +162,9 @@ class LiveCameraService:
         self._current_output_dir: Path | None = None
         self._analysis_completed = False
         self._last_detections: list = []
-        self._saved_detector_context: str | None = None  # Task 2.0b: Store original detector context
+        self._saved_detector_context: str | None = (
+            None  # Task 2.0b: Store original detector context
+        )
         self._session_duration_s: float = 0.0
         self._preview_window_destroyed: bool = False  # MELHORIA #2: Flag to prevent race condition
 
@@ -175,9 +176,12 @@ class LiveCameraService:
         self._aquarium_detection_phase: bool = False
         self._aquarium_detection_frames: int = 0
         self._aquarium_detection_max_frames: int = 300  # Standard: 300 frames (10s)
-        self._detected_aquarium_bboxes: list[tuple[int, int, int, int]] = []  # Collect multiple detections
+        self._detected_aquarium_bboxes: list[
+            tuple[int, int, int, int]
+        ] = []  # Collect multiple detections
         self._arena_defined_event = threading.Event()  # Signal when arena is ready
         self._animals_per_aquarium: int = 1  # Default to single subject
+
     @property
     def camera(self) -> Camera | None:
         """Thread-safe access to camera instance."""
@@ -270,7 +274,7 @@ class LiveCameraService:
         with self._lock:
             self._last_detections = list(detections)
 
-    def start_session(
+    def start_session(  # noqa: C901
         self,
         camera_index: int,
         duration_s: float,
@@ -392,8 +396,8 @@ class LiveCameraService:
                 animal_method=self.settings.model_selection.animal_method,
                 use_openvino=self.settings.model_selection.use_openvino,
                 active_weight_name=self.settings.weights.det_filename
-                if self.settings.model_selection.animal_method == 'det'
-                else self.settings.weights.seg_filename
+                if self.settings.model_selection.animal_method == "det"
+                else self.settings.weights.seg_filename,
             )
             if not success:
                 log.error("live_camera_service.detector_setup_failed")
@@ -422,12 +426,15 @@ class LiveCameraService:
                 self._saved_detector_context = old_context
 
                 self.detector_service.detector.set_context("tracking")
-                self.detector_service.detector.set_aquarium_region_defined(False)  # Will detect class 0
+                self.detector_service.detector.set_aquarium_region_defined(
+                    False
+                )  # Will detect class 0
 
                 # ✅ CRITICAL: Must call set_zones() before detect() to avoid RuntimeError
                 # Use empty zone for now - will be defined after aquarium detection
                 if self.camera:
                     from zebtrack.core.detector import ZoneData
+
                     empty_zone = ZoneData()
                     self.detector_service.detector.set_zones(
                         zones=empty_zone,
@@ -463,7 +470,7 @@ class LiveCameraService:
                 self.detector_service.detector.set_aquarium_region_defined(True)
 
                 # Configure tracking based on animals count
-                use_single_subject = (self._animals_per_aquarium == 1)
+                use_single_subject = self._animals_per_aquarium == 1
                 self.detector_service.detector.set_single_subject_mode(use_single_subject)
 
                 log.info(
@@ -833,11 +840,7 @@ class LiveCameraService:
 
                 # Control capture rate
                 default_fps = 30.0
-                fps = (
-                    self.settings.video_processing.fps
-                    if self.settings
-                    else default_fps
-                )
+                fps = self.settings.video_processing.fps if self.settings else default_fps
                 time.sleep(1 / (fps * 1.5))
 
             except Exception as e:
@@ -856,7 +859,7 @@ class LiveCameraService:
             drop_rate_video=f"{drop_rate_vid:.1f}%",
         )
 
-    def _processing_loop(self):
+    def _processing_loop(self):  # noqa: C901
         """Thread loop for processing frames with detection."""
         log.info("live_camera_service.processing_loop_started")
         processed_count = 0
@@ -881,7 +884,7 @@ class LiveCameraService:
                     if self.preview_window and frame_number % 5 == 0:
                         self.preview_window.update_status_text(
                             f"🔍 Detectando aquário... ({self._aquarium_detection_frames}/{self._aquarium_detection_max_frames})",
-                            color="yellow"
+                            color="yellow",
                         )
 
                     # Run detection to find aquarium (class_id=0)
@@ -900,9 +903,14 @@ class LiveCameraService:
                                 if class_id == 0:  # Aquarium class
                                     bbox_area = (x2 - x1) * (y2 - y1)
                                     if bbox_area >= min_aquarium_area:
-                                        self._detected_aquarium_bboxes.append((int(x1), int(y1), int(x2), int(y2)))
+                                        self._detected_aquarium_bboxes.append(
+                                            (int(x1), int(y1), int(x2), int(y2))
+                                        )
                                         # Log only periodically or on first detection to reduce spam
-                                        if len(self._detected_aquarium_bboxes) == 1 or len(self._detected_aquarium_bboxes) % 10 == 0:
+                                        if (
+                                            len(self._detected_aquarium_bboxes) == 1
+                                            or len(self._detected_aquarium_bboxes) % 10 == 0
+                                        ):
                                             log.info(
                                                 "live_camera_service.aquarium_detected",
                                                 frame=frame_number,
@@ -912,9 +920,10 @@ class LiveCameraService:
                     self._aquarium_detection_frames += 1
 
                     # Check if detection phase is complete
-                    if (self._aquarium_detection_frames >= self._aquarium_detection_max_frames or
-                        len(self._detected_aquarium_bboxes) >= 10):
-
+                    if (
+                        self._aquarium_detection_frames >= self._aquarium_detection_max_frames
+                        or len(self._detected_aquarium_bboxes) >= 10
+                    ):
                         log.info(
                             "live_camera_service.aquarium_detection_complete",
                             frames_analyzed=self._aquarium_detection_frames,
@@ -996,7 +1005,9 @@ class LiveCameraService:
                                 "live_camera_service.detection_skipped_no_recorder",
                                 frame_number=frame_number,
                                 has_recorder=self.recorder is not None,
-                                recorder_start_time=self.recorder.start_time if self.recorder else None,
+                                recorder_start_time=self.recorder.start_time
+                                if self.recorder
+                                else None,
                             )
                 else:
                     # Use cached detections for overlay on non-analyzed frames
@@ -1018,10 +1029,7 @@ class LiveCameraService:
                 # Previously frames were queued but never written, causing no video output
                 if self.is_capturing_for_video and self.recorder:
                     # Additional check: only write if recorder is still recording
-                    if (
-                        self.recorder.is_recording
-                        and self.recorder.video_writer
-                    ):
+                    if self.recorder.is_recording and self.recorder.video_writer:
                         try:
                             self.recorder.write_video_frame(frame)
                             log.debug(
@@ -1228,9 +1236,7 @@ class LiveCameraService:
                         "detections": total_detections,
                         "tracks": unique_tracks,
                     }
-                    self.root.after(
-                        0, self._show_completion_message, output_dir, True, stats, None
-                    )
+                    self.root.after(0, self._show_completion_message, output_dir, True, stats, None)
 
             except Exception as e:
                 log.error(
@@ -1429,7 +1435,7 @@ class LiveCameraService:
             self.detector_service.detector.set_aquarium_region_defined(True)
 
             # Configure tracking mode
-            use_single_subject = (self._animals_per_aquarium == 1)
+            use_single_subject = self._animals_per_aquarium == 1
             self.detector_service.detector.set_single_subject_mode(use_single_subject)
 
             log.info(

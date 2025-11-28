@@ -312,6 +312,7 @@ class UICoordinator:
         """
         try:
             from tkinter import messagebox
+
             return messagebox.askokcancel(title, message)
         except Exception as e:
             log.error(

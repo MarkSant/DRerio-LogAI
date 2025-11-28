@@ -79,9 +79,7 @@ def test_select_eligible_videos_skip_dialog_warns_about_arena_only(orchestrator_
 
     assert eligible == ready_with_trajectory + ready_with_zones
     warning_events = [
-        evt
-        for evt in main_view_model.ui_event_bus.events
-        if evt[0] == Events.UI_SHOW_WARNING
+        evt for evt in main_view_model.ui_event_bus.events if evt[0] == Events.UI_SHOW_WARNING
     ]
     assert len(warning_events) == 1
     assert "(+2)" in warning_events[0][1]["message"]

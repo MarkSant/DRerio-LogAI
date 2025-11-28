@@ -512,13 +512,19 @@ class DetectorCoordinator(BaseCoordinator):
                 state_update = {
                     "detector_parameters_updated": True,
                     # Store scope if you want to track it in generic state, but verify model support
-                    # "last_update_scope": scope, 
+                    # "last_update_scope": scope,
                 }
-                
+
                 # Map and filter params for state update
-                # Valid keys from DetectorState: conf_threshold, track_threshold, match_threshold, track_buffer
-                valid_state_keys = {"conf_threshold", "track_threshold", "match_threshold", "track_buffer"}
-                
+                # Valid keys: conf_threshold, track_threshold,
+                # match_threshold, track_buffer
+                valid_state_keys = {
+                    "conf_threshold",
+                    "track_threshold",
+                    "match_threshold",
+                    "track_buffer",
+                }
+
                 for key, value in params.items():
                     # Map confidence_threshold to conf_threshold
                     if key == "confidence_threshold":

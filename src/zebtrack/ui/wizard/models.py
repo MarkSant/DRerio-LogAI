@@ -205,9 +205,7 @@ class FileSelectionData(BaseModel):
 
             # Task 2.4: Check if resolved path is in forbidden system directories
             resolved_str = str(resolved_path)
-            if any(
-                resolved_str.startswith(forbidden_dir) for forbidden_dir in FORBIDDEN_DIRS
-            ):
+            if any(resolved_str.startswith(forbidden_dir) for forbidden_dir in FORBIDDEN_DIRS):
                 forbidden_paths.append(f"{video_path} → {resolved_str} (sistema)")
                 continue
 
@@ -241,7 +239,8 @@ class FileSelectionData(BaseModel):
 
         if missing_files:
             errors.append(
-                "Arquivos não encontrados:\n  - " + "\n  - ".join(missing_files[:5])
+                "Arquivos não encontrados:\n  - "
+                + "\n  - ".join(missing_files[:5])
                 + (f"\n  ... e mais {len(missing_files) - 5}" if len(missing_files) > 5 else "")
             )
 

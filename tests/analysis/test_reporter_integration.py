@@ -470,7 +470,9 @@ class TestReporterEdgeCasesIntegration:
         )
 
         # Act & Assert: Should raise ValueError for empty dataframe
-        with pytest.raises(ValueError, match="Input DataFrame is empty"):
+        with pytest.raises(
+            ValueError, match="Trajectory validation failed: Trajectory dataframe is empty"
+        ):
             # OLD:             Reporter(
             # OLD:                 trajectory_df=empty_df,
             # OLD:                 metadata={"experiment_id": "empty_test"},

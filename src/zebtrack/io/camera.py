@@ -206,10 +206,7 @@ class Camera(FrameSource):
         else:
             elapsed = 0
 
-        if (
-            self._reconnect_timeout_seconds > 0
-            and elapsed > self._reconnect_timeout_seconds
-        ):
+        if self._reconnect_timeout_seconds > 0 and elapsed > self._reconnect_timeout_seconds:
             log.error(
                 "camera.reconnect.timeout",
                 elapsed_seconds=elapsed,
@@ -426,7 +423,9 @@ class Camera(FrameSource):
         """
         Returns the actual properties of the camera feed, guaranteed to be thread-safe.
         """
-        wait_timeout = self._reconnect_timeout_seconds if self._reconnect_timeout_seconds > 0 else 2.0
+        wait_timeout = (
+            self._reconnect_timeout_seconds if self._reconnect_timeout_seconds > 0 else 2.0
+        )
         self._reconnect_state_ready.wait(timeout=wait_timeout)
 
         with self._lock:

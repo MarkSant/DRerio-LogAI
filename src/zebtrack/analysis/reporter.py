@@ -631,9 +631,7 @@ class Reporter:
                 message="Plotly is required for interactive HTML reports. "
                 "Install with: pip install plotly",
             )
-            raise ImportError(
-                "Plotly is not installed. Run: pip install plotly"
-            )
+            raise ImportError("Plotly is not installed. Run: pip install plotly") from None
 
         output_path = Path(output_path) if isinstance(output_path, str) else output_path
 

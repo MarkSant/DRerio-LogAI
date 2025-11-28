@@ -8,7 +8,7 @@ Migrated from Task 2.2 legacy API to Phase 3 HardwareCoordinator.
 """
 
 import unittest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
 from zebtrack.core.detector_service import DetectorService
@@ -110,7 +110,10 @@ class TestSetupDetector(unittest.TestCase):
         assert success is True
         assert error is None
         self.mock_detector_service.initialize_detector.assert_called_once_with(
-            animal_method="det", use_openvino=False, active_weight_name="best.pt", detector_plugins=None
+            animal_method="det",
+            use_openvino=False,
+            active_weight_name="best.pt",
+            detector_plugins=None,
         )
 
     def test_setup_detector_with_default_params(self):
@@ -165,9 +168,7 @@ class TestRecordingCallbacks(unittest.TestCase):
         trigger_cb = Mock()
         stop_cb = Mock()
 
-        self.coordinator.set_recording_callbacks(
-            trigger_callback=trigger_cb, stop_callback=stop_cb
-        )
+        self.coordinator.set_recording_callbacks(trigger_callback=trigger_cb, stop_callback=stop_cb)
 
         assert self.coordinator._trigger_recording_callback == trigger_cb
         assert self.coordinator._stop_recording_callback == stop_cb
@@ -179,9 +180,7 @@ class TestRecordingCallbacks(unittest.TestCase):
         self.coordinator._stop_recording_callback = Mock()
 
         # Clear them
-        self.coordinator.set_recording_callbacks(
-            trigger_callback=None, stop_callback=None
-        )
+        self.coordinator.set_recording_callbacks(trigger_callback=None, stop_callback=None)
 
         assert self.coordinator._trigger_recording_callback is None
         assert self.coordinator._stop_recording_callback is None
@@ -208,7 +207,6 @@ class TestValidation(unittest.TestCase):
         """Test that detector_service is required for validation."""
         # Phase 3 API requires detector_service at init time (crashes if None)
         # So we can't create coordinator without it - this validates the contract
-        from zebtrack.coordinators.base import CoordinatorValidationError
 
         mock_detector = Mock(spec=DetectorService)
         mock_detector.settings = None  # Missing settings should fail validation

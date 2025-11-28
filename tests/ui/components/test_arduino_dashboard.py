@@ -11,7 +11,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
-
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.event_bus import EventBus
 
@@ -391,7 +390,10 @@ class TestArduinoDashboardWidget:
 
         # Verify messages were logged
         log_content = widget.log_text.get("1.0", "end")
-        wait_for_condition(lambda: sum(1 for msg in messages if msg in log_content) >= len(messages) // 2, timeout=1.0)
+        wait_for_condition(
+            lambda: sum(1 for msg in messages if msg in log_content) >= len(messages) // 2,
+            timeout=1.0,
+        )
         found_count = sum(1 for msg in messages if msg in log_content)
         assert found_count >= len(messages) // 2, (
             f"Expected at least {len(messages) // 2} messages in log, "

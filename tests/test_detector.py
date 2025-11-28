@@ -617,8 +617,12 @@ class TestDetectorZoneLogic(unittest.TestCase):
         self.mock_plugin.set_detect_return_value([small_detection, large_detection])
 
         # Mock ByteTracker to return detections as-is (bypass tracking logic)
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True), \
-             patch.object(self.detector, "_apply_byte_tracking", side_effect=lambda dets, shape: dets):
+        with (
+            patch.object(self.detector, "_is_inside_polygon", return_value=True),
+            patch.object(
+                self.detector, "_apply_byte_tracking", side_effect=lambda dets, shape: dets
+            ),
+        ):
             detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
         # Only the small detection should be returned (converted to class 1)

@@ -191,6 +191,11 @@ class LivePreviewWindow:
                 text=f"Tempo: {elapsed:.1f}s / {self.duration_s:.1f}s (Restante: {remaining:.1f}s)"
             )
 
+            # Check if time has expired
+            if remaining <= 0:
+                self._auto_stop()
+                return  # Don't schedule another update
+
         # Schedule next update
         self.window.after(100, self._update_timer)
 
@@ -199,7 +204,8 @@ class LivePreviewWindow:
         if self.is_stopped:
             return
 
-        log.info("live_preview.auto_stop", elapsed=time.time() - self.start_time)
+        elapsed = time.time() - self.start_time if self.start_time is not None else 0.0
+        log.info("live_preview.auto_stop", elapsed=elapsed)
         self.is_stopped = True
 
         self.status_label.config(text="● Tempo Expirado", foreground="orange")
@@ -213,7 +219,8 @@ class LivePreviewWindow:
         if self.is_stopped:
             return
 
-        log.info("live_preview.manual_stop", elapsed=time.time() - self.start_time)
+        elapsed = time.time() - self.start_time if self.start_time is not None else 0.0
+        log.info("live_preview.manual_stop", elapsed=elapsed)
         self.is_stopped = True
 
         self.status_label.config(text="● Parado", foreground="gray")

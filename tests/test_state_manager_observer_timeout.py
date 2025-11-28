@@ -99,4 +99,3 @@ def test_observer_exception_handling_with_timeout():
     time.sleep(0.2)
 
     assert len(other_observer_called) == 1, "Other observers should still be notified"
-

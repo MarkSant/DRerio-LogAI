@@ -163,9 +163,9 @@ class VideoProcessingService:
         if seek_time_ms < 10:
             skip_threshold = 120  # Fast seek - use larger skip
         elif seek_time_ms < 50:
-            skip_threshold = 80   # Medium seek
+            skip_threshold = 80  # Medium seek
         else:
-            skip_threshold = 60   # Slow seek - conservative skip
+            skip_threshold = 60  # Slow seek - conservative skip
 
         log.info(
             "video_processing.frame_skip_calibrated",
@@ -233,7 +233,9 @@ class VideoProcessingService:
             cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
             return True
 
-    def display_initial_frame(self, video_path: Path | str, frame: np.ndarray | None = None) -> None:
+    def display_initial_frame(
+        self, video_path: Path | str, frame: np.ndarray | None = None
+    ) -> None:
         """Display first frame of video in UI.
 
         Args:
@@ -353,14 +355,17 @@ class VideoProcessingService:
             # v2.2: Publish event instead of calling view directly
             if self.ui_event_bus is not None:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                self.ui_event_bus.publish(Event(
-                    UIEvents.ERROR_OCCURRED,
-                    {
-                        'title': 'Erro de Processamento',
-                        'message': f'Falha ao gerar arquivo de trajetória para {experiment_id}.',
-                        'details': f'Arquivo não encontrado: {trajectory_path}'
-                    }
-                ))
+
+                self.ui_event_bus.publish(
+                    Event(
+                        UIEvents.ERROR_OCCURRED,
+                        {
+                            "title": "Erro de Processamento",
+                            "message": f"Falha ao gerar arquivo de trajetória para {experiment_id}.",
+                            "details": f"Arquivo não encontrado: {trajectory_path}",
+                        },
+                    )
+                )
             return None
 
         try:
@@ -374,14 +379,17 @@ class VideoProcessingService:
             # v2.2: Publish event instead of calling view directly
             if self.ui_event_bus is not None:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
-                self.ui_event_bus.publish(Event(
-                    UIEvents.ERROR_OCCURRED,
-                    {
-                        'title': 'Erro de Processamento',
-                        'message': f'Falha ao ler arquivo de trajetória para {experiment_id}.',
-                        'details': str(exc)
-                    }
-                ))
+
+                self.ui_event_bus.publish(
+                    Event(
+                        UIEvents.ERROR_OCCURRED,
+                        {
+                            "title": "Erro de Processamento",
+                            "message": f"Falha ao ler arquivo de trajetória para {experiment_id}.",
+                            "details": str(exc),
+                        },
+                    )
+                )
             return None
 
     def _setup_tracking_session(
@@ -711,7 +719,7 @@ class VideoProcessingService:
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
         log.info("controller.tracking.check_or_run", video=experiment_id)
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
-        
+
         # We need the arena polygon. In MP mode, the worker calculates/verifies it,
         # but we need to return it.
         zone_data = self.project_manager.get_zone_data()
@@ -729,39 +737,28 @@ class VideoProcessingService:
         )
 
         # Prepare Worker Config
-        from zebtrack.core.processing_worker import ProcessingWorker, WorkerConfig
-        
-        # Serialize ZoneData for worker
-        serialized_zones = {
-            'polygon': zone_data.polygon,
-            'roi_polygons': zone_data.roi_polygons,
-            'roi_names': zone_data.roi_names,
-            'roi_colors': zone_data.roi_colors
-        }
+        # Prepare Worker Context and Callbacks
+        from zebtrack.core.processing_worker import (
+            ProcessingCallbacks,
+            ProcessingContext,
+            ProcessingWorker,
+        )
 
-        # Determine model type/path from settings if available, or infer
-        model_type = "yolo"
-        model_path = ""
-        if self.settings.model_selection.use_openvino:
-            model_type = "openvino"
-            # Logic to find openvino model path might be needed if not in settings
-            # Assuming settings has the correct path or default
-        
         # Resolve actual path from video_path object if it's a FrameSource
         actual_path = str(video_path)
-        if hasattr(video_path, 'video_path'):
-             actual_path = str(video_path.video_path)
-        elif hasattr(video_path, 'camera_index'):
-             actual_path = str(video_path.camera_index)
-        elif hasattr(video_path, 'get_properties'):
-             try:
-                 props = video_path.get_properties()
-                 if props.get('is_live_stream'):
-                     actual_path = str(props.get('camera_index', 0))
-                 elif 'path' in props:
-                     actual_path = str(props['path'])
-             except Exception:
-                 pass
+        if hasattr(video_path, "video_path"):
+            actual_path = str(video_path.video_path)
+        elif hasattr(video_path, "camera_index"):
+            actual_path = str(video_path.camera_index)
+        elif hasattr(video_path, "get_properties"):
+            try:
+                props = video_path.get_properties()
+                if props.get("is_live_stream"):
+                    actual_path = str(props.get("camera_index", 0))
+                elif "path" in props:
+                    actual_path = str(props["path"])
+            except Exception:
+                pass
 
         task = {
             "path": actual_path,
@@ -769,84 +766,60 @@ class VideoProcessingService:
             # Add calibration if needed
         }
 
-        config = WorkerConfig(
-            settings=self.settings,
+        # Create ProcessingContext
+        context = ProcessingContext(
+            videos_to_process=[task],
             output_base_dir=str(results_dir),
-            tasks=[task],
-            single_video_mode=True, # For this single run
+            cancel_event=self.cancel_event,
+            settings=self.settings,
+            single_video_config=None,
+            zone_data=zone_data,
             analysis_interval_frames=analysis_interval_frames,
             display_interval_frames=display_interval_frames,
-            model_type=model_type,
-            model_path=model_path,
-            zone_data=serialized_zones
         )
 
-        # Create Queues
-        import multiprocessing
-        result_queue = multiprocessing.Queue()
-        command_queue = multiprocessing.Queue()
+        # Container to capture result from callback
+        result_status = {"success": False}
 
-        worker = ProcessingWorker(config, result_queue, command_queue)
-        worker.start()
+        # Create ProcessingCallbacks
+        def on_progress(fraction, message, stats):
+            if progress_callback:
+                progress_callback(fraction, message, stats=stats)
 
-        success = False
-        
-        try:
-            while worker.is_alive():
-                # Check cancellation
-                if self.cancel_event.is_set():
-                    command_queue.put("cancel")
-                
-                try:
-                    # Poll queue with timeout to keep loop responsive
-                    msg = result_queue.get(timeout=0.1)
-                    msg_type = msg.get("type")
+        def on_frame_processed(frame, detections, info):
+            if frame is not None:
+                # Use event bus for frame display to avoid direct view access
+                if self.ui_event_bus:
+                    self.ui_event_bus.publish_event(
+                        Events.UI_DISPLAY_FRAME,
+                        {"frame": frame},
+                    )
+                else:
+                    self.ui_coordinator.display_frame(self.view, frame)
 
-                    if msg_type == "progress":
-                        if progress_callback:
-                            # Worker sends stats in msg
-                            progress_callback(
-                                msg["fraction"],
-                                msg["message"],
-                                frame=None, # Frame comes in separate msg
-                                stats=msg.get("stats"),
-                                detections=None # Detections not sent for perf, or add if needed
-                            )
-                    
-                    elif msg_type == "frame":
-                        # Display frame
-                        frame_data = msg.get("frame")
-                        if frame_data is not None:
-                            self.ui_coordinator.display_frame(self.view, frame_data)
+        def on_video_completed(idx, total, exp_id, success):
+            log.info("tracking.video_completed", video=exp_id, success=success)
+            result_status["success"] = success
 
-                    elif msg_type == "video_completed":
-                        success = msg.get("success", False)
-                    
-                    elif msg_type == "error":
-                        log.error("worker.error", error=msg.get("error"))
-                        self.ui_event_bus.publish_event(
-                            Events.UI_SHOW_ERROR,
-                            {"title": "Erro no Worker", "message": msg.get("error")}
-                        )
-                    
-                    elif msg_type == "completed":
-                        break
+        callbacks = ProcessingCallbacks(
+            on_started=lambda: log.info("tracking.started", video=experiment_id),
+            on_progress=on_progress,
+            on_frame_processed=on_frame_processed,
+            on_video_completed=on_video_completed,
+            on_error=lambda e, exp_id: log.error("tracking.error", video=exp_id, error=str(e)),
+            on_completed=lambda cancelled, out_dir: log.info(
+                "tracking.session_completed", cancelled=cancelled
+            ),
+            on_fatal_error=lambda e, msg, data: log.error("tracking.fatal_error", error=str(e)),
+        )
 
-                except multiprocessing.queues.Empty: # type: ignore
-                    continue
-        
-        except Exception as e:
-            log.error("controller.tracking.exception", error=str(e))
-            if worker.is_alive():
-                worker.terminate()
-            return False, None
-        
-        # Ensure worker is dead
-        worker.join(timeout=1.0)
-        
-        if success:
-            return True, arena_polygon
-        return False, None
+        worker = ProcessingWorker(context, callbacks)
+        monitor_thread = worker.start_in_thread()
+
+        # Wait for completion
+        monitor_thread.join()
+
+        return result_status["success"], arena_polygon
 
     def _prepare_zone_data_for_tracking(
         self, frame_width: int, frame_height: int, detector: Detector | None = None

@@ -108,7 +108,10 @@ class CanvasRenderer:
         if self.manager._canvas_bg_image:
             bg_items = canvas.find_withtag("background_image")
             if not bg_items:
-                if hasattr(self.manager, "_canvas_bg_position") and self.manager._canvas_bg_position:
+                if (
+                    hasattr(self.manager, "_canvas_bg_position")
+                    and self.manager._canvas_bg_position
+                ):
                     x, y, anchor = self.manager._canvas_bg_position
                 else:
                     canvas_width = canvas.winfo_width() or 800
@@ -278,9 +281,7 @@ class CanvasRenderer:
             self.gui.video_display.canvas.tag_bind(
                 handle, "<ButtonPress-1>", lambda e, i=i: self.gui._on_handle_press(e, i)
             )
-            self.gui.video_display.canvas.tag_bind(
-                handle, "<B1-Motion>", self.gui._on_handle_drag
-            )
+            self.gui.video_display.canvas.tag_bind(handle, "<B1-Motion>", self.gui._on_handle_drag)
             self.gui.video_display.canvas.tag_bind(
                 handle, "<ButtonRelease-1>", self.gui._on_handle_release
             )
