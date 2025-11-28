@@ -11,9 +11,12 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 log = structlog.get_logger().bind(component="ui.event_bus")
 
@@ -43,7 +46,7 @@ class NamedEvent:
     """Payload for named events with publish/subscribe pattern."""
 
     event_name: str
-    data: dict[str, Any]
+    data: Any  # Supports dict or Pydantic models
 
 
 @dataclass(slots=True)
@@ -70,7 +73,7 @@ class EventBus:
         """
         self._queue: queue.Queue[UIEvent] = queue.Queue(maxsize=maxsize)
         # Subscribers map: event_name -> list of handlers
-        self._subscribers: dict[str, list[Callable[[dict], Any]]] = defaultdict(list)
+        self._subscribers: dict[str, list[Callable[[Any], Any]]] = defaultdict(list)
 
     def publish(
         self,
@@ -117,7 +120,7 @@ class EventBus:
     def publish_event(
         self,
         event_name: str,
-        data: dict[str, Any] | None = None,
+        data: dict[str, Any] | BaseModel | None = None,
         *,
         block: bool = False,
         timeout: float | None = None,
@@ -126,16 +129,19 @@ class EventBus:
 
         Args:
             event_name: Name of the event (e.g., "recording:start", "project:close")
-            data: Optional dictionary containing event-specific data
+            data: Optional payload (dict or Pydantic model)
             block: Whether to block if queue is full
             timeout: Timeout for blocking operations
 
         Returns:
             True if event was successfully published, False if queue was full
         """
+        # Default to empty dict if None, otherwise use data as-is (dict or Model)
+        payload = data if data is not None else {}
+        
         event = UIEvent(
             EventType.NAMED,
-            NamedEvent(event_name=event_name, data=data or {}),
+            NamedEvent(event_name=event_name, data=payload),
         )
         published = self.publish(event, block=block, timeout=timeout)
         if not published:
@@ -145,12 +151,12 @@ class EventBus:
             )
         return published
 
-    def subscribe(self, event_name: str, handler: Callable[[dict], Any]) -> None:
+    def subscribe(self, event_name: str, handler: Callable[[Any], Any]) -> None:
         """Subscribe a handler to a named event.
 
         Args:
             event_name: Name of the event to subscribe to
-            handler: Callable that accepts a dict of event data
+            handler: Callable that accepts the event payload (dict or object)
         """
         if handler not in self._subscribers[event_name]:
             self._subscribers[event_name].append(handler)
@@ -160,7 +166,7 @@ class EventBus:
                 handler=getattr(handler, "__name__", repr(handler)),
             )
 
-    def unsubscribe(self, event_name: str, handler: Callable[[dict], Any]) -> None:
+    def unsubscribe(self, event_name: str, handler: Callable[[Any], Any]) -> None:
         """Unsubscribe a handler from a named event.
 
         Args:

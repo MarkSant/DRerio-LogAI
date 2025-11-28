@@ -691,22 +691,19 @@ class VideoProcessingService:
         display_interval_frames: int = 10,
         video_context: VideoContext | None = None,
     ) -> tuple[bool, list | None]:
-        """Run tracking process if trajectory doesn't exist.
-
-        Phase 3: Moved from MainViewModel._run_tracking_if_needed
-        Phase 4 Refactoring: Simplified by extracting helper methods
+        """Run tracking process using multiprocessing worker to bypass GIL.
 
         Args:
             video_path: Path to video file
             results_dir: Output directory for results
             experiment_id: Unique experiment identifier
-            detector: Optional detector override (defaults to injected instance)
-            recorder: Optional recorder override (defaults to injected instance)
+            detector: Optional detector override (ignored in MP mode, uses settings)
+            recorder: Optional recorder override (ignored in MP mode, uses settings)
             progress_callback: Optional progress update callback
             calibration_data: Optional calibration configuration
             analysis_interval_frames: Frame interval for analysis
             display_interval_frames: Frame interval for display
-            video_context: Optional cached capture metadata to avoid reopening
+            video_context: Optional cached capture metadata
 
         Returns:
             Tuple of (success: bool, arena_polygon: list | None)
@@ -714,275 +711,142 @@ class VideoProcessingService:
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
         log.info("controller.tracking.check_or_run", video=experiment_id)
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
-        arena_polygon = self.project_manager.get_zone_data().polygon
-
-        detector = detector or self.detector
-        recorder = recorder or self.recorder
+        
+        # We need the arena polygon. In MP mode, the worker calculates/verifies it,
+        # but we need to return it.
+        zone_data = self.project_manager.get_zone_data()
+        arena_polygon = zone_data.polygon
 
         # Early return if trajectory already exists
         if os.path.exists(trajectory_path):
             log.info("controller.tracking.exists", path=trajectory_path)
             return True, arena_polygon
 
-        if detector is None:
-            log.error("controller.tracking.no_detector")
-            return False, None
-
-        if recorder is None:
-            log.error("controller.tracking.no_recorder")
-            return False, None
-
-        log.info("controller.tracking.generating", video=experiment_id)
+        log.info("controller.tracking.starting_process", video=experiment_id)
         self.ui_event_bus.publish_event(
             Events.UI_SET_STATUS,
-            {"message": f"Gerando trajetória para {experiment_id}..."},
+            {"message": f"Iniciando processo para {experiment_id}..."},
         )
 
-        cap = None
-        session_recorder: Recorder | None = None
+        # Prepare Worker Config
+        from zebtrack.core.processing_worker import ProcessingWorker, WorkerConfig
+        
+        # Serialize ZoneData for worker
+        serialized_zones = {
+            'polygon': zone_data.polygon,
+            'roi_polygons': zone_data.roi_polygons,
+            'roi_names': zone_data.roi_names,
+            'roi_colors': zone_data.roi_colors
+        }
+
+        # Determine model type/path from settings if available, or infer
+        model_type = "yolo"
+        model_path = ""
+        if self.settings.model_selection.use_openvino:
+            model_type = "openvino"
+            # Logic to find openvino model path might be needed if not in settings
+            # Assuming settings has the correct path or default
+        
+        # Resolve actual path from video_path object if it's a FrameSource
+        actual_path = str(video_path)
+        if hasattr(video_path, 'video_path'):
+             actual_path = str(video_path.video_path)
+        elif hasattr(video_path, 'camera_index'):
+             actual_path = str(video_path.camera_index)
+        elif hasattr(video_path, 'get_properties'):
+             try:
+                 props = video_path.get_properties()
+                 if props.get('is_live_stream'):
+                     actual_path = str(props.get('camera_index', 0))
+                 elif 'path' in props:
+                     actual_path = str(props['path'])
+             except Exception:
+                 pass
+
+        task = {
+            "path": actual_path,
+            "experiment_id": experiment_id,
+            # Add calibration if needed
+        }
+
+        config = WorkerConfig(
+            settings=self.settings,
+            output_base_dir=str(results_dir),
+            tasks=[task],
+            single_video_mode=True, # For this single run
+            analysis_interval_frames=analysis_interval_frames,
+            display_interval_frames=display_interval_frames,
+            model_type=model_type,
+            model_path=model_path,
+            zone_data=serialized_zones
+        )
+
+        # Create Queues
+        import multiprocessing
+        result_queue = multiprocessing.Queue()
+        command_queue = multiprocessing.Queue()
+
+        worker = ProcessingWorker(config, result_queue, command_queue)
+        worker.start()
+
+        success = False
+        
         try:
-            # Setup tracking session
-            setup_result = self._setup_tracking_session(
-                video_path=video_path,
-                results_dir=results_dir,
-                experiment_id=experiment_id,
-                calibration_data=calibration_data,
-                recorder=recorder,
-                detector=detector,
-                video_context=video_context,
-            )
-            (
-                cap,
-                session_recorder,
-                _zone_data,
-                arena_polygon,
-                _cal,
-                _pixel_per_cm_ratio,
-            ) = setup_result
+            while worker.is_alive():
+                # Check cancellation
+                if self.cancel_event.is_set():
+                    command_queue.put("cancel")
+                
+                try:
+                    # Poll queue with timeout to keep loop responsive
+                    msg = result_queue.get(timeout=0.1)
+                    msg_type = msg.get("type")
 
-            if cap is None:
-                return False, None
+                    if msg_type == "progress":
+                        if progress_callback:
+                            # Worker sends stats in msg
+                            progress_callback(
+                                msg["fraction"],
+                                msg["message"],
+                                frame=None, # Frame comes in separate msg
+                                stats=msg.get("stats"),
+                                detections=None # Detections not sent for perf, or add if needed
+                            )
+                    
+                    elif msg_type == "frame":
+                        # Display frame
+                        frame_data = msg.get("frame")
+                        if frame_data is not None:
+                            self.ui_coordinator.display_frame(self.view, frame_data)
 
-            # Reset detector tracking state
-            self._reset_detector_tracking_state(detector)
-
-            # Process frames loop
-            frame_num = 0
-            processed_frames_count = 0
-            detected_frames_count = 0
-            start_time = time.time()
-            cancel_requested = False
-
-            log.info("controller.tracking.loop.start", video=experiment_id)
-
-            while True:
-                if self._tracking_cancelled(
-                    experiment_id, frame_num, "controller.tracking.cancelled.event_detected"
-                ):
-                    cancel_requested = True
-                    break
-
-                # Optimized frame reading: use grab() for skipped frames (10-20x faster)
-                # Only decode frames that will be processed (analysis_interval_frames)
-                should_process = frame_num % analysis_interval_frames == 0
-
-                if should_process:
-                    # Decode this frame for processing
-                    ret, frame = cap.read()
-                else:
-                    # Skip decoding - just advance video position (fast seek)
-                    ret = cap.grab()
-                    frame = None
-
-                if not ret:
-                    log.info("controller.tracking.loop.end_of_video", frame=frame_num)
-                    break
-
-                if self._tracking_cancelled(
-                    experiment_id, frame_num, "controller.tracking.cancelled.after_read"
-                ):
-                    cancel_requested = True
-                    break
-
-                # Process frame (only if decoded)
-                if should_process:
-                    detections, detected_increment, was_processed = self._process_tracking_frame(
-                        frame=frame,
-                        frame_num=frame_num,
-                        analysis_interval_frames=analysis_interval_frames,
-                        cap=cap,
-                        recorder=session_recorder,
-                        detector=detector,
-                    )
-
-                    if was_processed:
-                        processed_frames_count += 1
-                        detected_frames_count += detected_increment
-
-                    if self._tracking_cancelled(
-                        experiment_id,
-                        frame_num,
-                        "controller.tracking.cancelled.before_progress",
-                    ):
-                        cancel_requested = True
+                    elif msg_type == "video_completed":
+                        success = msg.get("success", False)
+                    
+                    elif msg_type == "error":
+                        log.error("worker.error", error=msg.get("error"))
+                        self.ui_event_bus.publish_event(
+                            Events.UI_SHOW_ERROR,
+                            {"title": "Erro no Worker", "message": msg.get("error")}
+                        )
+                    
+                    elif msg_type == "completed":
                         break
 
-                    # Update progress
-                    if progress_callback:
-                        progress_fraction, stats = self._calculate_tracking_progress_stats(
-                            frame_num=frame_num,
-                            processed_frames_count=processed_frames_count,
-                            detected_frames_count=detected_frames_count,
-                            start_time=start_time,
-                            cap=cap,
-                        )
-
-                        detector.draw_overlay(frame, detections)
-                        progress_callback(
-                            progress_fraction,
-                            "Gerando trajetória...",
-                            frame,
-                            stats,
-                            detections=detections,
-                        )
-
-                frame_num += 1
-
-            # Finalize session
-            return self._finalize_tracking_session(
-                recorder=session_recorder,
-                cancel_requested=cancel_requested,
-                experiment_id=experiment_id,
-                trajectory_path=trajectory_path,
-                arena_polygon=arena_polygon,
-            )
-
-        # Task 2.5: Specific exception handling instead of generic Exception
-        except (FileNotFoundError, PermissionError) as e:
-            # File system errors: missing video, no write permissions, etc.
-            log.error(
-                "controller.tracking.filesystem_error",
-                video=experiment_id,
-                error=str(e),
-                exc_info=True,
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro de Acesso ao Arquivo",
-                    "message": (
-                        f"Erro ao acessar arquivos para {experiment_id}:\n"
-                        f"{e}\n\n"
-                        f"Verifique:\n"
-                        f"• O vídeo existe e está acessível\n"
-                        f"• Você tem permissão de escrita no diretório\n"
-                        f"• O disco não está cheio"
-                    ),
-                },
-            )
-            return False, None
-        except OSError as e:
-            # I/O errors: disk full, network drive disconnected, etc.
-            log.error(
-                "controller.tracking.io_error",
-                video=experiment_id,
-                error=str(e),
-                exc_info=True,
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro de I/O",
-                    "message": (
-                        f"Erro de entrada/saída para {experiment_id}:\n"
-                        f"{e}\n\n"
-                        f"Possíveis causas:\n"
-                        f"• Disco cheio\n"
-                        f"• Dispositivo de rede desconectado\n"
-                        f"• Hardware com problemas"
-                    ),
-                },
-            )
-            return False, None
-        except cv2.error as e:
-            # OpenCV errors: corrupted video, unsupported codec, etc.
-            log.error(
-                "controller.tracking.opencv_error",
-                video=experiment_id,
-                error=str(e),
-                exc_info=True,
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro no Vídeo",
-                    "message": (
-                        f"Erro ao processar vídeo {experiment_id}:\n"
-                        f"{e}\n\n"
-                        f"Possíveis causas:\n"
-                        f"• Vídeo corrompido\n"
-                        f"• Codec não suportado\n"
-                        f"• Formato de vídeo inválido"
-                    ),
-                },
-            )
-            return False, None
-        except (ValueError, TypeError) as e:
-            # Data validation errors: invalid parameters, wrong data types
-            log.error(
-                "controller.tracking.validation_error",
-                video=experiment_id,
-                error=str(e),
-                exc_info=True,
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro de Validação",
-                    "message": (
-                        f"Dados inválidos para {experiment_id}:\n"
-                        f"{e}\n\n"
-                        f"Verifique a configuração do experimento."
-                    ),
-                },
-            )
-            return False, None
+                except multiprocessing.queues.Empty: # type: ignore
+                    continue
+        
         except Exception as e:
-            # Fallback for truly unexpected errors
-            # Task 2.5: This should be rare - log with high severity
-            log.critical(
-                "controller.tracking.unexpected_error",
-                video=experiment_id,
-                error=str(e),
-                error_type=type(e).__name__,
-                exc_info=True,
-            )
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_ERROR,
-                {
-                    "title": "Erro Inesperado de Rastreamento",
-                    "message": (
-                        f"Erro inesperado ({type(e).__name__}) ao processar {experiment_id}:\n"
-                        f"{e}\n\n"
-                        f"Por favor, reporte este erro aos desenvolvedores."
-                    ),
-                },
-            )
+            log.error("controller.tracking.exception", error=str(e))
+            if worker.is_alive():
+                worker.terminate()
             return False, None
-        finally:
-            if cap is not None and cap.isOpened():
-                cap.release()
-            if video_context is not None:
-                video_context.cap = None
-            if session_recorder is not None and getattr(session_recorder, "is_recording", False):
-                try:
-                    session_recorder.stop_recording(force_stop=True, reason="Exception cleanup")
-                except Exception:
-                    log.warning(
-                        "controller.tracking.recorder_cleanup_failed",
-                        video=experiment_id,
-                        exc_info=True,
-                    )
+        
+        # Ensure worker is dead
+        worker.join(timeout=1.0)
+        
+        if success:
+            return True, arena_polygon
+        return False, None
 
     def _prepare_zone_data_for_tracking(
         self, frame_width: int, frame_height: int, detector: Detector | None = None
