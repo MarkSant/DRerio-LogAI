@@ -41,7 +41,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             self.nms_threshold = 0.45
 
         # ByteTrack threshold hints consumed by core.detector.Detector
-        self.track_threshold = 0.25
+        self.track_threshold = 0.1  # Lowered from 0.25 to allow tracking of faint detections
         self.match_threshold = 0.15
         self.track_buffer = 60
 

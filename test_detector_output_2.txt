@@ -1,0 +1,235 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-8.4.1, pluggy-1.6.0
+benchmark: 5.2.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI
+configfile: pytest.ini
+plugins: anyio-4.11.0, benchmark-5.2.0, cov-6.3.0, timeout-2.4.0, xdist-3.8.0
+timeout: 300.0s
+timeout method: thread
+timeout func_only: False
+collected 33 items
+
+tests\test_detector.py .....F......F..F.FFF.F......F.F..                 [100%]
+=== PYTEST SESSION CLEANUP ===
+Shutdown 1 ThreadPoolExecutor(s)
+Found 1 non-daemon thread(s) to cleanup:
+  - ThreadPoolExecutor-0_0 (alive=True)
+
+Remaining threads at session end: 1
+  - MainThread: daemon=False, alive=True
+==============================
+
+
+
+================================== FAILURES ===================================
+_____________ TestDetector.test_detect_returns_tracked_detections _____________
+tests\test_detector.py:133: in test_detect_returns_tracked_detections
+    self.assertEqual(len(detections), 1)
+E   AssertionError: 0 != 1
+---------------------------- Captured stdout call -----------------------------
+2025-11-27 18:25:49 [info     ] detector.init.success          plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.aquarium_region_defined.set defined=True
+2025-11-27 18:25:49 [info     ] detector.scaling.updated_and_cached height=480 width=640
+2025-11-27 18:25:49 [info     ] detector.zones.set             count=0
+2025-11-27 18:25:49 [info     ] detector.predictions_before_polygon_filter count=1 has_polygon=True
+2025-11-27 18:25:49 [info     ] detector.polygon_filter_decision_flags aquarium_defined=True context=tracking has_polygon=True polygon_size=8
+2025-11-27 18:25:49 [info     ] detector.filtering_context_check aquarium_defined=True current_context=tracking detections_in_polygon=1
+2025-11-27 18:25:49 [info     ] detector.filtering_by_class    aquarium_defined=True detections_in_polygon=1 target_class=zebrafish(1)
+2025-11-27 18:25:49 [info     ] detector.filtered_by_class     bbox=(150, 150, 160, 160) class_id=0 reason=arena_defined
+2025-11-27 18:25:49 [info     ] detector.bytetrack.input       frame_shape=(480, 640, 3) num_detections=0
+2025-11-27 18:25:49 [info     ] detector.bytetrack.output      num_tracks=0 reason=no_input_detections
+2025-11-27 18:25:49 [info     ] detector.byte_tracking.applied num_detections=0
+2025-11-27 18:25:49 [debug    ] frame.processing.time          duration_ms=1.0256999994453508 plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.detect.final_result   context=tracking num_detections=0 single_subject_mode=False
+____ TestDetector.test_reset_tracking_state_clears_single_subject_tracker _____
+tests\test_detector.py:194: in test_reset_tracking_state_clears_single_subject_tracker
+    self.assertEqual(results[0][:4], (300, 300, 320, 320))
+                     ^^^^^^^^^^
+E   IndexError: list index out of range
+---------------------------- Captured stdout call -----------------------------
+2025-11-27 18:25:49 [info     ] detector.init.success          plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.aquarium_region_defined.set defined=True
+2025-11-27 18:25:49 [info     ] detector.scaling.updated_and_cached height=480 width=640
+2025-11-27 18:25:49 [info     ] detector.zones.set             count=0
+2025-11-27 18:25:49 [info     ] detector.single_subject_mode.changed enabled=True previous=False
+2025-11-27 18:25:49 [info     ] detector.single_subject_mode.plugin_updated enabled=True
+2025-11-27 18:25:49 [info     ] detector.predictions_before_polygon_filter count=1 has_polygon=True
+2025-11-27 18:25:49 [info     ] detector.polygon_filter_decision_flags aquarium_defined=True context=tracking has_polygon=True polygon_size=8
+2025-11-27 18:25:49 [info     ] detector.filtering_context_check aquarium_defined=True current_context=tracking detections_in_polygon=1
+2025-11-27 18:25:49 [info     ] detector.filtering_by_class    aquarium_defined=True detections_in_polygon=1 target_class=zebrafish(1)
+2025-11-27 18:25:49 [info     ] detector.filtered_by_class     bbox=(50, 50, 80, 80) class_id=0 reason=arena_defined
+2025-11-27 18:25:49 [info     ] detector.single_subject_tracking.applied num_detections=0
+2025-11-27 18:25:49 [debug    ] frame.processing.time          duration_ms=1.0468000000400934 plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.detect.final_result   context=tracking num_detections=0 single_subject_mode=True
+2025-11-27 18:25:49 [info     ] detector.predictions_before_polygon_filter count=1 has_polygon=True
+2025-11-27 18:25:49 [info     ] detector.polygon_filter_decision_flags aquarium_defined=True context=tracking has_polygon=True polygon_size=8
+2025-11-27 18:25:49 [info     ] detector.filtering_context_check aquarium_defined=True current_context=tracking detections_in_polygon=1
+2025-11-27 18:25:49 [info     ] detector.filtering_by_class    aquarium_defined=True detections_in_polygon=1 target_class=zebrafish(1)
+2025-11-27 18:25:49 [info     ] detector.filtered_by_class     bbox=(300, 300, 320, 320) class_id=0 reason=arena_defined
+2025-11-27 18:25:49 [info     ] detector.single_subject_tracking.applied num_detections=0
+2025-11-27 18:25:49 [debug    ] frame.processing.time          duration_ms=0.9351000007882249 plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.detect.final_result   context=tracking num_detections=0 single_subject_mode=True
+_______ TestDetector.test_single_subject_mode_assigns_constant_track_id _______
+tests\test_detector.py:160: in test_single_subject_mode_assigns_constant_track_id
+    self.assertEqual(len(results1), 1)
+E   AssertionError: 0 != 1
+---------------------------- Captured stdout call -----------------------------
+2025-11-27 18:25:49 [info     ] detector.init.success          plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.aquarium_region_defined.set defined=True
+2025-11-27 18:25:49 [info     ] detector.scaling.updated_and_cached height=480 width=640
+2025-11-27 18:25:49 [info     ] detector.zones.set             count=0
+2025-11-27 18:25:49 [info     ] detector.single_subject_mode.changed enabled=True previous=False
+2025-11-27 18:25:49 [info     ] detector.single_subject_mode.plugin_updated enabled=True
+2025-11-27 18:25:49 [info     ] detector.predictions_before_polygon_filter count=2 has_polygon=True
+2025-11-27 18:25:49 [info     ] detector.polygon_filter_decision_flags aquarium_defined=True context=tracking has_polygon=True polygon_size=8
+2025-11-27 18:25:49 [info     ] detector.filtering_context_check aquarium_defined=True current_context=tracking detections_in_polygon=2
+2025-11-27 18:25:49 [info     ] detector.filtering_by_class    aquarium_defined=True detections_in_polygon=2 target_class=zebrafish(1)
+2025-11-27 18:25:49 [info     ] detector.filtered_by_class     bbox=(10, 10, 30, 30) class_id=0 reason=arena_defined
+2025-11-27 18:25:49 [info     ] detector.filtered_by_class     bbox=(100, 100, 120, 120) class_id=0 reason=arena_defined
+2025-11-27 18:25:49 [info     ] detector.single_subject_tracking.applied num_detections=0
+2025-11-27 18:25:49 [debug    ] frame.processing.time          duration_ms=0.6604000009247102 plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.detect.final_result   context=tracking num_detections=0 single_subject_mode=True
+________ TestDetectorZoneLogic.test_bytetrack_handles_empty_detections ________
+tests\test_detector.py:467: in test_bytetrack_handles_empty_detections
+    self.assertEqual(len(detections1), 1)
+E   AssertionError: 0 != 1
+---------------------------- Captured stdout call -----------------------------
+2025-11-27 18:25:49 [info     ] detector.init.success          plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.aquarium_region_defined.set defined=True
+2025-11-27 18:25:49 [info     ] detector.scaling.updated_and_cached height=480 width=640
+2025-11-27 18:25:49 [info     ] detector.zones.set             count=0
+2025-11-27 18:25:49 [info     ] detector.predictions_before_polygon_filter count=1 has_polygon=True
+2025-11-27 18:25:49 [info     ] detector.polygon_filter_decision_flags aquarium_defined=True context=tracking has_polygon=True polygon_size=8
+2025-11-27 18:25:49 [info     ] detector.filtering_context_check aquarium_defined=True current_context=tracking detections_in_polygon=1
+2025-11-27 18:25:49 [info     ] detector.filtering_by_class    aquarium_defined=True detections_in_polygon=1 target_class=zebrafish(1)
+2025-11-27 18:25:49 [info     ] detector.filtered_by_class     bbox=(100, 100, 120, 120) class_id=0 reason=arena_defined
+2025-11-27 18:25:49 [info     ] detector.bytetrack.input       frame_shape=(480, 640, 3) num_detections=0
+2025-11-27 18:25:49 [info     ] detector.bytetrack.output      num_tracks=0 reason=no_input_detections
+2025-11-27 18:25:49 [info     ] detector.byte_tracking.applied num_detections=0
+2025-11-27 18:25:49 [debug    ] frame.processing.time          duration_ms=0.9046999985002913 plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.detect.final_result   context=tracking num_detections=0 single_subject_mode=False
+______ TestDetectorZoneLogic.test_bytetrack_integration_with_detections _______
+tests\test_detector.py:441: in test_bytetrack_integration_with_detections
+    self.assertGreaterEqual(len(detections1), 1)
+E   AssertionError: 0 not greater than or equal to 1
+---------------------------- Captured stdout call -----------------------------
+2025-11-27 18:25:49 [info     ] detector.init.success          plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.aquarium_region_defined.set defined=True
+2025-11-27 18:25:49 [info     ] detector.scaling.updated_and_cached height=480 width=640
+2025-11-27 18:25:49 [info     ] detector.zones.set             count=0
+2025-11-27 18:25:49 [info     ] detector.predictions_before_polygon_filter count=1 has_polygon=True
+2025-11-27 18:25:49 [info     ] detector.polygon_filter_decision_flags aquarium_defined=True context=tracking has_polygon=True polygon_size=8
+2025-11-27 18:25:49 [info     ] detector.filtering_context_check aquarium_defined=True current_context=tracking detections_in_polygon=1
+2025-11-27 18:25:49 [info     ] detector.filtering_by_class    aquarium_defined=True detections_in_polygon=1 target_class=zebrafish(1)
+2025-11-27 18:25:49 [info     ] detector.filtered_by_class     bbox=(100, 100, 120, 120) class_id=0 reason=arena_defined
+2025-11-27 18:25:49 [info     ] detector.bytetrack.input       frame_shape=(480, 640, 3) num_detections=0
+2025-11-27 18:25:49 [info     ] detector.bytetrack.output      num_tracks=0 reason=no_input_detections
+2025-11-27 18:25:49 [info     ] detector.byte_tracking.applied num_detections=0
+2025-11-27 18:25:49 [debug    ] frame.processing.time          duration_ms=1.319099999818718 plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.detect.final_result   context=tracking num_detections=0 single_subject_mode=False
+__ TestDetectorZoneLogic.test_detect_filters_multiple_detections_by_polygon ___
+tests\test_detector.py:369: in test_detect_filters_multiple_detections_by_polygon
+    self.assertEqual(len(detections), 1)
+E   AssertionError: 0 != 1
+---------------------------- Captured stdout call -----------------------------
+2025-11-27 18:25:49 [info     ] detector.init.success          plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.aquarium_region_defined.set defined=True
+2025-11-27 18:25:49 [info     ] detector.scaling.updated_and_cached height=480 width=640
+2025-11-27 18:25:49 [info     ] detector.zones.set             count=0
+2025-11-27 18:25:49 [info     ] detector.predictions_before_polygon_filter count=2 has_polygon=True
+2025-11-27 18:25:49 [info     ] detector.polygon_filter_decision_flags aquarium_defined=True context=tracking has_polygon=True polygon_size=8
+2025-11-27 18:25:49 [info     ] detector.filtered_outside_polygon bbox=(250, 266, 260, 276) class_id=0 track_id=None
+2025-11-27 18:25:49 [info     ] detector.filtering_context_check aquarium_defined=True current_context=tracking detections_in_polygon=1
+2025-11-27 18:25:49 [info     ] detector.filtering_by_class    aquarium_defined=True detections_in_polygon=1 target_class=zebrafish(1)
+2025-11-27 18:25:49 [info     ] detector.filtered_by_class     bbox=(110, 126, 120, 136) class_id=0 reason=arena_defined
+2025-11-27 18:25:49 [info     ] detector.bytetrack.input       frame_shape=(480, 640, 3) num_detections=0
+2025-11-27 18:25:49 [info     ] detector.bytetrack.output      num_tracks=0 reason=no_input_detections
+2025-11-27 18:25:49 [info     ] detector.byte_tracking.applied num_detections=0
+2025-11-27 18:25:49 [debug    ] frame.processing.time          duration_ms=0.9718000001157634 plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.detect.final_result   context=tracking num_detections=0 single_subject_mode=False
+_______ TestDetectorZoneLogic.test_detect_with_non_rectangular_polygon ________
+tests\test_detector.py:557: in test_detect_with_non_rectangular_polygon
+    self.assertEqual(len(detections), 1)
+E   AssertionError: 0 != 1
+---------------------------- Captured stdout call -----------------------------
+2025-11-27 18:25:49 [info     ] detector.init.success          plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.aquarium_region_defined.set defined=True
+2025-11-27 18:25:49 [info     ] detector.scaling.updated_and_cached height=480 width=640
+2025-11-27 18:25:49 [info     ] detector.zones.set             count=0
+2025-11-27 18:25:49 [info     ] detector.predictions_before_polygon_filter count=1 has_polygon=True
+2025-11-27 18:25:49 [info     ] detector.polygon_filter_decision_flags aquarium_defined=True context=tracking has_polygon=True polygon_size=10
+2025-11-27 18:25:49 [info     ] detector.filtering_context_check aquarium_defined=True current_context=tracking detections_in_polygon=1
+2025-11-27 18:25:49 [info     ] detector.filtering_by_class    aquarium_defined=True detections_in_polygon=1 target_class=zebrafish(1)
+2025-11-27 18:25:49 [info     ] detector.filtered_by_class     bbox=(370, 316, 380, 326) class_id=0 reason=arena_defined
+2025-11-27 18:25:49 [info     ] detector.bytetrack.input       frame_shape=(480, 640, 3) num_detections=0
+2025-11-27 18:25:49 [info     ] detector.bytetrack.output      num_tracks=0 reason=no_input_detections
+2025-11-27 18:25:49 [info     ] detector.byte_tracking.applied num_detections=0
+2025-11-27 18:25:49 [debug    ] frame.processing.time          duration_ms=0.8328000003530178 plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.detect.final_result   context=tracking num_detections=0 single_subject_mode=False
+____________ TestDetectorZoneLogic.test_multiple_animals_tracking _____________
+tests\test_detector.py:495: in test_multiple_animals_tracking
+    self.assertEqual(len(detections1), 2)
+E   AssertionError: 0 != 2
+---------------------------- Captured stdout call -----------------------------
+2025-11-27 18:25:49 [info     ] detector.init.success          plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.aquarium_region_defined.set defined=True
+2025-11-27 18:25:49 [info     ] detector.scaling.updated_and_cached height=480 width=640
+2025-11-27 18:25:49 [info     ] detector.zones.set             count=0
+2025-11-27 18:25:49 [info     ] detector.predictions_before_polygon_filter count=2 has_polygon=True
+2025-11-27 18:25:49 [info     ] detector.polygon_filter_decision_flags aquarium_defined=True context=tracking has_polygon=True polygon_size=8
+2025-11-27 18:25:49 [info     ] detector.filtering_context_check aquarium_defined=True current_context=tracking detections_in_polygon=2
+2025-11-27 18:25:49 [info     ] detector.filtering_by_class    aquarium_defined=True detections_in_polygon=2 target_class=zebrafish(1)
+2025-11-27 18:25:49 [info     ] detector.filtered_by_class     bbox=(100, 100, 120, 120) class_id=0 reason=arena_defined
+2025-11-27 18:25:49 [info     ] detector.filtered_by_class     bbox=(400, 400, 420, 420) class_id=0 reason=arena_defined
+2025-11-27 18:25:49 [info     ] detector.bytetrack.input       frame_shape=(480, 640, 3) num_detections=0
+2025-11-27 18:25:49 [info     ] detector.bytetrack.output      num_tracks=0 reason=no_input_detections
+2025-11-27 18:25:49 [info     ] detector.byte_tracking.applied num_detections=0
+2025-11-27 18:25:49 [debug    ] frame.processing.time          duration_ms=0.9145000003627501 plugin='Mock Plugin'
+2025-11-27 18:25:49 [info     ] detector.detect.final_result   context=tracking num_detections=0 single_subject_mode=False
+______ TestDetectorZoneLogic.test_reset_tracking_state_clears_bytetrack _______
+tests\test_detector.py:521: in test_reset_tracking_state_clears_bytetrack
+    track_id2 = detections2[0][5]
+                ^^^^^^^^^^^^^^
+E   IndexError: list index out of range
+---------------------------- Captured stdout call -----------------------------
+2025-11-27 18:25:50 [info     ] detector.init.success          plugin='Mock Plugin'
+2025-11-27 18:25:50 [info     ] detector.aquarium_region_defined.set defined=True
+2025-11-27 18:25:50 [info     ] detector.scaling.updated_and_cached height=480 width=640
+2025-11-27 18:25:50 [info     ] detector.zones.set             count=0
+2025-11-27 18:25:50 [info     ] detector.predictions_before_polygon_filter count=1 has_polygon=True
+2025-11-27 18:25:50 [info     ] detector.polygon_filter_decision_flags aquarium_defined=True context=tracking has_polygon=True polygon_size=8
+2025-11-27 18:25:50 [info     ] detector.filtering_context_check aquarium_defined=True current_context=tracking detections_in_polygon=1
+2025-11-27 18:25:50 [info     ] detector.filtering_by_class    aquarium_defined=True detections_in_polygon=1 target_class=zebrafish(1)
+2025-11-27 18:25:50 [info     ] detector.filtered_by_class     bbox=(100, 100, 120, 120) class_id=0 reason=arena_defined
+2025-11-27 18:25:50 [info     ] detector.bytetrack.input       frame_shape=(480, 640, 3) num_detections=0
+2025-11-27 18:25:50 [info     ] detector.bytetrack.output      num_tracks=0 reason=no_input_detections
+2025-11-27 18:25:50 [info     ] detector.byte_tracking.applied num_detections=0
+2025-11-27 18:25:50 [debug    ] frame.processing.time          duration_ms=0.8148999986588024 plugin='Mock Plugin'
+2025-11-27 18:25:50 [info     ] detector.detect.final_result   context=tracking num_detections=0 single_subject_mode=False
+2025-11-27 18:25:50 [info     ] detector.predictions_before_polygon_filter count=1 has_polygon=True
+2025-11-27 18:25:50 [info     ] detector.polygon_filter_decision_flags aquarium_defined=True context=tracking has_polygon=True polygon_size=8
+2025-11-27 18:25:50 [info     ] detector.filtering_context_check aquarium_defined=True current_context=tracking detections_in_polygon=1
+2025-11-27 18:25:50 [info     ] detector.filtering_by_class    aquarium_defined=True detections_in_polygon=1 target_class=zebrafish(1)
+2025-11-27 18:25:50 [info     ] detector.filtered_by_class     bbox=(100, 100, 120, 120) class_id=0 reason=arena_defined
+2025-11-27 18:25:50 [info     ] detector.bytetrack.input       frame_shape=(480, 640, 3) num_detections=0
+2025-11-27 18:25:50 [info     ] detector.bytetrack.output      num_tracks=0 reason=no_input_detections
+2025-11-27 18:25:50 [info     ] detector.byte_tracking.applied num_detections=0
+2025-11-27 18:25:50 [debug    ] frame.processing.time          duration_ms=0.729800001863623 plugin='Mock Plugin'
+2025-11-27 18:25:50 [info     ] detector.detect.final_result   context=tracking num_detections=0 single_subject_mode=False
+============================== warnings summary ===============================
+tests\conftest.py:89
+  c:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\tests\conftest.py:89: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, ThreadPoolExecutor):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_detector.py::TestDetector::test_detect_returns_tracked_detections
+FAILED tests/test_detector.py::TestDetector::test_reset_tracking_state_clears_single_subject_tracker
+FAILED tests/test_detector.py::TestDetector::test_single_subject_mode_assigns_constant_track_id
+FAILED tests/test_detector.py::TestDetectorZoneLogic::test_bytetrack_handles_empty_detections
+FAILED tests/test_detector.py::TestDetectorZoneLogic::test_bytetrack_integration_with_detections
+FAILED tests/test_detector.py::TestDetectorZoneLogic::test_detect_filters_multiple_detections_by_polygon
+FAILED tests/test_detector.py::TestDetectorZoneLogic::test_detect_with_non_rectangular_polygon
+FAILED tests/test_detector.py::TestDetectorZoneLogic::test_multiple_animals_tracking
+FAILED tests/test_detector.py::TestDetectorZoneLogic::test_reset_tracking_state_clears_bytetrack
+=================== 9 failed, 24 passed, 1 warning in 5.20s ===================

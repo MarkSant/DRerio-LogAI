@@ -170,6 +170,17 @@ class DetectorService:
             else:
                 plugin_instance = plugin_class(model_path=model_path, settings_obj=self.settings)
 
+            # ⚡ FORCE LOWER CONFIDENCE THRESHOLD FOR DEBUGGING/ROBUSTNESS
+            # The user reported missing detections. We override the default (0.25) to 0.05.
+            if hasattr(plugin_instance, "conf_threshold"):
+                plugin_instance.conf_threshold = 0.05
+                log.warning(
+                    "detector_service.conf_threshold.forced_override",
+                    original=self.settings.yolo_model.confidence_threshold,
+                    new=0.05,
+                    reason="user_reported_missing_detections",
+                )
+
             # Create detector instance
             self.detector = Detector(
                 plugin=plugin_instance,

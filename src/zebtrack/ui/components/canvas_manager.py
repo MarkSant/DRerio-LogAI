@@ -115,7 +115,7 @@ class CanvasManager:
 
         # Draw the interactive polygon with handles
         self.renderer.draw_interactive_polygon()
-        
+
         # Force a redraw after a short delay to ensure handles appear even if
         # conflicting events (like Treeview focus) clear the canvas or interfere
         self.gui.root.after(50, self.renderer.draw_interactive_polygon)
@@ -431,9 +431,10 @@ class CanvasManager:
 
         self.event_handler.unbind_drawing_events()
 
-        self.gui.video_display.canvas.delete("elastic_line")
-        self.gui.video_display.canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
-        self.gui.video_display.canvas.delete("snap_indicator")  # Clear snap indicators
+        if self.gui.video_display and self.gui.video_display.canvas:
+            self.gui.video_display.canvas.delete("elastic_line")
+            self.gui.video_display.canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
+            self.gui.video_display.canvas.delete("snap_indicator")  # Clear snap indicators
 
         # Clear coordinate lists
         self.gui.drawing_state_manager.clear_points()
@@ -760,8 +761,9 @@ class CanvasManager:
 
     def clear_interactive_polygon(self):
         """Clear all interactive elements."""
-        self.gui.video_display.canvas.delete("interactive_polygon", "handle", "suggested_polygon")
-        
+        if self.gui.video_display and self.gui.video_display.canvas:
+            self.gui.video_display.canvas.delete("interactive_polygon", "handle", "suggested_polygon")
+
         if hasattr(self.gui, "zone_controls") and self.gui.zone_controls:
             self.gui.zone_controls.hide_interactive_buttons()
 
@@ -784,11 +786,12 @@ class CanvasManager:
         self.stop_drawing()
         self.gui.drawing_state_manager.mode = "circle"
         self.gui.current_circle_center = None
-        self.gui.video_display.canvas.config(cursor="crosshair")
+        if self.gui.video_display and self.gui.video_display.canvas:
+            self.gui.video_display.canvas.config(cursor="crosshair")
 
-        self.gui.video_display.canvas.bind("<ButtonPress-1>", self.on_canvas_press_circle)
-        self.gui.video_display.canvas.bind("<B1-Motion>", self.on_canvas_drag_circle)
-        self.gui.video_display.canvas.bind("<ButtonRelease-1>", self.on_canvas_release_circle)
+            self.gui.video_display.canvas.bind("<ButtonPress-1>", self.on_canvas_press_circle)
+            self.gui.video_display.canvas.bind("<B1-Motion>", self.on_canvas_drag_circle)
+            self.gui.video_display.canvas.bind("<ButtonRelease-1>", self.on_canvas_release_circle)
         self.gui.set_status("Modo de Desenho (Círculo): Clique e arraste para definir o raio.")
 
     def on_canvas_press_circle(self, event):
@@ -800,18 +803,19 @@ class CanvasManager:
         if self.gui.drawing_state_manager.mode != "circle" or not self.gui.current_circle_center:
             return
 
-        self.gui.video_display.canvas.delete("elastic_line")
-        cx, cy = self.gui.current_circle_center
-        radius = ((event.x - cx) ** 2 + (event.y - cy) ** 2) ** 0.5
-        self.gui.video_display.canvas.create_oval(
-            cx - radius,
-            cy - radius,
-            cx + radius,
-            cy + radius,
-            outline="yellow",
-            dash=(4, 4),
-            tags="elastic_line",
-        )
+        if self.gui.video_display and self.gui.video_display.canvas:
+            self.gui.video_display.canvas.delete("elastic_line")
+            cx, cy = self.gui.current_circle_center
+            radius = ((event.x - cx) ** 2 + (event.y - cy) ** 2) ** 0.5
+            self.gui.video_display.canvas.create_oval(
+                cx - radius,
+                cy - radius,
+                cx + radius,
+                cy + radius,
+                outline="yellow",
+                dash=(4, 4),
+                tags="elastic_line",
+            )
 
     def on_canvas_release_circle(self, event):
         if self.gui.drawing_state_manager.mode != "circle" or not self.gui.current_circle_center:
@@ -840,17 +844,18 @@ class CanvasManager:
         new_roi = {"name": roi_name, "type": "circle", "coords": (cx, cy, radius)}
         self.gui.roi_data.setdefault(current_arena_id, []).append(new_roi)
 
-        self.gui.video_display.canvas.create_oval(
-            cx - radius,
-            cy - radius,
-            cx + radius,
-            cy + radius,
-            outline="blue",
-            fill="cyan",
-            stipple="gray25",
-            width=2,
-        )
-        
+        if self.gui.video_display and self.gui.video_display.canvas:
+            self.gui.video_display.canvas.create_oval(
+                cx - radius,
+                cy - radius,
+                cx + radius,
+                cy + radius,
+                outline="blue",
+                fill="cyan",
+                stipple="gray25",
+                width=2,
+            )
+
         if hasattr(self.gui, "zone_controls") and self.gui.zone_controls and self.gui.zone_controls.zone_listbox:
              self.gui.zone_controls.zone_listbox.insert("", "end", values=(roi_name,))
         elif hasattr(self.gui, "roi_listbox") and self.gui.roi_listbox:
@@ -869,17 +874,17 @@ class CanvasManager:
             return
 
         iid = selected[0]
-        
+
         # Check if it's an ROI based on ID pattern "roi_{index}"
         if not iid.startswith("roi_"):
             return
 
         zone_data = self.gui._get_zone_data_for_active_context()
-        
+
         try:
             # Extract index from IID (e.g. "roi_0" -> 0)
             idx = int(iid.split("_")[1])
-            
+
             # Verify index validity
             if idx < 0 or idx >= len(zone_data.roi_names):
                 self.gui.show_error("Erro", "Índice da ROI inválido ou desincronizado.")

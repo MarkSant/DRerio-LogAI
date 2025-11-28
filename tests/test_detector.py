@@ -40,6 +40,8 @@ class TestDetector(unittest.TestCase):
         """Set up a detector instance with a mock plugin for tests."""
         self.mock_plugin = MockDetectorPlugin()
         self.detector = Detector(plugin=self.mock_plugin, base_width=1280, base_height=720)
+        # Set to True to simulate "ready to track" state for most tests
+        self.detector.set_aquarium_region_defined(True)
 
     def test_initialization(self):
         """Test that the detector initializes correctly with a plugin."""
@@ -121,7 +123,7 @@ class TestDetector(unittest.TestCase):
         self.detector.set_zones(
             ZoneData(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]]), 640, 480
         )
-        fake_detection = [(150, 150, 160, 160, 0.9, None)]
+        fake_detection = [(150, 150, 160, 160, 0.9, None, 1)]
         self.mock_plugin.set_detect_return_value(fake_detection)
 
         # Mock the polygon check to always be true for this test
@@ -147,8 +149,8 @@ class TestDetector(unittest.TestCase):
         self.detector.set_single_subject_mode(True)
 
         detections_frame1 = [
-            (10, 10, 30, 30, 0.6, None),
-            (100, 100, 120, 120, 0.9, None),
+            (10, 10, 30, 30, 0.6, None, 1),
+            (100, 100, 120, 120, 0.9, None, 1),
         ]
 
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
@@ -160,8 +162,8 @@ class TestDetector(unittest.TestCase):
         self.assertEqual(results1[0][:4], (100, 100, 120, 120))
 
         detections_frame2 = [
-            (102, 102, 122, 122, 0.55, None),
-            (300, 300, 330, 330, 0.99, None),
+            (102, 102, 122, 122, 0.55, None, 1),
+            (300, 300, 330, 330, 0.99, None, 1),
         ]
 
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
@@ -180,13 +182,13 @@ class TestDetector(unittest.TestCase):
         self.detector.set_single_subject_mode(True)
 
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
-            self.mock_plugin.set_detect_return_value([(50, 50, 80, 80, 0.8, None)])
+            self.mock_plugin.set_detect_return_value([(50, 50, 80, 80, 0.8, None, 1)])
             self.detector.detect(dummy_frame, "pre-recorded")
 
         self.detector.reset_tracking_state()
 
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
-            self.mock_plugin.set_detect_return_value([(300, 300, 320, 320, 0.7, None)])
+            self.mock_plugin.set_detect_return_value([(300, 300, 320, 320, 0.7, None, 1)])
             results, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
         self.assertEqual(results[0][:4], (300, 300, 320, 320))
@@ -316,6 +318,8 @@ class TestDetectorZoneLogic(unittest.TestCase):
         """Set up a detector instance with a mock plugin for tests."""
         self.mock_plugin = MockDetectorPlugin()
         self.detector = Detector(plugin=self.mock_plugin, base_width=1280, base_height=720)
+        # Set to True to simulate "ready to track" state for most tests
+        self.detector.set_aquarium_region_defined(True)
 
     def test_detect_with_arena_cropping(self):
         """Test that detection crops frame to arena bounding box for optimization."""
@@ -325,14 +329,14 @@ class TestDetectorZoneLogic(unittest.TestCase):
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
         # Plugin should receive cropped frame, not full frame
         # The actual crop happens in detect(), but we test it delegates to plugin
-        self.mock_plugin.set_detect_return_value([(150, 150, 160, 160, 0.8, None)])
+        self.mock_plugin.set_detect_return_value([(150, 150, 160, 160, 0.8, None, 1)])
 
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
         # Verify plugin.detect was called
-        self.mock_plugin.detect = MagicMock(return_value=[(150, 150, 160, 160, 0.8, None)])
-        self.mock_plugin.set_detect_return_value([(150, 150, 160, 160, 0.8, None)])
+        self.mock_plugin.detect = MagicMock(return_value=[(150, 150, 160, 160, 0.8, None, 1)])
+        self.mock_plugin.set_detect_return_value([(150, 150, 160, 160, 0.8, None, 1)])
 
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
@@ -348,8 +352,8 @@ class TestDetectorZoneLogic(unittest.TestCase):
         # Two detections: one inside the arena bbox, one outside
         # Arena bbox is (50, 50, 150, 150) after scaling from (100,100,300,300) @ 640x480
         fake_detections = [
-            (60, 60, 70, 70, 0.9, None),  # Will be inside after crop adjustment
-            (200, 200, 210, 210, 0.85, None),  # outside
+            (60, 60, 70, 70, 0.9, None, 1),  # Will be inside after crop adjustment
+            (200, 200, 210, 210, 0.85, None, 1),  # outside
         ]
         self.mock_plugin.set_detect_return_value(fake_detections)
 
@@ -429,7 +433,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
         # Frame 1: One detection (use higher confidence for BYTETracker)
-        self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.95, None)])
+        self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.95, None, 1)])
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections1, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
@@ -440,7 +444,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
             self.assertIsNotNone(track_id1)
 
             # Frame 2: Same detection slightly moved (use higher confidence)
-            self.mock_plugin.set_detect_return_value([(105, 105, 125, 125, 0.93, None)])
+            self.mock_plugin.set_detect_return_value([(105, 105, 125, 125, 0.93, None, 1)])
             with patch.object(self.detector, "_is_inside_polygon", return_value=True):
                 detections2, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
@@ -457,7 +461,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
         # First frame with detection to initialize tracker
-        self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.9, None)])
+        self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.9, None, 1)])
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections1, _ = self.detector.detect(dummy_frame, "pre-recorded")
         self.assertEqual(len(detections1), 1)
@@ -479,8 +483,8 @@ class TestDetectorZoneLogic(unittest.TestCase):
         # Frame 1: Two detections far apart
         self.mock_plugin.set_detect_return_value(
             [
-                (100, 100, 120, 120, 0.9, None),
-                (400, 400, 420, 420, 0.85, None),
+                (100, 100, 120, 120, 0.9, None, 1),
+                (400, 400, 420, 420, 0.85, None, 1),
             ]
         )
 
@@ -500,7 +504,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
         # Frame 1: Create a track
-        self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.9, None)])
+        self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.9, None, 1)])
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections1, _ = self.detector.detect(dummy_frame, "pre-recorded")
         # Track ID is assigned but we'll verify the reset behavior below
@@ -509,7 +513,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
         self.detector.reset_tracking_state()
 
         # Frame 2: Same detection should get a new track ID after reset
-        self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.9, None)])
+        self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.9, None, 1)])
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections2, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
@@ -544,7 +548,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
         self.detector.set_zones(zones, 640, 480)
 
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        self.mock_plugin.set_detect_return_value([(300, 250, 310, 260, 0.8, None)])
+        self.mock_plugin.set_detect_return_value([(300, 250, 310, 260, 0.8, None, 1)])
 
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
             detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
@@ -588,6 +592,42 @@ class TestDetectorZoneLogic(unittest.TestCase):
         self.mock_plugin.track_buffer = 45
         buffer = self.detector._get_track_buffer()
         self.assertEqual(buffer, 45)
+
+    def test_detect_class_mismatch_fallback(self):
+        """
+        Test that small class 0 detections are treated as class 1 (animals)
+        when they are significantly smaller than the arena.
+        """
+        # Define a large arena (1000x1000 = 1,000,000 pixels)
+        zones = ZoneData(polygon=[[0, 0], [1000, 0], [1000, 1000], [0, 1000]])
+        self.detector.set_zones(zones, 1000, 1000)
+
+        dummy_frame = np.zeros((1000, 1000, 3), dtype=np.uint8)
+
+        # Mock detection: Class 0 (Aquarium), but small (10x10 = 100 pixels)
+        # Ratio: 100 / 1,000,000 = 0.0001 (much less than 0.5)
+        # Should be converted to Class 1
+        small_detection = (500, 500, 510, 510, 0.9, None, 0)
+
+        # Mock detection: Class 0 (Aquarium), large (900x900 = 810,000 pixels)
+        # Ratio: 0.81 (greater than 0.5)
+        # Should remain Class 0 and be filtered out (since we want class 1)
+        large_detection = (50, 50, 950, 950, 0.9, None, 0)
+
+        self.mock_plugin.set_detect_return_value([small_detection, large_detection])
+
+        # Mock ByteTracker to return detections as-is (bypass tracking logic)
+        with patch.object(self.detector, "_is_inside_polygon", return_value=True), \
+             patch.object(self.detector, "_apply_byte_tracking", side_effect=lambda dets, shape: dets):
+            detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
+
+        # Only the small detection should be returned (converted to class 1)
+        self.assertEqual(len(detections), 1)
+
+        # Verify it was converted to class 1
+        x1, y1, x2, y2, conf, track_id, class_id = detections[0]
+        self.assertEqual(class_id, 1)
+        self.assertEqual((x1, y1, x2, y2), (500, 500, 510, 510))
 
 
 if __name__ == "__main__":

@@ -112,12 +112,10 @@ class LiveCameraService:
         # Aquarium detection phase state
         self._aquarium_detection_phase: bool = False
         self._aquarium_detection_frames: int = 0
-        self._aquarium_detection_max_frames: int = 30  # ~1-2 seconds at 20fps
+        self._aquarium_detection_max_frames: int = 300  # Standard: 300 frames (10s)
         self._detected_aquarium_bboxes: list[tuple[int, int, int, int]] = []  # Collect multiple detections
         self._arena_defined_event = threading.Event()  # Signal when arena is ready
         self._animals_per_aquarium: int = 1  # Default to single subject
-
-    # Thread-safe properties for shared state
     @property
     def camera(self) -> Camera | None:
         """Thread-safe access to camera instance."""
@@ -318,8 +316,8 @@ class LiveCameraService:
             success, _ = self.detector_service.initialize_detector(
                 animal_method=self.settings.model_selection.animal_method,
                 use_openvino=self.settings.model_selection.use_openvino,
-                active_weight_name=self.settings.weights.det_filename 
-                if self.settings.model_selection.animal_method == 'det' 
+                active_weight_name=self.settings.weights.det_filename
+                if self.settings.model_selection.animal_method == 'det'
                 else self.settings.weights.seg_filename
             )
             if not success:
@@ -782,17 +780,24 @@ class LiveCameraService:
                         detections, _ = detector.detect(frame, "live")
 
                         # Collect aquarium bboxes (class_id=0)
+                        h, w = frame.shape[:2]
+                        frame_area = w * h
+                        min_aquarium_area = frame_area * 0.30  # User requested 30% min area
+
                         for det in detections:
                             if len(det) >= 7:
                                 x1, y1, x2, y2, conf, track_id, class_id = det
                                 if class_id == 0:  # Aquarium class
-                                    self._detected_aquarium_bboxes.append((int(x1), int(y1), int(x2), int(y2)))
-                                    log.info(
-                                        "live_camera_service.aquarium_detected",
-                                        frame=frame_number,
-                                        bbox=(int(x1), int(y1), int(x2), int(y2)),
-                                        total_collected=len(self._detected_aquarium_bboxes),
-                                    )
+                                    bbox_area = (x2 - x1) * (y2 - y1)
+                                    if bbox_area >= min_aquarium_area:
+                                        self._detected_aquarium_bboxes.append((int(x1), int(y1), int(x2), int(y2)))
+                                        # Log only periodically or on first detection to reduce spam
+                                        if len(self._detected_aquarium_bboxes) == 1 or len(self._detected_aquarium_bboxes) % 10 == 0:
+                                            log.info(
+                                                "live_camera_service.aquarium_detected",
+                                                frame=frame_number,
+                                                total_collected=len(self._detected_aquarium_bboxes),
+                                            )
 
                     self._aquarium_detection_frames += 1
 
@@ -888,9 +893,9 @@ class LiveCameraService:
                     # This makes bounding boxes persist instead of flickering
                     detections = self.get_last_detections()
 
-                # ✅ ALWAYS draw overlay when displaying (with current or cached detections)
+                # ✅ ALWAYS draw overlay when displaying (even if no detections, so we see the arena)
                 detector = self.detector_service.detector
-                if detector and should_display and detections:
+                if detector and should_display:
                     detector.draw_overlay(frame, detections)
                     log.debug(
                         "live_camera_service.overlay_drawn",
@@ -959,6 +964,7 @@ class LiveCameraService:
 
             # Update UI status
             if self.preview_window:
+                self.preview_window.start_timer()
                 self.preview_window.update_status_text("● Gravando", color="red")
         else:
             log.info(
@@ -1228,6 +1234,10 @@ class LiveCameraService:
                 duration_s=self._session_duration_s,
             )
 
+            # Start UI timer
+            if self.preview_window:
+                self.preview_window.start_timer()
+
     def _define_arena_from_detections(self):
         """
         Define arena based on collected aquarium detections or fallback to default.
@@ -1264,7 +1274,7 @@ class LiveCameraService:
                 bbox=(x1, y1, x2, y2),
             )
         else:
-            # Fallback: Create default arena 2x larger than old default
+            # Fallback: Create default arena 2x larger than old default (User requested 2x logic)
             area_ratio = 3.0  # 2x larger than old 6.0
             side = math.sqrt((w * h) / area_ratio)
             cx, cy = w / 2, h / 2

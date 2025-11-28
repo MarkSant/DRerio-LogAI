@@ -310,6 +310,18 @@ class Detector:
                 has_polygon=has_polygon,
             )
 
+            # 🔍 DEBUG: Log decision flags for polygon filtering
+            log.info(
+                "detector.polygon_filter_decision_flags",
+                has_polygon=has_polygon,
+                context=self._context,
+                aquarium_defined=self._aquarium_region_defined,
+                polygon_size=self.scaled_polygon.size
+            )
+
+            import sys
+            sys.stderr.write(f"DEBUG: has_polygon={has_polygon}, context={self._context}, aquarium_defined={self._aquarium_region_defined}, polygon_size={self.scaled_polygon.size}\n")
+
             # ✅ If no polygon defined and in diagnostic mode OR detecting aquarium, accept all detections
             if not has_polygon and (self._context == "diagnostic" or not self._aquarium_region_defined):
                 log.info(
@@ -332,8 +344,16 @@ class Detector:
 
                     if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
                         detections_in_polygon.append((x1, y1, x2, y2, confidence, track_id, class_id))
+                        # 🔍 DEBUG: Log why it passed
+                        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                        log.info(
+                            "detector.polygon_filter.passed",
+                            bbox=(x1, y1, x2, y2),
+                            center=(cx, cy),
+                            polygon_points=self.scaled_polygon.tolist() if hasattr(self.scaled_polygon, "tolist") else "unknown",
+                        )
                     else:
-                        log.debug(
+                        log.info(
                             "detector.filtered_outside_polygon",
                             bbox=(x1, y1, x2, y2),
                             track_id=track_id,
@@ -364,6 +384,7 @@ class Detector:
             )
         else:
             # Tracking mode
+            # Tracking mode
             aquarium_class_id = 0
             zebrafish_class_id = 1
 
@@ -376,22 +397,86 @@ class Detector:
 
             if not self._aquarium_region_defined:
                 # Before arena is defined, show only aquarium detections (class_id 0)
+                # ✅ FIX: Also accept Class 1 (Fish) if it's "huge" (likely misclassified tank)
+                frame_area = 1280 * 720 # Default fallback
+                if self._last_width and self._last_height:
+                    frame_area = self._last_width * self._last_height
+
                 for det in detections_in_polygon:
                     # det format: (x1, y1, x2, y2, confidence, track_id, class_id)
-                    class_id = det[6]
+                    x1, y1, x2, y2, conf, track_id, class_id = det
+                    det_area = (x2 - x1) * (y2 - y1)
+
+                    is_valid_aquarium = False
                     if class_id == aquarium_class_id:
+                        is_valid_aquarium = True
+                    elif class_id == zebrafish_class_id:
+                        # If it's class 1 but HUGE (> 10% of frame), it's likely the tank
+                        # Lowered from 30% to 10% based on user logs showing tank is ~15%
+                        if det_area > (frame_area * 0.10):
+                            is_valid_aquarium = True
+                            log.info(
+                                "detector.class_fallback_aquarium",
+                                bbox=(x1, y1, x2, y2),
+                                original_class=class_id,
+                                new_class=aquarium_class_id,
+                                det_area=det_area,
+                                frame_area=frame_area,
+                                ratio=det_area/frame_area
+                            )
+                            # Morph to aquarium class
+                            class_id = aquarium_class_id
+                            det = (x1, y1, x2, y2, conf, track_id, class_id)
+
+                    if is_valid_aquarium:
                         filtered_detections.append(det)
                     else:
-                        log.debug(
+                        log.info(
                             "detector.filtered_by_class",
                             bbox=(det[0], det[1], det[2], det[3]),
                             class_id=class_id,
-                            reason="aquarium_not_defined",
+                            conf=det[4],
+                            reason="aquarium_not_defined_target_class_0",
+                            det_area=det_area,
+                            ratio=det_area/frame_area
                         )
             else:
                 # After arena is defined, show only zebrafish detections (class_id 1)
+                # ✅ FIX: Handle models that output class 0 for animals
+                # If a detection is class 0 BUT is significantly smaller than the arena,
+                # treat it as an animal (class 1).
+
+                # Calculate arena area for comparison
+                arena_area = 0
+                if self.scaled_polygon.size > 0:
+                    arena_area = cv2.contourArea(self.scaled_polygon)
+
                 for det in detections_in_polygon:
-                    class_id = det[6]
+                    x1, y1, x2, y2, conf, track_id, class_id = det
+
+                    # Calculate detection area
+                    det_area = (x2 - x1) * (y2 - y1)
+
+                    # Check if it's a "fake" aquarium (actually an animal)
+                    # Criteria: Class 0 AND Area < 50% of arena
+                    is_fake_aquarium = False
+                    if class_id == aquarium_class_id and arena_area > 0:
+                        if det_area < (arena_area * 0.5):
+                            is_fake_aquarium = True
+                            log.info(
+                                "detector.class_fallback_applied",
+                                bbox=(x1, y1, x2, y2),
+                                original_class=aquarium_class_id,
+                                new_class=zebrafish_class_id,
+                                det_area=det_area,
+                                arena_area=arena_area,
+                                ratio=det_area/arena_area
+                            )
+                            # Modify class_id to zebrafish_class_id for this detection
+                            class_id = zebrafish_class_id
+                            # Update the tuple in the list (tuples are immutable, so we create new one)
+                            det = (x1, y1, x2, y2, conf, track_id, class_id)
+
                     if class_id == zebrafish_class_id:
                         filtered_detections.append(det)
                     else:
@@ -435,6 +520,11 @@ class Detector:
             )
         else:
             # Multi-subject tracking with ByteTracker
+            # 🔄 DEBUG: Log confidence of input detections
+            if filtered_detections:
+                confidences = [d[4] for d in filtered_detections]
+                log.info("detector.bytetrack.input_confidences", confidences=confidences)
+
             filtered_detections = self._apply_byte_tracking(filtered_detections, frame.shape)
             log.info(
                 "detector.byte_tracking.applied",
@@ -692,6 +782,14 @@ class Detector:
                 track_buffer=track_buffer,
                 mot20=False,
             )
+
+            log.info(
+                "detector.bytetrack.initializing",
+                track_thresh=track_thresh,
+                match_thresh=match_thresh,
+                track_buffer=track_buffer
+            )
+
             # Get FPS from settings or use default
             if self.settings and hasattr(self.settings, "video_processing"):
                 frame_rate = getattr(self.settings.video_processing, "fps", 30) or 30
@@ -710,8 +808,8 @@ class Detector:
         value = getattr(self.plugin, "track_threshold", None)
         if value is None:
             if self.settings and hasattr(self.settings, "bytetrack"):
-                return float(getattr(self.settings.bytetrack, "track_threshold", 0.25))
-            return 0.25
+                return float(getattr(self.settings.bytetrack, "track_threshold", 0.1))
+            return 0.1
         return float(value)
 
     def _get_match_threshold(self) -> float:

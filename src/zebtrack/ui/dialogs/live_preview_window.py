@@ -50,7 +50,7 @@ class LivePreviewWindow:
         self.window.protocol("WM_DELETE_WINDOW", self._on_window_close)
 
         # Start time for timer
-        self.start_time = time.time()
+        self.start_time = None
         self.is_stopped = False
 
         # Create UI
@@ -64,6 +64,11 @@ class LivePreviewWindow:
             camera_index=camera_index,
             duration_s=duration_s,
         )
+
+    def start_timer(self):
+        """Start the session timer."""
+        self.start_time = time.time()
+        log.info("live_preview.timer_started")
 
     def _create_ui(self):
         """Create the UI components."""
@@ -85,7 +90,7 @@ class LivePreviewWindow:
         # Timer label
         self.timer_label = ttk.Label(
             info_frame,
-            text="Tempo: 0s / 0s",
+            text="Tempo: Aguardando...",
             font=("Arial", 10),
         )
         self.timer_label.pack(side=tk.LEFT, padx=20)
@@ -175,18 +180,16 @@ class LivePreviewWindow:
         if self.is_stopped:
             return
 
-        elapsed = time.time() - self.start_time
-        remaining = max(0, self.duration_s - elapsed)
+        if self.start_time is None:
+            self.timer_label.config(text="Tempo: Aguardando...")
+        else:
+            elapsed = time.time() - self.start_time
+            remaining = max(0, self.duration_s - elapsed)
 
-        # Update timer label
-        self.timer_label.config(
-            text=f"Tempo: {elapsed:.1f}s / {self.duration_s:.1f}s (Restante: {remaining:.1f}s)"
-        )
-
-        # Check if time expired
-        if remaining <= 0:
-            self._auto_stop()
-            return
+            # Update timer label
+            self.timer_label.config(
+                text=f"Tempo: {elapsed:.1f}s / {self.duration_s:.1f}s (Restante: {remaining:.1f}s)"
+            )
 
         # Schedule next update
         self.window.after(100, self._update_timer)

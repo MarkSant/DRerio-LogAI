@@ -301,7 +301,7 @@ class ApplicationGUI:
         # View toggle state for analysis/zone switching
         self.canvas_view_mode = "zones"  # "zones" or "analysis"
         self.analysis_active = False
-        
+
         self.start_rec_btn: Button | None = None
         self.stop_rec_btn: Button | None = None
         self.process_video_btn: ttk.Button | None = None
@@ -314,18 +314,6 @@ class ApplicationGUI:
         self._dragged_handle_index = None
         self._drag_offset = (0, 0)
         self.current_editing_zone = None  # Track what zone is being edited
-        self.save_arena_btn = None
-        self.discard_arena_btn = None
-        # interactive_buttons_frame is now a @property that delegates to zone_controls
-
-        # Zone tab video selector state
-        # video_selector_tree is now a @property that delegates to zone_controls
-        self.video_search_var = None
-        self._video_selector_filter = ""
-        self._pending_readiness_snapshot = {}
-
-        # Project overview widgets/state
-        self.project_overview_frame = None
         self.project_overview_widget: ProjectOverviewWidget | None = None
         # Backward compatibility - delegate to widget
         self._project_status_containers = {}
@@ -384,7 +372,7 @@ class ApplicationGUI:
             self._active_weight_display_var.set(f"Peso ativo: {weight_name}")
         else:
             self._active_weight_display_var.set("Peso ativo: Nenhum peso selecionado.")
-        
+
         # Also update controller state if needed (legacy sync)
         if self.controller.active_weight_name != weight_name:
              self.controller.active_weight_name = weight_name
@@ -402,21 +390,21 @@ class ApplicationGUI:
     def update_openvino_status_display(self, status: str) -> None:
         """Update the detailed OpenVINO status message."""
         self._openvino_status_message = status
-        # You might want to update a specific label if it exists, 
+        # You might want to update a specific label if it exists,
         # currently just updating internal state which might be used by refresh logic
         pass
 
     def handle_request_weight_type(self, filepath: str) -> None:
         """Handle request to identify weight type."""
         from tkinter import simpledialog
-        
+
         weight_type = simpledialog.askstring(
             "Tipo do Modelo",
             "O tipo do modelo não pôde ser determinado automaticamente.\n"
             "Digite 'seg' para Segmentação ou 'det' para Detecção:",
             parent=self.root
         )
-        
+
         if weight_type:
             # Normalize input
             weight_type = weight_type.lower().strip()
@@ -424,16 +412,16 @@ class ApplicationGUI:
                 weight_type = "seg"
             elif weight_type in ["det", "detection", "detecção"]:
                 weight_type = "det"
-            
+
             # Resume workflow
             self.controller.load_new_weight(filepath=filepath, weight_type=weight_type)
 
     def handle_request_weight_action(self, filepath: str, weight_type: str) -> None:
         """Handle request for action on new weight."""
         from tkinter import messagebox
-        
+
         type_label = "Segmentação" if weight_type == "seg" else "Detecção"
-        
+
         response = messagebox.askyesnocancel(
             "Novo Peso Encontrado",
             f"O arquivo '{Path(filepath).name}' foi identificado como modelo de {type_label}.\n\n"
@@ -443,7 +431,7 @@ class ApplicationGUI:
             "Cancelar: Aborta a operação",
             parent=self.root
         )
-        
+
         choice = None
         if response is True:
             choice = "yes"
@@ -451,7 +439,7 @@ class ApplicationGUI:
             choice = "no"
         else:
             choice = "cancel"
-            
+
         if choice != "cancel":
             self.controller.load_new_weight(filepath=filepath, weight_type=weight_type, choice=choice)
 
@@ -1308,7 +1296,7 @@ class ApplicationGUI:
         except Exception as e:
             log.error("gui._on_analyze_single_video_clicked.ERROR", error=str(e))
             # We don't raise here to avoid crashing the UI loop for a single button click
-            # raise 
+            # raise
             self.show_error("Erro", f"Falha ao iniciar análise: {e}")
 
     @public_api
@@ -1956,3 +1944,13 @@ if __name__ == "__main__":
     # Using print is fine here as it's for direct execution feedback
     print("Este arquivo deve ser importado, não executado diretamente.")
     print("Execute o script principal da aplicação para iniciar o Zebtrack.")
+    def _get_zone_data_for_active_context(self) -> ZoneData:
+        """
+        Retrieve the ZoneData for the current context (active project).
+
+        This method is a shim to support components extracted from the God Object
+        (like CanvasManager) that expect this method to exist on the GUI.
+        """
+        if self.project_manager:
+            return self.project_manager.get_zone_data()
+        return ZoneData()
