@@ -14,12 +14,13 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 
 | Event Name | Required Payload Keys | Optional Keys | Listener (Component) | Action/Effect |
 | :--- | :--- | :--- | :--- | :--- |
-| `Events.UI_DISPLAY_FRAME` | `frame` (np.ndarray) | `detections` (list), `info` (dict), `experiment_id` (str) | `EventDispatcher` -> `CanvasManager` | Updates the raw video canvas with the provided image. |
+| `Events.UI_DISPLAY_FRAME` | `frame` (np.ndarray) | `detections` (list), `info` (dict), `experiment_id` (str) | `EventDispatcher` -> `CanvasManager` | Updates the raw video canvas with the provided image. **NOTE:** Only used by `ProcessingWorker` (recorded video). Live Camera uses `LivePreviewWindow` directly. |
 | `Events.UI_DISPLAY_VIDEO_FRAME` | `video_path` (str) | - | `EventDispatcher` -> `CanvasManager` | Loads a video file from disk and displays the first frame/ROI frame. |
 | `Events.UI_UPDATE_DETECTION_OVERLAY` | `detections` (list), `report` (ProcessingReport) | - | `EventDispatcher` -> `ApplicationGUI` | Draws bounding boxes, IDs, and status text over the canvas. |
 | `Events.UI_NAVIGATE_TO_ANALYSIS_VIEW` | - | - | `EventDispatcher` -> `ApplicationGUI` | Switches the notebook tab to the "Analysis" tab. |
 | `Events.UI_UPDATE_PROCESSING_STATS` | `stats` (dict) | - | `EventDispatcher` -> `StateSynchronizer` | Updates FPS, frame counter, and progress bars. `stats` must contain: `fps`, `frame`, `total_frames`. |
 | `Events.UI_SET_STATUS` | `message` (str) | - | `EventDispatcher` -> `ApplicationGUI` | Updates the bottom status bar text. |
+| `Events.UI_UPDATE_PROCESSING_MODE` | `report` (ProcessingReport) | - | `EventDispatcher` -> `StateSynchronizer` | Updates UI mode indicators. **Warning:** Legacy orchestrators may publish `{'source': str, 'force': bool}` causing mismatch. |
 
 ### 1.2. Analysis Control (UI -> Backend)
 
@@ -28,6 +29,15 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `Events.VIDEO_ANALYZE_SINGLE` | `video_path` (str), `config` (dict) | - | `AnalysisControlViewModel` | Triggers the start of the single video analysis workflow. |
 | `Events.VIDEO_CANCEL_ANALYSIS` | - | - | `AnalysisControlViewModel` | **Delegates to `ProcessingCoordinator.cancel_processing()`**. Sets flags and stops workers. |
 | `Events.ZONE_AUTO_DETECT` | `video_path` (str or None) | `stabilization_frames` (int) | `ProcessingCoordinator` | Runs `AquariumDetector` to find the tank polygon automatically. |
+
+### 1.3. Known Dead or Unused Events
+
+| Event Name | Status | Notes |
+| :--- | :--- | :--- |
+| `UIEvents.ANALYSIS_COMPLETED` | **Dead** | Subscribed by `UICoordinator` but never published. `ProcessingCoordinator` uses direct callback. |
+| `UIEvents.ANALYSIS_STARTED` | **Dead** | Subscribed by `UICoordinator` but never published. |
+| `Events.UI_OPEN_ADD_VIDEOS_DIALOG` | **Dead** | Published but no subscribers found. |
+| `Events.UI_UPDATE_PROJECT_INFO` | **Dead** | Published but no subscribers found. |
 
 ---
 
@@ -44,6 +54,7 @@ Understanding who holds what references prevents "AttributeError" and circular d
     *   `hardware_coordinator`: Handles Detector/Camera.
     *   `session_coordinator`: Handles Recording/Arduino.
     *   `project_lifecycle_coordinator`: Handles Project CRUD.
+    *   `ui_coordinator`: **Ambiguous!** Refers to `zebtrack.core.ui_coordinator` (Scheduler), NOT `zebtrack.ui.ui_coordinator` (Mediator).
 
 ### 2.2. ProcessingCoordinator
 *   **Owns:**
@@ -53,9 +64,10 @@ Understanding who holds what references prevents "AttributeError" and circular d
     *   `ProjectManager` (Read/Write project data).
     *   `DetectorService` (To configure detectors).
     *   `EventBus` (To publish updates).
+    *   `core.UICoordinator` (Directly calls `update_view` - Hybrid Pattern).
 *   **DOES NOT Access:**
     *   `MainViewModel` (Strictly forbidden).
-    *   `ApplicationGUI` (Directly - uses events instead).
+    *   `ApplicationGUI` (Directly - uses events or `ui_coordinator` abstraction).
 
 ---
 
@@ -94,6 +106,13 @@ Understanding who holds what references prevents "AttributeError" and circular d
     *   Sends `{'type': 'completed', 'cancelled': True}`.
 6.  **Cleanup:** `monitor_loop` receives completed message -> resets state -> Updates UI to "Ready".
 
+### 3.3. Live Camera Flow (Divergent)
+*   **Logic:** Managed by `LiveCameraCoordinator` -> `LiveCameraService`.
+*   **UI:** **Does NOT** use `CanvasManager` or `Events.UI_DISPLAY_FRAME`.
+*   **Display:** Creates and manages a dedicated `LivePreviewWindow` (Tkinter Toplevel).
+*   **Updates:** Calls `self.preview_window.update_frame()` directly from the service thread (via `root.after`).
+*   **Risk:** Features built for `CanvasManager` (like Drawing Tools) will NOT work on the Live Camera feed.
+
 ---
 
 ## 4. Common Pitfalls for Agents
@@ -104,3 +123,6 @@ Understanding who holds what references prevents "AttributeError" and circular d
 4.  **Legacy vs. New:**
     *   **Legacy:** `VideoProcessingOrchestrator`, `AnalysisOrchestrator` (Avoid modifying if possible).
     *   **New (Phase 3):** `ProcessingCoordinator` (Preferred location for logic).
+5.  **UICoordinator Ambiguity:** There are two classes named `UICoordinator`.
+    *   `zebtrack.core.ui_coordinator`: A scheduler/facade for `root.after`. Used by `ProcessingCoordinator`.
+    *   `zebtrack.ui.ui_coordinator`: A Mediator for EventBus events. Used by `EventDispatcher`.

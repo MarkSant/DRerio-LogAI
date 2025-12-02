@@ -4,7 +4,8 @@ Handles both Core-side dispatching (routing commands to orchestrators)
 and UI-side dispatching (routing UI updates to widgets).
 """
 
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import structlog
 
@@ -170,21 +171,21 @@ class EventDispatcher:
             Events.UI_SHOW_INFO,
             lambda d: self.gui.dialog_manager.show_info(
                 d.get("title", "Info") if isinstance(d, dict) else "Info",
-                d.get("message", "") if isinstance(d, dict) else ""
+                d.get("message", "") if isinstance(d, dict) else "",
             ),
         )
         self.event_bus.subscribe(
             Events.UI_SHOW_WARNING,
             lambda d: self.gui.dialog_manager.show_warning(
                 d.get("title", "Aviso") if isinstance(d, dict) else "Aviso",
-                d.get("message", "") if isinstance(d, dict) else ""
+                d.get("message", "") if isinstance(d, dict) else "",
             ),
         )
         self.event_bus.subscribe(
             Events.UI_SHOW_ERROR,
             lambda d: self.gui.dialog_manager.show_error(
                 d.get("title", "Erro") if isinstance(d, dict) else "Erro",
-                d.get("message", "") if isinstance(d, dict) else ""
+                d.get("message", "") if isinstance(d, dict) else "",
             ),
         )
 
@@ -193,8 +194,11 @@ class EventDispatcher:
             Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
             lambda d: self.gui.dialog_manager.show_external_trigger_notice(
                 d.get("session_label", "") if isinstance(d, dict) else "",
-                **({k: v for k, v in d.items() if k != "session_label"}
-                   if isinstance(d, dict) else {})
+                **(
+                    {k: v for k, v in d.items() if k != "session_label"}
+                    if isinstance(d, dict)
+                    else {}
+                ),
             ),
         )
         self.event_bus.subscribe(
@@ -205,7 +209,7 @@ class EventDispatcher:
         # Status updates
         self.event_bus.subscribe(
             Events.UI_SET_STATUS,
-            lambda d: self.gui.status_var.set(d.get("message", "") if isinstance(d, dict) else "")
+            lambda d: self.gui.status_var.set(d.get("message", "") if isinstance(d, dict) else ""),
         )
 
         # View navigation
@@ -226,7 +230,7 @@ class EventDispatcher:
         self.event_bus.subscribe(
             Events.UI_UPDATE_PROCESSING_STATS,
             lambda d: self.gui.state_synchronizer.update_processing_stats(
-                **d.get('stats', {}) if isinstance(d, dict) else {}
+                **d.get("stats", {}) if isinstance(d, dict) else {}
             ),
         )
         self.event_bus.subscribe(
@@ -245,7 +249,7 @@ class EventDispatcher:
             Events.UI_UPDATE_DETECTION_OVERLAY,
             lambda d: self.gui.update_detection_overlay(
                 detections=d.get("detections") if isinstance(d, dict) else None,
-                report=d.get("report") if isinstance(d, dict) else None
+                report=d.get("report") if isinstance(d, dict) else None,
             ),
         )
 
@@ -296,7 +300,7 @@ class EventDispatcher:
             Events.UI_UPDATE_ARDUINO_STATUS,
             lambda d: self.gui.arduino_dashboard_widget.update_status(
                 d.get("connected") if isinstance(d, dict) else None,
-                d.get("port") if isinstance(d, dict) else None
+                d.get("port") if isinstance(d, dict) else None,
             )
             if self.gui.arduino_dashboard_widget
             else None,
@@ -319,9 +323,7 @@ class EventDispatcher:
         )
         self.event_bus.subscribe(
             Events.UI_UPDATE_PROCESSING_MODE,
-            lambda d: self.gui.state_synchronizer.update_processing_mode(
-                d.get("report") if isinstance(d, dict) else None
-            ),
+            self._handle_update_processing_mode,
         )
 
         # General UI
@@ -329,14 +331,14 @@ class EventDispatcher:
             Events.UI_UPDATE_BUTTON_STATE,
             lambda d: self.gui.update_button_state(
                 d.get("button_name") if isinstance(d, dict) else None,
-                d.get("state") if isinstance(d, dict) else None
+                d.get("state") if isinstance(d, dict) else None,
             ),
         )
         self.event_bus.subscribe(
             Events.UI_DISPLAY_FRAME,
             lambda d: self.gui.canvas_manager.update_video_frame(
                 d.get("frame") if isinstance(d, dict) else None,
-                d.get("detections") if isinstance(d, dict) else None
+                d.get("detections") if isinstance(d, dict) else None,
             ),
         )
         self.event_bus.subscribe(
@@ -368,9 +370,31 @@ class EventDispatcher:
             Events.UI_REQUEST_WEIGHT_ACTION,
             lambda d: self.gui.handle_request_weight_action(
                 d.get("filepath") if isinstance(d, dict) else None,
-                d.get("weight_type") if isinstance(d, dict) else None
+                d.get("weight_type") if isinstance(d, dict) else None,
             ),
         )
+
+    def _handle_update_processing_mode(self, data: dict) -> None:
+        """Handle UI_UPDATE_PROCESSING_MODE event.
+
+        Supports both standard payload (report) and legacy payload (source, force).
+        """
+        if not self.gui or not isinstance(data, dict):
+            return
+
+        report = data.get("report")
+
+        # Compatibility fix for legacy orchestrators
+        if report is None and "source" in data:
+            from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
+
+            source = data.get("source", "unknown")
+            # Legacy calls don't provide mode enum, assume MULTI_TRACK or infer
+            report = ProcessingReport(
+                mode=ProcessingMode.MULTI_TRACK, source=f"{source}_legacy_adapter"
+            )
+
+        self.gui.state_synchronizer.update_processing_mode(report)
 
     def _handle_setup_interactive_polygon(self, polygon_data) -> None:
         """Handle legacy interactive polygon requests from the event bus."""
@@ -475,7 +499,7 @@ class EventDispatcher:
             lambda d: self.gui.menu_manager.show_roi_context_menu(
                 x=d.get("x") if isinstance(d, dict) else 0,
                 y=d.get("y") if isinstance(d, dict) else 0,
-                item_id=d.get("item_id") if isinstance(d, dict) else None
+                item_id=d.get("item_id") if isinstance(d, dict) else None,
             ),
         )
 
@@ -490,7 +514,7 @@ class EventDispatcher:
         # ROI Settings
         self.event_bus.subscribe(
             Events.DETECTOR_UPDATE_PARAMETERS,
-            lambda d: self.gui._on_apply_roi_settings(d if isinstance(d, dict) else {})
+            lambda d: self.gui._on_apply_roi_settings(d if isinstance(d, dict) else {}),
         )
 
     def schedule_event_bus_poll(self) -> None:
