@@ -143,7 +143,9 @@ class EventDispatcher:
         # Example: self.gui.update_status(...)
         self.event_bus.subscribe(
             Events.UI_SETUP_INTERACTIVE_POLYGON,
-            lambda data: self._handle_setup_interactive_polygon(data.get("polygon")),
+            lambda data: self._handle_setup_interactive_polygon(
+                data.get("polygon") if isinstance(data, dict) else None
+            ),
         )
 
     def subscribe_to_ui_events(self) -> None:
@@ -167,19 +169,22 @@ class EventDispatcher:
         self.event_bus.subscribe(
             Events.UI_SHOW_INFO,
             lambda d: self.gui.dialog_manager.show_info(
-                d.get("title", "Info"), d.get("message", "")
+                d.get("title", "Info") if isinstance(d, dict) else "Info",
+                d.get("message", "") if isinstance(d, dict) else ""
             ),
         )
         self.event_bus.subscribe(
             Events.UI_SHOW_WARNING,
             lambda d: self.gui.dialog_manager.show_warning(
-                d.get("title", "Aviso"), d.get("message", "")
+                d.get("title", "Aviso") if isinstance(d, dict) else "Aviso",
+                d.get("message", "") if isinstance(d, dict) else ""
             ),
         )
         self.event_bus.subscribe(
             Events.UI_SHOW_ERROR,
             lambda d: self.gui.dialog_manager.show_error(
-                d.get("title", "Erro"), d.get("message", "")
+                d.get("title", "Erro") if isinstance(d, dict) else "Erro",
+                d.get("message", "") if isinstance(d, dict) else ""
             ),
         )
 
@@ -187,7 +192,9 @@ class EventDispatcher:
         self.event_bus.subscribe(
             Events.UI_SHOW_EXTERNAL_TRIGGER_NOTICE,
             lambda d: self.gui.dialog_manager.show_external_trigger_notice(
-                d.get("session_label", ""), **{k: v for k, v in d.items() if k != "session_label"}
+                d.get("session_label", "") if isinstance(d, dict) else "",
+                **({k: v for k, v in d.items() if k != "session_label"}
+                   if isinstance(d, dict) else {})
             ),
         )
         self.event_bus.subscribe(
@@ -197,13 +204,16 @@ class EventDispatcher:
 
         # Status updates
         self.event_bus.subscribe(
-            Events.UI_SET_STATUS, lambda d: self.gui.status_var.set(d.get("message", ""))
+            Events.UI_SET_STATUS,
+            lambda d: self.gui.status_var.set(d.get("message", "") if isinstance(d, dict) else "")
         )
 
         # View navigation
         self.event_bus.subscribe(
             Events.UI_SELECT_TAB,
-            lambda d: self.gui.notebook.select(getattr(self.gui, f"{d.get('tab_name')}_frame", 0)),
+            lambda d: self.gui.notebook.select(
+                getattr(self.gui, f"{d.get('tab_name') if isinstance(d, dict) else ''}_frame", 0)
+            ),
         )
 
         # Single video zone setup (Decoupling from MainViewModel)
@@ -215,22 +225,27 @@ class EventDispatcher:
         # Analysis Updates
         self.event_bus.subscribe(
             Events.UI_UPDATE_PROCESSING_STATS,
-            lambda d: self.gui.state_synchronizer.update_processing_stats(**d),
+            lambda d: self.gui.state_synchronizer.update_processing_stats(
+                **d.get('stats', {}) if isinstance(d, dict) else {}
+            ),
         )
         self.event_bus.subscribe(
             Events.UI_UPDATE_SOCIAL_SUMMARY,
-            lambda d: self.gui.state_synchronizer.update_social_summary(**d),
+            lambda d: self.gui.state_synchronizer.update_social_summary(
+                **d if isinstance(d, dict) else {}
+            ),
         )
         self.event_bus.subscribe(
             Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
             lambda d: self.gui.state_synchronizer.update_analysis_task_status(
-                **d.get("payload", {})
+                **d.get("payload", {}) if isinstance(d, dict) else {}
             ),
         )
         self.event_bus.subscribe(
             Events.UI_UPDATE_DETECTION_OVERLAY,
             lambda d: self.gui.update_detection_overlay(
-                detections=d.get("detections"), report=d.get("report")
+                detections=d.get("detections") if isinstance(d, dict) else None,
+                report=d.get("report") if isinstance(d, dict) else None
             ),
         )
 
@@ -238,48 +253,59 @@ class EventDispatcher:
         self.event_bus.subscribe(
             Events.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
             lambda d: self.gui.project_view_manager.on_video_hierarchy_snapshot_updated(
-                d.get("snapshot", [])
+                d.get("snapshot", []) if isinstance(d, dict) else []
             ),
         )
         self.event_bus.subscribe(
             Events.UI_REFRESH_PROJECT_VIEWS,
             lambda d: self.gui.project_view_manager.refresh_project_views(
-                reason=d.get("reason"),
-                append_summary=d.get("append_summary", False),
-                immediate=d.get("immediate", False),
+                reason=d.get("reason") if isinstance(d, dict) else None,
+                append_summary=d.get("append_summary", False) if isinstance(d, dict) else False,
+                immediate=d.get("immediate", False) if isinstance(d, dict) else False,
             ),
         )
 
         # Weight Management
         self.event_bus.subscribe(
             Events.UI_SET_ACTIVE_WEIGHT,
-            lambda d: self.gui.set_active_weight_in_dropdown(d.get("weight_name")),
+            lambda d: self.gui.set_active_weight_in_dropdown(
+                d.get("weight_name") if isinstance(d, dict) else None
+            ),
         )
         self.event_bus.subscribe(
             Events.UI_UPDATE_OPENVINO_STATUS,
-            lambda d: self.gui.update_openvino_status_display(d.get("status")),
+            lambda d: self.gui.update_openvino_status_display(
+                d.get("status") if isinstance(d, dict) else None
+            ),
         )
         self.event_bus.subscribe(
             Events.UI_UPDATE_OPENVINO_CHECKBOX,
-            lambda d: self.gui.update_openvino_checkbox(d.get("is_checked")),
+            lambda d: self.gui.update_openvino_checkbox(
+                d.get("is_checked") if isinstance(d, dict) else None
+            ),
         )
         self.event_bus.subscribe(
             Events.UI_UPDATE_WEIGHTS_LIST,
-            lambda d: self.gui.update_weights_dropdown(d.get("weights")),
+            lambda d: self.gui.update_weights_dropdown(
+                d.get("weights") if isinstance(d, dict) else None
+            ),
         )
 
         # Arduino / Hardware
         self.event_bus.subscribe(
             Events.UI_UPDATE_ARDUINO_STATUS,
             lambda d: self.gui.arduino_dashboard_widget.update_status(
-                d.get("connected"), d.get("port")
+                d.get("connected") if isinstance(d, dict) else None,
+                d.get("port") if isinstance(d, dict) else None
             )
             if self.gui.arduino_dashboard_widget
             else None,
         )
         self.event_bus.subscribe(
             Events.UI_APPEND_ARDUINO_LOG,
-            lambda d: self.gui.arduino_dashboard_widget.append_log(d.get("message"))
+            lambda d: self.gui.arduino_dashboard_widget.append_log(
+                d.get("message") if isinstance(d, dict) else ""
+            )
             if self.gui.arduino_dashboard_widget
             else None,
         )
@@ -293,37 +319,56 @@ class EventDispatcher:
         )
         self.event_bus.subscribe(
             Events.UI_UPDATE_PROCESSING_MODE,
-            lambda d: self.gui.update_processing_mode(d.get("report")),
+            lambda d: self.gui.state_synchronizer.update_processing_mode(
+                d.get("report") if isinstance(d, dict) else None
+            ),
         )
 
         # General UI
         self.event_bus.subscribe(
             Events.UI_UPDATE_BUTTON_STATE,
-            lambda d: self.gui.update_button_state(d.get("button_name"), d.get("state")),
+            lambda d: self.gui.update_button_state(
+                d.get("button_name") if isinstance(d, dict) else None,
+                d.get("state") if isinstance(d, dict) else None
+            ),
+        )
+        self.event_bus.subscribe(
+            Events.UI_DISPLAY_FRAME,
+            lambda d: self.gui.canvas_manager.update_video_frame(
+                d.get("frame") if isinstance(d, dict) else None,
+                d.get("detections") if isinstance(d, dict) else None
+            ),
         )
         self.event_bus.subscribe(
             Events.UI_DISPLAY_VIDEO_FRAME,
-            lambda d: self.gui.canvas_manager.display_roi_video_frame(d.get("video_path")),
+            lambda d: self.gui.canvas_manager.display_roi_video_frame(
+                d.get("video_path") if isinstance(d, dict) else None
+            ),
         )
 
         # Zone Updates
         self.event_bus.subscribe(
             Events.UI_REDRAW_ZONES,
-            lambda d: self.gui.canvas_manager.redraw_zones(d.get("zone_data")),
+            lambda d: self.gui.canvas_manager.redraw_zones_from_project_data(
+                d.get("zone_data") if isinstance(d, dict) else None
+            ),
         )
         self.event_bus.subscribe(
-            Events.UI_UPDATE_ZONE_LIST, lambda d: self.gui.project_view_manager.refresh_zone_list()
+            Events.UI_UPDATE_ZONE_LIST, lambda d: self.gui.canvas_manager.update_zone_listbox()
         )
 
         # Weight Management Interactive Requests
         self.event_bus.subscribe(
             Events.UI_REQUEST_WEIGHT_TYPE,
-            lambda d: self.gui.handle_request_weight_type(d.get("filepath")),
+            lambda d: self.gui.handle_request_weight_type(
+                d.get("filepath") if isinstance(d, dict) else None
+            ),
         )
         self.event_bus.subscribe(
             Events.UI_REQUEST_WEIGHT_ACTION,
             lambda d: self.gui.handle_request_weight_action(
-                d.get("filepath"), d.get("weight_type")
+                d.get("filepath") if isinstance(d, dict) else None,
+                d.get("weight_type") if isinstance(d, dict) else None
             ),
         )
 
@@ -340,6 +385,12 @@ class EventDispatcher:
 
     def _handle_setup_zone_definition_for_single_video(self, data: dict) -> None:
         """Handler for single video zone setup event."""
+        if not isinstance(data, dict):
+            self.log.warning(
+                "event_dispatcher._handle_setup_zone_definition_for_single_video.invalid_data_type",
+                data_type=type(data).__name__,
+            )
+            return
         self.log.info(
             "event_dispatcher._handle_setup_zone_definition_for_single_video.called",
             has_gui=bool(self.gui),
@@ -376,7 +427,7 @@ class EventDispatcher:
         self.event_bus.subscribe(
             Events.ZONE_AUTO_DETECT_CLICKED,
             lambda d: self.gui._on_auto_detect_clicked(
-                stabilization_frames=d.get("stabilization_frames")
+                stabilization_frames=d.get("stabilization_frames") if isinstance(d, dict) else None
             ),
         )
         self.event_bus.subscribe(
@@ -422,7 +473,9 @@ class EventDispatcher:
         self.event_bus.subscribe(
             Events.ZONE_LIST_ITEM_RIGHT_CLICK,
             lambda d: self.gui.menu_manager.show_roi_context_menu(
-                x=d.get("x"), y=d.get("y"), item_id=d.get("item_id")
+                x=d.get("x") if isinstance(d, dict) else 0,
+                y=d.get("y") if isinstance(d, dict) else 0,
+                item_id=d.get("item_id") if isinstance(d, dict) else None
             ),
         )
 
@@ -436,7 +489,8 @@ class EventDispatcher:
 
         # ROI Settings
         self.event_bus.subscribe(
-            Events.DETECTOR_UPDATE_PARAMETERS, lambda d: self.gui._on_apply_roi_settings(d)
+            Events.DETECTOR_UPDATE_PARAMETERS,
+            lambda d: self.gui._on_apply_roi_settings(d if isinstance(d, dict) else {})
         )
 
     def schedule_event_bus_poll(self) -> None:

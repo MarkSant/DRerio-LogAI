@@ -89,6 +89,10 @@ class ProjectViewManager:
         Args:
             data: Event payload containing filter_text
         """
+        if not isinstance(data, dict):
+            log.warning("project_view_manager._on_video_tree_refresh_requested.invalid_data_type",
+                       data_type=type(data).__name__)
+            return
         filter_text = data.get("filter_text")
         log.debug("project_view_manager.video_tree_refresh_event_received", filter_text=filter_text)
         self._populate_video_selector_tree(filter_text)
@@ -99,6 +103,10 @@ class ProjectViewManager:
         Args:
             data: Event payload containing readiness snapshot data
         """
+        if not isinstance(data, dict):
+            log.warning("project_view_manager._on_readiness_snapshot_updated.invalid_data_type",
+                       data_type=type(data).__name__)
+            return
         ready_with_trajectory = data.get("ready_with_trajectory", [])
         ready_with_zones = data.get("ready_with_zones", [])
         arena_only = data.get("arena_only", [])
@@ -289,8 +297,23 @@ class ProjectViewManager:
 
     def _build_video_hierarchy_snapshot(self) -> list[dict]:
         """Build video hierarchy snapshot. Delegates to ValidationManager."""
+        controller = getattr(self.gui, "controller", None)
+        if not controller or not controller.project_manager:
+            return []
+
+        pm = controller.project_manager
+        all_videos = pm.get_all_videos() or []
+
         if hasattr(self.gui, "validation_manager"):
-            snapshot = self.gui.validation_manager.build_video_hierarchy_snapshot()
+            # Use prepare_overview_hierarchy_for_widget to get the correct structure
+            # (groups, summaries) instead of build_video_hierarchy_snapshot
+            # which returns a simpler list
+            hierarchy_data = (
+                self.gui.validation_manager.prepare_overview_hierarchy_for_widget(all_videos)
+            )
+
+            # Extract the 'groups' list which contains the snapshot data
+            snapshot = hierarchy_data.get("groups", [])
 
             # Publish the update
             if self.event_bus_v2:

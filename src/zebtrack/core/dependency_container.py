@@ -75,5 +75,8 @@ class MainViewModelDependencies:
     detector_coordinator: Any = None  # DEPRECATED: Use hardware_coordinator
     project_coordinator: Any = None  # DEPRECATED: Use project_lifecycle_coordinator
 
+    # Runtime State
+    cancel_event: Any = None
+
     # Testing
     test_sync_event: Any = None

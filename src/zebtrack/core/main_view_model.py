@@ -119,11 +119,8 @@ class MainViewModel:
                 [],
                 "kwargs_all",
             ),  # Facade wrapper due to complexity
-            Events.VIDEO_START_SINGLE_PROCESSING: (
-                self.analysis_vm.start_single_video_processing,
-                [],
-                "kwargs_all",
-            ),
+            # NOTE: VIDEO_START_SINGLE_PROCESSING is handled by ProcessingCoordinator
+            # to avoid duplicate execution (removed from here)
             Events.VIDEO_CANCEL_ANALYSIS: (
                 self.analysis_vm.cancel_current_analysis,
                 [],
@@ -549,13 +546,29 @@ class MainViewModel:
 
     def join_threads(self):
         log.info("controller.shutdown.start")
+
+        # Signal all threads to exit
         self.program_exit_event.set()
+
+        # Cancel any active processing before shutdown
+        # This ensures ProcessingWorker gets the cancel signal
+        self.analysis_vm.cancel_current_analysis()
+
+        # Join ProcessingCoordinator threads (Phase 3 architecture)
+        if self.processing_coordinator and self.processing_coordinator.processing_thread:
+            if self.processing_coordinator.processing_thread.is_alive():
+                log.info("controller.shutdown.joining_processing_coordinator_thread")
+                self.processing_coordinator.processing_thread.join(timeout=5.0)
+
+        # Legacy thread join for backward compatibility
         if self.processing_thread and self.processing_thread.is_alive():
-            self.processing_thread.join()
+            log.info("controller.shutdown.joining_legacy_processing_thread")
+            self.processing_thread.join(timeout=5.0)
 
         capture_thread = getattr(self, "capture_thread", None)
         if capture_thread and capture_thread.is_alive():
-            capture_thread.join()
+            log.info("controller.shutdown.joining_capture_thread")
+            capture_thread.join(timeout=5.0)
 
         camera_release_success = True
         # Check hardware_vm for camera
@@ -610,6 +623,15 @@ class MainViewModel:
             if not method:
                 return
 
+            # Ensure data is a dict before processing
+            if not isinstance(data, dict):
+                self.log.warning(
+                    "main_view_model.dispatcher.invalid_data_type",
+                    event_name=event_name,
+                    data_type=type(data).__name__,
+                )
+                return
+
             if mode == "no_params":
                 method()
             elif mode == "kwargs_all":
@@ -645,6 +667,12 @@ class MainViewModel:
         )
 
     def _handle_project_manager_replaced(self, data: dict):
+        if not isinstance(data, dict):
+            self.log.warning(
+                "main_view_model._handle_project_manager_replaced.invalid_data_type",
+                data_type=type(data).__name__,
+            )
+            return
         new_manager = data.get("new_manager")
         if not new_manager:
             return

@@ -238,19 +238,24 @@ class ProcessingCoordinator(BaseCoordinator):
         bus.subscribe(
             Events.VIDEO_START_SINGLE_PROCESSING,
             lambda data: self.start_single_video_processing(
-                data.get("video_path"), data.get("config"), data.get("zone_data")
+                data.get("video_path") if isinstance(data, dict) else None,
+                data.get("config") if isinstance(data, dict) else {},
+                data.get("zone_data") if isinstance(data, dict) else None
             ),
         )
         bus.subscribe(
             Events.PROJECT_PROCESS_VIDEOS,
-            lambda data: self.process_pending_project_videos(data.get("video_paths")),
+            lambda data: self.process_pending_project_videos(
+                data.get("video_paths") if isinstance(data, dict) else None
+            ),
         )
         # Auto-detect aquarium event
         bus.subscribe(
             Events.ZONE_AUTO_DETECT,
             lambda data: self.run_aquarium_detection(
-                video_path=data.get("video_path"),
-                stabilization_frames=int(data.get("stabilization_frames", 10)),
+                video_path=data.get("video_path") if isinstance(data, dict) else None,
+                stabilization_frames=int(data.get("stabilization_frames", 10))
+                if isinstance(data, dict) else 10,
             ),
         )
 
@@ -354,6 +359,11 @@ class ProcessingCoordinator(BaseCoordinator):
 
         Phase 3: Consolidated from VideoProcessingOrchestrator.create_processing_context
         """
+        log.info(
+            "create_processing_context",
+            cancel_event_id=id(self.cancel_event),
+            is_set=self.cancel_event.is_set(),
+        )
         return ProcessingContext(
             videos_to_process=videos_to_process,
             output_base_dir=output_base_dir,
@@ -502,6 +512,16 @@ class ProcessingCoordinator(BaseCoordinator):
             on_completed=on_completed,
             on_fatal_error=on_fatal_error,
         )
+
+    def cancel_processing(self) -> None:
+        """Cancel any active processing."""
+        log.info("coordinator.cancel_requested")
+        self.cancel_event.set()
+
+        if self.processing_worker and self.processing_worker.is_running:
+            log.info("coordinator.cancelling_worker")
+            self.processing_worker.cancel()
+
 
     def make_progress_callback(
         self,

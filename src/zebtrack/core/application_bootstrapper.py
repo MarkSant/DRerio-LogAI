@@ -376,7 +376,21 @@ class ApplicationBootstrapper:
 
         # Exit event for threads
         program_exit_event = threading.Event()
-        cancel_event = threading.Event()
+
+        # Use cancel_event from dependencies if provided (to share with coordinators),
+        # otherwise create a new one
+        cancel_event = getattr(self.deps, "cancel_event", None)
+        if cancel_event is None:
+            cancel_event = threading.Event()
+            log.warning(
+                "bootstrapper.cancel_event.created_new",
+                message="No cancel_event in dependencies, creating new (may cause cancellation issues)",
+            )
+        else:
+            log.info(
+                "bootstrapper.cancel_event.using_provided",
+                cancel_event_id=id(cancel_event),
+            )
 
         self._runtime_state = {
             "recorder": recorder,

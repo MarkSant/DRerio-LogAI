@@ -212,6 +212,67 @@ class CanvasRenderer:
 
         log.info("gui.redraw_zones.complete")
 
+    def update_overlay(self, detections, is_single_subject=False):
+        """Draw detection overlays on the canvas.
+
+        Args:
+            detections: List of detections (x1, y1, x2, y2, conf, track_id, class_id)
+            is_single_subject: Boolean flag for single subject mode style
+        """
+        canvas = self.gui.video_display.canvas if self.gui.video_display else None
+        if not canvas:
+            return
+
+        # Clear previous overlays
+        canvas.delete("detection_overlay")
+
+        if not detections:
+            return
+
+        for det in detections:
+            try:
+                # Unpack detection (support both 6 and 7 element tuples)
+                if len(det) == 6:
+                    x1, y1, x2, y2, conf, track_id = det
+                    class_id = 0
+                else:
+                    x1, y1, x2, y2, conf, track_id, class_id = det
+
+                # Convert to canvas coordinates
+                cx1, cy1 = self.manager._video_to_canvas(x1, y1)
+                cx2, cy2 = self.manager._video_to_canvas(x2, y2)
+
+                # Style configuration
+                color = "magenta" if is_single_subject else "cyan"
+                if class_id == 0: # Aquarium
+                    color = "yellow"
+                
+                # Draw bounding box
+                canvas.create_rectangle(
+                    cx1, cy1, cx2, cy2,
+                    outline=color,
+                    width=2,
+                    tags="detection_overlay"
+                )
+
+                # Draw label
+                label_text = f"ID: {track_id}" if track_id is not None else "Det"
+                if is_single_subject:
+                    label_text = "Alvo"
+                
+                # Text background
+                canvas.create_text(
+                    cx1, cy1 - 10,
+                    text=label_text,
+                    fill=color,
+                    anchor="sw",
+                    font=("Arial", 10, "bold"),
+                    tags="detection_overlay"
+                )
+
+            except Exception as e:
+                log.error("renderer.overlay_draw_error", error=str(e))
+
     def draw_interactive_polygon(self):
         """Redraw the polygon and its handles based on current points."""
         self.gui.video_display.canvas.delete(

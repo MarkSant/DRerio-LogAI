@@ -191,10 +191,12 @@ class EventBus:
         """
         handlers = self._subscribers.get(event.event_name, [])
         if not handlers:
-            log.warning(
-                "event_bus.dispatch.no_handlers",
-                event_name=event.event_name,
-            )
+            # Suppress warning for high-frequency UI events
+            if event.event_name not in ("ui:display_frame",):
+                log.warning(
+                    "event_bus.dispatch.no_handlers",
+                    event_name=event.event_name,
+                )
             return
 
         for handler in handlers:

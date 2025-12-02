@@ -101,13 +101,46 @@ class AnalysisControlViewModel:
             self.video_processing_orchestrator.start_single_video_processing(**kwargs)
 
     def cancel_current_analysis(self) -> None:
-        worker_running = bool(self.processing_worker and self.processing_worker.is_running)
-        thread_running = bool(self.processing_thread and self.processing_thread.is_alive())
+        # Check if ProcessingCoordinator has an active worker
+        coord_worker_running = bool(
+            self.processing_coordinator
+            and self.processing_coordinator.processing_worker
+            and self.processing_coordinator.processing_worker.is_running
+        )
+        coord_thread_running = bool(
+            self.processing_coordinator
+            and self.processing_coordinator.processing_thread
+            and self.processing_coordinator.processing_thread.is_alive()
+        )
 
-        if not worker_running and not thread_running:
+        # Also check legacy attributes for backward compatibility
+        legacy_worker_running = bool(self.processing_worker and self.processing_worker.is_running)
+        legacy_thread_running = bool(self.processing_thread and self.processing_thread.is_alive())
+
+        # If nothing is running, early return
+        if not (
+            coord_worker_running or coord_thread_running or legacy_worker_running or legacy_thread_running
+        ):
+            log.info("cancel_current_analysis.no_processing_active")
             return
 
+        # Set cancel event to stop processing
+        log.info(
+            "cancel_current_analysis.setting_cancel_event",
+            cancel_event_id=id(self.cancel_event),
+            is_set_before=self.cancel_event.is_set(),
+        )
         self.cancel_event.set()
+        log.info(
+            "cancel_current_analysis.cancel_event_set",
+            cancel_event_id=id(self.cancel_event),
+            is_set_after=self.cancel_event.is_set(),
+        )
+
+        # Delegate to coordinator to ensure worker is cancelled
+        if self.processing_coordinator:
+            self.processing_coordinator.cancel_processing()
+
         self.state_manager.update_processing_state(
             source="controller.cancel_current_analysis",
             cancel_requested=True,
@@ -122,10 +155,20 @@ class AnalysisControlViewModel:
             self.ui_state_controller._show_cancel_feedback()
 
         def _await_shutdown():
+            # Handle legacy worker shutdown
             if self.processing_worker and self.processing_worker.is_running:
                 self.processing_worker.cancel()
             elif self.processing_thread and self.processing_thread.is_alive():
                 self.processing_thread.join(timeout=5.0)
+            
+            # Coordinator worker is handled by cancel_processing(), 
+            # but we can wait for its thread here if needed for UI responsiveness
+            if (
+                self.processing_coordinator 
+                and self.processing_coordinator.processing_thread 
+                and self.processing_coordinator.processing_thread.is_alive()
+            ):
+                self.processing_coordinator.processing_thread.join(timeout=5.0)
 
         threading.Thread(target=_await_shutdown, daemon=True).start()
 
@@ -143,8 +186,15 @@ class AnalysisControlViewModel:
         return False
 
     def auto_detect_zones(self, **kwargs):
-        if self.processing_coordinator:
-            self.processing_coordinator.auto_detect_zones(**kwargs)
+        """
+        Trigger auto-detection of aquarium zones via event.
+        """
+        if self.ui_event_bus:
+            payload = {
+                "video_path": kwargs.get("video_path"),
+                "stabilization_frames": kwargs.get("stabilization_frames", 10),
+            }
+            self.ui_event_bus.publish_event(Events.ZONE_AUTO_DETECT, payload)
 
     def generate_parquet_summaries(self, video_paths: list[str]):
         self.analysis_coordinator.generate_parquet_summaries(

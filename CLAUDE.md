@@ -28,6 +28,7 @@ poetry run pre-commit run --all-files  # Full pre-commit
 ```
 
 **Detailed Guides**:
+- `docs/SYSTEM_INTEGRATION_MAP.md` - **CRITICAL**: Event payloads & Component contracts
 - `docs/CHEATSHEET.md` - Quick developer reference
 - `README_TESTS.md` - Complete testing guide
 
@@ -346,6 +347,7 @@ logger.error("recorder.save_parquet.error", error=str(e))
 3. **Testing**: Write tests before/during implementation, run `pytest -q`
 4. **Quality**: `ruff check --fix .`, run pre-commit
 5. **Documentation**: Update relevant docs in `docs/` if user-facing
-6. **Commit**: Clear message, reference issue if applicable
+6. **System Map**: Update `docs/SYSTEM_INTEGRATION_MAP.md` immediately if changing events, payloads, or cross-component logic.
+7. **Commit**: Clear message, reference issue if applicable
 
 **For detailed workflows**: `docs/WORKFLOWS.md`

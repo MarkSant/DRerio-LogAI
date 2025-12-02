@@ -152,10 +152,25 @@ class ProcessingWorker:
         """Monitor results from the worker process."""
         self.callbacks.on_started()
 
+        cancel_sent = False  # Track if we've sent cancel command
+
+        # Log cancel_event details for debugging
+        log.info(
+            "monitor_loop.started",
+            cancel_event_id=id(self.context.cancel_event),
+            is_set=self.context.cancel_event.is_set(),
+        )
+
         while True:
-            # Forward cancellation
-            if self.context.cancel_event.is_set():
+            # Forward cancellation (send only once to avoid flooding queue)
+            if self.context.cancel_event.is_set() and not cancel_sent:
+                log.info(
+                    "monitor_loop.cancel_detected",
+                    cancel_event_id=id(self.context.cancel_event),
+                )
                 self.command_queue.put("cancel")
+                cancel_sent = True
+                log.info("monitor_loop.cancel_command_sent")
 
             try:
                 # Poll queue
@@ -179,8 +194,8 @@ class ProcessingWorker:
                     if self.callbacks.on_frame_processed:
                         self.callbacks.on_frame_processed(
                             msg["frame"],
-                            None,  # Detections (not passed in this simple msg yet)
-                            None,  # Info
+                            msg.get("detections"),
+                            msg.get("info"),
                         )
 
                 elif msg_type == "video_completed":
@@ -250,6 +265,16 @@ class _WorkerProcess(multiprocessing.Process):
 
     def run(self):
         """Main entry point for the worker process."""
+        # Configure logging for worker process (multiprocessing doesn't inherit parent config)
+        import logging
+        import sys
+        root_logger = logging.getLogger()
+        # Only keep handlers that write to files, remove console handlers
+        for handler in root_logger.handlers[:]:
+            if isinstance(handler, logging.StreamHandler) and handler.stream == sys.stdout:
+                # Keep console handler but set level to INFO to hide DEBUG messages
+                handler.setLevel(logging.INFO)
+
         log.info("worker.process.started", pid=os.getpid())
 
         try:
@@ -397,7 +422,14 @@ class _WorkerProcess(multiprocessing.Process):
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         # 2. Setup Zones & Calibration
+        # Force base dimensions to match video to prevent double-scaling if zones are already in native coords
+        detector.base_width = width
+        detector.base_height = height
         detector.set_zones(self._default_zone_data, width, height)
+        
+        # Fix: Ensure detector knows aquarium is defined if we have a polygon
+        has_aquarium = bool(self._default_zone_data.polygon and len(self._default_zone_data.polygon) >= 3)
+        detector.set_aquarium_region_defined(has_aquarium)
 
         # 3. Setup Recorder
         if self.config.single_video_mode:
@@ -441,6 +473,10 @@ class _WorkerProcess(multiprocessing.Process):
                     # Detect
                     detections, _ = detector.detect(frame, project_type="pre-recorded")
 
+                    # Check cancellation after detection (slowest part)
+                    if self._check_cancellation():
+                        return False
+
                     # Record
                     timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
                     recorder.write_detection_data(timestamp, frame_num, detections)
@@ -456,30 +492,33 @@ class _WorkerProcess(multiprocessing.Process):
                             scale = 1280 / width
                             preview_frame = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
 
+                        # Calculate stats
+                        elapsed = time.time() - start_time
+                        fps = frame_num / elapsed if elapsed > 0 else 0
+                        stats = {
+                            "fps": fps,
+                            "frame": frame_num,
+                            "total_frames": total_frames,
+                            "current_frame": frame_num,
+                        }
+
                         self.result_queue.put(
                             {
                                 "type": "frame",
                                 "frame": preview_frame,
+                                "detections": detections,
+                                "info": stats,
                                 "experiment_id": experiment_id,
                             }
                         )
 
-                        # Stats update
-                        elapsed = time.time() - start_time
-                        progress = frame_num / total_frames if total_frames > 0 else 0
-
                         self._send_progress(
                             index,
                             total_videos,
-                            progress,
+                            frame_num / total_frames if total_frames > 0 else 0,
                             "Processando...",
                             experiment_id,
-                            stats={
-                                "fps": frame_num / elapsed if elapsed > 0 else 0,
-                                "frame": frame_num,
-                                "total_frames": total_frames,
-                                "current_frame": frame_num,
-                            },
+                            stats=stats,
                         )
 
                 frame_num += 1

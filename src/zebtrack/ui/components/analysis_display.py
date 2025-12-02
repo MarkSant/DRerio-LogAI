@@ -354,6 +354,31 @@ class AnalysisDisplayWidget(BaseWidget):
             self.video_label.config(image="")
             self.video_label.image = None
 
+    def update_frame(self, image) -> None:
+        """
+        Update the video display with a new frame.
+
+        Args:
+            image: PIL.Image or ImageTk.PhotoImage object to display
+        """
+        if not self.video_label:
+            return
+
+        try:
+            from PIL import ImageTk
+            
+            # If it's already a PhotoImage, use it directly
+            if isinstance(image, ImageTk.PhotoImage):
+                tk_image = image
+            else:
+                # Convert PIL Image to PhotoImage
+                tk_image = ImageTk.PhotoImage(image)
+            
+            self.video_label.configure(image=tk_image)
+            self.video_label.image = tk_image  # Keep reference to prevent garbage collection
+        except Exception as e:
+            log.error("analysis_display.update_frame.error", error=str(e))
+
     def reset_to_defaults(self) -> None:
         """Reset all displays to default values."""
         self.set_status("Nenhuma análise em andamento.")

@@ -208,6 +208,8 @@ class ApplicationGUI:
 
         # Dynamic widgets / state variables
         self.zone_summary_frame: ttk.LabelFrame | None = None
+        self.project_overview_frame: ttk.LabelFrame | None = None  # Added to fix AttributeError
+        self.zone_controls: Any | None = None  # Added to fix AttributeError
         self.zone_summary_cards: dict[str, dict[str, StringVar]] = {}
         self.pipeline_tab_frame: ttk.Frame | None = None
         self.pipeline_video_tree: ttk.Treeview | None = None
@@ -344,7 +346,8 @@ class ApplicationGUI:
         controller's state availability.
         """
         try:
-            # Prefer hardware_vm if available (post-init), else fallback to controller attrs (bootstrap)
+            # Prefer hardware_vm if available (post-init),
+            # else fallback to controller attrs (bootstrap)
             if hasattr(self.controller, "hardware_vm"):
                 active_weight = self.controller.hardware_vm.active_weight_name
                 use_openvino = self.controller.hardware_vm.use_openvino
@@ -1305,14 +1308,6 @@ class ApplicationGUI:
             self.start_single_analysis_btn.pack(side="bottom", fill="x", pady=5)
         self.start_single_analysis_btn.config(state="normal")
 
-        self.show_info(
-            "Configuração Necessária",
-            "Defina a arena do aquário usando a detecção automática ou o "
-            "desenho manual.\n\n"
-            "Após definir a arena principal, clique em 'Iniciar Análise de "
-            "Vídeo Único'.",
-        )
-
         self.state_synchronizer.prepare_single_video_ui_state(config)
 
     def _on_auto_detect_clicked(self, stabilization_frames: int | str | None = None):
@@ -1496,31 +1491,36 @@ class ApplicationGUI:
         self._reset_analysis_controls()
         self._switch_to_zones_view()
 
-    def update_detection_overlay(
-        self,
-        detections: list[tuple],
-        report: ProcessingReport | None = None,
-    ) -> None:
-        """Receive the latest detection batch for track selection overlays."""
-        if detections is None:
-            detections = []
+    def update_detection_overlay(self, detections=None, report=None):
+        """Update the detection overlay on the canvas."""
+        # Handle report being a dict (stats) or ProcessingReport object
+        processing_mode = None
+        if report:
+            if hasattr(report, "mode"):
+                processing_mode = report.mode
+            elif isinstance(report, dict):
+                # If it's a dict, it might be stats or a report dict
+                # Try to get mode if present, otherwise default/ignore
+                processing_mode = report.get("mode")
+        
+        # Check if we are in single subject mode
+        # If processing_mode is available, use it. Otherwise check controller.
+        from zebtrack.core.processing_mode import ProcessingMode
+        is_single_subject = (processing_mode == ProcessingMode.SINGLE_SUBJECT)
+        
+        # If report didn't provide mode, fallback to current controller state
+        if processing_mode is None and self.controller:
+             # Access private attribute directly if property isn't exposed or simply default to False
+             # to avoid another AttributeError.
+             # Ideally controller has a property for this.
+             try:
+                 # Check if controller has active_processing_mode property or attribute
+                 if hasattr(self.controller, "_active_processing_mode"):
+                     is_single_subject = (self.controller._active_processing_mode == ProcessingMode.SINGLE_SUBJECT)
+             except Exception:
+                 pass
 
-        mode = report.mode if report else self._active_processing_mode
-        self._current_detections = list(detections)
-
-        if self.track_selector_widget:
-            state = "disabled" if mode is ProcessingMode.SINGLE_SUBJECT else "readonly"
-            self.track_selector_widget.configure(state=state)
-
-        if mode is ProcessingMode.SINGLE_SUBJECT:
-            self.track_selector_var.set("Todos")
-            self.state_synchronizer._update_track_options(["Todos"])
-        else:
-            options = self._build_track_options(self._current_detections)
-            self.state_synchronizer._update_track_options(options)
-
-        if self._last_analysis_frame is not None:
-            self.canvas_manager._render_last_analysis_frame()
+        self.canvas_manager.renderer.update_overlay(detections, is_single_subject)
 
     def update_processing_mode(self, report: ProcessingReport | None) -> None:
         """Update the UI to reflect the active tracking pipeline."""
@@ -1591,8 +1591,8 @@ class ApplicationGUI:
 
     def update_analysis_progress(self, value, status_text=None):
         """Update progress bar and status in the analysis overlay."""
-        if self.progress_bar:
-            self.progress_bar["value"] = value * 100
+        if self.analysis_display_widget and self.analysis_display_widget.progress_bar:
+            self.analysis_display_widget.progress_bar["value"] = value * 100
         if status_text:
             self.analysis_status_var.set(status_text)
         self.update_idletasks()

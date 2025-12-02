@@ -1066,6 +1066,7 @@ class ValidationManager:
             hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
         ):
             group_entry = {
+                "id": group_id,
                 "label": f"🏷️ {group_data['display']} ({group_id})",
                 "status_label": "",
                 "filename_display": "",

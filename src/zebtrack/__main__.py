@@ -48,7 +48,6 @@ def configure_logging():
         structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S", utc=False),
         structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
     ]
 
@@ -89,9 +88,14 @@ def configure_logging():
 
     # Configure root logger to route ALL logs (including stdlib/libs) through structlog
     root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    # Configure handlers levels
+    file_handler.setLevel(logging.DEBUG)  # All levels in file
+    console_handler.setLevel(logging.INFO)  # INFO and above in console (hides DEBUG)
+
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
-    root_logger.setLevel(logging.INFO)
 
 
 def main():
@@ -281,6 +285,9 @@ def main():
         splash.update_status("Criando interface gráfica...")
 
         _t0 = time.perf_counter()
+
+        # Create cancel_event ONCE and share with ApplicationBootstrapper
+        # This ensures AnalysisControlViewModel and ProcessingCoordinator use the SAME Event object
         cancel_event = threading.Event()
 
         # VideoProcessingService is created before detector exists
@@ -495,6 +502,8 @@ def main():
             hardware_coordinator=hardware_coordinator,
             processing_coordinator=processing_coordinator,
             session_coordinator=session_coordinator,
+            # Threading events - shared across components
+            cancel_event=cancel_event,
         )
 
         # Use Bootstrapper to complete initialization
@@ -517,6 +526,11 @@ def main():
         # Set view reference for legacy components
         ui_state_controller.view = controller.view
         ui_state_controller.main_view_model = controller
+
+        # Set view reference for Phase 3 coordinators
+        hardware_coordinator.view = controller.view
+        processing_coordinator.view = controller.view
+        session_coordinator.view = controller.view
 
         # Bind events
         controller.bind_events()

@@ -311,18 +311,12 @@ class Detector:
             )
 
             # 🔍 DEBUG: Log decision flags for polygon filtering
-            log.info(
+            log.debug(
                 "detector.polygon_filter_decision_flags",
                 has_polygon=has_polygon,
                 context=self._context,
                 aquarium_defined=self._aquarium_region_defined,
                 polygon_size=self.scaled_polygon.size,
-            )
-
-            import sys
-
-            sys.stderr.write(
-                f"DEBUG: has_polygon={has_polygon}, context={self._context}, aquarium_defined={self._aquarium_region_defined}, polygon_size={self.scaled_polygon.size}\n"
             )
 
             # ✅ If no polygon defined and in diagnostic mode OR detecting aquarium, accept all detections
@@ -355,7 +349,7 @@ class Detector:
                         )
                         # 🔍 DEBUG: Log why it passed
                         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-                        log.info(
+                        log.debug(
                             "detector.polygon_filter.passed",
                             bbox=(x1, y1, x2, y2),
                             center=(cx, cy),
@@ -364,21 +358,21 @@ class Detector:
                             else "unknown",
                         )
                     else:
-                        log.info(
+                        log.debug(
                             "detector.filtered_outside_polygon",
                             bbox=(x1, y1, x2, y2),
                             track_id=track_id,
                             class_id=class_id,
                         )
         else:
-            log.info(
+            log.debug(
                 "detector.no_predictions_from_model",
                 has_polygon=has_polygon,
             )
 
         # Centralized filtering logic based on context
         # 🔍 DEBUG: Log current context during filtering
-        log.info(
+        log.debug(
             "detector.filtering_context_check",
             current_context=self._context,
             detections_in_polygon=len(detections_in_polygon),
@@ -399,7 +393,7 @@ class Detector:
             aquarium_class_id = 0
             zebrafish_class_id = 1
 
-            log.info(
+            log.debug(
                 "detector.filtering_by_class",
                 detections_in_polygon=len(detections_in_polygon),
                 aquarium_defined=self._aquarium_region_defined,
@@ -442,7 +436,7 @@ class Detector:
                     if is_valid_aquarium:
                         filtered_detections.append(det)
                     else:
-                        log.info(
+                        log.debug(
                             "detector.filtered_by_class",
                             bbox=(det[0], det[1], det[2], det[3]),
                             class_id=class_id,
@@ -489,7 +483,7 @@ class Detector:
                     if class_id == zebrafish_class_id:
                         filtered_detections.append(det)
                     else:
-                        log.info(
+                        log.debug(
                             "detector.filtered_by_class",
                             bbox=(det[0], det[1], det[2], det[3]),
                             class_id=class_id,
@@ -513,7 +507,7 @@ class Detector:
                 )
                 for x1, y1, x2, y2, confidence, _, class_id in filtered_detections
             ]
-            log.info(
+            log.debug(
                 "detector.skip_tracking",
                 num_detections=len(filtered_detections),
                 reason="diagnostic_mode"
@@ -553,7 +547,7 @@ class Detector:
         )
 
         # 🔍 INFO: Log final detection count before return
-        log.info(
+        log.debug(
             "detector.detect.final_result",
             num_detections=len(filtered_detections),
             context=self._context,

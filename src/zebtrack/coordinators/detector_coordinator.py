@@ -187,16 +187,6 @@ class DetectorCoordinator(BaseCoordinator):
                     use_openvino=use_openvino,
                 )
 
-                # Publish success event
-                self._publish_event(
-                    "DETECTOR_INITIALIZED",
-                    {
-                        "animal_method": animal_method,
-                        "use_openvino": use_openvino,
-                        "active_weight_name": active_weight_name,
-                    },
-                )
-
                 log.info(
                     "detector_coordinator.setup_detector.success",
                     animal_method=animal_method,

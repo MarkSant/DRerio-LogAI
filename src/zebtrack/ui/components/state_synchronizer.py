@@ -443,8 +443,21 @@ class StateSynchronizer:
         detected_frames=None,
         start_time=None,
         current_frame=None,
+        fps=None,  # Added: FPS from stats
+        frame=None,  # Added: Frame number from stats (alias for current_frame)
+        **kwargs,  # Catch any other unexpected arguments
     ) -> None:
         """Update processing statistics in real-time during video analysis."""
+        # Normalize inputs from various sources (worker vs legacy)
+        if processed_frames is None:
+            if current_frame is not None:
+                processed_frames = current_frame
+            elif frame is not None:
+                processed_frames = frame
+        
+        # If total_frames is missing in kwargs but we have it in gui state or logic?
+        # For now assume it's passed.
+
         if self.gui.analysis_display_widget:
             # Format values if needed before passing
             percent = None
@@ -452,28 +465,34 @@ class StateSynchronizer:
             eta_str = None
 
             # Calculate and update percentage based on actual frame position
-            if total_frames:
-                frame_for_percent = current_frame if current_frame is not None else processed_frames
-                if frame_for_percent is not None:
-                    percent_val = (frame_for_percent / total_frames) * 100
-                    percent = f"{percent_val:.1f}%"
+            if total_frames and processed_frames is not None:
+                percent_val = (processed_frames / total_frames) * 100
+                percent = f"{percent_val:.1f}%"
 
             # Calculate elapsed time and ETA
+            # Strategy 1: Use start_time if provided (Legacy/Local)
             if start_time:
                 import time
-
                 elapsed = time.time() - start_time
                 elapsed_str = self._format_time(elapsed)
 
-                frame_for_eta = current_frame if current_frame is not None else processed_frames
-                if frame_for_eta and total_frames and frame_for_eta > 0:
-                    rate = frame_for_eta / elapsed
-                    remaining_frames = total_frames - frame_for_eta
+                if processed_frames and total_frames and processed_frames > 0:
+                    rate = processed_frames / elapsed
+                    remaining_frames = total_frames - processed_frames
                     if rate > 0:
                         eta = remaining_frames / rate
                         eta_str = self._format_time(eta)
-                    else:
-                        eta_str = "-"
+            
+            # Strategy 2: Use FPS if provided (Worker/Remote)
+            elif fps and fps > 0 and processed_frames is not None:
+                # Infer elapsed from frames / fps
+                elapsed = processed_frames / fps
+                elapsed_str = self._format_time(elapsed)
+                
+                if total_frames:
+                    remaining_frames = total_frames - processed_frames
+                    eta = remaining_frames / fps
+                    eta_str = self._format_time(eta)
 
             self.gui.analysis_display_widget.update_progress_stats(
                 total_frames=total_frames,
@@ -497,15 +516,36 @@ class StateSynchronizer:
             return f"{m:d}m {s:02d}s"
         return f"{s:d}s"
 
+    def update_processing_mode(self, report: dict | None = None) -> None:
+        """Update UI for processing mode (metadata, task status)."""
+        # Logic extracted/adapted to replace legacy _publish_processing_mode
+
+        # 1. Get current active video from ProjectManager via Controller
+        if hasattr(self.gui, "controller") and self.gui.controller:
+            pm = self.gui.controller.project_manager
+            active_video = pm.get_active_zone_video()
+
+            metadata = {}
+            if active_video:
+                entry = pm.find_video_entry(path=active_video)
+                if entry:
+                    metadata = entry.get("metadata", {})
+
+            # 2. Update UI variables
+            group = metadata.get("group", "Sem Grupo")
+            day = metadata.get("day", "Sem Dia")
+            subject = metadata.get("subject", "Não informado")
+
+            self._apply_analysis_metadata_strings(str(group), str(day), str(subject))
+
     def update_analysis_task_status(
         self,
-        *,
-        index: int,
-        total: int,
+        index: int | None = None,
+        total: int | None = None,
         experiment_id: str | None = None,
         step: str | None = None,
     ) -> None:
-        """Update the task summary indicating which video is being processed."""
+        """Update analysis task status in the UI."""
         if not hasattr(self.gui, "analysis_task_var") or self.gui.analysis_task_var is None:
             return
 

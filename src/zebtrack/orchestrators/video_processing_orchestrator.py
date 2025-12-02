@@ -59,7 +59,6 @@ class VideoProcessingOrchestrator:
         self.view = main_view_model.view
         self.ui_event_bus = main_view_model.ui_event_bus
         self.cancel_event = main_view_model.cancel_event
-        self.detector = main_view_model.detector
         self.root = main_view_model.root
         self.processing_coordinator = main_view_model.processing_coordinator
         self.video_selection_service = main_view_model.video_selection_service
@@ -85,12 +84,8 @@ class VideoProcessingOrchestrator:
                 data.get("video_path"), data.get("config")
             ),
         )
-        bus.subscribe(
-            Events.VIDEO_START_SINGLE_PROCESSING,
-            lambda data: self.start_single_video_processing(
-                data.get("video_path"), data.get("config"), data.get("zone_data")
-            ),
-        )
+        # NOTE: VIDEO_START_SINGLE_PROCESSING is handled by ProcessingCoordinator
+        # to avoid duplicate execution (removed duplicate handler here)
         bus.subscribe(
             Events.VIDEO_CANCEL_ANALYSIS,
             lambda data: self.main_view_model.cancel_current_analysis(),
@@ -102,7 +97,7 @@ class VideoProcessingOrchestrator:
             lambda data: self.process_pending_project_videos(data.get("video_paths")),
         )
 
-        log.info("video_processing_orchestrator.register_handlers.complete", count=4)
+        log.info("video_processing_orchestrator.register_handlers.complete", count=3)
 
     def select_eligible_videos(
         self,
@@ -202,12 +197,13 @@ class VideoProcessingOrchestrator:
             videos_to_process=videos_to_process,
             output_base_dir=output_base_dir,
             cancel_event=self.cancel_event,
+            settings=self.main_view_model.settings,
             single_video_config=single_video_config,
             analysis_interval_frames=10,  # Will be updated by worker
             display_interval_frames=10,  # Will be updated by worker
-            process_single_video_func=self.main_view_model._process_single_video,
+            # process_single_video_func removed: logic is internal to ProcessingWorker
+            # determine_intervals_func removed: logic is internal/defaulted
             apply_project_settings_func=self.main_view_model.apply_project_settings_to_batch,
-            determine_intervals_func=self.main_view_model._determine_processing_intervals,
             retry_strategy=self.main_view_model.settings.video_processing.batch_retry_strategy,
         )
 
@@ -228,7 +224,9 @@ class VideoProcessingOrchestrator:
                 f"Iniciando processamento para {len(videos_to_process)} vídeos...",
             )
             self.project_manager.set_active_zone_video(None)
-            self.main_view_model._publish_processing_mode(source="worker.started", force=True)
+            self.main_view_model.ui_state_controller._publish_processing_mode(
+                source="worker.started", force=True
+            )
 
         def on_progress(fraction: float, message: str, stats: dict | None):
             """Call with progress updates."""
@@ -332,7 +330,11 @@ class VideoProcessingOrchestrator:
                 self.main_view_model._cancel_feedback_displayed = False
 
             self.ui_coordinator.set_status(self.view, "Pronto.")
-            self.main_view_model._publish_processing_mode(source="worker.completed", force=True)
+            if self.ui_event_bus:
+                self.ui_event_bus.publish_event(
+                    Events.UI_UPDATE_PROCESSING_MODE,
+                    {"source": "worker.completed", "force": True}
+                )
             self.main_view_model.ui_state_controller.refresh_project_views()
 
         return ProcessingCallbacks(
@@ -367,6 +369,8 @@ class VideoProcessingOrchestrator:
             if self.cancel_event.is_set():
                 return
 
+            processing_report = None  # Report logic moved to UI handler
+
             overall_progress = f"Processando {index + 1}/{total_videos}: {experiment_id}"
             step_status = f"Etapa: {status_message}"
             # Phase 4: Use UICoordinator for UI updates
@@ -390,13 +394,15 @@ class VideoProcessingOrchestrator:
             if stats:
                 if self.ui_event_bus:
                     self.ui_event_bus.publish_event(
-                        Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats}
+                        Events.UI_UPDATE_PROCESSING_STATS,
+                        {"stats": stats}
                     )
 
-            processing_report = self.main_view_model._publish_processing_mode(
-                source="analysis_progress",
-                force=False,
-            )
+                if self.ui_event_bus:
+                    self.ui_event_bus.publish_event(
+                        Events.UI_UPDATE_PROCESSING_MODE,
+                        {"source": "analysis_progress", "force": False}
+                    )
 
             if detections is not None:
                 if self.ui_event_bus:
@@ -412,10 +418,6 @@ class VideoProcessingOrchestrator:
                         Events.UI_DISPLAY_FRAME,
                         {"frame": frame},
                     )
-
-            if frame is not None:
-                if self.ui_event_bus:
-                    self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
 
         return progress_callback
 
@@ -512,21 +514,25 @@ class VideoProcessingOrchestrator:
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         cap.release()
-        self.detector.set_zones(zone_data, width, height)
-        log.info(
-            "controller.single_video.zones_set",
-            count=len(zone_data.roi_polygons) + (1 if zone_data.polygon else 0),
-        )
 
-        # Inform detector that aquarium region is defined
-        if self.detector:
+        detector = self.main_view_model.detector
+        if detector:
+            detector.set_zones(zone_data, width, height)
+            log.info(
+                "controller.single_video.zones_set",
+                count=len(zone_data.roi_polygons) + (1 if zone_data.polygon else 0),
+            )
+
+            # Inform detector that aquarium region is defined
             has_aquarium = bool(zone_data and zone_data.polygon)
-            self.detector.set_aquarium_region_defined(has_aquarium)
+            detector.set_aquarium_region_defined(has_aquarium)
             log.info(
                 "controller.single_video.aquarium_status",
                 defined=has_aquarium,
-                plugin=self.detector.plugin.get_name(),
+                plugin=detector.plugin.get_name() if detector.plugin else "unknown",
             )
+        else:
+            log.warning("controller.single_video.detector_not_available")
 
         # 2. Prepare the environment for _process_videos
         scanned_files = ProjectManager.scan_input_paths([video_path])

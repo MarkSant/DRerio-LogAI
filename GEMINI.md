@@ -61,4 +61,14 @@ poetry run ruff check . --fix
 3.  **Imports:** Follow the existing import structure (standard library, third-party, then project-specific imports, sorted alphabetically).
 4.  **Immutability:** Respect the immutable state management pattern. Do not mutate state objects directly.
 5.  **Configuration:** Application settings are managed via `config.yaml`. Do not hardcode configuration values.
-6.  **Documentation:** Refer to the `docs/` directory for in-depth information on architecture, developer guides, and decision logs.
+6.  **Documentation:**
+    *   **CRITICAL - System Map:** See `docs/SYSTEM_INTEGRATION_MAP.md` for strict contracts on Event Bus payloads, component dependencies, and control flows. **Read this before debugging integration issues.**
+    *   **Architecture:** Refer to `docs/` for in-depth information on architecture (e.g., `ARCHITECTURE_V4.md`), developer guides, and decision logs.
+
+7. **Documentation Maintenance (Meta-Protocol):**
+    *   **Mandatory Updates:** You MUST update `docs/SYSTEM_INTEGRATION_MAP.md` whenever you:
+        *   Add, remove, or modify an Event Bus event (`Events.*`).
+        *   Change payload structures (keys, types).
+        *   Alter cross-component dependencies or injection graphs.
+        *   Refactor critical control flows (e.g., Analysis, Cancellation, Saving).
+    *   **Discovery:** If you discover undocumented behavior or "hidden" events while debugging, add them to the map immediately. Treat the map as a living part of the codebase, not a static artifact.

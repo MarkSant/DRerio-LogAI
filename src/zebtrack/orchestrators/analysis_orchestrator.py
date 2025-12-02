@@ -155,9 +155,9 @@ class AnalysisOrchestrator:
                 },
             )
         finally:
-            self.main_view_model._publish_processing_mode(
-                source="calibration.aquarium.complete",
-                force=True,
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_PROCESSING_MODE,
+                {"source": "calibration.aquarium.complete", "force": True},
             )
             self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
 

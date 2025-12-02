@@ -386,15 +386,20 @@ class WidgetFactory:
 
         # Connect events
         if self.gui.event_bus:
-            self.gui._event_bus_handlers["config.save_requested"] = (
-                lambda data: self.on_save_global_config_from_widget(data["values"])
-            )
-            self.gui._event_bus_handlers["config.reset_requested"] = (
-                lambda data: self.on_reset_global_config_form_widget()
-            )
-            self.gui._event_bus_handlers["config.roi_rule_changed"] = (
-                lambda data: self.update_roi_rule_ui(data["rule"])
-            )
+            # Register handlers directly in event_bus (not just in dictionary)
+            save_handler = lambda data: self.on_save_global_config_from_widget(data["values"])
+            reset_handler = lambda data: self.on_reset_global_config_form_widget()
+            roi_rule_handler = lambda data: self.update_roi_rule_ui(data["rule"])
+
+            # Subscribe to event_bus
+            self.gui.event_bus.subscribe("config.save_requested", save_handler)
+            self.gui.event_bus.subscribe("config.reset_requested", reset_handler)
+            self.gui.event_bus.subscribe("config.roi_rule_changed", roi_rule_handler)
+
+            # Also store in dictionary for reference (backward compatibility)
+            self.gui._event_bus_handlers["config.save_requested"] = save_handler
+            self.gui._event_bus_handlers["config.reset_requested"] = reset_handler
+            self.gui._event_bus_handlers["config.roi_rule_changed"] = roi_rule_handler
 
         # Load current values
         self.reload_config_editor_values_widget()
@@ -424,14 +429,19 @@ class WidgetFactory:
 
         # Connect widget events to GUI handlers
         if self.gui.event_bus:
-            self.gui._event_bus_handlers["analysis.track_selected"] = (
-                lambda data: self.gui._on_track_selection_changed()
+            # Register handlers directly in event_bus (not just in dictionary)
+            track_handler = lambda data: self.gui._on_track_selection_changed()
+            cancel_handler = lambda data: self.gui.event_dispatcher.publish_event(
+                Events.VIDEO_CANCEL_ANALYSIS, {}
             )
-            self.gui._event_bus_handlers["analysis.cancel_requested"] = (
-                lambda data: self.gui.event_dispatcher.publish_event(
-                    Events.VIDEO_CANCEL_ANALYSIS, {}
-                )
-            )
+
+            # Subscribe to event_bus
+            self.gui.event_bus.subscribe("analysis.track_selected", track_handler)
+            self.gui.event_bus.subscribe("analysis.cancel_requested", cancel_handler)
+
+            # Also store in dictionary for reference (backward compatibility)
+            self.gui._event_bus_handlers["analysis.track_selected"] = track_handler
+            self.gui._event_bus_handlers["analysis.cancel_requested"] = cancel_handler
 
     def create_processing_reports_tab(self) -> None:
         """

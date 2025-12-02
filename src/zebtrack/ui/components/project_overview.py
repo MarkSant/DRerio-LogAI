@@ -286,8 +286,8 @@ class ProjectOverviewWidget(BaseWidget):
             # Add group node
             self.add_tree_item(
                 item_id=group_id,
-                text=f"🏷️ {group['display']}",
-                values=(group["status_summary"], group["data_summary"]),
+                text=group.get("label", f"🏷️ {group.get('display', 'Grupo')}"),
+                values=(group.get("status_summary", ""), group.get("data_summary", "")),
             )
             self.expand_tree_item(group_id)
 

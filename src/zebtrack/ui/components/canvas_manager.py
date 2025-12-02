@@ -80,6 +80,10 @@ class CanvasManager:
         Args:
             data: Event payload containing zone_data
         """
+        if not isinstance(data, dict):
+            log.warning("canvas_manager._on_zones_updated.invalid_data_type",
+                       data_type=type(data).__name__)
+            return
         zone_data = data.get("zone_data")
         log.debug(
             "canvas_manager.zones_updated_event_received", has_zone_data=zone_data is not None
@@ -93,6 +97,10 @@ class CanvasManager:
             data: Event payload containing:
                 - polygon: np.ndarray of polygon points
         """
+        if not isinstance(data, dict):
+            log.warning("canvas_manager._on_polygon_edit_requested.invalid_data_type",
+                       data_type=type(data).__name__)
+            return
         polygon = data.get("polygon")
         if polygon is not None:
             self.setup_interactive_polygon(polygon)
@@ -301,6 +309,62 @@ class CanvasManager:
 
         except Exception as e:
             self.gui.show_error("Erro ao Exibir Frame", str(e))
+
+    def update_video_frame(self, frame: np.ndarray, detections: list | None = None) -> None:
+        """Update the canvas with a raw video frame (numpy array).
+
+        Args:
+            frame: The video frame as a numpy array (BGR format from OpenCV).
+            detections: List of detections to draw overlay (optional).
+        """
+        if frame is None:
+            return
+
+        try:
+            # Draw overlay directly on frame if provided (and in analysis mode)
+            # This ensures video + overlay are synchronized in the Label
+            if self.gui.analysis_active and detections:
+                for det in detections:
+                    if len(det) >= 4:
+                        x1, y1, x2, y2 = int(det[0]), int(det[1]), int(det[2]), int(det[3])
+                        # Draw rectangle
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 255), 2)
+                        # Draw label if available
+                        if len(det) >= 6:
+                            track_id = det[5]
+                            conf = det[4]
+                            label = f"ID:{track_id}" if track_id is not None else f"{conf:.2f}"
+                            cv2.putText(frame, label, (x1, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+
+            # Convert the frame for display (BGR -> RGB)
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            pil_image = Image.fromarray(frame_rgb)
+
+            # Update internal state
+            self.gui._original_image = pil_image
+            self._raw_bg_image = pil_image
+
+            # Check if we should display on Analysis Tab or Zone Canvas
+            if self.gui.analysis_active and self.gui.analysis_display_widget:
+                # Dynamic sizing
+                target_w = 1280
+                target_h = 720
+                
+                # Try to get current container size if available
+                if self.gui.analysis_display_widget.video_container:
+                    w = self.gui.analysis_display_widget.video_container.winfo_width()
+                    h = self.gui.analysis_display_widget.video_container.winfo_height()
+                    if w > 100 and h > 100:
+                        target_w, target_h = w, h
+                
+                pil_image.thumbnail((target_w, target_h), Image.LANCZOS)
+                self.gui.analysis_display_widget.update_frame(pil_image)
+            else:
+                # Trigger redraw on main canvas
+                self._draw_bg_image_to_canvas()
+
+        except Exception as e:
+            log.error("canvas_manager.update_video_frame.error", error=str(e))
 
     def load_video_frame_to_canvas(self, video_path: str | None = None, frame_number: int = 0):
         """Load a video frame to the canvas.

@@ -1,9 +1,9 @@
 # Architecture v4.0: Event-Driven Design
 
-**Version**: 4.0 (Draft)
-**Status**: Implemented in Phase 2
+**Version**: 4.1 (Updated Dec 2025)
+**Status**: Implemented in Phase 2 & Phase 3
 
-This document details the architectural changes introduced in v4.0, specifically the transition from a monolithic Facade pattern to an Event-Driven Architecture (EDA) using the Mediator pattern.
+This document details the architectural changes introduced in v4.0, specifically the transition from a monolithic Facade pattern to an Event-Driven Architecture (EDA) using the Mediator pattern, and the consolidation of backend logic in Phase 3.
 
 ---
 
@@ -147,3 +147,37 @@ classDiagram
     *   Updates the progress bar.
     *   Updates the estimated time remaining (ETA).
     *   Refreshes the active tracking overlay.
+
+---
+
+## 5. Phase 3: Backend Consolidation (Super Coordinators)
+
+While Phase 2 focused on UI decoupling, Phase 3 (current state) consolidated backend logic into four "Super Coordinators" to remove `MainViewModel` bloat and circular dependencies.
+
+**The 4 Super Coordinators:**
+
+1.  **ProcessingCoordinator**: Consolidates video processing, analysis, zone management, and configuration.
+    *   **Responsibilities**: Managing the `ProcessingWorker`, `ZoneData`, and Analysis workflows.
+    *   **Replaces**: `VideoProcessingOrchestrator`, `AnalysisOrchestrator`, `ZoneArenaOrchestrator`, `ProcessingConfigOrchestrator`.
+2.  **HardwareCoordinator**: Manages detector setup, model weights, and model diagnostics.
+3.  **SessionCoordinator**: Handles recording sessions, live camera, and Arduino integration.
+4.  **ProjectLifecycleCoordinator**: Manages project creation, opening, closing, and calibration workflows.
+
+**Dependency Injection:**
+These coordinators are initialized in `ApplicationBootstrapper` (or `__main__.py`) and injected into `MainViewModelDependencies`. They do **not** depend on `MainViewModel` (except for legacy bridges), adhering to a strict hierarchy.
+
+**Integration with Event Bus:**
+They subscribe to domain events (e.g., `VIDEO_START_SINGLE_PROCESSING`, `VIDEO_CANCEL_ANALYSIS`) to trigger workflows autonomously.
+
+### Processing Cancellation Flow (Audit)
+
+The cancellation workflow has been hardened to ensure reliability:
+
+1.  **Trigger**: User clicks "Cancel" in UI -> `Events.VIDEO_CANCEL_ANALYSIS` published.
+2.  **Handler**: `AnalysisControlViewModel.cancel_current_analysis()` is called.
+3.  **Delegation**: Logic is delegated to `ProcessingCoordinator.cancel_processing()`.
+4.  **Execution**:
+    *   `cancel_event` (threading.Event) is set.
+    *   `ProcessingWorker.cancel()` is called explicitly if running.
+    *   `ProcessingWorker` signals the background `_WorkerProcess` via `command_queue`.
+5.  **Cleanup**: Background threads are joined to ensure clean shutdown.

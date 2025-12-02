@@ -278,6 +278,26 @@ class ProjectManager:
         """
         return self.zone_manager.has_zone_data(self.project_data, video_path)
 
+    def has_arena_data(self, video_path: Path | str | None) -> bool:
+        """Check if arena data exists for the given video."""
+        entry = self.find_video_entry(path=video_path)
+        return self._video_has_asset(entry, "arena") if entry else False
+
+    def has_roi_data(self, video_path: Path | str | None) -> bool:
+        """Check if ROI data exists for the given video."""
+        entry = self.find_video_entry(path=video_path)
+        return self._video_has_asset(entry, "rois") if entry else False
+
+    def has_trajectory_data(self, video_path: Path | str | None) -> bool:
+        """Check if trajectory data exists for the given video."""
+        entry = self.find_video_entry(path=video_path)
+        return self._video_has_asset(entry, "trajectory") if entry else False
+
+    def has_summary_data(self, video_path: Path | str | None) -> bool:
+        """Check if summary data exists for the given video."""
+        entry = self.find_video_entry(path=video_path)
+        return self._video_has_asset(entry, "summary") if entry else False
+
     def save_zone_data(
         self,
         zone_data: ZoneData,
@@ -286,10 +306,21 @@ class ProjectManager:
         persist: bool = True,
     ) -> None:
         """Persist zone data for the active video and project defaults. Delegates to ZoneManager."""
-        persist_callback = self.save_project if persist else None
+        # Update in-memory state first (no callback)
         self.zone_manager.save_zone_data(
-            self.project_data, zone_data, video_path=video_path, persist_callback=persist_callback
+            self.project_data, zone_data, video_path=video_path, persist_callback=None
         )
+
+        # Handle persistence logic here to support single-video workflow (no project path)
+        if persist:
+            if self.project_path:
+                self.save_project()
+            else:
+                log.info(
+                    "project.zone_data.save.in_memory",
+                    video_path=str(video_path) if video_path else None,
+                    reason="single_video_workflow"
+                )
 
     def clear_zone_data_for_video(
         self,
@@ -2171,11 +2202,6 @@ class ProjectManager:
             log.debug("project.detector_state.save.no_project_data")
             return False
 
-        # Skip saving if no project path (e.g., single video workflow before project creation)
-        if not self.project_path:
-            log.debug("project.detector_state.save.no_project_path", reason="skipping save")
-            return False
-
         log.info("project.detector_state.save.start", config=detector_config)
 
         # Add timestamp if not provided
@@ -2193,12 +2219,18 @@ class ProjectManager:
         elif not detector_config:
             overrides.pop("detector_parameters", None)
 
-        self.save_project()  # Raises ProjectInvalidError on failure
-
-        log.info(
-            "project.detector_state.save.success",
-            plugin=detector_config.get("plugin_name"),
-        )
+        if self.project_path:
+            self.save_project()  # Raises ProjectInvalidError on failure
+            log.info(
+                "project.detector_state.save.success",
+                plugin=detector_config.get("plugin_name"),
+            )
+        else:
+            log.info(
+                "project.detector_state.save.in_memory",
+                plugin=detector_config.get("plugin_name"),
+                reason="single_video_workflow",
+            )
 
         return True
 

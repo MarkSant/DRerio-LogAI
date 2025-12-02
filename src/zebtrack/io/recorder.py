@@ -263,7 +263,7 @@ class Recorder:
             return
 
         # 🔍 INFO: Log incoming detection data
-        log.info(
+        log.debug(
             "recorder.write_detection_data.start",
             frame=frame_number,
             num_detections=len(detections),
@@ -306,7 +306,7 @@ class Recorder:
             self.detection_data.append(data_point)
 
         # 🔍 INFO: Log buffer state after append (changed from DEBUG to INFO)
-        log.info(
+        log.debug(
             "recorder.detections.appended",
             count=len(detections),
             frame=frame_number,
@@ -422,7 +422,7 @@ class Recorder:
 
     def _flush_detection_data(self, force: bool = False) -> None:
         # 🔍 INFO: Log flush attempt
-        log.info(
+        log.debug(
             "recorder.flush.attempt",
             buffer_size=len(self.detection_data),
             force=force,
@@ -430,10 +430,10 @@ class Recorder:
         )
 
         if not self.detection_data:
-            log.info("recorder.flush.skipped_empty_buffer")
+            log.debug("recorder.flush.skipped_empty_buffer")
             return
         if not force and not self._should_flush():
-            log.info(
+            log.debug(
                 "recorder.flush.skipped_threshold",
                 buffer_size=len(self.detection_data),
                 threshold=self._flush_row_threshold,

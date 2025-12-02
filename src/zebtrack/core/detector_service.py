@@ -173,17 +173,6 @@ class DetectorService:
             # MELHORIA #2: Validar classes esperadas pelo sistema
             self._validate_model_classes(plugin_instance, model_path)
 
-            # ⚡ FORCE LOWER CONFIDENCE THRESHOLD FOR DEBUGGING/ROBUSTNESS
-            # The user reported missing detections. We override the default (0.25) to 0.05.
-            if hasattr(plugin_instance, "conf_threshold"):
-                plugin_instance.conf_threshold = 0.05
-                log.warning(
-                    "detector_service.conf_threshold.forced_override",
-                    original=self.settings.yolo_model.confidence_threshold,
-                    new=0.05,
-                    reason="user_reported_missing_detections",
-                )
-
             # Create detector instance
             self.detector = Detector(
                 plugin=plugin_instance,
@@ -503,10 +492,11 @@ class DetectorService:
         try:
             self.detector.set_single_subject_mode(bool(enabled))
             log.info("detector_service.single_subject.configured", enabled=enabled)
-        except AttributeError:
-            log.debug(
-                "detector_service.single_subject.unavailable",
-                plugin=getattr(self.detector, "plugin", "unknown"),
+        except Exception as e:
+            log.error(
+                "detector_service.single_subject.failed",
+                error=str(e),
+                enabled=enabled
             )
 
     def get_detector_parameters(self) -> dict[str, float]:
