@@ -134,16 +134,9 @@ def mock_bootstrap_result():
         "live_camera_coordinator": Mock(),
     }
 
-    # Mocks for orchestrators
+    # Mocks for orchestrators (Phase 3A/3B/3C/3D: Removed superseded orchestrators)
     result.video_processing_orchestrator = Mock()
-    result.analysis_orchestrator = Mock()
-    result.recording_session_orchestrator = Mock()
-    result.project_orchestrator = Mock()
     result.ui_state_controller = Mock()
-    result.model_diagnostics_orchestrator = Mock()
-    result.zone_arena_orchestrator = Mock()
-    result.processing_config_orchestrator = Mock()
-    result.calibration_orchestrator = Mock()
 
     # Mocks for services
     result.project_service = Mock()
@@ -224,21 +217,21 @@ class TestCreateProjectWorkflow:
     """Test suite for create_project_workflow command."""
 
     def test_create_project_calls_workflow_service(self, main_view_model):
-        """Test create_project_workflow delegates to ProjectWorkflowService (Phase 3)."""
+        """Test create_project_workflow delegates to ProjectViewModel (Phase 3)."""
         wizard_data = {
             "project_name": "Test Project",
             "project_path": "/fake/path",
             "project_type": "live",
         }
 
-        # Mock project_orchestrator create method
-        main_view_model.project_orchestrator.create_project_workflow = Mock(
+        # Mock project_vm create method (MainViewModel.create_project_workflow delegates to project_vm)
+        main_view_model.project_vm.create_project_workflow = Mock(
             return_value={"success": True, "animal_method": "det", "wizard_metadata": {}}
         )
 
         main_view_model.create_project_workflow(**wizard_data)
 
-        # Should call workflow service through orchestrator
-        main_view_model.project_orchestrator.create_project_workflow.assert_called_once_with(
+        # Should call workflow service through project_vm
+        main_view_model.project_vm.create_project_workflow.assert_called_once_with(
             **wizard_data
         )

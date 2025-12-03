@@ -257,7 +257,7 @@ def test_service_recorder_write_call(video_processing_service, mock_recorder):
 
 
 def test_service_ui_coordinator_integration(video_processing_service, mock_ui_coordinator):
-    """Test that service can schedule UI updates via UICoordinator."""
+    """Test that service can schedule UI updates via UIScheduler."""
     # Act: Simulate UI update
     video_processing_service.ui_coordinator.schedule_update(lambda: None)
 

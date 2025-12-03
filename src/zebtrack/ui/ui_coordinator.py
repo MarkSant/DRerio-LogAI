@@ -138,8 +138,6 @@ class UICoordinator:
         )
 
         # Analysis & Processing Events
-        self.event_bus.subscribe(UIEvents.ANALYSIS_STARTED, self._on_analysis_started)
-        self.event_bus.subscribe(UIEvents.ANALYSIS_COMPLETED, self._on_analysis_completed)
         self.event_bus.subscribe(
             UIEvents.PROCESSING_STATS_UPDATED, self._on_processing_stats_updated
         )
@@ -417,27 +415,6 @@ class UICoordinator:
         except Exception as e:
             self._errors_count += 1
             log.exception("ui_coordinator.project_views_refresh.error", error=str(e))
-
-    def _on_analysis_started(self, data: dict[str, Any]) -> None:
-        """Handle ANALYSIS_STARTED event."""
-        self._events_handled += 1
-        try:
-            # Typically handled via StateManager (is_processing=True),
-            # but we can add specific coordination here if needed.
-            log.debug("ui_coordinator.analysis_started", data=data)
-        except Exception as e:
-            self._errors_count += 1
-            log.exception("ui_coordinator.analysis_started.error", error=str(e))
-
-    def _on_analysis_completed(self, data: dict[str, Any]) -> None:
-        """Handle ANALYSIS_COMPLETED event."""
-        self._events_handled += 1
-        try:
-            # Typically handled via StateManager (is_processing=False)
-            log.debug("ui_coordinator.analysis_completed", data=data)
-        except Exception as e:
-            self._errors_count += 1
-            log.exception("ui_coordinator.analysis_completed.error", error=str(e))
 
     def _on_processing_stats_updated(self, data: dict[str, Any]) -> None:
         """Handle PROCESSING_STATS_UPDATED event."""

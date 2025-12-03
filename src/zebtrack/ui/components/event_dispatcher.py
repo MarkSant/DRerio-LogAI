@@ -377,23 +377,12 @@ class EventDispatcher:
     def _handle_update_processing_mode(self, data: dict) -> None:
         """Handle UI_UPDATE_PROCESSING_MODE event.
 
-        Supports both standard payload (report) and legacy payload (source, force).
+        Expected payload: {"report": ProcessingReport}
         """
         if not self.gui or not isinstance(data, dict):
             return
 
         report = data.get("report")
-
-        # Compatibility fix for legacy orchestrators
-        if report is None and "source" in data:
-            from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
-
-            source = data.get("source", "unknown")
-            # Legacy calls don't provide mode enum, assume MULTI_TRACK or infer
-            report = ProcessingReport(
-                mode=ProcessingMode.MULTI_TRACK, source=f"{source}_legacy_adapter"
-            )
-
         self.gui.state_synchronizer.update_processing_mode(report)
 
     def _handle_setup_interactive_polygon(self, polygon_data) -> None:

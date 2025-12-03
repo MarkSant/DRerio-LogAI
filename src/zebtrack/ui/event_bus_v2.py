@@ -39,8 +39,6 @@ class UIEvents(Enum):
     READINESS_SNAPSHOT_UPDATED = auto()  # Replaces apply_pending_readiness_snapshot
 
     # Analysis & Processing
-    ANALYSIS_STARTED = auto()
-    ANALYSIS_COMPLETED = auto()
     PROCESSING_STATS_UPDATED = auto()  # Replaces update_processing_stats
     SOCIAL_SUMMARY_UPDATED = auto()  # Replaces update_social_summary
     ANALYSIS_TASK_STATUS_UPDATED = auto()  # Replaces update_analysis_task_status
@@ -60,6 +58,10 @@ class UIEvents(Enum):
     PROGRESS_UPDATE = auto()  # Processing progress updates
     TRACKING_COMPLETE = auto()  # Tracking session completed
     FRAME_DISPLAYED = auto()  # Frame ready for display
+
+    # Analysis Lifecycle Events (added for v4 compatibility)
+    ANALYSIS_STARTED = auto()  # Analysis workflow has started
+    ANALYSIS_COMPLETED = auto()  # Analysis workflow has completed
 
     # Navigation & View State
     DISPLAY_VIDEO_FRAME = auto()

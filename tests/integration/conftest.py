@@ -222,15 +222,62 @@ def mock_gui_controller():
 
 
 @pytest.fixture
-def gui_fixture(tkinter_root, mock_gui_controller):
+def mock_settings_for_gui():
+    """Create a mock settings object for GUI tests."""
+    mock_settings = MagicMock()
+
+    # Video processing settings
+    mock_settings.video_processing.fps = 30
+    mock_settings.video_processing.processing_interval = 10
+    mock_settings.video_processing.processing_offset = 0
+
+    # Trajectory smoothing
+    mock_settings.trajectory_smoothing.window_length = 7
+    mock_settings.trajectory_smoothing.polyorder = 3
+
+    # ROI settings
+    mock_settings.roi_inclusion_rule = "bbox_intersects"
+    mock_settings.roi_buffer_radius_value = 0.5
+    mock_settings.roi_min_bbox_overlap_ratio = 0.10
+
+    # Camera settings
+    mock_settings.camera.index = 0
+    mock_settings.camera.desired_width = 1280
+    mock_settings.camera.desired_height = 720
+
+    # Model selection
+    mock_settings.model_selection.animal_method = "seg"
+
+    # UI features
+    mock_settings.ui_features.enable_event_queue = False
+
+    # UI Theme - must be a valid ttkbootstrap theme name
+    mock_settings.ui_theme_name = "cosmo"  # Valid ttkbootstrap theme
+
+    return mock_settings
+
+
+@pytest.fixture
+def gui_fixture(tkinter_root, mock_gui_controller, mock_settings_for_gui):
     """
     ApplicationGUI fixture for integration tests.
 
     Uses a real tkinter_root but mocked controller/settings.
-    Ensures proper cleanup.
+    Ensures proper cleanup and keeps window hidden.
     """
-    # Create GUI instance
-    gui = ApplicationGUI(tkinter_root, mock_gui_controller)
+    # Ensure window stays hidden during tests
+    try:
+        tkinter_root.withdraw()
+    except Exception:
+        pass  # Mock root doesn't have withdraw
+
+    # Create GUI instance with mocked settings
+    gui = ApplicationGUI(
+        tkinter_root,
+        mock_gui_controller,
+        settings_obj=mock_settings_for_gui,
+        project_manager=mock_gui_controller.project_manager,
+    )
 
     # Initialize main control frame to ensure widgets are created
     # This might fail if it tries to load project data, so we wrap it

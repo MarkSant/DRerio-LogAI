@@ -1,5 +1,5 @@
 """
-Unit tests for UICoordinator.
+Unit tests for UIScheduler.
 
 Phase 4: UI Coordination Consolidation tests for UI scheduling,
 event bus integration, and convenience methods.
@@ -8,16 +8,16 @@ event bus integration, and convenience methods.
 import unittest
 from unittest.mock import Mock
 
-from zebtrack.core.ui_coordinator import UICoordinator
+from zebtrack.core.ui_scheduler import UIScheduler
 
 
-class TestUICoordinatorInitialization(unittest.TestCase):
-    """Test suite for UICoordinator initialization."""
+class TestUISchedulerInitialization(unittest.TestCase):
+    """Test suite for UIScheduler initialization."""
 
     def test_init_with_root_only(self):
         """Test initialization with only root provided."""
         mock_root = Mock()
-        coordinator = UICoordinator(root=mock_root)
+        coordinator = UIScheduler(root=mock_root)
 
         assert coordinator.root == mock_root
         assert coordinator.event_bus is None
@@ -25,7 +25,7 @@ class TestUICoordinatorInitialization(unittest.TestCase):
     def test_init_with_event_bus_only(self):
         """Test initialization with only event bus provided."""
         mock_event_bus = Mock()
-        coordinator = UICoordinator(event_bus=mock_event_bus)
+        coordinator = UIScheduler(event_bus=mock_event_bus)
 
         assert coordinator.root is None
         assert coordinator.event_bus == mock_event_bus
@@ -34,27 +34,27 @@ class TestUICoordinatorInitialization(unittest.TestCase):
         """Test initialization with both root and event bus."""
         mock_root = Mock()
         mock_event_bus = Mock()
-        coordinator = UICoordinator(root=mock_root, event_bus=mock_event_bus)
+        coordinator = UIScheduler(root=mock_root, event_bus=mock_event_bus)
 
         assert coordinator.root == mock_root
         assert coordinator.event_bus == mock_event_bus
 
     def test_init_with_neither(self):
         """Test initialization with neither root nor event bus."""
-        coordinator = UICoordinator()
+        coordinator = UIScheduler()
 
         assert coordinator.root is None
         assert coordinator.event_bus is None
 
 
-class TestUICoordinatorScheduling(unittest.TestCase):
-    """Test suite for UICoordinator scheduling methods."""
+class TestUISchedulerScheduling(unittest.TestCase):
+    """Test suite for UIScheduler scheduling methods."""
 
     def test_schedule_with_event_bus_success(self):
         """Test scheduling via event bus when successful."""
         mock_event_bus = Mock()
         mock_event_bus.publish_callable.return_value = True
-        coordinator = UICoordinator(event_bus=mock_event_bus)
+        coordinator = UIScheduler(event_bus=mock_event_bus)
 
         mock_func = Mock()
         coordinator.schedule(mock_func, "arg1", kwarg1="value1")
@@ -67,7 +67,7 @@ class TestUICoordinatorScheduling(unittest.TestCase):
         mock_event_bus = Mock()
         mock_event_bus.publish_callable.return_value = False
         mock_root = Mock()
-        coordinator = UICoordinator(root=mock_root, event_bus=mock_event_bus)
+        coordinator = UIScheduler(root=mock_root, event_bus=mock_event_bus)
 
         mock_func = Mock()
         coordinator.schedule(mock_func, "arg1")
@@ -80,7 +80,7 @@ class TestUICoordinatorScheduling(unittest.TestCase):
     def test_schedule_with_root_only(self):
         """Test scheduling via root.after when no event bus."""
         mock_root = Mock()
-        coordinator = UICoordinator(root=mock_root)
+        coordinator = UIScheduler(root=mock_root)
 
         mock_func = Mock()
         coordinator.schedule(mock_func, "arg1")
@@ -95,7 +95,7 @@ class TestUICoordinatorScheduling(unittest.TestCase):
 
     def test_schedule_direct_execution_fallback(self):
         """Test direct execution when neither root nor event bus available."""
-        coordinator = UICoordinator()
+        coordinator = UIScheduler()
 
         mock_func = Mock()
         coordinator.schedule(mock_func, "arg1", kwarg1="value1")
@@ -106,7 +106,7 @@ class TestUICoordinatorScheduling(unittest.TestCase):
         """Test scheduling with delay via root.after."""
         mock_root = Mock()
         mock_root.after.return_value = "after_id_123"
-        coordinator = UICoordinator(root=mock_root)
+        coordinator = UIScheduler(root=mock_root)
 
         mock_func = Mock()
         result = coordinator.schedule_after(100, mock_func, "arg1")
@@ -118,7 +118,7 @@ class TestUICoordinatorScheduling(unittest.TestCase):
 
     def test_schedule_after_without_root(self):
         """Test schedule_after returns None when no root."""
-        coordinator = UICoordinator()
+        coordinator = UIScheduler()
 
         result = coordinator.schedule_after(100, Mock())
 
@@ -127,7 +127,7 @@ class TestUICoordinatorScheduling(unittest.TestCase):
     def test_cancel_scheduled(self):
         """Test canceling a scheduled callback."""
         mock_root = Mock()
-        coordinator = UICoordinator(root=mock_root)
+        coordinator = UIScheduler(root=mock_root)
 
         coordinator.cancel_scheduled("after_id_123")
 
@@ -135,19 +135,19 @@ class TestUICoordinatorScheduling(unittest.TestCase):
 
     def test_cancel_scheduled_without_root(self):
         """Test cancel_scheduled does nothing when no root."""
-        coordinator = UICoordinator()
+        coordinator = UIScheduler()
 
         # Should not raise error
         coordinator.cancel_scheduled("after_id_123")
 
 
-class TestUICoordinatorViewUpdates(unittest.TestCase):
+class TestUISchedulerViewUpdates(unittest.TestCase):
     """Test suite for view update convenience methods."""
 
     def setUp(self):
         """Set up test fixtures."""
         self.mock_root = Mock()
-        self.coordinator = UICoordinator(root=self.mock_root)
+        self.coordinator = UIScheduler(root=self.mock_root)
         self.mock_view = Mock()
 
     def test_update_view_success(self):
@@ -275,14 +275,14 @@ class TestUICoordinatorViewUpdates(unittest.TestCase):
         self.mock_view.update_idletasks.assert_called_once()
 
 
-class TestUICoordinatorErrorHandling(unittest.TestCase):
-    """Test suite for error handling in UICoordinator."""
+class TestUISchedulerErrorHandling(unittest.TestCase):
+    """Test suite for error handling in UIScheduler."""
 
     def test_schedule_handles_after_exception(self):
         """Test that schedule handles root.after exceptions gracefully."""
         mock_root = Mock()
         mock_root.after.side_effect = Exception("Tk error")
-        coordinator = UICoordinator(root=mock_root)
+        coordinator = UIScheduler(root=mock_root)
 
         mock_func = Mock()
         # Should fall back to direct execution
@@ -292,7 +292,7 @@ class TestUICoordinatorErrorHandling(unittest.TestCase):
 
     def test_schedule_handles_direct_execution_exception(self):
         """Test that schedule handles direct execution exceptions."""
-        coordinator = UICoordinator()
+        coordinator = UIScheduler()
 
         mock_func = Mock(side_effect=Exception("Function error"))
         # Should not raise, just log error
@@ -302,7 +302,7 @@ class TestUICoordinatorErrorHandling(unittest.TestCase):
         """Test that schedule_after handles exceptions gracefully."""
         mock_root = Mock()
         mock_root.after.side_effect = Exception("Tk error")
-        coordinator = UICoordinator(root=mock_root)
+        coordinator = UIScheduler(root=mock_root)
 
         result = coordinator.schedule_after(100, Mock())
 
@@ -312,7 +312,7 @@ class TestUICoordinatorErrorHandling(unittest.TestCase):
         """Test that cancel_scheduled handles exceptions gracefully."""
         mock_root = Mock()
         mock_root.after_cancel.side_effect = Exception("Cancel error")
-        coordinator = UICoordinator(root=mock_root)
+        coordinator = UIScheduler(root=mock_root)
 
         # Should not raise error
         coordinator.cancel_scheduled("after_id_123")

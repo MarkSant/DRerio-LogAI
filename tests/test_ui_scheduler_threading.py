@@ -1,5 +1,5 @@
 """
-Testes de Thread Safety para UICoordinator.
+Testes de Thread Safety para UIScheduler.
 
 Testa cenários de concorrência em agendamento de UI,
 sincronização de estado e processamento de fila de eventos.
@@ -13,7 +13,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from zebtrack.core.ui_coordinator import UICoordinator
+from zebtrack.core.ui_scheduler import UIScheduler
 
 
 @pytest.fixture
@@ -35,27 +35,27 @@ def mock_event_bus():
 
 
 @pytest.fixture
-def ui_coordinator(mock_root):
-    """Create a UICoordinator instance with mocked root."""
-    return UICoordinator(root=mock_root, event_bus=None)
+def ui_scheduler(mock_root):
+    """Create a UIScheduler instance with mocked root."""
+    return UIScheduler(root=mock_root, event_bus=None)
 
 
 @pytest.fixture
-def ui_coordinator_with_event_bus(mock_root, mock_event_bus):
-    """Create a UICoordinator instance with both root and event bus."""
-    return UICoordinator(root=mock_root, event_bus=mock_event_bus)
+def ui_scheduler_with_event_bus(mock_root, mock_event_bus):
+    """Create a UIScheduler instance with both root and event bus."""
+    return UIScheduler(root=mock_root, event_bus=mock_event_bus)
 
 
-class TestUICoordinatorScheduling:
+class TestUISchedulerScheduling:
     """Test thread-safe UI scheduling."""
 
-    def test_concurrent_schedule_calls(self, ui_coordinator):
+    def test_concurrent_schedule_calls(self, ui_scheduler):
         """Test concurrent schedule() calls from multiple threads."""
         scheduled_functions = []
 
         def scheduler_worker(thread_id):
             for i in range(5):
-                ui_coordinator.schedule(
+                ui_scheduler.schedule(
                     lambda tid=thread_id, idx=i: scheduled_functions.append((tid, idx))
                 )
                 time.sleep(0.01)
@@ -78,13 +78,13 @@ class TestUICoordinatorScheduling:
         # Verify functions were scheduled
         assert len(scheduled_functions) == 15  # 3 threads × 5 calls each
 
-    def test_concurrent_schedule_after_calls(self, ui_coordinator):
+    def test_concurrent_schedule_after_calls(self, ui_scheduler):
         """Test concurrent schedule_after() calls."""
         scheduled_ids = []
 
         def scheduler_worker(thread_id):
             for i in range(5):
-                after_id = ui_coordinator.schedule_after(
+                after_id = ui_scheduler.schedule_after(
                     100,
                     lambda tid=thread_id, idx=i: None,
                 )
@@ -109,17 +109,17 @@ class TestUICoordinatorScheduling:
         # Verify schedule_after was called
         assert len(scheduled_ids) == 15
 
-    def test_concurrent_cancel_scheduled_calls(self, ui_coordinator):
+    def test_concurrent_cancel_scheduled_calls(self, ui_scheduler):
         """Test concurrent cancel_scheduled() calls."""
         # Schedule some callbacks first
         after_ids = []
         for i in range(10):
-            after_id = ui_coordinator.schedule_after(1000, lambda: None)
+            after_id = ui_scheduler.schedule_after(1000, lambda: None)
             after_ids.append(after_id)
 
         def canceler_worker(thread_id, ids_to_cancel):
             for after_id in ids_to_cancel:
-                ui_coordinator.cancel_scheduled(after_id)
+                ui_scheduler.cancel_scheduled(after_id)
                 time.sleep(0.01)
 
         # Distribute IDs across threads
@@ -143,16 +143,16 @@ class TestUICoordinatorScheduling:
             assert not canceler.is_alive()
 
 
-class TestUICoordinatorEventBus:
+class TestUISchedulerEventBus:
     """Test event bus integration with threading."""
 
-    def test_concurrent_event_bus_publishing(self, ui_coordinator_with_event_bus):
+    def test_concurrent_event_bus_publishing(self, ui_scheduler_with_event_bus):
         """Test concurrent event bus publishing."""
         published_events = []
 
         def publisher_worker(thread_id):
             for i in range(5):
-                ui_coordinator_with_event_bus.schedule(
+                ui_scheduler_with_event_bus.schedule(
                     lambda tid=thread_id, idx=i: published_events.append((tid, idx))
                 )
                 time.sleep(0.01)
@@ -181,13 +181,13 @@ class TestUICoordinatorEventBus:
         failing_event_bus = Mock()
         failing_event_bus.publish_callable.return_value = False
 
-        coordinator = UICoordinator(root=mock_root, event_bus=failing_event_bus)
+        scheduler = UIScheduler(root=mock_root, event_bus=failing_event_bus)
 
         executed_functions = []
 
         def fallback_worker(thread_id):
             for i in range(3):
-                coordinator.schedule(
+                scheduler.schedule(
                     lambda tid=thread_id, idx=i: executed_functions.append((tid, idx))
                 )
                 time.sleep(0.01)
@@ -209,10 +209,10 @@ class TestUICoordinatorEventBus:
         assert len(executed_functions) == 6  # 2 threads × 3 calls each
 
 
-class TestUICoordinatorViewUpdates:
+class TestUISchedulerViewUpdates:
     """Test concurrent view update operations."""
 
-    def test_concurrent_update_view_calls(self, ui_coordinator):
+    def test_concurrent_update_view_calls(self, ui_scheduler):
         """Test concurrent update_view() calls."""
         mock_view = Mock()
         mock_view.update_status = Mock()
@@ -222,7 +222,7 @@ class TestUICoordinatorViewUpdates:
 
         def updater_worker(thread_id):
             for i in range(5):
-                ui_coordinator.update_view(
+                ui_scheduler.update_view(
                     mock_view, "update_status", f"Status from thread {thread_id}"
                 )
                 update_calls.append((thread_id, i))
@@ -246,7 +246,7 @@ class TestUICoordinatorViewUpdates:
         # Verify updates were called
         assert len(update_calls) == 15
 
-    def test_concurrent_set_status_calls(self, ui_coordinator):
+    def test_concurrent_set_status_calls(self, ui_scheduler):
         """Test concurrent set_status() convenience method calls."""
         mock_view = Mock()
         mock_view.set_status = Mock()
@@ -255,7 +255,7 @@ class TestUICoordinatorViewUpdates:
 
         def status_worker(thread_id):
             for i in range(5):
-                ui_coordinator.set_status(mock_view, f"Status {thread_id}_{i}")
+                ui_scheduler.set_status(mock_view, f"Status {thread_id}_{i}")
                 status_updates.append((thread_id, i))
                 time.sleep(0.01)
 
@@ -276,7 +276,7 @@ class TestUICoordinatorViewUpdates:
 
         assert len(status_updates) == 15
 
-    def test_concurrent_progress_updates(self, ui_coordinator):
+    def test_concurrent_progress_updates(self, ui_scheduler):
         """Test concurrent update_progress() calls."""
         mock_view = Mock()
         mock_view.update_progress = Mock()
@@ -286,7 +286,7 @@ class TestUICoordinatorViewUpdates:
         def progress_worker(thread_id):
             for i in range(5):
                 progress = (i + 1) / 5.0
-                ui_coordinator.update_progress(mock_view, progress)
+                ui_scheduler.update_progress(mock_view, progress)
                 progress_values.append((thread_id, progress))
                 time.sleep(0.01)
 
@@ -308,17 +308,17 @@ class TestUICoordinatorViewUpdates:
         assert len(progress_values) == 15
 
 
-class TestUICoordinatorRaceConditions:
-    """Test race conditions in UI coordinator operations."""
+class TestUISchedulerRaceConditions:
+    """Test race conditions in UI scheduler operations."""
 
-    def test_concurrent_root_access(self, ui_coordinator):
+    def test_concurrent_root_access(self, ui_scheduler):
         """Test concurrent access to root object."""
         access_count = []
 
         def root_accessor(thread_id):
             for i in range(5):
                 # Access root through scheduling
-                ui_coordinator.schedule(lambda: access_count.append(1))
+                ui_scheduler.schedule(lambda: access_count.append(1))
                 time.sleep(0.01)
 
         # Start multiple accessor threads
@@ -339,23 +339,23 @@ class TestUICoordinatorRaceConditions:
         # Verify accesses occurred
         assert len(access_count) == 15
 
-    def test_mixed_operation_concurrency(self, ui_coordinator):
+    def test_mixed_operation_concurrency(self, ui_scheduler):
         """Test concurrent mixed operations (schedule, schedule_after, cancel)."""
         operations = []
 
         def mixed_worker(thread_id):
             for i in range(3):
                 # Schedule immediate
-                ui_coordinator.schedule(lambda: operations.append("schedule"))
+                ui_scheduler.schedule(lambda: operations.append("schedule"))
                 time.sleep(0.01)
 
                 # Schedule delayed
-                after_id = ui_coordinator.schedule_after(100, lambda: operations.append("delayed"))
+                after_id = ui_scheduler.schedule_after(100, lambda: operations.append("delayed"))
                 time.sleep(0.01)
 
                 # Cancel
                 if after_id:
-                    ui_coordinator.cancel_scheduled(after_id)
+                    ui_scheduler.cancel_scheduled(after_id)
                     operations.append("cancel")
                 time.sleep(0.01)
 
@@ -378,10 +378,10 @@ class TestUICoordinatorRaceConditions:
         assert len(operations) > 0
 
 
-class TestUICoordinatorErrorHandling:
+class TestUISchedulerErrorHandling:
     """Test error handling in concurrent operations."""
 
-    def test_exception_in_scheduled_callback(self, ui_coordinator):
+    def test_exception_in_scheduled_callback(self, ui_scheduler):
         """Test exception handling in scheduled callbacks."""
         exceptions_caught = []
 
@@ -391,7 +391,7 @@ class TestUICoordinatorErrorHandling:
 
         def error_worker(thread_id):
             try:
-                ui_coordinator.schedule(failing_callback, thread_id)
+                ui_scheduler.schedule(failing_callback, thread_id)
                 time.sleep(0.01)
             except Exception as e:
                 exceptions_caught.append((thread_id, str(e)))
@@ -411,7 +411,7 @@ class TestUICoordinatorErrorHandling:
         for worker in workers:
             assert not worker.is_alive()
 
-    def test_missing_view_method_handling(self, ui_coordinator):
+    def test_missing_view_method_handling(self, ui_scheduler):
         """Test handling of missing view methods."""
         mock_view = Mock()
         # Don't define the method we'll try to call
@@ -420,7 +420,7 @@ class TestUICoordinatorErrorHandling:
 
         def updater_worker(thread_id):
             for i in range(3):
-                ui_coordinator.update_view(mock_view, "nonexistent_method", "arg")
+                ui_scheduler.update_view(mock_view, "nonexistent_method", "arg")
                 attempts.append((thread_id, i))
                 time.sleep(0.01)
 

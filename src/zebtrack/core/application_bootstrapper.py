@@ -42,17 +42,10 @@ from zebtrack.core.video_selection_service import VideoSelectionService
 from zebtrack.core.video_validation_service import VideoValidationService
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
-from zebtrack.orchestrators.analysis_orchestrator import AnalysisOrchestrator
-from zebtrack.orchestrators.calibration_orchestrator import CalibrationOrchestrator
-from zebtrack.orchestrators.model_diagnostics_orchestrator import ModelDiagnosticsOrchestrator
-from zebtrack.orchestrators.processing_config_orchestrator import ProcessingConfigOrchestrator
-from zebtrack.orchestrators.project_orchestrator import ProjectOrchestrator
 
-# Legacy Orchestrators (to be removed in future phases)
-from zebtrack.orchestrators.recording_session_orchestrator import RecordingSessionOrchestrator
+# Phase 3A/3B/3C/3D: Removed imports for superseded orchestrators
 from zebtrack.orchestrators.ui_state_controller import UIStateController
 from zebtrack.orchestrators.video_processing_orchestrator import VideoProcessingOrchestrator
-from zebtrack.orchestrators.zone_arena_orchestrator import ZoneArenaOrchestrator
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
 from zebtrack.ui.gui import ApplicationGUI
 from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
@@ -96,16 +89,11 @@ class BootstrapResult:
     # View
     view: ApplicationGUI
 
-    # Legacy Orchestrators
+    # Legacy Orchestrators (required)
     video_processing_orchestrator: VideoProcessingOrchestrator
-    analysis_orchestrator: AnalysisOrchestrator
-    recording_session_orchestrator: RecordingSessionOrchestrator
-    project_orchestrator: ProjectOrchestrator
     ui_state_controller: UIStateController
-    model_diagnostics_orchestrator: ModelDiagnosticsOrchestrator
-    zone_arena_orchestrator: ZoneArenaOrchestrator
-    processing_config_orchestrator: ProcessingConfigOrchestrator
-    calibration_orchestrator: CalibrationOrchestrator
+
+    # Phase 3D: Removed recording_session_orchestrator (superseded by SessionCoordinator)
 
     # Registry & Adapter
     orchestrators: OrchestratorRegistry
@@ -113,6 +101,14 @@ class BootstrapResult:
 
     # Legacy Coordinators (created internally if not injected)
     legacy_coordinators: dict[str, Any] = field(default_factory=dict)
+
+    # Phase 3A/3B/3C: Removed unused orchestrators:
+    # - analysis_orchestrator (superseded by ProcessingCoordinator)
+    # - zone_arena_orchestrator (superseded by ProcessingCoordinator)
+    # - processing_config_orchestrator (superseded by ProcessingCoordinator)
+    # - calibration_orchestrator (superseded by ProjectLifecycleCoordinator)
+    # - model_diagnostics_orchestrator (superseded by HardwareCoordinator)
+    # - project_orchestrator (superseded by ProjectLifecycleCoordinator)
 
 
 class ApplicationBootstrapper:
@@ -244,14 +240,7 @@ class ApplicationBootstrapper:
             cancel_event=self._runtime_state["cancel_event"],
             view=self.view,
             video_processing_orchestrator=self._orchestrators["video_processing_orchestrator"],
-            analysis_orchestrator=self._orchestrators["analysis_orchestrator"],
-            recording_session_orchestrator=self._orchestrators["recording_session_orchestrator"],
-            project_orchestrator=self._orchestrators["project_orchestrator"],
             ui_state_controller=self._orchestrators["ui_state_controller"],
-            model_diagnostics_orchestrator=self._orchestrators["model_diagnostics_orchestrator"],
-            zone_arena_orchestrator=self._orchestrators["zone_arena_orchestrator"],
-            processing_config_orchestrator=self._orchestrators["processing_config_orchestrator"],
-            calibration_orchestrator=self._orchestrators["calibration_orchestrator"],
             orchestrators=self._orchestrators["registry"],
             project_workflow_adapter=self._orchestrators["project_workflow_adapter"],
             legacy_coordinators=self._legacy_coordinators,
@@ -384,7 +373,7 @@ class ApplicationBootstrapper:
             cancel_event = threading.Event()
             log.warning(
                 "bootstrapper.cancel_event.created_new",
-                message="No cancel_event in dependencies, creating new (may cause cancellation issues)",
+                message="No cancel_event, may cause cancellation issues",
             )
         else:
             log.info(
@@ -547,20 +536,13 @@ class ApplicationBootstrapper:
         # NOTE: These legacy orchestrators require the controller (MainViewModel)
         # We pass the controller_proxy which should be the 'self' from MainViewModel.__init__
 
-        recording_session_orchestrator = RecordingSessionOrchestrator(controller_proxy)
-        # Manual setup for recording service callbacks since we're bypassing
-        # _init_orchestrators logic
-        recording_session_orchestrator._setup_recording_service_callbacks()
-        controller_proxy.recording_session_orchestrator = recording_session_orchestrator
+        # Phase 3D: Removed RecordingSessionOrchestrator (superseded by SessionCoordinator)
+        # Recording service callbacks are now handled by SessionCoordinator
 
         video_processing_orchestrator = VideoProcessingOrchestrator(controller_proxy)
         controller_proxy.video_processing_orchestrator = video_processing_orchestrator
 
-        analysis_orchestrator = AnalysisOrchestrator(controller_proxy)
-        controller_proxy.analysis_orchestrator = analysis_orchestrator
-
-        project_orchestrator = ProjectOrchestrator(controller_proxy)
-        controller_proxy.project_orchestrator = project_orchestrator
+        # Phase 3A/B/C/D: Removed superseded orchestrators (see BootstrapResult)
 
         ui_state_controller = self.deps.ui_state_controller
         if ui_state_controller is None:
@@ -581,41 +563,22 @@ class ApplicationBootstrapper:
         else:
             ui_state_controller.main_view_model = controller_proxy
         controller_proxy.ui_state_controller = ui_state_controller
-        model_diagnostics_orchestrator = ModelDiagnosticsOrchestrator(controller_proxy)
-        controller_proxy.model_diagnostics_orchestrator = model_diagnostics_orchestrator
 
-        zone_arena_orchestrator = ZoneArenaOrchestrator(controller_proxy)
-        controller_proxy.zone_arena_orchestrator = zone_arena_orchestrator
-
-        processing_config_orchestrator = ProcessingConfigOrchestrator(controller_proxy)
-        controller_proxy.processing_config_orchestrator = processing_config_orchestrator
-
-        calibration_orchestrator = CalibrationOrchestrator(controller_proxy)
-        controller_proxy.calibration_orchestrator = calibration_orchestrator
+        # Phase 3A: Removed ZoneArenaOrchestrator (superseded by ProcessingCoordinator)
+        # Phase 3A: Removed ProcessingConfigOrchestrator (superseded by ProcessingCoordinator)
+        # Phase 3B: Removed CalibrationOrchestrator (superseded by ProjectLifecycleCoordinator)
+        # Phase 3C: Removed ModelDiagnosticsOrchestrator (superseded by HardwareCoordinator)
+        # Phase 3D: Removed RecordingSessionOrchestrator (superseded by SessionCoordinator)
 
         self._orchestrators = {
-            "recording_session_orchestrator": recording_session_orchestrator,
             "video_processing_orchestrator": video_processing_orchestrator,
-            "analysis_orchestrator": analysis_orchestrator,
-            "project_orchestrator": project_orchestrator,
             "ui_state_controller": ui_state_controller,
-            "model_diagnostics_orchestrator": model_diagnostics_orchestrator,
-            "zone_arena_orchestrator": zone_arena_orchestrator,
-            "processing_config_orchestrator": processing_config_orchestrator,
-            "calibration_orchestrator": calibration_orchestrator,
         }
 
         # Registry
         registry = OrchestratorRegistry(
-            recording_session_orchestrator=recording_session_orchestrator,
-            project_orchestrator=project_orchestrator,
             ui_state_controller=ui_state_controller,
             video_processing_orchestrator=video_processing_orchestrator,
-            analysis_orchestrator=analysis_orchestrator,
-            processing_config_orchestrator=processing_config_orchestrator,
-            model_diagnostics_orchestrator=model_diagnostics_orchestrator,
-            zone_arena_orchestrator=zone_arena_orchestrator,
-            calibration_orchestrator=calibration_orchestrator,
             live_camera_coordinator=legacy_coords["live_camera_coordinator"],
         )
         self._orchestrators["registry"] = registry

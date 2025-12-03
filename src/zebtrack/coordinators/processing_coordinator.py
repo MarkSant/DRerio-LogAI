@@ -57,8 +57,8 @@ if TYPE_CHECKING:
     from zebtrack.core.weight_manager import WeightManager
     from zebtrack.io.recorder_factory import RecorderFactory
     from zebtrack.settings import Settings
-    from zebtrack.ui.components.ui_coordinator import UICoordinator
-    from zebtrack.ui.components.ui_state_controller import UIStateController
+    from zebtrack.core.ui_scheduler import UIScheduler
+    from zebtrack.orchestrators.ui_state_controller import UIStateController
     from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
@@ -152,7 +152,7 @@ class ProcessingCoordinator(BaseCoordinator):
         detector_service: DetectorService,
         weight_manager: WeightManager,
         settings_obj: Settings,
-        ui_coordinator: UICoordinator,
+        ui_coordinator: UIScheduler,
         ui_state_controller: UIStateController,
         cancel_event: Event,
         # Services
@@ -175,7 +175,7 @@ class ProcessingCoordinator(BaseCoordinator):
             detector_service: DetectorService for detector operations
             weight_manager: WeightManager for model weights
             settings_obj: Settings instance
-            ui_coordinator: UICoordinator for UI updates
+            ui_coordinator: UIScheduler for UI updates
             ui_state_controller: UIStateController for UI state
             cancel_event: Threading event for cancellation
             video_selection_service: Service for video selection

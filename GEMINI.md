@@ -53,6 +53,8 @@ poetry run ruff check . --fix
 - **Dependency Injection:** Services are injected into components to promote loose coupling. See `docs/DEPENDENCY_INJECTION_GUIDE.md`.
 - **Event Bus:** A system for cross-component communication.
 - **Service Layer:** Business logic is encapsulated in services (e.g., `DetectorService`, `ArduinoManager`).
+- **Coordinator Layer (Phase 3):** Super coordinators consolidate orchestration: `ProcessingCoordinator`, `HardwareCoordinator`, `SessionCoordinator`, `ProjectLifecycleCoordinator`. See `docs/SYSTEM_INTEGRATION_MAP.md`.
+- **UIScheduler vs UICoordinator:** `core/ui_scheduler.UIScheduler` schedules Tkinter updates via `root.after()`. `ui/ui_coordinator.UICoordinator` is the EventBus mediator. Different purposes, no conflict.
 
 ## 5. Important Rules & Conventions
 

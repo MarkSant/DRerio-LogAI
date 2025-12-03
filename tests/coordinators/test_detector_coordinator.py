@@ -215,17 +215,19 @@ class TestDetectorSetup:
         assert "is_detector_initialized" in call_args[1]
         assert call_args[1]["is_detector_initialized"] is True
 
-    def test_setup_detector_publishes_event(
+    def test_setup_detector_updates_state_on_success(
         self,
         detector_coordinator,
-        mock_event_bus,
+        mock_state_manager,
     ):
-        """Test that setup_detector publishes event."""
+        """Test that setup_detector updates state on success."""
         detector_coordinator.setup_detector(animal_method="det")
 
-        mock_event_bus.publish_event.assert_called()
-        call_args = mock_event_bus.publish_event.call_args[0]
-        assert call_args[0] == "DETECTOR_INITIALIZED"
+        # Verify state was updated (setup_detector calls _update_state, not publish_event)
+        mock_state_manager.update_state.assert_called()
+        call_args = mock_state_manager.update_state.call_args
+        assert call_args[0][0] == StateCategory.DETECTOR
+        assert call_args[1].get("is_detector_initialized") is True
 
     def test_setup_detector_invalid_animal_method(self, detector_coordinator):
         """Test setup_detector with invalid animal_method."""

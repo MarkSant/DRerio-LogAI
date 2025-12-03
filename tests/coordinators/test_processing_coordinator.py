@@ -49,7 +49,7 @@ def mock_settings():
 
 @pytest.fixture
 def mock_ui_coordinator():
-    """Create mock UICoordinator."""
+    """Create mock UIScheduler."""
     return MagicMock()
 
 

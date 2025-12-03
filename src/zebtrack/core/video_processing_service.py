@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from zebtrack.core.detector import Detector
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
-    from zebtrack.core.ui_coordinator import UICoordinator
+    from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.io.recorder import Recorder
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus

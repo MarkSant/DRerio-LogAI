@@ -38,12 +38,13 @@ poetry run pre-commit run --all-files  # Full pre-commit
 - **`__main__.py`** (lines 140-280): All dependencies wired here
 - Never use global settings: always `load_settings()` then inject `settings_obj`
 
-### Core Layers
+### Core Layers (Phase 3/4 Architecture - Dec 2025)
 | Layer | Key Files | Purpose |
 |-------|-----------|---------|
 | **Model** | `core/{state_manager,project_manager,detector_service}.py` | State, project data, detection |
 | **View** | `ui/gui.py`, `ui/wizard/*.py`, `ui/dialogs/*.py` | Tkinter UI (10759 lines gui.py) |
 | **ViewModel** | `core/main_view_model.py` | Orchestrator (11+ injected deps) |
+| **Coordinators** | `coordinators/{processing,hardware,session,project_lifecycle}_coordinator.py` | Super coordinators (Phase 3) |
 | **Services** | `core/{wizard_service,video_processing_service,live_camera_service,recording_service}.py` | Business logic |
 | **I/O** | `io/{recorder,video_source,camera,live_stream_source,recorder_factory}.py` | Persistence, frame sources |
 | **Analysis** | `analysis/{analysis_service,behavior,roi,reporter}.py` | Behavioral metrics, reports |

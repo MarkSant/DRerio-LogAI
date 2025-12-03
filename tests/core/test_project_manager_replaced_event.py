@@ -40,7 +40,6 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.video_processing_orchestrator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
-            controller.recording_session_orchestrator = None  # type: ignore
             controller.processing_config_orchestrator = None  # type: ignore
             # Create mock coordinators to avoid property setter issues
             controller.recording_coordinator = Mock()  # type: ignore
@@ -73,7 +72,6 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.video_processing_orchestrator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
-            controller.recording_session_orchestrator = None  # type: ignore
             controller.processing_config_orchestrator = None  # type: ignore
             controller.recording_coordinator = Mock()  # type: ignore
             controller.session_coordinator = Mock()  # type: ignore
@@ -99,7 +97,6 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.video_processing_orchestrator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
-            controller.recording_session_orchestrator = None  # type: ignore
             controller.processing_config_orchestrator = None  # type: ignore
             controller.recording_coordinator = Mock()  # type: ignore
             controller.session_coordinator = Mock()  # type: ignore
@@ -130,7 +127,6 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.video_processing_orchestrator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
-            controller.recording_session_orchestrator = None  # type: ignore
             controller.processing_config_orchestrator = None  # type: ignore
             controller.recording_coordinator = Mock()  # type: ignore
             controller.session_coordinator = Mock()  # type: ignore

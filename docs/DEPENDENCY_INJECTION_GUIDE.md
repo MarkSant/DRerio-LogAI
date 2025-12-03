@@ -91,7 +91,7 @@ settings_obj = load_settings()
 # Core infrastructure
 event_bus = EventBus()
 state_manager = StateManager(enable_history=True, max_history_size=100)
-ui_coordinator = UICoordinator(root=root, event_bus=event_bus)
+ui_coordinator = UIScheduler(root=root, event_bus=event_bus)  # Renamed from UICoordinator in Phase 2
 
 # Model and weight management
 weight_manager = WeightManager(settings_obj=settings_obj)
@@ -263,7 +263,7 @@ class AnalysisCoordinator:
         self,
         root,
         ui_event_bus: EventBus,
-        ui_coordinator: UICoordinator,
+        ui_coordinator: UIScheduler,
         settings_obj: Settings,
         project_manager: ProjectManager,
         analysis_service: AnalysisService,

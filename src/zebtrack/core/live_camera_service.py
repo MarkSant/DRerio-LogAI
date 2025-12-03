@@ -102,6 +102,20 @@ class LiveCameraService:
 
     Supports context manager protocol for automatic session cleanup.
 
+    Architecture Note (ADR-004):
+        This service intentionally uses a different display mechanism than
+        recorded video analysis:
+
+        - Recorded Video: Uses `CanvasManager` via `Events.UI_DISPLAY_FRAME`
+        - Live Camera: Uses `LivePreviewWindow` via direct `root.after()` calls
+
+        This divergence exists because:
+        1. Live camera requires daemon threads for capture + processing
+        2. Preview window lifecycle is tied to camera session, not main canvas
+        3. Different threading model than ProcessingWorker's queue-based approach
+
+        See `docs/decisions/ADR-004-live-camera-divergence.md` for details.
+
     Example:
         with LiveCameraService(...) as service:
             service.start_session(...)

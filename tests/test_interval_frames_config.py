@@ -114,35 +114,59 @@ def test_project_manager_persists_interval_settings(
 def test_controller_workflow_roundtrip_persists_intervals(
     tmp_path,
 ) -> None:
-    from tests.helpers import create_test_controller
+    """Test that ProjectWorkflowService correctly persists interval settings.
 
-    root = MagicMock()
+    Phase 3E: Refactored to test ProjectWorkflowService directly.
+    The ProjectManager persistence is already tested in test_project_manager_persists_interval_settings.
+    """
+    from zebtrack.core.project_workflow_service import ProjectWorkflowService
+    from zebtrack.core.state_manager import StateManager
+
     # Create REAL ProjectManager for this test
     real_pm = ProjectManager()
-    # Need real project orchestrator to actually execute creation logic
-    controller = create_test_controller(
-        root=root, project_manager=real_pm, use_real_project_orchestrator=True
+    mock_model_service = MagicMock()
+    mock_model_service.get_default_weight.return_value = ("best_seg.pt", "/fake/path")
+    state_manager = StateManager()
+    mock_ui_coordinator = MagicMock()
+    mock_settings = MagicMock()
+    mock_settings.model_selection.animal_method = "seg"
+
+    service = ProjectWorkflowService(
+        project_manager=real_pm,
+        model_service=mock_model_service,
+        state_manager=state_manager,
+        ui_coordinator=mock_ui_coordinator,
+        settings_obj=mock_settings,
     )
-    controller.ui_event_bus = MagicMock()
 
     project_dir = tmp_path / "controller_project"
     video_path = tmp_path / "inputs" / "controller_sample.mp4"
     _generate_dummy_video(video_path)
-    video_entries = controller.project_manager.scan_input_paths([str(video_path)])
+    video_entries = ProjectManager.scan_input_paths([str(video_path)])
     assert video_entries
 
-    with patch.object(controller, "setup_detector", return_value=True):
-        controller.create_project_workflow(
-            project_path=str(project_dir),
-            project_type="pre-recorded",
-            video_files=video_entries,
-            num_aquariums=1,
-            animals_per_aquarium=1,
-            aquarium_width_cm=12.0,
-            aquarium_height_cm=8.0,
-            analysis_interval_frames=6,
-            display_interval_frames=9,
-        )
+    # Mock detector setup
+    mock_setup_detector = MagicMock(return_value=True)
+    mock_weight_setter = MagicMock()
+    mock_openvino_setter = MagicMock()
+
+    # Create project via service
+    result = service.create_project(
+        setup_detector_callback=mock_setup_detector,
+        active_weight_setter=mock_weight_setter,
+        use_openvino_setter=mock_openvino_setter,
+        project_path=str(project_dir),
+        project_type="pre-recorded",
+        video_files=video_entries,
+        num_aquariums=1,
+        animals_per_aquarium=1,
+        aquarium_width_cm=12.0,
+        aquarium_height_cm=8.0,
+        analysis_interval_frames=6,
+        display_interval_frames=9,
+    )
+
+    assert result["success"], f"Project creation failed: {result.get('error_message')}"
 
     config_path = project_dir / CONFIG_FILENAME
     assert config_path.exists()
@@ -156,5 +180,5 @@ def test_controller_workflow_roundtrip_persists_intervals(
 
     assert reloaded.project_data["analysis_interval_frames"] == 6
     assert reloaded.project_data["display_interval_frames"] == 9
-    assert controller.project_manager.project_data["analysis_interval_frames"] == 6
-    assert controller.project_manager.project_data["display_interval_frames"] == 9
+    assert real_pm.project_data["analysis_interval_frames"] == 6
+    assert real_pm.project_data["display_interval_frames"] == 9

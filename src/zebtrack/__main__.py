@@ -211,12 +211,12 @@ def main():
 
         # Core infrastructure
         from zebtrack.core.state_manager import StateManager
-        from zebtrack.core.ui_coordinator import UICoordinator
+        from zebtrack.core.ui_scheduler import UIScheduler
         from zebtrack.ui.event_bus import EventBus
 
         event_bus = EventBus()
         state_manager = StateManager(enable_history=True, max_history_size=100)
-        ui_coordinator = UICoordinator(root=root, event_bus=event_bus)
+        ui_coordinator = UIScheduler(root=root, event_bus=event_bus)
 
         splash.update_status("Carregando sistema de modelos...")
 

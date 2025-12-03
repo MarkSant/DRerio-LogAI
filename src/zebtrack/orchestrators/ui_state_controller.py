@@ -21,9 +21,9 @@ if TYPE_CHECKING:
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.project_workflow_service import ProjectWorkflowService
     from zebtrack.core.state_manager import StateManager
+    from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.core.weight_manager import WeightManager
     from zebtrack.settings import Settings
-    from zebtrack.ui.components.ui_coordinator import UICoordinator
     from zebtrack.ui.event_bus import EventBus
 
 logger = structlog.get_logger()
@@ -50,7 +50,7 @@ class UIStateController:
         root: Any,
         ui_event_bus: EventBus,
         state_manager: StateManager,
-        ui_coordinator: UICoordinator,
+        ui_coordinator: UIScheduler,
         project_manager: ProjectManager,
         weight_manager: WeightManager,
         detector_service: DetectorService,

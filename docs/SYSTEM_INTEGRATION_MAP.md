@@ -6,6 +6,38 @@
 
 ---
 
+## 0. Phase 3 Orchestrator Consolidation Status
+
+### Completed Orchestrator Removals (7 orchestrators deleted, ~2,500+ lines removed):
+
+| Orchestrator | Lines | Status | Replacement |
+|-------------|-------|--------|-------------|
+| `AnalysisOrchestrator` | ~200 | ❌ DELETED | ProcessingCoordinator |
+| `ZoneArenaOrchestrator` | ~150 | ❌ DELETED | ProjectLifecycleCoordinator |
+| `ProcessingConfigOrchestrator` | ~180 | ❌ DELETED | ProcessingCoordinator |
+| `CalibrationOrchestrator` | ~220 | ❌ DELETED | ProjectLifecycleCoordinator |
+| `ModelDiagnosticsOrchestrator` | ~250 | ❌ DELETED | HardwareCoordinator |
+| `ProjectOrchestrator` | ~300 | ❌ DELETED | ProjectLifecycleCoordinator |
+| `RecordingSessionOrchestrator` | ~633 | ❌ DELETED | SessionCoordinator |
+
+### Slim Orchestrators (kept for UI orchestration only):
+
+| Orchestrator | Lines | Status | Notes |
+|-------------|-------|--------|-------|
+| `VideoProcessingOrchestrator` | 140 | ✅ SLIM | Only `start_project_processing_workflow` kept |
+| `UIStateController` | 543 | ✅ ACTIVE | 17 production calls, manages weight/zone UI |
+
+### Super Coordinators (Phase 3 replacements):
+
+| Coordinator | Responsibilities |
+|-------------|-----------------|
+| `ProcessingCoordinator` | Video processing, analysis coordination, frame queues |
+| `HardwareCoordinator` | Detector, camera, model service coordination |
+| `SessionCoordinator` | Recording sessions, Arduino integration |
+| `ProjectLifecycleCoordinator` | Project CRUD, calibration, zones, model overrides |
+
+---
+
 ## 1. Event Bus Registry (The Nervous System)
 
 This section defines the contract for `EventBus` messages. Agents **MUST** adhere to these payload structures when publishing events.
@@ -20,7 +52,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `Events.UI_NAVIGATE_TO_ANALYSIS_VIEW` | - | - | `EventDispatcher` -> `ApplicationGUI` | Switches the notebook tab to the "Analysis" tab. |
 | `Events.UI_UPDATE_PROCESSING_STATS` | `stats` (dict) | - | `EventDispatcher` -> `StateSynchronizer` | Updates FPS, frame counter, and progress bars. `stats` must contain: `fps`, `frame`, `total_frames`. |
 | `Events.UI_SET_STATUS` | `message` (str) | - | `EventDispatcher` -> `ApplicationGUI` | Updates the bottom status bar text. |
-| `Events.UI_UPDATE_PROCESSING_MODE` | `report` (ProcessingReport) | - | `EventDispatcher` -> `StateSynchronizer` | Updates UI mode indicators. **Warning:** Legacy orchestrators may publish `{'source': str, 'force': bool}` causing mismatch. |
+| `Events.UI_UPDATE_PROCESSING_MODE` | `report` (ProcessingReport) | - | `EventDispatcher` -> `StateSynchronizer` | Updates UI mode indicators. All publishers use correct format as of v3.1. |
 
 ### 1.2. Analysis Control (UI -> Backend)
 
@@ -29,15 +61,6 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `Events.VIDEO_ANALYZE_SINGLE` | `video_path` (str), `config` (dict) | - | `AnalysisControlViewModel` | Triggers the start of the single video analysis workflow. |
 | `Events.VIDEO_CANCEL_ANALYSIS` | - | - | `AnalysisControlViewModel` | **Delegates to `ProcessingCoordinator.cancel_processing()`**. Sets flags and stops workers. |
 | `Events.ZONE_AUTO_DETECT` | `video_path` (str or None) | `stabilization_frames` (int) | `ProcessingCoordinator` | Runs `AquariumDetector` to find the tank polygon automatically. |
-
-### 1.3. Known Dead or Unused Events
-
-| Event Name | Status | Notes |
-| :--- | :--- | :--- |
-| `UIEvents.ANALYSIS_COMPLETED` | **Dead** | Subscribed by `UICoordinator` but never published. `ProcessingCoordinator` uses direct callback. |
-| `UIEvents.ANALYSIS_STARTED` | **Dead** | Subscribed by `UICoordinator` but never published. |
-| `Events.UI_OPEN_ADD_VIDEOS_DIALOG` | **Dead** | Published but no subscribers found. |
-| `Events.UI_UPDATE_PROJECT_INFO` | **Dead** | Published but no subscribers found. |
 
 ---
 
@@ -54,7 +77,7 @@ Understanding who holds what references prevents "AttributeError" and circular d
     *   `hardware_coordinator`: Handles Detector/Camera.
     *   `session_coordinator`: Handles Recording/Arduino.
     *   `project_lifecycle_coordinator`: Handles Project CRUD.
-    *   `ui_coordinator`: **Ambiguous!** Refers to `zebtrack.core.ui_coordinator` (Scheduler), NOT `zebtrack.ui.ui_coordinator` (Mediator).
+    *   `ui_coordinator`: Renamed to `UIScheduler` (`zebtrack.core.ui_scheduler`) to avoid collision with `zebtrack.ui.ui_coordinator` (Mediator).
 
 ### 2.2. ProcessingCoordinator
 *   **Owns:**
@@ -64,7 +87,7 @@ Understanding who holds what references prevents "AttributeError" and circular d
     *   `ProjectManager` (Read/Write project data).
     *   `DetectorService` (To configure detectors).
     *   `EventBus` (To publish updates).
-    *   `core.UICoordinator` (Directly calls `update_view` - Hybrid Pattern).
+    *   `core.UIScheduler` (Directly calls `update_view` - Hybrid Pattern).
 *   **DOES NOT Access:**
     *   `MainViewModel` (Strictly forbidden).
     *   `ApplicationGUI` (Directly - uses events or `ui_coordinator` abstraction).
@@ -106,12 +129,26 @@ Understanding who holds what references prevents "AttributeError" and circular d
     *   Sends `{'type': 'completed', 'cancelled': True}`.
 6.  **Cleanup:** `monitor_loop` receives completed message -> resets state -> Updates UI to "Ready".
 
-### 3.3. Live Camera Flow (Divergent)
-*   **Logic:** Managed by `LiveCameraCoordinator` -> `LiveCameraService`.
-*   **UI:** **Does NOT** use `CanvasManager` or `Events.UI_DISPLAY_FRAME`.
-*   **Display:** Creates and manages a dedicated `LivePreviewWindow` (Tkinter Toplevel).
-*   **Updates:** Calls `self.preview_window.update_frame()` directly from the service thread (via `root.after`).
-*   **Risk:** Features built for `CanvasManager` (like Drawing Tools) will NOT work on the Live Camera feed.
+### 3.3. Live Camera Flow (Intentional Divergence)
+
+**Decision:** Live camera uses `LivePreviewWindow` dedicated display instead of `CanvasManager`.
+
+**Architecture:**
+- **Logic:** Managed by `LiveCameraCoordinator` -> `LiveCameraService`
+- **Display:** Creates and manages a dedicated `LivePreviewWindow` (Tkinter Toplevel)
+- **Updates:** Calls `self.preview_window.update_frame()` directly from the service thread (via `root.after`)
+- **Events:** Does NOT use `Events.UI_DISPLAY_FRAME`
+
+**Justification:**
+1. **Different Threading Model:** Live camera requires daemon threads for capture + processing, different from `ProcessingWorker`'s queue-based approach
+2. **Different Lifecycle:** Preview window is created/destroyed per camera session, not bound to main canvas
+3. **Recent Stabilization:** Unified in Phase 8 (Jan 2025) - working reliably with no user complaints
+
+**Trade-offs:**
+- Features built for `CanvasManager` (drawing tools) are NOT available in live preview
+- If needed, implement equivalent features directly in `LivePreviewWindow`
+
+**Reference:** See `docs/decisions/ADR-004-live-camera-divergence.md` for full decision record.
 
 ---
 
@@ -123,6 +160,7 @@ Understanding who holds what references prevents "AttributeError" and circular d
 4.  **Legacy vs. New:**
     *   **Legacy:** `VideoProcessingOrchestrator`, `AnalysisOrchestrator` (Avoid modifying if possible).
     *   **New (Phase 3):** `ProcessingCoordinator` (Preferred location for logic).
-5.  **UICoordinator Ambiguity:** There are two classes named `UICoordinator`.
-    *   `zebtrack.core.ui_coordinator`: A scheduler/facade for `root.after`. Used by `ProcessingCoordinator`.
-    *   `zebtrack.ui.ui_coordinator`: A Mediator for EventBus events. Used by `EventDispatcher`.
+5.  **UIScheduler (Resolved Naming Conflict):** Phase 2 renamed `zebtrack.core.ui_coordinator.UICoordinator` to `UIScheduler`.
+    *   `zebtrack.core.ui_scheduler.UIScheduler`: A scheduler/facade for `root.after`. Used by `ProcessingCoordinator`.
+    *   `zebtrack.ui.ui_coordinator.UICoordinator`: A Mediator for EventBus events. Used by `EventDispatcher`.
+    *   **Reason:** Eliminated name collision that caused type confusion and import errors.

@@ -15,7 +15,7 @@ from zebtrack.core.project_manager import ProjectManager
 from zebtrack.core.project_workflow_service import ProjectWorkflowService
 from zebtrack.core.recording_service import RecordingService
 from zebtrack.core.state_manager import StateManager
-from zebtrack.core.ui_coordinator import UICoordinator
+from zebtrack.core.ui_scheduler import UIScheduler
 from zebtrack.core.video_processing_service import VideoProcessingService
 from zebtrack.core.weight_manager import WeightManager
 from zebtrack.orchestrators.ui_state_controller import UIStateController
@@ -43,7 +43,7 @@ class MainViewModelDependencies:
     settings_obj: Settings
     event_bus: Optional[EventBus]
     state_manager: StateManager
-    ui_coordinator: UICoordinator
+    ui_coordinator: UIScheduler  # Renamed from UICoordinator to avoid collision
 
     # Domain managers
     project_manager: ProjectManager

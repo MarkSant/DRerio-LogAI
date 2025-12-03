@@ -1,3 +1,7 @@
+"""Project ViewModel for project management workflows.
+
+Phase 3C: Refactored to use ProjectLifecycleCoordinator instead of ProjectOrchestrator.
+"""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -14,8 +18,9 @@ log = structlog.get_logger()
 
 
 class ProjectViewModel:
-    """
-    ViewModel responsible for Project Management workflows.
+    """ViewModel responsible for Project Management workflows.
+
+    Phase 3C: Fully migrated to use ProjectLifecycleCoordinator.
     """
 
     def __init__(
@@ -25,14 +30,11 @@ class ProjectViewModel:
         event_bus: Any,
     ):
         self.project_manager = dependencies.project_manager
-        self.project_orchestrator = bootstrap_result.project_orchestrator
+        self.state_manager = dependencies.state_manager
         self.project_lifecycle_coordinator = dependencies.project_lifecycle_coordinator
         self.project_workflow_service = dependencies.project_workflow_service
         self.batch_configuration_service = bootstrap_result.batch_configuration_service
-        self.calibration_orchestrator = bootstrap_result.calibration_orchestrator
         self.ui_event_bus = event_bus
-
-        # Delegate commonly used properties
         self.settings = dependencies.settings_obj
 
     def create_project_workflow(self, **wizard_data):
@@ -74,17 +76,6 @@ class ProjectViewModel:
 
         if added_count > 0:
             self.project_manager.save_project()
-            if self.ui_event_bus:
-                self.ui_event_bus.publish_event(Events.UI_UPDATE_PROJECT_INFO)
-            # Note: refresh_project_views needs to be triggered via event or callback if possible
-            # or we keep a ref to ui_state_controller if strictly necessary.
-            # For now, we'll rely on the event bus if the UI listens,
-            # BUT MainVM had direct access to ui_state_controller.
-            # Let's assume ui_state_controller is handled via MainVM or we add it here.
-            # Given the constraints, I'll skip direct UI controller calls if I can avoid them,
-            # but MainVM used: self.ui_state_controller.refresh_project_views(reason="videos_added")
-            # I should probably inject ui_state_controller too.
-            pass
 
     def handle_delete_project_asset(self, video_path: str, asset: str):
         if self.project_lifecycle_coordinator:
@@ -104,50 +95,29 @@ class ProjectViewModel:
     def save_project_model_overrides(
         self, active_weight: str | None, use_openvino: bool | None
     ) -> None:
-        if self.project_lifecycle_coordinator:
-            # Provide state getters using state_manager
-            # Assuming dependencies are available (we have self.project_manager etc)
-            # We need access to state_manager. It wasn't saved in __init__ explicitly as a property?
-            # It is in dependencies.
-            # Let's check __init__... dependencies.state_manager is available.
-            # But I didn't save it to self.state_manager.
-            # I'll need to use a workaround or fix __init__ too?
-            # Wait, let's check if I can access it.
-            pass
-            # To avoid breaking, let's just fix the call target name for now and assume args match 
-            # OR update the method to pass the callbacks if I can access state manager.
-            
-            # Actually, let's look at the file content again.
-            # ProjectViewModel __init__ has `dependencies`.
-            # I should save state_manager in __init__ if I need it.
-            # Or, if ProjectLifecycleCoordinator handles it? No, it requires them as args.
-            
-            # Let's assume for now that I can't easily add the args without modifying __init__.
-            # But I MUST fix the orchestrator name.
-            
-            # Let's verify if ProjectOrchestrator had the same signature.
-            # If ProjectOrchestrator didn't require callbacks, then the refactoring changed the signature 
-            # and I MUST update the caller.
-            
-            # I will defer this specific replacement until I can verify/fix the state manager access.
-            # For now, simply updating the name to project_lifecycle_coordinator is the first step. 
-            # If the signature mismatches, it will fail at runtime, but the Attribute error will be gone.
-            # The previous implementation called `self.project_orchestrator.save_project_model_overrides(active_weight, use_openvino)`.
-            # The new one requires 4 args.
-            # I will fix this properly in a second pass or if I can edit the whole file.
-            
-            # For this specific replacement, I will just swap the object name.
-            self.project_lifecycle_coordinator.save_project_model_overrides(
-                active_weight, 
-                use_openvino,
-                # We'll pass dummy lambdas or try to fetch state if possible.
-                # If I can't, I'll leave it broken but pointing to the right object? No.
-                lambda: None, # Placeholder
-                lambda: False # Placeholder
-            )
-            # Wait, passing dummies might clear settings.
-            # This needs a proper fix. I'll skip this replacement for a moment and fix the others first.
-            pass
+        """Save model settings as project overrides.
+
+        Uses state_manager to provide callbacks for state access.
+        """
+        if not self.project_lifecycle_coordinator:
+            return
+
+        def get_active_weight_name() -> str | None:
+            if self.state_manager:
+                return self.state_manager.get("active_weight_name")
+            return None
+
+        def get_use_openvino() -> bool:
+            if self.state_manager:
+                return self.state_manager.get("use_openvino", False)
+            return False
+
+        self.project_lifecycle_coordinator.save_project_model_overrides(
+            active_weight,
+            use_openvino,
+            get_active_weight_name,
+            get_use_openvino,
+        )
 
     def has_project_override_settings(self) -> bool:
         if self.project_lifecycle_coordinator:
@@ -155,25 +125,64 @@ class ProjectViewModel:
         return False
 
     def handle_calibration_copy_to_project(self):
-        if self.project_lifecycle_coordinator:
-            self.project_lifecycle_coordinator.copy_global_model_settings_to_project(
-                get_global_defaults=lambda: {}, # Placeholder
-                get_active_weight_name=lambda: None # Placeholder
-            )
+        """Copy global model settings to project overrides."""
+        if not self.project_lifecycle_coordinator:
+            return
+
+        def get_global_defaults() -> dict:
+            return {
+                "active_weight": self.settings.detection.default_weight if self.settings else None,
+                "use_openvino": self.settings.detection.use_openvino if self.settings else False,
+            }
+
+        def get_active_weight_name() -> str | None:
+            if self.state_manager:
+                return self.state_manager.get("active_weight_name")
+            return None
+
+        self.project_lifecycle_coordinator.copy_global_model_settings_to_project(
+            get_global_defaults=get_global_defaults,
+            get_active_weight_name=get_active_weight_name,
+        )
 
     def handle_calibration_save_to_project(self):
-        if self.project_lifecycle_coordinator:
-            self.project_lifecycle_coordinator.save_current_calibration_to_project(
-                get_active_weight_name=lambda: None, # Placeholder
-                get_use_openvino=lambda: False # Placeholder
-            )
+        """Save current calibration settings to project."""
+        if not self.project_lifecycle_coordinator:
+            return
+
+        def get_active_weight_name() -> str | None:
+            if self.state_manager:
+                return self.state_manager.get("active_weight_name")
+            return None
+
+        def get_use_openvino() -> bool:
+            if self.state_manager:
+                return self.state_manager.get("use_openvino", False)
+            return False
+
+        self.project_lifecycle_coordinator.save_current_calibration_to_project(
+            get_active_weight_name=get_active_weight_name,
+            get_use_openvino=get_use_openvino,
+        )
 
     def get_calibration_scope_info(self) -> dict:
-        if self.project_lifecycle_coordinator:
-            return self.project_lifecycle_coordinator.get_calibration_scope_info(
-                get_active_weight_name=lambda: None # Placeholder, needs real state access
-            )
-        return {"scope": "global", "label": "Global", "detail": "N/A", "project_loaded": False}
+        """Get calibration scope information for display."""
+        if not self.project_lifecycle_coordinator:
+            return {
+                "scope": "global",
+                "label": "Global",
+                "detail": "N/A",
+                "project_loaded": False,
+            }
+
+        def get_active_weight_name() -> str | None:
+            if self.state_manager:
+                return self.state_manager.get("active_weight_name")
+            return None
+
+        return self.project_lifecycle_coordinator.get_calibration_scope_info(
+            get_active_weight_name=get_active_weight_name,
+        )
 
     @property
     def project_data(self) -> dict:

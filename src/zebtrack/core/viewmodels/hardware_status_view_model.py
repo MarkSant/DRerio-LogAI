@@ -31,8 +31,7 @@ class HardwareStatusViewModel:
         self.weight_manager = dependencies.weight_manager
         self.session_coordinator = dependencies.session_coordinator
         self.ui_state_controller = bootstrap_result.ui_state_controller
-        self.model_diagnostics_orchestrator = bootstrap_result.model_diagnostics_orchestrator
-        self.recording_session_orchestrator = bootstrap_result.recording_session_orchestrator
+        # Phase 3C/D: model_diagnostics_orchestrator and recording_session_orchestrator removed
         self.recording_coordinator = dependencies.recording_coordinator
         self.state_manager = dependencies.state_manager
         self.settings = dependencies.settings_obj
@@ -165,8 +164,9 @@ class HardwareStatusViewModel:
         self.ui_state_controller.manage_weights()
 
     def run_model_diagnostic(self, config: dict):
-        if self.model_diagnostics_orchestrator:
-            self.model_diagnostics_orchestrator.run_model_diagnostic(config)
+        # Phase 3C: Redirect to HardwareCoordinator (supersedes ModelDiagnosticsOrchestrator)
+        if self.hardware_coordinator:
+            self.hardware_coordinator.run_model_diagnostic(config)
 
     def handle_request_weight_file(self):
         from tkinter import filedialog
@@ -191,12 +191,14 @@ class HardwareStatusViewModel:
         return self.session_coordinator.start_live_project_session()
 
     def start_recording(self, **kwargs):
-        if self.recording_session_orchestrator:
-            self.recording_session_orchestrator.start_recording(**kwargs)
+        # Use SessionCoordinator for recording (consolidated from RecordingSessionOrchestrator)
+        if self.session_coordinator:
+            self.session_coordinator.start_recording(**kwargs)
 
     def stop_recording(self):
-        if self.recording_session_orchestrator:
-            self.recording_session_orchestrator.stop_recording()
+        # Use SessionCoordinator for recording (consolidated from RecordingSessionOrchestrator)
+        if self.session_coordinator:
+            self.session_coordinator.stop_recording()
 
     def toggle_recording(self):
         if self.recording_service and self.recording_service.is_recording:

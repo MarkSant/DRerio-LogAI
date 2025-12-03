@@ -28,6 +28,74 @@ def suppress_tk_variable_finalizer_errors():
     yield
 
 
+@pytest.fixture(autouse=True)
+def mock_tkinter_dialogs(request):
+    """
+    Automatically mock tkinter messagebox and filedialog for GUI tests.
+
+    This prevents modal dialogs from blocking test execution on Windows.
+    Only applies to tests marked with @pytest.mark.gui.
+
+    The mocks return sensible defaults:
+    - messagebox functions return True/False as appropriate
+    - filedialog functions return empty string (cancelled dialog)
+    """
+    from unittest.mock import patch, MagicMock
+
+    # Only apply to tests marked with 'gui'
+    if "gui" not in [marker.name for marker in request.node.iter_markers()]:
+        yield
+        return
+
+    # Create mock functions with appropriate return values
+    mock_messagebox = MagicMock()
+    mock_messagebox.showinfo = MagicMock(return_value=None)
+    mock_messagebox.showwarning = MagicMock(return_value=None)
+    mock_messagebox.showerror = MagicMock(return_value=None)
+    mock_messagebox.askokcancel = MagicMock(return_value=True)
+    mock_messagebox.askyesno = MagicMock(return_value=True)
+    mock_messagebox.askyesnocancel = MagicMock(return_value=True)
+    mock_messagebox.askquestion = MagicMock(return_value="yes")
+    mock_messagebox.askretrycancel = MagicMock(return_value=True)
+
+    mock_filedialog = MagicMock()
+    mock_filedialog.askdirectory = MagicMock(return_value="")
+    mock_filedialog.askopenfilename = MagicMock(return_value="")
+    mock_filedialog.askopenfilenames = MagicMock(return_value=())
+    mock_filedialog.asksaveasfilename = MagicMock(return_value="")
+
+    # Patch at all the specific module locations where messagebox/filedialog are imported
+    with (
+        # Core tkinter modules
+        patch("tkinter.messagebox.showinfo", mock_messagebox.showinfo),
+        patch("tkinter.messagebox.showwarning", mock_messagebox.showwarning),
+        patch("tkinter.messagebox.showerror", mock_messagebox.showerror),
+        patch("tkinter.messagebox.askokcancel", mock_messagebox.askokcancel),
+        patch("tkinter.messagebox.askyesno", mock_messagebox.askyesno),
+        patch("tkinter.messagebox.askyesnocancel", mock_messagebox.askyesnocancel),
+        patch("tkinter.messagebox.askquestion", mock_messagebox.askquestion),
+        patch("tkinter.messagebox.askretrycancel", mock_messagebox.askretrycancel),
+        patch("tkinter.filedialog.askdirectory", mock_filedialog.askdirectory),
+        patch("tkinter.filedialog.askopenfilename", mock_filedialog.askopenfilename),
+        patch("tkinter.filedialog.askopenfilenames", mock_filedialog.askopenfilenames),
+        patch("tkinter.filedialog.asksaveasfilename", mock_filedialog.asksaveasfilename),
+        # Dialog manager specific patches
+        patch("zebtrack.ui.components.dialog_manager.messagebox", mock_messagebox),
+        patch("zebtrack.ui.components.dialog_manager.filedialog", mock_filedialog),
+        # GUI specific patches
+        patch("zebtrack.ui.gui.messagebox", mock_messagebox, create=True),
+        # Widget factory patches
+        patch("zebtrack.ui.components.widget_factory.messagebox", mock_messagebox, create=True),
+        # Validation manager patches
+        patch("zebtrack.ui.components.validation_manager.messagebox", mock_messagebox, create=True),
+        # Live camera service patches
+        patch("zebtrack.core.live_camera_service.messagebox", mock_messagebox, create=True),
+        # UI scheduler patches
+        patch("zebtrack.core.ui_scheduler.messagebox", mock_messagebox, create=True),
+    ):
+        yield
+
+
 def pytest_configure(config):
     """
     Pytest hook to configure warnings and test execution settings.

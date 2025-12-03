@@ -13,7 +13,7 @@ from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
 
 @pytest.fixture
 def mock_ui_coordinator():
-    """Cria UICoordinator mockado."""
+    """Cria UIScheduler mockado."""
     coordinator = MagicMock()
     coordinator.ask_ok_cancel.return_value = True
     coordinator.show_info.return_value = None
@@ -216,7 +216,7 @@ class TestShowProcessingSkippedInfo:
     def test_show_processing_skipped_without_event_bus(
         self, mock_ui_coordinator, mock_state_manager
     ):
-        """Testa exibição via UICoordinator quando EventBus não disponível."""
+        """Testa exibição via UIScheduler quando EventBus não disponível."""
         coordinator = DialogCoordinator(mock_ui_coordinator, None, mock_state_manager)
 
         coordinator._show_processing_skipped_info()

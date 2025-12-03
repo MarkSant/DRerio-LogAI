@@ -12,6 +12,7 @@ from zebtrack.core.detector import ZoneData
 
 
 @pytest.mark.integration
+@pytest.mark.gui
 class TestGUIComponentIntegration:
     """Tests for verifying the integrity of Component -> GUI communication."""
 

@@ -1,7 +1,7 @@
 """
-UI Coordinator Service for ZebTrack-AI.
+UI Scheduler Service for ZebTrack-AI.
 
-Phase 4: UI Coordination Consolidation
+Phase 4: UI Scheduling Consolidation
 Consolidates all UI scheduling and update operations into a single service,
 reducing code duplication and improving testability.
 
@@ -9,7 +9,7 @@ This service provides:
 - Thread-safe UI scheduling via root.after() or event bus
 - Convenience methods for common UI operations
 - Testable interface via dependency injection
-- Centralized UI coordination logic
+- Centralized UI scheduling logic
 """
 
 from __future__ import annotations
@@ -27,9 +27,9 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
-class UICoordinator:
+class UIScheduler:
     """
-    Service for coordinating UI updates and scheduling.
+    Service for scheduling UI updates and operations.
 
     Phase 4: Consolidates UI scheduling logic from MainViewModel,
     making UI updates testable and reducing code duplication.
@@ -39,6 +39,9 @@ class UICoordinator:
     - Provide convenience methods for common UI operations
     - Support both event bus and direct Tkinter scheduling
     - Handle errors gracefully with fallbacks
+
+    Note: Renamed from UICoordinator to avoid collision with
+    zebtrack.ui.ui_coordinator.UICoordinator (Event-Driven Mediator).
     """
 
     def __init__(
@@ -47,7 +50,7 @@ class UICoordinator:
         event_bus: EventBus | None = None,
     ):
         """
-        Initialize UICoordinator.
+        Initialize UIScheduler.
 
         Args:
             root: Tkinter root window for scheduling
@@ -55,7 +58,7 @@ class UICoordinator:
         """
         self.root = root
         self.event_bus = event_bus
-        log.info("ui_coordinator.initialized", has_root=root is not None)
+        log.info("ui_scheduler.initialized", has_root=root is not None)
 
     def schedule(self, func: Callable, *args: Any, **kwargs: Any) -> None:
         """
@@ -79,7 +82,7 @@ class UICoordinator:
             if published:
                 return
             log.warning(
-                "ui_coordinator.event_bus_failed",
+                "ui_scheduler.event_bus_failed",
                 callback=getattr(func, "__name__", repr(func)),
             )
 
@@ -90,7 +93,7 @@ class UICoordinator:
                 return
             except Exception as e:
                 log.warning(
-                    "ui_coordinator.after_failed",
+                    "ui_scheduler.after_failed",
                     callback=getattr(func, "__name__", repr(func)),
                     error=str(e),
                 )
@@ -100,7 +103,7 @@ class UICoordinator:
             func(*args, **kwargs)
         except Exception as e:
             log.error(
-                "ui_coordinator.direct_execution_failed",
+                "ui_scheduler.direct_execution_failed",
                 callback=getattr(func, "__name__", repr(func)),
                 error=str(e),
                 exc_info=True,
@@ -124,14 +127,14 @@ class UICoordinator:
             str: Tkinter after ID, or None if scheduling failed
         """
         if self.root is None:
-            log.warning("ui_coordinator.schedule_after_no_root")
+            log.warning("ui_scheduler.schedule_after_no_root")
             return None
 
         try:
             return self.root.after(delay_ms, lambda: func(*args, **kwargs))
         except Exception as e:
             log.error(
-                "ui_coordinator.schedule_after_failed",
+                "ui_scheduler.schedule_after_failed",
                 delay_ms=delay_ms,
                 callback=getattr(func, "__name__", repr(func)),
                 error=str(e),
@@ -151,7 +154,7 @@ class UICoordinator:
         try:
             self.root.after_cancel(after_id)
         except Exception as e:
-            log.warning("ui_coordinator.cancel_failed", after_id=after_id, error=str(e))
+            log.warning("ui_scheduler.cancel_failed", after_id=after_id, error=str(e))
 
     # === Convenience Methods for Common UI Operations ===
 
@@ -168,7 +171,7 @@ class UICoordinator:
             **kwargs: Keyword arguments for the method
         """
         if view is None:
-            log.warning("ui_coordinator.update_view_no_view", method=method_name)
+            log.warning("ui_scheduler.update_view_no_view", method=method_name)
             return
 
         # Check if method exists before scheduling
@@ -176,7 +179,7 @@ class UICoordinator:
             method = getattr(view, method_name, None)
             if method is None or not callable(method):
                 log.error(
-                    "ui_coordinator.update_view_method_not_found",
+                    "ui_scheduler.update_view_method_not_found",
                     method=method_name,
                     view_type=type(view).__name__,
                 )
@@ -185,7 +188,7 @@ class UICoordinator:
             self.schedule(method, *args, **kwargs)
         except AttributeError:
             log.error(
-                "ui_coordinator.update_view_attribute_error",
+                "ui_scheduler.update_view_attribute_error",
                 method=method_name,
                 view_type=type(view).__name__,
             )
@@ -316,7 +319,7 @@ class UICoordinator:
             return messagebox.askokcancel(title, message)
         except Exception as e:
             log.error(
-                "ui_coordinator.ask_ok_cancel.failed",
+                "ui_scheduler.ask_ok_cancel.failed",
                 title=title,
                 error=str(e),
             )

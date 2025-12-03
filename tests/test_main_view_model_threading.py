@@ -80,7 +80,7 @@ def mock_detector_service():
 
 @pytest.fixture
 def mock_ui_coordinator():
-    """Create a mock UICoordinator."""
+    """Create a mock UIScheduler."""
     ui_coordinator = Mock()
     ui_coordinator.schedule.side_effect = lambda func, *args, **kwargs: func(*args, **kwargs)
     ui_coordinator.update_view.return_value = None

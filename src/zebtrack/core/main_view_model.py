@@ -212,14 +212,8 @@ class MainViewModel:
 
         # Legacy Orchestrators
         self.video_processing_orchestrator = result.video_processing_orchestrator
-        self.analysis_orchestrator = result.analysis_orchestrator
-        self.recording_session_orchestrator = result.recording_session_orchestrator
-        self.project_orchestrator = result.project_orchestrator
         self.ui_state_controller = result.ui_state_controller
-        self.model_diagnostics_orchestrator = result.model_diagnostics_orchestrator
-        self.zone_arena_orchestrator = result.zone_arena_orchestrator
-        self.processing_config_orchestrator = result.processing_config_orchestrator
-        self.calibration_orchestrator = result.calibration_orchestrator
+        # Phase 3A/B/C/D: Removed superseded orchestrators (see BootstrapResult)
 
         # Legacy Coordinators
         self.detector_coordinator = result.legacy_coordinators.get("detector_coordinator")
@@ -529,14 +523,20 @@ class MainViewModel:
 
     @contextmanager
     def global_calibration_session(self):
-        """Context manager for global calibration mode. Delegates to CalibrationOrchestrator."""
-        with self.calibration_orchestrator.global_calibration_session():
+        """Context manager for global calibration mode. Delegates to ProjectLifecycleCoordinator."""
+        with self.project_lifecycle_coordinator.global_calibration_session(
+            get_active_weight_name=lambda: self.active_weight_name,
+            get_use_openvino=lambda: self.use_openvino,
+        ):
             yield
 
     @contextmanager
     def project_calibration_session(self):
-        """Context manager for project calibration mode. Delegates to ProjectOrchestrator."""
-        with self.project_orchestrator.project_calibration_session():
+        """Context manager for project calibration mode.
+
+        Phase 3C: Delegates to ProjectLifecycleCoordinator (supersedes ProjectOrchestrator).
+        """
+        with self.project_lifecycle_coordinator.project_calibration_session():
             yield
 
     def on_close(self):
@@ -690,10 +690,7 @@ class MainViewModel:
 
         orchestrators_to_update = [
             ("video_processing_orchestrator", self.video_processing_orchestrator),
-            ("analysis_orchestrator", self.analysis_orchestrator),
-            ("calibration_orchestrator", self.calibration_orchestrator),
-            ("recording_session_orchestrator", self.recording_session_orchestrator),
-            ("processing_config_orchestrator", self.processing_config_orchestrator),
+            # Phase 3A/B/C/D: Removed superseded orchestrators
         ]
 
         for name, service in services_to_update + orchestrators_to_update:

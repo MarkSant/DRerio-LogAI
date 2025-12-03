@@ -73,7 +73,7 @@ def mock_gui(tkinter_root, mock_validation_manager, mock_controller):
     gui.canvas_manager = Mock()
     gui.canvas_manager.redraw_zones_from_project_data = Mock()
 
-    # UI elements
+    # UI elements (legacy - some tests may still reference these directly)
     gui.progress_frame = Mock()
     gui.progress_frame.winfo_viewable = Mock(return_value=False)
     gui.progress_frame.pack = Mock()
@@ -82,6 +82,15 @@ def mock_gui(tkinter_root, mock_validation_manager, mock_controller):
     gui.video_container = Mock()
     gui.notebook = Mock()
     gui.zone_tab_frame = Mock()
+
+    # Analysis display widget (new structure - show_progress_bar uses this)
+    gui.analysis_display_widget = Mock()
+    gui.analysis_display_widget.progress_frame = Mock()
+    gui.analysis_display_widget.progress_frame.winfo_viewable = Mock(return_value=False)
+    gui.analysis_display_widget.progress_frame.pack = Mock()
+    gui.analysis_display_widget.progress_bar = {"value": 0}
+    gui.analysis_display_widget.cancel_btn = Mock()
+    gui.analysis_display_widget.video_container = Mock()
 
     # External trigger notice
     gui.external_trigger_notice_label = Mock()
@@ -1085,34 +1094,34 @@ class TestUtilityMethods:
         """Test show_progress_bar when progress frame is hidden."""
         dialog_manager.show_progress_bar()
 
-        mock_gui.progress_frame.pack.assert_called_once()
-        assert mock_gui.progress_bar["value"] == 0
-        mock_gui.cancel_proc_btn.config.assert_called_once_with(state="normal")
+        mock_gui.analysis_display_widget.progress_frame.pack.assert_called_once()
+        assert mock_gui.analysis_display_widget.progress_bar["value"] == 0
+        mock_gui.analysis_display_widget.cancel_btn.config.assert_called_once_with(state="normal")
 
     def test_show_progress_bar_already_visible(self, dialog_manager, mock_gui):
         """Test show_progress_bar when progress frame already visible."""
-        mock_gui.progress_frame.winfo_viewable.return_value = True
+        mock_gui.analysis_display_widget.progress_frame.winfo_viewable.return_value = True
 
         dialog_manager.show_progress_bar()
 
         # Should still enable cancel button
-        mock_gui.cancel_proc_btn.config.assert_called_once_with(state="normal")
+        mock_gui.analysis_display_widget.cancel_btn.config.assert_called_once_with(state="normal")
 
     def test_show_progress_bar_with_video_container(self, dialog_manager, mock_gui):
         """Test show_progress_bar packs before video container."""
         dialog_manager.show_progress_bar()
 
-        pack_call = mock_gui.progress_frame.pack.call_args
+        pack_call = mock_gui.analysis_display_widget.progress_frame.pack.call_args
         assert "before" in pack_call[1]
-        assert pack_call[1]["before"] == mock_gui.video_container
+        assert pack_call[1]["before"] == mock_gui.analysis_display_widget.video_container
 
     def test_show_progress_bar_no_video_container(self, dialog_manager, mock_gui):
         """Test show_progress_bar when video container is None."""
-        mock_gui.video_container = None
+        mock_gui.analysis_display_widget.video_container = None
 
         dialog_manager.show_progress_bar()
 
-        pack_call = mock_gui.progress_frame.pack.call_args
+        pack_call = mock_gui.analysis_display_widget.progress_frame.pack.call_args
         assert "before" not in pack_call[1]
 
     @patch("zebtrack.ui.components.dialog_manager.os.startfile")

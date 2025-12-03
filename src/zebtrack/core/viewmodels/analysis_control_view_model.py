@@ -29,7 +29,7 @@ class AnalysisControlViewModel:
         self.video_processing_orchestrator = bootstrap_result.video_processing_orchestrator
         self.video_processing_service = dependencies.video_processing_service
         self.processing_coordinator = dependencies.processing_coordinator
-        self.analysis_orchestrator = bootstrap_result.analysis_orchestrator
+        # Phase 3A: analysis_orchestrator removed (no production calls)
         self.analysis_coordinator = bootstrap_result.legacy_coordinators.get("analysis_coordinator")
         self.state_manager = dependencies.state_manager
         self.ui_state_controller = bootstrap_result.ui_state_controller
@@ -49,6 +49,9 @@ class AnalysisControlViewModel:
         return self.state_manager.get_processing_state().is_processing
 
     def start_project_processing_workflow(self):
+        # TODO Phase 3.4: Migrate to ProcessingCoordinator after extracting dialog logic
+        # This method involves complex UI interaction (file picker, zone dialogs)
+        # that needs to be factored out before migration
         if self.video_processing_orchestrator:
             self.video_processing_orchestrator.start_project_processing_workflow()
 
@@ -97,8 +100,13 @@ class AnalysisControlViewModel:
         )
 
     def start_single_video_processing(self, **kwargs):
-        if self.video_processing_orchestrator:
-            self.video_processing_orchestrator.start_single_video_processing(**kwargs)
+        # Phase 3.2: Redirect to ProcessingCoordinator (consolidated from VideoProcessingOrchestrator)
+        if self.processing_coordinator:
+            self.processing_coordinator.start_single_video_processing(
+                video_path=kwargs.get("video_path"),
+                config=kwargs.get("config", {}),
+                zone_data=kwargs.get("zone_data"),
+            )
 
     def cancel_current_analysis(self) -> None:
         # Check if ProcessingCoordinator has an active worker
@@ -160,12 +168,12 @@ class AnalysisControlViewModel:
                 self.processing_worker.cancel()
             elif self.processing_thread and self.processing_thread.is_alive():
                 self.processing_thread.join(timeout=5.0)
-            
-            # Coordinator worker is handled by cancel_processing(), 
+
+            # Coordinator worker is handled by cancel_processing(),
             # but we can wait for its thread here if needed for UI responsiveness
             if (
-                self.processing_coordinator 
-                and self.processing_coordinator.processing_thread 
+                self.processing_coordinator
+                and self.processing_coordinator.processing_thread
                 and self.processing_coordinator.processing_thread.is_alive()
             ):
                 self.processing_coordinator.processing_thread.join(timeout=5.0)

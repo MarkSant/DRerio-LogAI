@@ -21,7 +21,7 @@ from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.core.processing_worker import ProcessingCallbacks, ProcessingContext, ProcessingWorker
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.core.state_manager import StateManager
-from zebtrack.core.ui_coordinator import UICoordinator
+from zebtrack.core.ui_scheduler import UIScheduler
 from zebtrack.core.video_processing_service import VideoProcessingService
 from zebtrack.io.recorder import Recorder
 from zebtrack.ui.event_bus import EventBus
@@ -50,7 +50,7 @@ class VideoOrchestrator:
         root,
         state_manager: StateManager,
         ui_event_bus: EventBus,
-        ui_coordinator: UICoordinator,
+        ui_coordinator: UIScheduler,
         settings_obj: Settings,
         project_manager: ProjectManager,
         video_processing_service: VideoProcessingService,
@@ -223,8 +223,8 @@ class VideoOrchestrator:
                     return
 
         # Proceed to add videos dialog
-        # Note: This event is handled by the view
-        self.ui_event_bus.publish_event(Events.UI_OPEN_ADD_VIDEOS_DIALOG)
+        # Note: Dialog should be opened directly via UI components, not via event
+        # The undefined event Events.UI_OPEN_ADD_VIDEOS_DIALOG has been removed
 
     def set_arena_callback(self, callback: Callable[[list], bool] | None) -> None:
         """Set callback for setting main arena polygon.

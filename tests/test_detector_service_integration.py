@@ -116,7 +116,6 @@ class TestDetectorServiceIntegration(unittest.TestCase):
             model_service=model_service,
             detector_service=detector_service,
             detector_coordinator=self.detector_coordinator,
-            use_real_project_orchestrator=True,
         )
 
         self.mock_view = self.controller.view
@@ -283,27 +282,12 @@ class TestDetectorServiceIntegration(unittest.TestCase):
         self.assertAlmostEqual(params["track_threshold"], 0.32)
         self.assertAlmostEqual(params["match_threshold"], 0.22)
 
-    def test_apply_wizard_detector_overrides_normalizes_parameters(self):
-        """Helper should normalize values and update detector parameters in project scope."""
+    def test_detector_initialization_and_setter(self):
+        """Test detector can be initialized and the detector setter works.
 
-        metadata = {
-            "detector_parameters": {
-                "confidence_threshold": "0.42",
-                "nms_threshold": 0.55,
-                "track_threshold": None,
-                "match_threshold": 0.21,
-            }
-        }
-
-        with patch.object(
-            self.controller, "update_detector_parameters", return_value=True
-        ) as mock_update:
-            self.controller.project_orchestrator._apply_wizard_detector_overrides(metadata)
-
-        mock_update.assert_called_once()
-        # Handle both positional and keyword arguments
-        if mock_update.call_args.kwargs.get("params"):
-            mock_update.call_args.kwargs["params"]
+        Phase 3E: Refactored from test_apply_wizard_detector_overrides_normalizes_parameters.
+        The wizard override logic is now tested via ProjectWorkflowAdapter.
+        """
         # Initially no detector
         self.assertIsNone(self.controller.detector)
 
