@@ -28,8 +28,8 @@ poetry run pre-commit run --all-files  # Full pre-commit
 ```
 
 **Detailed Guides**:
-- `docs/SYSTEM_INTEGRATION_MAP.md` - **CRITICAL**: Event payloads & Component contracts
-- `docs/CHEATSHEET.md` - Quick developer reference
+- `docs/architecture/SYSTEM_INTEGRATION_MAP.md` - **CRITICAL**: Event payloads & Component contracts
+- `docs/guides/developer/CHEATSHEET.md` - Quick developer reference
 - `README_TESTS.md` - Complete testing guide
 
 ## Architecture (MVVM-S + DI)
@@ -328,18 +328,72 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 | Task | Document |
 |------|----------|
-| **Quick Reference** | `docs/CHEATSHEET.md`, `docs/QUICK_DEBUG_GUIDE.md` |
-| **Architecture** | `docs/ARCHITECTURE.md` |
-| **Wizard Development** | `docs/DEVELOPER_GUIDE_WIZARD.md` |
+| **Quick Reference** | `docs/guides/developer/CHEATSHEET.md`, `docs/guides/developer/QUICK_DEBUG_GUIDE.md` |
+| **Architecture** | `docs/architecture/ARCHITECTURE.md` |
+| **Wizard Development** | `docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md` |
 | **Testing** | `README_TESTS.md` |
-| **Operational Guide** | `docs/REFERENCE_GUIDE.md` |
-| **Coordinates** | `docs/COORDINATE_SYSTEMS.md` |
-| **State Management** | `docs/STATE_MANAGER_GUIDE.md` |
-| **DI Patterns** | `docs/DEPENDENCY_INJECTION_GUIDE.md` |
-| **Workflows** | `docs/WORKFLOWS.md` |
-| **Performance** | `docs/PERFORMANCE_TUNING.md` |
-| **Known Issues** | `docs/KNOWN_ISSUES.md` |
+| **Operational Guide** | `docs/reference/REFERENCE_GUIDE.md` |
+| **Coordinates** | `docs/reference/COORDINATE_SYSTEMS.md` |
+| **State Management** | `docs/architecture/STATE_MANAGEMENT_GUIDE.md` |
+| **DI Patterns** | `docs/architecture/DEPENDENCY_INJECTION_GUIDE.md` |
+| **Workflows** | `docs/guides/developer/WORKFLOWS.md` |
+| **Performance** | `docs/performance/PERFORMANCE_TUNING.md` |
+| **Known Issues** | `docs/reference/KNOWN_ISSUES.md` |
 | **Historical Context** | `docs/archive/` |
+
+## 📋 Documentation Standards
+
+When creating or updating documentation, follow these rules to maintain organization:
+
+### Folder Structure (MANDATORY)
+
+| Folder | Purpose | Naming Convention |
+|--------|---------|-------------------|
+| `docs/architecture/` | System design, patterns, DI, events | `TOPIC.md` |
+| `docs/guides/developer/` | Developer workflows, debugging, features | `GUIDE_TOPIC.md` or `TOPIC.md` |
+| `docs/guides/user/` | End-user docs (English) | `TOPIC.md` |
+| `docs/reference/` | API docs, operational reference | `TOPIC.md` or `topic_api.md` |
+| `docs/performance/` | Benchmarks, optimization, threading | `TOPIC.md` |
+| `docs/testing/` | Test patterns, pytest fixes | `TESTING_TOPIC.md` |
+| `docs/decisions/` | Architecture Decision Records | `ADR-NNN-short-title.md` |
+| `docs/migration/` | Version upgrade guides | `vX.Y-to-vX.Z.md` |
+| `docs/wiki/` | User guides (Portuguese) | Numbered: `N_Title.md` |
+| `docs/archive/` | Historical/completed docs | Move here, don't delete |
+
+### Documentation Rules
+
+1. **NEVER create docs in `docs/` root** - Use appropriate subfolder
+2. **English for technical docs** - Portuguese only in `wiki/`
+3. **Line length 100 chars** - Match Ruff standard
+4. **Relative links** - Use `../` paths, not absolute
+5. **Update INDEX.md** - When adding new docs
+6. **Archive, don't delete** - Move obsolete docs to `docs/archive/`
+
+### When to Update Docs
+
+- **New feature**: Add to `guides/developer/` + update INDEX.md
+- **API change**: Update `reference/` + `architecture/SYSTEM_INTEGRATION_MAP.md`
+- **Bug fix with lessons**: Add to `docs/archive/fixes/` if significant
+- **Architecture change**: Update `architecture/` docs
+- **Performance change**: Update `performance/` docs
+
+### ADR Format (for `docs/decisions/`)
+
+```markdown
+# ADR-NNN: Title
+
+## Status
+Accepted | Proposed | Deprecated
+
+## Context
+What is the issue?
+
+## Decision
+What was decided?
+
+## Consequences
+What are the results?
+```
 
 ## Development Workflow
 

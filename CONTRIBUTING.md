@@ -157,7 +157,7 @@ References:
 
    - Atualize `README.md` se o usuário final for impactado.
    - Ajuste `.github/copilot-instructions.md` para instruir automações.
-   - Edite `docs/ARCHITECTURE.md` quando alterar fluxos ou decisões arquiteturais.
+   - Edite `docs/architecture/ARCHITECTURE.md` quando alterar fluxos ou decisões arquiteturais.
    - Cite migrações/configurações novas em `config.yaml` e `tests/test_settings.py`.
 
 1. **Checklist antes do PR**:

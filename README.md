@@ -12,7 +12,7 @@
   ![Tests](https://img.shields.io/badge/tests-2568%20passing-brightgreen.svg)
   ![Coverage](https://img.shields.io/badge/coverage-61%25-orange.svg)
 
-  [Documentação](docs/) | [Guia de Contribuição](docs/DEVELOPER_GUIDE.md) | [Arquitetura](docs/ARCHITECTURE.md) | [Changelog](docs/CHANGELOG.md)
+  [Documentação](docs/) | [Guia de Contribuição](docs/guides/developer/DEVELOPER_GUIDE.md) | [Arquitetura](docs/architecture/ARCHITECTURE.md) | [Changelog](docs/changelog.md)
 </div>
 
 ---
@@ -268,25 +268,25 @@ poetry run zebtrack live \
 A documentação técnica está disponível na pasta `docs/`:
 
 ### Guias Essenciais
-*   📚 [**CHEATSHEET.md**](docs/CHEATSHEET.md) - Referência rápida de comandos e padrões
-*   🏗️ [**ARCHITECTURE.md**](docs/ARCHITECTURE.md) - Arquitetura Event-Driven e Mediator
-*   👨‍💻 [**DEVELOPER_GUIDE.md**](docs/DEVELOPER_GUIDE.md) - Guia completo para contribuidores
-*   🧙 [**DEVELOPER_GUIDE_WIZARD.md**](docs/DEVELOPER_GUIDE_WIZARD.md) - Desenvolvimento do Wizard
+*   📚 [**CHEATSHEET.md**](docs/guides/developer/CHEATSHEET.md) - Referência rápida de comandos e padrões
+*   🏗️ [**ARCHITECTURE.md**](docs/architecture/ARCHITECTURE.md) - Arquitetura Event-Driven e Mediator
+*   👨‍💻 [**DEVELOPER_GUIDE.md**](docs/guides/developer/DEVELOPER_GUIDE.md) - Guia completo para contribuidores
+*   🧙 [**DEVELOPER_GUIDE_WIZARD.md**](docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md) - Desenvolvimento do Wizard
 *   🧪 [**README_TESTS.md**](README_TESTS.md) - Guia completo de testes (2568 testes)
 
 ### Guias Técnicos
-*   🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/DEPENDENCY_INJECTION_GUIDE.md) - Padrões de DI
-*   📡 [**EVENT_BUS_GUIDE.md**](docs/EVENT_BUS_GUIDE.md) - Sistema de eventos
-*   🗺️ [**COORDINATE_SYSTEMS.md**](docs/COORDINATE_SYSTEMS.md) - Sistemas de coordenadas
-*   🎯 [**STATE_MANAGER_GUIDE.md**](docs/STATE_MANAGER_GUIDE.md) - Gerenciamento de estado
-*   🚀 [**PERFORMANCE_TUNING.md**](docs/PERFORMANCE_TUNING.md) - Otimizações
+*   🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/architecture/DEPENDENCY_INJECTION_GUIDE.md) - Padrões de DI
+*   📡 [**EVENT_BUS_GUIDE.md**](docs/architecture/EVENT_BUS_GUIDE.md) - Sistema de eventos
+*   🗺️ [**COORDINATE_SYSTEMS.md**](docs/reference/COORDINATE_SYSTEMS.md) - Sistemas de coordenadas
+*   🎯 [**STATE_MANAGEMENT_GUIDE.md**](docs/architecture/STATE_MANAGEMENT_GUIDE.md) - Gerenciamento de estado
+*   🚀 [**PERFORMANCE_TUNING.md**](docs/performance/PERFORMANCE_TUNING.md) - Otimizações
 
 ### Guias Operacionais
-*   📋 [**REFERENCE_GUIDE.md**](docs/REFERENCE_GUIDE.md) - Guia operacional completo
-*   🔄 [**WORKFLOWS.md**](docs/WORKFLOWS.md) - Fluxos de trabalho detalhados
-*   🐛 [**QUICK_DEBUG_GUIDE.md**](docs/QUICK_DEBUG_GUIDE.md) - Solução de problemas
-*   ⚠️ [**KNOWN_ISSUES.md**](docs/KNOWN_ISSUES.md) - Problemas conhecidos e soluções
-*   📝 [**CHANGELOG.md**](docs/CHANGELOG.md) - Histórico de versões
+*   📋 [**REFERENCE_GUIDE.md**](docs/reference/REFERENCE_GUIDE.md) - Guia operacional completo
+*   🔄 [**WORKFLOWS.md**](docs/guides/developer/WORKFLOWS.md) - Fluxos de trabalho detalhados
+*   🐛 [**QUICK_DEBUG_GUIDE.md**](docs/guides/developer/QUICK_DEBUG_GUIDE.md) - Solução de problemas
+*   ⚠️ [**KNOWN_ISSUES.md**](docs/reference/KNOWN_ISSUES.md) - Problemas conhecidos e soluções
+*   📝 [**CHANGELOG.md**](docs/changelog.md) - Histórico de versões
 
 ### Documentos Históricos
 *   📦 [**archive/**](docs/archive/) - Documentação de versões anteriores
