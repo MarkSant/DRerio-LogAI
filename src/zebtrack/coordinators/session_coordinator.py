@@ -43,7 +43,6 @@ from zebtrack.coordinators.base import (
     CoordinatorValidationError,
 )
 from zebtrack.core.aquarium_detector import AquariumDetector
-from zebtrack.core.processing_mode import ProcessingMode
 from zebtrack.core.state_manager import StateCategory
 from zebtrack.io.camera import Camera
 from zebtrack.ui.events import Events
@@ -1044,13 +1043,6 @@ class SessionCoordinator(BaseCoordinator):
 
         temp_video_path = None
 
-        # Publish processing mode change (requires integration with ProcessingCoordinator)
-        if self.event_bus:
-            self.event_bus.publish_event(
-                "PROCESSING_MODE_CHANGED",
-                {"mode": ProcessingMode.SINGLE_SUBJECT, "source": "calibration.live.start"},
-            )
-
         try:
             # 1. Create a temporary file for the calibration video
             temp_video_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
@@ -1135,10 +1127,6 @@ class SessionCoordinator(BaseCoordinator):
                 os.remove(temp_video_path)
 
             if self.event_bus:
-                self.event_bus.publish_event(
-                    "PROCESSING_MODE_RESTORE",
-                    {"source": "calibration.live.complete"},
-                )
                 self.event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
 
     # =============================================================================

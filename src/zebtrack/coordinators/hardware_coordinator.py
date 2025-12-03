@@ -36,7 +36,6 @@ import cv2
 import structlog
 
 from zebtrack.coordinators.base import BaseCoordinator, CoordinatorValidationError
-from zebtrack.core.processing_mode import ProcessingMode
 from zebtrack.core.state_manager import StateCategory
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.ui.events import Events
@@ -1084,14 +1083,6 @@ class HardwareCoordinator(BaseCoordinator):
         if self.cancel_event:
             self.cancel_event.clear()
 
-        # Publish processing mode (requires access to ProcessingConfigOrchestrator)
-        # This will be refactored in future sprints
-        if self.event_bus:
-            self.event_bus.publish_event(
-                "PROCESSING_MODE_CHANGED",
-                {"mode": ProcessingMode.SINGLE_SUBJECT, "source": "diagnostic.start"},
-            )
-
         thread = threading.Thread(
             target=self._diagnostic_processing_thread,
             args=(config, active_weight_details),
@@ -1155,13 +1146,6 @@ class HardwareCoordinator(BaseCoordinator):
                 self.event_bus.publish_event(
                     Events.UI_SHOW_ERROR,
                     {"title": "Erro ao Carregar Modelo", "message": f"Falha: {e}"},
-                )
-        finally:
-            # Restore processing mode
-            if self.event_bus:
-                self.event_bus.publish_event(
-                    "PROCESSING_MODE_RESTORE",
-                    {"source": "diagnostic.thread_exit"},
                 )
 
     def _update_diagnostic_progress(
@@ -1484,12 +1468,7 @@ class HardwareCoordinator(BaseCoordinator):
                         },
                     )
 
-        # Restore processing mode
         if self.event_bus:
-            self.event_bus.publish_event(
-                "PROCESSING_MODE_RESTORE",
-                {"source": "diagnostic.complete"},
-            )
             self.event_bus.publish_event(
                 Events.UI_SET_STATUS, {"message": "Diagnóstico concluído. Pronto."}
             )

@@ -1,7 +1,7 @@
 # ZebTrack-AI System Integration Map
 
 **Status:** Living Document
-**Last Updated:** Dec 2025
+**Last Updated:** Dec 2, 2025
 **Purpose:** This document serves as the "source of truth" for AI Agents regarding system integration, event payloads, and control flows. It defines the strict contracts between the decoupled components of the Phase 3/4 Architecture.
 
 ---
@@ -38,11 +38,47 @@
 
 ---
 
-## 1. Event Bus Registry (The Nervous System)
+## 1. Dual Event Bus Architecture
+
+**CRITICAL:** ZebTrack-AI uses **two coexisting event bus systems** by design. Agents must understand which system to use for each use case.
+
+### 1.1. Event Bus Overview
+
+| System | Module | Event Type | Primary Use Case |
+|--------|--------|-----------|------------------|
+| **EventBus (v1)** | `zebtrack.ui.event_bus.EventBus` | String constants (`Events` class) | Domain events: recording, project, model, video processing |
+| **EventBusV2** | `zebtrack.ui.event_bus_v2.EventBusV2` | Enum (`UIEvents` enum) | UI component communication: zones, dialogs, canvas updates |
+
+### 1.2. When to Use Each System
+
+**Use `EventBus` (v1) + `Events` class for:**
+- Recording lifecycle (`Events.RECORDING_START`, `Events.RECORDING_STOP`)
+- Project management (`Events.PROJECT_CREATE`, `Events.PROJECT_OPEN`)
+- Video analysis (`Events.VIDEO_ANALYZE_SINGLE`, `Events.VIDEO_CANCEL_ANALYSIS`)
+- Model/detector configuration (`Events.MODEL_SET_WEIGHT`, `Events.DETECTOR_SETUP`)
+- Backend → UI notifications (`Events.UI_SHOW_ERROR`, `Events.UI_SET_STATUS`)
+
+**Use `EventBusV2` + `UIEvents` enum for:**
+- UI component state sync (`UIEvents.ZONES_UPDATED`, `UIEvents.VIDEO_LOADED`)
+- Inter-component communication (`UIEvents.POLYGON_EDIT_REQUESTED`)
+- View refresh requests (`UIEvents.VIDEO_TREE_REFRESH_REQUESTED`)
+- Processing stats display (`UIEvents.PROCESSING_STATS_UPDATED`)
+
+### 1.3. Key Files
+
+| File | Contains |
+|------|----------|
+| `src/zebtrack/ui/events.py` | `Events` class with 90+ string constants |
+| `src/zebtrack/ui/event_bus.py` | `EventBus` class (v1 implementation) |
+| `src/zebtrack/ui/event_bus_v2.py` | `UIEvents` enum + `EventBusV2` class + `Event` dataclass |
+
+---
+
+## 2. Event Bus Registry (EventBus v1 - Domain Events)
 
 This section defines the contract for `EventBus` messages. Agents **MUST** adhere to these payload structures when publishing events.
 
-### 1.1. UI Updates (Backend -> UI)
+### 2.1. UI Updates (Backend -> UI)
 
 | Event Name | Required Payload Keys | Optional Keys | Listener (Component) | Action/Effect |
 | :--- | :--- | :--- | :--- | :--- |
@@ -54,7 +90,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `Events.UI_SET_STATUS` | `message` (str) | - | `EventDispatcher` -> `ApplicationGUI` | Updates the bottom status bar text. |
 | `Events.UI_UPDATE_PROCESSING_MODE` | `report` (ProcessingReport) | - | `EventDispatcher` -> `StateSynchronizer` | Updates UI mode indicators. All publishers use correct format as of v3.1. |
 
-### 1.2. Analysis Control (UI -> Backend)
+### 2.2. Analysis Control (UI -> Backend)
 
 | Event Name | Required Payload Keys | Optional Keys | Handler (Coordinator/VM) | Action/Effect |
 | :--- | :--- | :--- | :--- | :--- |
@@ -64,11 +100,55 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 
 ---
 
-## 2. Component Dependencies (The Hierarchy)
+## 3. EventBusV2 Registry (UI Component Events)
+
+### 3.1. Zone & ROI Events
+
+| Event (UIEvents) | Payload Keys | Publishers | Subscribers |
+|-----------------|--------------|------------|-------------|
+| `ZONES_UPDATED` | `zone_data` (optional) | `DialogManager`, `CanvasManager`, `gui.py` | `UICoordinator`, `CanvasManager` |
+| `ZONE_SELECTED` | `zone_id` | (internal) | `UICoordinator` |
+| `POLYGON_EDIT_REQUESTED` | `polygon` (list of points) | `CanvasManager` | `UICoordinator`, `CanvasManager` |
+
+### 3.2. Video & Project View Events
+
+| Event (UIEvents) | Payload Keys | Publishers | Subscribers |
+|-----------------|--------------|------------|-------------|
+| `VIDEO_LOADED` | `video_path` | (internal) | `UICoordinator` |
+| `VIDEO_TREE_REFRESH_REQUESTED` | `filter_text` (optional) | `DialogManager`, `ZoneControlBuilder` | `UICoordinator` |
+| `PROJECT_VIEWS_REFRESH_REQUESTED` | `reason`, `append_summary`, `immediate` | `DialogManager`, `CanvasManager` | `UICoordinator` |
+| `VIDEO_HIERARCHY_SNAPSHOT_REQUESTED` | - | (internal) | `UICoordinator` |
+| `VIDEO_HIERARCHY_SNAPSHOT_UPDATED` | `snapshot` (dict) | `gui.py` | (consumers) |
+| `READINESS_SNAPSHOT_UPDATED` | `snapshot` (dict) | `DialogManager` | `UICoordinator` |
+
+### 3.3. Processing & Analysis Events
+
+| Event (UIEvents) | Payload Keys | Publishers | Subscribers |
+|-----------------|--------------|------------|-------------|
+| `PROCESSING_STATS_UPDATED` | `fps`, `frame`, `total_frames` | (via event bridge) | `UICoordinator` |
+| `SOCIAL_SUMMARY_UPDATED` | `summary` (dict) | (via event bridge) | `UICoordinator` |
+| `ANALYSIS_TASK_STATUS_UPDATED` | `status`, `progress` | (via event bridge) | `UICoordinator` |
+| `ANALYSIS_STARTED` | - | (lifecycle) | (consumers) |
+| `ANALYSIS_COMPLETED` | - | (lifecycle) | (consumers) |
+
+### 3.4. Notification Events
+
+| Event (UIEvents) | Payload Keys | Publishers | Subscribers |
+|-----------------|--------------|------------|-------------|
+| `SHOW_ERROR` | `title`, `message` | (internal) | `ApplicationGUI` |
+| `SHOW_WARNING` | `title`, `message` | (internal) | `ApplicationGUI` |
+| `SHOW_INFO` | `title`, `message` | (internal) | `ApplicationGUI` |
+| `ERROR_OCCURRED` | `title`, `message` | `VideoProcessingService` | `ApplicationGUI` |
+| `EXTERNAL_TRIGGER_NOTICE` | `context` (dict) | `SessionCoordinator` | `UICoordinator` |
+| `EXTERNAL_TRIGGER_NOTICE_CLEARED` | - | `SessionCoordinator` | `UICoordinator` |
+
+---
+
+## 4. Component Dependencies (The Hierarchy)
 
 Understanding who holds what references prevents "AttributeError" and circular dependency issues.
 
-### 2.1. Dependency Container (`MainViewModelDependencies`)
+### 4.1. Dependency Container (`MainViewModelDependencies`)
 *   **Root Object:** Passed to `MainViewModel` and `ApplicationBootstrapper`.
 *   **Contains:**
     *   `event_bus`: The communication channel.
@@ -79,7 +159,7 @@ Understanding who holds what references prevents "AttributeError" and circular d
     *   `project_lifecycle_coordinator`: Handles Project CRUD.
     *   `ui_coordinator`: Renamed to `UIScheduler` (`zebtrack.core.ui_scheduler`) to avoid collision with `zebtrack.ui.ui_coordinator` (Mediator).
 
-### 2.2. ProcessingCoordinator
+### 4.2. ProcessingCoordinator
 *   **Owns:**
     *   `ProcessingWorker` (The background process).
     *   `ProcessingContext` (Config for the worker).
@@ -94,9 +174,9 @@ Understanding who holds what references prevents "AttributeError" and circular d
 
 ---
 
-## 3. Critical Control Flows (The Recipes)
+## 5. Critical Control Flows (The Recipes)
 
-### 3.1. Single Video Analysis Flow
+### 5.1. Single Video Analysis Flow
 1.  **User Action:** Clicks "Analyze" in Dialog.
 2.  **Dispatcher:** Publishes `Events.VIDEO_ANALYZE_SINGLE` with payload `{'video_path': '...', 'config': {...}}`.
 3.  **ViewModel:** `AnalysisControlViewModel.start_single_video_workflow` is triggered.
@@ -116,7 +196,7 @@ Understanding who holds what references prevents "AttributeError" and circular d
     *   Publishes `Events.UI_UPDATE_DETECTION_OVERLAY` (Meta).
 7.  **UI Update:** `EventDispatcher` receives events -> updates `CanvasManager`.
 
-### 3.2. Cancellation Flow (Hardened)
+### 5.2. Cancellation Flow (Hardened)
 1.  **User Action:** Clicks "Cancel".
 2.  **Dispatcher:** Publishes `Events.VIDEO_CANCEL_ANALYSIS`.
 3.  **ViewModel:** `AnalysisControlViewModel` receives event.
@@ -129,7 +209,7 @@ Understanding who holds what references prevents "AttributeError" and circular d
     *   Sends `{'type': 'completed', 'cancelled': True}`.
 6.  **Cleanup:** `monitor_loop` receives completed message -> resets state -> Updates UI to "Ready".
 
-### 3.3. Live Camera Flow (Intentional Divergence)
+### 5.3. Live Camera Flow (Intentional Divergence)
 
 **Decision:** Live camera uses `LivePreviewWindow` dedicated display instead of `CanvasManager`.
 
@@ -152,7 +232,7 @@ Understanding who holds what references prevents "AttributeError" and circular d
 
 ---
 
-## 4. Common Pitfalls for Agents
+## 6. Common Pitfalls for Agents
 
 1.  **Missing Event Payloads:** Always check the **Event Registry** above. If you publish `UI_DISPLAY_FRAME` without the `frame` key, the UI will crash or show nothing.
 2.  **Direct UI Access:** Do not try to access `self.view.canvas` from a Coordinator. Use `self.event_bus.publish(Events.UI_..., data)`.
@@ -164,3 +244,44 @@ Understanding who holds what references prevents "AttributeError" and circular d
     *   `zebtrack.core.ui_scheduler.UIScheduler`: A scheduler/facade for `root.after`. Used by `ProcessingCoordinator`.
     *   `zebtrack.ui.ui_coordinator.UICoordinator`: A Mediator for EventBus events. Used by `EventDispatcher`.
     *   **Reason:** Eliminated name collision that caused type confusion and import errors.
+6.  **Dual Event Bus:** Use `Events` class with `EventBus` for domain events; use `UIEvents` enum with `EventBusV2` for UI component communication. **Do NOT mix them.**
+
+---
+
+## 7. Removed Events (Changelog)
+
+### Dec 2, 2025 - Dead Event Cleanup
+
+The following events were removed during the integration audit as they had **no subscribers**:
+
+| Event | Previous Location | Reason for Removal |
+|-------|------------------|-------------------|
+| `PROCESSING_MODE_CHANGED` | `session_coordinator.py:1050`, `hardware_coordinator.py:1091` | No subscribers found. Processing mode is handled via `ProcessingCoordinator._publish_processing_mode()` which calls `view.update_processing_mode()` directly. |
+| `PROCESSING_MODE_RESTORE` | `session_coordinator.py:1139`, `hardware_coordinator.py:1163,1490` | No subscribers found. Same as above - orphaned event from earlier refactoring. |
+
+**Impact:** None. These events were never handled by any component.
+
+---
+
+## 8. Legacy Patterns (Known Technical Debt)
+
+The following patterns remain in the codebase and should be addressed in future refactoring:
+
+### 8.1. Direct View Access in Coordinators
+
+Some coordinators still access `self.view` directly instead of publishing events:
+
+| Coordinator | Pattern | Recommended Fix |
+|-------------|---------|-----------------|
+| `SessionCoordinator` | `self.view.camera.get_frame()` | Inject camera service; publish frame events |
+| `ProcessingCoordinator` | `self.view.update_processing_mode()` via `UIScheduler` | Migrate to `EventBusV2` → `UIEvents.PROCESSING_STATS_UPDATED` |
+| `HardwareCoordinator` | Direct `root.after()` calls | Use `UIScheduler` abstraction |
+
+### 8.2. Hybrid Patterns (Acceptable)
+
+These patterns are intentional trade-offs documented in ADRs:
+
+| Pattern | Location | ADR Reference |
+|---------|----------|---------------|
+| Live Camera direct display | `LiveCameraCoordinator` → `LivePreviewWindow` | ADR-004 |
+| `UIScheduler.update_view()` direct calls | `ProcessingCoordinator` | ADR-003 (Phase 2) |
