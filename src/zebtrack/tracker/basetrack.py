@@ -38,6 +38,11 @@ class BaseTrack:
         BaseTrack._count += 1
         return BaseTrack._count
 
+    @staticmethod
+    def reset_id_counter():
+        """Reset the global track ID counter. Call before processing a new video."""
+        BaseTrack._count = 0
+
     def activate(self, *args):
         raise NotImplementedError
 

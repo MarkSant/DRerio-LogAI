@@ -27,9 +27,9 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
-# Default thresholds
+# Default thresholds - should match config.yaml values
 DEFAULT_TRACK_THRESHOLD = 0.25
-DEFAULT_MATCH_THRESHOLD = 0.15
+DEFAULT_MATCH_THRESHOLD = 0.80  # Higher for stable tracking with sparse frames
 
 
 class DetectorService:

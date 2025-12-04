@@ -119,6 +119,13 @@ class ProcessingWorker:
                     "roi_names": getattr(z_data, "roi_names", []),
                     "roi_colors": getattr(z_data, "roi_colors", []),
                 }
+            # DEBUG: Log serialized zone data
+            log.info(
+                "worker.zone_data_serialized",
+                polygon_points=len(z_dict.get("polygon", [])) if z_dict else 0,
+                has_polygon=bool(z_dict and z_dict.get("polygon")),
+                polygon_sample=z_dict.get("polygon", [])[:3] if z_dict and z_dict.get("polygon") else "empty",
+            )
 
         # Create WorkerConfig
         config = WorkerConfig(
@@ -360,6 +367,22 @@ class _WorkerProcess(multiprocessing.Process):
 
         settings = self.config.settings
 
+        # CRITICAL: Sync processing_interval from analysis_interval_frames
+        # This ensures the Kalman filter dt is correctly set for sparse frame processing
+        if hasattr(settings, "video_processing"):
+            runtime_interval = self.config.analysis_interval_frames
+            config_interval = getattr(settings.video_processing, "processing_interval", 1)
+            if runtime_interval != config_interval:
+                log.info(
+                    "worker.detector.sync_processing_interval",
+                    config_interval=config_interval,
+                    runtime_interval=runtime_interval,
+                    message="Updating settings.video_processing.processing_interval from UI value",
+                )
+                # Update the settings to match the runtime value
+                # This affects Kalman filter dt in ByteTracker
+                settings.video_processing.processing_interval = runtime_interval
+
         # Resolve model path (use settings if not provided in config)
         model_path = self.config.model_path
         if not model_path:
@@ -390,9 +413,18 @@ class _WorkerProcess(multiprocessing.Process):
             zd.roi_names = self.config.zone_data.get("roi_names", [])
             zd.roi_colors = self.config.zone_data.get("roi_colors", [])
 
+            # DEBUG: Log deserialized zone data
+            log.info(
+                "worker.zone_data_deserialized",
+                polygon_points=len(zd.polygon),
+                has_polygon=bool(zd.polygon),
+                polygon_sample=zd.polygon[:3] if zd.polygon else "empty",
+            )
+
             # Store as 'default' zones for the detector
             self._default_zone_data = zd
         else:
+            log.warning("worker.zone_data_missing", reason="config.zone_data is None")
             self._default_zone_data = ZoneData()
 
         return detector
@@ -426,10 +458,21 @@ class _WorkerProcess(multiprocessing.Process):
         detector.base_width = width
         detector.base_height = height
         detector.set_zones(self._default_zone_data, width, height)
-        
+
         # Fix: Ensure detector knows aquarium is defined if we have a polygon
         has_aquarium = bool(self._default_zone_data.polygon and len(self._default_zone_data.polygon) >= 3)
         detector.set_aquarium_region_defined(has_aquarium)
+
+        # DEBUG: Log zone setup results
+        log.info(
+            "worker.zones_configured_for_video",
+            video=experiment_id,
+            video_dimensions=(width, height),
+            polygon_points=len(self._default_zone_data.polygon),
+            has_aquarium=has_aquarium,
+            scaled_polygon_size=detector.scaled_polygon.size if hasattr(detector, 'scaled_polygon') else 'N/A',
+            aquarium_region_defined=detector._aquarium_region_defined,
+        )
 
         # 3. Setup Recorder
         if self.config.single_video_mode:
@@ -455,6 +498,8 @@ class _WorkerProcess(multiprocessing.Process):
 
         # 4. Processing Loop
         frame_num = 0
+        processed_frames = 0  # Count frames actually processed by detector
+        detected_frames = 0  # Count frames with at least one detection
         start_time = time.time()
 
         try:
@@ -472,6 +517,11 @@ class _WorkerProcess(multiprocessing.Process):
                 if should_process:
                     # Detect
                     detections, _ = detector.detect(frame, project_type="pre-recorded")
+                    processed_frames += 1  # Count actually processed frames
+
+                    # Count frames with detections
+                    if detections:
+                        detected_frames += 1
 
                     # Check cancellation after detection (slowest part)
                     if self._check_cancellation():
@@ -483,23 +533,25 @@ class _WorkerProcess(multiprocessing.Process):
 
                     # Display Update?
                     if frame_num % self.config.display_interval_frames == 0:
-                        # Draw overlay
+                        # Draw overlay (arena, ROIs, bboxes) on frame for display
                         detector.draw_overlay(frame, detections)
 
                         # Resize for preview if needed
                         preview_frame = frame
                         if width > 1280:
                             scale = 1280 / width
-                            preview_frame = cv2.resize(frame, (0, 0), fx=scale, fy=scale)
+                            preview_frame = cv2.resize(preview_frame, (0, 0), fx=scale, fy=scale)
 
                         # Calculate stats
                         elapsed = time.time() - start_time
-                        fps = frame_num / elapsed if elapsed > 0 else 0
+                        fps = processed_frames / elapsed if elapsed > 0 else 0
                         stats = {
-                            "fps": fps,
-                            "frame": frame_num,
+                            "fps": fps,  # Actual detection FPS
+                            "frame": frame_num,  # Current position in video
                             "total_frames": total_frames,
                             "current_frame": frame_num,
+                            "processed_frames": processed_frames,  # Frames run through detector
+                            "detected_frames": detected_frames,  # Frames with detections
                         }
 
                         self.result_queue.put(

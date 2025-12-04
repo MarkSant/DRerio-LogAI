@@ -315,9 +315,16 @@ class EventDispatcher:
         )
 
         # View Navigation & Modes
-        self.event_bus.subscribe(
-            Events.UI_NAVIGATE_TO_ANALYSIS_VIEW, lambda d: self.gui.start_analysis_view_mode()
+        def _handle_navigate_to_analysis(d):
+            log.info("event_dispatcher.navigate_to_analysis_view.received")
+            self.gui.start_analysis_view_mode()
+
+        log.info(
+            "event_dispatcher.subscribing_navigation",
+            event_name=Events.UI_NAVIGATE_TO_ANALYSIS_VIEW,
+            event_bus_id=id(self.event_bus),
         )
+        self.event_bus.subscribe(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW, _handle_navigate_to_analysis)
         self.event_bus.subscribe(
             Events.UI_NAVIGATE_FROM_ANALYSIS_VIEW, lambda d: self.gui.stop_analysis_view_mode()
         )

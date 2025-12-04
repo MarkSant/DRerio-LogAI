@@ -190,12 +190,18 @@ class EventBus:
             event: The NamedEvent to dispatch
         """
         handlers = self._subscribers.get(event.event_name, [])
+        log.debug(
+            "event_bus.dispatch_named_event",
+            event_name=event.event_name,
+            num_handlers=len(handlers),
+        )
         if not handlers:
             # Suppress warning for high-frequency UI events
             if event.event_name not in ("ui:display_frame",):
                 log.warning(
                     "event_bus.dispatch.no_handlers",
                     event_name=event.event_name,
+                    available_events=list(self._subscribers.keys()),
                 )
             return
 

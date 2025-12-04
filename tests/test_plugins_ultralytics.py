@@ -45,8 +45,9 @@ def test_ultralytics_detector_init_with_settings(mock_ultralytics_import, settin
     assert detector.model == mock_model_instance
     assert detector.conf_threshold == settings_obj.yolo_model.confidence_threshold
     assert detector.nms_threshold == settings_obj.yolo_model.nms_threshold
-    assert detector.track_threshold == 0.1  # Updated from 0.25 to match code change
-    assert detector.match_threshold == 0.15
+    # Values come from settings_obj.bytetrack (track_threshold=0.25, match_threshold=0.95)
+    assert detector.track_threshold == settings_obj.bytetrack.track_threshold
+    assert detector.match_threshold == settings_obj.bytetrack.match_threshold
     assert detector.track_buffer == 60
     # Verify class names were extracted
     assert detector.class_names == {0: "aqua", 1: "zebrafish"}
@@ -63,8 +64,9 @@ def test_ultralytics_detector_init_without_settings(mock_ultralytics_import):
     assert detector.model == mock_model_instance
     assert detector.conf_threshold == 0.25
     assert detector.nms_threshold == 0.45
-    assert detector.track_threshold == 0.1  # Updated from 0.25 to match code change
-    assert detector.match_threshold == 0.15
+    # Fallback defaults when settings not injected (match settings.py)
+    assert detector.track_threshold == 0.25
+    assert detector.match_threshold == 0.95
 
 
 def test_ultralytics_detector_init_path_object(mock_ultralytics_import):
@@ -291,9 +293,9 @@ def test_ultralytics_detector_set_tracking_parameters(mock_ultralytics_import):
 
     detector = UltralyticsDetectorPlugin(model_path="model.pt")
 
-    # Initial values (updated to match code change)
-    assert detector.track_threshold == 0.1
-    assert detector.match_threshold == 0.15
+    # Initial values (match settings.py defaults: track_threshold=0.25, match_threshold=0.95)
+    assert detector.track_threshold == 0.25
+    assert detector.match_threshold == 0.95
 
     # Update both parameters
     detector.set_tracking_parameters(track_threshold=0.5, match_threshold=0.3)

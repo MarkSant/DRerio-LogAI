@@ -215,10 +215,22 @@ class CanvasRenderer:
     def update_overlay(self, detections, is_single_subject=False):
         """Draw detection overlays on the canvas.
 
+        NOTE: This method draws on video_display.canvas which is the ZONE tab canvas.
+        During analysis, detection overlays are already drawn by detector.draw_overlay()
+        and displayed via canvas_manager.update_video_frame() on the analysis_display_widget.
+        
+        This method should NOT draw on the zone canvas during analysis to avoid
+        bboxes appearing over the zone drawing area.
+
         Args:
             detections: List of detections (x1, y1, x2, y2, conf, track_id, class_id)
             is_single_subject: Boolean flag for single subject mode style
         """
+        # Skip drawing overlays on zone canvas during active analysis
+        # The analysis tab has its own display with overlays already rendered on the frame
+        if getattr(self.gui, 'analysis_active', False):
+            return
+            
         canvas = self.gui.video_display.canvas if self.gui.video_display else None
         if not canvas:
             return

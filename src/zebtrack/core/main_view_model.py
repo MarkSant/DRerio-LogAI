@@ -62,6 +62,14 @@ class MainViewModel:
         # Event bus flag
         self.ui_event_bus = self.event_dispatcher.event_bus
         self._use_event_bus = bool(self.ui_event_bus)
+        
+        # Debug: Log event bus ID for comparison with GUI
+        log.info(
+            "main_view_model.init.event_bus_setup",
+            ui_event_bus_id=id(self.ui_event_bus) if self.ui_event_bus else None,
+            deps_event_bus_id=id(dependencies.event_bus) if dependencies.event_bus else None,
+            same_bus=self.ui_event_bus is dependencies.event_bus if self.ui_event_bus else "N/A",
+        )
 
         # 3. Initialize Sub-ViewModels
         self.project_vm = ProjectViewModel(dependencies, bootstrap_result, self.ui_event_bus)
@@ -506,9 +514,27 @@ class MainViewModel:
             self.ui_state_controller.update_openvino_status()
 
     def _on_processing_state_changed(self, category, key, old, new):
+        log.debug(
+            "controller.processing_state_changed",
+            key=key,
+            old=old,
+            new=new,
+            has_ui_event_bus=bool(self.ui_event_bus),
+        )
         if key == "is_processing":
             if new:
-                self.ui_event_bus.publish_event(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW)
+                # Navigate to analysis tab when processing starts
+                if self.ui_event_bus:
+                    event_name = Events.UI_NAVIGATE_TO_ANALYSIS_VIEW
+                    log.info(
+                        "controller.navigating_to_analysis_view",
+                        event_name=event_name,
+                        event_bus_id=id(self.ui_event_bus),
+                    )
+                    result = self.ui_event_bus.publish_event(event_name)
+                    log.info("controller.event_published", result=result)
+                else:
+                    log.warning("controller.ui_event_bus_not_available")
             else:
                 # Logic for stopping analysis view is handled by
                 # processing worker completion callback

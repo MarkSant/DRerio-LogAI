@@ -239,7 +239,12 @@ class YOLOModelSettings(BaseModel):
 
 
 class ByteTrackSettings(BaseModel):
-    """Association thresholds for the ByteTrack tracker."""
+    """Association thresholds for the ByteTrack tracker.
+
+    Enhanced with hybrid matching support for sparse frame processing scenarios
+    (e.g., analyzing every N frames) where small, fast-moving objects can move
+    significantly between processed frames.
+    """
 
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
@@ -253,12 +258,44 @@ class ByteTrackSettings(BaseModel):
         ),
     )
     match_threshold: float = Field(
-        0.15,
+        0.95,
         gt=0,
-        lt=1,
+        le=1,
         description=(
             "Threshold used when linking unmatched detections to existing tracks in "
-            "ByteTrack's second association pass."
+            "ByteTrack's second association pass. Higher values (0.7-0.95) improve ID "
+            "stability. Value represents max acceptable cost (0=perfect match, 1=worst)."
+        ),
+    )
+    max_center_distance: float = Field(
+        400.0,
+        gt=0,
+        description=(
+            "Maximum center-to-center distance (in pixels) for hybrid matching fallback. "
+            "When IoU-based matching fails (no bbox overlap), ByteTrack falls back to "
+            "center distance matching. This is useful for small, fast-moving objects "
+            "like zebrafish that can move significantly between frames. "
+            "Default 300px allows matching movements of ~10 body lengths for a 30px object."
+        ),
+    )
+    track_buffer: int = Field(
+        150,
+        ge=10,
+        le=1000,
+        description=(
+            "Number of frames to keep a lost track before removing it. Higher values "
+            "allow re-identification after longer occlusions. Scaled by processing_interval "
+            "internally. Default 90 with interval=5 means track survives ~18 detection cycles."
+        ),
+    )
+    iou_threshold: float = Field(
+        0.05,
+        ge=0,
+        lt=1,
+        description=(
+            "Minimum IoU overlap to prefer IoU-based matching over center distance. "
+            "Lower values (0.0-0.1) make the tracker rely more on center distance, "
+            "which is better for small, fast-moving objects with little overlap between frames."
         ),
     )
 

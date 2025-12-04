@@ -151,6 +151,14 @@ class ApplicationGUI:
         self.canvas_manager = CanvasManager(self, event_bus_v2=self.event_bus_v2)
         self.state_synchronizer = StateSynchronizer(self)
         self.event_dispatcher = EventDispatcher(self)
+        
+        # Debug: Verify event_bus propagation to EventDispatcher
+        log.info(
+            "gui.init.event_dispatcher_created",
+            gui_event_bus_id=id(self.event_bus) if self.event_bus else None,
+            dispatcher_event_bus_id=id(self.event_dispatcher.event_bus) if self.event_dispatcher.event_bus else None,
+            same_bus=self.event_bus is self.event_dispatcher.event_bus if self.event_bus else "N/A",
+        )
 
         # Phase 2 components (with dependency injection)
         self.validation_manager = ValidationManager(self, settings_obj=self.settings)
@@ -1450,12 +1458,29 @@ class ApplicationGUI:
             self._switch_to_zones_view()
 
     def _switch_to_analysis_view(self):
-        """Switch to analysis progress view."""
+        """Switch to analysis progress view.
+        
+        If notebook doesn't exist yet (e.g., single video analysis from welcome screen),
+        create the main control frame first.
+        """
+        log.info(
+            "gui._switch_to_analysis_view.called",
+            has_notebook=self.notebook is not None,
+            has_analysis_tab=self.analysis_tab_frame is not None,
+        )
+        
+        # Create main control frame if it doesn't exist
+        if not self.notebook:
+            log.info("gui._switch_to_analysis_view.creating_main_frame")
+            self._create_main_control_frame()
+        
         if not self.notebook or not self.analysis_tab_frame:
+            log.warning("gui._switch_to_analysis_view.missing_widgets_after_create")
             return
 
         self.canvas_view_mode = "analysis"
         self.notebook.select(self.analysis_tab_frame)
+        log.info("gui._switch_to_analysis_view.done")
 
     def _switch_to_zones_view(self):
         """Switch to zone drawing view."""
@@ -1467,6 +1492,7 @@ class ApplicationGUI:
 
     def start_analysis_view_mode(self):
         """Start analysis - immediately switch to analysis view and enable toggle."""
+        log.info("gui.start_analysis_view_mode.called")
         self.analysis_active = True
         self.analysis_status_var.set("Preparando análise...")
         if self.analysis_task_var is not None:

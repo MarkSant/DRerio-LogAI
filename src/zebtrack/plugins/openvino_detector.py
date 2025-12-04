@@ -140,8 +140,13 @@ class OpenVINOPlugin(DetectorPlugin):
         self.infer_request = self.compiled_model.create_infer_request()
 
         # ByteTrack threshold hints consumed by core.detector.Detector
-        self.track_threshold = 0.25
-        self.match_threshold = 0.15
+        # Read from settings if available, otherwise use sensible defaults
+        if settings_obj is not None and hasattr(settings_obj, "bytetrack"):
+            self.track_threshold = getattr(settings_obj.bytetrack, "track_threshold", 0.25)
+            self.match_threshold = getattr(settings_obj.bytetrack, "match_threshold", 0.80)
+        else:
+            self.track_threshold = 0.25
+            self.match_threshold = 0.80  # Higher default for stable tracking
         self.track_buffer = 60
 
         # Load metadata if exists (Bug Fix: improved fallback)

@@ -100,9 +100,31 @@ yolo_model:
 bytetrack:
   # Track association thresholds used by ByteTrack algorithm
   # track_threshold: minimum confidence to keep tracking an object (Range: 0.0-1.0)
-  # match_threshold: threshold for associating low-confidence detections (Range: 0.0-1.0)
+  # match_threshold: threshold for associating detections to tracks (Range: 0.0-1.0)
+  #   IMPORTANT: Higher values are MORE PERMISSIVE (allow larger distance/lower IoU)
+  #   For sparse frame processing (every N frames), use higher values (0.7-0.95)
+  #   to maintain stable track IDs despite larger movements between frames.
+  #
+  # NOTE: The Kalman Filter's dt parameter is automatically set to the
+  # processing_interval value (from video_processing section) to correctly
+  # model motion predictions over larger time steps. This is CRITICAL for
+  # stable track IDs when processing every N frames.
   track_threshold: 0.25
-  match_threshold: 0.15
+  match_threshold: 0.95  # Higher = more permissive, better for fast-moving objects
+
+  # Hybrid matching for sparse frame processing (analyzing every N frames)
+  # When IoU-based matching fails (no bbox overlap), ByteTrack falls back to
+  # center-distance matching. This is essential for small, fast-moving objects
+  # like zebrafish that can move significantly between processed frames.
+  max_center_distance: 400.0  # pixels, ~13 body lengths for 30px zebrafish
+  
+  # Track buffer: frames to keep lost tracks before removing (scaled by processing_interval)
+  # Higher values allow re-identification after longer occlusions
+  track_buffer: 150  # With interval=10, survives ~50 detection cycles (~5s at 30fps)
+  
+  # IoU threshold for hybrid matching: below this, use center distance instead
+  # Lower values (0.0-0.1) work better for small objects with little overlap
+  iou_threshold: 0.05
 
 # -----------------------------------------------------------------------------
 # Video Processing Settings

@@ -108,7 +108,19 @@ class Detector:
         # Clear cache if zones are redefined, as scaling depends on zone data
         self._scaling_cache.clear()
         self._update_scaling(actual_width, actual_height)
-        log.info("detector.zones.set", count=len(self.zones.roi_polygons))
+
+        # DEBUG: Log zone setup with polygon details
+        log.info(
+            "detector.zones.set",
+            roi_count=len(self.zones.roi_polygons),
+            polygon_points=len(self.zones.polygon),
+            has_polygon=bool(self.zones.polygon),
+            scaled_polygon_size=self.scaled_polygon.size,
+            scaled_polygon_sample=self.scaled_polygon[:3].tolist() if self.scaled_polygon.size > 0 else "empty",
+            actual_dimensions=(actual_width, actual_height),
+            base_dimensions=(self.base_width, self.base_height),
+        )
+
         self._zones_configured = True
         self._last_width = actual_width
         self._last_height = actual_height
@@ -304,7 +316,7 @@ class Detector:
         has_polygon = self.scaled_polygon.size > 0
 
         if len(predictions) > 0:
-            log.info(
+            log.debug(
                 "detector.predictions_before_polygon_filter",
                 count=len(predictions),
                 has_polygon=has_polygon,
@@ -323,7 +335,7 @@ class Detector:
             if not has_polygon and (
                 self._context == "diagnostic" or not self._aquarium_region_defined
             ):
-                log.info(
+                log.debug(
                     "detector.no_polygon_accept_all",
                     accepting_all_detections=len(predictions),
                     reason="diagnostic_mode"
@@ -337,7 +349,15 @@ class Detector:
                     for x1, y1, x2, y2, confidence, track_id, class_id in predictions
                 ]
             else:
-                # Normal polygon filtering
+                # Normal polygon filtering - MUST filter by polygon
+                log.debug(
+                    "detector.polygon_filtering_active",
+                    has_polygon=has_polygon,
+                    polygon_size=self.scaled_polygon.size,
+                    context=self._context,
+                    aquarium_defined=self._aquarium_region_defined,
+                    predictions_count=len(predictions),
+                )
                 for det in predictions:
                     x1, y1, x2, y2, confidence, track_id, class_id = det
                     x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
@@ -364,6 +384,14 @@ class Detector:
                             track_id=track_id,
                             class_id=class_id,
                         )
+
+                # Log summary of polygon filtering
+                log.debug(
+                    "detector.polygon_filter_summary",
+                    predictions_count=len(predictions),
+                    passed_filter=len(detections_in_polygon),
+                    filtered_out=len(predictions) - len(detections_in_polygon),
+                )
         else:
             log.debug(
                 "detector.no_predictions_from_model",
@@ -383,7 +411,7 @@ class Detector:
         if self._context == "diagnostic":
             # Diagnostic mode shows everything
             filtered_detections = detections_in_polygon
-            log.info(
+            log.debug(
                 "detector.diagnostic_mode",
                 detections_count=len(filtered_detections),
             )
@@ -420,7 +448,7 @@ class Detector:
                         # Lowered from 30% to 10% based on user logs showing tank is ~15%
                         if det_area > (frame_area * 0.10):
                             is_valid_aquarium = True
-                            log.info(
+                            log.debug(
                                 "detector.class_fallback_aquarium",
                                 bbox=(x1, y1, x2, y2),
                                 original_class=class_id,
@@ -466,7 +494,7 @@ class Detector:
                     # Criteria: Class 0 AND Area < 50% of arena
                     if class_id == aquarium_class_id and arena_area > 0:
                         if det_area < (arena_area * 0.5):
-                            log.info(
+                            log.debug(
                                 "detector.class_fallback_applied",
                                 bbox=(x1, y1, x2, y2),
                                 original_class=aquarium_class_id,
@@ -519,19 +547,18 @@ class Detector:
         elif self._single_subject_mode:
             # Single subject tracking (lightweight)
             filtered_detections = self._single_subject_tracker.assign(filtered_detections)
-            log.info(
+            log.debug(
                 "detector.single_subject_tracking.applied",
                 num_detections=len(filtered_detections),
             )
         else:
             # Multi-subject tracking with ByteTracker
-            # 🔄 DEBUG: Log confidence of input detections
             if filtered_detections:
                 confidences = [d[4] for d in filtered_detections]
-                log.info("detector.bytetrack.input_confidences", confidences=confidences)
+                log.debug("detector.bytetrack.input_confidences", confidences=confidences)
 
             filtered_detections = self._apply_byte_tracking(filtered_detections, frame.shape)
-            log.info(
+            log.debug(
                 "detector.byte_tracking.applied",
                 num_detections=len(filtered_detections),
             )
@@ -595,7 +622,14 @@ class Detector:
         return self._single_subject_mode
 
     def reset_tracking_state(self) -> None:
-        """Reset tracker state between videos."""
+        """Reset tracker state between videos.
+        
+        This resets:
+        - Plugin tracking state
+        - Single subject tracker
+        - ByteTracker instance
+        - Global track ID counter (so IDs start from 1 for each new video)
+        """
         if hasattr(self.plugin, "reset_tracking_state"):
             try:
                 self.plugin.reset_tracking_state()
@@ -604,6 +638,11 @@ class Detector:
         self._single_subject_tracker.reset()
         self._byte_tracker = None
         self._byte_tracker_params = None
+        
+        # Reset global track ID counter so new videos start with ID=1
+        from zebtrack.tracker.basetrack import BaseTrack
+        BaseTrack.reset_id_counter()
+        log.debug("detector.reset_tracking_state.id_counter_reset")
 
     def clear_cache(self):
         """Clear the internal scaling cache to free memory."""
@@ -626,8 +665,7 @@ class Detector:
     def _apply_byte_tracking(
         self, detections: list[tuple], frame_shape: tuple[int, int, int]
     ) -> list[tuple]:
-        # 🔍 INFO: Log ByteTrack input
-        log.info(
+        log.debug(
             "detector.bytetrack.input",
             num_detections=len(detections),
             frame_shape=frame_shape,
@@ -637,12 +675,13 @@ class Detector:
             tracker = self._ensure_byte_tracker()
             if tracker is not None:
                 empty = np.empty((0, 5), dtype=np.float32)
+                frame_dims = (frame_shape[0], frame_shape[1])
                 tracker.update(
                     empty,
-                    (frame_shape[0], frame_shape[1]),
-                    self._resolve_model_input_shape(),
+                    frame_dims,
+                    frame_dims,  # Same dimensions to avoid scaling
                 )
-            log.info("detector.bytetrack.output", num_tracks=0, reason="no_input_detections")
+            log.debug("detector.bytetrack.output", num_tracks=0, reason="no_input_detections")
             return []
 
         tracker = self._ensure_byte_tracker()
@@ -669,20 +708,30 @@ class Detector:
             dtype=np.float32,
         )
 
-        log.info(
+        # CRITICAL FIX: Pass the same dimensions for both img_info and img_size
+        # ByteTracker internally divides bboxes by scale = min(img_size/img_info)
+        # Since our detections are ALREADY in frame coordinates (not model coordinates),
+        # we must pass identical values to get scale=1.0 (no scaling)
+        #
+        # Bug history: Previously passed model_input_shape=(640,640) which caused
+        # scale = min(640/720, 640/1280) = 0.5, so bboxes /= 0.5 → multiplied by 2!
+        # This made detection (642,360) become (1284,720) - completely wrong!
+        frame_dims = (frame_shape[0], frame_shape[1])  # (height, width)
+
+        log.debug(
             "detector.bytetrack.calling_update",
             det_array_shape=det_array.shape,
-            frame_dims=(frame_shape[0], frame_shape[1]),
-            model_input_shape=self._resolve_model_input_shape(),
+            frame_dims=frame_dims,
+            img_size_passed=frame_dims,
         )
 
         tracks = tracker.update(
             det_array,
-            (frame_shape[0], frame_shape[1]),
-            self._resolve_model_input_shape(),
+            frame_dims,
+            frame_dims,  # Pass same dimensions to avoid scaling (scale=1.0)
         )
 
-        log.info(
+        log.debug(
             "detector.bytetrack.update_result",
             num_input_detections=len(detections),
             num_output_tracks=len(tracks),
@@ -690,16 +739,20 @@ class Detector:
 
         # Create a proper mapping of tracks to class_ids based on IoU with original detections
         # Build a mapping: track bbox -> best matching detection's class_id
+        # IMPORTANT: We use the ORIGINAL detection coordinates (not track.tlbr)
+        # because the Kalman filter can drift the position outside the polygon.
+        # We only take the track_id from ByteTracker.
         results: list[tuple] = []
         for track in tracks:
-            track_bbox = track.tlbr  # (x1, y1, x2, y2)
+            track_bbox = track.tlbr  # (x1, y1, x2, y2) - Kalman-filtered position
 
             # Find the detection with highest IoU overlap with this track
             best_iou = 0.0
             best_class_id = 0  # Default class
+            best_det = None
 
             for det in detections:
-                det_x1, det_y1, det_x2, det_y2, _, _, det_class_id = det
+                det_x1, det_y1, det_x2, det_y2, det_conf, _, det_class_id = det
 
                 # Calculate IoU between track bbox and detection bbox
                 iou = self._calculate_iou(
@@ -716,28 +769,112 @@ class Detector:
                 if iou > best_iou:
                     best_iou = iou
                     best_class_id = det_class_id
+                    best_det = det
 
-            # Use the class_id from the best matching detection
-            x1, y1, x2, y2 = track_bbox
+            # Use ORIGINAL detection coordinates, not Kalman-filtered track position
+            # This prevents polygon filtering issues when Kalman drifts outside
+            if best_det is not None and best_iou > 0.1:
+                # Use original detection bbox
+                x1, y1, x2, y2 = best_det[0], best_det[1], best_det[2], best_det[3]
+                confidence = best_det[4]
+
+                log.debug(
+                    "detector.bytetrack.using_original_detection",
+                    track_bbox=(int(track_bbox[0]), int(track_bbox[1]), int(track_bbox[2]), int(track_bbox[3])),
+                    original_det=(x1, y1, x2, y2),
+                    iou=best_iou,
+                    track_id=track.track_id,
+                )
+            else:
+                # Fallback to track bbox if no matching detection (shouldn't happen often)
+                x1, y1, x2, y2 = track_bbox
+                confidence = track.score
+
+                log.warning(
+                    "detector.bytetrack.no_matching_detection",
+                    track_bbox=(int(x1), int(y1), int(x2), int(y2)),
+                    best_iou=best_iou,
+                    track_id=track.track_id,
+                )
+
             results.append(
                 (
                     int(x1),
                     int(y1),
                     int(x2),
                     int(y2),
-                    float(track.score),
+                    float(confidence),
                     int(track.track_id),
                     int(best_class_id),
                 )
             )
 
-        # 🔍 INFO: Log final ByteTrack output
-        log.info(
+        # Log final ByteTrack output
+        log.debug(
             "detector.bytetrack.output",
             num_input_detections=len(detections),
             num_output_tracks=len(tracks),
             num_results=len(results),
         )
+
+        # 🔧 FIX: When ByteTracker returns no tracks but we have detections,
+        # return the detections with track_id=None to preserve detection data.
+        # This happens when:
+        # 1. Frame skip is too high (e.g., processing every 10th frame)
+        # 2. Object moves too fast between frames for IoU matching
+        # 3. Track is in "unconfirmed" state waiting for confirmation
+        if len(results) == 0 and len(detections) > 0:
+            log.debug(
+                "detector.bytetrack.passthrough_untracked",
+                num_detections=len(detections),
+                reason="bytetracker_returned_no_tracks_but_detections_exist",
+            )
+            # Return detections with track_id=None (untracked but valid detections)
+            results = [
+                (
+                    int(det[0]),  # x1
+                    int(det[1]),  # y1
+                    int(det[2]),  # x2
+                    int(det[3]),  # y2
+                    float(det[4]),  # confidence
+                    None,  # track_id = None (untracked)
+                    int(det[6]),  # class_id
+                )
+                for det in detections
+            ]
+
+        # 🔧 FIX: Re-filter tracked positions by polygon
+        # ByteTracker's Kalman filter can predict positions OUTSIDE the arena,
+        # so we must re-validate that track positions are still inside the polygon
+        if self.scaled_polygon.size > 0:
+            results_before_filter = len(results)
+            filtered_results = []
+            for det in results:
+                x1, y1, x2, y2 = det[0], det[1], det[2], det[3]
+                is_inside = self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon)
+                if is_inside:
+                    filtered_results.append(det)
+                else:
+                    # Log detailed info about filtered detections for debugging
+                    center_x, center_y = (x1 + x2) / 2, (y1 + y2) / 2
+                    log.warning(
+                        "detector.bytetrack.post_filter_rejected",
+                        bbox=(x1, y1, x2, y2),
+                        center=(center_x, center_y),
+                        track_id=det[5],
+                        reason="track_outside_polygon",
+                    )
+
+            results = filtered_results
+            filtered_count = results_before_filter - len(results)
+            if filtered_count > 0:
+                log.info(
+                    "detector.bytetrack.post_filter_applied",
+                    before=results_before_filter,
+                    after=len(results),
+                    filtered_out=filtered_count,
+                    reason="tracks_moved_outside_polygon_by_kalman_filter",
+                )
 
         return results
 
@@ -827,8 +964,10 @@ class Detector:
         track_thresh = self._get_track_threshold()
         match_thresh = self._get_match_threshold()
         track_buffer = self._get_track_buffer()
+        max_center_distance = self._get_max_center_distance()
+        iou_threshold = self._get_iou_threshold()
 
-        params = (track_thresh, match_thresh, track_buffer)
+        params = (track_thresh, match_thresh, track_buffer, max_center_distance, iou_threshold)
         if self._byte_tracker is not None and self._byte_tracker_params == params:
             return self._byte_tracker
 
@@ -840,11 +979,24 @@ class Detector:
                 mot20=False,
             )
 
+            # Get processing_interval from settings (critical for Kalman filter dt)
+            if self.settings and hasattr(self.settings, "video_processing"):
+                processing_interval = getattr(
+                    self.settings.video_processing, "processing_interval", 1
+                ) or 1
+            else:
+                processing_interval = 1
+
             log.info(
                 "detector.bytetrack.initializing",
                 track_thresh=track_thresh,
                 match_thresh=match_thresh,
                 track_buffer=track_buffer,
+                max_center_distance=max_center_distance,
+                iou_threshold=iou_threshold,
+                use_hybrid_matching=True,
+                processing_interval=processing_interval,
+                single_animal_mode=self._single_subject_mode,
             )
 
             # Get FPS from settings or use default
@@ -852,7 +1004,19 @@ class Detector:
                 frame_rate = getattr(self.settings.video_processing, "fps", 30) or 30
             else:
                 frame_rate = 30
-            self._byte_tracker = BYTETracker(args=args, frame_rate=frame_rate)
+
+            # Enable hybrid matching for sparse frame processing
+            # Pass processing_interval to ByteTracker for correct Kalman filter dt
+            # This is CRITICAL for stable track IDs when processing every N frames
+            self._byte_tracker = BYTETracker(
+                args=args,
+                frame_rate=frame_rate,
+                use_hybrid_matching=True,
+                max_center_distance=max_center_distance,
+                processing_interval=processing_interval,
+                iou_threshold=iou_threshold,
+                single_animal_mode=self._single_subject_mode,
+            )
             self._byte_tracker_params = params
         except Exception:  # pragma: no cover - defensive
             log.warning("detector.bytetrack.init_failed", exc_info=True)
@@ -861,30 +1025,55 @@ class Detector:
 
         return self._byte_tracker
 
+    def _get_max_center_distance(self) -> float:
+        """Get max center distance for hybrid matching.
+
+        This parameter controls how far (in pixels) a detection can be from
+        the predicted track position and still be considered a match.
+
+        Default: 200 pixels (suitable for zebrafish ~30px moving at ~100px/frame)
+        """
+        if self.settings and hasattr(self.settings, "bytetrack"):
+            return float(getattr(self.settings.bytetrack, "max_center_distance", 200.0))
+        return 200.0
+
     def _get_track_threshold(self) -> float:
         value = getattr(self.plugin, "track_threshold", None)
         if value is None:
             if self.settings and hasattr(self.settings, "bytetrack"):
-                return float(getattr(self.settings.bytetrack, "track_threshold", 0.1))
-            return 0.1
+                return float(getattr(self.settings.bytetrack, "track_threshold", 0.25))
+            return 0.25  # Default matching config.yaml
         return float(value)
 
     def _get_match_threshold(self) -> float:
         value = getattr(self.plugin, "match_threshold", None)
         if value is None:
             if self.settings and hasattr(self.settings, "bytetrack"):
-                return float(getattr(self.settings.bytetrack, "match_threshold", 0.15))
-            return 0.15
+                return float(getattr(self.settings.bytetrack, "match_threshold", 0.80))
+            return 0.80  # Default matching config.yaml - higher = more permissive
         return float(value)
 
     def _get_track_buffer(self) -> int:
+        """Get track buffer size from settings or plugin."""
         value = getattr(self.plugin, "track_buffer", None)
         if value is None:
-            return 60
+            if self.settings and hasattr(self.settings, "bytetrack"):
+                return int(getattr(self.settings.bytetrack, "track_buffer", 90))
+            return 90  # Default for zebrafish with sparse processing
         try:
             return int(value)
         except (TypeError, ValueError):
-            return 60
+            return 90
+
+    def _get_iou_threshold(self) -> float:
+        """Get IoU threshold for hybrid matching.
+        
+        Lower values make the tracker prefer center distance over IoU,
+        which is better for small, fast-moving objects.
+        """
+        if self.settings and hasattr(self.settings, "bytetrack"):
+            return float(getattr(self.settings.bytetrack, "iou_threshold", 0.05))
+        return 0.05  # Low default for small objects
 
     def _resolve_model_input_shape(self) -> tuple[int, int]:
         try:

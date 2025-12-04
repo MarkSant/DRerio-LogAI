@@ -42,14 +42,17 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         if settings_obj is not None:
             self.conf_threshold = settings_obj.yolo_model.confidence_threshold
             self.nms_threshold = settings_obj.yolo_model.nms_threshold
+            # Read ByteTrack thresholds from settings
+            self.track_threshold = getattr(settings_obj.bytetrack, "track_threshold", 0.25)
+            self.match_threshold = getattr(settings_obj.bytetrack, "match_threshold", 0.95)
         else:
             # Fallback defaults when settings not injected
             self.conf_threshold = 0.25
             self.nms_threshold = 0.45
+            self.track_threshold = 0.25
+            self.match_threshold = 0.95  # Higher default for stable tracking (avoid ID jumps)
 
-        # ByteTrack threshold hints consumed by core.detector.Detector
-        self.track_threshold = 0.1  # Lowered from 0.25 to allow tracking of faint detections
-        self.match_threshold = 0.15
+        # ByteTrack buffer size
         self.track_buffer = 60
 
     def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None, int]]:

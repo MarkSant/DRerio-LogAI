@@ -244,7 +244,16 @@ Understanding who holds what references prevents "AttributeError" and circular d
     *   `zebtrack.core.ui_scheduler.UIScheduler`: A scheduler/facade for `root.after`. Used by `ProcessingCoordinator`.
     *   `zebtrack.ui.ui_coordinator.UICoordinator`: A Mediator for EventBus events. Used by `EventDispatcher`.
     *   **Reason:** Eliminated name collision that caused type confusion and import errors.
-6.  **Dual Event Bus:** Use `Events` class with `EventBus` for domain events; use `UIEvents` enum with `EventBusV2` for UI component communication. **Do NOT mix them.**
+6. **Dual Event Bus:** Use `Events` class with `EventBus` for domain events; use `UIEvents` enum with `EventBusV2` for UI component communication. **Do NOT mix them.**
+7. **ByteTracker Kalman Filter Drift:** The ByteTracker uses a Kalman Filter that can predict track positions OUTSIDE the original polygon boundary. All tracking output MUST be re-filtered by the polygon after `_apply_byte_tracking()`. This was fixed in Dec 2025 - see `detector.py:_apply_byte_tracking()` post-filter logic.
+8. **BBox Overlay Tab Check (Updated Jan 2025):** Detection overlays are drawn ONLY by `canvas_manager.update_video_frame()` which checks the current tab. The `processing_worker` does NOT call `detector.draw_overlay()` anymore - it sends the raw frame, and `canvas_manager` decides whether to draw overlays based on `is_on_analysis_tab`. This prevents bboxes from appearing on the zone drawing tab.
+9. **Guard ui_event_bus Before Publish:** Always check `if self.ui_event_bus:` before calling `publish_event()` in observer callbacks. The event bus may not be initialized during early startup or in edge cases.
+10. **ByteTrack Sparse Frame Tuning (Critical Fix Jan 2025):** When using `processing_interval > 1`:
+    - The Kalman Filter `dt` is now automatically set to `processing_interval` in `detector.py`
+    - This correctly models motion predictions over larger time steps
+    - The `track_buffer` is scaled by `processing_interval` to maintain equivalent temporal window
+    - Position/velocity weights scale with `sqrt(dt)` for proper uncertainty propagation
+    - Without this fix, track IDs will jump erratically on sparse frames.
 
 ---
 

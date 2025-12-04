@@ -423,6 +423,9 @@ class WidgetFactory:
             event_bus=self.gui.event_bus,
             available_track_options=list(self.gui._available_track_options),
         )
+        
+        # CRITICAL: Set the analysis_tab_frame reference for tab navigation
+        self.gui.analysis_tab_frame = self.gui.analysis_display_widget
 
         # Add to notebook
         self.gui.notebook.add(self.gui.analysis_display_widget, text="Análise de Vídeo")

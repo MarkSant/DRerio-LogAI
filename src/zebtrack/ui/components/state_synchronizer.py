@@ -447,13 +447,27 @@ class StateSynchronizer:
         frame=None,  # Added: Frame number from stats (alias for current_frame)
         **kwargs,  # Catch any other unexpected arguments
     ) -> None:
-        """Update processing statistics in real-time during video analysis."""
-        # Normalize inputs from various sources (worker vs legacy)
-        if processed_frames is None:
-            if current_frame is not None:
-                processed_frames = current_frame
-            elif frame is not None:
-                processed_frames = frame
+        """Update processing statistics in real-time during video analysis.
+        
+        Args:
+            total_frames: Total frames in the video
+            processed_frames: Frames actually processed by detector (preferred)
+            detected_frames: Frames where detections were found
+            start_time: Processing start timestamp
+            current_frame: Current position in video (deprecated, use frame)
+            fps: Processing speed in frames per second
+            frame: Current position in video
+        """
+        # Use processed_frames if available (new stats format)
+        # Fall back to current_frame/frame for progress calculation only
+        video_position = None
+        if current_frame is not None:
+            video_position = current_frame
+        elif frame is not None:
+            video_position = frame
+        
+        # If processed_frames not provided, DON'T use video position as fallback
+        # since they mean different things
         
         # If total_frames is missing in kwargs but we have it in gui state or logic?
         # For now assume it's passed.
@@ -464,9 +478,10 @@ class StateSynchronizer:
             elapsed_str = None
             eta_str = None
 
-            # Calculate and update percentage based on actual frame position
-            if total_frames and processed_frames is not None:
-                percent_val = (processed_frames / total_frames) * 100
+            # Calculate percentage based on video position (how far through video)
+            # Use video_position for progress, as that shows actual playback position
+            if total_frames and video_position is not None:
+                percent_val = (video_position / total_frames) * 100
                 percent = f"{percent_val:.1f}%"
 
             # Calculate elapsed time and ETA
@@ -476,23 +491,32 @@ class StateSynchronizer:
                 elapsed = time.time() - start_time
                 elapsed_str = self._format_time(elapsed)
 
-                if processed_frames and total_frames and processed_frames > 0:
-                    rate = processed_frames / elapsed
-                    remaining_frames = total_frames - processed_frames
+                # Use video_position for ETA calculation (remaining video frames)
+                if video_position and total_frames and video_position > 0:
+                    rate = video_position / elapsed
+                    remaining_frames = total_frames - video_position
                     if rate > 0:
                         eta = remaining_frames / rate
                         eta_str = self._format_time(eta)
             
             # Strategy 2: Use FPS if provided (Worker/Remote)
-            elif fps and fps > 0 and processed_frames is not None:
-                # Infer elapsed from frames / fps
-                elapsed = processed_frames / fps
-                elapsed_str = self._format_time(elapsed)
-                
-                if total_frames:
-                    remaining_frames = total_frames - processed_frames
-                    eta = remaining_frames / fps
-                    eta_str = self._format_time(eta)
+            elif fps and fps > 0 and video_position is not None:
+                # FPS here is detection FPS, but we want video progress for ETA
+                # Use video_position for more accurate time estimates
+                if total_frames and video_position > 0:
+                    # Estimate elapsed from processing speed and processed_frames
+                    if processed_frames and processed_frames > 0:
+                        elapsed = processed_frames / fps
+                        elapsed_str = self._format_time(elapsed)
+                        
+                        # Expected total processed = total_frames / interval
+                        # But we use video position for progress
+                        remaining_video_frames = total_frames - video_position
+                        # Scale by interval ratio
+                        expected_remaining_processed = remaining_video_frames * (processed_frames / video_position) if video_position > 0 else 0
+                        if expected_remaining_processed > 0:
+                            eta = expected_remaining_processed / fps
+                            eta_str = self._format_time(eta)
 
             self.gui.analysis_display_widget.update_progress_stats(
                 total_frames=total_frames,

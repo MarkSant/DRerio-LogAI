@@ -3,4 +3,7 @@ yolo_model:
   nms_threshold: 0.3
 bytetrack:
   track_threshold: 0.25
-  match_threshold: 0.15
+  match_threshold: 0.95  # Very permissive for stable IDs
+  max_center_distance: 400.0  # ~10 body lengths
+  track_buffer: 150  # Keeps lost tracks longer
+  iou_threshold: 0.05  # Prefer center distance for small objects

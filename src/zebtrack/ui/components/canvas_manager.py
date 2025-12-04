@@ -313,55 +313,42 @@ class CanvasManager:
     def update_video_frame(self, frame: np.ndarray, detections: list | None = None) -> None:
         """Update the canvas with a raw video frame (numpy array).
 
+        This method is called during video analysis to display frames.
+        The frame already has overlays (arena, ROIs, bboxes) drawn by detector.draw_overlay().
+        
+        IMPORTANT: This should only display on the analysis tab widget, NOT on the zone canvas.
+        The zone canvas should remain unchanged during analysis.
+
         Args:
             frame: The video frame as a numpy array (BGR format from OpenCV).
-            detections: List of detections to draw overlay (optional).
+            detections: List of detections (not used - overlays already drawn on frame).
         """
         if frame is None:
             return
 
         try:
-            # Draw overlay directly on frame if provided (and in analysis mode)
-            # This ensures video + overlay are synchronized in the Label
-            if self.gui.analysis_active and detections:
-                for det in detections:
-                    if len(det) >= 4:
-                        x1, y1, x2, y2 = int(det[0]), int(det[1]), int(det[2]), int(det[3])
-                        # Draw rectangle
-                        cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 255), 2)
-                        # Draw label if available
-                        if len(det) >= 6:
-                            track_id = det[5]
-                            conf = det[4]
-                            label = f"ID:{track_id}" if track_id is not None else f"{conf:.2f}"
-                            cv2.putText(frame, label, (x1, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
-
             # Convert the frame for display (BGR -> RGB)
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             pil_image = Image.fromarray(frame_rgb)
 
-            # Update internal state
-            self.gui._original_image = pil_image
-            self._raw_bg_image = pil_image
-
-            # Check if we should display on Analysis Tab or Zone Canvas
+            # ONLY display on Analysis Tab widget during analysis
+            # Do NOT update zone canvas - it should remain showing the static zone drawing
             if self.gui.analysis_active and self.gui.analysis_display_widget:
                 # Dynamic sizing
                 target_w = 1280
                 target_h = 720
-                
+
                 # Try to get current container size if available
                 if self.gui.analysis_display_widget.video_container:
                     w = self.gui.analysis_display_widget.video_container.winfo_width()
                     h = self.gui.analysis_display_widget.video_container.winfo_height()
                     if w > 100 and h > 100:
                         target_w, target_h = w, h
-                
+
                 pil_image.thumbnail((target_w, target_h), Image.LANCZOS)
                 self.gui.analysis_display_widget.update_frame(pil_image)
-            else:
-                # Trigger redraw on main canvas
-                self._draw_bg_image_to_canvas()
+            # NOTE: We intentionally do NOT update the zone canvas here.
+            # During analysis, the zone canvas should keep its static state.
 
         except Exception as e:
             log.error("canvas_manager.update_video_frame.error", error=str(e))

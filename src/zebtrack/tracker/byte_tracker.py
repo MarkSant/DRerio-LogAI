@@ -155,7 +155,36 @@ class STrack(BaseTrack):
 
 
 class BYTETracker:
-    def __init__(self, args, frame_rate=30):
+    """ByteTrack multi-object tracker with hybrid IoU + center distance matching.
+
+    Enhanced for sparse frame processing scenarios (e.g., analyzing every N frames)
+    where small, fast-moving objects like zebrafish can move significantly between
+    processed frames, causing IoU-based matching to fail.
+
+    The hybrid matching strategy:
+    1. First tries IoU-based matching (standard ByteTrack)
+    2. Falls back to center-distance matching when IoU is zero
+
+    Args:
+        args: Namespace with track_thresh, match_thresh, track_buffer, mot20
+        frame_rate: Video frame rate (default 30)
+        use_hybrid_matching: Enable hybrid IoU + center distance (default True)
+        max_center_distance: Max pixels for center-distance fallback (default 200)
+        processing_interval: Frames between detections (default 1). When > 1,
+            the Kalman filter dt is adjusted to correctly predict motion over
+            larger time steps, critical for stable track IDs.
+    """
+
+    def __init__(
+        self,
+        args,
+        frame_rate=30,
+        use_hybrid_matching=True,
+        max_center_distance=300.0,
+        processing_interval=1,
+        iou_threshold=0.05,
+        single_animal_mode=False,
+    ):
         self.tracked_stracks = []
         self.lost_stracks = []
         self.removed_stracks = []
@@ -164,9 +193,22 @@ class BYTETracker:
         self.args = args
 
         self.det_thresh = args.track_thresh + 0.1
-        self.buffer_size = int(frame_rate / 30.0 * args.track_buffer)
+        # Scale buffer size by processing_interval to maintain equivalent
+        # temporal window (e.g., 90 frames @ 30fps with interval=5 = 450 real frames)
+        self.buffer_size = int(frame_rate / 30.0 * args.track_buffer * processing_interval)
         self.max_time_lost = self.buffer_size
-        self.kalman_filter = KalmanFilter()
+        # Pass processing_interval as dt to Kalman filter for correct motion prediction
+        self.kalman_filter = KalmanFilter(dt=float(processing_interval))
+
+        # Hybrid matching parameters for sparse frame processing
+        self.use_hybrid_matching = use_hybrid_matching
+        self.max_center_distance = max_center_distance
+        self.processing_interval = processing_interval
+        self.iou_threshold = iou_threshold  # Min IoU to prefer IoU-based matching
+        
+        # Single animal mode: skip fuse_score to avoid confidence penalty
+        # When there's only 1 animal, no risk of confusing with others
+        self.single_animal_mode = single_animal_mode
 
     def update(self, output_results, img_info, img_size):
         self.frame_id += 1
@@ -225,8 +267,20 @@ class BYTETracker:
         strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
         # Predict the current location with KF
         STrack.multi_predict(strack_pool, self.kalman_filter)
-        dists = matching.iou_distance(strack_pool, detections)
-        if not self.args.mot20:
+
+        # Use hybrid matching for better handling of fast-moving small objects
+        if self.use_hybrid_matching:
+            dists = matching.hybrid_iou_center_distance(
+                strack_pool, detections,
+                iou_thresh=self.iou_threshold,  # Configurable IoU threshold
+                max_center_dist=self.max_center_distance
+            )
+        else:
+            dists = matching.iou_distance(strack_pool, detections)
+
+        # Apply fuse_score only when multiple animals possible
+        # In single animal mode, skip to avoid confidence penalty on matching
+        if not self.args.mot20 and not self.single_animal_mode:
             dists = matching.fuse_score(dists, detections)
 
         matches, u_track, u_detection = matching.linear_assignment(
@@ -256,7 +310,15 @@ class BYTETracker:
         r_tracked_stracks = [
             strack_pool[i] for i in u_track if strack_pool[i].state == TrackState.Tracked
         ]
-        dists = matching.iou_distance(r_tracked_stracks, detections_second)
+        # Use hybrid matching for second association as well
+        if self.use_hybrid_matching:
+            dists = matching.hybrid_iou_center_distance(
+                r_tracked_stracks, detections_second,
+                iou_thresh=self.iou_threshold,
+                max_center_dist=self.max_center_distance
+            )
+        else:
+            dists = matching.iou_distance(r_tracked_stracks, detections_second)
         matches, u_track, _ = matching.linear_assignment(dists, thresh=0.5)
 
         for itracked, idet in matches:
@@ -279,7 +341,15 @@ class BYTETracker:
         frame"""
 
         detections = [detections[i] for i in u_detection]
-        dists = matching.iou_distance(unconfirmed, detections)
+        # Use hybrid matching for unconfirmed tracks as well
+        if self.use_hybrid_matching:
+            dists = matching.hybrid_iou_center_distance(
+                unconfirmed, detections,
+                iou_thresh=self.iou_threshold,
+                max_center_dist=self.max_center_distance
+            )
+        else:
+            dists = matching.iou_distance(unconfirmed, detections)
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)
 

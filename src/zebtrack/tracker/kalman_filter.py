@@ -33,12 +33,25 @@ class KalmanFilter:
     (x, y, a, h) is taken as direct observation of the state space (linear
     observation model).
 
+    For sparse frame processing (e.g., processing every N frames), the dt
+    parameter should be set to N to correctly model the larger time steps
+    between observations. This is critical for maintaining stable track IDs.
     """
 
-    def __init__(self):
-        ndim, dt = 4, 1.0
+    def __init__(self, dt: float = 1.0):
+        """Initialize the Kalman Filter.
+
+        Args:
+            dt: Time delta between frames. For sparse frame processing (e.g.,
+                processing_interval=10), set dt=10 to correctly model the
+                larger motion between observations. Default is 1.0 for
+                consecutive frame processing.
+        """
+        ndim = 4
+        self._dt = dt
 
         # Create Kalman filter model matrices.
+        # The motion matrix models constant velocity: x_new = x + v * dt
         self._motion_mat = np.eye(2 * ndim, 2 * ndim)
         for i in range(ndim):
             self._motion_mat[i, ndim + i] = dt
@@ -46,9 +59,24 @@ class KalmanFilter:
 
         # Motion and observation uncertainty are chosen relative to the current
         # state estimate. These weights control the amount of uncertainty in
-        # the model. This is a bit hacky.
-        self._std_weight_position = 1.0 / 20
-        self._std_weight_velocity = 1.0 / 160
+        # the model.
+        #
+        # For sparse frame processing, we need to scale the uncertainty by dt
+        # to account for larger positional changes between observations.
+        #
+        # Base values (ByteTrack defaults for dt=1):
+        #   position_base = 1/20 = 0.05
+        #   velocity_base = 1/160 = 0.00625
+        #
+        # We scale by sqrt(dt) for position (variance scales linearly with time)
+        # and keep velocity uncertainty higher for erratic movements.
+        #
+        # For zebrafish with processing_interval=10:
+        #   - dt=10 means ~10x larger position changes expected
+        #   - sqrt(10) ≈ 3.16 scaling for position uncertainty
+        dt_factor = np.sqrt(dt)
+        self._std_weight_position = (1.0 / 20) * dt_factor  # Scale with sqrt(dt)
+        self._std_weight_velocity = (1.0 / 160) * dt_factor * 2  # Extra factor for erratic motion
 
     def initiate(self, measurement):
         """Create track from unassociated measurement.

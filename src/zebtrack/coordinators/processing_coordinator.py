@@ -359,10 +359,17 @@ class ProcessingCoordinator(BaseCoordinator):
 
         Phase 3: Consolidated from VideoProcessingOrchestrator.create_processing_context
         """
+        # Calculate processing intervals from config or project settings
+        analysis_interval, display_interval = self._determine_processing_intervals(
+            single_video_config
+        )
+
         log.info(
             "create_processing_context",
             cancel_event_id=id(self.cancel_event),
             is_set=self.cancel_event.is_set(),
+            analysis_interval_frames=analysis_interval,
+            display_interval_frames=display_interval,
         )
         return ProcessingContext(
             videos_to_process=videos_to_process,
@@ -371,8 +378,8 @@ class ProcessingCoordinator(BaseCoordinator):
             settings=self.settings,
             single_video_config=single_video_config,
             zone_data=zone_data,
-            analysis_interval_frames=10,  # Will be updated by worker
-            display_interval_frames=10,  # Will be updated by worker
+            analysis_interval_frames=analysis_interval,
+            display_interval_frames=display_interval,
             process_single_video_func=process_single_video_func,
             apply_project_settings_func=apply_project_settings_func,
             determine_intervals_func=self._determine_processing_intervals,
