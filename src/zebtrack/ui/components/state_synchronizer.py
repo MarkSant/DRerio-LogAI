@@ -448,7 +448,7 @@ class StateSynchronizer:
         **kwargs,  # Catch any other unexpected arguments
     ) -> None:
         """Update processing statistics in real-time during video analysis.
-        
+
         Args:
             total_frames: Total frames in the video
             processed_frames: Frames actually processed by detector (preferred)
@@ -465,10 +465,10 @@ class StateSynchronizer:
             video_position = current_frame
         elif frame is not None:
             video_position = frame
-        
+
         # If processed_frames not provided, DON'T use video position as fallback
         # since they mean different things
-        
+
         # If total_frames is missing in kwargs but we have it in gui state or logic?
         # For now assume it's passed.
 
@@ -498,7 +498,7 @@ class StateSynchronizer:
                     if rate > 0:
                         eta = remaining_frames / rate
                         eta_str = self._format_time(eta)
-            
+
             # Strategy 2: Use FPS if provided (Worker/Remote)
             elif fps and fps > 0 and video_position is not None:
                 # FPS here is detection FPS, but we want video progress for ETA
@@ -508,7 +508,7 @@ class StateSynchronizer:
                     if processed_frames and processed_frames > 0:
                         elapsed = processed_frames / fps
                         elapsed_str = self._format_time(elapsed)
-                        
+
                         # Expected total processed = total_frames / interval
                         # But we use video position for progress
                         remaining_video_frames = total_frames - video_position

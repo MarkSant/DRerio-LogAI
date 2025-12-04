@@ -1,8 +1,8 @@
 # ZebTrack-AI: Relatório Completo de Parâmetros de Detecção e Rastreamento
 
-> **Gerado em**: Dezembro 2025  
-> **Última Atualização**: Dezembro 2025  
-> **Versão**: 4.0+  
+> **Gerado em**: Dezembro 2025
+> **Última Atualização**: Dezembro 2025
+> **Versão**: 4.0+
 > **Autor**: GitHub Copilot (Claude Opus 4.5)
 
 Este documento apresenta uma análise completa de todos os parâmetros que afetam a detecção, rastreamento e estabilidade de IDs de animais no ZebTrack-AI.
@@ -411,10 +411,10 @@ def hybrid_iou_center_distance(atracks, btracks, iou_thresh=0.1, max_center_dist
     """
     iou_cost = iou_distance(atracks, btracks)
     center_cost = center_distance(atracks, btracks, max_center_dist)
-    
+
     has_iou = iou_cost < (1 - iou_thresh)  # IoU > 0.1
     cost_matrix = np.where(has_iou, iou_cost, center_cost)
-    
+
     return cost_matrix
 ```
 

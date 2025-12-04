@@ -623,7 +623,7 @@ class Detector:
 
     def reset_tracking_state(self) -> None:
         """Reset tracker state between videos.
-        
+
         This resets:
         - Plugin tracking state
         - Single subject tracker
@@ -638,7 +638,7 @@ class Detector:
         self._single_subject_tracker.reset()
         self._byte_tracker = None
         self._byte_tracker_params = None
-        
+
         # Reset global track ID counter so new videos start with ID=1
         from zebtrack.tracker.basetrack import BaseTrack
         BaseTrack.reset_id_counter()
@@ -1067,7 +1067,7 @@ class Detector:
 
     def _get_iou_threshold(self) -> float:
         """Get IoU threshold for hybrid matching.
-        
+
         Lower values make the tracker prefer center distance over IoU,
         which is better for small, fast-moving objects.
         """

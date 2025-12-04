@@ -151,7 +151,7 @@ class ApplicationGUI:
         self.canvas_manager = CanvasManager(self, event_bus_v2=self.event_bus_v2)
         self.state_synchronizer = StateSynchronizer(self)
         self.event_dispatcher = EventDispatcher(self)
-        
+
         # Debug: Verify event_bus propagation to EventDispatcher
         log.info(
             "gui.init.event_dispatcher_created",
@@ -1459,7 +1459,7 @@ class ApplicationGUI:
 
     def _switch_to_analysis_view(self):
         """Switch to analysis progress view.
-        
+
         If notebook doesn't exist yet (e.g., single video analysis from welcome screen),
         create the main control frame first.
         """
@@ -1468,12 +1468,12 @@ class ApplicationGUI:
             has_notebook=self.notebook is not None,
             has_analysis_tab=self.analysis_tab_frame is not None,
         )
-        
+
         # Create main control frame if it doesn't exist
         if not self.notebook:
             log.info("gui._switch_to_analysis_view.creating_main_frame")
             self._create_main_control_frame()
-        
+
         if not self.notebook or not self.analysis_tab_frame:
             log.warning("gui._switch_to_analysis_view.missing_widgets_after_create")
             return
@@ -1528,12 +1528,12 @@ class ApplicationGUI:
                 # If it's a dict, it might be stats or a report dict
                 # Try to get mode if present, otherwise default/ignore
                 processing_mode = report.get("mode")
-        
+
         # Check if we are in single subject mode
         # If processing_mode is available, use it. Otherwise check controller.
         from zebtrack.core.processing_mode import ProcessingMode
         is_single_subject = (processing_mode == ProcessingMode.SINGLE_SUBJECT)
-        
+
         # If report didn't provide mode, fallback to current controller state
         if processing_mode is None and self.controller:
              # Access private attribute directly if property isn't exposed or simply default to False

@@ -406,7 +406,7 @@ class ApplicationBootstrapper:
             has_event_bus = self.deps.event_bus is not None
             has_feature_flag = ui_features and getattr(ui_features, "enable_event_queue", False)
             use_event_bus = bool(has_event_bus or has_feature_flag)
-            
+
             log.info(
                 "bootstrapper.creating_gui",
                 has_event_bus=has_event_bus,

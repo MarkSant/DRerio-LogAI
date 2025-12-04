@@ -205,7 +205,7 @@ class BYTETracker:
         self.max_center_distance = max_center_distance
         self.processing_interval = processing_interval
         self.iou_threshold = iou_threshold  # Min IoU to prefer IoU-based matching
-        
+
         # Single animal mode: skip fuse_score to avoid confidence penalty
         # When there's only 1 animal, no risk of confusing with others
         self.single_animal_mode = single_animal_mode

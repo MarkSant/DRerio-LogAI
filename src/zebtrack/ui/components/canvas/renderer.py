@@ -218,7 +218,7 @@ class CanvasRenderer:
         NOTE: This method draws on video_display.canvas which is the ZONE tab canvas.
         During analysis, detection overlays are already drawn by detector.draw_overlay()
         and displayed via canvas_manager.update_video_frame() on the analysis_display_widget.
-        
+
         This method should NOT draw on the zone canvas during analysis to avoid
         bboxes appearing over the zone drawing area.
 
@@ -230,7 +230,7 @@ class CanvasRenderer:
         # The analysis tab has its own display with overlays already rendered on the frame
         if getattr(self.gui, 'analysis_active', False):
             return
-            
+
         canvas = self.gui.video_display.canvas if self.gui.video_display else None
         if not canvas:
             return
@@ -258,7 +258,7 @@ class CanvasRenderer:
                 color = "magenta" if is_single_subject else "cyan"
                 if class_id == 0: # Aquarium
                     color = "yellow"
-                
+
                 # Draw bounding box
                 canvas.create_rectangle(
                     cx1, cy1, cx2, cy2,
@@ -271,7 +271,7 @@ class CanvasRenderer:
                 label_text = f"ID: {track_id}" if track_id is not None else "Det"
                 if is_single_subject:
                     label_text = "Alvo"
-                
+
                 # Text background
                 canvas.create_text(
                     cx1, cy1 - 10,

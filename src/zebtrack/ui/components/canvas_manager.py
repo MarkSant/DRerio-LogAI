@@ -315,7 +315,7 @@ class CanvasManager:
 
         This method is called during video analysis to display frames.
         The frame already has overlays (arena, ROIs, bboxes) drawn by detector.draw_overlay().
-        
+
         IMPORTANT: This should only display on the analysis tab widget, NOT on the zone canvas.
         The zone canvas should remain unchanged during analysis.
 

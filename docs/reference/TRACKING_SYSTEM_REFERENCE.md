@@ -1,7 +1,7 @@
 # ZebTrack-AI: Sistema de Tracking - Referência Técnica
 
-> **Versão**: 2.1  
-> **Última atualização**: Dezembro 2025  
+> **Versão**: 2.1
+> **Última atualização**: Dezembro 2025
 > **Público-alvo**: Desenvolvedores, agentes AI, usuários avançados
 
 Este documento detalha o fluxo completo do sistema de tracking, desde a configuração pelo usuário até a geração do relatório final.
@@ -101,8 +101,8 @@ bytetrack:
 
 ### 3.1 `track_threshold` (Limiar de Detecção)
 
-**Arquivo**: `src/zebtrack/settings.py` → `ByteTrackSettings.track_threshold`  
-**Valor padrão**: 0.25  
+**Arquivo**: `src/zebtrack/settings.py` → `ByteTrackSettings.track_threshold`
+**Valor padrão**: 0.25
 **Faixa válida**: 0 < valor < 1
 
 #### O que faz:
@@ -125,8 +125,8 @@ self.det_thresh = args.track_thresh + 0.1  # Limiar para NOVAS tracks
 
 ### 3.2 `match_threshold` (Limiar de Associação)
 
-**Arquivo**: `src/zebtrack/settings.py` → `ByteTrackSettings.match_threshold`  
-**Valor padrão**: 0.95  
+**Arquivo**: `src/zebtrack/settings.py` → `ByteTrackSettings.match_threshold`
+**Valor padrão**: 0.95
 **Faixa válida**: 0 < valor ≤ 1
 
 #### O que faz:
@@ -150,8 +150,8 @@ Use **0.95** para máxima estabilidade de IDs. O algoritmo híbrido (IoU + centr
 
 ### 3.3 `track_buffer` (Buffer de Tracks Perdidas)
 
-**Arquivo**: `src/zebtrack/settings.py` → `ByteTrackSettings.track_buffer`  
-**Valor padrão**: 150  
+**Arquivo**: `src/zebtrack/settings.py` → `ByteTrackSettings.track_buffer`
+**Valor padrão**: 150
 **Faixa válida**: 10 ≤ valor ≤ 1000
 
 #### O que faz:
@@ -189,8 +189,8 @@ for track in self.lost_stracks:
 
 ### 3.4 `max_center_distance` (Distância Máxima de Centro)
 
-**Arquivo**: `src/zebtrack/settings.py` → `ByteTrackSettings.max_center_distance`  
-**Valor padrão**: 400.0 pixels  
+**Arquivo**: `src/zebtrack/settings.py` → `ByteTrackSettings.max_center_distance`
+**Valor padrão**: 400.0 pixels
 **Faixa válida**: > 0
 
 #### O que faz:
@@ -220,8 +220,8 @@ max_center_distance = velocidade_máxima × processing_interval × margem_segura
 
 ### 3.5 `iou_threshold` (Limiar de IoU Mínimo)
 
-**Arquivo**: `src/zebtrack/settings.py` → `ByteTrackSettings.iou_threshold`  
-**Valor padrão**: 0.05  
+**Arquivo**: `src/zebtrack/settings.py` → `ByteTrackSettings.iou_threshold`
+**Valor padrão**: 0.05
 **Faixa válida**: 0 ≤ valor < 1
 
 #### O que faz:
@@ -250,8 +250,8 @@ Para objetos **pequenos e rápidos** (zebrafish), use **0.05**. Isso permite mat
 
 ### 3.6 `single_animal_mode` (Modo Animal Único)
 
-**Arquivo**: `src/zebtrack/settings.py` → `VideoProcessingSettings.single_animal_per_aquarium`  
-**Valor padrão**: false  
+**Arquivo**: `src/zebtrack/settings.py` → `VideoProcessingSettings.single_animal_per_aquarium`
+**Valor padrão**: false
 **Disponível na UI**: ✅ Sim
 
 #### O que faz:
@@ -288,13 +288,13 @@ O Kalman Filter prediz onde o animal **estará** no próximo frame processado, b
 
 ### 4.2 Parâmetro `dt` (Delta Time)
 
-**Arquivo**: `src/zebtrack/tracker/kalman_filter.py`  
+**Arquivo**: `src/zebtrack/tracker/kalman_filter.py`
 **Configurado por**: `processing_interval`
 
 #### Matriz de Movimento:
 ```
 ┌                          ┐
-│ 1  0  0  0  dt  0  0  0  │   
+│ 1  0  0  0  dt  0  0  0  │
 │ 0  1  0  0  0  dt  0  0  │   x_new = x + vx × dt
 │ 0  0  1  0  0  0  dt  0  │   y_new = y + vy × dt
 │ 0  0  0  1  0  0  0  dt  │
@@ -314,7 +314,7 @@ self._std_weight_position = (1.0 / 20) * dt_factor   # Escala com √dt
 self._std_weight_velocity = (1.0 / 160) * dt_factor * 2  # Extra para movimento errático
 ```
 
-**Por que √dt?**  
+**Por que √dt?**
 A variância de posição escala linearmente com tempo, então o desvio padrão escala com √tempo.
 
 ---
@@ -327,17 +327,17 @@ A variância de posição escala linearmente com tempo, então o desvio padrão 
 # processing_worker.py (simplificado)
 for frame_num in range(total_frames):
     should_process = (frame_num % processing_interval == 0)
-    
+
     if should_process:
         # 1. Lê frame do vídeo
         frame = video.read(frame_num)
-        
+
         # 2. Detecta objetos (YOLO)
         detections = detector.detect(frame)
-        
+
         # 3. ByteTracker atribui IDs
         # (internamente: Kalman predict → matching → update)
-        
+
         # 4. Grava dados
         timestamp = frame_num / fps
         recorder.write_detection_data(timestamp, frame_num, detections)
@@ -364,9 +364,9 @@ timestamp = frame_number / fps
 ```
 timestamp │ frame │ track_id │ x1  │ y1  │ x2  │ y2  │ conf │ x_cm │ y_cm
 ──────────┼───────┼──────────┼─────┼─────┼─────┼─────┼──────┼──────┼──────
-0.000     │ 0     │ 1        │ 610 │ 420 │ 680 │ 450 │ 0.85 │ 10.2 │ 7.0  
-0.333     │ 10    │ 1        │ 615 │ 425 │ 685 │ 455 │ 0.78 │ 10.4 │ 7.1  
-0.667     │ 20    │ 1        │ 620 │ 430 │ 690 │ 460 │ 0.82 │ 10.5 │ 7.2  
+0.000     │ 0     │ 1        │ 610 │ 420 │ 680 │ 450 │ 0.85 │ 10.2 │ 7.0
+0.333     │ 10    │ 1        │ 615 │ 425 │ 685 │ 455 │ 0.78 │ 10.4 │ 7.1
+0.667     │ 20    │ 1        │ 620 │ 430 │ 690 │ 460 │ 0.82 │ 10.5 │ 7.2
 ```
 
 **Nota**: Apenas frames processados aparecem (0, 10, 20...). Frame 5 não existe no arquivo.

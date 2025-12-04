@@ -62,7 +62,7 @@ class MainViewModel:
         # Event bus flag
         self.ui_event_bus = self.event_dispatcher.event_bus
         self._use_event_bus = bool(self.ui_event_bus)
-        
+
         # Debug: Log event bus ID for comparison with GUI
         log.info(
             "main_view_model.init.event_bus_setup",
