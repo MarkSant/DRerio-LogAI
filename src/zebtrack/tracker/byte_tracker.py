@@ -319,7 +319,7 @@ class BYTETracker:
             )
         else:
             dists = matching.iou_distance(r_tracked_stracks, detections_second)
-        matches, u_track, _ = matching.linear_assignment(dists, thresh=0.5)
+        matches, u_track, _ = matching.linear_assignment(dists, thresh=self.args.match_thresh)
 
         for itracked, idet in matches:
             track = r_tracked_stracks[itracked]
