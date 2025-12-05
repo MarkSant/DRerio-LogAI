@@ -249,7 +249,7 @@ class ByteTrackSettings(BaseModel):
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
     track_threshold: float = Field(
-        0.25,
+        0.1,
         gt=0,
         lt=1,
         description=(
@@ -268,18 +268,18 @@ class ByteTrackSettings(BaseModel):
         ),
     )
     max_center_distance: float = Field(
-        400.0,
+        1000.0,
         gt=0,
         description=(
             "Maximum center-to-center distance (in pixels) for hybrid matching fallback. "
             "When IoU-based matching fails (no bbox overlap), ByteTrack falls back to "
             "center distance matching. This is useful for small, fast-moving objects "
             "like zebrafish that can move significantly between frames. "
-            "Default 300px allows matching movements of ~10 body lengths for a 30px object."
+            "Default 1000px allows matching movements across almost the entire aquarium."
         ),
     )
     track_buffer: int = Field(
-        150,
+        300,
         ge=10,
         le=1000,
         description=(

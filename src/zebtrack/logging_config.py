@@ -1,10 +1,99 @@
 import logging
+import logging.handlers
+import sys
 from typing import TYPE_CHECKING
 
 import structlog
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
+
+
+class CompactConsoleRenderer(structlog.dev.ConsoleRenderer):
+    """Custom renderer with minimal spacing for compact output."""
+
+    def __call__(self, logger, name, event_dict):
+        """Render log with minimal spacing."""
+        # Call parent renderer
+        result = super().__call__(logger, name, event_dict)
+        # Reduce excessive whitespace to single space
+        import re
+
+        # Replace multiple spaces with single space (but preserve single spaces)
+        result = re.sub(r"  +", " ", result)
+        return result
+
+
+def configure_logging(log_file: str = "analysis.log"):
+    """
+    Configures logging for the application.
+
+    This function sets up structlog to process logs with a consistent format
+    for both application logs and standard library/third-party logs.
+    Uses CompactConsoleRenderer for minimal spacing in output.
+    
+    Args:
+        log_file: Path to the log file. Defaults to "analysis.log".
+                  Worker processes should use a different file to avoid locking issues.
+    """
+    # Shared processors for both structlog and stdlib logging
+    shared_processors = [
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+        structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S", utc=False),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.UnicodeDecoder(),
+    ]
+
+    # Configure structlog with ConsoleRenderer for compact output
+    structlog.configure(
+        processors=[
+            *shared_processors,
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
+
+    # Formatter for console output (human-readable, compact)
+    console_formatter = structlog.stdlib.ProcessorFormatter(
+        processor=CompactConsoleRenderer(
+            colors=True,
+            pad_event=1,  # Minimal padding (1 space between event and fields)
+        ),
+    )
+
+    # Formatter for file output (JSON for structured logs)
+    file_formatter = structlog.stdlib.ProcessorFormatter(
+        processor=structlog.processors.JSONRenderer(),
+    )
+
+    # File handler with rotation
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=5 * 1024 * 1024, backupCount=5, mode="a"
+    )
+    file_handler.setFormatter(file_formatter)
+
+    # Console handler for development
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(console_formatter)
+
+    # Configure root logger to route ALL logs (including stdlib/libs) through structlog
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+
+    # Configure handlers levels
+    file_handler.setLevel(logging.DEBUG)  # All levels in file
+    console_handler.setLevel(logging.INFO)  # INFO and above in console (hides DEBUG)
+
+    # Clear existing handlers to avoid duplication if called multiple times
+    if root_logger.hasHandlers():
+        root_logger.handlers.clear()
+
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
 
 
 def configure_logging_levels(settings_obj: "Settings | None" = None):

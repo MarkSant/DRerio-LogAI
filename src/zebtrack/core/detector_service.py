@@ -834,8 +834,6 @@ class DetectorService:
         """
         Validate that model has expected classes for ZebTrack-AI.
 
-        MELHORIA #2: Validate expected classes to catch incompatible models early.
-
         Args:
             plugin_instance: The instantiated detector plugin
             model_path: Path to the model (for logging)
@@ -853,58 +851,54 @@ class DetectorService:
             )
             return
 
-        # Expected classes for ZebTrack-AI (flexible matching)
-        # Format: class_id -> list of acceptable names (case-insensitive)
-        expected_classes = {
-            0: ["aqua", "aquarium", "tank", "agua"],  # Tank/aquarium class
-            1: ["zebrafish", "fish", "peixe"],  # Fish class
-        }
+        # Define expected names (case-insensitive)
+        aquarium_names = ["aqua", "aquarium", "tank", "agua"]
+        animal_names = ["zebrafish", "fish", "peixe"]
 
-        missing_classes = []
-        unexpected_names = []
+        # Check what we have
+        has_aquarium = False
+        has_animal = False
 
-        for class_id, expected_names in expected_classes.items():
-            if class_id not in plugin_classes:
-                missing_classes.append(class_id)
-                continue
+        for class_id, name in plugin_classes.items():
+            name_lower = name.lower()
+            if name_lower in aquarium_names:
+                has_aquarium = True
+            if name_lower in animal_names:
+                has_animal = True
 
-            actual_name = plugin_classes[class_id].lower()
-            expected_names_lower = [n.lower() for n in expected_names]
+        # Logic:
+        # 1. We MUST have an animal class (unless it's a purely aquarium segmentation model,
+        #    but here we are likely validating the 'det' model).
+        # 2. We ideally want an aquarium class, but for 'Single Object' models (best_oi.pt),
+        #    it might be missing. We should ALLOW this if an animal class is present.
 
-            if actual_name not in expected_names_lower:
-                unexpected_names.append((class_id, actual_name, expected_names))
-
-        # Log validation results
-        if missing_classes:
-            error_msg = (
-                f"Modelo incompatível: classes ausentes {missing_classes}. "
-                f"O modelo deve ter classe 0 (aquário) e classe 1 (zebrafish)."
-            )
-            log.error(
-                "detector_service.validate_classes.missing",
-                model_path=model_path,
+        if not has_animal and not has_aquarium:
+            # Worst case: neither known class found
+            log.warning(
+                "detector_service.validate_classes.unknown_classes",
                 plugin_classes=plugin_classes,
-                missing=missing_classes,
-            )
-            raise ValueError(error_msg)
-
-        if unexpected_names:
-            for class_id, actual_name, expected in unexpected_names:
-                log.warning(
-                    "detector_service.validate_classes.unexpected_name",
-                    class_id=class_id,
-                    actual_name=actual_name,
-                    expected_names=expected,
-                    model_path=model_path,
-                    message=(
-                        f"Classe {class_id} tem nome '{actual_name}' mas "
-                        f"esperava um de {expected}. "
-                        f"Continuando, mas comportamento pode ser inesperado."
-                    ),
-                )
-        else:
-            log.info(
-                "detector_service.validate_classes.success",
                 model_path=model_path,
-                plugin_classes=plugin_classes,
+                message="No recognized aquarium or animal classes found. Tracking may fail."
             )
+            # We don't raise here to allow custom models with weird names,
+            # but we log a strong warning.
+            return
+
+        if not has_animal:
+             # If we are loading the ANIMAL detection model, we really need an animal class.
+             # However, maybe the user is using a generic model (person, etc.)?
+             # Let's just warn.
+             log.warning(
+                "detector_service.validate_classes.no_animal_class",
+                plugin_classes=plugin_classes,
+                model_path=model_path,
+                message="Model does not seem to have a 'zebrafish' class."
+             )
+
+        log.info(
+            "detector_service.validate_classes.success",
+            model_path=model_path,
+            plugin_classes=plugin_classes,
+            has_aquarium=has_aquarium,
+            has_animal=has_animal,
+        )

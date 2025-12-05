@@ -273,15 +273,13 @@ class _WorkerProcess(multiprocessing.Process):
     def run(self):
         """Main entry point for the worker process."""
         # Configure logging for worker process (multiprocessing doesn't inherit parent config)
-        import logging
-        import sys
-        root_logger = logging.getLogger()
-        # Only keep handlers that write to files, remove console handlers
-        for handler in root_logger.handlers[:]:
-            if isinstance(handler, logging.StreamHandler) and handler.stream == sys.stdout:
-                # Keep console handler but set level to INFO to hide DEBUG messages
-                handler.setLevel(logging.INFO)
-
+        # Use a separate log file for the worker to avoid file lock issues on Windows
+        from zebtrack.logging_config import configure_logging
+        configure_logging(log_file="analysis_worker.log")
+        
+        import os
+        import traceback
+        
         log.info("worker.process.started", pid=os.getpid())
 
         try:
@@ -404,6 +402,17 @@ class _WorkerProcess(multiprocessing.Process):
         detector = Detector(
             plugin=plugin, base_width=width, base_height=height, settings_obj=settings
         )
+
+        # CRITICAL: Propagate single_subject_mode from settings
+        # This ensures SingleSubjectTracker is used when configured, preventing ID switches
+        single_mode = False
+        if hasattr(settings, "tracking") and hasattr(settings.tracking, "use_single_subject_tracker"):
+             single_mode = settings.tracking.use_single_subject_tracker
+        elif hasattr(settings, "video_processing"):
+             single_mode = getattr(settings.video_processing, "single_animal_per_aquarium", False)
+        
+        detector.set_single_subject_mode(single_mode)
+        log.info("worker.detector.single_subject_mode_set", enabled=single_mode)
 
         # Restore ZoneData
         if self.config.zone_data:

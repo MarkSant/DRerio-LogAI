@@ -359,6 +359,20 @@ class ProcessingCoordinator(BaseCoordinator):
 
         Phase 3: Consolidated from VideoProcessingOrchestrator.create_processing_context
         """
+        # SYNC: Ensure global settings reflect project/wizard preference for single animal mode
+        # This is critical because ProcessingWorker reads from settings to init ByteTracker
+        use_single_subject = self._resolve_single_subject_tracker_preference(single_video_config)
+        if use_single_subject is not None:
+            if use_single_subject != self.settings.tracking.use_single_subject_tracker:
+                log.info(
+                    "processing_coordinator.sync_settings",
+                    use_single_subject_tracker=use_single_subject,
+                    reason="worker_initialization_sync",
+                )
+                self.settings.tracking.use_single_subject_tracker = use_single_subject
+                # Also sync legacy flag for compatibility
+                self.settings.video_processing.single_animal_per_aquarium = use_single_subject
+
         # Calculate processing intervals from config or project settings
         analysis_interval, display_interval = self._determine_processing_intervals(
             single_video_config
@@ -370,6 +384,7 @@ class ProcessingCoordinator(BaseCoordinator):
             is_set=self.cancel_event.is_set(),
             analysis_interval_frames=analysis_interval,
             display_interval_frames=display_interval,
+            use_single_subject=use_single_subject,
         )
         return ProcessingContext(
             videos_to_process=videos_to_process,

@@ -89,6 +89,41 @@ class Detector:
         self._context: str = "tracking"
         self._aquarium_region_defined: bool = False
 
+        # Dynamic class ID resolution
+        self.aquarium_class_id = 0
+        self.animal_class_id = 1
+        self._resolve_class_ids()
+
+    def _resolve_class_ids(self):
+        """Resolve class IDs from plugin metadata."""
+        if hasattr(self.plugin, "class_names") and self.plugin.class_names:
+            aquarium_names = ["aqua", "aquarium", "tank", "agua"]
+            animal_names = ["zebrafish", "fish", "peixe"]
+
+            found_aquarium = False
+            found_animal = False
+
+            for cid, name in self.plugin.class_names.items():
+                name_lower = name.lower()
+                if name_lower in aquarium_names:
+                    self.aquarium_class_id = cid
+                    found_aquarium = True
+                if name_lower in animal_names:
+                    self.animal_class_id = cid
+                    found_animal = True
+            
+            # If we found an animal class at 0 but no aquarium class, likely a single-class model
+            if found_animal and not found_aquarium and self.animal_class_id == 0:
+                # Ensure we don't overlap if we default aquarium to 0
+                self.aquarium_class_id = -1 # effectively disable aquarium detection by ID
+
+            log.info(
+                "detector.class_ids.resolved",
+                aquarium_id=self.aquarium_class_id,
+                animal_id=self.animal_class_id,
+                plugin_classes=self.plugin.class_names
+            )
+
     def set_zones(self, zones: ZoneData, actual_width: int, actual_height: int):
         """
         Set the detection zones and scales them to the current video resolution.
@@ -418,14 +453,14 @@ class Detector:
         else:
             # Tracking mode
             # Tracking mode
-            aquarium_class_id = 0
-            zebrafish_class_id = 1
+            aquarium_class_id = self.aquarium_class_id
+            zebrafish_class_id = self.animal_class_id
 
             log.debug(
                 "detector.filtering_by_class",
                 detections_in_polygon=len(detections_in_polygon),
                 aquarium_defined=self._aquarium_region_defined,
-                target_class="zebrafish(1)" if self._aquarium_region_defined else "aquarium(0)",
+                target_class=f"zebrafish({zebrafish_class_id})" if self._aquarium_region_defined else f"aquarium({aquarium_class_id})",
             )
 
             if not self._aquarium_region_defined:
@@ -544,15 +579,12 @@ class Detector:
                 context=self._context,
                 aquarium_defined=self._aquarium_region_defined,
             )
-        elif self._single_subject_mode:
-            # Single subject tracking (lightweight)
-            filtered_detections = self._single_subject_tracker.assign(filtered_detections)
-            log.debug(
-                "detector.single_subject_tracking.applied",
-                num_detections=len(filtered_detections),
-            )
         else:
             # Multi-subject tracking with ByteTracker
+            # NOTE: Single-subject mode is now handled INSIDE ByteTracker (via single_animal_mode param)
+            # rather than using the separate heuristic SingleSubjectTracker.
+            # This provides better stability via Kalman Filter + ID Resurrection.
+            
             if filtered_detections:
                 confidences = [d[4] for d in filtered_detections]
                 log.debug("detector.bytetrack.input_confidences", confidences=confidences)
@@ -586,36 +618,33 @@ class Detector:
         return filtered_detections, command_to_send
 
     def set_single_subject_mode(self, enabled: bool) -> None:
-        """Toggle lightweight single-subject tracking."""
+        """
+        Toggle Single Animal Mode.
+        
+        When enabled, this now configures the ByteTracker to use the robust
+        'Single Animal' logic (ID Resurrection + Immediate Activation) instead
+        of switching to the legacy SingleSubjectTracker.
+        """
         enabled = bool(enabled)
         if self._single_subject_mode == enabled:
-            log.debug(
-                "detector.single_subject_mode.unchanged",
-                enabled=enabled,
-            )
             return
 
         self._single_subject_mode = enabled
-        self._single_subject_tracker.reset()
+        # Force re-init of ByteTracker to pick up the new mode
+        self._byte_tracker = None
+        self._byte_tracker_params = None
+        
         log.info(
             "detector.single_subject_mode.changed",
             enabled=enabled,
-            previous=not enabled,
+            strategy="robust_bytetrack_single_animal"
         )
 
         if hasattr(self.plugin, "set_use_single_subject_mode"):
             try:
                 self.plugin.set_use_single_subject_mode(enabled)
-                log.info(
-                    "detector.single_subject_mode.plugin_updated",
-                    enabled=enabled,
-                )
             except Exception:  # pragma: no cover - defensive
-                log.warning(
-                    "detector.single_subject_mode.plugin_update_failed",
-                    enabled=enabled,
-                    exc_info=True,
-                )
+                log.warning("detector.plugin_update_failed", exc_info=True)
 
     def is_single_subject_mode(self) -> bool:
         """Expose the current single-subject tracking flag."""
@@ -824,24 +853,45 @@ class Detector:
         # 2. Object moves too fast between frames for IoU matching
         # 3. Track is in "unconfirmed" state waiting for confirmation
         if len(results) == 0 and len(detections) > 0:
-            log.debug(
-                "detector.bytetrack.passthrough_untracked",
-                num_detections=len(detections),
-                reason="bytetracker_returned_no_tracks_but_detections_exist",
-            )
-            # Return detections with track_id=None (untracked but valid detections)
-            results = [
-                (
-                    int(det[0]),  # x1
-                    int(det[1]),  # y1
-                    int(det[2]),  # x2
-                    int(det[3]),  # y2
-                    float(det[4]),  # confidence
-                    None,  # track_id = None (untracked)
-                    int(det[6]),  # class_id
+            # In single-subject mode we must always emit an ID; fall back to best detection with ID=1
+            if self._single_subject_mode:
+                best_det = max(detections, key=lambda d: d[4])
+                log.warning(
+                    "detector.bytetrack.single_subject_fallback_id1",
+                    num_detections=len(detections),
+                    chosen_confidence=float(best_det[4]),
+                    message="ByteTracker returned no tracks; forcing ID=1 on best detection",
                 )
-                for det in detections
-            ]
+                results = [
+                    (
+                        int(best_det[0]),
+                        int(best_det[1]),
+                        int(best_det[2]),
+                        int(best_det[3]),
+                        float(best_det[4]),
+                        1,
+                        int(best_det[6]),
+                    )
+                ]
+            else:
+                log.debug(
+                    "detector.bytetrack.passthrough_untracked",
+                    num_detections=len(detections),
+                    reason="bytetracker_returned_no_tracks_but_detections_exist",
+                )
+                # Return detections with track_id=None (untracked but valid detections)
+                results = [
+                    (
+                        int(det[0]),  # x1
+                        int(det[1]),  # y1
+                        int(det[2]),  # x2
+                        int(det[3]),  # y2
+                        float(det[4]),  # confidence
+                        None,  # track_id = None (untracked)
+                        int(det[6]),  # class_id
+                    )
+                    for det in detections
+                ]
 
         # 🔧 FIX: Re-filter tracked positions by polygon
         # ByteTracker's Kalman filter can predict positions OUTSIDE the arena,
@@ -967,7 +1017,17 @@ class Detector:
         max_center_distance = self._get_max_center_distance()
         iou_threshold = self._get_iou_threshold()
 
-        params = (track_thresh, match_thresh, track_buffer, max_center_distance, iou_threshold)
+        # Determine single_animal_mode:
+        # 1. Priority: Explicit mode set via set_single_subject_mode()
+        # 2. Fallback: Global settings from config.yaml
+        single_animal_mode = self._single_subject_mode
+        if not single_animal_mode and self.settings and hasattr(self.settings, "video_processing"):
+            single_animal_mode = getattr(
+                self.settings.video_processing, "single_animal_per_aquarium", False
+            )
+
+        # Include single_animal_mode in params to trigger re-init if it changes
+        params = (track_thresh, match_thresh, track_buffer, max_center_distance, iou_threshold, single_animal_mode)
         if self._byte_tracker is not None and self._byte_tracker_params == params:
             return self._byte_tracker
 
@@ -996,7 +1056,7 @@ class Detector:
                 iou_threshold=iou_threshold,
                 use_hybrid_matching=True,
                 processing_interval=processing_interval,
-                single_animal_mode=self._single_subject_mode,
+                single_animal_mode=single_animal_mode,
             )
 
             # Get FPS from settings or use default
@@ -1015,7 +1075,7 @@ class Detector:
                 max_center_distance=max_center_distance,
                 processing_interval=processing_interval,
                 iou_threshold=iou_threshold,
-                single_animal_mode=self._single_subject_mode,
+                single_animal_mode=single_animal_mode,
             )
             self._byte_tracker_params = params
         except Exception:  # pragma: no cover - defensive

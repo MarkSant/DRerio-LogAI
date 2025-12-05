@@ -1,9 +1,11 @@
 import numpy as np
+import structlog
 
 from zebtrack.tracker import matching
 from zebtrack.tracker.basetrack import BaseTrack, TrackState
 from zebtrack.tracker.kalman_filter import KalmanFilter
 
+log = structlog.get_logger()
 
 class STrack(BaseTrack):
     def __init__(self, tlwh, score):
@@ -210,6 +212,14 @@ class BYTETracker:
         # When there's only 1 animal, no risk of confusing with others
         self.single_animal_mode = single_animal_mode
 
+        if self.single_animal_mode:
+            # In single animal mode, we want to maintain the track as long as possible
+            # and recover it even after long disappearances
+            self.max_time_lost = self.buffer_size * 3  # Keep the ID alive longer
+            self.det_thresh = 0.0  # Accept any detection as a candidate
+            self.iou_threshold = 0.0  # Prefer center-distance fallback for big jumps
+
+
     def update(self, output_results, img_info, img_size):
         self.frame_id += 1
         activated_starcks = []
@@ -283,6 +293,16 @@ class BYTETracker:
         if not self.args.mot20 and not self.single_animal_mode:
             dists = matching.fuse_score(dists, detections)
 
+        # DEBUG: Inspect match threshold and cost matrix
+        if len(dists) > 0:
+            log.debug(
+                "detector.bytetrack.association_debug",
+                match_thresh=self.args.match_thresh,
+                min_cost=float(dists.min()) if dists.size > 0 else -1.0,
+                max_cost=float(dists.max()) if dists.size > 0 else -1.0,
+                matrix_shape=dists.shape
+            )
+
         matches, u_track, u_detection = matching.linear_assignment(
             dists, thresh=self.args.match_thresh
         )
@@ -297,7 +317,38 @@ class BYTETracker:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
 
-        """ Step 3: Second association, with low score detection boxes"""
+        """ Step 3: Association the unconfirmed to the high score detections"""
+        detections_unconfirmed = [detections[i] for i in u_detection]
+
+        # Use hybrid matching for unconfirmed tracks too
+        if self.use_hybrid_matching:
+            dists = matching.hybrid_iou_center_distance(
+                unconfirmed, detections_unconfirmed,
+                iou_thresh=self.iou_threshold,
+                max_center_dist=self.max_center_distance
+            )
+        else:
+            dists = matching.iou_distance(unconfirmed, detections_unconfirmed)
+
+        matches_unconfirmed, u_unconfirmed, u_detection_rem = matching.linear_assignment(
+            dists, thresh=0.7
+        )
+
+        for itracked, idet in matches_unconfirmed:
+            unconfirmed[itracked].update(detections_unconfirmed[idet], self.frame_id)
+            activated_starcks.append(unconfirmed[itracked])
+
+        for it in u_unconfirmed:
+            track = unconfirmed[it]
+            if self.single_animal_mode:
+                # Keep the candidate alive so it can be resurrected instead of discarded
+                track.mark_lost()
+                self.lost_stracks.append(track)
+            else:
+                track.mark_removed()
+                removed_stracks.append(track)
+
+        """ Step 4: Second association, with low score detection boxes"""
         # association the untrack to the low score detections
         if len(dets_second) > 0:
             """Detections"""
@@ -319,7 +370,19 @@ class BYTETracker:
             )
         else:
             dists = matching.iou_distance(r_tracked_stracks, detections_second)
-        matches, u_track, _ = matching.linear_assignment(dists, thresh=self.args.match_thresh)
+        # DEBUG: Second association details
+        if len(dists) > 0:
+            log.debug(
+                "detector.bytetrack.second_association_debug",
+                match_thresh=self.args.match_thresh,
+                min_cost=float(dists.min()) if dists.size > 0 else -1.0,
+                num_tracks=len(r_tracked_stracks),
+                num_dets=len(detections_second)
+            )
+
+        matches, u_track, u_detection_second = matching.linear_assignment(
+            dists, thresh=self.args.match_thresh
+        )
 
         for itracked, idet in matches:
             track = r_tracked_stracks[itracked]
@@ -327,52 +390,79 @@ class BYTETracker:
             if track.state == TrackState.Tracked:
                 track.update(det, self.frame_id)
                 activated_starcks.append(track)
+                # log.debug("detector.bytetrack.match.second_pass", track_id=track.track_id, reason="matched_low_score_det")
             else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
+                # log.debug("detector.bytetrack.reactivate.second_pass", track_id=track.track_id, reason="refound_low_score_det")
 
         for it in u_track:
             track = r_tracked_stracks[it]
             if not track.state == TrackState.Lost:
                 track.mark_lost()
-                lost_stracks.append(track)
+                self.lost_stracks.append(track)
 
-        """Deal with unconfirmed tracks, usually tracks with only one beginning
-        frame"""
+        """ Step 5: Init new stracks"""
+        # Use the remaining detections from the unconfirmed association step
+        # AND the remaining low score detections from the second association step (if single animal mode)
+        
+        # Candidates for new tracks (or resurrection)
+        candidates = [detections_unconfirmed[i] for i in u_detection_rem]
+        
+        if self.single_animal_mode:
+            # In single animal mode, we want to consider ALL detections that weren't matched
+            # even low score ones that failed association in Step 4
+            detections_second_unmatched = [detections_second[i] for i in u_detection_second]
+            candidates.extend(detections_second_unmatched)
 
-        detections = [detections[i] for i in u_detection]
-        # Use hybrid matching for unconfirmed tracks as well
-        if self.use_hybrid_matching:
-            dists = matching.hybrid_iou_center_distance(
-                unconfirmed, detections,
-                iou_thresh=self.iou_threshold,
-                max_center_dist=self.max_center_distance
-            )
-        else:
-            dists = matching.iou_distance(unconfirmed, detections)
-        if not self.args.mot20:
-            dists = matching.fuse_score(dists, detections)
-
-        matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=0.7)
-
-        for itracked, idet in matches:
-            unconfirmed[itracked].update(detections[idet], self.frame_id)
-            activated_starcks.append(unconfirmed[itracked])
-        for it in u_unconfirmed:
-            track = unconfirmed[it]
-            track.mark_removed()
-            removed_stracks.append(track)
-
-        """ Step 4: Init new stracks"""
-        for inew in u_detection:
-            track = detections[inew]
-            if track.score < self.det_thresh:
+        for track in candidates:
+            if track.score < self.det_thresh and not self.single_animal_mode:
                 continue
+            
+            # SINGLE ANIMAL MODE: ID RESURRECTION STRATEGY
+            # If we are in single animal mode, NEVER create a new ID if we have a lost one.
+            # We assume there is only one fish. If we found a detection that didn't match
+            # (likely due to a large jump/teleport), we force-match it to the lost track.
+            if self.single_animal_mode:
+                # Priority 1: Try to find a Lost track to resurrect
+                if len(self.lost_stracks) > 0:
+                    # Retrieve the most recently lost track (last in list usually, or sort by end_frame)
+                    sorted_lost = sorted(self.lost_stracks, key=lambda t: t.end_frame, reverse=True)
+                    refound_track = sorted_lost[0]
+                    
+                    # Force resurrection with ID preservation (or force ID 1)
+                    refound_track.re_activate(track, self.frame_id, new_id=False)
+                    refound_track.track_id = 1 # Enforce ID 1
+                    refind_stracks.append(refound_track)
+                    
+                    # Remove from lost_stracks since it's found
+                    self.lost_stracks.remove(refound_track)
+                    continue
+                
+                # Priority 2: If no lost track, check if we already have a tracked one?
+                # If we are here, it means we didn't match the tracked one in previous steps.
+                # But if single_animal_mode is True, we should only have ONE track.
+                # If tracked_stracks is not empty, we have a conflict (ghost track?).
+                # We should probably ignore this new detection or kill the old track if this one is better?
+                # For now, let's assume if we are here, the old track is effectively lost or this is a new start.
+
             track.activate(self.kalman_filter, self.frame_id)
+            
+            # SINGLE ANIMAL MODE: IMMEDIATE ACTIVATION
+            # Bypass "Unconfirmed" state. If we see it, it's the fish.
+            if self.single_animal_mode:
+                track.is_activated = True
+                # Force stable ID=1 and keep counter consistent
+                track.track_id = 1
+                BaseTrack._count = max(BaseTrack._count, 1)
+                
             activated_starcks.append(track)
-        """ Step 5: Update state"""
+
+        """ Step 6: Update state"""
         for track in self.lost_stracks:
-            if self.frame_id - track.end_frame > self.max_time_lost:
+            # In single animal mode, keep tracks alive much longer to allow recovery
+            limit = self.max_time_lost * 2 if self.single_animal_mode else self.max_time_lost
+            if self.frame_id - track.end_frame > limit:
                 track.mark_removed()
                 removed_stracks.append(track)
 
@@ -380,15 +470,11 @@ class BYTETracker:
         self.tracked_stracks = joint_stracks(self.tracked_stracks, activated_starcks)
         self.tracked_stracks = joint_stracks(self.tracked_stracks, refind_stracks)
 
-        self.lost_stracks = sub_stracks(self.lost_stracks, self.tracked_stracks)
-        self.lost_stracks.extend(lost_stracks)
-        self.lost_stracks = sub_stracks(self.lost_stracks, self.removed_stracks)
-        self.removed_stracks.extend(removed_stracks)
-
         (
             self.tracked_stracks,
             self.lost_stracks,
         ) = remove_duplicate_stracks(self.tracked_stracks, self.lost_stracks)
+
         # get scores of lost tracks
         output_stracks = [track for track in self.tracked_stracks if track.is_activated]
 
