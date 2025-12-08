@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
 import cv2
+import time
 import structlog
 
 from zebtrack.core.detector import Detector, ZoneData
@@ -215,7 +216,6 @@ class ProcessingWorker:
                         )
 
                 elif msg_type == "completed":
-                    print(f"DEBUG: ProcessingWorker received completed msg: {msg}")
                     if self.callbacks.on_completed:
                         self.callbacks.on_completed(
                             msg.get("cancelled", False),
@@ -276,10 +276,10 @@ class _WorkerProcess(multiprocessing.Process):
         # Use a separate log file for the worker to avoid file lock issues on Windows
         from zebtrack.logging_config import configure_logging
         configure_logging(log_file="analysis_worker.log")
-        
+
         import os
         import traceback
-        
+
         log.info("worker.process.started", pid=os.getpid())
 
         try:
@@ -406,11 +406,17 @@ class _WorkerProcess(multiprocessing.Process):
         # CRITICAL: Propagate single_subject_mode from settings
         # This ensures SingleSubjectTracker is used when configured, preventing ID switches
         single_mode = False
+
+        # Check animals_per_aquarium first
+        if hasattr(settings, "video_processing") and hasattr(settings.video_processing, "animals_per_aquarium"):
+             if settings.video_processing.animals_per_aquarium == 1:
+                 single_mode = True
+
+        # Check legacy/explicit override
         if hasattr(settings, "tracking") and hasattr(settings.tracking, "use_single_subject_tracker"):
-             single_mode = settings.tracking.use_single_subject_tracker
-        elif hasattr(settings, "video_processing"):
-             single_mode = getattr(settings.video_processing, "single_animal_per_aquarium", False)
-        
+             if settings.tracking.use_single_subject_tracker:
+                 single_mode = True
+
         detector.set_single_subject_mode(single_mode)
         log.info("worker.detector.single_subject_mode_set", enabled=single_mode)
 
@@ -449,6 +455,7 @@ class _WorkerProcess(multiprocessing.Process):
     ) -> bool:
         """Process a single video file."""
 
+        # 1. Open Video
         # 1. Open Video
         if isinstance(video_path, str) and video_path.isdigit():
             cap = cv2.VideoCapture(int(video_path))

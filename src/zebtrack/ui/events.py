@@ -122,6 +122,8 @@ class Events:
     PROJECT_GENERATE_SUMMARIES = "project:generate_summaries"
     PROJECT_APPLY_SETTINGS = "project:apply_settings_to_batch"
     PROJECT_DELETE_ASSET = "project:delete_asset"
+    PROJECT_VIDEO_SELECTED = "project.video_selected"
+    PROJECT_SELECTION_CHANGED = "project.selection_changed"
 
     # Video Processing
     VIDEO_ANALYZE_SINGLE = "video:analyze_single"

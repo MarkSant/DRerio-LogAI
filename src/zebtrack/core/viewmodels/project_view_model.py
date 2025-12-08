@@ -46,6 +46,11 @@ class ProjectViewModel:
     def close_project(self):
         return self.project_lifecycle_coordinator.close_project()
 
+    def on_video_selected(self, video_path: str):
+        """Handle video selection event."""
+        if self.project_manager:
+            self.project_manager.set_active_zone_video(video_path)
+
     def add_videos_to_project(self):
         """Adds videos to the current project via file dialog."""
         if not self.project_manager.project_path:

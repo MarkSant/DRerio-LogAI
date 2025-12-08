@@ -159,6 +159,21 @@ class MainViewModel:
                 [],
                 "no_params",
             ),
+            Events.PROJECT_GENERATE_SUMMARIES: (
+                self.analysis_vm.generate_parquet_summaries,
+                ["video_paths"],
+                "kwargs_all",
+            ),
+            Events.PROJECT_VIDEO_SELECTED: (
+                self.project_vm.on_video_selected,
+                ["video_path"],
+                "kwargs_get",
+            ),
+            Events.PROJECT_SELECTION_CHANGED: (
+                self.project_vm.on_video_selected,
+                ["video_path"],  # Assuming the payload has video_path or we handle it gracefully if missing
+                "kwargs_get",
+            ),
         }
 
         log.info("main_view_model.initialized", source="init")

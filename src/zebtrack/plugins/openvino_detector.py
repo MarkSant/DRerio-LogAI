@@ -117,7 +117,50 @@ class OpenVINOPlugin(DetectorPlugin):
 
         core = ov.Core()
         model = core.read_model(model_xml_path)
-        self.compiled_model = core.compile_model(model=model, device_name="AUTO")
+
+        # Log available devices
+        available_devices = core.available_devices
+        log.info("openvino.available_devices", devices=available_devices)
+
+        self._use_embedded_preprocessing = False
+        self._target_h, self._target_w = 640, 640 # Default backup
+
+        try:
+             # Just get shapes for target size
+             input_node = model.input(0)
+             shape = input_node.partial_shape
+             if shape.rank.is_static and len(shape) == 4:
+                 self._target_h = int(shape[2].get_length())
+                 self._target_w = int(shape[3].get_length())
+
+        except Exception as e:
+            log.warning("openvino.shape_check.failed", error=str(e))
+
+        # Determine device preference
+        device_name = "AUTO"
+
+        log.info("openvino.compiling_model", target_device=device_name)
+
+        config = {"PERFORMANCE_HINT": "LATENCY"}
+        try:
+            self.compiled_model = core.compile_model(model=model, device_name=device_name, config=config)
+        except Exception as e:
+            log.warning(
+                "openvino.compilation.failed_on_target",
+                target_device=device_name,
+                error=str(e),
+                fallback="AUTO"
+            )
+            self.compiled_model = core.compile_model(model=model, device_name="AUTO", config=config)
+
+        # Log actual execution devices
+        try:
+            # Different OpenVINO versions use different property keys,
+            # "EXECUTION_DEVICES" is standard for newer versions.
+            execution_devices = self.compiled_model.get_property("EXECUTION_DEVICES")
+            log.info("openvino.execution_devices", devices=execution_devices)
+        except Exception as e:
+            log.warning("openvino.execution_devices.query_failed", error=str(e))
 
         # Identify outputs for detection and segmentation masks
         self.output_det = None
@@ -316,8 +359,28 @@ class OpenVINOPlugin(DetectorPlugin):
 
     def _preprocess(self, frame: np.ndarray) -> np.ndarray:
         """Prepares a frame for OpenVINO inference using letterboxing."""
-        _, _, h, w = self.input_layer.shape
+        # Use target dimensions set during initialization.
+        # Fallback to input_layer.shape if not set, but handle rank properly.
+        if hasattr(self, "_target_h") and hasattr(self, "_target_w"):
+             w, h = self._target_w, self._target_h
+        else:
+             # Fallback for dynamic shape or legacy
+             shape = self.input_layer.shape
+             if len(shape) == 4:
+                 h, w = shape[2], shape[3]
+             else:
+                 h, w = 640, 640 # Last resort fallback
+
         letterboxed_frame, _, _ = _letterbox(frame, new_shape=(w, h), auto=False)
+
+        # Optimized path: Embedded preprocessing (GPU friendly)
+        if getattr(self, "_use_embedded_preprocessing", False):
+            # Input: [1, H, W, 3], uint8, BGR (from letterbox)
+            # OpenVINO handles Color, Type, and Scale conversion on backend
+            input_tensor = np.expand_dims(letterboxed_frame, axis=0)
+            return input_tensor
+
+        # Legacy path: Python preprocessing (CPU intensive)
         rgb_frame = cv2.cvtColor(letterboxed_frame, cv2.COLOR_BGR2RGB)
         input_tensor = rgb_frame.transpose(2, 0, 1) / 255.0
         input_tensor = np.expand_dims(input_tensor, axis=0).astype(np.float32)

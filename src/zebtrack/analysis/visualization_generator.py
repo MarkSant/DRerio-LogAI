@@ -230,30 +230,26 @@ class VisualizationGenerator:
                     pixelcm_x = self.b_analyzer._pixelcm_x
                     pixelcm_y = self.b_analyzer._pixelcm_y
 
-                    # Frame coordinates in cm
-                    # Per COORDINATE_SYSTEMS.md:
-                    # - Frame warped: y_px=0 at top, y_px=height at bottom
-                    #   (image convention)
-                    # - Trajectory y_cm: y_cm=0 at bottom, y_cm=max at top
-                    #   (cartesian)
-                    # - Conversion: y_cm = (video_height_px - y_center_px) / pixelcm_y
-                    #
-                    # To align frame with trajectories:
-                    # 1. Flip frame vertically so frame[0] = bottom
-                    # 2. Use origin='lower' so matplotlib maps frame[0] to y=0 (bottom)
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    frame_rgb_flipped = cv2.flip(frame_rgb, 0)  # Flip vertically
+                    # Frame coordinates in cm (Top-Left origin system)
+                    # We plot everything in "Image Coordinates" (0,0 at top-left)
+                    # To do this, we do NOT flip the image, we use origin="upper",
+                    # and we will invert the Y-axis of the plot.
 
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    # No flip needed
+
+                    # Extent: [left, right, bottom, top]
+                    # Note: For origin='upper', 'bottom' index is usually higher Y value
                     frame_extent: tuple[float, float, float, float] = (
                         0.0,  # left (x=0)
                         frame_width_px / pixelcm_x,  # right (x=max)
-                        0.0,  # bottom (y=0)
-                        frame_height_px / pixelcm_y,  # top (y=max)
+                        frame_height_px / pixelcm_y,  # bottom (y=max in image coords)
+                        0.0,  # top (y=0 in image coords)
                     )
                     ax.imshow(
-                        frame_rgb_flipped,
+                        frame_rgb,
                         extent=frame_extent,
-                        origin="lower",
+                        origin="upper",
                         aspect="auto",
                         alpha=0.5,
                     )
@@ -296,7 +292,8 @@ class VisualizationGenerator:
         ax.set_xlabel("Position (cm)")
         ax.set_ylabel("Position (cm)")
         ax.set_xlim(min_x - 1, max_x + 1)
-        ax.set_ylim(min_y - 1, max_y + 1)
+        # Invert Y-axis to match image coordinates (0 at top)
+        ax.set_ylim(max_y + 1, min_y - 1)
         ax.set_aspect("equal", adjustable="box")
         return fig
 

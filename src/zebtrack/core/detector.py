@@ -111,7 +111,7 @@ class Detector:
                 if name_lower in animal_names:
                     self.animal_class_id = cid
                     found_animal = True
-            
+
             # If we found an animal class at 0 but no aquarium class, likely a single-class model
             if found_animal and not found_aquarium and self.animal_class_id == 0:
                 # Ensure we don't overlap if we default aquarium to 0
@@ -579,12 +579,18 @@ class Detector:
                 context=self._context,
                 aquarium_defined=self._aquarium_region_defined,
             )
+        if self._single_subject_mode:
+            # Use simplified SingleSubjectTracker to guarantee strict ID persistence
+            # This avoids ByteTrack creating new IDs for the same animal
+            filtered_detections = self._single_subject_tracker.assign(filtered_detections)
+            log.debug("detector.single_subject_tracking.applied", num_detections=len(filtered_detections))
+
         else:
             # Multi-subject tracking with ByteTracker
             # NOTE: Single-subject mode is now handled INSIDE ByteTracker (via single_animal_mode param)
             # rather than using the separate heuristic SingleSubjectTracker.
             # This provides better stability via Kalman Filter + ID Resurrection.
-            
+
             if filtered_detections:
                 confidences = [d[4] for d in filtered_detections]
                 log.debug("detector.bytetrack.input_confidences", confidences=confidences)
@@ -620,7 +626,7 @@ class Detector:
     def set_single_subject_mode(self, enabled: bool) -> None:
         """
         Toggle Single Animal Mode.
-        
+
         When enabled, this now configures the ByteTracker to use the robust
         'Single Animal' logic (ID Resurrection + Immediate Activation) instead
         of switching to the legacy SingleSubjectTracker.
@@ -633,7 +639,7 @@ class Detector:
         # Force re-init of ByteTracker to pick up the new mode
         self._byte_tracker = None
         self._byte_tracker_params = None
-        
+
         log.info(
             "detector.single_subject_mode.changed",
             enabled=enabled,

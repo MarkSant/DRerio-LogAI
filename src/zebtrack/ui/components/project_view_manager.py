@@ -18,6 +18,7 @@ import os
 import subprocess
 import sys
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
 import structlog
@@ -941,7 +942,7 @@ class ProjectViewManager:
                     "end",
                     iid=item_id,
                     text=f"{icon} {file}",
-                    values=("", ""),
+                    values=("", "", "", "", "", ""),
                 )
 
                 metadata_store[item_id] = {
@@ -1093,13 +1094,45 @@ class ProjectViewManager:
     # ===========================================================================
 
     def update_reports_tree(self) -> None:
-        """Update the reports tree view."""
-        log.warning(
-            "project_view_manager.update_reports_tree_deprecated",
-            message="This method is LEGACY and may be removed in future versions",
+        """
+        Update the reports tree view in ProcessingReportsWidget.
+
+        This method refreshes the tree content based on current project state.
+        """
+        widget = getattr(self.gui, "processing_reports_widget", None)
+        if not widget or not widget.tree:
+            return
+
+        # Clear existing items
+        widget.clear_tree()
+
+        # Get data
+        project_manager = self.gui.controller.project_manager
+        hierarchy = project_manager.get_video_hierarchy()
+        status_counts = project_manager.get_status_counts()
+
+        # Get or Initialize metadata store for this tree
+        # We store it on the GUI instance to persist across refreshes,
+        # matching pattern used in other trees
+        if not hasattr(self.gui, "_processing_reports_tree_metadata"):
+            self.gui._processing_reports_tree_metadata = {}
+
+        # Clear metadata for fresh population
+        self.gui._processing_reports_tree_metadata.clear()
+        metadata_store = self.gui._processing_reports_tree_metadata
+
+        # Populate tree
+        self._populate_reports_tree_from_hierarchy(
+            widget.tree,
+            hierarchy,
+            "",  # specific root if needed, else empty for actual root
+            metadata_store
         )
-        # This functionality has been moved to ProcessingReportsWidget
-        # Kept here for backward compatibility
+
+        # Update status cards
+        widget.update_status_counts(status_counts)
+
+        log.debug("project_view_manager.reports_tree_updated")
 
     def _populate_reports_tree_from_hierarchy(
         self,
@@ -1129,7 +1162,7 @@ class ProjectViewManager:
                 "end",
                 iid=group_node_id,
                 text=f"🏷️ {group_name}",
-                values=("", ""),
+                values=("", "", "", "", "", ""),
                 open=True,
             )
 
@@ -1140,8 +1173,22 @@ class ProjectViewManager:
 
             # Iterate over days
             days = group_data.get("days", {})
-            for day_id, day_data in sorted(days.items()):
-                day_label = day_data.get("display", f"Dia {day_id}")
+            for day_id, videos in sorted(days.items()):
+                # Fix: day_data (now videos) is a list of video entries, not a dict with 'display'
+                # Derive day title from first video metadata if possible
+                day_label = f"Dia {day_id}"
+                if videos and isinstance(videos, list) and len(videos) > 0:
+                     first_video = videos[0]
+                     if isinstance(first_video, dict):
+                         meta = first_video.get("metadata", {})
+                         if meta and meta.get("day") is not None:
+                             # Use ValidationManager logic or similar consistent formatting if available
+                             # For now, simplistic fallback to match previous potential intent
+                             day_val = meta.get("day")
+                             day_label = f"{day_val:02d}" if isinstance(day_val, int) else str(day_val)
+                         elif "day_label" in first_video:
+                             day_label = first_video["day_label"]
+
                 day_node_id = f"{group_node_id}_day_{day_id}"
 
                 tree.insert(
@@ -1149,7 +1196,7 @@ class ProjectViewManager:
                     "end",
                     iid=day_node_id,
                     text=f"📅 {day_label}",
-                    values=("", ""),
+                    values=("", "", "", "", "", ""),
                     open=True,
                 )
 
@@ -1160,9 +1207,11 @@ class ProjectViewManager:
                 }
 
                 # Iterate over videos
-                videos = day_data.get("videos", [])
+                # 'videos' is already the list of video dictionaries for this day
                 for video in videos:
-                    video_path = video.get("video_path")
+                    video_path = video.get("path") # Fixed: "path" not "video_path" usually
+                    if not video_path:
+                         video_path = video.get("video_path") # Try fallback
                     if not video_path:
                         continue
 
@@ -1170,16 +1219,16 @@ class ProjectViewManager:
                     subject = video.get("metadata", {}).get("subject", "")
                     subject_label = f"Sujeito {subject}" if subject else video_name
 
-                    # Build status icons
-                    status_icons = []
-                    if video.get("has_arena"):
-                        status_icons.append(STATUS_SYMBOLS["arena"])
-                    if video.get("has_rois"):
-                        status_icons.append(STATUS_SYMBOLS["rois"])
-                    if video.get("has_trajectory"):
-                        status_icons.append(STATUS_SYMBOLS["trajectory"])
+                    # Build individual column values
+                    col_arena = STATUS_SYMBOLS["arena"] if video.get("has_arena") else ""
+                    col_rois = STATUS_SYMBOLS["rois"] if video.get("has_rois") else ""
+                    col_traj = STATUS_SYMBOLS["trajectory"] if video.get("has_trajectory") else ""
+                    col_summary = STATUS_SYMBOLS["summary"] if video.get("has_summary") else ""
 
-                    status_str = " ".join(status_icons) if status_icons else "—"
+                    # Determine status label
+                    status_label = "Processado" if video.get("has_trajectory") else "Pendente"
+                    if not video.get("has_arena"):
+                         status_label = "Sem Arena"
 
                     video_node_id = f"{day_node_id}_video_{video_path}"
 
@@ -1188,7 +1237,7 @@ class ProjectViewManager:
                         "end",
                         iid=video_node_id,
                         text=f"🐟 {subject_label}",
-                        values=(status_str, ""),
+                        values=(col_arena, col_rois, col_traj, col_summary, status_label, video_path),
                     )
 
                     metadata_store[video_node_id] = {
@@ -1198,8 +1247,19 @@ class ProjectViewManager:
                     }
 
                     # Append artifacts (docx, xlsx files)
+                    # Use ProjectManager lookup for robustness if not in entry
                     results_dir = video.get("results_dir")
-                    if results_dir:
+                    if not results_dir:
+                         pm = self.gui.controller.project_manager
+                         results_dir = pm.resolve_results_directory(
+                            experiment_id=video.get("experiment_id") or video.get("metadata", {}).get("experiment_id"),
+                            video_path=video_path,
+                            metadata=video.get("metadata")
+                         )
+                         if isinstance(results_dir, Path):
+                             results_dir = str(results_dir)
+
+                    if results_dir and os.path.exists(results_dir):
                         self.append_processing_reports_artifacts(
                             tree, video_node_id, results_dir, metadata_store
                         )

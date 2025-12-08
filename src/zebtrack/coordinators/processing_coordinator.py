@@ -519,8 +519,33 @@ class ProcessingCoordinator(BaseCoordinator):
                 msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
                 self.ui_coordinator.show_info(self.view, "Sucesso", msg)
 
+                # Automatically trigger report generation for processed videos
+                try:
+                    video_paths = [
+                        v.get("path") for v in videos_to_process
+                        if v.get("path")
+                    ]
+                    if video_paths:
+                        self.ui_coordinator.set_status(self.view, "Gerando relatórios automáticos...")
+                        self._publish_event(
+                            Events.PROJECT_GENERATE_SUMMARIES,
+                            {"video_paths": video_paths}
+                        )
+                except Exception as e:
+                    log.error("processing_coordinator.auto_report_failed", error=str(e))
+
             self.ui_coordinator.set_status(self.view, "Pronto.")
             self._publish_processing_mode(source="worker.completed", force=True)
+
+            # Refresh project views to show new results/status
+            self._publish_event(
+                Events.UI_REFRESH_PROJECT_VIEWS,
+                {
+                    "reason": "analysis_completed",
+                    "append_summary": True,
+                    "immediate": False,
+                },
+            )
 
             if on_completed_callback:
                 on_completed_callback()
@@ -658,6 +683,11 @@ class ProcessingCoordinator(BaseCoordinator):
             self.project_manager.add_video_batch(
                 [video_data],
                 save_project=False,
+            )
+            # Force UI update so video appears in the list immediately (as processing)
+            self._publish_event(
+                Events.UI_REFRESH_PROJECT_VIEWS,
+                {"reason": "single_video_registered", "immediate": True},
             )
 
         # Save the zone data for this video

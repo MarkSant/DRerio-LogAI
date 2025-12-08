@@ -163,10 +163,11 @@ class ProcessingReportsWidget(BaseWidget):
 
         from zebtrack.ui.window_utils import create_scrollbar
 
-        columns = ("arena", "rois", "trajectory", "summary", "status")
+        columns = ("arena", "rois", "trajectory", "summary", "status", "video_path")
         self.tree = ttk.Treeview(
             tree_container,
             columns=columns,
+            displaycolumns=("arena", "rois", "trajectory", "summary", "status"),
             show="tree headings",
             height=14,
             selectmode="extended",  # Allow multiple selection

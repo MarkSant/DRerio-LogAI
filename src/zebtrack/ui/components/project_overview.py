@@ -139,6 +139,36 @@ class ProjectOverviewWidget(BaseWidget):
         self.project_overview_tree.bind("<Double-Button-1>", self._on_video_double_click)
         self.project_overview_tree.bind("<Button-3>", self._on_video_right_click)
 
+        # Legend
+        self._build_legend(tree_frame)
+
+    def _build_legend(self, parent) -> None:
+        """Build the status legend."""
+        legend_frame = ttk.Frame(parent)
+        legend_frame.pack(fill="x", pady=(5, 0))
+
+        # Define symbols locally to avoid circular imports
+        symbols = {
+            "arena": "\U0001f3df",
+            "rois": "\U0001f3af",
+            "trajectory": "\U0001f9ed",
+            "summary": "\u03a3",
+        }
+
+        legend_text = (
+            f"Legenda: {symbols['arena']} Arena | "
+            f"{symbols['rois']} ROIs | "
+            f"{symbols['trajectory']} Trajetória | "
+            f"{symbols['summary']} Sumário"
+        )
+
+        ttk.Label(
+            legend_frame,
+            text=legend_text,
+            font=("TkDefaultFont", 8),
+            foreground="#555555"
+        ).pack(anchor="w")
+
     # Event handlers
 
     def _on_refresh_clicked(self) -> None:

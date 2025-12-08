@@ -2029,6 +2029,9 @@ class ProjectManager:
             if parquet_files.get("summary_excel") != summary_excel:
                 parquet_files["summary_excel"] = summary_excel
                 changed = True
+            if not video_entry.get("has_summary"):
+                video_entry["has_summary"] = True
+                changed = True
 
         if report_path:
             if parquet_files.get("report_docx") != report_path:
