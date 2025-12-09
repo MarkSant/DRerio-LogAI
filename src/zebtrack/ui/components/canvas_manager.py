@@ -643,18 +643,22 @@ class CanvasManager:
         controls = getattr(self.gui, "zone_controls", None)
         if controls:
             controls.clear_zone_list()
-            # Add Arena
+            # Add Arena with cyan color (matching the overlay drawing)
             if zone_data.polygon:
-                controls.add_zone_to_list("arena", "🏟 Arena Principal", "Polígono", "cyan")
+                controls.add_zone_to_list(
+                    "arena", "🏟 Arena Principal", "Polígono", "Ciano", "#00FFFF"
+                )
             # Add ROIs
             if zone_data.roi_names:
                 for i, name in enumerate(zone_data.roi_names):
-                    color = (
+                    color_bgr = (
                         zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 255, 0)
                     )
-                    # BGR to Hex
-                    color_hex = f"#{color[2]:02x}{color[1]:02x}{color[0]:02x}"
-                    controls.add_zone_to_list(f"roi_{i}", f"📍 {name}", "ROI", color_hex)
+                    # BGR to Hex for tag styling
+                    color_hex = f"#{color_bgr[2]:02x}{color_bgr[1]:02x}{color_bgr[0]:02x}"
+                    # Get color name from BGR value
+                    color_name = self._get_color_name_from_bgr(color_bgr)
+                    controls.add_zone_to_list(f"roi_{i}", f"📍 {name}", "ROI", color_name, color_hex)
 
     def apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
         """Apply snapping to nearby vertices or edges of existing polygons."""
@@ -1004,3 +1008,29 @@ class CanvasManager:
         except (ValueError, IndexError, AttributeError) as e:
             log.error("canvas_manager.remove_roi.error", error=str(e))
             self.gui.show_error("Erro", f"Falha ao remover ROI: {e}")
+
+    # BGR to color name mapping (matches color_selection_dialog.py)
+    _BGR_COLOR_MAP = {
+        (0, 255, 0): "Verde",
+        (255, 0, 0): "Azul",
+        (0, 0, 255): "Vermelho",
+        (0, 255, 255): "Amarelo",
+        (255, 0, 255): "Magenta",
+        (255, 255, 0): "Ciano",
+    }
+
+    def _get_color_name_from_bgr(self, bgr: tuple) -> str:
+        """Convert BGR tuple to Portuguese color name.
+
+        Args:
+            bgr: BGR color tuple (B, G, R)
+
+        Returns:
+            Portuguese color name or hex code if not found
+        """
+        # Normalize to tuple of ints
+        bgr_tuple = tuple(int(c) for c in bgr)
+        if bgr_tuple in self._BGR_COLOR_MAP:
+            return self._BGR_COLOR_MAP[bgr_tuple]
+        # Fallback to hex code if color not in standard palette
+        return f"#{bgr_tuple[2]:02x}{bgr_tuple[1]:02x}{bgr_tuple[0]:02x}"

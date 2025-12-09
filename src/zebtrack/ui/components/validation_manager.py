@@ -1045,6 +1045,9 @@ class ValidationManager:
                 "filename": filename,
                 "status": status_label,
                 "subject": subject_id,
+                # Include results_dir and experiment_id for report file listing
+                "results_dir": video.get("results_dir"),
+                "experiment_id": video.get("experiment_id"),
             }
 
             days_dict.setdefault(day_id, []).append(video_entry)

@@ -455,7 +455,11 @@ class ProcessingCoordinator(BaseCoordinator):
                 )
 
         def on_video_completed(index: int, total: int, experiment_id: str, success: bool):
-            """Call when a single video completes."""
+            """Call when a single video completes tracking.
+
+            Registers the trajectory output with the project manager so that
+            has_trajectory flag is set and the UI displays the correct status.
+            """
             log.info(
                 "controller.video_completed",
                 index=index,
@@ -463,6 +467,49 @@ class ProcessingCoordinator(BaseCoordinator):
                 experiment_id=experiment_id,
                 success=success,
             )
+
+            if not success:
+                return
+
+            # Find the video entry by experiment_id
+            video_path = None
+            for v in videos_to_process:
+                v_path = v.get("path", "")
+                v_exp_id = os.path.splitext(os.path.basename(v_path))[0]
+                if v_exp_id == experiment_id:
+                    video_path = v_path
+                    break
+
+            if not video_path:
+                log.warning(
+                    "controller.video_completed.video_not_found",
+                    experiment_id=experiment_id,
+                )
+                return
+
+            # Construct results directory and trajectory path
+            video_name = os.path.splitext(os.path.basename(video_path))[0]
+            results_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_results")
+            trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
+
+            # Register the trajectory output with the project manager
+            if os.path.exists(trajectory_path):
+                self.project_manager.register_processing_outputs(
+                    video_path=video_path,
+                    results_dir=results_dir,
+                    trajectory_path=trajectory_path,
+                )
+                log.info(
+                    "controller.video_completed.trajectory_registered",
+                    experiment_id=experiment_id,
+                    trajectory_path=trajectory_path,
+                )
+            else:
+                log.warning(
+                    "controller.video_completed.trajectory_not_found",
+                    experiment_id=experiment_id,
+                    expected_path=trajectory_path,
+                )
 
         def on_error(error: Exception, context: str):
             """Call when an error occurs."""
@@ -671,8 +718,10 @@ class ProcessingCoordinator(BaseCoordinator):
             log.info("workflow.single_video.registering_video", video=str(video_path))
 
             metadata = self._extract_metadata_from_config(config)
+            video_name = os.path.splitext(os.path.basename(str(video_path)))[0]
             video_data = {
                 "path": str(video_path),
+                "experiment_id": video_name,
                 "status": "processing",
                 "has_arena": bool(zone_data and zone_data.polygon),
                 "has_rois": bool(zone_data and zone_data.roi_polygons),

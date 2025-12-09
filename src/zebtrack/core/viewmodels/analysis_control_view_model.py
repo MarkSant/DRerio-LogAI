@@ -281,13 +281,15 @@ class AnalysisControlViewModel:
 
                 for idx, poly in enumerate(roi_polys):
                     name = roi_names[idx] if idx < len(roi_names) else f"ROI_{idx}"
-                    color = roi_colors[idx] if idx < len(roi_colors) else (255, 0, 0)
+                    color_bgr = roi_colors[idx] if idx < len(roi_colors) else (255, 0, 0)
+                    # Convert BGR (OpenCV/ZoneData format) to RGB (matplotlib format)
+                    color_rgb = (color_bgr[2], color_bgr[1], color_bgr[0])
                     # FIX: ROI expects a Shapely geometry, not a list of points.
                     # FIX: ROI constructor kwarg is 'geometry', not 'polygon'.
                     # FIX: These come from ZoneData (pixels), so specify coordinate_space="px".
                     try:
                         rois_list.append(ROI(name=name, geometry=Polygon(poly), coordinate_space="px"))
-                        roi_colors_dict[name] = color
+                        roi_colors_dict[name] = color_rgb
                     except Exception as e:
                         log.warning(f"Skipping invalid ROI {name}: {e}")
 
@@ -343,25 +345,37 @@ class AnalysisControlViewModel:
 
                 excel_filename = f"Sumario_{base_name}.xlsx"
                 docx_filename = f"Relatorio_{base_name}.docx"
+                parquet_summary_filename = f"{experiment_id}_summary.parquet"
 
                 # Excel Summary
                 excel_path = os.path.join(results_dir, excel_filename)
                 reporter.export_summary_data(excel_path, format="excel")
+
+                # Parquet Summary (needed for unified project reports)
+                parquet_summary_path = os.path.join(results_dir, parquet_summary_filename)
+                reporter.export_summary_data(parquet_summary_path, format="parquet")
 
                 # Word Report
                 docx_path = os.path.join(results_dir, docx_filename)
                 reporter.export_individual_report(docx_path)
 
                 # Register outputs with ProjectManager to keep state consistent
-                # This ensures the 'summary' flag is set in the project data
+                # This ensures the 'summary' and 'trajectory' flags are set in the project data
                 self.project_manager.register_processing_outputs(
                     video_path=video_path,
                     results_dir=results_dir,
+                    trajectory_path=parquet_path,  # Include trajectory path
+                    summary_parquet=parquet_summary_path,  # Include summary parquet
                     summary_excel=excel_path,
                     report_path=docx_path
                 )
 
-                log.info("generate_summaries.success", video=video_path, report=docx_path)
+                log.info(
+                    "generate_summaries.success",
+                    video=video_path,
+                    report=docx_path,
+                    summary_parquet=parquet_summary_path,
+                )
 
             except Exception as e:
                 log.error("generate_summaries.failed", video=video_path, error=str(e), exc_info=True)

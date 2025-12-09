@@ -579,12 +579,6 @@ class Detector:
                 context=self._context,
                 aquarium_defined=self._aquarium_region_defined,
             )
-        if self._single_subject_mode:
-            # Use simplified SingleSubjectTracker to guarantee strict ID persistence
-            # This avoids ByteTrack creating new IDs for the same animal
-            filtered_detections = self._single_subject_tracker.assign(filtered_detections)
-            log.debug("detector.single_subject_tracking.applied", num_detections=len(filtered_detections))
-
         else:
             # Multi-subject tracking with ByteTracker
             # NOTE: Single-subject mode is now handled INSIDE ByteTracker (via single_animal_mode param)
@@ -862,7 +856,7 @@ class Detector:
             # In single-subject mode we must always emit an ID; fall back to best detection with ID=1
             if self._single_subject_mode:
                 best_det = max(detections, key=lambda d: d[4])
-                log.warning(
+                log.debug(
                     "detector.bytetrack.single_subject_fallback_id1",
                     num_detections=len(detections),
                     chosen_confidence=float(best_det[4]),

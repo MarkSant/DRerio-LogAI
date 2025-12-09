@@ -783,7 +783,22 @@ class ZoneControlsWidget(BaseWidget):
             for item in self.zone_listbox.get_children():
                 self.zone_listbox.delete(item)
 
-    def add_zone_to_list(self, zone_id: str, name: str, zone_type: str, color: str) -> None:
-        """Add a zone to the zone list."""
+    def add_zone_to_list(
+        self, zone_id: str, name: str, zone_type: str, color: str, color_hex: str | None = None
+    ) -> None:
+        """Add a zone to the zone list with optional colored text.
+
+        Args:
+            zone_id: Unique identifier for the zone
+            name: Display name for the zone
+            zone_type: Type of zone (e.g., "Polígono", "ROI")
+            color: Color name to display
+            color_hex: Optional hex color code for text styling (e.g., "#FF0000")
+        """
         if self.zone_listbox:
             self.zone_listbox.insert("", "end", iid=zone_id, values=(name, zone_type, color))
+            # Apply colored text styling if hex color is provided
+            if color_hex:
+                tag_name = f"color_{zone_id}"
+                self.zone_listbox.tag_configure(tag_name, foreground=color_hex)
+                self.zone_listbox.item(zone_id, tags=(tag_name,))

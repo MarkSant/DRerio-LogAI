@@ -61,3 +61,21 @@ msgstr "Distância acumulada"
 
 msgid "Angular Velocity"
 msgstr "Velocidade angular"
+
+msgid "Figure: {name}"
+msgstr "Figura: {name}"
+
+msgid "Analysis Report - {experiment_id}"
+msgstr "Relatório de Análise - {experiment_id}"
+
+msgid "Report saved"
+msgstr "Relatório salvo"
+
+msgid "Visualization added: {name}"
+msgstr "Visualização adicionada: {name}"
+
+msgid "Appendix: ROI Event Log"
+msgstr "Apêndice: Registro de Eventos de ROI"
+
+msgid "Chronological log of all entries and exits from defined ROIs."
+msgstr "Registro cronológico de todas as entradas e saídas das ROIs definidas."

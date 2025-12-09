@@ -405,10 +405,10 @@ class BYTETracker:
         """ Step 5: Init new stracks"""
         # Use the remaining detections from the unconfirmed association step
         # AND the remaining low score detections from the second association step (if single animal mode)
-        
+
         # Candidates for new tracks (or resurrection)
         candidates = [detections_unconfirmed[i] for i in u_detection_rem]
-        
+
         if self.single_animal_mode:
             # In single animal mode, we want to consider ALL detections that weren't matched
             # even low score ones that failed association in Step 4
@@ -418,7 +418,7 @@ class BYTETracker:
         for track in candidates:
             if track.score < self.det_thresh and not self.single_animal_mode:
                 continue
-            
+
             # SINGLE ANIMAL MODE: ID RESURRECTION STRATEGY
             # If we are in single animal mode, NEVER create a new ID if we have a lost one.
             # We assume there is only one fish. If we found a detection that didn't match
@@ -429,16 +429,16 @@ class BYTETracker:
                     # Retrieve the most recently lost track (last in list usually, or sort by end_frame)
                     sorted_lost = sorted(self.lost_stracks, key=lambda t: t.end_frame, reverse=True)
                     refound_track = sorted_lost[0]
-                    
+
                     # Force resurrection with ID preservation (or force ID 1)
                     refound_track.re_activate(track, self.frame_id, new_id=False)
                     refound_track.track_id = 1 # Enforce ID 1
                     refind_stracks.append(refound_track)
-                    
+
                     # Remove from lost_stracks since it's found
                     self.lost_stracks.remove(refound_track)
                     continue
-                
+
                 # Priority 2: If no lost track, check if we already have a tracked one?
                 # If we are here, it means we didn't match the tracked one in previous steps.
                 # But if single_animal_mode is True, we should only have ONE track.
@@ -447,7 +447,7 @@ class BYTETracker:
                 # For now, let's assume if we are here, the old track is effectively lost or this is a new start.
 
             track.activate(self.kalman_filter, self.frame_id)
-            
+
             # SINGLE ANIMAL MODE: IMMEDIATE ACTIVATION
             # Bypass "Unconfirmed" state. If we see it, it's the fish.
             if self.single_animal_mode:
@@ -455,7 +455,7 @@ class BYTETracker:
                 # Force stable ID=1 and keep counter consistent
                 track.track_id = 1
                 BaseTrack._count = max(BaseTrack._count, 1)
-                
+
             activated_starcks.append(track)
 
         """ Step 6: Update state"""

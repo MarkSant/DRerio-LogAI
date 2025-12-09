@@ -528,7 +528,8 @@ class Reporter:
 
         plt.close(fig)
         memfile.seek(0)
-        document.add_picture(memfile, width=Inches(6.5))
+        # Size for 2 images per page (A4 with ~1" margins = ~6.3" usable width)
+        document.add_picture(memfile, width=Inches(5.5))
         progress_callback(3 / total_steps, _("ROI map added"))
 
     def _append_visualizations(
@@ -553,10 +554,17 @@ class Reporter:
         log.info("reporter.plots.parallel_generation.start", count=len(plot_configs))
         plot_results = self.viz_generator.generate_plots_parallel(plot_configs)
 
+        # Names that should start on a new page (to keep 2 figures per page)
+        page_break_before = {_("Heatmap"), _("Cumulative Distance")}
+
         for i, (memfile, name) in enumerate(plot_results):
             if memfile.getbuffer().nbytes > 0:
-                document.add_paragraph(_("Chart: {name}:").format(name=name))
-                document.add_picture(memfile, width=Inches(6.0))
+                # Add page break before specific figures to maintain 2-per-page layout
+                if name in page_break_before:
+                    document.add_page_break()
+                document.add_paragraph(_("Figure: {name}").format(name=name))
+                # Size for 2 images per page (A4 with ~1" margins = ~6.3" usable width)
+                document.add_picture(memfile, width=Inches(5.5))
             progress_callback(
                 (4 + i) / total_steps,
                 _("Visualization added: {name}").format(name=name),

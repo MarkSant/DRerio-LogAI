@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔴 Visualization & Report Fixes
+
+#### Trajectory Plot Coordinate System Fix
+- **CRITICAL**: Fixed Y-axis inversion in trajectory plots (`visualization_generator.py`)
+- Frame now vertically flipped with `cv2.flip(frame_rgb, 0)` for Cartesian alignment
+- Changed matplotlib `origin` from "upper" to "lower" for correct coordinate display
+- Fixed `extent` calculation using `video_height_for_transform` from BehavioralAnalyzer
+- Y-coordinates now display correctly (0 at bottom, height at top)
+
+#### ROI Color Consistency Fix
+- **HIGH**: Fixed BGR→RGB color conversion for ROI colors in visualizations
+- `analysis_control_view_model.py` now converts BGR tuples to RGB for matplotlib
+- Colors in trajectory plots and heatmaps match actual ROI colors defined in zones
+
+#### Word Report Layout Improvements
+- **MEDIUM**: Increased image sizes from 3.2" to 5.5" for better readability
+- Added page breaks before "Heatmap" and "Cumulative Distance" figures
+- Ensures 2 figures per page layout with titles always adjacent to images
+- Fixed "Chart" → "Figure" translation in Portuguese reports
+
+#### Zone List Color Display Enhancement
+- **UI**: Zone list now displays color names in Portuguese instead of hex codes
+- Colors shown with colored text styling (Treeview tags)
+- Arena principal also shows "Ciano" with colored text
+- Added `_get_color_name_from_bgr()` helper method for color name mapping
+
+### 🟡 Minor Improvements
+
+#### ByteTracker Fallback Log Level
+- Changed ByteTracker fallback message from WARNING to DEBUG
+- Reduces log noise when simple tracker is used as expected fallback
+
+#### Summary Parquet Generation
+- Added summary parquet file creation in analysis workflow
+- Trajectory registration now includes results_dir and experiment_id in hierarchy
+
+---
+
 ## [2.2.0] - 2025-12-XX
 
 ### 🔴 Critical Fixes

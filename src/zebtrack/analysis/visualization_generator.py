@@ -230,26 +230,44 @@ class VisualizationGenerator:
                     pixelcm_x = self.b_analyzer._pixelcm_x
                     pixelcm_y = self.b_analyzer._pixelcm_y
 
-                    # Frame coordinates in cm (Top-Left origin system)
-                    # We plot everything in "Image Coordinates" (0,0 at top-left)
-                    # To do this, we do NOT flip the image, we use origin="upper",
-                    # and we will invert the Y-axis of the plot.
+                    # CRITICAL: Use the SAME video_height_px that BehavioralAnalyzer used
+                    # for coordinate transformations. The formula was:
+                    #   y_cm = (video_height_px - y_px) / pixelcm_y
+                    # Using a different height would misalign the frame with arena/ROIs.
+                    video_height_for_transform = self.b_analyzer._video_height_px
 
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    # No flip needed
+                    # Flip frame vertically to match Cartesian Y-axis of arena/ROI
+                    # After flip: original row 0 (video top) -> row H-1 (image bottom)
+                    #             original row H-1 (video bottom) -> row 0 (image top)
+                    frame_rgb = cv2.flip(frame_rgb, 0)
 
                     # Extent: [left, right, bottom, top]
-                    # Note: For origin='upper', 'bottom' index is usually higher Y value
+                    # The coordinate transformation in BehavioralAnalyzer is:
+                    #   x_cm = x_px / pixelcm_x
+                    #   y_cm = (video_height_for_transform - y_px) / pixelcm_y
+                    #
+                    # For the frame image (after vertical flip with origin="lower"):
+                    # - Frame's visual bottom (original video bottom, y_px=frame_height_px)
+                    #   maps to y_cm = (video_height_for_transform - frame_height_px) / pixelcm_y
+                    # - Frame's visual top (original video top, y_px=0)
+                    #   maps to y_cm = video_height_for_transform / pixelcm_y
+                    #
+                    # If frame_height_px != video_height_for_transform (e.g., video was resized),
+                    # we need to account for this offset.
+                    y_bottom = (video_height_for_transform - frame_height_px) / pixelcm_y
+                    y_top = video_height_for_transform / pixelcm_y
+                    
                     frame_extent: tuple[float, float, float, float] = (
-                        0.0,  # left (x=0)
-                        frame_width_px / pixelcm_x,  # right (x=max)
-                        frame_height_px / pixelcm_y,  # bottom (y=max in image coords)
-                        0.0,  # top (y=0 in image coords)
+                        0.0,  # left (x_cm = 0 when x_px = 0)
+                        frame_width_px / pixelcm_x,  # right
+                        y_bottom,  # bottom
+                        y_top,  # top
                     )
                     ax.imshow(
                         frame_rgb,
                         extent=frame_extent,
-                        origin="upper",
+                        origin="lower",
                         aspect="auto",
                         alpha=0.5,
                     )
@@ -292,8 +310,9 @@ class VisualizationGenerator:
         ax.set_xlabel("Position (cm)")
         ax.set_ylabel("Position (cm)")
         ax.set_xlim(min_x - 1, max_x + 1)
-        # Invert Y-axis to match image coordinates (0 at top)
-        ax.set_ylim(max_y + 1, min_y - 1)
+        # Standard Cartesian Y-axis (min at bottom, max at top)
+        # Image is aligned to this: Top (Row 0) at max_y, Bottom (Row H) at 0
+        ax.set_ylim(min_y - 1, max_y + 1)
         ax.set_aspect("equal", adjustable="box")
         return fig
 
