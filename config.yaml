@@ -94,6 +94,16 @@ yolo_model:
   # Typical: 0.3-0.7
   nms_threshold: 0.5
 
+  # OPTIMIZATION: Performance settings for inference
+  # Enable FP16 (half precision) inference on GPU
+  # Auto-disabled if CUDA is not available; provides ~2x speedup on NVIDIA GPUs
+  use_half_precision: true
+
+  # Input image size for YOLO inference (must be divisible by 32)
+  # Smaller = faster, Larger = more accurate for small objects
+  # Valid values: 320, 416, 512, 640, 768, 896, 1024, 1280
+  inference_size: 640
+
 # -----------------------------------------------------------------------------
 # ByteTrack Settings (Multi-Object Tracking)
 # -----------------------------------------------------------------------------

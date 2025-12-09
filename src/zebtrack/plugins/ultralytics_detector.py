@@ -13,6 +13,14 @@ except ImportError:
 
 from zebtrack.plugins.base import DetectorPlugin
 
+# OPTIMIZATION: Import hardware detection for CUDA check
+try:
+    from zebtrack.utils.hardware_detection import is_cuda_available
+except ImportError:
+    def is_cuda_available() -> bool:
+        """Fallback if hardware_detection module is not available."""
+        return False
+
 
 class UltralyticsDetectorPlugin(DetectorPlugin):
     """A detector plugin that uses the ultralytics YOLO model."""
@@ -45,12 +53,29 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             # Read ByteTrack thresholds from settings
             self.track_threshold = getattr(settings_obj.bytetrack, "track_threshold", 0.25)
             self.match_threshold = getattr(settings_obj.bytetrack, "match_threshold", 0.95)
+            # OPTIMIZATION: Read inference performance settings
+            self._use_half = getattr(settings_obj.yolo_model, "use_half_precision", True)
+            self._imgsz = getattr(settings_obj.yolo_model, "inference_size", 640)
         else:
             # Fallback defaults when settings not injected
             self.conf_threshold = 0.25
             self.nms_threshold = 0.45
             self.track_threshold = 0.25
             self.match_threshold = 0.95  # Higher default for stable tracking (avoid ID jumps)
+            self._use_half = True
+            self._imgsz = 640
+
+        # OPTIMIZATION: Enable half precision only if CUDA is available
+        # FP16 provides ~2x speedup on modern NVIDIA GPUs with minimal accuracy loss
+        self._half_enabled = self._use_half and is_cuda_available()
+        if self._half_enabled:
+            log.info("ultralytics.half_precision.enabled", device="cuda")
+        else:
+            log.info(
+                "ultralytics.half_precision.disabled",
+                use_half_setting=self._use_half,
+                cuda_available=is_cuda_available(),
+            )
 
         # ByteTrack buffer size
         self.track_buffer = 60
@@ -64,12 +89,17 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             (x1, y1, x2, y2, confidence, track_id, class_id).
             track_id remains ``None`` so Detector can run BYTETracker centrally.
         """
+        # OPTIMIZATION: Use half precision (FP16) and configurable image size
+        # half=True provides ~2x speedup on CUDA GPUs with minimal accuracy impact
+        # imgsz controls input resolution (smaller = faster, larger = more accurate)
         results = self.model.predict(
             frame,
             verbose=False,
             conf=self.conf_threshold,
             iou=self.nms_threshold,
             classes=None,
+            half=self._half_enabled,
+            imgsz=self._imgsz,
         )
 
         predictions: list[tuple[int, int, int, int, float, int | None, int]] = []

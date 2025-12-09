@@ -237,6 +237,37 @@ class YOLOModelSettings(BaseModel):
         description=("Non-Maximum Suppression threshold for filtering overlapping bounding boxes."),
     )
 
+    # OPTIMIZATION: Inference performance settings
+    use_half_precision: bool = Field(
+        True,
+        description=(
+            "Enable FP16 (half precision) inference for faster GPU processing. "
+            "Automatically disabled if CUDA is not available. "
+            "Provides ~2x speedup with minimal accuracy impact on modern NVIDIA GPUs."
+        ),
+    )
+    inference_size: int = Field(
+        640,
+        ge=320,
+        le=1280,
+        description=(
+            "Input image size for YOLO inference. Smaller values (416, 512) are faster "
+            "but may reduce accuracy for small objects. Valid range: 320-1280. "
+            "Must be divisible by 32. Default 640 balances speed and accuracy."
+        ),
+    )
+
+    @field_validator("inference_size")
+    @classmethod
+    def validate_inference_size_divisible_by_32(cls, v: int) -> int:
+        """Ensure inference size is divisible by 32 (YOLO requirement)."""
+        if v % 32 != 0:
+            raise ValueError(
+                f"inference_size must be divisible by 32, got {v}. "
+                f"Try: {(v // 32) * 32} or {((v // 32) + 1) * 32}"
+            )
+        return v
+
 
 class ByteTrackSettings(BaseModel):
     """Association thresholds for the ByteTrack tracker.

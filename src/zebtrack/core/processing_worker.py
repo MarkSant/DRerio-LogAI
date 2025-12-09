@@ -523,14 +523,16 @@ class _WorkerProcess(multiprocessing.Process):
                 if self._check_cancellation():
                     return False
 
-                ret, frame = cap.read()
-                if not ret:
-                    break
-
                 should_process = frame_num % self.config.analysis_interval_frames == 0
                 detections = []
 
                 if should_process:
+                    # OPTIMIZATION: Only decode frames that will be processed
+                    # cap.read() is expensive for high-res videos; only call when needed
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+
                     # Detect
                     detections, _ = detector.detect(frame, project_type="pre-recorded")
                     processed_frames += 1  # Count actually processed frames
@@ -553,10 +555,14 @@ class _WorkerProcess(multiprocessing.Process):
                         detector.draw_overlay(frame, detections)
 
                         # Resize for preview if needed
+                        # OPTIMIZATION: Use INTER_NEAREST for faster resizing
                         preview_frame = frame
                         if width > 1280:
                             scale = 1280 / width
-                            preview_frame = cv2.resize(preview_frame, (0, 0), fx=scale, fy=scale)
+                            preview_frame = cv2.resize(
+                                preview_frame, (0, 0), fx=scale, fy=scale,
+                                interpolation=cv2.INTER_NEAREST
+                            )
 
                         # Calculate stats
                         elapsed = time.time() - start_time
@@ -588,6 +594,12 @@ class _WorkerProcess(multiprocessing.Process):
                             experiment_id,
                             stats=stats,
                         )
+                else:
+                    # OPTIMIZATION: Fast seek without decoding for skipped frames
+                    # cap.grab() is 10-20x faster than cap.read() for high-res videos
+                    ret = cap.grab()
+                    if not ret:
+                        break
 
                 frame_num += 1
 
