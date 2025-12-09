@@ -257,7 +257,7 @@ class VisualizationGenerator:
                     # we need to account for this offset.
                     y_bottom = (video_height_for_transform - frame_height_px) / pixelcm_y
                     y_top = video_height_for_transform / pixelcm_y
-                    
+
                     frame_extent: tuple[float, float, float, float] = (
                         0.0,  # left (x_cm = 0 when x_px = 0)
                         frame_width_px / pixelcm_x,  # right
