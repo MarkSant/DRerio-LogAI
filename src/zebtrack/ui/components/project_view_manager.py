@@ -456,6 +456,23 @@ class ProjectViewManager:
         """Format status token for tree display."""
         return status if status else "—"
 
+    @staticmethod
+    def _video_sort_key(value):
+        """Generate sort key for video/subject identifiers.
+
+        Numeric values sort before text values.
+        Args:
+            value: Identifier to sort
+
+        Returns:
+            Tuple of (type_priority, sort_value)
+        """
+        try:
+            return (0, int(value))
+        except (TypeError, ValueError):
+            value_str = str(value) if value is not None else ""
+            return (1, value_str.lower())
+
     # ===========================================================================
     # CATEGORIA 4: PIPELINE E VIDEO SELECTOR MANAGEMENT
     # ===========================================================================
@@ -820,12 +837,11 @@ class ProjectViewManager:
             return []
 
         selected = selection if selection is not None else tree.selection()
-        pm = self.gui.controller.project_manager
         video_paths = []
 
         for item_id in selected:
             video_path = tree.set(item_id, "video_path")
-            if video_path and pm.video_exists(video_path):
+            if video_path and os.path.isfile(video_path):
                 video_paths.append(video_path)
 
         return video_paths

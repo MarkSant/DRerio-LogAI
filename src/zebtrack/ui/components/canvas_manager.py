@@ -15,6 +15,7 @@ from PIL import Image
 
 from zebtrack.ui.components.canvas.event_handler import CanvasEventHandler
 from zebtrack.ui.components.canvas.renderer import CanvasRenderer
+from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.events import Events
 from zebtrack.utils.geometry_service import GeometryService
 
@@ -55,6 +56,26 @@ class CanvasManager:
         # Subscribe to events if event bus is available
         if self.event_bus_v2:
             self._setup_event_subscriptions()
+
+    def _get_canvas(self):
+        """Get the canvas safely, returning None if video_display doesn't exist or is destroyed.
+
+        This is needed because CanvasManager is created during ApplicationGUI.__init__
+        but video_display is only created later when build_zone_tab() is called.
+        Also handles the case where the canvas has been destroyed (e.g., project close).
+        """
+        if not hasattr(self.gui, 'video_display') or not self.gui.video_display:
+            return None
+        canvas = self.gui.video_display.canvas
+        if canvas is None:
+            return None
+        # Check if the canvas widget still exists (not destroyed)
+        try:
+            if not canvas.winfo_exists():
+                return None
+        except Exception:
+            return None
+        return canvas
 
     def _setup_event_subscriptions(self):
         """Subscribe to Event Bus V2 events for v4.0 Event-Driven Architecture."""
@@ -476,12 +497,11 @@ class CanvasManager:
 
         self.event_handler.unbind_drawing_events()
 
-        if self.gui.video_display and self.gui.video_display.canvas:
-            self.gui.video_display.canvas.delete("elastic_line")
-            self.gui.video_display.canvas.delete(
-                "drawing_aid"
-            )  # Deletes both vertices and fixed lines
-            self.gui.video_display.canvas.delete("snap_indicator")  # Clear snap indicators
+        canvas = self._get_canvas()
+        if canvas:
+            canvas.delete("elastic_line")
+            canvas.delete("drawing_aid")  # Deletes both vertices and fixed lines
+            canvas.delete("snap_indicator")  # Clear snap indicators
 
         # Clear coordinate lists
         self.gui.drawing_state_manager.clear_points()
@@ -643,10 +663,10 @@ class CanvasManager:
         controls = getattr(self.gui, "zone_controls", None)
         if controls:
             controls.clear_zone_list()
-            # Add Arena with cyan color (matching the overlay drawing)
+            # Add Arena with dark teal color (matching the overlay drawing)
             if zone_data.polygon:
                 controls.add_zone_to_list(
-                    "arena", "🏟 Arena Principal", "Polígono", "Ciano", "#00FFFF"
+                    "arena", "🏟 Arena Principal", "Polígono", "Teal", "#008B8B"
                 )
             # Add ROIs
             if zone_data.roi_names:
@@ -824,8 +844,9 @@ class CanvasManager:
 
     def clear_interactive_polygon(self):
         """Clear all interactive elements."""
-        if self.gui.video_display and self.gui.video_display.canvas:
-            self.gui.video_display.canvas.delete(
+        canvas = self._get_canvas()
+        if canvas:
+            canvas.delete(
                 "interactive_polygon", "handle", "suggested_polygon"
             )
 
@@ -851,12 +872,13 @@ class CanvasManager:
         self.stop_drawing()
         self.gui.drawing_state_manager.mode = "circle"
         self.gui.current_circle_center = None
-        if self.gui.video_display and self.gui.video_display.canvas:
-            self.gui.video_display.canvas.config(cursor="crosshair")
+        canvas = self._get_canvas()
+        if canvas:
+            canvas.config(cursor="crosshair")
 
-            self.gui.video_display.canvas.bind("<ButtonPress-1>", self.on_canvas_press_circle)
-            self.gui.video_display.canvas.bind("<B1-Motion>", self.on_canvas_drag_circle)
-            self.gui.video_display.canvas.bind("<ButtonRelease-1>", self.on_canvas_release_circle)
+            canvas.bind("<ButtonPress-1>", self.on_canvas_press_circle)
+            canvas.bind("<B1-Motion>", self.on_canvas_drag_circle)
+            canvas.bind("<ButtonRelease-1>", self.on_canvas_release_circle)
         self.gui.set_status("Modo de Desenho (Círculo): Clique e arraste para definir o raio.")
 
     def on_canvas_press_circle(self, event):
@@ -868,16 +890,17 @@ class CanvasManager:
         if self.gui.drawing_state_manager.mode != "circle" or not self.gui.current_circle_center:
             return
 
-        if self.gui.video_display and self.gui.video_display.canvas:
-            self.gui.video_display.canvas.delete("elastic_line")
+        canvas = self._get_canvas()
+        if canvas:
+            canvas.delete("elastic_line")
             cx, cy = self.gui.current_circle_center
             radius = ((event.x - cx) ** 2 + (event.y - cy) ** 2) ** 0.5
-            self.gui.video_display.canvas.create_oval(
+            canvas.create_oval(
                 cx - radius,
                 cy - radius,
                 cx + radius,
                 cy + radius,
-                outline="yellow",
+                outline="#DAA520",
                 dash=(4, 4),
                 tags="elastic_line",
             )
@@ -909,14 +932,15 @@ class CanvasManager:
         new_roi = {"name": roi_name, "type": "circle", "coords": (cx, cy, radius)}
         self.gui.roi_data.setdefault(current_arena_id, []).append(new_roi)
 
-        if self.gui.video_display and self.gui.video_display.canvas:
-            self.gui.video_display.canvas.create_oval(
+        canvas = self._get_canvas()
+        if canvas:
+            canvas.create_oval(
                 cx - radius,
                 cy - radius,
                 cx + radius,
                 cy + radius,
                 outline="blue",
-                fill="cyan",
+                fill="#008B8B",
                 stipple="gray25",
                 width=2,
             )
@@ -1034,3 +1058,147 @@ class CanvasManager:
             return self._BGR_COLOR_MAP[bgr_tuple]
         # Fallback to hex code if color not in standard palette
         return f"#{bgr_tuple[2]:02x}{bgr_tuple[1]:02x}{bgr_tuple[0]:02x}"
+
+    # -------------------------------------------------------------------------
+    # Zone Copy/Paste/Delete Operations
+    # -------------------------------------------------------------------------
+
+    def copy_zones_from_video(self, video_path: str | None) -> None:
+        """Copy zones from the specified video to clipboard.
+
+        Args:
+            video_path: Path to the video to copy zones from
+        """
+        if not video_path:
+            self.gui.set_status("Nenhum vídeo selecionado para copiar zonas.")
+            return
+
+        # Get project manager
+        project_manager = getattr(self.gui, "project_manager", None)
+        if not project_manager:
+            self.gui.set_status("Gerenciador de projeto não disponível.")
+            return
+
+        # Get zone data for the video
+        zone_data = project_manager.get_zone_data(video_path)
+        if not zone_data or not zone_data.polygon:
+            self.gui.set_status("Nenhuma zona encontrada para copiar.")
+            return
+
+        # Store in clipboard
+        self._zone_clipboard = {
+            "polygon": zone_data.polygon,
+            "roi_polygons": zone_data.roi_polygons,
+            "roi_colors": zone_data.roi_colors,
+            "roi_names": zone_data.roi_names,
+        }
+
+        roi_count = len(zone_data.roi_polygons) if zone_data.roi_polygons else 0
+        self.gui.set_status(f"Zonas copiadas: 1 arena + {roi_count} ROI(s).")
+        log.info(
+            "canvas_manager.copy_zones.success",
+            video_path=video_path,
+            roi_count=roi_count,
+        )
+
+    def paste_zones_to_video(self, video_path: str | None) -> None:
+        """Paste zones from clipboard to the specified video.
+
+        Args:
+            video_path: Path to the video to paste zones to
+        """
+        if not video_path:
+            self.gui.set_status("Nenhum vídeo selecionado para colar zonas.")
+            return
+
+        if not hasattr(self, "_zone_clipboard") or not self._zone_clipboard:
+            self.gui.set_status("Nenhuma zona na área de transferência.")
+            return
+
+        # Get project manager
+        project_manager = getattr(self.gui, "project_manager", None)
+        if not project_manager:
+            self.gui.set_status("Gerenciador de projeto não disponível.")
+            return
+
+        # Get or create zone data for target video
+        zone_data = project_manager.get_zone_data(video_path)
+        if zone_data is None:
+            from zebtrack.core.project_manager import ZoneData
+
+            zone_data = ZoneData()
+
+        # Paste the zones
+        zone_data.polygon = self._zone_clipboard.get("polygon", [])
+        zone_data.roi_polygons = self._zone_clipboard.get("roi_polygons", [])
+        zone_data.roi_colors = self._zone_clipboard.get("roi_colors", [])
+        zone_data.roi_names = self._zone_clipboard.get("roi_names", [])
+
+        # Save to project
+        project_manager.save_zone_data(zone_data, video_path)
+
+        roi_count = len(zone_data.roi_polygons) if zone_data.roi_polygons else 0
+        self.gui.set_status(f"Zonas coladas: 1 arena + {roi_count} ROI(s).")
+        log.info(
+            "canvas_manager.paste_zones.success",
+            video_path=video_path,
+            roi_count=roi_count,
+        )
+
+        # Refresh display if this is the current video
+        self.redraw_zones_from_project_data()
+        self.update_zone_listbox()
+
+        # Refresh video tree to update status icons
+        if self.event_bus_v2:
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data={"filter_text": None},
+                    source="CanvasManager.paste_zones_to_video",
+                )
+            )
+
+    def delete_zones_from_video(self, video_path: str | None) -> None:
+        """Delete all zones from the specified video.
+
+        Args:
+            video_path: Path to the video to delete zones from
+        """
+        if not video_path:
+            self.gui.set_status("Nenhum vídeo selecionado para excluir zonas.")
+            return
+
+        # Get project manager
+        project_manager = getattr(self.gui, "project_manager", None)
+        if not project_manager:
+            self.gui.set_status("Gerenciador de projeto não disponível.")
+            return
+
+        # Get zone data
+        zone_data = project_manager.get_zone_data(video_path)
+        if not zone_data or not zone_data.polygon:
+            self.gui.set_status("Nenhuma zona para excluir.")
+            return
+
+        # Clear the zones
+        from zebtrack.core.project_manager import ZoneData
+
+        project_manager.save_zone_data(ZoneData(), video_path)
+
+        self.gui.set_status("Zonas excluídas com sucesso.")
+        log.info("canvas_manager.delete_zones.success", video_path=video_path)
+
+        # Refresh display
+        self.redraw_zones_from_project_data()
+        self.update_zone_listbox()
+
+        # Refresh video tree to update status icons
+        if self.event_bus_v2:
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data={"filter_text": None},
+                    source="CanvasManager.delete_zones_from_video",
+                )
+            )

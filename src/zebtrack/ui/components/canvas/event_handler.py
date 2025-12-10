@@ -15,6 +15,9 @@ log = structlog.get_logger()
 class CanvasEventHandler:
     """Handles canvas input events."""
 
+    # Debounce interval in milliseconds for motion events to reduce flickering
+    MOTION_DEBOUNCE_MS = 16  # ~60fps
+
     def __init__(self, canvas_manager):
         """Initialize CanvasEventHandler.
 
@@ -23,6 +26,7 @@ class CanvasEventHandler:
         """
         self.manager = canvas_manager
         self.gui = canvas_manager.gui
+        self._motion_debounce_id = None
 
     def bind_drawing_events(self):
         """Bind events for polygon drawing."""
@@ -181,7 +185,7 @@ class CanvasEventHandler:
             p1 = current_points[-2]
             p2 = current_points[-1]
             self.gui.video_display.canvas.create_line(
-                p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
+                p1[0], p1[1], p2[0], p2[1], fill="#008B8B", width=2, tags="drawing_aid"
             )
 
     def on_vertex_drag_motion(self, event):
@@ -220,7 +224,27 @@ class CanvasEventHandler:
             self.gui.video_display.canvas.config(cursor="crosshair")
 
     def on_canvas_motion(self, event):
-        """Handle mouse movement for drawing elastic lines."""
+        """Handle mouse movement for drawing elastic lines with debounce to reduce flickering."""
+        if self.gui.drawing_state_manager.mode != "polygon":
+            return
+
+        # Cancel any pending debounced motion update
+        if self._motion_debounce_id is not None:
+            try:
+                self.gui.video_display.canvas.after_cancel(self._motion_debounce_id)
+            except Exception:
+                pass
+            self._motion_debounce_id = None
+
+        # Schedule the actual motion handling with debounce
+        self._motion_debounce_id = self.gui.video_display.canvas.after(
+            self.MOTION_DEBOUNCE_MS, lambda: self._handle_canvas_motion(event)
+        )
+
+    def _handle_canvas_motion(self, event):
+        """Internal handler for canvas motion after debounce."""
+        self._motion_debounce_id = None
+
         if self.gui.drawing_state_manager.mode != "polygon":
             return
 
@@ -235,7 +259,7 @@ class CanvasEventHandler:
 
         # Check if mouse is hovering over an existing vertex
         vertex_hover_index = None
-        hover_color = "cyan"
+        hover_color = "#008B8B"
 
         current_points = self.gui.drawing_state_manager.current_points
 
@@ -301,7 +325,7 @@ class CanvasEventHandler:
             last_point[1],
             display_x,
             display_y,
-            fill="yellow",
+            fill="#DAA520",
             dash=(4, 4),
             tags="elastic_line",
         )
@@ -311,7 +335,7 @@ class CanvasEventHandler:
                 display_y,
                 first_point[0],
                 first_point[1],
-                fill="yellow",
+                fill="#DAA520",
                 dash=(4, 4),
                 tags="elastic_line",
             )

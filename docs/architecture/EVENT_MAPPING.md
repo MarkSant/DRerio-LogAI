@@ -92,6 +92,66 @@ It specifically addresses the "11 Component -> GUI calls" identified in the arch
 
 ---
 
+## 6. ZONE_COPY_ZONES (New - Dec 2025)
+**Purpose**: Copy zones from a video to clipboard
+**Publishers (1)**:
+- `ZoneControls` (context menu)
+**Subscriber**: `EventDispatcher` -> `CanvasManager.copy_zones_from_video()`
+**Payload**:
+```python
+{
+    "video_path": str  # Path to the video to copy zones from
+}
+```
+**Priority**: MEDIUM (Zone management)
+
+---
+
+## 7. ZONE_PASTE_ZONES (New - Dec 2025)
+**Purpose**: Paste zones from clipboard to a video
+**Publishers (1)**:
+- `ZoneControls` (context menu)
+**Subscriber**: `EventDispatcher` -> `CanvasManager.paste_zones_to_video()`
+**Payload**:
+```python
+{
+    "video_path": str  # Path to the video to paste zones to
+}
+```
+**Priority**: MEDIUM (Zone management)
+
+---
+
+## 8. ZONE_DELETE_ZONES (New - Dec 2025)
+**Purpose**: Delete all zones from a video
+**Publishers (1)**:
+- `ZoneControls` (context menu)
+**Subscriber**: `EventDispatcher` -> `CanvasManager.delete_zones_from_video()`
+**Payload**:
+```python
+{
+    "video_path": str  # Path to the video to delete zones from
+}
+```
+**Priority**: MEDIUM (Zone management)
+
+---
+
+## 9. ZONE_FINISH_DRAWING (New - Dec 2025)
+**Purpose**: Complete polygon drawing (alternative to double-click)
+**Publishers (1)**:
+- `ZoneControls` (button click)
+**Subscriber**: `EventDispatcher` -> `CanvasManager.finish_current_polygon()`
+**Payload**:
+```python
+{
+    # Empty payload
+}
+```
+**Priority**: LOW (Drawing UX improvement)
+
+---
+
 ## Summary of Changes
 
 | Current Method | New Event | Callers | Status |
@@ -101,5 +161,10 @@ It specifically addresses the "11 Component -> GUI calls" identified in the arch
 | `apply_pending_readiness_snapshot` | `READINESS_SNAPSHOT_UPDATED` | 1 | ✅ Defined |
 | `setup_interactive_polygon` | `POLYGON_EDIT_REQUESTED` | 1 | ✅ Defined |
 | `_build_video_hierarchy_snapshot` | `VIDEO_HIERARCHY_SNAPSHOT_REQUESTED` | 1 | ✅ Defined |
+| (new) `copy_zones_from_video` | `ZONE_COPY_ZONES` | 1 | ✅ New Dec 2025 |
+| (new) `paste_zones_to_video` | `ZONE_PASTE_ZONES` | 1 | ✅ New Dec 2025 |
+| (new) `delete_zones_from_video` | `ZONE_DELETE_ZONES` | 1 | ✅ New Dec 2025 |
+| (new) `finish_current_polygon` | `ZONE_FINISH_DRAWING` | 1 | ✅ New Dec 2025 |
 
-**Total Mapped Calls**: 11
+**Total Mapped Calls**: 15
+

@@ -154,16 +154,34 @@ class VideoClassificationService:
                     video[key] = new_value
                     result.data_changed = True
 
+            # Copy all scan data from info to video (parquet_files, has_data, etc.)
+            # This ensures zone loading works correctly
+            for key in ("parquet_files", "has_data"):
+                if key in info:
+                    video[key] = info[key]
+
+            # Debug: log parquet_files being copied
+            pf = info.get("parquet_files", {})
+            log.debug(
+                "video_classification_service.classify_videos.parquet_copy",
+                path=path,
+                has_arena=info.get("has_arena"),
+                has_rois=info.get("has_rois"),
+                arena_path=pf.get("arena"),
+                rois_path=pf.get("rois"),
+            )
+
             # Classify into appropriate bucket
+            # IMPORTANT: Use `video` (which contains metadata) not `info` (which only has flags)
             if info.get("has_arena"):
                 if info.get("has_trajectory"):
-                    result.ready_with_trajectory.append(info)
+                    result.ready_with_trajectory.append(video)
                 elif info.get("has_rois"):
-                    result.ready_with_zones.append(info)
+                    result.ready_with_zones.append(video)
                 else:
-                    result.arena_only.append(info)
+                    result.arena_only.append(video)
             else:
-                result.without_arena.append(info)
+                result.without_arena.append(video)
 
         log.info(
             "video_classification_service.classify_videos.complete",

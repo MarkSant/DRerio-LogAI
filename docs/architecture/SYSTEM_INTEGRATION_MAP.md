@@ -1,7 +1,7 @@
 # ZebTrack-AI System Integration Map
 
 **Status:** Living Document
-**Last Updated:** Dec 2, 2025
+**Last Updated:** Dec 10, 2025
 **Purpose:** This document serves as the "source of truth" for AI Agents regarding system integration, event payloads, and control flows. It defines the strict contracts between the decoupled components of the Phase 3/4 Architecture.
 
 ---
@@ -121,7 +121,16 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `VIDEO_HIERARCHY_SNAPSHOT_UPDATED` | `snapshot` (dict) | `gui.py` | (consumers) |
 | `READINESS_SNAPSHOT_UPDATED` | `snapshot` (dict) | `DialogManager` | `UICoordinator` |
 
-### 3.3. Processing & Analysis Events
+### 3.3. Zone Management Events (New - Dec 2025)
+
+| Event (Events class) | Payload Keys | Publishers | Subscribers |
+|---------------------|--------------|------------|-------------|
+| `ZONE_COPY_ZONES` | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.copy_zones_from_video()` |
+| `ZONE_PASTE_ZONES` | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.paste_zones_to_video()` |
+| `ZONE_DELETE_ZONES` | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.delete_zones_from_video()` |
+| `ZONE_FINISH_DRAWING` | - | `ZoneControls` | `EventDispatcher` → `CanvasManager.finish_current_polygon()` |
+
+### 3.4. Processing & Analysis Events
 
 | Event (UIEvents) | Payload Keys | Publishers | Subscribers |
 |-----------------|--------------|------------|-------------|
@@ -131,7 +140,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `ANALYSIS_STARTED` | - | (lifecycle) | (consumers) |
 | `ANALYSIS_COMPLETED` | - | (lifecycle) | (consumers) |
 
-### 3.4. Notification Events
+### 3.5. Notification Events
 
 | Event (UIEvents) | Payload Keys | Publishers | Subscribers |
 |-----------------|--------------|------------|-------------|
@@ -254,6 +263,10 @@ Understanding who holds what references prevents "AttributeError" and circular d
     - The `track_buffer` is scaled by `processing_interval` to maintain equivalent temporal window
     - Position/velocity weights scale with `sqrt(dt)` for proper uncertainty propagation
     - Without this fix, track IDs will jump erratically on sparse frames.
+11. **Coordinator Callbacks Must Have Defaults (Fixed Dec 2025):** When calling Coordinator methods that accept callbacks (e.g., `create_project`, `open_project`), the Coordinator MUST provide safe default implementations using its injected dependencies (`state_manager`, `detector_service`). If callbacks are passed as `None` to adapters that require them, it will cause `TypeError: 'NoneType' object is not callable`. This was fixed by adding `detector_service` as an optional dependency to `ProjectLifecycleCoordinator` and implementing default callback factories in `create_project()` and `open_project()`.
+12. **Batch Processing Per-Video Results (Fixed Dec 2025):** In batch processing mode, the `ProcessingWorker` now creates a per-video results directory: `{experiment_id}_results/` next to each video file. Previously, all results went to the project root. The fix is in `processing_worker.py:_process_single_video()` which calculates `results_dir = os.path.join(video_dir, f"{experiment_id}_results")` for non-single-video mode.
+13. **Batch Processing Zone Data (Fixed Dec 2025):** When processing multiple videos in batch, each video has its own zone data. The `_load_zones_for_eligible_videos()` method now serializes zone data into each `video_info["zone_data"]` dict, and the worker uses `_get_zone_data_for_video(video_metadata)` to retrieve per-video zones instead of a global default.
+14. **ProcessingCallbacks.on_progress Signature (Updated Dec 2025):** The `on_progress` callback now has signature: `(index: int, total: int, experiment_id: str, fraction: float, message: str, stats: dict | None)`. The worker's `monitor_loop` passes all these fields, and `create_processing_callbacks` now publishes `UI_UPDATE_ANALYSIS_TASK_STATUS` with full video progress info.
 
 ---
 

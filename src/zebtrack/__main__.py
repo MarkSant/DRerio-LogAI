@@ -268,6 +268,7 @@ def main():
             project_workflow_adapter=project_workflow_adapter,
             settings_obj=settings_obj,
             event_bus=event_bus,
+            detector_service=detector_service,  # Phase 3E: For default callbacks
         )
         log.info(
             "timing.project_lifecycle_coordinator",

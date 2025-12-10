@@ -59,7 +59,7 @@ class ProcessingCallbacks:
     """Callbacks for processing events."""
 
     on_started: Callable[[], None]
-    on_progress: Callable[[float, str, dict | None], None]
+    on_progress: Callable[[int, int, str, float, str, dict | None], None]  # index, total, experiment_id, fraction, message, stats
     on_frame_processed: Callable[[Any, Any, Any], None]
     on_video_completed: Callable[[int, int, str, bool], None]
     on_error: Callable[[Exception, str], None]
@@ -194,7 +194,12 @@ class ProcessingWorker:
                 if msg_type == "progress":
                     if self.callbacks.on_progress:
                         self.callbacks.on_progress(
-                            msg["fraction"], msg["message"], msg.get("stats")
+                            msg.get("index", 0),
+                            msg.get("total", 1),
+                            msg.get("experiment_id", ""),
+                            msg["fraction"],
+                            msg["message"],
+                            msg.get("stats")
                         )
 
                 elif msg_type == "frame":
@@ -444,6 +449,44 @@ class _WorkerProcess(multiprocessing.Process):
 
         return detector
 
+    def _get_zone_data_for_video(self, video_metadata: dict) -> ZoneData:
+        """Get zone data for a specific video.
+
+        Uses per-video zone_data from video_metadata if available (batch processing),
+        otherwise falls back to the default zone data (single video processing).
+
+        Args:
+            video_metadata: Dict containing video info, may include 'zone_data' key
+
+        Returns:
+            ZoneData object for the video
+        """
+        video_zone_dict = video_metadata.get("zone_data")
+
+        if video_zone_dict and isinstance(video_zone_dict, dict):
+            # Use per-video zone data (batch processing)
+            zd = ZoneData()
+            zd.polygon = video_zone_dict.get("polygon", [])
+            zd.roi_polygons = video_zone_dict.get("roi_polygons", [])
+            zd.roi_names = video_zone_dict.get("roi_names", [])
+            zd.roi_colors = video_zone_dict.get("roi_colors", [])
+
+            log.info(
+                "worker.using_per_video_zone_data",
+                video=os.path.basename(video_metadata.get("path", "")),
+                polygon_points=len(zd.polygon),
+                roi_count=len(zd.roi_polygons),
+            )
+            return zd
+        else:
+            # Fall back to default zone data (single video mode)
+            log.info(
+                "worker.using_default_zone_data",
+                video=os.path.basename(video_metadata.get("path", "")),
+                polygon_points=len(self._default_zone_data.polygon),
+            )
+            return self._default_zone_data
+
     def _process_single_video(
         self,
         index: int,
@@ -470,13 +513,16 @@ class _WorkerProcess(multiprocessing.Process):
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         # 2. Setup Zones & Calibration
+        # Use per-video zone data if available (batch processing), otherwise use default
+        video_zone_data = self._get_zone_data_for_video(video_metadata)
+
         # Force base dimensions to match video to prevent double-scaling if zones are already in native coords
         detector.base_width = width
         detector.base_height = height
-        detector.set_zones(self._default_zone_data, width, height)
+        detector.set_zones(video_zone_data, width, height)
 
         # Fix: Ensure detector knows aquarium is defined if we have a polygon
-        has_aquarium = bool(self._default_zone_data.polygon and len(self._default_zone_data.polygon) >= 3)
+        has_aquarium = bool(video_zone_data.polygon and len(video_zone_data.polygon) >= 3)
         detector.set_aquarium_region_defined(has_aquarium)
 
         # DEBUG: Log zone setup results
@@ -484,17 +530,31 @@ class _WorkerProcess(multiprocessing.Process):
             "worker.zones_configured_for_video",
             video=experiment_id,
             video_dimensions=(width, height),
-            polygon_points=len(self._default_zone_data.polygon),
+            polygon_points=len(video_zone_data.polygon),
             has_aquarium=has_aquarium,
             scaled_polygon_size=detector.scaled_polygon.size if hasattr(detector, 'scaled_polygon') else 'N/A',
             aquarium_region_defined=detector._aquarium_region_defined,
         )
 
         # 3. Setup Recorder
+        # For single video mode, use the provided output directory
+        # For batch processing, use the pre-calculated results_dir from video_metadata
+        # or create a per-video results directory next to the video file
         if self.config.single_video_mode:
             results_dir = self.config.output_base_dir
         else:
-            results_dir = self.config.output_base_dir
+            # Use pre-calculated results_dir if provided (batch processing with project metadata)
+            results_dir = video_metadata.get("results_dir")
+            if not results_dir:
+                # Fallback: Create results directory next to the video file
+                video_dir = os.path.dirname(video_path)
+                results_dir = os.path.join(video_dir, f"{experiment_id}_results")
+            os.makedirs(results_dir, exist_ok=True)
+            log.info(
+                "worker.results_dir_configured",
+                video=experiment_id,
+                results_dir=results_dir,
+            )
 
         recorder = Recorder(settings_obj=self.config.settings)
 
@@ -504,7 +564,7 @@ class _WorkerProcess(multiprocessing.Process):
             output_folder=results_dir,
             frame_width=width,
             frame_height=height,
-            zones=self._default_zone_data,
+            zones=video_zone_data,
             is_video_file=True,
             base_name=experiment_id,
             pixel_per_cm_ratio=pixel_ratio,

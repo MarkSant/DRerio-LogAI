@@ -25,8 +25,28 @@ class CanvasRenderer:
         self.manager = canvas_manager
         self.gui = canvas_manager.gui
 
+    def _get_canvas(self):
+        """Get the canvas safely, returning None if video_display doesn't exist or is destroyed."""
+        if not hasattr(self.gui, 'video_display') or not self.gui.video_display:
+            return None
+        canvas = self.gui.video_display.canvas
+        if canvas is None:
+            return None
+        # Check if the canvas widget still exists (not destroyed)
+        try:
+            if not canvas.winfo_exists():
+                return None
+        except Exception:
+            return None
+        return canvas
+
     def draw_bg_image(self):
         """Draw the background image to canvas with proper scaling and centering."""
+        canvas = self._get_canvas()
+        if canvas is None:
+            log.debug("draw_bg_image.no_canvas_yet")
+            return
+
         if not hasattr(self.manager, "_raw_bg_image") or not self.manager._raw_bg_image:
             if hasattr(self.gui, "_original_image") and self.gui._original_image:
                 self.manager._raw_bg_image = self.gui._original_image
@@ -34,8 +54,8 @@ class CanvasRenderer:
                 return
 
         # Get actual canvas dimensions after layout
-        canvas_width = self.gui.video_display.canvas.winfo_width()
-        canvas_height = self.gui.video_display.canvas.winfo_height()
+        canvas_width = canvas.winfo_width()
+        canvas_height = canvas.winfo_height()
 
         if canvas_width <= 1 or canvas_height <= 1:
             # Canvas not ready yet, try again
@@ -63,13 +83,13 @@ class CanvasRenderer:
         image = self.manager._raw_bg_image.resize((new_width, new_height), Image.LANCZOS)
 
         # Clear canvas and display centered image
-        self.gui.video_display.canvas.delete("all")
+        canvas.delete("all")
         self.manager._canvas_bg_image = ImageTk.PhotoImage(image)
 
         # Store positioning for later restoration
         self.manager._canvas_bg_position = (center_x, center_y, "center")
 
-        self.gui.video_display.canvas.create_image(
+        canvas.create_image(
             center_x,
             center_y,
             anchor="center",
@@ -81,7 +101,7 @@ class CanvasRenderer:
         """Redraw zones preserving the background."""
         log.info("gui.redraw_zones.start")
 
-        canvas = self.gui.video_display.canvas if self.gui.video_display else None
+        canvas = self._get_canvas()
         if canvas is None:
             log.warning("gui.redraw_zones.no_canvas")
             return
@@ -143,7 +163,7 @@ class CanvasRenderer:
                 canvas.create_polygon(
                     canvas_polygon,
                     fill="",
-                    outline="cyan",
+                    outline="#008B8B",
                     width=2,
                     tags="main_polygon",
                 )
@@ -231,7 +251,7 @@ class CanvasRenderer:
         if getattr(self.gui, 'analysis_active', False):
             return
 
-        canvas = self.gui.video_display.canvas if self.gui.video_display else None
+        canvas = self._get_canvas()
         if not canvas:
             return
 
@@ -287,7 +307,11 @@ class CanvasRenderer:
 
     def draw_interactive_polygon(self):
         """Redraw the polygon and its handles based on current points."""
-        self.gui.video_display.canvas.delete(
+        canvas = self._get_canvas()
+        if not canvas:
+            return
+
+        canvas.delete(
             "interactive_polygon", "handle", "edit_clamp_indicator"
         )
 
@@ -297,10 +321,10 @@ class CanvasRenderer:
             canvas_points.append([canvas_point[0], canvas_point[1]])
 
         flat_points = [coord for point in canvas_points for coord in point]
-        self.gui.interactive_polygon_item = self.gui.video_display.canvas.create_polygon(
+        self.gui.interactive_polygon_item = canvas.create_polygon(
             flat_points,
             fill="",
-            outline="yellow",
+            outline="#DAA520",
             width=2,
             tags="interactive_polygon",
         )
@@ -327,9 +351,9 @@ class CanvasRenderer:
                     is_on_boundary = abs(result) < 1.0
 
             handle_fill = "orange" if is_on_boundary else "darkgoldenrod"
-            handle_outline = "red" if is_on_boundary else "yellow"
+            handle_outline = "red" if is_on_boundary else "#DAA520"
 
-            handle = self.gui.video_display.canvas.create_rectangle(
+            handle = canvas.create_rectangle(
                 x - 4,
                 y - 4,
                 x + 4,
@@ -341,7 +365,7 @@ class CanvasRenderer:
             self.gui.polygon_handles.append(handle)
 
             if is_on_boundary:
-                self.gui.video_display.canvas.create_oval(
+                canvas.create_oval(
                     x - 8,
                     y - 8,
                     x + 8,
@@ -351,22 +375,26 @@ class CanvasRenderer:
                     tags="edit_clamp_indicator",
                 )
 
-            self.gui.video_display.canvas.tag_bind(
+            canvas.tag_bind(
                 handle, "<ButtonPress-1>", lambda e, i=i: self.gui._on_handle_press(e, i)
             )
-            self.gui.video_display.canvas.tag_bind(handle, "<B1-Motion>", self.gui._on_handle_drag)
-            self.gui.video_display.canvas.tag_bind(
+            canvas.tag_bind(handle, "<B1-Motion>", self.gui._on_handle_drag)
+            canvas.tag_bind(
                 handle, "<ButtonRelease-1>", self.gui._on_handle_release
             )
 
     def redraw_polygon_in_progress(self):
         """Redraw the polygon vertices and edges after undo/redo."""
-        self.gui.video_display.canvas.delete("drawing_aid")
+        canvas = self._get_canvas()
+        if not canvas:
+            return
+
+        canvas.delete("drawing_aid")
 
         current_points = self.gui.drawing_state_manager.current_points
 
         for canvas_x, canvas_y in current_points:
-            self.gui.video_display.canvas.create_oval(
+            canvas.create_oval(
                 canvas_x - 2,
                 canvas_y - 2,
                 canvas_x + 2,
@@ -379,6 +407,6 @@ class CanvasRenderer:
         for i in range(len(current_points) - 1):
             p1 = current_points[i]
             p2 = current_points[i + 1]
-            self.gui.video_display.canvas.create_line(
-                p1[0], p1[1], p2[0], p2[1], fill="cyan", width=2, tags="drawing_aid"
+            canvas.create_line(
+                p1[0], p1[1], p2[0], p2[1], fill="#008B8B", width=2, tags="drawing_aid"
             )

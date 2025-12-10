@@ -157,6 +157,7 @@ def create_test_controller(root, **overrides):
             project_workflow_adapter=project_workflow_adapter,
             settings_obj=settings_obj,
             event_bus=defaults["event_bus"],
+            detector_service=defaults["detector_service"],  # Phase 3E: For default callbacks
         )
 
         # Update dependencies with real coordinator

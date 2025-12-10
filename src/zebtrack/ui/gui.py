@@ -611,6 +611,16 @@ class ApplicationGUI:
         # Ensure analysis UI starts hidden
         self.hide_progress_bar()
 
+        # Populate video selector tree after tabs are built
+        if self.event_bus_v2:
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data={"filter_text": None},
+                    source="ApplicationGUI._create_main_control_frame",
+                )
+            )
+
     def _on_canvas_configure(self, event):
         """Handle canvas resize events."""
         self.canvas_manager.on_canvas_configure(event)
@@ -703,6 +713,10 @@ class ApplicationGUI:
     def _recenter_canvas_image(self, canvas_width, canvas_height):
         """Recenter the canvas background image."""
         if not hasattr(self, "_canvas_bg_position"):
+            return
+
+        # Safety check: video_display may not exist yet
+        if not hasattr(self, 'video_display') or not self.video_display:
             return
 
         # Remove the old image

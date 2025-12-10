@@ -273,6 +273,17 @@ class ProjectWorkflowService:
         else:
             resolved_openvino = bool(openvino_override)
 
+        # Validate OpenVINO is actually available for the resolved weight
+        # If OpenVINO is requested but not ready, fall back to PyTorch
+        if resolved_openvino and resolved_weight:
+            if not self.model_service.is_openvino_ready(resolved_weight):
+                log.warning(
+                    "project_workflow_service.openvino_not_ready_fallback",
+                    weight=resolved_weight,
+                    message="OpenVINO requested but model not converted. Falling back to PyTorch.",
+                )
+                resolved_openvino = False
+
         log.info(
             "project_workflow_service.model_settings_resolved",
             resolved_weight=resolved_weight,
@@ -429,6 +440,21 @@ class ProjectWorkflowService:
             )
             # Update kwargs with enriched videos
             kwargs["scanned_videos"] = enriched_scanned_videos
+
+            # If user chose not to import parquets, clear the data availability flags
+            # so the project starts fresh without showing existing parquet data
+            parquet_import_scope = kwargs.get("parquet_import_scope")
+            if not parquet_import_scope:
+                log.info(
+                    "project_workflow_service.clearing_parquet_flags",
+                    reason="parquet_import_scope is None - user chose not to import",
+                )
+                for video_info in enriched_scanned_videos:
+                    video_info["has_arena"] = False
+                    video_info["has_rois"] = False
+                    video_info["has_trajectory"] = False
+                    video_info["has_complete_data"] = False
+                    video_info["has_data"] = False
 
             # Convert scanned videos to video_files format
             video_files = []

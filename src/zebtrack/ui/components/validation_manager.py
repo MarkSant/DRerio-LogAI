@@ -618,9 +618,9 @@ class ValidationManager:
         )
 
         return (
-            f"{self.format_status_ratio('arena', arena_count, total)}  "
-            f"{self.format_status_ratio('rois', roi_count, total)}  "
-            f"{self.format_status_ratio('trajectory', traj_count, total)}  "
+            f"{self.format_status_ratio('arena', arena_count, total)}    "
+            f"{self.format_status_ratio('rois', roi_count, total)}    "
+            f"{self.format_status_ratio('trajectory', traj_count, total)}    "
             f"{self.format_status_ratio('summary', complete_count, total)}"
         )
 
@@ -646,7 +646,7 @@ class ValidationManager:
             self.format_status_token(has_trajectory, "trajectory"),
             self.format_status_token(has_complete, "summary"),
         ]
-        return "  ".join(markers)
+        return "    ".join(markers)
 
     def format_video_metadata(self, metadata: dict) -> str:
         """Format video metadata into compact display string.
@@ -1094,7 +1094,7 @@ class ValidationManager:
                     has_arena = video_entry.get("has_arena", False)
                     has_rois = video_entry.get("has_rois", False)
                     has_traj = video_entry.get("has_trajectory", False)
-                    status_tokens = " ".join(
+                    status_tokens = "    ".join(
                         [
                             self.format_status_token(has_arena, "arena"),
                             self.format_status_token(has_rois, "rois"),

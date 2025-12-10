@@ -114,11 +114,17 @@ class StateSynchronizer:
             # Disable process button during processing
             if self.gui.process_video_btn:
                 self.gui.process_video_btn.config(state="disabled")
+            # Switch to analysis view mode
+            if hasattr(self.gui, "start_analysis_view_mode"):
+                self.gui.start_analysis_view_mode()
         else:
             log.debug("gui.processing_state.stopped")
             # Re-enable process button after processing
             if self.gui.process_video_btn:
                 self.gui.process_video_btn.config(state="normal")
+            # Switch back from analysis view mode
+            if hasattr(self.gui, "stop_analysis_view_mode"):
+                self.gui.stop_analysis_view_mode()
 
     def _update_detector_ui(self, detector_initialized: bool) -> None:
         """Update UI elements based on detector state."""
@@ -241,7 +247,10 @@ class StateSynchronizer:
                     pass
                 self.gui._overview_refresh_job = None
             self.gui.project_overview_frame = None
-            self.gui.project_overview_tree = None
+            # Note: project_overview_tree is a read-only property derived from project_overview_widget
+            # Clear the widget reference instead
+            if hasattr(self.gui, "project_overview_widget"):
+                self.gui.project_overview_widget = None
             self.gui.project_status_vars.clear()
             self.gui._project_status_containers.clear()
             self.gui._last_overview_counts = {}
@@ -332,14 +341,23 @@ class StateSynchronizer:
         if getattr(self.gui, "analysis_metadata_var", None) is not None:
             self.gui.analysis_metadata_var.set(combined)
 
-        if getattr(self.gui, "analysis_group_var", None) is not None:
-            self.gui.analysis_group_var.set(f"Grupo: {group}")
-
-        if getattr(self.gui, "analysis_day_var", None) is not None:
-            self.gui.analysis_day_var.set(f"Dia: {day}")
-
-        if getattr(self.gui, "analysis_subject_var", None) is not None:
-            self.gui.analysis_subject_var.set(f"Indivíduo: {subject}")
+        # Try to access variables from analysis_display_widget first
+        analysis_widget = getattr(self.gui, "analysis_display_widget", None)
+        if analysis_widget:
+            if getattr(analysis_widget, "group_var", None) is not None:
+                analysis_widget.group_var.set(f"Grupo: {group}")
+            if getattr(analysis_widget, "day_var", None) is not None:
+                analysis_widget.day_var.set(f"Dia: {day}")
+            if getattr(analysis_widget, "subject_var", None) is not None:
+                analysis_widget.subject_var.set(f"Indivíduo: {subject}")
+        else:
+            # Fallback to gui-level variables (legacy support)
+            if getattr(self.gui, "analysis_group_var", None) is not None:
+                self.gui.analysis_group_var.set(f"Grupo: {group}")
+            if getattr(self.gui, "analysis_day_var", None) is not None:
+                self.gui.analysis_day_var.set(f"Dia: {day}")
+            if getattr(self.gui, "analysis_subject_var", None) is not None:
+                self.gui.analysis_subject_var.set(f"Indivíduo: {subject}")
 
     @staticmethod
     def _default_analysis_task_text() -> str:
@@ -568,9 +586,20 @@ class StateSynchronizer:
         total: int | None = None,
         experiment_id: str | None = None,
         step: str | None = None,
+        group: str | None = None,
+        day: str | None = None,
+        subject: str | None = None,
     ) -> None:
         """Update analysis task status in the UI."""
-        if not hasattr(self.gui, "analysis_task_var") or self.gui.analysis_task_var is None:
+        # Find the task variable - either in analysis_display_widget or gui
+        task_var = None
+        analysis_widget = getattr(self.gui, "analysis_display_widget", None)
+        if analysis_widget and getattr(analysis_widget, "task_var", None) is not None:
+            task_var = analysis_widget.task_var
+        elif hasattr(self.gui, "analysis_task_var") and self.gui.analysis_task_var is not None:
+            task_var = self.gui.analysis_task_var
+
+        if task_var is None:
             return
 
         total_videos = max(int(total) if total is not None else 0, 1)
@@ -591,4 +620,10 @@ class StateSynchronizer:
                 if step_text:
                     parts.append(f"• {step_text}")
 
-        self.gui.analysis_task_var.set(" ".join(parts))
+        task_var.set(" ".join(parts))
+
+        # Update metadata display (group, day, subject)
+        group_str = str(group) if group else "Sem Grupo"
+        day_str = str(day) if day else "Sem Dia"
+        subject_str = str(subject) if subject else "Não informado"
+        self._apply_analysis_metadata_strings(group_str, day_str, subject_str)

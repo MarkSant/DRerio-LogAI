@@ -1,7 +1,7 @@
 """Zone controls widget component - zone drawing and management UI."""
 
 import tkinter as tk
-from tkinter import StringVar, ttk
+from tkinter import Menu, StringVar, ttk
 
 import structlog
 
@@ -216,6 +216,15 @@ class ZoneControlsWidget(BaseWidget):
         )
         self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=5, pady=5)
 
+        # Finish Drawing button - for completing polygon without double-click
+        self.finish_drawing_btn = ttk.Button(
+            self.interactive_buttons_frame,
+            text="✓ Finalizar Desenho",
+            command=self._on_finish_drawing_clicked,
+        )
+        self.finish_drawing_btn.pack(side="left", fill="x", expand=True, padx=5, pady=5)
+        self.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=5, pady=5)
+
     def _build_single_analysis_options(self) -> None:
         """Build the single analysis options section."""
         self.single_analysis_options_frame = ttk.LabelFrame(
@@ -316,13 +325,13 @@ class ZoneControlsWidget(BaseWidget):
             template_selector = ttk.Frame(container)
             template_selector.pack(fill="x", pady=(0, 6))
 
-            ttk.Label(template_selector, text="Templates salvos:").pack(side="left", padx=(0, 5))
+            ttk.Label(template_selector, text="Template:").pack(side="left", padx=(0, 5))
             self.roi_template_combobox = ttk.Combobox(
                 template_selector,
                 state="readonly",
                 textvariable=self.roi_template_var,
                 values=[],
-                width=25,
+                width=15,
             )
             self.roi_template_combobox.pack(side="left", fill="x", expand=True)
 
@@ -352,7 +361,7 @@ class ZoneControlsWidget(BaseWidget):
                     "Templates armazenam o polígono principal e todas as ROIs "
                     "para reutilizar em outros vídeos do projeto."
                 ),
-                wraplength=250,
+                wraplength=200,
                 style="Small.TLabel",
             ).pack(anchor="w", pady=(6, 0))
 
@@ -403,9 +412,9 @@ class ZoneControlsWidget(BaseWidget):
         self.video_selector_tree.heading("status", text="Dados")
         self.video_selector_tree.heading("filename", text="Arquivo")
 
-        self.video_selector_tree.column("#0", width=280, minwidth=220, stretch=True)
-        self.video_selector_tree.column("status", width=100, anchor="center", stretch=False)
-        self.video_selector_tree.column("filename", width=140, stretch=True)
+        self.video_selector_tree.column("#0", width=180, minwidth=140, stretch=True)
+        self.video_selector_tree.column("status", width=60, anchor="center", stretch=False)
+        self.video_selector_tree.column("filename", width=120, stretch=True)
 
         scrollbar = create_scrollbar(
             tree_container, orient="vertical", command=self.video_selector_tree.yview
@@ -425,6 +434,10 @@ class ZoneControlsWidget(BaseWidget):
 
         # Bind events
         self.video_selector_tree.bind("<Double-Button-1>", self._on_video_tree_double_click)
+        self.video_selector_tree.bind("<Button-3>", self._on_video_tree_right_click)
+
+        # Create context menu for video tree
+        self._create_video_tree_context_menu()
 
         # Load frame button
         ttk.Button(
@@ -489,9 +502,9 @@ class ZoneControlsWidget(BaseWidget):
         self.zone_listbox.heading("color", text="Cor")
 
         # Configure column widths
-        self.zone_listbox.column("name", width=180, minwidth=130, stretch=True)
-        self.zone_listbox.column("type", width=70, minwidth=60, stretch=False)
-        self.zone_listbox.column("color", width=50, minwidth=40, stretch=False)
+        self.zone_listbox.column("name", width=130, minwidth=100, stretch=True)
+        self.zone_listbox.column("type", width=60, minwidth=50, stretch=False)
+        self.zone_listbox.column("color", width=40, minwidth=35, stretch=False)
 
         self.zone_listbox.pack(side="left", fill="both", expand=True)
 
@@ -528,7 +541,7 @@ class ZoneControlsWidget(BaseWidget):
                 "seg_overlap",
             ],
             state="readonly",
-            width=30,
+            width=18,
         )
         self.roi_rule_combo.pack(side="left", fill="x", expand=True)
         self.roi_rule_combo.bind("<<ComboboxSelected>>", self._on_roi_rule_changed)
@@ -561,7 +574,7 @@ class ZoneControlsWidget(BaseWidget):
             self.roi_inclusion_frame,
             text="",
             font=("TkDefaultFont", 8),
-            wraplength=250,  # Adjusted for narrower panel
+            wraplength=200,  # Adjusted for narrower panel
             justify="left",
         )
         self.rule_help_label.pack(fill="x", pady=(5, 0))
@@ -629,6 +642,104 @@ class ZoneControlsWidget(BaseWidget):
             item_id = selection[0]
             self.emit_event("zone.video_double_click", {"item_id": item_id})
 
+    def _on_video_tree_right_click(self, event) -> None:
+        """Handle video tree right-click to show context menu."""
+        if not self.video_selector_tree or not hasattr(self, "_video_context_menu"):
+            return
+
+        # Identify the item under cursor
+        item_id = self.video_selector_tree.identify_row(event.y)
+        if not item_id:
+            return
+
+        # Select the item
+        self.video_selector_tree.selection_set(item_id)
+
+        # Check if this is a video item (has a video_path stored)
+        video_path = self._get_video_path_from_item(item_id)
+        if not video_path:
+            return
+
+        # Store the video path for menu commands
+        self._context_menu_video_path = video_path
+
+        # Show context menu
+        self._video_context_menu.post(event.x_root, event.y_root)
+
+    def _create_video_tree_context_menu(self) -> None:
+        """Create context menu for video tree with copy/paste/delete options."""
+        self._video_context_menu = Menu(
+            self.video_selector_tree, tearoff=0, font=("TkDefaultFont", 9)
+        )
+        self._video_context_menu.add_command(
+            label="📋 Copiar Zonas", command=self._on_copy_zones_clicked
+        )
+        self._video_context_menu.add_command(
+            label="📥 Colar Zonas", command=self._on_paste_zones_clicked
+        )
+        self._video_context_menu.add_separator()
+        self._video_context_menu.add_command(
+            label="🗑️ Excluir Zonas", command=self._on_delete_zones_clicked
+        )
+        self._context_menu_video_path = None
+
+    def _get_video_path_from_item(self, item_id: str) -> str | None:
+        """Get video path from a tree item ID.
+
+        The video path is stored in the item's tags, not values.
+        Only leaf nodes (video items) have tags with the path.
+        """
+        if not self.video_selector_tree:
+            return None
+
+        # Get item data
+        item = self.video_selector_tree.item(item_id)
+
+        # Video path is stored in tags (first tag is the path)
+        # Note: tags can be a tuple, list, or string depending on Tk version
+        tags = item.get("tags", ())
+
+        if not tags:
+            return None
+
+        # Handle case where tags is a string (single tag)
+        if isinstance(tags, str):
+            return tags if tags else None
+
+        # Handle case where tags is a tuple/list
+        if len(tags) > 0:
+            tag = tags[0]
+            # Return the tag if it looks like a path (contains path separator or file extension)
+            if tag and (
+                "/" in str(tag)
+                or "\\" in str(tag)
+                or any(str(tag).lower().endswith(ext) for ext in (".mp4", ".avi", ".mov", ".mkv"))
+            ):
+                return str(tag)
+
+        return None
+
+    def _on_copy_zones_clicked(self) -> None:
+        """Handle copy zones from context menu."""
+        if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
+            self.emit_event(
+                "zone.copy_zones", {"video_path": self._context_menu_video_path}
+            )
+
+    def _on_paste_zones_clicked(self) -> None:
+        """Handle paste zones from context menu."""
+        if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
+            self.emit_event(
+                "zone.paste_zones", {"video_path": self._context_menu_video_path}
+            )
+
+    def _on_delete_zones_clicked(self) -> None:
+        """Handle delete zones from context menu."""
+        if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
+            self.emit_event(
+                "zone.delete_zones", {"video_path": self._context_menu_video_path}
+            )
+
     def _on_load_video_frame_clicked(self) -> None:
         """Handle load video frame button click."""
         if not self.video_selector_tree:
@@ -669,6 +780,10 @@ class ZoneControlsWidget(BaseWidget):
     def _on_discard_arena_clicked(self) -> None:
         """Handle discard arena button click."""
         self.emit_event("zone.discard_arena", {})
+
+    def _on_finish_drawing_clicked(self) -> None:
+        """Handle finish drawing button click - completes polygon without double-click."""
+        self.emit_event("zone.finish_drawing", {})
 
     def _on_roi_rule_changed(self, event) -> None:
         """Handle ROI rule change."""

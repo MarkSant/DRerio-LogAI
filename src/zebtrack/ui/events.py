@@ -113,7 +113,9 @@ class Events:
 
     # Project
     PROJECT_CREATE = "project:create"
+    PROJECT_CREATED = "project:created"  # Internal event after project is created
     PROJECT_OPEN = "project:open"
+    PROJECT_OPENED = "project:opened"  # Internal event after project is opened
     PROJECT_CLOSE = "project:close"
     PROJECT_CLOSED = "project:closed"  # Internal event after project is closed
     PROJECT_MANAGER_REPLACED = "project:manager_replaced"  # Internal event for service updates
@@ -173,7 +175,11 @@ class Events:
     ZONE_LIST_ITEM_DOUBLE_CLICK = "zone.list_item_double_click"
     ZONE_SAVE_ARENA = "zone.save_arena"
     ZONE_DISCARD_ARENA = "zone.discard_arena"
+    ZONE_FINISH_DRAWING = "zone.finish_drawing"
     ZONE_AUTO_DETECT_CLICKED = "zone.auto_detect_clicked"
+    ZONE_COPY_ZONES = "zone.copy_zones"
+    ZONE_PASTE_ZONES = "zone.paste_zones"
+    ZONE_DELETE_ZONES = "zone.delete_zones"
 
     # Calibration
     CALIBRATION_RUN_LIVE = "calibration:run_live"

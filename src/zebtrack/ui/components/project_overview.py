@@ -76,18 +76,19 @@ class ProjectOverviewWidget(BaseWidget):
 
         for idx, (status_key, icon, label) in enumerate(status_types):
             card = ttk.Frame(self.status_cards_frame, relief="raised", borderwidth=1)
-            card.grid(row=idx // 3, column=idx % 3, padx=5, pady=5, sticky="ew")
+            card.grid(row=idx // 3, column=idx % 3, padx=2, pady=2, sticky="ew")
 
-            ttk.Label(card, text=icon, font=("TkDefaultFont", 16)).pack()
+            # Compact horizontal layout: icon + number + label
+            ttk.Label(card, text=icon, font=("TkDefaultFont", 10)).pack(side="left", padx=(5, 2))
 
             self.project_status_vars[status_key] = StringVar(value="0")
             ttk.Label(
                 card,
                 textvariable=self.project_status_vars[status_key],
-                font=("TkDefaultFont", 14, "bold"),
-            ).pack()
+                font=("TkDefaultFont", 10, "bold"),
+            ).pack(side="left", padx=2)
 
-            ttk.Label(card, text=label, font=("TkDefaultFont", 8)).pack()
+            ttk.Label(card, text=label, font=("TkDefaultFont", 9)).pack(side="left", padx=(2, 5))
 
         # Configure grid weights
         for i in range(3):
@@ -116,16 +117,16 @@ class ProjectOverviewWidget(BaseWidget):
             tree_container,
             columns=("status", "metadata"),
             show="tree headings",
-            height=15,
+            height=12,
             selectmode="browse",
         )
         self.project_overview_tree.heading("#0", text="Vídeos")
         self.project_overview_tree.heading("status", text="Status")
         self.project_overview_tree.heading("metadata", text="Metadados")
 
-        self.project_overview_tree.column("#0", width=300, stretch=True)
-        self.project_overview_tree.column("status", width=100, anchor="center")
-        self.project_overview_tree.column("metadata", width=200, stretch=True)
+        self.project_overview_tree.column("#0", width=250, minwidth=150, stretch=True)
+        self.project_overview_tree.column("status", width=80, minwidth=60, anchor="center")
+        self.project_overview_tree.column("metadata", width=350, minwidth=200, stretch=True)
 
         scrollbar = create_scrollbar(
             tree_container, orient="vertical", command=self.project_overview_tree.yview

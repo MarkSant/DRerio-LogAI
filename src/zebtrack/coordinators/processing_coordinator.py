@@ -424,15 +424,57 @@ class ProcessingCoordinator(BaseCoordinator):
             self.project_manager.set_active_zone_video(None)
             self._publish_processing_mode(source="worker.started", force=True)
 
-        def on_progress(fraction: float, message: str, stats: dict | None):
+        def on_progress(
+            index: int,
+            total: int,
+            experiment_id: str,
+            fraction: float,
+            message: str,
+            stats: dict | None
+        ):
             """Call with progress updates."""
             if self.cancel_event.is_set() or not self.view:
                 return
 
-            self.ui_coordinator.set_status(self.view, message)
+            overall_progress = f"Processando {index + 1}/{total}: {experiment_id}"
+            step_status = f"Etapa: {message}"
+            self.ui_coordinator.set_status(self.view, f"{overall_progress} - {step_status}")
             self.ui_coordinator.update_progress(self.view, fraction)
             self.ui_coordinator.update_view(
-                self.view, "update_analysis_progress", fraction, message
+                self.view, "update_analysis_progress", fraction, step_status
+            )
+
+            # Extract video metadata for current video
+            video_metadata = {}
+            if 0 <= index < len(videos_to_process):
+                current_video = videos_to_process[index]
+                video_metadata = current_video.get("metadata", {})
+
+            # Log metadata extraction for debugging
+            log.debug(
+                "on_progress.metadata_extracted",
+                index=index,
+                total=total,
+                experiment_id=experiment_id,
+                group=video_metadata.get("group"),
+                day=video_metadata.get("day"),
+                subject=video_metadata.get("subject"),
+            )
+
+            # Publish task status update for Analysis tab display
+            self._publish_event(
+                Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
+                {
+                    "payload": {
+                        "index": index,
+                        "total": total,
+                        "experiment_id": experiment_id,
+                        "step": message,
+                        "group": video_metadata.get("group"),
+                        "day": video_metadata.get("day"),
+                        "subject": video_metadata.get("subject"),
+                    }
+                },
             )
 
             if stats:
@@ -473,11 +515,13 @@ class ProcessingCoordinator(BaseCoordinator):
 
             # Find the video entry by experiment_id
             video_path = None
+            video_results_dir = None
             for v in videos_to_process:
                 v_path = v.get("path", "")
                 v_exp_id = os.path.splitext(os.path.basename(v_path))[0]
                 if v_exp_id == experiment_id:
                     video_path = v_path
+                    video_results_dir = v.get("results_dir")
                     break
 
             if not video_path:
@@ -487,9 +531,12 @@ class ProcessingCoordinator(BaseCoordinator):
                 )
                 return
 
-            # Construct results directory and trajectory path
-            video_name = os.path.splitext(os.path.basename(video_path))[0]
-            results_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_results")
+            # Use pre-calculated results_dir if available, otherwise construct fallback
+            if video_results_dir:
+                results_dir = video_results_dir
+            else:
+                video_name = os.path.splitext(os.path.basename(video_path))[0]
+                results_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_results")
             trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
 
             # Register the trajectory output with the project manager
@@ -938,6 +985,15 @@ class ProcessingCoordinator(BaseCoordinator):
 
         self.processing_worker = ProcessingWorker(context, callbacks)
         self.processing_thread = self.processing_worker.start_in_thread()
+
+        # Update processing state to trigger UI navigation to analysis view
+        first_video = eligible_videos[0] if eligible_videos else {}
+        self.state_manager.update_processing_state(
+            source="controller.process_pending_project_videos",
+            is_processing=True,
+            current_video=os.path.basename(first_video.get("path", "")),
+            processing_start_time=datetime.now(),
+        )
 
         for video_info in eligible_videos:
             path_value = video_info.get("path")
@@ -1798,10 +1854,40 @@ class ProcessingCoordinator(BaseCoordinator):
             )
 
     def _load_zones_for_eligible_videos(self, eligible_videos: list) -> None:
-        """Load zone data from parquet files for eligible videos."""
+        """Load zone data from parquet files for eligible videos.
+
+        Also serializes zone data and results_dir into each video_info dict so
+        the worker can access per-video zones and output paths during batch processing.
+        """
         zones_updated = False
         for video_info in eligible_videos:
+            video_path = video_info.get("path", "")
+            experiment_id = os.path.splitext(os.path.basename(video_path))[0] if video_path else ""
+
+            # Calculate correct results_dir using project metadata
+            metadata = video_info.get("metadata", {})
+            results_path = self.project_manager.resolve_results_directory(
+                experiment_id=experiment_id,
+                video_path=video_path,
+                metadata=metadata,
+            )
+            video_info["results_dir"] = str(results_path)
+            log.debug(
+                "workflow.results_dir_attached_to_video_info",
+                video=os.path.basename(video_path),
+                results_dir=str(results_path),
+            )
+
             if video_info.get("has_arena") or video_info.get("has_rois"):
+                # Debug: log parquet_files before loading
+                pf = video_info.get("parquet_files", {})
+                log.debug(
+                    "workflow.zone_load.parquet_files_check",
+                    video=os.path.basename(video_path),
+                    parquet_files=pf,
+                    has_arena_file=bool(pf.get("arena")),
+                    has_rois_file=bool(pf.get("rois")),
+                )
                 try:
                     zone_data = ProjectManager.load_zones_from_parquet(video_info)
                 except Exception as exc:
@@ -1817,6 +1903,20 @@ class ProcessingCoordinator(BaseCoordinator):
                         zone_data, video_info["path"], persist=False
                     )
                     zones_updated = True
+
+                    # Serialize zone data into video_info for worker access
+                    video_info["zone_data"] = {
+                        "polygon": zone_data.polygon,
+                        "roi_polygons": zone_data.roi_polygons,
+                        "roi_names": zone_data.roi_names,
+                        "roi_colors": zone_data.roi_colors,
+                    }
+                    log.info(
+                        "workflow.zone_data_attached_to_video_info",
+                        video=os.path.basename(video_info.get("path", "")),
+                        polygon_points=len(zone_data.polygon),
+                        roi_count=len(zone_data.roi_polygons),
+                    )
 
         if zones_updated:
             self.project_manager.save_project()

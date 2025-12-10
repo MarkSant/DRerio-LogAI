@@ -38,7 +38,6 @@ class TabBuilder:
             self._add_recording_buttons(controls_container)
         elif project_type == "pre-recorded":
             self._add_processing_buttons(controls_container)
-            self._add_interval_settings(self.gui.main_controls_frame)
 
         # Botão fechar (sempre presente)
         Button(
@@ -50,8 +49,16 @@ class TabBuilder:
         # Constrói painel de overview (Delegates to GUI/WidgetFactory)
         self.gui._create_project_overview_panel(self.gui.main_controls_frame)
 
-        # Constrói status de modelo
-        self._build_model_status_section(self.gui.main_controls_frame)
+        # Container para widgets lado a lado na parte inferior
+        bottom_container = ttk.Frame(self.gui.main_controls_frame)
+        bottom_container.pack(fill="x", pady=(5, 10), padx=10)
+
+        # Intervalos de processamento (apenas pré-gravado) - lado esquerdo
+        if project_type == "pre-recorded":
+            self._add_interval_settings(bottom_container)
+
+        # Status de modelo - lado direito
+        self._build_model_status_section(bottom_container)
 
         # Constrói widgets específicos de tipo de projeto
         if project_type == "live":
@@ -122,8 +129,8 @@ class TabBuilder:
         def _on_pane_configure(event=None):
             try:
                 current_pos = main_pane.sashpos(0)
-                if current_pos < 550:  # Further increased min width
-                    main_pane.sashpos(0, 550)
+                if current_pos < 420:  # Minimum width for left panel
+                    main_pane.sashpos(0, 420)
             except Exception:
                 pass
 
@@ -148,8 +155,8 @@ class TabBuilder:
         def _set_initial_sash():
             try:
                 main_pane.update_idletasks()
-                # Set sash position to a wider default (e.g., 600px)
-                main_pane.sashpos(0, 600)
+                # Set sash position to a comfortable default
+                main_pane.sashpos(0, 450)
             except Exception:
                 pass
 
@@ -200,19 +207,19 @@ class TabBuilder:
     def _add_interval_settings(self, parent):
         """Adiciona controles de configuração de intervalo."""
         intervals_frame = ttk.LabelFrame(parent, text="Intervalos de Processamento", padding=10)
-        intervals_frame.pack(fill="x", pady=10, padx=10)
+        intervals_frame.pack(side="left", fill="both", expand=True, padx=(0, 5))
 
         analysis_label_frame = ttk.Frame(intervals_frame)
         analysis_label_frame.pack(fill="x", pady=2)
         ttk.Label(analysis_label_frame, text="Intervalo de Análise (frames):").pack(side="left")
-        ttk.Entry(analysis_label_frame, textvariable=self.gui.analysis_interval_var, width=10).pack(
+        ttk.Entry(analysis_label_frame, textvariable=self.gui.analysis_interval_var, width=8).pack(
             side="right"
         )
 
         display_label_frame = ttk.Frame(intervals_frame)
         display_label_frame.pack(fill="x", pady=2)
         ttk.Label(display_label_frame, text="Intervalo de Exibição (frames):").pack(side="left")
-        ttk.Entry(display_label_frame, textvariable=self.gui.display_interval_var, width=10).pack(
+        ttk.Entry(display_label_frame, textvariable=self.gui.display_interval_var, width=8).pack(
             side="right"
         )
 
@@ -223,7 +230,7 @@ class TabBuilder:
             text="Estado do Modelo de Detecção",
             padding=10,
         )
-        model_status_frame.pack(fill="x", pady=(10, 10))
+        model_status_frame.pack(side="left", fill="both", expand=True, padx=(5, 0))
         ttk.Label(
             model_status_frame,
             textvariable=self.gui._active_weight_display_var,

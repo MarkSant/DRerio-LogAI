@@ -162,6 +162,11 @@ class EventDispatcher:
         )
 
         self.event_bus.subscribe(
+            Events.UI_NAVIGATE_TO_PROJECT_VIEW,
+            lambda d: self.gui._create_main_control_frame(),
+        )
+
+        self.event_bus.subscribe(
             "project:closed",
             lambda d: self.gui.state_synchronizer._destroy_notebook_and_main_controls(),
         )
@@ -505,6 +510,30 @@ class EventDispatcher:
         )
         self.event_bus.subscribe(
             Events.ZONE_DISCARD_ARENA, lambda d: self.gui.canvas_manager.discard_arena()
+        )
+        self.event_bus.subscribe(
+            Events.ZONE_FINISH_DRAWING,
+            lambda d: self.gui.canvas_manager.event_handler.on_canvas_double_click(None),
+        )
+
+        # Zone Context Menu Actions (Copy/Paste/Delete)
+        self.event_bus.subscribe(
+            Events.ZONE_COPY_ZONES,
+            lambda d: self.gui.canvas_manager.copy_zones_from_video(
+                d.get("video_path") if isinstance(d, dict) else None
+            ),
+        )
+        self.event_bus.subscribe(
+            Events.ZONE_PASTE_ZONES,
+            lambda d: self.gui.canvas_manager.paste_zones_to_video(
+                d.get("video_path") if isinstance(d, dict) else None
+            ),
+        )
+        self.event_bus.subscribe(
+            Events.ZONE_DELETE_ZONES,
+            lambda d: self.gui.canvas_manager.delete_zones_from_video(
+                d.get("video_path") if isinstance(d, dict) else None
+            ),
         )
 
         # ROI Settings

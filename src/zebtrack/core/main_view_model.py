@@ -99,11 +99,8 @@ class MainViewModel:
                 "positional",
             ),
             Events.PROJECT_CLOSE: (self.project_vm.close_project, [], "no_params"),
-            Events.PROJECT_PROCESS_VIDEOS: (
-                self.analysis_vm.start_project_processing_workflow,
-                [],
-                "no_params",
-            ),
+            # NOTE: PROJECT_PROCESS_VIDEOS is handled by ProcessingCoordinator
+            # which properly accepts video_paths parameter
             Events.PROJECT_ADD_VIDEOS: (self.project_vm.add_videos_to_project, [], "no_params"),
             Events.MODEL_SET_OPENVINO: (self.hardware_vm.set_openvino_usage, [], "kwargs_all"),
             Events.MODEL_SET_WEIGHT: (self.hardware_vm.set_active_weight, [], "kwargs_all"),

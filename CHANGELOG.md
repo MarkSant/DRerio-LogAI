@@ -7,7 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 🔴 Visualization & Report Fixes
+### 🟢 New Features
+
+#### Zone Copy/Paste/Delete Context Menu
+- **NEW**: Right-click context menu on video tree in Zone Configuration tab
+- Copy zones from one video and paste to others (arena + all ROIs)
+- Delete zones option to clear all zones from a video
+- Automatic video tree status update after paste/delete operations
+- Uses EventBusV2 `VIDEO_TREE_REFRESH_REQUESTED` for consistent UI updates
+
+#### Finish Drawing Button
+- **NEW**: Added "✓ Finalizar Desenho" button for completing polygons
+- Alternative to double-click for users who prefer button interaction
+- Visible in interactive buttons frame during polygon drawing mode
+
+#### Improved Zone Drawing Colors
+- **UI**: Changed zone drawing colors for better visibility on video backgrounds
+- Cyan (#00FFFF) → Dark Teal (#008B8B) for arena outlines
+- Yellow (#FFFF00) → Goldenrod (#DAA520) for interactive polygons/elastic lines
+- Better contrast and readability on light-colored videos
+
+#### Drawing Flickering Fix
+- **UI**: Added 16ms debounce (~60fps) to `on_canvas_motion()` in event_handler.py
+- Reduces visual flickering during polygon drawing
+- Smoother elastic line animation while moving mouse
+
+### 🔴 Bug Fixes
+
+#### Batch Processing Video Frame Display Fix
+- **CRITICAL**: Fixed frames not displaying during batch processing
+- Added missing `update_processing_state(is_processing=True)` call in `process_pending_project_videos()`
+- This triggers `UI_NAVIGATE_TO_ANALYSIS_VIEW` event to set `analysis_active = True`
+- Frames now correctly display in the Analysis tab during batch video processing
+
+#### Batch Processing Per-Video Zone Data Fix
+- **CRITICAL**: Fixed zones/ROIs not being loaded for each video in batch processing
+- Modified `_load_zones_for_eligible_videos()` to serialize zone data into each `video_info` dict
+- Added `_get_zone_data_for_video()` method in ProcessingWorker for per-video zone lookup
+- Worker now uses video-specific zones instead of global default zones
+- Zones and ROIs now display correctly during batch processing with proper tracking
+
+#### Batch Processing Results Directory Fix
+- **CRITICAL**: Fixed results (parquet, reports) saving to wrong directory in batch processing
+- Worker now creates per-video results directory: `{video_name}_results/` next to each video
+- Trajectory parquet, arena/ROI parquets, and reports now save in correct location
+- `_generate_summaries_impl` can now find the trajectory files correctly
+
+#### Batch Processing Task Status Display Fix
+- **HIGH**: Fixed Analysis tab not showing video progress (X de Y), group, day, subject info
+- Updated `ProcessingCallbacks.on_progress` signature to include `index`, `total`, `experiment_id`
+- Worker `monitor_loop` now passes all progress fields to callback
+- `on_progress` callback now publishes `UI_UPDATE_ANALYSIS_TASK_STATUS` event
+- Analysis tab displays: "Vídeo X de Y — ExperimentID • Etapa"
+
+#### Batch Processing Selected Videos Fix
+- **HIGH**: Fixed batch processing ignoring pre-selected videos from context menu
+- Removed duplicate `PROJECT_PROCESS_VIDEOS` handler from `MainViewModel`
+- `ProcessingCoordinator` now sole handler, correctly receives `video_paths` parameter
+- "Processar Vídeos Selecionados" context menu action now works correctly
+
+### 🟠 Visualization & Report Fixes
 
 #### Trajectory Plot Coordinate System Fix
 - **CRITICAL**: Fixed Y-axis inversion in trajectory plots (`visualization_generator.py`)

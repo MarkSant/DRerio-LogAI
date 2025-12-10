@@ -26,6 +26,7 @@ from zebtrack.core.project_manager import AssetType
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
+    from zebtrack.core.detector_service import DetectorService
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.project_workflow_service import ProjectWorkflowService
     from zebtrack.core.state_manager import StateManager
@@ -80,6 +81,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         project_workflow_adapter: ProjectWorkflowAdapter,
         settings_obj: Settings,
         event_bus: EventBus | None = None,
+        detector_service: "DetectorService | None" = None,
     ):
         """Initialize ProjectLifecycleCoordinator with dependency injection.
 
@@ -90,6 +92,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             project_workflow_adapter: Adapter for workflow coordination
             settings_obj: Settings instance
             event_bus: Optional EventBus for publishing events
+            detector_service: Optional DetectorService for detector setup callbacks
 
         Note:
             NEVER pass MainViewModel. All dependencies must be explicit.
@@ -99,6 +102,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self.project_workflow_service = project_workflow_service
         self.project_workflow_adapter = project_workflow_adapter
         self.settings = settings_obj
+        self.detector_service = detector_service
 
         # Internal state (migrated from orchestrators)
         self._using_project_overrides: bool = False
@@ -175,21 +179,118 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         """
         self.logger.info("project.create.start", wizard_data_keys=list(wizard_data.keys()))
 
+        # Provide default callbacks using available dependencies
+        # These are safe no-op defaults when specific callbacks are not provided
+        def _default_setup_detector(animal_method: Any) -> bool:
+            """Default detector setup using detector_service if available."""
+            if self.detector_service:
+                try:
+                    # Get use_openvino from state_manager
+                    use_openvino = False
+                    active_weight = None
+                    if self.state_manager:
+                        detector_state = self.state_manager.get_detector_state()
+                        use_openvino = detector_state.use_openvino
+                        active_weight = detector_state.active_weight_name
+
+                    # Validate OpenVINO is actually ready for the active weight
+                    # If not ready, fall back to PyTorch to avoid initialization failure
+                    if use_openvino and active_weight:
+                        if hasattr(self.detector_service, 'model_service'):
+                            if not self.detector_service.model_service.is_openvino_ready(
+                                active_weight
+                            ):
+                                self.logger.warning(
+                                    "project.create.openvino_not_ready_fallback",
+                                    weight=active_weight,
+                                    message="Falling back to PyTorch",
+                                )
+                                use_openvino = False
+                                # Update state_manager to reflect the fallback
+                                if self.state_manager:
+                                    self.state_manager.update_detector_state(
+                                        source="project_lifecycle_coordinator.openvino_fallback",
+                                        use_openvino=False,
+                                    )
+
+                    success, error = self.detector_service.initialize_detector(
+                        animal_method=animal_method,
+                        use_openvino=use_openvino,
+                    )
+                    if not success:
+                        self.logger.error("project.create.detector_setup_failed", error=error)
+                    return success
+                except Exception as e:
+                    self.logger.error("project.create.detector_setup_failed", error=str(e))
+                    return False
+            return True  # No detector service, assume success
+
+        def _default_set_active_weight(weight_name: str) -> None:
+            """Default weight setter using state_manager."""
+            if self.state_manager:
+                self.state_manager.update_detector_state(
+                    source="project_lifecycle_coordinator.create_project",
+                    active_weight_name=weight_name,
+                )
+
+        def _default_set_openvino_usage(use_openvino: bool) -> None:
+            """Default OpenVINO setter using state_manager."""
+            if self.state_manager:
+                self.state_manager.update_detector_state(
+                    source="project_lifecycle_coordinator.create_project",
+                    use_openvino=use_openvino,
+                )
+
+        def _default_update_openvino_status() -> None:
+            """Default no-op for OpenVINO status update."""
+            pass  # UI will update via events
+
+        def _default_get_active_weight_name() -> str:
+            """Default getter for active weight name from state_manager."""
+            if self.state_manager:
+                detector_state = self.state_manager.get_detector_state()
+                return detector_state.active_weight_name or ""
+            return self.settings.detection.default_weight if self.settings else ""
+
+        def _default_get_use_openvino() -> bool:
+            """Default getter for OpenVINO usage from state_manager."""
+            if self.state_manager:
+                detector_state = self.state_manager.get_detector_state()
+                return detector_state.use_openvino
+            return self.settings.detection.use_openvino if self.settings else False
+
+        def _default_apply_wizard_overrides(metadata: dict) -> None:
+            """Default wizard overrides applier using detector_service."""
+            if self.detector_service and metadata:
+                detector_params = metadata.get("detector_parameters", {})
+                if detector_params:
+                    try:
+                        self.detector_service.update_tracking_parameters(
+                            params=detector_params,
+                            scope="project",
+                        )
+                    except Exception as e:
+                        self.logger.warning("project.create.wizard_overrides_failed", error=str(e))
+
         # Delegate to adapter which handles all UI coordination
         project_path = self.project_workflow_adapter.create_project_workflow(
-            setup_detector_callback=setup_detector_callback,
-            set_active_weight_callback=set_active_weight_callback,
-            set_openvino_usage_callback=set_openvino_usage_callback,
-            update_openvino_status_callback=update_openvino_status_callback,
-            get_active_weight_name=get_active_weight_name,
-            get_use_openvino=get_use_openvino,
-            apply_wizard_overrides_callback=apply_wizard_overrides_callback,
+            setup_detector_callback=setup_detector_callback or _default_setup_detector,
+            set_active_weight_callback=set_active_weight_callback or _default_set_active_weight,
+            set_openvino_usage_callback=set_openvino_usage_callback or _default_set_openvino_usage,
+            update_openvino_status_callback=update_openvino_status_callback or _default_update_openvino_status,
+            get_active_weight_name=get_active_weight_name or _default_get_active_weight_name,
+            get_use_openvino=get_use_openvino or _default_get_use_openvino,
+            apply_wizard_overrides_callback=apply_wizard_overrides_callback or _default_apply_wizard_overrides,
             view_suppress_guide_check=lambda: False,  # Default behavior
             **wizard_data,
         )
 
-        self._publish_event(Events.PROJECT_CREATED, {"path": str(project_path)})
-        self.logger.info("project.create.complete", path=str(project_path))
+        # Only publish success event if project was actually created
+        if project_path:
+            self._publish_event(Events.PROJECT_CREATED, {"path": str(project_path)})
+            self.logger.info("project.create.complete", path=str(project_path))
+        else:
+            self.logger.warning("project.create.failed")
 
         return project_path
 
@@ -226,17 +327,81 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         """
         self.logger.info("project.open.start", path=str(project_path))
 
+        # Provide default callbacks using available dependencies
+        def _default_setup_detector() -> bool:
+            """Default detector setup - initializes detector with current settings."""
+            if self.detector_service:
+                try:
+                    # Get use_openvino from state_manager
+                    use_openvino = False
+                    if self.state_manager:
+                        detector_state = self.state_manager.get_detector_state()
+                        use_openvino = detector_state.use_openvino
+                    success, error = self.detector_service.initialize_detector(
+                        animal_method=None,  # Use settings default
+                        use_openvino=use_openvino,
+                    )
+                    if not success:
+                        self.logger.error("project.open.detector_setup_failed", error=error)
+                    return success
+                except Exception as e:
+                    self.logger.error("project.open.detector_setup_failed", error=str(e))
+                    return False
+            return True
+
+        def _default_set_active_weight(weight_name: str) -> None:
+            """Default weight setter using state_manager."""
+            if self.state_manager:
+                self.state_manager.update_detector_state(
+                    source="project_lifecycle_coordinator.open_project",
+                    active_weight_name=weight_name,
+                )
+
+        def _default_set_openvino_usage(use_openvino: bool) -> None:
+            """Default OpenVINO setter using state_manager."""
+            if self.state_manager:
+                self.state_manager.update_detector_state(
+                    source="project_lifecycle_coordinator.open_project",
+                    use_openvino=use_openvino,
+                )
+
+        def _default_update_openvino_status() -> None:
+            """Default no-op for OpenVINO status update."""
+            pass
+
+        def _default_restore_detector(settings: dict) -> None:
+            """Default detector restore using detector_service."""
+            if self.detector_service and settings:
+                try:
+                    self.detector_service.restore_detector_settings(settings)
+                except Exception as e:
+                    self.logger.warning("project.open.restore_detector_failed", error=str(e))
+
+        def _default_get_active_weight_name() -> str:
+            """Default getter for active weight name from state_manager."""
+            if self.state_manager:
+                detector_state = self.state_manager.get_detector_state()
+                return detector_state.active_weight_name or ""
+            return self.settings.detection.default_weight if self.settings else ""
+
+        def _default_get_use_openvino() -> bool:
+            """Default getter for OpenVINO usage from state_manager."""
+            if self.state_manager:
+                detector_state = self.state_manager.get_detector_state()
+                return detector_state.use_openvino
+            return self.settings.detection.use_openvino if self.settings else False
+
         # Delegate to adapter which handles all UI coordination
         success = self.project_workflow_adapter.open_project_workflow(
             project_path=project_path,
-            setup_detector_callback=setup_detector_callback,
-            set_active_weight_callback=set_active_weight_callback,
-            set_openvino_usage_callback=set_openvino_usage_callback,
-            update_openvino_status_callback=update_openvino_status_callback,
+            setup_detector_callback=setup_detector_callback or _default_setup_detector,
+            set_active_weight_callback=set_active_weight_callback or _default_set_active_weight,
+            set_openvino_usage_callback=set_openvino_usage_callback or _default_set_openvino_usage,
+            update_openvino_status_callback=update_openvino_status_callback or _default_update_openvino_status,
             setup_zones_callback=setup_zones_callback or self._setup_zones_from_project,
-            restore_detector_callback=restore_detector_callback,
-            get_active_weight_name=get_active_weight_name,
-            get_use_openvino=get_use_openvino,
+            restore_detector_callback=restore_detector_callback or _default_restore_detector,
+            get_active_weight_name=get_active_weight_name or _default_get_active_weight_name,
+            get_use_openvino=get_use_openvino or _default_get_use_openvino,
         )
 
         if success:

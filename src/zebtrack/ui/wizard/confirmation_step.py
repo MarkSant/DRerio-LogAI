@@ -576,6 +576,11 @@ class ConfirmationStep(WizardStep):
             lines.append(f"  ({videos_to_process} vídeo(s) para processar)")
 
     def _append_parquet_summary(self, lines: list[str]) -> None:
+        # Only show parquet summary if user chose to import parquets
+        parquet_import_scope = self.wizard_data.get("parquet_import_scope")
+        if not parquet_import_scope:
+            return  # User chose not to import parquets
+
         parquet_summary = self.wizard_data.get("parquet_summary", {})
         if not parquet_summary:
             return
