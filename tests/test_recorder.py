@@ -219,6 +219,50 @@ def test_periodic_flush_triggers_before_stop(recorder_setup):
 
     recorder.stop_recording()
 
+
+def test_pixel_ratio_change_during_recording_is_rejected(recorder_setup):
+    """Changing calibration mid-recording should raise to avoid schema drift."""
+    from zebtrack.core.detector import ZoneData
+
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+    recorder.start_recording(
+        output_folder,
+        frame_width,
+        frame_height,
+        zones=ZoneData(),
+        is_video_file=True,
+    )
+
+    with pytest.raises(ValueError):
+        recorder.pixel_per_cm_ratio = (1.0, 1.0)
+
+    assert recorder.is_recording
+    recorder.stop_recording(force_stop=True)
+
+
+def test_schema_mismatch_flush_forces_stop(recorder_setup):
+    """Schema changes mid-run should force-stop and bubble the error."""
+    from zebtrack.core.detector import ZoneData
+
+    recorder, output_folder, frame_width, frame_height = recorder_setup
+    recorder._flush_row_threshold = 10  # keep buffered until explicit flush
+    recorder.start_recording(
+        output_folder,
+        frame_width,
+        frame_height,
+        zones=ZoneData(),
+        is_video_file=True,
+    )
+
+    recorder.write_detection_data(0.1, 1, [(1, 2, 3, 4, 0.9, 7)])
+    recorder._pixel_per_cm_ratio = (1.0, 1.0)  # bypass setter to simulate drift
+
+    with pytest.raises(ValueError):
+        recorder._flush_detection_data(force=True)
+
+    assert recorder.is_recording is False
+    assert recorder.detection_data == []
+
     # Wait for file to be created
     base_name = os.path.basename(output_folder)
     parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")

@@ -7,7 +7,11 @@ and calibration integration.
 """
 
 import threading
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
+
+import cv2
+import numpy as np
 
 import pytest
 
@@ -55,6 +59,7 @@ def setup_mock_recorder_for_service(video_processing_service):
 @pytest.fixture
 def mock_services():
     """Create all mocked service dependencies."""
+    settings = SimpleNamespace(video_processing=SimpleNamespace(fps=30.0))
     return {
         "detector": Mock(),
         "recorder": Mock(),
@@ -63,7 +68,7 @@ def mock_services():
         "ui_coordinator": Mock(),
         "ui_event_bus": Mock(),
         "cancel_event": threading.Event(),
-        "settings_obj": Mock(),
+        "settings_obj": settings,
     }
 
 
@@ -387,6 +392,147 @@ class TestBuildCalibrationContext:
             mock_cal.assert_called_once()
             assert cal == mock_cal_instance
             assert pixel_per_cm == (10.0, 10.0)
+
+
+class FakeCap:
+    """Simple fake VideoCapture for helper tests."""
+
+    def __init__(self, width=320, height=240, fps=25.0, read_success=True):
+        self.width = width
+        self.height = height
+        self.fps = fps
+        self.read_success = read_success
+        self.set_calls = []
+        self.grab_calls = 0
+        self.position = 0
+
+    def isOpened(self):
+        return True
+
+    def get(self, prop):
+        if prop == cv2.CAP_PROP_FRAME_WIDTH:
+            return self.width
+        if prop == cv2.CAP_PROP_FRAME_HEIGHT:
+            return self.height
+        if prop == cv2.CAP_PROP_FPS:
+            return self.fps
+        if prop == cv2.CAP_PROP_FRAME_COUNT:
+            return 200
+        if prop == cv2.CAP_PROP_POS_MSEC:
+            return 1000.0
+        return 0
+
+    def set(self, prop, value):
+        self.set_calls.append((prop, value))
+        if prop == cv2.CAP_PROP_POS_FRAMES:
+            self.position = value
+        return True
+
+    def grab(self):
+        self.grab_calls += 1
+        return True
+
+    def read(self):
+        return self.read_success, np.zeros((self.height, self.width, 3), dtype=np.uint8)
+
+    def release(self):
+        return True
+
+
+class TestVideoContextHelpers:
+    """Coverage for helper paths in VideoProcessingService."""
+
+    @patch("zebtrack.core.video_processing_service.time.perf_counter", side_effect=[0.0, 0.001])
+    @patch("zebtrack.core.video_processing_service.cv2.VideoCapture")
+    def test_create_video_context_calibrates_skip_threshold(
+        self, mock_videocap, mock_perf, video_processing_service
+    ):
+        fake_cap = FakeCap()
+        mock_videocap.return_value = fake_cap
+
+        ctx = video_processing_service._create_video_context("/tmp/fake.mp4")
+
+        assert ctx is not None
+        assert ctx.width == fake_cap.width
+        assert ctx.height == fake_cap.height
+        assert ctx.skip_threshold == 120  # fast seek path
+        assert ctx.first_frame is not None
+
+    def test_seek_to_frame_strategies(self, video_processing_service):
+        backward_cap = FakeCap()
+        video_processing_service._seek_to_frame(backward_cap, target_frame=0, current_frame=5)
+        assert backward_cap.set_calls[-1][1] == 0
+
+        small_gap_cap = FakeCap()
+        video_processing_service._seek_to_frame(
+            small_gap_cap, target_frame=3, current_frame=0, skip_threshold=5
+        )
+        assert small_gap_cap.grab_calls == 3
+
+        large_gap_cap = FakeCap()
+        video_processing_service._seek_to_frame(
+            large_gap_cap, target_frame=100, current_frame=0, skip_threshold=10
+        )
+        assert large_gap_cap.set_calls[-1] == (cv2.CAP_PROP_POS_FRAMES, 100)
+
+    def test_load_trajectory_dataframe_missing_publishes_event(self, video_processing_service, tmp_path):
+        video_processing_service.ui_event_bus.publish = Mock()
+        missing_path = tmp_path / "missing.parquet"
+
+        result = video_processing_service.load_trajectory_dataframe(missing_path, "exp-1")
+
+        assert result is None
+        video_processing_service.ui_event_bus.publish.assert_called_once()
+
+    def test_load_trajectory_dataframe_read_failure(self, video_processing_service, tmp_path, monkeypatch):
+        video_processing_service.ui_event_bus.publish = Mock()
+        bad_path = tmp_path / "bad.parquet"
+        bad_path.write_text("not_parquet")
+
+        monkeypatch.setattr(
+            "zebtrack.core.video_processing_service.pd.read_parquet",
+            Mock(side_effect=ValueError("boom")),
+        )
+
+        result = video_processing_service.load_trajectory_dataframe(bad_path, "exp-2")
+
+        assert result is None
+        video_processing_service.ui_event_bus.publish.assert_called_once()
+
+    def test_finalize_tracking_session_handles_cancel(self, video_processing_service):
+        recorder = Mock()
+        video_processing_service.ui_event_bus.publish_event = Mock()
+
+        success, arena = video_processing_service._finalize_tracking_session(
+            recorder=recorder,
+            cancel_requested=True,
+            experiment_id="exp-3",
+            trajectory_path="traj",
+            arena_polygon=[[0, 0], [1, 1], [1, 0]],
+        )
+
+        assert success is False
+        assert arena == [[0, 0], [1, 1], [1, 0]]
+        recorder.stop_recording.assert_called_once_with(
+            force_stop=True, reason="Cancelled by user"
+        )
+        video_processing_service.ui_event_bus.publish_event.assert_called_once()
+
+    @patch("zebtrack.core.video_processing_service.time.time", return_value=15.0)
+    def test_calculate_tracking_progress_stats(self, mock_time, video_processing_service):
+        cap = FakeCap()
+
+        progress, stats = video_processing_service._calculate_tracking_progress_stats(
+            frame_num=99,
+            processed_frames_count=50,
+            detected_frames_count=10,
+            start_time=10.0,
+            cap=cap,
+        )
+
+        assert progress == 0.5
+        assert stats["current_frame"] == 100
+        assert stats["eta"] == pytest.approx(5.0)
 
 
 if __name__ == "__main__":

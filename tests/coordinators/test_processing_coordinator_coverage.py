@@ -97,6 +97,9 @@ def mock_settings():
     settings.video_processing.freezing_velocity_threshold = 0.5
     settings.video_processing.freezing_min_duration_s = 1.0
     settings.video_processing.single_animal_per_aquarium = False
+    settings.video_processing.batch_retry_strategy = "retry_all"
+    settings.tracking = MagicMock()
+    settings.tracking.use_single_subject_tracker = False
     settings.trajectory_smoothing = MagicMock()
     settings.trajectory_smoothing.window_length = 5
     settings.trajectory_smoothing.polyorder = 2
@@ -241,6 +244,36 @@ class TestValidationComprehensive:
         assert result.is_valid is True
 
 
+
+
+        def test_create_processing_context_syncs_single_subject(coordinator, mock_settings):
+            coordinator._resolve_single_subject_tracker_preference = MagicMock(return_value=True)
+
+            context = coordinator.create_processing_context([], "/tmp/output")
+
+            assert mock_settings.tracking.use_single_subject_tracker is True
+            assert mock_settings.video_processing.single_animal_per_aquarium is True
+            assert context.analysis_interval_frames == mock_settings.video_processing.processing_interval
+            assert context.display_interval_frames == mock_settings.video_processing.display_interval
+
+
+        def test_resolve_single_subject_pref_prefers_single_video_config(coordinator):
+            coordinator.detector_service._resolve_single_subject_tracker_preference.reset_mock()
+            config = {"animals_per_aquarium": 1}
+
+            result = coordinator._resolve_single_subject_tracker_preference(config)
+
+            assert result is True
+            coordinator.detector_service._resolve_single_subject_tracker_preference.assert_not_called()
+
+
+        def test_determine_processing_intervals_from_config(coordinator):
+            analysis, display = coordinator._determine_processing_intervals(
+                {"analysis_interval_frames": 5, "display_interval_frames": 7}
+            )
+
+            assert analysis == 5
+            assert display == 7
 # =============================================================================
 # ZONE AND ARENA MANAGEMENT TESTS
 # =============================================================================

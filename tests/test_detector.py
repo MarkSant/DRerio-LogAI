@@ -14,6 +14,7 @@ class MockDetectorPlugin(DetectorPlugin):
         self.model_path = model_path
         self._detect_return_value = []
         self.single_subject_mode = False
+        self.set_mode_calls = 0
 
     def detect(self, frame: np.ndarray):
         # Allow configuring the return value for different test cases
@@ -33,6 +34,7 @@ class MockDetectorPlugin(DetectorPlugin):
 
     def set_use_single_subject_mode(self, enabled: bool) -> None:
         self.single_subject_mode = bool(enabled)
+        self.set_mode_calls += 1
 
 
 class TestDetector(unittest.TestCase):
@@ -110,6 +112,45 @@ class TestDetector(unittest.TestCase):
 
         self.detector.set_single_subject_mode(False)
         self.assertFalse(self.mock_plugin.single_subject_mode)
+
+    def test_set_single_subject_mode_reinitializes_tracker_and_notifies_plugin(self):
+        sentinel_tracker = object()
+        self.detector._byte_tracker = sentinel_tracker
+        self.detector._byte_tracker_params = ("params",)
+
+        self.detector.set_single_subject_mode(True)
+
+        self.assertTrue(self.detector.is_single_subject_mode())
+        self.assertIsNone(self.detector._byte_tracker)
+        self.assertIsNone(self.detector._byte_tracker_params)
+        self.assertEqual(self.mock_plugin.set_mode_calls, 1)
+
+    def test_set_single_subject_mode_noop_when_value_unchanged(self):
+        sentinel_tracker = object()
+        self.detector._single_subject_mode = True
+        self.detector._byte_tracker = sentinel_tracker
+        self.detector._byte_tracker_params = ("params",)
+
+        self.detector.set_single_subject_mode(True)
+
+        self.assertIs(self.detector._byte_tracker, sentinel_tracker)
+        self.assertEqual(self.mock_plugin.set_mode_calls, 0)
+
+    @patch("zebtrack.tracker.basetrack.BaseTrack.reset_id_counter")
+    def test_reset_tracking_state_resets_internal_components(self, reset_id_counter):
+        self.mock_plugin.reset_tracking_state = MagicMock()
+        sentinel_tracker = MagicMock()
+        self.detector._single_subject_tracker = sentinel_tracker
+        self.detector._byte_tracker = object()
+        self.detector._byte_tracker_params = ("params",)
+
+        self.detector.reset_tracking_state()
+
+        self.mock_plugin.reset_tracking_state.assert_called_once()
+        sentinel_tracker.reset.assert_called_once()
+        reset_id_counter.assert_called_once()
+        self.assertIsNone(self.detector._byte_tracker)
+        self.assertIsNone(self.detector._byte_tracker_params)
 
     def test_is_inside_polygon(self):
         """Test the _is_inside_polygon helper method."""
