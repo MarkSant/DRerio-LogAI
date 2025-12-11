@@ -251,9 +251,27 @@ class StateSynchronizer:
             # Clear the widget reference instead
             if hasattr(self.gui, "project_overview_widget"):
                 self.gui.project_overview_widget = None
-            self.gui.project_status_vars.clear()
-            self.gui._project_status_containers.clear()
-            self.gui._last_overview_counts = {}
+            # Safely reset overview status caches only if they still exist
+            try:
+                if hasattr(self.gui, "project_status_vars") and self.gui.project_status_vars is not None:
+                    self.gui.project_status_vars.clear()
+            except Exception:
+                pass
+
+            try:
+                if (
+                    hasattr(self.gui, "_project_status_containers")
+                    and self.gui._project_status_containers is not None
+                ):
+                    self.gui._project_status_containers.clear()
+            except Exception:
+                pass
+
+            try:
+                if hasattr(self.gui, "_last_overview_counts"):
+                    self.gui._last_overview_counts = {}
+            except Exception:
+                pass
 
     # ========================================================================
     # Reset Methods - Analysis Controls

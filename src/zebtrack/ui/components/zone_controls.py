@@ -894,9 +894,16 @@ class ZoneControlsWidget(BaseWidget):
 
     def clear_zone_list(self) -> None:
         """Clear all items from the zone list."""
-        if self.zone_listbox:
-            for item in self.zone_listbox.get_children():
-                self.zone_listbox.delete(item)
+        if not self.zone_listbox:
+            return
+
+        try:
+            if hasattr(self.zone_listbox, "winfo_exists") and self.zone_listbox.winfo_exists():
+                for item in self.zone_listbox.get_children():
+                    self.zone_listbox.delete(item)
+        except Exception:
+            # Widget might have been destroyed during teardown
+            pass
 
     def add_zone_to_list(
         self, zone_id: str, name: str, zone_type: str, color: str, color_hex: str | None = None
