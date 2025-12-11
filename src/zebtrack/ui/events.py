@@ -181,6 +181,13 @@ class Events:
     ZONE_PASTE_ZONES = "zone.paste_zones"
     ZONE_DELETE_ZONES = "zone.delete_zones"
 
+    # Processing Reports Widget
+    PROCESSING_GENERATE_TRAJECTORIES = "processing.generate_trajectories"
+    PROCESSING_EXPORT_SUMMARIES = "processing.export_summaries"
+    REPORTS_GENERATE_PARTIAL = "reports.generate_partial"
+    REPORTS_GENERATE_UNIFIED = "reports.generate_unified"
+    PROCESSING_REPORTS_ITEM_RIGHT_CLICK = "processing_reports.item_right_click"
+
     # Calibration
     CALIBRATION_RUN_LIVE = "calibration:run_live"
     CALIBRATION_COPY_TO_PROJECT = "calibration:copy_to_project"

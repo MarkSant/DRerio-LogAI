@@ -182,11 +182,16 @@ class TestClassValidation:
         # Should not raise exception (warning logged but not raised)
         service._validate_model_classes(mock_plugin, "test_model.pt")
 
-    def test_validate_model_classes_missing_class(self):
-        """Test validation fails with missing classes."""
-        # Mock plugin missing class 1
+    def test_validate_model_classes_missing_animal_class_warns(self):
+        """Test validation warns (but doesn't fail) with missing animal class.
+
+        The validation was changed to be non-blocking to support custom models
+        that may use different class names or have only aquarium segmentation.
+        Missing classes now generate warnings instead of raising exceptions.
+        """
+        # Mock plugin missing class 1 (zebrafish)
         mock_plugin = Mock()
-        mock_plugin.class_names = {0: "aqua"}  # Missing class 1
+        mock_plugin.class_names = {0: "aqua"}  # Only aquarium, no zebrafish
 
         mock_state_manager = Mock()
         mock_project_manager = Mock()
@@ -202,9 +207,10 @@ class TestClassValidation:
             settings_obj=mock_settings,
         )
 
-        # Should raise ValueError
-        with pytest.raises(ValueError, match="classes ausentes"):
-            service._validate_model_classes(mock_plugin, "bad_model.pt")
+        # Should NOT raise ValueError - just warns and continues
+        # This allows using custom models with different class configurations
+        service._validate_model_classes(mock_plugin, "aquarium_only_model.pt")
+        # Test passes if no exception is raised
 
     def test_validate_model_classes_no_classes_attribute(self):
         """Test validation handles plugins without class_names."""

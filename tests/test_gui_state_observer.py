@@ -248,6 +248,8 @@ class TestGUIStateObserver:
 
     def test_processing_state_stop_updates_ui(self, mock_gui, controller):
         """Stopping processing should re-enable process button."""
+        from tests.utils.wait_helpers import wait_for_condition
+
         # Start processing
         controller.state_manager.update_processing_state(source="test", is_processing=True)
         mock_gui.root.update_idletasks()
@@ -258,8 +260,12 @@ class TestGUIStateObserver:
         # Stop processing
         controller.state_manager.update_processing_state(source="test", is_processing=False)
 
-        # Phase 1.2: Process all scheduled UI updates synchronously
-        mock_gui.root.update_idletasks()
+        # Wait for async observers and process scheduled UI updates
+        def _process_and_check():
+            mock_gui.root.update_idletasks()
+            return mock_gui.process_video_btn.config.call_count > 0
+
+        wait_for_condition(_process_and_check, timeout=3.0, interval=0.05)
 
         # Verify button state was updated
         mock_gui.process_video_btn.config.assert_called_with(state="normal")

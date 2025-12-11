@@ -82,7 +82,7 @@ class TestLogFormatters:
 
     def test_compact_console_renderer_reduces_whitespace(self):
         """Test CompactConsoleRenderer compacts multiple spaces."""
-        from zebtrack.__main__ import CompactConsoleRenderer
+        from zebtrack.logging_config import CompactConsoleRenderer
 
         renderer = CompactConsoleRenderer()
 
@@ -100,17 +100,22 @@ class TestLogLevelConfiguration:
     """Test suite for log level configuration."""
 
     @patch("logging.getLogger")
-    def test_root_logger_set_to_info(self, mock_get_logger):
-        """Test root logger level set to INFO."""
-        from zebtrack.__main__ import configure_logging
+    def test_root_logger_set_to_debug(self, mock_get_logger):
+        """Test root logger level set to DEBUG.
+
+        The root logger is set to DEBUG to capture all logs, with filtering
+        done at the handler level. This allows more granular control over
+        which logs are shown in console vs written to file.
+        """
+        from zebtrack.logging_config import configure_logging
 
         mock_root_logger = Mock()
         mock_get_logger.return_value = mock_root_logger
 
         configure_logging()
 
-        # Should set INFO level
-        mock_root_logger.setLevel.assert_called_with(logging.INFO)
+        # Should set DEBUG level (handlers do filtering)
+        mock_root_logger.setLevel.assert_called_with(logging.DEBUG)
 
     @patch("structlog.get_logger")
     @patch("logging.getLogger")

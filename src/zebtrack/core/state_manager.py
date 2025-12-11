@@ -58,6 +58,7 @@ from __future__ import annotations
 import concurrent.futures
 import copy
 import dataclasses
+import platform
 import threading
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -85,18 +86,6 @@ class StateCategory(Enum):
 
 
 @dataclass
-class StateChange:
-    """Record of a state change for debugging and history tracking."""
-
-    timestamp: datetime
-    category: StateCategory
-    key: str
-    old_value: Any
-    new_value: Any
-    source: str = "unknown"  # Which component triggered the change
-
-
-@dataclass
 class ProjectState:
     """Immutable snapshot of project-related state."""
 
@@ -106,10 +95,37 @@ class ProjectState:
     project_type: str | None = None
     video_file: str | None = None
     is_loaded: bool = False
-    project_data: dict[str, Any] = field(default_factory=dict)
-    metadata: Any | None = None  # DataFrame
+    project_data: dict | None = None
+    metadata: dict | None = None
     active_zone_video: str | None = None
     last_zone_source_video: str | None = None
+
+    def copy(self) -> ProjectState:
+        """Create a deep copy of project state."""
+        return ProjectState(
+            project_path=self.project_path,
+            project_name=self.project_name,
+            experiment_id=self.experiment_id,
+            project_type=self.project_type,
+            video_file=self.video_file,
+            is_loaded=self.is_loaded,
+            project_data=copy.deepcopy(self.project_data),
+            metadata=self.metadata.copy() if self.metadata is not None else None,
+            active_zone_video=self.active_zone_video,
+            last_zone_source_video=self.last_zone_source_video,
+        )
+
+
+@dataclass
+class StateChange:
+    """Record of a state change for debugging and history tracking."""
+
+    timestamp: datetime
+    category: StateCategory
+    key: str
+    old_value: Any
+    new_value: Any
+    source: str = "unknown"  # Which component triggered the change
 
     def copy(self) -> ProjectState:
         """Create a deep copy of project state."""
@@ -646,9 +662,23 @@ class StateManager:
         """
         observer_name = getattr(observer, "__name__", repr(observer))
 
-        # Execute observer in thread pool asynchronously (fire and forget)
         # Task 1.1: Reuse existing executor instead of creating new one
-        future = self._observer_executor.submit(observer, category, key, old_value, new_value)
+        try:
+            future = self._observer_executor.submit(observer, category, key, old_value, new_value)
+        except RuntimeError:
+            # Executor might be shutting down; fall back to inline execution
+            try:
+                observer(category, key, old_value, new_value)
+            except Exception as exc:  # pragma: no cover - logged for visibility
+                log.error(
+                    "state.observer.callback_failed",
+                    category=category.name,
+                    key=key,
+                    error=str(exc),
+                    observer=observer_name,
+                    exc_info=True,
+                )
+            return
 
         # Add completion callback to handle errors without blocking caller
         def _on_observer_complete(fut):
@@ -1247,7 +1277,7 @@ class StateManager:
                 "state_valid": True,  # Could add more complex validation
                 "project": {
                     "has_path": snapshot.project.project_path is not None,
-                    "has_data": len(snapshot.project.project_data) > 0,
+                    "has_data": bool(snapshot.project.project_data),
                     "has_metadata": snapshot.project.metadata is not None,
                 },
                 "detector": {

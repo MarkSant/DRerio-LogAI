@@ -124,14 +124,22 @@ def test_config_files_exist():
 
 
 def test_docs_exist():
-    """Verifica que documentação crítica existe."""
+    """Verifica que documentação crítica existe.
+
+    Note: Docs were reorganized into subdirectories per CLAUDE.md standards:
+    - docs/architecture/ - System design docs
+    - docs/reference/ - API and reference docs
+    """
     from pathlib import Path
 
     base_dir = Path(__file__).parent.parent
     docs_dir = base_dir / "docs"
 
-    assert (docs_dir / "ARCHITECTURE.md").exists()
-    assert (docs_dir / "REFERENCE_GUIDE.md").exists()
+    # Architecture docs in subdirectory
+    assert (docs_dir / "architecture" / "ARCHITECTURE.md").exists()
+    # Reference docs in subdirectory
+    assert (docs_dir / "reference" / "REFERENCE_GUIDE.md").exists()
+    # GitHub instructions
     assert (base_dir / ".github" / "copilot-instructions.md").exists()
 
 

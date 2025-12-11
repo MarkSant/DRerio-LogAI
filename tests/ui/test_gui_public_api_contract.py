@@ -2,7 +2,7 @@ import inspect
 
 from zebtrack.ui.gui import ApplicationGUI
 
-# List of expected public API methods (Total: 22 after Phase 3 refactoring)
+# List of expected public API methods (Total: 23 after Phase 3 refactoring)
 # Many methods moved to component managers (CanvasManager, DialogManager, etc.)
 EXPECTED_PUBLIC_API = [
     # 1. Zone & ROI Management
@@ -19,7 +19,9 @@ EXPECTED_PUBLIC_API = [
     "refresh_project_views",
     # 5. Other Public Methods
     "update_weights_dropdown",
-    # 6. Wrappers & Utilities
+    # 6. Event Bus Integration
+    "publish_event",
+    # 7. Wrappers & Utilities
     "ask_directory",
     "ask_missing_metadata",
     "ask_ok_cancel",

@@ -51,14 +51,14 @@ if TYPE_CHECKING:
     from zebtrack.analysis.analysis_service import AnalysisService
     from zebtrack.core.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
+    from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.core.video_classification_service import VideoClassificationService
     from zebtrack.core.video_selection_service import VideoSelectionService
     from zebtrack.core.video_validation_service import VideoValidationService
     from zebtrack.core.weight_manager import WeightManager
     from zebtrack.io.recorder_factory import RecorderFactory
-    from zebtrack.settings import Settings
-    from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.orchestrators.ui_state_controller import UIStateController
+    from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
@@ -258,8 +258,15 @@ class ProcessingCoordinator(BaseCoordinator):
                 if isinstance(data, dict) else 10,
             ),
         )
+        # Generate reports event
+        bus.subscribe(
+            Events.PROJECT_GENERATE_SUMMARIES,
+            lambda data: self.generate_project_reports(
+                data.get("video_paths") if isinstance(data, dict) else None
+            ),
+        )
 
-        log.info("processing_coordinator.register_handlers.complete", count=3)
+        log.info("processing_coordinator.register_handlers.complete", count=4)
 
     def select_eligible_videos(
         self,
@@ -274,6 +281,17 @@ class ProcessingCoordinator(BaseCoordinator):
         Phase 3: Consolidated from VideoProcessingOrchestrator.select_eligible_videos
         """
         eligible_videos: list[dict] = []
+
+        # Check for existing results and ask for overwrite
+        if ready_with_trajectory and self.view:
+            if self.view.ask_ok_cancel(
+                "Resultados Existentes",
+                f"{len(ready_with_trajectory)} vídeos já possuem trajetórias processadas.\n"
+                "Deseja reprocessá-los (sobrescrevendo os dados anteriores)?",
+            ):
+                pass  # User confirmed overwrite
+            else:
+                ready_with_trajectory = []  # User declined, skip these
 
         if skip_dialog:
             eligible_videos.extend(ready_with_trajectory)
@@ -551,6 +569,12 @@ class ProcessingCoordinator(BaseCoordinator):
                     experiment_id=experiment_id,
                     trajectory_path=trajectory_path,
                 )
+
+                # Generate report immediately
+                try:
+                    self.generate_project_reports([video_path])
+                except Exception as e:
+                    log.error("controller.video_completed.report_failed", error=str(e))
             else:
                 log.warning(
                     "controller.video_completed.trajectory_not_found",
@@ -612,21 +636,6 @@ class ProcessingCoordinator(BaseCoordinator):
             elif videos_to_process:
                 msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
                 self.ui_coordinator.show_info(self.view, "Sucesso", msg)
-
-                # Automatically trigger report generation for processed videos
-                try:
-                    video_paths = [
-                        v.get("path") for v in videos_to_process
-                        if v.get("path")
-                    ]
-                    if video_paths:
-                        self.ui_coordinator.set_status(self.view, "Gerando relatórios automáticos...")
-                        self._publish_event(
-                            Events.PROJECT_GENERATE_SUMMARIES,
-                            {"video_paths": video_paths}
-                        )
-                except Exception as e:
-                    log.error("processing_coordinator.auto_report_failed", error=str(e))
 
             self.ui_coordinator.set_status(self.view, "Pronto.")
             self._publish_processing_mode(source="worker.completed", force=True)
@@ -1565,8 +1574,9 @@ class ProcessingCoordinator(BaseCoordinator):
 
         Phase 3: Consolidated from ProcessingConfigOrchestrator._determine_processing_intervals
         """
-        analysis_interval_frames = 10
-        display_interval_frames = 10
+        vp_settings = getattr(self.settings, "video_processing", None)
+        analysis_interval_frames = getattr(vp_settings, "processing_interval", 10)
+        display_interval_frames = getattr(vp_settings, "display_interval", analysis_interval_frames)
 
         if single_video_config:
             analysis_interval_frames = single_video_config.get(
@@ -1736,6 +1746,155 @@ class ProcessingCoordinator(BaseCoordinator):
         log.debug("processing_coordinator.validate_can_start_processing.success")
         return ValidationResult.success()
 
+    def generate_project_reports(self, video_paths: list[str] | None = None) -> None:
+        """Generate reports (Word, Excel, Parquet) for specified videos."""
+        if not video_paths:
+            return
+
+        log.info("workflow.reports.start", count=len(video_paths))
+        self._publish_event(Events.UI_SET_STATUS, {"message": "Gerando relatórios detalhados..."})
+
+        # Generate Parquet Summaries first
+        target_videos = []
+        for path in video_paths:
+            entry = self.project_manager.find_video_entry(path=path)
+            if entry:
+                target_videos.append(entry)
+
+        if target_videos:
+            self.generate_parquet_summaries(target_videos, self.settings)
+
+        # Generate Word/Excel Reports
+        count = 0
+        errors = []
+
+        # Ensure analysis service is available and configured
+        if not self.analysis_service:
+            from zebtrack.analysis.analysis_service import AnalysisService
+            self.analysis_service = AnalysisService(settings_obj=self.settings)
+            log.info("workflow.reports.analysis_service_created_lazy")
+        elif self.analysis_service.settings is None:
+            self.analysis_service.settings = self.settings
+            log.info("workflow.reports.analysis_service_settings_injected_lazy")
+
+        for path in video_paths:
+            try:
+                # Resolve trajectory path
+                experiment_id = os.path.splitext(os.path.basename(path))[0]
+                
+                # Fix: Use find_video_entry instead of get_video_metadata
+                video_entry = self.project_manager.find_video_entry(path=path)
+                metadata = video_entry.get("metadata", {}) if video_entry else {}
+                
+                if not metadata:
+                    metadata = self.project_manager.derive_processing_metadata(
+                        experiment_id, video_path=path
+                    )
+
+                results_path = self.project_manager.resolve_results_directory(
+                    experiment_id, video_path=path, metadata=metadata
+                )
+
+                trajectory_path = os.path.join(
+                    results_path, f"3_CoordMovimento_{experiment_id}.parquet"
+                )
+                if not os.path.exists(trajectory_path):
+                    # Fallback to local dir
+                    trajectory_path = os.path.join(
+                        os.path.dirname(path),
+                        f"{experiment_id}_results",
+                        f"3_CoordMovimento_{experiment_id}.parquet",
+                    )
+                    if not os.path.exists(trajectory_path):
+                        log.warning("workflow.reports.missing_trajectory", video=path)
+                        continue
+
+                # Load trajectory
+                df = pd.read_parquet(trajectory_path)
+
+                # Get calibration and zones
+                zone_data = self.project_manager.get_zone_data(video_path=path)
+                project_data = getattr(self.project_manager, "project_data", {}) or {}
+
+                # Calibration params
+                calib = project_data.get("calibration", {})
+                pixelcm_x = float(calib.get("pixel_per_cm_x", 1.0))
+                pixelcm_y = float(calib.get("pixel_per_cm_y", 1.0))
+
+                # Video dimensions (fallback to default if not available)
+                video_height = 720
+
+                # ROIs
+                rois = []
+                roi_colors_map = {}
+                if zone_data:
+                    from zebtrack.analysis.roi import ROI
+                    from shapely.geometry import Polygon
+
+                    for i, poly in enumerate(zone_data.roi_polygons):
+                        name = (
+                            zone_data.roi_names[i]
+                            if i < len(zone_data.roi_names)
+                            else f"ROI_{i}"
+                        )
+                        # Fix: Convert list of points to Polygon geometry
+                        if len(poly) >= 3:
+                            roi_geometry = Polygon(poly)
+                            rois.append(ROI(name=name, geometry=roi_geometry, coordinate_space="px"))
+                        
+                        if i < len(zone_data.roi_colors):
+                            roi_colors_map[name] = zone_data.roi_colors[i]
+
+                fps = float(self.settings.video_processing.fps)
+
+                # Run Analysis
+                analysis_result = self.analysis_service.run_full_analysis_as_dto(
+                    trajectory_df=df,
+                    pixelcm_x=pixelcm_x,
+                    pixelcm_y=pixelcm_y,
+                    video_height_px=video_height,
+                    arena_polygon_px=zone_data.polygon if zone_data else [],
+                    rois=rois,
+                    fps=fps,
+                    metadata=metadata,
+                    roi_colors=roi_colors_map,
+                    freezing_vel_threshold=self.settings.video_processing.freezing_velocity_threshold,
+                    freezing_min_duration=self.settings.video_processing.freezing_min_duration_s
+                )
+
+                reporter = Reporter.from_analysis(analysis_result)
+
+                # Export
+                report_base = os.path.join(results_path, f"4_Relatorio_{experiment_id}")
+                reporter.export_individual_report(f"{report_base}.docx")
+                reporter.export_summary_data(f"{report_base}.xlsx", format="excel")
+
+                count += 1
+            except Exception as e:
+                log.error("workflow.reports.failed", video=path, error=str(e))
+                errors.append(f"{os.path.basename(path)}: {e!s}")
+
+        self._publish_event(Events.UI_SET_STATUS, {"message": "Relatórios gerados."})
+
+        if errors:
+            self._publish_event(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Erros na Geração de Relatórios",
+                    "message": "Alguns relatórios falharam:\n" + "\n".join(errors[:5])
+                }
+            )
+        elif count > 0:
+            self._publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Relatórios Gerados",
+                    "message": (
+                        f"Foram gerados relatórios completos (Word/Excel) para {count} vídeos."
+                    ),
+                },
+            )
+
     # ========================================================================
     # Group F: Supporting Methods (Private)
     # ========================================================================
@@ -1898,6 +2057,11 @@ class ProcessingCoordinator(BaseCoordinator):
                     )
                     zone_data = None
 
+                # Fallback: check project manager memory/cache if parquet load failed
+                if not zone_data or not zone_data.polygon:
+                    log.info("workflow.zone_load.fallback_memory", video=experiment_id)
+                    zone_data = self.project_manager.get_zone_data(video_path=video_path)
+
                 if zone_data and (zone_data.polygon or zone_data.roi_polygons):
                     self.project_manager.save_zone_data(
                         zone_data, video_info["path"], persist=False
@@ -1930,6 +2094,13 @@ class ProcessingCoordinator(BaseCoordinator):
 
         Phase 3: Consolidated from AnalysisOrchestrator._process_summary_video
         """
+        # Ensure analysis service is available and configured
+        if not self.analysis_service:
+            from zebtrack.analysis.analysis_service import AnalysisService
+            self.analysis_service = AnalysisService(settings_obj=self.settings)
+        elif self.analysis_service.settings is None:
+            self.analysis_service.settings = self.settings
+
         path = video.get("path")
         if not isinstance(path, str) or not path:
             return "skipped", "Caminho do vídeo não definido.", None, False
@@ -2062,6 +2233,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 freezing_duration=settings_obj.video_processing.freezing_min_duration_s,
                 smoothing_window_length=settings_obj.trajectory_smoothing.window_length,
                 smoothing_polyorder=settings_obj.trajectory_smoothing.polyorder,
+                settings_obj=settings_obj,
             )
 
             os.makedirs(results_dir, exist_ok=True)

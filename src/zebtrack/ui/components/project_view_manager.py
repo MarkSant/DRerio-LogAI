@@ -63,6 +63,16 @@ class ProjectViewManager:
             UIEvents.VIDEO_TREE_REFRESH_REQUESTED, self._on_video_tree_refresh_requested
         )
 
+        # Subscribe to PROJECT_VIEWS_REFRESH_REQUESTED
+        self.event_bus_v2.subscribe(
+            UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+            lambda d: self.refresh_project_views(
+                reason=d.get("reason"),
+                append_summary=d.get("append_summary", False),
+                immediate=d.get("immediate", False),
+            )
+        )
+
         # Subscribe to READINESS_SNAPSHOT_UPDATED event
         # (replaces direct gui.apply_pending_readiness_snapshot calls)
         self.event_bus_v2.subscribe(
@@ -75,14 +85,89 @@ class ProjectViewManager:
             lambda d: self.on_video_hierarchy_snapshot_updated(d.get("snapshot", [])),
         )
 
+        # Subscribe to PROCESSING_REPORTS_ITEM_RIGHT_CLICK (V2)
+        self.event_bus_v2.subscribe(
+            UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK,
+            self._on_processing_reports_right_click
+        )
+
+        # Bridge: Subscribe to V1 event from widget (Legacy EventBus)
+        if self.gui.event_bus:
+            self.gui.event_bus.subscribe(
+                "processing_reports.item_right_click",
+                self._on_processing_reports_right_click
+            )
+
         log.debug(
             "project_view_manager.event_subscriptions_setup",
             events=[
                 "VIDEO_TREE_REFRESH_REQUESTED",
+                "PROJECT_VIEWS_REFRESH_REQUESTED",
                 "READINESS_SNAPSHOT_UPDATED",
                 "VIDEO_HIERARCHY_SNAPSHOT_UPDATED",
+                "PROCESSING_REPORTS_ITEM_RIGHT_CLICK",
             ],
         )
+
+    def _on_processing_reports_right_click(self, data: dict) -> None:
+        """Handle right-click on processing reports tree item."""
+        if not isinstance(data, dict):
+            return
+
+        item_id = data.get("item_id")
+        column_id = data.get("column_id")
+        x = data.get("x")
+        y = data.get("y")
+
+        # Get metadata from store
+        metadata = getattr(self.gui, "_processing_reports_tree_metadata", {}).get(item_id)
+        if not metadata or metadata.get("type") != "video":
+            return
+
+        video_path = metadata.get("video_path")
+        if not video_path:
+            return
+
+        callbacks = {
+            "delete_asset": self._delete_video_asset,
+            "delete_all_processing": self._delete_all_processing_data,
+            "delete_video": self._delete_video_from_project,
+        }
+
+        self.gui.menu_manager.show_processing_reports_context_menu(
+            video_path, column_id, x, y, callbacks
+        )
+
+    def _delete_video_asset(self, video_path: str, asset: str) -> None:
+        """Delete specific asset via MenuManager reuse."""
+        self.gui.menu_manager.handle_overview_asset_removal(video_path, asset)
+
+    def _delete_all_processing_data(self, video_path: str) -> None:
+        """Delete all processing data (arena, rois, trajectory, summary)."""
+        pm = self.gui.controller.project_manager
+
+        confirm = self.gui.dialog_manager.ask_ok_cancel(
+            "Apagar Dados de Processamento",
+            f"Tem certeza que deseja apagar TODOS os dados de processamento (Arena, ROIs, Trajetória, Relatórios) para:\n\n{os.path.basename(video_path)}?\n\nO vídeo será mantido no projeto."
+        )
+        if not confirm:
+            return
+
+        # Order matters due to dependencies!
+        assets = ["summary", "trajectory", "rois", "arena"]
+        changed = False
+
+        for asset in assets:
+            # We bypass can_remove check here because we are removing everything in order
+            if pm.remove_asset(video_path, asset, delete_files=True):
+                changed = True
+
+        if changed:
+            self.refresh_project_views(reason="Dados de processamento apagados", append_summary=True)
+
+    def _delete_video_from_project(self, video_path: str) -> None:
+        """Delete video from project."""
+        self.gui.menu_manager.handle_overview_asset_removal(video_path, "video")
 
     def _on_video_tree_refresh_requested(self, data: dict):
         """Handle VIDEO_TREE_REFRESH_REQUESTED event.
@@ -899,6 +984,16 @@ class ProjectViewManager:
 
         pm = self.gui.controller.project_manager
         all_videos = pm.get_all_videos()
+        
+        # DEBUG: Log video statuses
+        for v in all_videos:
+            if v.get("path") and "CECT_8" in v.get("path", ""):
+                log.info(
+                    "debug.refresh_tab.video_state", 
+                    path=os.path.basename(v.get("path")), 
+                    has_traj=v.get("has_trajectory"),
+                    has_arena=v.get("has_arena")
+                )
 
         # Build hierarchy
         # hierarchy = self.gui._build_report_hierarchy(all_videos, pm) # Legacy call
@@ -922,6 +1017,11 @@ class ProjectViewManager:
         self._populate_reports_tree_from_hierarchy(
             tree, hierarchy, "", self.gui._processing_reports_tree_metadata
         )
+        
+        # Update status cards
+        status_counts = self._get_project_status_counts()
+        if hasattr(self.gui.processing_reports_widget, "update_status_counts"):
+            self.gui.processing_reports_widget.update_status_counts(status_counts)
 
     def append_processing_reports_artifacts(
         self,
@@ -1109,6 +1209,46 @@ class ProjectViewManager:
     # CATEGORIA 6: REPORTS TREE MANAGEMENT
     # ===========================================================================
 
+    def _get_project_status_counts(self) -> dict[str, int]:
+        """Calculate status counts for the project."""
+        pm = self.gui.controller.project_manager
+        all_videos = pm.get_all_videos()
+
+        counts = {
+            "total": len(all_videos),
+            "pending": 0,
+            "processing": 0,
+            "processed": 0,
+            "complete": 0,
+            "failed": 0,
+            "arena": 0,
+            "rois": 0,
+            "trajectory": 0,
+            "summary": 0,
+        }
+
+        for video in all_videos:
+            status = video.get("status", "pending")
+            if status in counts:
+                counts[status] += 1
+            else:
+                # Map unknown statuses to pending or ignore?
+                # Just keeping it simple for now
+                pass
+
+            path = video.get("path")
+            if path:
+                if pm.has_arena_data(path):
+                    counts["arena"] += 1
+                if pm.has_roi_data(path):
+                    counts["rois"] += 1
+                if pm.has_trajectory_data(path):
+                    counts["trajectory"] += 1
+                if pm.has_summary_data(path):
+                    counts["summary"] += 1
+
+        return counts
+
     def update_reports_tree(self) -> None:
         """
         Update the reports tree view in ProcessingReportsWidget.
@@ -1124,8 +1264,13 @@ class ProjectViewManager:
 
         # Get data
         project_manager = self.gui.controller.project_manager
-        hierarchy = project_manager.get_video_hierarchy()
-        status_counts = project_manager.get_status_counts()
+        all_videos = project_manager.get_all_videos()
+        
+        # Use ValidationManager for hierarchy
+        hierarchy = self.gui.validation_manager._build_video_hierarchy_data(all_videos, "")
+        
+        # Use local helper for status counts
+        status_counts = self._get_project_status_counts()
 
         # Get or Initialize metadata store for this tree
         # We store it on the GUI instance to persist across refreshes,
@@ -1194,16 +1339,16 @@ class ProjectViewManager:
                 # Derive day title from first video metadata if possible
                 day_label = f"Dia {day_id}"
                 if videos and isinstance(videos, list) and len(videos) > 0:
-                     first_video = videos[0]
-                     if isinstance(first_video, dict):
-                         meta = first_video.get("metadata", {})
-                         if meta and meta.get("day") is not None:
-                             # Use ValidationManager logic or similar consistent formatting if available
-                             # For now, simplistic fallback to match previous potential intent
-                             day_val = meta.get("day")
-                             day_label = f"{day_val:02d}" if isinstance(day_val, int) else str(day_val)
-                         elif "day_label" in first_video:
-                             day_label = first_video["day_label"]
+                    first_video = videos[0]
+                    if isinstance(first_video, dict):
+                        meta = first_video.get("metadata", {})
+                        if meta and meta.get("day") is not None:
+                            # Use ValidationManager logic or similar consistent formatting if available
+                            # For now, simplistic fallback to match previous potential intent
+                            day_val = meta.get("day")
+                            day_label = f"{day_val:02d}" if isinstance(day_val, int) else str(day_val)
+                        elif "day_label" in first_video:
+                            day_label = first_video["day_label"]
 
                 day_node_id = f"{group_node_id}_day_{day_id}"
 
@@ -1225,9 +1370,9 @@ class ProjectViewManager:
                 # Iterate over videos
                 # 'videos' is already the list of video dictionaries for this day
                 for video in videos:
-                    video_path = video.get("path") # Fixed: "path" not "video_path" usually
+                    video_path = video.get("path")  # Fixed: "path" not "video_path" usually
                     if not video_path:
-                         video_path = video.get("video_path") # Try fallback
+                        video_path = video.get("video_path")  # Try fallback
                     if not video_path:
                         continue
 
@@ -1244,7 +1389,7 @@ class ProjectViewManager:
                     # Determine status label
                     status_label = "Processado" if video.get("has_trajectory") else "Pendente"
                     if not video.get("has_arena"):
-                         status_label = "Sem Arena"
+                        status_label = "Sem Arena"
 
                     video_node_id = f"{day_node_id}_video_{video_path}"
 

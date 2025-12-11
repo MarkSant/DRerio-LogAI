@@ -5,6 +5,7 @@ This factory simplifies test setup by providing pre-configured mocks for all
 MainViewModel dependencies required by the DI pattern.
 """
 
+import threading
 from unittest.mock import MagicMock
 
 from zebtrack.core.state_manager import StateManager
@@ -173,6 +174,9 @@ def create_test_controller(root, **overrides):
     event_dispatcher = overrides.get("event_dispatcher", MagicMock())
     event_dispatcher.event_bus = event_bus
 
+    # Ensure we always use a real cancel_event unless explicitly overridden
+    cancel_event = overrides.get("cancel_event") or threading.Event()
+
     # Create BootstrapResult Mock
     bootstrap_result = BootstrapResult(
         project_service=overrides.get("project_service", MagicMock()),
@@ -193,7 +197,8 @@ def create_test_controller(root, **overrides):
         frame_queue=overrides.get("frame_queue", MagicMock()),
         video_queue=overrides.get("video_queue", MagicMock()),
         program_exit_event=overrides.get("program_exit_event", MagicMock()),
-        cancel_event=overrides.get("cancel_event", MagicMock()),
+        # Use a real threading.Event so thread lifecycle tests behave correctly
+        cancel_event=cancel_event,
         view=MagicMock(),  # Added missing view argument
         video_processing_orchestrator=video_processing_orchestrator,
         ui_state_controller=overrides.get("ui_state_controller", MagicMock()),

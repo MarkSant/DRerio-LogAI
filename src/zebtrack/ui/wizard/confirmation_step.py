@@ -576,17 +576,17 @@ class ConfirmationStep(WizardStep):
             lines.append(f"  ({videos_to_process} vídeo(s) para processar)")
 
     def _append_parquet_summary(self, lines: list[str]) -> None:
-        # Only show parquet summary if user chose to import parquets
-        parquet_import_scope = self.wizard_data.get("parquet_import_scope")
-        if not parquet_import_scope:
-            return  # User chose not to import parquets
-
+        # Show parquet summary whenever data exists (scope optional for legacy flows)
         parquet_summary = self.wizard_data.get("parquet_summary", {})
         if not parquet_summary:
             return
 
+        parquet_import_scope = self.wizard_data.get("parquet_import_scope")
+
         lines.append("")
         lines.append("📦 Parquets Existentes:")
+        if parquet_import_scope:
+            lines.append(f"  • Escopo: {parquet_import_scope}")
         arena_total = parquet_summary.get("total_arena", 0)
         rois_total = parquet_summary.get("total_rois", 0)
         trajectory_total = parquet_summary.get("total_trajectory", 0)

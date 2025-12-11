@@ -1508,7 +1508,11 @@ class ApplicationGUI:
         """Start analysis - immediately switch to analysis view and enable toggle."""
         log.info("gui.start_analysis_view_mode.called")
         self.analysis_active = True
-        self.analysis_status_var.set("Preparando análise...")
+        msg = "Preparando análise..."
+        self.analysis_status_var.set(msg)
+        if self.analysis_display_widget:
+            self.analysis_display_widget.set_status(msg)
+
         if self.analysis_task_var is not None:
             self.analysis_task_var.set("Preparando fila de análise...")
         self.state_synchronizer._set_analysis_metadata_defaults()
@@ -1631,9 +1635,15 @@ class ApplicationGUI:
 
     def update_analysis_progress(self, value, status_text=None):
         """Update progress bar and status in the analysis overlay."""
-        if self.analysis_display_widget and self.analysis_display_widget.progress_bar:
-            self.analysis_display_widget.progress_bar["value"] = value * 100
+        if self.analysis_display_widget:
+            if self.analysis_display_widget.progress_bar:
+                self.analysis_display_widget.progress_bar["value"] = value * 100
+            if status_text:
+                self.analysis_display_widget.set_status(status_text)
+
         if status_text:
+            if self.analysis_display_widget:
+                self.analysis_display_widget.set_status(status_text)
             self.analysis_status_var.set(status_text)
         self.update_idletasks()
 
@@ -1903,6 +1913,19 @@ class ApplicationGUI:
                     source="ApplicationGUI.publish_video_hierarchy_snapshot",
                 )
             )
+
+    @public_api
+    def publish_event(self, event_name: str, data: dict | None = None) -> bool:
+        """Publish an event via the event dispatcher.
+
+        Args:
+            event_name: Name of the event to publish
+            data: Optional event payload
+
+        Returns:
+            True if event was published successfully
+        """
+        return self.event_dispatcher.publish_event(event_name, data)
 
     # --- Legacy Methods (Shim Layer for Components) ---
     # These methods delegate to the appropriate managers to support components

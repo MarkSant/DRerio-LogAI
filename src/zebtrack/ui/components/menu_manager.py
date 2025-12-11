@@ -399,6 +399,64 @@ class MenuManager:
                 )
             )
 
+    def show_processing_reports_context_menu(
+        self,
+        video_path: str,
+        column_id: str,
+        x: int,
+        y: int,
+        callbacks: dict[str, callable],
+    ) -> None:
+        """Show context menu for processing reports tree items.
+
+        Args:
+            video_path: Path to the video file
+            column_id: Tree column identifier (e.g., "#1", "#2")
+            x: Screen X coordinate
+            y: Screen Y coordinate
+            callbacks: Dictionary of callback functions
+        """
+        menu = Menu(self.gui.root, tearoff=0)
+
+        # Map column ID to asset type
+        # Columns: #0=Tree/Name, #1=Arena, #2=ROIs, #3=Trajectory, #4=Summary
+        column_map = {
+            "#1": "arena",
+            "#2": "rois",
+            "#3": "trajectory",
+            "#4": "summary",
+        }
+        asset_type = column_map.get(column_id)
+
+        # 1. Option to delete specific asset (if clicked on asset column)
+        if asset_type:
+            asset_labels = {
+                "arena": "Apagar Arena",
+                "rois": "Apagar ROIs",
+                "trajectory": "Apagar Trajetória",
+                "summary": "Apagar Sumário",
+            }
+            label = asset_labels.get(asset_type, f"Apagar {asset_type}")
+            menu.add_command(
+                label=f"🗑️ {label}",
+                command=lambda: callbacks["delete_asset"](video_path, asset_type),
+            )
+            menu.add_separator()
+
+        # 2. Option to delete all processing data (always available)
+        menu.add_command(
+            label="🧹 Apagar Todos os Dados de Processamento",
+            command=lambda: callbacks["delete_all_processing"](video_path),
+        )
+
+        # 3. Option to delete video from project (always available)
+        menu.add_command(
+            label="❌ Remover Vídeo do Projeto",
+            command=lambda: callbacks["delete_video"](video_path),
+        )
+
+        menu.post(x, y)
+
     def create_roi_context_menu(self):
         """Cria menu de contexto para ROIs."""
         self.gui.roi_context_menu = Menu(self.gui.root, tearoff=0)

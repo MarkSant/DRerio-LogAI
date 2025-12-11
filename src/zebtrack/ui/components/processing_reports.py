@@ -204,6 +204,7 @@ class ProcessingReportsWidget(BaseWidget):
         # Bind events
         self.tree.bind("<<TreeviewSelect>>", self._on_selection_changed)
         self.tree.bind("<Double-Button-1>", self._on_item_double_click)
+        self.tree.bind("<Button-3>", self._on_item_right_click)
 
     def _build_selection_info(self) -> None:
         """Build the selection information label."""
@@ -338,6 +339,27 @@ class ProcessingReportsWidget(BaseWidget):
         if item_id:
             log.debug("processing_reports.item_double_clicked", item_id=item_id)
             self.emit_event("project.item_double_click", {"item_id": item_id, "event": event})
+
+    def _on_item_right_click(self, event) -> None:
+        """Handle item right-click in tree."""
+        if not self.tree:
+            return
+
+        item_id = self.tree.identify_row(event.y)
+        column_id = self.tree.identify_column(event.x)
+
+        if item_id:
+            # Ensure item is selected
+            self.tree.selection_set(item_id)
+            self.emit_event(
+                "processing_reports.item_right_click",
+                {
+                    "item_id": item_id,
+                    "column_id": column_id,
+                    "x": event.x_root,
+                    "y": event.y_root,
+                },
+            )
 
     def _on_generate_trajectories_clicked(self) -> None:
         """Handle Generate Trajectories button click."""
