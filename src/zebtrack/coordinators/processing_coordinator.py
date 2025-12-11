@@ -17,12 +17,12 @@ Total: ~2600 lines consolidated → ~1400 lines (smart delegation to services)
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import cv2
 import numpy as np
@@ -51,14 +51,14 @@ if TYPE_CHECKING:
     from zebtrack.analysis.analysis_service import AnalysisService
     from zebtrack.core.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
-    from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.core.video_classification_service import VideoClassificationService
     from zebtrack.core.video_selection_service import VideoSelectionService
     from zebtrack.core.video_validation_service import VideoValidationService
     from zebtrack.core.weight_manager import WeightManager
     from zebtrack.io.recorder_factory import RecorderFactory
-    from zebtrack.orchestrators.ui_state_controller import UIStateController
     from zebtrack.settings import Settings
+    from zebtrack.core.ui_scheduler import UIScheduler
+    from zebtrack.orchestrators.ui_state_controller import UIStateController
     from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
@@ -240,7 +240,7 @@ class ProcessingCoordinator(BaseCoordinator):
             lambda data: self.start_single_video_processing(
                 data.get("video_path") if isinstance(data, dict) else None,
                 data.get("config") if isinstance(data, dict) else {},
-                data.get("zone_data") if isinstance(data, dict) else None,
+                data.get("zone_data") if isinstance(data, dict) else None
             ),
         )
         bus.subscribe(
@@ -255,8 +255,7 @@ class ProcessingCoordinator(BaseCoordinator):
             lambda data: self.run_aquarium_detection(
                 video_path=data.get("video_path") if isinstance(data, dict) else None,
                 stabilization_frames=int(data.get("stabilization_frames", 10))
-                if isinstance(data, dict)
-                else 10,
+                if isinstance(data, dict) else 10,
             ),
         )
 
@@ -431,7 +430,7 @@ class ProcessingCoordinator(BaseCoordinator):
             experiment_id: str,
             fraction: float,
             message: str,
-            stats: dict | None,
+            stats: dict | None
         ):
             """Call with progress updates."""
             if self.cancel_event.is_set() or not self.view:
@@ -616,13 +615,15 @@ class ProcessingCoordinator(BaseCoordinator):
 
                 # Automatically trigger report generation for processed videos
                 try:
-                    video_paths = [v.get("path") for v in videos_to_process if v.get("path")]
+                    video_paths = [
+                        v.get("path") for v in videos_to_process
+                        if v.get("path")
+                    ]
                     if video_paths:
-                        self.ui_coordinator.set_status(
-                            self.view, "Gerando relatórios automáticos..."
-                        )
+                        self.ui_coordinator.set_status(self.view, "Gerando relatórios automáticos...")
                         self._publish_event(
-                            Events.PROJECT_GENERATE_SUMMARIES, {"video_paths": video_paths}
+                            Events.PROJECT_GENERATE_SUMMARIES,
+                            {"video_paths": video_paths}
                         )
                 except Exception as e:
                     log.error("processing_coordinator.auto_report_failed", error=str(e))
@@ -661,6 +662,7 @@ class ProcessingCoordinator(BaseCoordinator):
         if self.processing_worker and self.processing_worker.is_running:
             log.info("coordinator.cancelling_worker")
             self.processing_worker.cancel()
+
 
     def make_progress_callback(
         self,
@@ -1269,7 +1271,7 @@ class ProcessingCoordinator(BaseCoordinator):
         success = self.set_main_arena_polygon(polygon_points)
         if success and self.detector:
             # Update detector zones
-            self._publish_event(Events.DETECTOR_SETUP_ZONES, {})
+            self._publish_event(Events.DETECTOR_UPDATE_ZONES, {})
 
     def add_roi_polygon(self, roi_points: list[list[int]], name: str, color: tuple[int, int, int]):
         """Add ROI with overlap validation.
@@ -1395,7 +1397,7 @@ class ProcessingCoordinator(BaseCoordinator):
             )
 
             if self.detector:
-                self._publish_event(Events.DETECTOR_SETUP_ZONES, {})
+                self._publish_event(Events.DETECTOR_UPDATE_ZONES, {})
             log.info("controller.zone.add_roi.success", name=name)
             return True
 
