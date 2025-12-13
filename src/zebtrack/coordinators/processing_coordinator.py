@@ -1935,8 +1935,8 @@ class ProcessingCoordinator(BaseCoordinator):
             # Export Word (pass ROI colors and detector params)
             word_path = unified_dir / f"{base_name}.docx"
             Reporter.export_project_report(
-                aggregated_df, 
-                word_path, 
+                aggregated_df,
+                word_path,
                 roi_colors=roi_colors_map,
                 detector_params=detector_params
             )

@@ -864,7 +864,7 @@ class Reporter:
                 row_cells[1].text = f"RGB({color[0]}, {color[1]}, {color[2]})"
 
             document.add_page_break()
-        
+
         # Add detection parameters if available
         if detector_params:
             document.add_heading("Detection Parameters", level=2)
@@ -876,7 +876,7 @@ class Reporter:
             hdr_cells = table.rows[0].cells
             hdr_cells[0].text = "Parameter"
             hdr_cells[1].text = "Value"
-            
+
             # Sort parameters for consistent display
             for param_name, param_value in sorted(detector_params.items()):
                 row_cells = table.add_row().cells
@@ -890,7 +890,7 @@ class Reporter:
                     row_cells[1].text = f"{param_value}"
                 else:
                     row_cells[1].text = str(param_value)
-            
+
             document.add_page_break()
 
         document.add_heading("Descriptive Statistics by Group", level=2)
