@@ -831,7 +831,8 @@ class Reporter:
     def export_project_report(
         aggregated_df: pd.DataFrame,
         output_path: Path | str,
-        roi_colors: dict[str, tuple[int, int, int]] | None = None
+        roi_colors: dict[str, tuple[int, int, int]] | None = None,
+        detector_params: dict[str, any] | None = None
     ):
         """Export aggregated project report with comparative analysis.
 
@@ -839,6 +840,7 @@ class Reporter:
             aggregated_df: Aggregated DataFrame with multiple experiments
             output_path: Output file path for the report
             roi_colors: Optional dict mapping ROI names to RGB color tuples
+            detector_params: Optional dict with detection parameters used
         """
         output_path = Path(output_path) if isinstance(output_path, str) else output_path
         document = Document()
@@ -861,6 +863,34 @@ class Reporter:
                 row_cells[0].text = roi_name
                 row_cells[1].text = f"RGB({color[0]}, {color[1]}, {color[2]})"
 
+            document.add_page_break()
+        
+        # Add detection parameters if available
+        if detector_params:
+            document.add_heading("Detection Parameters", level=2)
+            document.add_paragraph(
+                "The following parameters were used for animal detection and tracking:"
+            )
+            table = document.add_table(rows=1, cols=2)
+            table.style = "Table Grid"
+            hdr_cells = table.rows[0].cells
+            hdr_cells[0].text = "Parameter"
+            hdr_cells[1].text = "Value"
+            
+            # Sort parameters for consistent display
+            for param_name, param_value in sorted(detector_params.items()):
+                row_cells = table.add_row().cells
+                # Format parameter name (convert snake_case to Title Case)
+                formatted_name = param_name.replace("_", " ").title()
+                row_cells[0].text = formatted_name
+                # Format value (handle booleans, numbers, strings)
+                if isinstance(param_value, bool):
+                    row_cells[1].text = "Yes" if param_value else "No"
+                elif isinstance(param_value, (int, float)):
+                    row_cells[1].text = f"{param_value}"
+                else:
+                    row_cells[1].text = str(param_value)
+            
             document.add_page_break()
 
         document.add_heading("Descriptive Statistics by Group", level=2)
