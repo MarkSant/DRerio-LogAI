@@ -32,10 +32,10 @@ class ColorSelectionDialog(simpledialog.Dialog):
 
         # Cores disponíveis: (nome, valor_bgr para OpenCV, cor_hex para visualização)
         self.colors = [
-            ("Verde", (0, 255, 0), "#00FF00"),
+            ("Verde", (0, 128, 0), "#008000"),
             ("Azul", (255, 0, 0), "#0000FF"),  # BGR: (255, 0, 0) = Blue
             ("Vermelho", (0, 0, 255), "#FF0000"),  # BGR: (0, 0, 255) = Red
-            ("Amarelo", (0, 255, 255), "#FFFF00"),  # BGR: (0, 255, 255) = Yellow
+            ("Amarelo", (0, 204, 204), "#CCCC00"),  # BGR: (0, 204, 204) = Darker Yellow
             ("Magenta", (255, 0, 255), "#FF00FF"),  # BGR: (255, 0, 255) = Magenta
             ("Ciano", (255, 255, 0), "#00FFFF"),  # BGR: (255, 255, 0) = Cyan
         ]

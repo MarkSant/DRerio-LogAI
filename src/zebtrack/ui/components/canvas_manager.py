@@ -672,13 +672,15 @@ class CanvasManager:
             if zone_data.roi_names:
                 for i, name in enumerate(zone_data.roi_names):
                     color_bgr = (
-                        zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 255, 0)
+                        zone_data.roi_colors[i] if i < len(zone_data.roi_colors) else (0, 128, 0)
                     )
                     # BGR to Hex for tag styling
                     color_hex = f"#{color_bgr[2]:02x}{color_bgr[1]:02x}{color_bgr[0]:02x}"
                     # Get color name from BGR value
                     color_name = self._get_color_name_from_bgr(color_bgr)
                     controls.add_zone_to_list(f"roi_{i}", f"📍 {name}", "ROI", color_name, color_hex)
+
+        self.update_roi_button_state()
 
     def apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
         """Apply snapping to nearby vertices or edges of existing polygons."""
@@ -1035,10 +1037,10 @@ class CanvasManager:
 
     # BGR to color name mapping (matches color_selection_dialog.py)
     _BGR_COLOR_MAP = {
-        (0, 255, 0): "Verde",
+        (0, 128, 0): "Verde",
         (255, 0, 0): "Azul",
         (0, 0, 255): "Vermelho",
-        (0, 255, 255): "Amarelo",
+        (0, 204, 204): "Amarelo",
         (255, 0, 255): "Magenta",
         (255, 255, 0): "Ciano",
     }

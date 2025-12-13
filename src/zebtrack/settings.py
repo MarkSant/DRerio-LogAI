@@ -562,6 +562,14 @@ class UIFeatureFlags(BaseModel):
             "Default: False for stability."
         ),
     )
+    suppress_roi_mismatch_warning: bool = Field(
+        False,
+        description=(
+            "Suppress warning dialog when generating unified reports with videos that have "
+            "different ROI configurations. Enable this if you understand the implications "
+            "of merging data from videos with different ROI schemas."
+        ),
+    )
 
 
 class PerformanceSettings(BaseModel):

@@ -265,6 +265,20 @@ class ProcessingCoordinator(BaseCoordinator):
                 data.get("video_paths") if isinstance(data, dict) else None
             ),
         )
+        # Unified report generation
+        def _handle_report_generate(data):
+            if not isinstance(data, dict):
+                return
+            report_type = data.get("report_type")
+            videos = data.get("videos", [])
+            paths = [v.get("path") for v in videos if v.get("path")]
+
+            if report_type == "unified":
+                self.generate_unified_report(paths)
+            else:
+                self.generate_project_reports(paths)
+
+        bus.subscribe(Events.REPORT_GENERATE, _handle_report_generate)
 
         log.info("processing_coordinator.register_handlers.complete", count=4)
 
@@ -569,6 +583,9 @@ class ProcessingCoordinator(BaseCoordinator):
                     experiment_id=experiment_id,
                     trajectory_path=trajectory_path,
                 )
+
+                # Refresh UI to update status cards
+                self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {})
 
                 # Generate report immediately
                 try:
@@ -1159,12 +1176,17 @@ class ProcessingCoordinator(BaseCoordinator):
         details: list[str] = []
         data_changed = False
 
+        # Get expected ROI names from first video for schema standardization
+        video_paths = [v.get("path") for v in target_videos if v.get("path")]
+        expected_roi_names = self._find_project_roi_names(video_paths) if video_paths else None
+
         for video in target_videos:
             state = None
             try:
                 state, info_msg, _ppath, changed = self._process_summary_video(
                     video,
                     settings_obj,
+                    expected_roi_names=expected_roi_names,
                 )
             except Exception as exc:
                 state, info_msg, _ppath, changed = "failed", str(exc), None, False
@@ -1746,6 +1768,213 @@ class ProcessingCoordinator(BaseCoordinator):
         log.debug("processing_coordinator.validate_can_start_processing.success")
         return ValidationResult.success()
 
+    def _find_project_roi_names(self, video_paths: list[str]) -> list[str] | None:
+        """Find ROI names from the first video in project that has zone data defined.
+
+        This is used to standardize ROI column schemas across all summary parquets.
+        Assumes first analyzed video already has ROIs/arena defined.
+
+        Args:
+            video_paths: List of video file paths in the project
+
+        Returns:
+            List of ROI names from first video with zone data, or None if no zones found
+        """
+        for path in video_paths:
+            try:
+                zone_data = self.project_manager.get_zone_data(video_path=path)
+                if zone_data and (zone_data.roi_names or zone_data.polygon):
+                    if zone_data.roi_names:
+                        log.info(
+                            "processing_coordinator.found_project_rois",
+                            video=path,
+                            roi_count=len(zone_data.roi_names),
+                            roi_names=zone_data.roi_names
+                        )
+                        return list(zone_data.roi_names)
+            except Exception as e:
+                log.debug("processing_coordinator.zone_lookup_failed", video=path, error=str(e))
+                continue
+
+        log.warning("processing_coordinator.no_project_rois_found")
+        return None
+
+    def generate_unified_report(self, video_paths: list[str] | None = None) -> None:
+        """Generate a unified report aggregating data from multiple videos."""
+        if not video_paths:
+            return
+
+        log.info("workflow.unified_report.start", count=len(video_paths))
+        self._publish_event(Events.UI_SET_STATUS, {"message": "Gerando relatório unificado..."})
+
+        if not self.project_manager.project_path:
+            self._publish_event(Events.UI_SHOW_ERROR, {"title": "Erro", "message": "Nenhum projeto carregado."})
+            return
+
+        unified_dir = self.project_manager.project_path / "unified_reports"
+        unified_dir.mkdir(parents=True, exist_ok=True)
+
+        dfs = []
+        roi_colors_map = {}  # Collect ROI colors from all videos
+
+        for path in video_paths:
+            entry = self.project_manager.find_video_entry(path=path)
+            if not entry:
+                continue
+
+            # Collect ROI colors from zone data
+            try:
+                zone_data = self.project_manager.get_zone_data(video_path=path)
+                if zone_data and zone_data.roi_names and zone_data.roi_colors:
+                    for roi_name, color in zip(zone_data.roi_names, zone_data.roi_colors):
+                        # Store first color encountered for each ROI name
+                        if roi_name not in roi_colors_map:
+                            roi_colors_map[roi_name] = color
+            except Exception as e:
+                log.debug("workflow.unified_report.color_collection_failed", path=path, error=str(e))
+
+            # Find summary parquet
+            parquet_files = entry.get("parquet_files", {})
+            summary_path = parquet_files.get("summary")
+
+            if not summary_path or not os.path.exists(summary_path):
+                # Try to resolve if missing from registry
+                experiment_id = os.path.splitext(os.path.basename(path))[0]
+                metadata_hint = entry.get("metadata")
+                results_path = self.project_manager.resolve_results_directory(
+                    experiment_id, video_path=path, metadata=metadata_hint
+                )
+                candidate = results_path / f"{experiment_id}_summary.parquet"
+                if candidate.exists():
+                    summary_path = str(candidate)
+
+            if summary_path and os.path.exists(summary_path):
+                try:
+                    df = pd.read_parquet(summary_path)
+
+                    # Re-enrich metadata from project for old parquets
+                    if entry:
+                        current_metadata = entry.get("metadata", {})
+                        if current_metadata:
+                            # Update group_id if unassigned
+                            if "group_id" in df.columns and (df["group_id"] == "unassigned").any():
+                                group_id = current_metadata.get("group_id") or current_metadata.get("group")
+                                if group_id:
+                                    df.loc[df["group_id"] == "unassigned", "group_id"] = str(group_id)
+
+                            # Update experiment_id if unknown
+                            if "experiment_id" in df.columns and (df["experiment_id"] == "unknown").any():
+                                exp_id = current_metadata.get("experiment_id") or entry.get("experiment_id") or current_metadata.get("name")
+                                if exp_id:
+                                    df.loc[df["experiment_id"] == "unknown", "experiment_id"] = str(exp_id)
+
+                    dfs.append(df)
+                except Exception as e:
+                    log.warning("workflow.unified_report.read_failed", file=summary_path, error=str(e))
+
+        if not dfs:
+            self._publish_event(
+                Events.UI_SHOW_WARNING,
+                {"title": "Dados insuficientes", "message": "Não foi possível encontrar sumários para os vídeos selecionados."}
+            )
+            return
+
+        try:
+            # Align DataFrame columns before concatenation
+            all_columns = set()
+            for df in dfs:
+                all_columns.update(df.columns)
+
+            # Detect ROI column mismatch (only check ROI-specific columns, not derived/metadata)
+            roi_pattern_prefixes = ["tempo_no_", "entradas_no_", "distancia_no_"]
+            roi_columns_per_df = []
+            for df in dfs:
+                roi_cols = {col for col in df.columns if any(col.startswith(prefix) for prefix in roi_pattern_prefixes)}
+                roi_columns_per_df.append(roi_cols)
+
+            # Schema mismatch only if ROI columns differ
+            schema_mismatch = len(set(map(frozenset, roi_columns_per_df))) > 1
+
+            # Pad missing columns with pd.NA
+            aligned_dfs = []
+            for df in dfs:
+                df_copy = df.copy()
+                for col in all_columns:
+                    if col not in df_copy.columns:
+                        df_copy[col] = pd.NA
+                # Sort columns for consistency
+                aligned_dfs.append(df_copy[sorted(all_columns)])
+
+            # Suppress FutureWarning from pandas about empty/all-NA columns
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=FutureWarning, message=".*DataFrame concatenation.*")
+                aggregated_df = pd.concat(aligned_dfs, ignore_index=True)
+
+            # Warn user if ROI schemas differ (unless suppressed)
+            if schema_mismatch and not self.settings.ui_features.suppress_roi_mismatch_warning:
+                log.warning("workflow.unified_report.schema_mismatch", column_count=len(all_columns))
+                self._publish_event(
+                    Events.UI_SHOW_WARNING,
+                    {
+                        "title": "ROIs Diferentes Detectadas",
+                        "message": (
+                            "Atenção: Alguns vídeos possuem ROIs diferentes.\n\n"
+                            "Certifique-se de que todos os vídeos do projeto usam as mesmas ROIs "
+                            "para relatórios consistentes.\n\n"
+                            "Você pode suprimir este aviso em config.yaml: "
+                            "ui_features.suppress_roi_mismatch_warning: true"
+                        )
+                    }
+                )
+
+            # Generate filenames with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_name = f"relatorio_unificado_{timestamp}"
+
+            # Export Word (pass ROI colors for legend)
+            word_path = unified_dir / f"{base_name}.docx"
+            Reporter.export_project_report(aggregated_df, word_path, roi_colors=roi_colors_map)
+
+            # Export Excel (replace pd.NA with 0 for numeric columns to avoid empty cells)
+            excel_path = unified_dir / f"{base_name}.xlsx"
+            excel_df = aggregated_df.copy()
+            # Replace pd.NA with 0 in numeric columns only
+            for col in excel_df.select_dtypes(include=['number']).columns:
+                excel_df[col] = excel_df[col].fillna(0)
+            excel_df.to_excel(excel_path, index=False)
+
+            # Export Parquet
+            parquet_path = unified_dir / f"{base_name}.parquet"
+            aggregated_df.to_parquet(parquet_path, index=False)
+
+            log.info(
+                "workflow.unified_report.complete",
+                word_path=str(word_path),
+                excel_path=str(excel_path),
+                parquet_path=str(parquet_path),
+                row_count=len(aggregated_df)
+            )
+
+            self._publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Relatório Unificado Gerado",
+                    "message": f"Relatórios salvos em:\n{unified_dir}\n\nArquivos:\n• {word_path.name}\n• {excel_path.name}"
+                }
+            )
+
+            # Clear UI status and refresh views
+            self._publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
+            self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {})
+
+        except Exception as e:
+            log.error("workflow.unified_report.failed", error=str(e))
+            self._publish_event(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro na Geração", "message": f"Falha ao gerar relatório unificado: {e}"}
+            )
+
     def generate_project_reports(self, video_paths: list[str] | None = None) -> None:
         """Generate reports (Word, Excel, Parquet) for specified videos."""
         if not video_paths:
@@ -1781,11 +2010,11 @@ class ProcessingCoordinator(BaseCoordinator):
             try:
                 # Resolve trajectory path
                 experiment_id = os.path.splitext(os.path.basename(path))[0]
-                
+
                 # Fix: Use find_video_entry instead of get_video_metadata
                 video_entry = self.project_manager.find_video_entry(path=path)
                 metadata = video_entry.get("metadata", {}) if video_entry else {}
-                
+
                 if not metadata:
                     metadata = self.project_manager.derive_processing_metadata(
                         experiment_id, video_path=path
@@ -1841,7 +2070,7 @@ class ProcessingCoordinator(BaseCoordinator):
                         if len(poly) >= 3:
                             roi_geometry = Polygon(poly)
                             rois.append(ROI(name=name, geometry=roi_geometry, coordinate_space="px"))
-                        
+
                         if i < len(zone_data.roi_colors):
                             roi_colors_map[name] = zone_data.roi_colors[i]
 
@@ -1868,6 +2097,13 @@ class ProcessingCoordinator(BaseCoordinator):
                 report_base = os.path.join(results_path, f"4_Relatorio_{experiment_id}")
                 reporter.export_individual_report(f"{report_base}.docx")
                 reporter.export_summary_data(f"{report_base}.xlsx", format="excel")
+
+                # Register outputs to update project status
+                self.project_manager.register_processing_outputs(
+                    video_path=path,
+                    report_path=f"{report_base}.docx",
+                    summary_excel=f"{report_base}.xlsx",
+                )
 
                 count += 1
             except Exception as e:
@@ -2089,10 +2325,16 @@ class ProcessingCoordinator(BaseCoordinator):
         self,
         video: dict,
         settings_obj,
+        expected_roi_names: list[str] | None = None,
     ) -> tuple[str, str | None, str | None, bool]:
         """Process a single video for summary generation.
 
         Phase 3: Consolidated from AnalysisOrchestrator._process_summary_video
+
+        Args:
+            video: Video dictionary entry from project
+            settings_obj: Settings object
+            expected_roi_names: Optional list of ROI names for schema standardization
         """
         # Ensure analysis service is available and configured
         if not self.analysis_service:
@@ -2238,7 +2480,7 @@ class ProcessingCoordinator(BaseCoordinator):
 
             os.makedirs(results_dir, exist_ok=True)
             parquet_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
-            reporter.export_summary_data(parquet_path, format="parquet")
+            reporter.export_summary_data(parquet_path, format="parquet", expected_roi_names=expected_roi_names)
 
             video.setdefault("parquet_files", {})["summary"] = parquet_path
             video["has_complete_data"] = True

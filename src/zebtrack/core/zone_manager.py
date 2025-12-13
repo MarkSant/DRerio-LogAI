@@ -593,10 +593,10 @@ class ZoneManager:
                         # Generate default colors if not provided
                         # (actual colors are not stored in parquet, using defaults)
                         default_colors = [
-                            (0, 255, 0),  # Green
+                            (0, 128, 0),  # Dark Green (was 0, 255, 0)
                             (255, 0, 0),  # Red
                             (0, 0, 255),  # Blue
-                            (255, 255, 0),  # Yellow
+                            (0, 204, 204),  # Darker Yellow (was 0, 255, 255)
                             (255, 0, 255),  # Magenta
                             (0, 255, 255),  # Cyan
                         ]

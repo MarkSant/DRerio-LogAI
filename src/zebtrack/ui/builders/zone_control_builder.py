@@ -49,6 +49,19 @@ class ZoneControlBuilder:
         else:
             log.warning("zone_control_builder.refresh_tree.no_event_bus")
 
+    def _on_conclude_video(self):
+        """Handle 'Concluir Edição do Vídeo' button click."""
+        # 1. Save Project (Persist flags and data)
+        if hasattr(self.gui, "controller") and self.gui.controller.project_manager:
+            self.gui.controller.project_manager.save_project()
+            
+        # 2. Refresh Tree (Update indicators)
+        self._refresh_video_tree_dual_mode()
+        
+        # 3. Optional: Feedback
+        if hasattr(self.gui, "set_status"):
+            self.gui.set_status("Edição concluída. Dados salvos e indicadores atualizados.")
+
     def create_zone_control_widgets(self) -> None:
         """
         Create all zone control widgets in the scrollable frame.
@@ -160,6 +173,15 @@ class ZoneControlBuilder:
             state="disabled",
         )
         self.gui.toggle_view_btn.pack(fill="x", pady=2)
+
+        # Conclude Video Button (Explicit user request)
+        ttk.Separator(actions_frame, orient="horizontal").pack(fill="x", pady=5)
+        ttk.Button(
+            actions_frame,
+            text="✅ Concluir Edição do Vídeo",
+            command=self._on_conclude_video,
+            style="Accent.TButton"
+        ).pack(fill="x", pady=2)
 
         template_frame = ttk.LabelFrame(
             self.gui.zone_controls_frame,

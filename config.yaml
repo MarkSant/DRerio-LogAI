@@ -262,6 +262,11 @@ ui_features:
   # Default: false (staged migration, still using root.after for UI updates)
   enable_event_queue: false
 
+  # Suppress warning when generating unified reports from videos with different ROI schemas
+  # Default: false (show warning to ensure user understands ROI consistency implications)
+  # Set to true if you regularly merge data from videos with intentionally different ROIs
+  suppress_roi_mismatch_warning: false
+
 # -----------------------------------------------------------------------------
 # Performance & Parallelization (Phase 8)
 # -----------------------------------------------------------------------------

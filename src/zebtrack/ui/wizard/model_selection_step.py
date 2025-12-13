@@ -448,34 +448,51 @@ class ModelSelectionStep(WizardStep):
         )
         guide_frame.pack(fill="both", expand=True)
 
-        guide_text = Label(
+        guide_frame.columnconfigure(0, weight=1)
+        guide_frame.columnconfigure(1, weight=1)
+
+        # Column 1: Detector (Confidence & NMS)
+        col1_text = (
+            "🔴 AUMENTAR Confiança: Se há muitos falsos positivos\n"
+            "🟢 DIMINUIR Confiança: Se animais não são detectados\n\n"
+            "🔴 AUMENTAR NMS: Se o mesmo animal é detectado 2x\n"
+            "🟢 DIMINUIR NMS: Se animais próximos são unidos"
+        )
+        Label(
             guide_frame,
-            text=(
-                "🔴 AUMENTAR Confiança: Se há muitos falsos positivos "
-                "(sombras, reflexos)\n"
-                "🟢 DIMINUIR Confiança: Se animais não são detectados "
-                "(especialmente em movimento)\n\n"
-                "🔴 AUMENTAR NMS: Se o mesmo animal está sendo detectado "
-                "2x simultaneamente\n"
-                "🟢 DIMINUIR NMS: Se animais próximos são unidos numa "
-                "única detecção\n\n"
-                "🔴 AUMENTAR Track: Se IDs mudam com frequência durante "
-                "oclusões\n"
-                "🟢 DIMINUIR Track: Se leva muito tempo para detectar "
-                "animais novos\n\n"
-                "🔴 AUMENTAR Match: Se IDs trocam entre animais diferentes\n"
-                "🟢 DIMINUIR Match: Se tracks são perdidos facilmente "
-                "(muitos IDs novos)\n\n"
-                "💡 Dica de Ouro: Ajuste UM parâmetro por vez e teste! "
-                "Mudanças pequenas (±0.05) geralmente são suficientes."
-            ),
+            text=col1_text,
             fg="#333333",
             justify="left",
             font=("TkDefaultFont", 9),
-            wraplength=360,
+            anchor="n"
+        ).grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+
+        # Column 2: Tracker (Track & Match)
+        col2_text = (
+            "🔴 AUMENTAR Track: Se IDs mudam com frequência\n"
+            "🟢 DIMINUIR Track: Se demora para detectar novos\n\n"
+            "🔴 AUMENTAR Match: Se IDs trocam entre animais\n"
+            "🟢 DIMINUIR Match: Se tracks são perdidos facilmente"
         )
-        guide_text.pack(anchor="w", fill="both", expand=True)
-        self._responsive_labels["right"].append(guide_text)
+        Label(
+            guide_frame,
+            text=col2_text,
+            fg="#333333",
+            justify="left",
+            font=("TkDefaultFont", 9),
+            anchor="n"
+        ).grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+
+        # Footer Tip
+        Label(
+            guide_frame,
+            text="💡 Dica: Ajuste UM parâmetro por vez (±0.05) e teste!",
+            fg="#006600",
+            font=("TkDefaultFont", 9, "bold"),
+        ).grid(row=1, column=0, columnspan=2, pady=(8, 0), sticky="w")
+        
+        # We don't need to append these to _responsive_labels as we want them static in grid
+
 
         self.aquarium_method_var.trace_add("write", self._on_aquarium_method_change)
         self.animal_method_var.trace_add("write", self._on_animal_method_change)

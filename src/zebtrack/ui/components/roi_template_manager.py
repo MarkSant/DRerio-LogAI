@@ -99,9 +99,18 @@ class ROITemplateManager:
             # The plan logic implies we just validate here.
 
         path = Path(path_str)
-        if not path.exists() or not path.is_file():
-            log.warning("roi_templates.invalid_file", file=path_str)
-            return False
+        if path.exists() and path.is_file():
+            return True
+
+        # Check relative to project path if available
+        project_path = getattr(self.project_manager, "project_path", None)
+        if project_path:
+            project_resolved = Path(project_path) / path_str
+            if project_resolved.exists() and project_resolved.is_file():
+                return True
+
+        log.warning("roi_templates.invalid_file", file=path_str)
+        return False
 
         return True
 
@@ -175,6 +184,17 @@ class ROITemplateManager:
                 )
 
             self.gui._refresh_zone_indicators()
+
+            # Force refresh of video list indicators
+            if self.event_bus_v2:
+                from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                self.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                        data={"reason": "Template Applied", "append_summary": False},
+                        source="ROITemplateManager.apply_template",
+                    )
+                )
 
             template_name = selected.get("name")
             self.gui.show_info(

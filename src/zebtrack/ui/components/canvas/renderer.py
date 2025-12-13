@@ -324,7 +324,7 @@ class CanvasRenderer:
         self.gui.interactive_polygon_item = canvas.create_polygon(
             flat_points,
             fill="",
-            outline="#DAA520",
+            outline="#B8860B",  # DarkGoldenRod
             width=2,
             tags="interactive_polygon",
         )

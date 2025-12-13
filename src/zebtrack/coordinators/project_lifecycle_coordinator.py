@@ -285,9 +285,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             **wizard_data,
         )
 
-        # Only publish success event if project was actually created
         if project_path:
-            self._publish_event(Events.PROJECT_CREATED, {"path": str(project_path)})
             self.logger.info("project.create.complete", path=str(project_path))
         else:
             self.logger.warning("project.create.failed")
@@ -405,7 +403,8 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         )
 
         if success:
-            self._publish_event(Events.PROJECT_OPENED, {"path": str(project_path)})
+            # NOTE: Removed PROJECT_OPENED event emission (no handlers exist; all UI updates
+            # are already handled by project_workflow_adapter.open_project_workflow)
             self.logger.info("project.open.complete", path=str(project_path))
         else:
             self.logger.warning("project.open.failed", path=str(project_path))

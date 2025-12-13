@@ -129,6 +129,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `ZONE_PASTE_ZONES` | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.paste_zones_to_video()` |
 | `ZONE_DELETE_ZONES` | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.delete_zones_from_video()` |
 | `ZONE_FINISH_DRAWING` | - | `ZoneControls` | `EventDispatcher` → `CanvasManager.finish_current_polygon()` |
+| `ZONE_CONCLUDE_VIDEO` | - | `ZoneControls` | `EventDispatcher` → `ZoneControlBuilder._on_conclude_video()` |
 
 ### 3.4. Processing & Analysis Events
 

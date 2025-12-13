@@ -253,9 +253,75 @@ class ProjectManager:
     def set_active_zone_video(self, video_path: Path | str | None) -> None:
         """
         Set the video whose zones should be considered active in memory.
-
-        Delegates to ZoneManager.
+        
+        Robustly attempts to load zone data from the project structure if in-memory data
+        is incomplete, ensuring the editor reflects the files on disk.
         """
+        if video_path:
+            video_path_str = str(Path(video_path) if isinstance(video_path, str) else video_path)
+            
+            # 1. Resolve where the files SHOULD be in the project structure
+            video_entry = self.find_video_entry(path=video_path_str)
+            metadata = video_entry.get("metadata") if video_entry else None
+            experiment_id = Path(video_path_str).stem
+            
+            try:
+                results_dir = self.resolve_results_directory(
+                    experiment_id,
+                    video_path=video_path_str,
+                    metadata=metadata
+                )
+                
+                # 2. Check for parquet files in the project structure
+                arena_path = results_dir / f"1_ProcessingArea_{experiment_id}.parquet"
+                rois_path = results_dir / f"2_AreasOfInterest_{experiment_id}.parquet"
+                
+                found_parquets = {}
+                if arena_path.exists():
+                    found_parquets["arena"] = str(arena_path)
+                if rois_path.exists():
+                    found_parquets["rois"] = str(rois_path)
+                
+                # 3. If files found, force load/merge
+                if found_parquets:
+                    log.info("project.set_active.found_project_parquets", files=list(found_parquets.keys()))
+                    
+                    # Prepare info dict for loader
+                    video_info = {"path": video_path_str, "parquet_files": found_parquets}
+                    
+                    # Load from disk
+                    loaded_zones = self.load_zones_from_parquet(video_info)
+                    
+                    if loaded_zones:
+                        # Check what we have in memory currently
+                        current_zones = self.zone_manager.get_zone_data(
+                            self.project_data, video_path_str, fallback_to_global=False
+                        )
+                        
+                        # Use loaded data if memory is empty OR if memory lacks ROIs but disk has them
+                        should_update = False
+                        if not current_zones.polygon and loaded_zones.polygon:
+                            should_update = True
+                        if not current_zones.roi_polygons and loaded_zones.roi_polygons:
+                            should_update = True
+                            
+                        # If we loaded data and decide to use it, save to memory
+                        if should_update or (not current_zones.polygon and not current_zones.roi_polygons):
+                            log.info("project.set_active.syncing_memory_from_disk", video=video_path_str)
+                            self.save_zone_data(loaded_zones, video_path=video_path_str, persist=False)
+                            
+                            # Also update video entry registry so future scans work
+                            if video_entry:
+                                video_entry.setdefault("parquet_files", {}).update(found_parquets)
+                                if loaded_zones.polygon:
+                                    video_entry["has_arena"] = True
+                                if loaded_zones.roi_polygons:
+                                    video_entry["has_rois"] = True
+
+            except Exception as e:
+                log.warning("project.set_active.load_failed", error=str(e))
+
+        # Delegate to manager to set the active pointer
         self.zone_manager.set_active_zone_video(self.project_data, video_path)
 
     def get_active_zone_video(self) -> str | None:
@@ -313,6 +379,27 @@ class ProjectManager:
 
         # Handle persistence logic here to support single-video workflow (no project path)
         if persist:
+            # Generate parquet files if we have a valid video path and project
+            target_video = video_path or self.get_active_zone_video()
+            if target_video and self.project_path:
+                try:
+                    exported = self.export_zones_to_parquet(target_video, zone_data)
+                    
+                    # Update video entry with new parquet files
+                    video_entry = self.find_video_entry(path=target_video)
+                    if video_entry:
+                        parquet_map = video_entry.setdefault("parquet_files", {})
+                        parquet_map.update(exported)
+                        
+                        # Update flags based on export success
+                        if "arena" in exported:
+                            video_entry["has_arena"] = True
+                        if "rois" in exported:
+                            video_entry["has_rois"] = True
+                            
+                except Exception as e:
+                    log.error("project.save_zone_data.parquet_export_failed", error=str(e))
+
             if self.project_path:
                 self.save_project()
             else:
@@ -355,6 +442,67 @@ class ProjectManager:
         _, stored = self._resolve_zone_entry(video_path)
         return self._zone_data_from_dict(stored)
 
+    def export_zones_to_parquet(
+        self,
+        video_path: Path | str,
+        zone_data: ZoneData,
+    ) -> dict[str, str]:
+        """Export zone data (arena and ROIs) to parquet files.
+
+        Args:
+            video_path: Path to the video file.
+            zone_data: ZoneData object to export.
+
+        Returns:
+            Dictionary mapping asset type ('arena', 'rois') to generated file path.
+        """
+        import pandas as pd
+
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        exported = {}
+
+        if not self.project_path:
+            return exported
+
+        # Resolve destination directory
+        video_stem = Path(video_path).stem
+        video_entry = self.find_video_entry(path=video_path)
+        metadata_hint = video_entry.get("metadata") if video_entry else None
+        
+        results_dir = self.resolve_results_directory(
+            video_stem,
+            video_path=video_path,
+            metadata=metadata_hint,
+        )
+        results_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. Export Arena
+        if zone_data.polygon:
+            arena_df = pd.DataFrame(zone_data.polygon, columns=["x", "y"])
+            arena_path = results_dir / f"1_ProcessingArea_{video_stem}.parquet"
+            arena_df.to_parquet(arena_path)
+            exported["arena"] = str(arena_path)
+
+        # 2. Export ROIs
+        if zone_data.roi_polygons and zone_data.roi_names:
+            roi_data = []
+            for name, poly in zip(zone_data.roi_names, zone_data.roi_polygons):
+                for idx, point in enumerate(poly):
+                    roi_data.append({
+                        "roi_name": name,
+                        "point_index": idx,
+                        "x": point[0],
+                        "y": point[1]
+                    })
+            
+            if roi_data:
+                rois_df = pd.DataFrame(roi_data)
+                rois_path = results_dir / f"2_AreasOfInterest_{video_stem}.parquet"
+                rois_df.to_parquet(rois_path)
+                exported["rois"] = str(rois_path)
+
+        return exported
+
     def copy_zone_parquet_files(
         self,
         source_video_path: Path | str,
@@ -366,6 +514,10 @@ class ProjectManager:
 
         Returns a mapping with the copied parquet types and their new paths.
         """
+        # Force sync of source video to ensure files are registered
+        # This triggers the "self-healing" logic if files exist on disk but not in memory
+        self.set_active_zone_video(source_video_path)
+
         source_video_path = str(
             Path(source_video_path) if isinstance(source_video_path, str) else source_video_path
         )
@@ -387,6 +539,15 @@ class ProjectManager:
             return copied
 
         parquet_files: dict[str, str] = scan_results[0].get("parquet_files", {})
+        
+        # Enrich with registered files if missing (Fix for hierarchical project structure)
+        if not parquet_files.get("arena") or not parquet_files.get("rois"):
+            source_entry = self.find_video_entry(path=source_video_path)
+            if source_entry:
+                registered = source_entry.get("parquet_files", {})
+                if registered:
+                    parquet_files.update(registered)
+
         if not parquet_files:
             log.info(
                 "project_manager.zones.copy_no_parquets",
@@ -471,6 +632,15 @@ class ProjectManager:
             if video_entry is not None:
                 parquet_map = video_entry.setdefault("parquet_files", {})
                 parquet_map.update(copied)
+                
+                # Critical Fix: Update status flags so analysis sees the data
+                if "arena" in copied:
+                    video_entry["has_arena"] = True
+                if "rois" in copied:
+                    video_entry["has_rois"] = True
+                
+                # Reset zones_finalized to force re-evaluation if needed
+                video_entry["zones_finalized"] = False
 
         if persist and updated_video_entry:
             self.save_project()
@@ -556,12 +726,12 @@ class ProjectManager:
                         # Generate default colors if not provided
                         # (actual colors are not stored in parquet, using defaults)
                         default_colors = [
-                            (0, 255, 0),  # Green
+                            (0, 128, 0),  # Green
                             (255, 0, 0),  # Blue
                             (0, 0, 255),  # Red
                             (255, 255, 0),  # Cyan
                             (255, 0, 255),  # Magenta
-                            (0, 255, 255),  # Yellow
+                            (0, 204, 204),  # Darker Yellow (was 0, 255, 255)
                         ]
                         zone_data.roi_colors = [
                             default_colors[i % len(default_colors)] for i in range(len(roi_names))
@@ -816,12 +986,12 @@ class ProjectManager:
                             zone_data.roi_names = imported_roi_names
 
                         default_colors = [
-                            (0, 255, 0),
+                            (0, 128, 0),
                             (255, 0, 0),
                             (0, 0, 255),
-                            (255, 255, 0),
+                            (0, 204, 204),
                             (255, 0, 255),
-                            (0, 255, 255),
+                            (0, 204, 204),
                         ]
                         zone_data.roi_colors = [
                             default_colors[i % len(default_colors)]

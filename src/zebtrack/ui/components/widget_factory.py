@@ -227,9 +227,17 @@ class WidgetFactory:
         if self.gui._drawing_buttons_frame:
             self.gui._drawing_buttons_frame.destroy()
 
+        def _perform_undo():
+            if self.gui.drawing_state_manager.undo():
+                self.gui.canvas_manager.renderer.redraw_polygon_in_progress()
+
+        def _perform_redo():
+            if self.gui.drawing_state_manager.redo():
+                self.gui.canvas_manager.renderer.redraw_polygon_in_progress()
+
         commands = {
-            "undo": lambda: self.gui.drawing_state_manager.undo(),
-            "redo": lambda: self.gui.drawing_state_manager.redo(),
+            "undo": _perform_undo,
+            "redo": _perform_redo,
         }
 
         # Use video_display as parent to position buttons over the video, avoiding toolbar overlap

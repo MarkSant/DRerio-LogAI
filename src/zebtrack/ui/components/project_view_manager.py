@@ -305,11 +305,6 @@ class ProjectViewManager:
         # Refresh project overview
         self._refresh_project_overview()
 
-        # Refresh pipeline table if in pre-recorded mode
-        project_type = self.gui.controller.project_manager.get_project_type()
-        if project_type == "pre-recorded":
-            self._refresh_pipeline_video_table()
-
         # Refresh processing reports tab
         self._refresh_processing_reports_tab()
 
@@ -630,12 +625,6 @@ class ProjectViewManager:
                 # Fallback for tests or if event bus missing (call internal impl)
                 self._populate_video_selector_tree(filter_text)
 
-    def refresh_pipeline_video_table(self) -> None:
-        """Refresh the pipeline video table in pre-recorded projects."""
-        # Note: This method is called _refresh_pipeline_video_table in gui.py
-        # but exposed as public method here
-        self._refresh_pipeline_video_table()
-
     def _populate_video_selector_tree(self, filter_text: str | None = None) -> None:
         """Populate video selector tree with filtered videos.
 
@@ -765,15 +754,6 @@ class ProjectViewManager:
 
         _walk("")
 
-    def _refresh_pipeline_video_table(self) -> None:
-        """Refresh pipeline video table (internal implementation)."""
-        log.warning(
-            "project_view_manager.refresh_pipeline_video_table_deprecated",
-            message="This method is LEGACY and may be removed in future versions",
-        )
-        # This functionality has been moved to ProcessingReportsWidget
-        # Kept here for backward compatibility
-
     def trigger_batch_trajectory_processing(self, selection=None) -> None:
         """Trigger batch trajectory processing for selected or all videos."""
         from zebtrack.ui.events import Events
@@ -785,16 +765,6 @@ class ProjectViewManager:
         else:
             # Try to resolve from active widget
             selections = self.resolve_processing_reports_video_paths()
-
-            # Fallback to legacy pipeline selection
-            if not selections:
-                selections = self._get_selected_pipeline_video_paths()
-
-            # Fallback to all eligible videos in legacy pipeline if explicit selection empty?
-            # (Legacy behavior was: if no selection, process all listed in table)
-            if not selections and hasattr(self.gui, "pipeline_video_vars"):
-                pipeline_vars = getattr(self.gui, "pipeline_video_vars", {}) or {}
-                selections = list(pipeline_vars.keys())
 
         if not selections:
             self.gui.show_info(
@@ -818,10 +788,6 @@ class ProjectViewManager:
 
         # Try to resolve from active widget (new tab)
         selections = self.resolve_processing_reports_video_paths()
-
-        # Fallback to legacy pipeline selection
-        if not selections:
-            selections = self._get_selected_pipeline_video_paths()
 
         if not selections:
             self.gui.show_info(
@@ -853,55 +819,6 @@ class ProjectViewManager:
             {"videos": all_videos, "report_type": "unified"},
         )
 
-    def _get_selected_pipeline_video_paths(self) -> list[str]:
-        """Get selected video paths from legacy pipeline tree."""
-        tree = getattr(self.gui, "pipeline_video_tree", None)
-        if not tree:
-            return []
-
-        selected_items = list(tree.selection() or [])
-        if not selected_items:
-            return []
-
-        final_selection: list[str] = []
-        seen_subjects: set[str] = set()
-        pipeline_vars = getattr(self.gui, "pipeline_video_vars", {})
-        had_hierarchy_nodes = False
-
-        def add_subject(item_id: str) -> None:
-            if item_id in pipeline_vars and item_id not in seen_subjects:
-                seen_subjects.add(item_id)
-                final_selection.append(item_id)
-
-        def collect_descendants(item_id: str) -> None:
-            # Ensure parent nodes are expanded so children become visible.
-            try:
-                tree.item(item_id, open=True)
-            except Exception:
-                pass
-
-            for child in tree.get_children(item_id):
-                if child in pipeline_vars:
-                    add_subject(child)
-                else:
-                    collect_descendants(child)
-
-        for item in selected_items:
-            if item in pipeline_vars:
-                add_subject(item)
-            else:
-                had_hierarchy_nodes = True
-                collect_descendants(item)
-
-        if had_hierarchy_nodes or len(final_selection) != len(selected_items):
-            # Replace Treeview selection with the resolved subject entries only.
-            try:
-                tree.selection_set(tuple(final_selection))
-            except Exception:
-                pass
-
-        return final_selection
-
     def resolve_processing_reports_video_paths(self, selection=None) -> list[str]:
         """
         Resolve selected video paths from processing reports tree.
@@ -930,15 +847,6 @@ class ProjectViewManager:
                 video_paths.append(video_path)
 
         return video_paths
-
-    def update_pipeline_buttons_state(self) -> None:
-        """Update state of pipeline action buttons."""
-        log.warning(
-            "project_view_manager.update_pipeline_buttons_state_deprecated",
-            message="This method is LEGACY and may be removed in future versions",
-        )
-        # This functionality has been moved to ProcessingReportsWidget
-        # Kept here for backward compatibility
 
     def populate_video_selector_tree(self, search_text: str = "") -> None:
         """
@@ -984,13 +892,13 @@ class ProjectViewManager:
 
         pm = self.gui.controller.project_manager
         all_videos = pm.get_all_videos()
-        
+
         # DEBUG: Log video statuses
         for v in all_videos:
             if v.get("path") and "CECT_8" in v.get("path", ""):
                 log.info(
-                    "debug.refresh_tab.video_state", 
-                    path=os.path.basename(v.get("path")), 
+                    "debug.refresh_tab.video_state",
+                    path=os.path.basename(v.get("path")),
                     has_traj=v.get("has_trajectory"),
                     has_arena=v.get("has_arena")
                 )
@@ -1017,11 +925,16 @@ class ProjectViewManager:
         self._populate_reports_tree_from_hierarchy(
             tree, hierarchy, "", self.gui._processing_reports_tree_metadata
         )
-        
+
         # Update status cards
         status_counts = self._get_project_status_counts()
         if hasattr(self.gui.processing_reports_widget, "update_status_counts"):
             self.gui.processing_reports_widget.update_status_counts(status_counts)
+
+        # Update button states after tree refresh (pass project_path for unified report detection)
+        if hasattr(self.gui.processing_reports_widget, "_update_button_states"):
+            project_path = str(pm.project_path) if pm and pm.project_path else None
+            self.gui.processing_reports_widget._update_button_states(project_path=project_path)
 
     def append_processing_reports_artifacts(
         self,
@@ -1136,6 +1049,38 @@ class ProjectViewManager:
         except Exception as e:
             log.error("gui.open_report_file.failed", error=str(e))
             self.gui.show_error("Erro", f"Não foi possível abrir o arquivo: {e}")
+
+    def open_unified_report(self, file_type: str) -> None:
+        """Open the latest unified report of the specified type."""
+        pm = self.gui.controller.project_manager
+        if not pm.project_path:
+            return
+
+        unified_dir = Path(pm.project_path) / "unified_reports"
+        if not unified_dir.exists():
+            self.gui.show_warning("Indisponível", "Nenhum relatório unificado encontrado.")
+            return
+
+        pattern = ""
+        if file_type == "word":
+            pattern = "*.docx"
+        elif file_type == "excel":
+            pattern = "*.xlsx"
+        elif file_type == "parquet":
+            pattern = "*.parquet"
+
+        if not pattern:
+            return
+
+        files = list(unified_dir.glob(pattern))
+        if not files:
+            self.gui.show_warning("Indisponível", f"Nenhum relatório {file_type} encontrado.")
+            return
+
+        # Sort by mtime descending
+        latest_file = max(files, key=lambda f: f.stat().st_mtime)
+
+        self._handle_report_file_node({"file_path": str(latest_file)})
 
     def on_processing_reports_generate_partial(self) -> None:
         """Handle partial report generation from the unified tab."""
@@ -1265,10 +1210,10 @@ class ProjectViewManager:
         # Get data
         project_manager = self.gui.controller.project_manager
         all_videos = project_manager.get_all_videos()
-        
+
         # Use ValidationManager for hierarchy
         hierarchy = self.gui.validation_manager._build_video_hierarchy_data(all_videos, "")
-        
+
         # Use local helper for status counts
         status_counts = self._get_project_status_counts()
 

@@ -66,6 +66,7 @@ class ProcessingReportsWidget(BaseWidget):
 
         # Status tracking
         self.project_status_vars: dict[str, StringVar] = {}
+        self._project_path: str | None = None  # Cached project path for file operations
 
         # Widget references
         self.tree: ttk.Treeview | None = None
@@ -260,6 +261,33 @@ class ProcessingReportsWidget(BaseWidget):
         )
         self.btn_generate_unified.pack(side="left", padx=5)
 
+        # Separator for Access Buttons
+        ttk.Separator(toolbar_frame, orient="vertical").pack(side="left", fill="y", padx=10)
+
+        self.btn_open_unified_word = ttk.Button(
+            toolbar_frame,
+            text="📄 Abrir Word Unificado",
+            command=self._on_open_unified_word_clicked,
+            state="disabled",
+        )
+        self.btn_open_unified_word.pack(side="left", padx=5)
+
+        self.btn_open_unified_excel = ttk.Button(
+            toolbar_frame,
+            text="📊 Abrir Excel Unificado",
+            command=self._on_open_unified_excel_clicked,
+            state="disabled",
+        )
+        self.btn_open_unified_excel.pack(side="left", padx=5)
+
+        self.btn_open_unified_parquet = ttk.Button(
+            toolbar_frame,
+            text="Σ Abrir Parquet Unificado",
+            command=self._on_open_unified_parquet_clicked,
+            state="disabled",
+        )
+        self.btn_open_unified_parquet.pack(side="left", padx=5)
+
     # Event handlers
 
     def _on_refresh_clicked(self) -> None:
@@ -388,17 +416,89 @@ class ProcessingReportsWidget(BaseWidget):
     def _on_generate_unified_clicked(self) -> None:
         """Handle Generate Unified Report button click."""
         log.info("processing_reports.generate_unified_report_clicked")
-        self.emit_event("reports.generate_unified", {})
         if self._on_generate_unified_report:
             self._on_generate_unified_report()
 
-    def _update_button_states(self) -> None:
-        """Update button enabled/disabled states based on selection."""
+    def _on_open_unified_word_clicked(self) -> None:
+        """Handle Open Unified Word button click."""
+        self._open_latest_unified_file(".docx")
+
+    def _on_open_unified_excel_clicked(self) -> None:
+        """Handle Open Unified Excel button click."""
+        self._open_latest_unified_file(".xlsx")
+
+    def _on_open_unified_parquet_clicked(self) -> None:
+        """Handle Open Unified Parquet button click."""
+        self._open_latest_unified_file(".parquet")
+
+    def _open_latest_unified_file(self, extension: str) -> None:
+        """Open the most recent unified report file with the given extension.
+
+        Args:
+            extension: File extension (e.g., ".docx", ".xlsx", ".parquet")
+        """
+        if not self._project_path:
+            log.warning("processing_reports.open_unified.no_project_path")
+            return
+
+        import os
+        import glob
+
+        unified_dir = os.path.join(self._project_path, "unified_reports")
+        if not os.path.exists(unified_dir):
+            log.warning("processing_reports.open_unified.dir_not_found", dir=unified_dir)
+            return
+
+        # Find all files with the given extension
+        pattern = os.path.join(unified_dir, f"*{extension}")
+        files = glob.glob(pattern)
+
+        if not files:
+            log.warning("processing_reports.open_unified.no_files", extension=extension)
+            return
+
+        # Get the most recent file by modification time
+        latest_file = max(files, key=os.path.getmtime)
+
+        try:
+            # Open file with default system application
+            if os.name == "nt":  # Windows
+                os.startfile(latest_file)
+            elif os.name == "posix":  # macOS/Linux
+                import subprocess
+                if os.uname().sysname == "Darwin":  # macOS
+                    subprocess.call(["open", latest_file])
+                else:  # Linux
+                    subprocess.call(["xdg-open", latest_file])
+
+            log.info("processing_reports.open_unified.success", file=os.path.basename(latest_file))
+        except Exception as e:
+            log.error("processing_reports.open_unified.failed", file=latest_file, error=str(e))
+
+    def _update_button_states(self, project_path: str | None = None) -> None:
+        """Update button enabled/disabled states based on selection and available reports.
+
+        Args:
+            project_path: Optional path to project directory for checking unified reports
+        """
         if not self.tree:
             return
 
         selection = self.tree.selection()
-        has_selection = len(selection) > 0
+
+        # Filter for videos (items that have a video_path in the last column)
+        video_selection = []
+        for item in selection:
+            # Check if it has a video path value
+            # Note: tree.set(item, "col_name") returns the value
+            try:
+                path = self.tree.set(item, "video_path")
+                if path:
+                    video_selection.append(item)
+            except Exception:
+                pass
+
+        has_selection = len(video_selection) > 0
 
         # Enable trajectory/summary buttons only if videos are selected
         if self.btn_generate_trajectories:
@@ -413,11 +513,42 @@ class ProcessingReportsWidget(BaseWidget):
         # Unified report is always enabled (operates on all videos)
         # Already set to normal in _build_action_toolbar
 
+        # Check if unified reports exist and enable access buttons
+        if project_path:
+            import os
+            self._project_path = project_path  # Cache for file opening
+            unified_dir = os.path.join(project_path, "unified_reports")
+            has_unified_reports = False
+
+            if os.path.exists(unified_dir):
+                # Check for any .docx, .xlsx, or .parquet files
+                files = os.listdir(unified_dir)
+                has_word = any(f.endswith(".docx") for f in files)
+                has_excel = any(f.endswith(".xlsx") for f in files)
+                has_parquet = any(f.endswith(".parquet") for f in files)
+                has_unified_reports = has_word or has_excel or has_parquet
+
+                # Enable buttons based on file existence
+                if self.btn_open_unified_word:
+                    self.btn_open_unified_word.config(state="normal" if has_word else "disabled")
+                if self.btn_open_unified_excel:
+                    self.btn_open_unified_excel.config(state="normal" if has_excel else "disabled")
+                if self.btn_open_unified_parquet:
+                    self.btn_open_unified_parquet.config(state="normal" if has_parquet else "disabled")
+            else:
+                # No unified_reports directory - disable all access buttons
+                if self.btn_open_unified_word:
+                    self.btn_open_unified_word.config(state="disabled")
+                if self.btn_open_unified_excel:
+                    self.btn_open_unified_excel.config(state="disabled")
+                if self.btn_open_unified_parquet:
+                    self.btn_open_unified_parquet.config(state="disabled")
+
         # Update selection label
         if self.selection_label:
             if has_selection:
                 self.selection_label.config(
-                    text=f"{len(selection)} vídeo(s) selecionado(s)",
+                    text=f"{len(video_selection)} vídeo(s) selecionado(s)",
                     foreground="#0f5132",
                 )
             else:

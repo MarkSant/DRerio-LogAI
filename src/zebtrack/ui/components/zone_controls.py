@@ -178,6 +178,16 @@ class ZoneControlsWidget(BaseWidget):
         )
         self.draw_roi_button.pack(side="left", fill="x", expand=True, padx=2, pady=2)
 
+        # Conclude Video Button (Next to ROI button)
+        self.conclude_video_btn = ttk.Button(
+            btn_container,
+            text="✅ Concluir",
+            command=self._on_conclude_video_clicked,
+            state="disabled",
+            style="Accent.TButton"
+        )
+        self.conclude_video_btn.pack(side="left", fill="x", expand=True, padx=2, pady=2)
+
         # Stabilization frames entry - compact version
         stabilization_frame = ttk.Frame(actions_frame)
         stabilization_frame.pack(fill="x", pady=2, anchor="w")
@@ -501,10 +511,10 @@ class ZoneControlsWidget(BaseWidget):
         self.zone_listbox.heading("type", text="Tipo")
         self.zone_listbox.heading("color", text="Cor")
 
-        # Configure column widths
-        self.zone_listbox.column("name", width=130, minwidth=100, stretch=True)
-        self.zone_listbox.column("type", width=60, minwidth=50, stretch=False)
-        self.zone_listbox.column("color", width=40, minwidth=35, stretch=False)
+        # Configure column widths - Name takes ~60%, Type ~20%, Color ~20%
+        self.zone_listbox.column("name", width=200, minwidth=100, stretch=True)
+        self.zone_listbox.column("type", width=70, minwidth=50, stretch=True)
+        self.zone_listbox.column("color", width=70, minwidth=35, stretch=True)
 
         self.zone_listbox.pack(side="left", fill="both", expand=True)
 
@@ -592,6 +602,10 @@ class ZoneControlsWidget(BaseWidget):
         self._on_roi_rule_changed(None)
 
     # Event handlers that emit events to the event bus
+
+    def _on_conclude_video_clicked(self) -> None:
+        """Handle conclude video button click."""
+        self.emit_event("zone.conclude_video", {})
 
     def _on_auto_detect_clicked(self) -> None:
         """Handle auto-detect button click."""
@@ -842,8 +856,11 @@ class ZoneControlsWidget(BaseWidget):
 
     def set_draw_roi_enabled(self, enabled: bool) -> None:
         """Enable or disable the draw ROI button."""
+        state = "normal" if enabled else "disabled"
         if self.draw_roi_button:
-            self.draw_roi_button.config(state="normal" if enabled else "disabled")
+            self.draw_roi_button.config(state=state)
+        if hasattr(self, "conclude_video_btn") and self.conclude_video_btn:
+            self.conclude_video_btn.config(state=state)
 
     def show_single_analysis_options(self) -> None:
         """Show the single analysis options frame."""

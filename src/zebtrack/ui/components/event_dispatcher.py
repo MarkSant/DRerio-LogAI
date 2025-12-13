@@ -515,6 +515,10 @@ class EventDispatcher:
             Events.ZONE_FINISH_DRAWING,
             lambda d: self.gui.canvas_manager.event_handler.on_canvas_double_click(None),
         )
+        self.event_bus.subscribe(
+            "zone.conclude_video",
+            lambda d: self.gui.zone_control_builder._on_conclude_video(),
+        )
 
         # Zone Context Menu Actions (Copy/Paste/Delete)
         self.event_bus.subscribe(

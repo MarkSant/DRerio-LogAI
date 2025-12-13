@@ -623,3 +623,223 @@ def test_transformer_is_stateless():
 
     assert result1 == "G1"
     assert result2 == "G2"
+
+
+# ============================================================================
+# Tests for standardize_roi_columns
+# ============================================================================
+
+
+def test_standardize_roi_columns_pads_missing_columns():
+    """Test that standardize_roi_columns adds missing ROI columns with appropriate defaults."""
+    transformer = DataTransformer()
+
+    # DataFrame with only roi1
+    df = pd.DataFrame({
+        "experiment_id": ["exp1", "exp1"],
+        "group_id": ["control", "control"],
+        "tempo_no_roi1_s": [10.5, 15.2],
+        "entradas_no_roi1": [3, 5],
+    })
+
+    # Expected ROI names include roi1 and roi2
+    expected_rois = ["roi1", "roi2"]
+
+    result = transformer.standardize_roi_columns(df, expected_rois)
+
+    # Verify roi1 columns unchanged
+    assert "tempo_no_roi1_s" in result.columns
+    assert "entradas_no_roi1" in result.columns
+    pd.testing.assert_series_equal(result["tempo_no_roi1_s"], df["tempo_no_roi1_s"])
+
+    # Verify roi2 columns added
+    assert "tempo_no_roi2_s" in result.columns
+    assert "entradas_no_roi2" in result.columns
+    assert "latencia_para_roi2_s" in result.columns
+    assert "distancia_no_roi2_cm" in result.columns
+
+    # Verify default values: NaN for continuous metrics, 0 for counts
+    assert result["tempo_no_roi2_s"].isna().all()
+    assert result["latencia_para_roi2_s"].isna().all()
+    assert (result["entradas_no_roi2"] == 0).all()
+    assert (result["saidas_do_roi2"] == 0).all()
+
+
+def test_standardize_roi_columns_returns_unchanged_when_no_expected_rois():
+    """Test that standardize_roi_columns returns unchanged DataFrame when expected_roi_names is None."""
+    transformer = DataTransformer()
+
+    df = pd.DataFrame({
+        "experiment_id": ["exp1"],
+        "group_id": ["control"],
+        "tempo_no_roi1_s": [10.5],
+    })
+
+    result = transformer.standardize_roi_columns(df, None)
+
+    # Should return unchanged DataFrame
+    pd.testing.assert_frame_equal(result, df)
+
+
+def test_standardize_roi_columns_handles_empty_expected_list():
+    """Test that standardize_roi_columns handles empty expected_roi_names list."""
+    transformer = DataTransformer()
+
+    df = pd.DataFrame({
+        "experiment_id": ["exp1"],
+        "group_id": ["control"],
+        "tempo_no_roi1_s": [10.5],
+    })
+
+    result = transformer.standardize_roi_columns(df, [])
+
+    # Should return unchanged DataFrame
+    pd.testing.assert_frame_equal(result, df)
+
+
+def test_standardize_roi_columns_preserves_existing_data():
+    """Test that standardize_roi_columns preserves all existing columns and data."""
+    transformer = DataTransformer()
+
+    df = pd.DataFrame({
+        "experiment_id": ["exp1", "exp2"],
+        "group_id": ["control", "treatment"],
+        "tempo_no_center_s": [10.5, 20.3],
+        "entradas_no_center": [3, 5],
+        "total_distance_cm": [100.5, 150.3],
+    })
+
+    expected_rois = ["center", "edge"]
+    result = transformer.standardize_roi_columns(df, expected_rois)
+
+    # All original columns should be preserved
+    assert "experiment_id" in result.columns
+    assert "group_id" in result.columns
+    assert "total_distance_cm" in result.columns
+    assert "tempo_no_center_s" in result.columns
+    assert "entradas_no_center" in result.columns
+
+    # Original data should be unchanged
+    pd.testing.assert_series_equal(result["experiment_id"], df["experiment_id"])
+    pd.testing.assert_series_equal(result["tempo_no_center_s"], df["tempo_no_center_s"])
+    pd.testing.assert_series_equal(result["total_distance_cm"], df["total_distance_cm"])
+
+
+def test_standardize_roi_columns_adds_all_expected_metric_types():
+    """Test that all ROI metric column types are added."""
+    transformer = DataTransformer()
+
+    df = pd.DataFrame({
+        "experiment_id": ["exp1"],
+        "group_id": ["control"],
+    })
+
+    expected_rois = ["test_roi"]
+    result = transformer.standardize_roi_columns(df, expected_rois)
+
+    # Verify all metric types are added
+    expected_columns = [
+        "tempo_no_test_roi_s",
+        "percentual_tempo_no_test_roi",
+        "entradas_no_test_roi",
+        "saidas_do_test_roi",
+        "latencia_para_test_roi_s",
+        "distancia_no_test_roi_cm",
+        "velocidade_media_no_test_roi_cm_s",
+        "episodios_congelamento_no_test_roi",
+        "duracao_total_congelamento_no_test_roi_s",
+        "cor_roi_test_roi",
+    ]
+
+    for col in expected_columns:
+        assert col in result.columns, f"Missing column: {col}"
+
+
+def test_standardize_roi_columns_uses_correct_default_values():
+    """Test that continuous metrics use NaN and count metrics use 0 as defaults."""
+    transformer = DataTransformer()
+
+    df = pd.DataFrame({
+        "experiment_id": ["exp1", "exp2"],
+        "group_id": ["control", "treatment"],
+    })
+
+    expected_rois = ["roi1"]
+    result = transformer.standardize_roi_columns(df, expected_rois)
+
+    # Continuous metrics should be NaN
+    continuous_metrics = [
+        "tempo_no_roi1_s",
+        "percentual_tempo_no_roi1",
+        "latencia_para_roi1_s",
+        "distancia_no_roi1_cm",
+        "velocidade_media_no_roi1_cm_s",
+        "duracao_total_congelamento_no_roi1_s",
+        "cor_roi_roi1",
+    ]
+
+    for col in continuous_metrics:
+        assert result[col].isna().all(), f"{col} should be NaN but got {result[col].values}"
+
+    # Count metrics should be 0
+    count_metrics = [
+        "entradas_no_roi1",
+        "saidas_do_roi1",
+        "episodios_congelamento_no_roi1",
+    ]
+
+    for col in count_metrics:
+        assert (result[col] == 0).all(), f"{col} should be 0 but got {result[col].values}"
+
+
+def test_standardize_roi_columns_handles_multiple_rois():
+    """Test standardization with multiple ROIs."""
+    transformer = DataTransformer()
+
+    df = pd.DataFrame({
+        "experiment_id": ["exp1"],
+        "group_id": ["control"],
+        "tempo_no_roi1_s": [10.0],
+    })
+
+    expected_rois = ["roi1", "roi2", "roi3"]
+    result = transformer.standardize_roi_columns(df, expected_rois)
+
+    # Verify columns for all ROIs exist
+    for roi_name in expected_rois:
+        assert f"tempo_no_{roi_name}_s" in result.columns
+        assert f"entradas_no_{roi_name}" in result.columns
+        assert f"latencia_para_{roi_name}_s" in result.columns
+
+    # roi1 should have original data
+    assert result["tempo_no_roi1_s"].iloc[0] == 10.0
+
+    # roi2 and roi3 should have defaults
+    assert result["tempo_no_roi2_s"].isna().all()
+    assert result["tempo_no_roi3_s"].isna().all()
+    assert (result["entradas_no_roi2"] == 0).all()
+    assert (result["entradas_no_roi3"] == 0).all()
+
+
+def test_standardize_roi_columns_does_not_modify_original_dataframe():
+    """Test that standardize_roi_columns doesn't modify the original DataFrame."""
+    transformer = DataTransformer()
+
+    df = pd.DataFrame({
+        "experiment_id": ["exp1"],
+        "group_id": ["control"],
+        "tempo_no_roi1_s": [10.5],
+    })
+
+    original_columns = set(df.columns)
+    expected_rois = ["roi1", "roi2"]
+
+    result = transformer.standardize_roi_columns(df, expected_rois)
+
+    # Original DataFrame should be unchanged
+    assert set(df.columns) == original_columns
+    assert "tempo_no_roi2_s" not in df.columns
+
+    # Result should have new columns
+    assert "tempo_no_roi2_s" in result.columns
+

@@ -281,6 +281,52 @@ class DataTransformer:
         combined_data["total_entradas_roi"] = total_roi_entries
         return combined_data
 
+    def standardize_roi_columns(
+        self,
+        df: pd.DataFrame,
+        expected_roi_names: list[str] | None = None
+    ) -> pd.DataFrame:
+        """Ensure DataFrame has columns for all expected ROIs, padding with NaN/0 if missing.
+
+        This method standardizes ROI column schemas across different videos to enable
+        proper concatenation in unified reports.
+
+        Args:
+            df: Tidy dataframe to standardize
+            expected_roi_names: List of all ROI names that should have columns
+
+        Returns:
+            pd.DataFrame: Dataframe with standardized ROI columns
+        """
+        if not expected_roi_names:
+            return df
+
+        standardized_df = df.copy()
+
+        # ROI metric templates - maps column pattern to default value
+        # Use NaN for continuous metrics, 0 for count metrics
+        roi_column_templates = [
+            ("tempo_no_{}_s", pd.NA),
+            ("percentual_tempo_no_{}", pd.NA),
+            ("entradas_no_{}", 0),  # Count: use 0 instead of NaN
+            ("saidas_do_{}", 0),    # Count: use 0 instead of NaN
+            ("latencia_para_{}_s", pd.NA),
+            ("distancia_no_{}_cm", pd.NA),
+            ("velocidade_media_no_{}_cm_s", pd.NA),
+            ("episodios_congelamento_no_{}", 0),  # Count: use 0
+            ("duracao_total_congelamento_no_{}_s", pd.NA),
+            ("cor_roi_{}", pd.NA),
+        ]
+
+        # Add missing columns for each expected ROI
+        for roi_name in expected_roi_names:
+            for template, default_value in roi_column_templates:
+                col_name = template.format(roi_name)
+                if col_name not in standardized_df.columns:
+                    standardized_df[col_name] = default_value
+
+        return standardized_df
+
     def _resolve_group_id(self, combined_data: dict[str, Any], metadata: dict[str, Any]) -> str:
         """Ensure the summary dataframe includes a populated group_id column.
 

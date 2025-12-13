@@ -359,25 +359,42 @@ class Reporter:
 
         return instance
 
-    def export_summary_data(self, output_path: Path | str, format: str = "excel"):
+    def export_summary_data(
+        self,
+        output_path: Path | str,
+        format: str = "excel",
+        expected_roi_names: list[str] | None = None
+    ):
         """Export summary data to file (Excel, CSV, or Parquet).
 
         Args:
             output_path: Output file path
             format: Output format ('excel', 'csv', or 'parquet')
+            expected_roi_names: Optional list of ROI names for schema standardization.
+                If provided, missing ROI columns will be added with NaN/0 defaults.
 
         Raises:
             ValueError: If unsupported format is specified
         """
         path = Path(output_path) if isinstance(output_path, str) else output_path
         path.parent.mkdir(parents=True, exist_ok=True)
-        self.data_transformer.validate_schema(self.tidy_data)
+
+        # Standardize ROI columns if expected names provided
+        data_to_export = self.tidy_data
+        if expected_roi_names:
+            data_to_export = self.data_transformer.standardize_roi_columns(
+                self.tidy_data,
+                expected_roi_names
+            )
+
+        self.data_transformer.validate_schema(data_to_export)
+
         if format == "excel":
-            self.tidy_data.to_excel(output_path, index=False, engine="openpyxl")
+            data_to_export.to_excel(output_path, index=False, engine="openpyxl")
         elif format == "csv":
-            self.tidy_data.to_csv(output_path, index=False)
+            data_to_export.to_csv(output_path, index=False)
         elif format == "parquet":
-            self.tidy_data.to_parquet(output_path, index=False)
+            data_to_export.to_parquet(output_path, index=False)
         else:
             raise ValueError(f"Unsupported file format: {format}")
 
@@ -811,16 +828,41 @@ class Reporter:
         )
 
     @staticmethod
-    def export_project_report(aggregated_df: pd.DataFrame, output_path: Path | str):
+    def export_project_report(
+        aggregated_df: pd.DataFrame,
+        output_path: Path | str,
+        roi_colors: dict[str, tuple[int, int, int]] | None = None
+    ):
         """Export aggregated project report with comparative analysis.
 
         Args:
             aggregated_df: Aggregated DataFrame with multiple experiments
             output_path: Output file path for the report
+            roi_colors: Optional dict mapping ROI names to RGB color tuples
         """
         output_path = Path(output_path) if isinstance(output_path, str) else output_path
         document = Document()
         document.add_heading("Aggregated Project Report", level=1)
+
+        # Add ROI color legend if available
+        if roi_colors:
+            document.add_heading("ROI Color Legend", level=2)
+            document.add_paragraph(
+                "The following colors are used for Regions of Interest (ROIs) in this project:"
+            )
+            table = document.add_table(rows=1, cols=2)
+            table.style = "Table Grid"
+            hdr_cells = table.rows[0].cells
+            hdr_cells[0].text = "ROI Name"
+            hdr_cells[1].text = "Color (RGB)"
+
+            for roi_name, color in sorted(roi_colors.items()):
+                row_cells = table.add_row().cells
+                row_cells[0].text = roi_name
+                row_cells[1].text = f"RGB({color[0]}, {color[1]}, {color[2]})"
+
+            document.add_page_break()
+
         document.add_heading("Descriptive Statistics by Group", level=2)
         if "total_distance_cm" in aggregated_df.columns:
             desc_stats = aggregated_df.groupby("group_id")["total_distance_cm"].agg(

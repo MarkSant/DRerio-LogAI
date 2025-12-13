@@ -76,6 +76,7 @@ Esta detecção automática também funciona no wizard (Model Selection Step), g
 
 1. **Criação ou abertura de projeto**
    - Wizard (`ui/wizard/`) é o fluxo padrão (v1.6+); mantenha `settings.ui_features.use_wizard_for_project_creation = true`.
+   - Flag `ui_features.suppress_roi_mismatch_warning` (v2.1+) permite suprimir avisos quando relatórios unificados mesclam vídeos com diferentes configurações de ROI.
    - Dialog legado (`ApplicationGUI.create_project_dialog()`) só deve ser acionado ao desabilitar manualmente a flag para cenários de suporte.
    - O `ProjectManager` persiste metadados em `project_config.json` e snapshot das configurações ativas em `config_snapshot.yaml`.
 
@@ -340,6 +341,7 @@ Todas as coordenadas gravadas já estão no **espaço warped** (vide `docs/COORD
 | **Posso usar o app sem Arduino?** | Sim. Deixe `use_arduino` desmarcado; o fluxo funciona integralmente offline. |
 | **Por que meu relatório não tem colunas `x_cm`/`y_cm`?** | A calibração não estava disponível ao gravar o Parquet. Gere uma nova sessão com homografia configurada. |
 | **Como voltar ao diálogo legado?** | Defina `ui_features.use_wizard_for_project_creation: false` em `config.local.yaml` (não recomendado para fluxos padrão). |
+| **Como suprimir avisos de ROIs diferentes em relatórios unificados?** | Defina `ui_features.suppress_roi_mismatch_warning: true` em `config.local.yaml` se você entende as implicações de mesclar dados de vídeos com ROIs diferentes. |
 | **O que significa `has_data` na seleção de vídeos?** | Indica que já existe `3_CoordMovimento_<video>.parquet` e permite decidir entre reaproveitar ou reprocessar. |
 | **Como adicionar novos detectores?** | Implemente `DetectorPlugin` em `plugins/`, registre em `plugins/__init__.py` e forneça `process_frame()` + `draw_overlay()`. |
 
