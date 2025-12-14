@@ -5,10 +5,11 @@ These models provide type-safe, validated data structures for wizard steps,
 replacing plain dictionaries with validated models that ensure data integrity.
 """
 
+import re
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class LiveConfigData(BaseModel):
@@ -95,6 +96,112 @@ class ExperimentalDesignData(BaseModel):
         return v
 
 
+class AquariumConfig(BaseModel):
+    """Configuração para um aquário em modo multi-aquário.
+
+    Armazena metadados experimentais associados a cada aquário individual
+    dentro de um vídeo com múltiplos aquários.
+    """
+
+    aquarium_id: int = Field(ge=0, le=1, description="ID do aquário (0 ou 1)")
+    group: str = Field(min_length=1, description="Grupo experimental (ex: Controle, Tratamento)")
+    subject_id: str = Field(default="", description="Identificador único do sujeito")
+    day: int = Field(default=1, ge=1, description="Dia do experimento")
+
+    @field_validator("group")
+    @classmethod
+    def validate_group_not_empty(cls, v: str) -> str:
+        """Grupo não pode estar vazio ou conter apenas espaços."""
+        if not v.strip():
+            raise ValueError("Nome do grupo não pode estar vazio")
+        return v.strip()
+
+
+class MultiAquariumData(BaseModel):
+    """Dados de configuração para vídeos com 2 aquários.
+
+    Controla se o modo multi-aquário está habilitado e armazena
+    configurações de extração de metadados via regex.
+    """
+
+    enabled: bool = Field(default=False, description="Se modo multi-aquário está habilitado")
+    aquarium_configs: list[AquariumConfig] = Field(
+        default_factory=list,
+        max_length=2,
+        description="Configurações dos aquários (máximo 2)",
+    )
+    regex_pattern: str = Field(
+        default="",
+        description="Padrão regex para extração de metadados do nome do arquivo",
+    )
+    regex_group_field: str = Field(
+        default="group",
+        description="Nome do grupo de captura para o grupo experimental",
+    )
+    regex_subject_field: str = Field(
+        default="subject",
+        description="Nome do grupo de captura para o identificador do sujeito",
+    )
+    regex_day_field: str = Field(
+        default="day",
+        description="Nome do grupo de captura para o dia do experimento",
+    )
+
+    @field_validator("aquarium_configs")
+    @classmethod
+    def validate_configs_count(cls, v: list[AquariumConfig]) -> list[AquariumConfig]:
+        """Valida que há no máximo 2 configurações."""
+        if len(v) > 2:
+            raise ValueError("Máximo de 2 aquários suportados")
+        return v
+
+    @field_validator("regex_pattern")
+    @classmethod
+    def validate_regex_pattern(cls, v: str) -> str:
+        """Valida que o padrão regex é válido."""
+        if v:
+            try:
+                re.compile(v)
+            except re.error as e:
+                raise ValueError(f"Padrão regex inválido: {e}")
+        return v
+
+    @model_validator(mode="after")
+    def validate_configs_when_enabled(self) -> "MultiAquariumData":
+        """Quando habilitado, deve ter exatamente 2 configurações."""
+        if self.enabled and len(self.aquarium_configs) != 2:
+            raise ValueError(
+                "Modo multi-aquário habilitado requer exatamente 2 configurações de aquário"
+            )
+        return self
+
+    def extract_metadata(self, filename: str) -> dict[str, str]:
+        """Extrai metadados do nome do arquivo usando o padrão regex.
+
+        Args:
+            filename: Nome do arquivo de vídeo.
+
+        Returns:
+            Dicionário com os campos extraídos (group, subject, day).
+        """
+        result = {"group": "", "subject": "", "day": ""}
+
+        if not self.regex_pattern:
+            return result
+
+        try:
+            match = re.search(self.regex_pattern, filename)
+            if match:
+                groups = match.groupdict()
+                result["group"] = groups.get(self.regex_group_field) or ""
+                result["subject"] = groups.get(self.regex_subject_field) or ""
+                result["day"] = groups.get(self.regex_day_field) or ""
+        except re.error:
+            pass
+
+        return result
+
+
 class CalibrationData(BaseModel):
     """Calibration step data with validation."""
 
@@ -114,6 +221,10 @@ class CalibrationData(BaseModel):
         "centroid_in_on_buffered_roi",
         "seg_overlap",
     ] = Field(default="bbox_intersects", description="Rule for determining ROI inclusion")
+    multi_aquarium: MultiAquariumData = Field(
+        default_factory=MultiAquariumData,
+        description="Configurações de modo multi-aquário (2 aquários por vídeo)",
+    )
 
 
 class ModelSelectionData(BaseModel):

@@ -33,6 +33,84 @@ class ZoneData:
     roi_colors: list[tuple[int, int, int]] = field(default_factory=list)
 
 
+@dataclass
+class AquariumData:
+    """Dados de zona para um único aquário com metadados.
+
+    Usado em modo multi-aquário para armazenar configurações específicas
+    de cada aquário, incluindo metadados experimentais.
+    """
+
+    id: int  # 0 ou 1 para vídeos com 2 aquários
+    polygon: list[list[int]] = field(default_factory=list)  # Polígono da arena
+    roi_polygons: list[list[list[int]]] = field(default_factory=list)  # ROIs dentro deste aquário
+    roi_names: list[str] = field(default_factory=list)
+    roi_colors: list[tuple[int, int, int]] = field(default_factory=list)
+    group: str = ""  # Grupo (ex: "Controle", "Tratamento")
+    subject_id: str = ""  # Identificador do sujeito
+    day: int = 0  # Dia do experimento
+
+    def to_zone_data(self) -> "ZoneData":
+        """Converte AquariumData para ZoneData padrão."""
+        return ZoneData(
+            polygon=self.polygon,
+            roi_polygons=self.roi_polygons,
+            roi_names=self.roi_names,
+            roi_colors=self.roi_colors,
+        )
+
+
+@dataclass
+class MultiAquariumZoneData:
+    """Dados de zona para vídeos com múltiplos aquários.
+
+    Encapsula configurações para 2 aquários em um único vídeo,
+    permitindo tracking e análise independentes.
+    """
+
+    aquariums: list[AquariumData] = field(default_factory=list)
+    video_width: int = 0
+    video_height: int = 0
+
+    def get_aquarium(self, aquarium_id: int) -> AquariumData | None:
+        """Retorna dados do aquário pelo ID.
+
+        Args:
+            aquarium_id: ID do aquário (0 ou 1).
+
+        Returns:
+            AquariumData se encontrado, None caso contrário.
+        """
+        for aquarium in self.aquariums:
+            if aquarium.id == aquarium_id:
+                return aquarium
+        return None
+
+    def to_zone_data(self, aquarium_id: int = 0) -> ZoneData:
+        """Converte um aquário específico para ZoneData.
+
+        Args:
+            aquarium_id: ID do aquário a converter (padrão: 0).
+
+        Returns:
+            ZoneData do aquário especificado, ou ZoneData vazio se não encontrado.
+        """
+        aquarium = self.get_aquarium(aquarium_id)
+        if aquarium:
+            return aquarium.to_zone_data()
+        return ZoneData()
+
+    @property
+    def aquarium_count(self) -> int:
+        """Retorna o número de aquários configurados."""
+        return len(self.aquariums)
+
+    @property
+    def is_multi_aquarium(self) -> bool:
+        """Retorna True se há mais de um aquário configurado."""
+        return len(self.aquariums) > 1
+
+
 class Detector:
     """
     Manages the detection process by delegating to a plugin and handling
