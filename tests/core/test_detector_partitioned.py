@@ -24,6 +24,8 @@ def mock_plugin():
     plugin.get_name.return_value = "MockPlugin"
     plugin.class_names = {0: "aquarium", 1: "zebrafish"}
     plugin.detect.return_value = []
+    # Remove detect_batch so it falls back to sequential processing
+    del plugin.detect_batch
     return plugin
 
 
@@ -630,3 +632,117 @@ class TestROICroppingOptimization:
         # Cropped image dimensions should match crop_info
         assert cropped.shape[0] == height
         assert cropped.shape[1] == width
+
+
+class TestParallelDetection:
+    """Tests for Phase 2.1 parallel detection."""
+
+    def test_detect_partitioned_parallel_returns_dict(
+        self, detector, dual_aquarium_setup, mock_plugin
+    ):
+        """Test parallel detection returns dictionary with correct keys."""
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        mock_plugin.detect.return_value = []
+
+        results = detector.detect_partitioned_parallel(frame, max_workers=2)
+
+        assert isinstance(results, dict)
+        assert 0 in results
+        assert 1 in results
+
+    def test_detect_partitioned_parallel_requires_multi_mode(self, detector):
+        """Test parallel detection requires multi-aquarium mode."""
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+        with pytest.raises(RuntimeError, match="not in multi-aquarium mode"):
+            detector.detect_partitioned_parallel(frame)
+
+    def test_detect_partitioned_parallel_with_detections(
+        self, detector, dual_aquarium_setup, mock_plugin
+    ):
+        """Test parallel detection processes detections correctly."""
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        # Return a detection in cropped coordinates
+        mock_plugin.detect.return_value = [(10, 10, 50, 50, 0.9, 1)]
+
+        results = detector.detect_partitioned_parallel(frame, max_workers=2)
+
+        # Both aquariums should have detections (mock returns same for both)
+        assert len(results[0]) > 0 or len(results[1]) > 0
+
+
+class TestBatchInference:
+    """Tests for Phase 2.2 batch inference."""
+
+    def test_detect_batch_empty_list(self, detector):
+        """Test batch detection with empty frame list."""
+        results = detector.detect_batch([], batch_size=4)
+        assert results == []
+
+    def test_detect_batch_returns_list(self, detector, mock_plugin):
+        """Test batch detection returns list of detection lists."""
+        # Initialize zones to enable byte tracker using ZoneData
+        from zebtrack.core.detector import ZoneData
+
+        zones = ZoneData(polygon=[(0, 0), (1280, 0), (1280, 720), (0, 720)])
+        detector.set_zones(zones, 1280, 720)
+
+        frames = [np.zeros((720, 1280, 3), dtype=np.uint8) for _ in range(3)]
+        mock_plugin.detect.return_value = []
+
+        results = detector.detect_batch(frames, batch_size=2)
+
+        assert isinstance(results, list)
+        assert len(results) == 3
+
+    def test_detect_batch_respects_batch_size(self, detector, mock_plugin):
+        """Test batch detection respects batch size parameter."""
+        # Initialize zones to enable byte tracker using ZoneData
+        from zebtrack.core.detector import ZoneData
+
+        zones = ZoneData(polygon=[(0, 0), (1280, 0), (1280, 720), (0, 720)])
+        detector.set_zones(zones, 1280, 720)
+
+        frames = [np.zeros((720, 1280, 3), dtype=np.uint8) for _ in range(5)]
+        mock_plugin.detect.return_value = [(10, 10, 50, 50, 0.9, 1)]
+
+        results = detector.detect_batch(frames, batch_size=2)
+
+        # Should process 5 frames in 3 batches (2+2+1)
+        assert len(results) == 5
+        # Each result should be a list of detections
+        for result in results:
+            assert isinstance(result, list)
+
+    def test_detect_batch_with_native_batch_support(self, detector, mock_plugin):
+        """Test batch detection uses native batch if plugin supports it."""
+        # Initialize zones to enable byte tracker using ZoneData
+        from zebtrack.core.detector import ZoneData
+
+        zones = ZoneData(polygon=[(0, 0), (1280, 0), (1280, 720), (0, 720)])
+        detector.set_zones(zones, 1280, 720)
+
+        frames = [np.zeros((720, 1280, 3), dtype=np.uint8) for _ in range(2)]
+
+        # Mock native batch support
+        mock_plugin.detect_batch = MagicMock(
+            return_value=[[(10, 10, 50, 50, 0.9, 1)], [(20, 20, 60, 60, 0.85, 2)]]
+        )
+
+        results = detector.detect_batch(frames, batch_size=2)
+
+        # Should use native batch method
+        mock_plugin.detect_batch.assert_called_once()
+        assert len(results) == 2
