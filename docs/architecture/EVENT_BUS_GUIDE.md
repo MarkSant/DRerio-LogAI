@@ -23,6 +23,15 @@ O padrão é **Publicar/Assinar (Pub/Sub)**.
 | `READINESS_SNAPSHOT_UPDATED` | Atualização do status de prontidão dos vídeos (quais têm zonas, trajetórias). | `{'ready_with_trajectory': [...], ...}` |
 | `VIDEO_LOADED` | Um novo vídeo foi carregado no canvas. | `{'video_path': str}` |
 | `EXTERNAL_TRIGGER_NOTICE` | Aviso de aguardando trigger externo (Arduino). | `{'session_label': str, ...}` |
+| `ZONE_MULTI_AUTO_DETECT` | Trigger detecção automática de múltiplos aquários. | `{'video_path': str}` |
+| `ZONE_MULTI_AUTO_DETECT_SUCCESS` | Detecção multi-aquário bem-sucedida. | `{'video_path': str, 'polygons': list}` |
+| `ZONE_MULTI_AUTO_DETECT_FAILED` | Detecção multi-aquário falhou. | `{'video_path': str, 'reason': str}` |
+| `ZONE_AQUARIUM_SELECTED` | Usuário selecionou um aquário específico. | `{'aquarium_id': int}` |
+| `ZONE_MULTI_DETECT_COMPLETED` | Detecção concluída com contagem. | `{'count': int, 'aquariums': list}` |
+| `ZONE_AQUARIUM_CONFIG_CONFIRMED` | Configuração de aquários confirmada. | `{'configs': list[AquariumConfig]}` |
+| `ZONE_AQUARIUM_CONFIG_UPDATED` | Configuração de aquário individual atualizada. | `{'aquarium_id': int, 'config': dict, 'video_path': str}` |
+| `ZONE_AQUARIUM_COUNT_CONFIRMED` | Contagem de aquários confirmada. | `{'count': int}` |
+| `ZONE_AQUARIUM_ASSIGNMENT_COMPLETED` | Atribuição de aquários concluída. | `{'configs': list, 'apply_to_all': bool}` |
 
 ## Como Usar
 

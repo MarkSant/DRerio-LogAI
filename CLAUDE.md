@@ -214,6 +214,66 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **Full Details**: `docs/LIVE_CAMERA_UNIFICATION.md`, `PLANO_CORRECAO_FLUXOS_CAMERA_LIVE.md`
 
+### Phase 10: Multi-Aquarium Support (Dec 2025)
+**Feature**: Enables tracking in 2 independent aquariums per video with separate ROIs and zones.
+
+**Core Data Structures** (in `core/detector.py`):
+- `AquariumData`: Holds `id`, `polygon`, `roi_mode`, `roi_data` for each aquarium
+- `MultiAquariumZoneData`: Container with `aquariums: list[AquariumData]`, `calibration`, `active_aquarium_id`
+
+**Key Methods**:
+- `Detector.set_multi_aquarium_zones(zone_data: MultiAquariumZoneData)` - Configure multi-aquarium mode
+- `Detector.detect_partitioned(frame)` - Returns `dict[aquarium_id, list[detections]]`
+- `Detector.detect_partitioned_parallel(frame)` - Parallel detection with ThreadPoolExecutor (~30-40% speedup)
+- `Detector.detect_batch(frames, batch_size)` - Batch inference for offline processing
+- `Detector._crop_aquarium_region(frame, aq_id)` - ROI cropping for per-aquarium extraction
+- `ProjectManager.resolve_multi_aquarium_results_directories()` - Creates `<video>_aquarium_1/`, `<video>_aquarium_2/`
+- `AnalysisService.run_multi_aquarium_analysis()` - Runs analysis per aquarium
+- `TrajectoryQualityValidator._validate_multi_aquarium_ids()` - Validates track IDs per aquarium
+- `TrajectoryQualityValidator._detect_per_aquarium_gaps()` - Detects missing frames per aquarium
+
+**Track ID Convention**:
+- Global ID = `aquarium_id * 1000 + local_track_id`
+- Example: Aquarium 0, track 5 → ID 5; Aquarium 1, track 3 → ID 1003
+- Aquarium 0: IDs 0-999; Aquarium 1: IDs 1000-1999; Aquarium 2: IDs 2000-2999
+- **CRITICAL**: `local_track_id` MUST be < 1000 to prevent overflow collisions
+
+**Parquet Schema Extensions**:
+- `uncertainty`: Detection confidence uncertainty (1 - confidence)
+- `bbox_iou`: Bounding box IoU with previous frame (tracking stability)
+
+**Events** (in `ui/events.py`):
+- `ZONE_MULTI_AUTO_DETECT` - Trigger multi-aquarium detection
+- `ZONE_MULTI_AUTO_DETECT_SUCCESS` - Detection succeeded (payload: `{video_path, polygons}`)
+- `ZONE_MULTI_AUTO_DETECT_FAILED` - Detection failed (payload: `{video_path, reason}`)
+- `ZONE_AQUARIUM_SELECTED` - User selected aquarium (payload: `{aquarium_id: int}`)
+- `ZONE_MULTI_DETECT_COMPLETED` - Detection done (payload: `{count: int, aquariums: list}`)
+- `ZONE_AQUARIUM_CONFIG_CONFIRMED` - Config confirmed (payload: `{configs: list[AquariumConfig]}`)
+- `ZONE_AQUARIUM_CONFIG_UPDATED` - Config updated (payload: `{aquarium_id, config, video_path}`)
+- `ZONE_AQUARIUM_COUNT_CONFIRMED` - Count confirmed (payload: `{count: int}`)
+- `ZONE_AQUARIUM_ASSIGNMENT_COMPLETED` - Assignment done (payload: `{configs, apply_to_all}`)
+- `ZONE_SHOW_AQUARIUM_COUNT_DIALOG` / `ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG` - Dialog requests
+
+**Event Handlers** (Phase 5):
+- `ProcessingCoordinator._handle_multi_auto_detect()` - Handles ZONE_MULTI_AUTO_DETECT
+- `ProjectLifecycleCoordinator._handle_aquarium_config_updated()` - Handles ZONE_AQUARIUM_CONFIG_UPDATED
+
+**UI Components**:
+- `CanvasManager.create_side_by_side_preview()` - Side-by-side aquarium comparison
+- `WizardService.validate_multi_aquarium_config()` - Returns (is_valid, errors, warnings)
+
+**UI Dialogs** (in `ui/dialogs/`):
+- `AquariumAssignmentDialog` - Assign groups/subjects to detected aquariums
+- `MultiAquariumConfirmDialog` - Confirm detected aquarium count
+
+**Pydantic Models** (in `ui/wizard/models.py`):
+- `AquariumConfig`: `aquarium_id`, `group_name`, `subject_name`, `enabled`
+- `MultiAquariumData`: `enabled`, `count`, `detection_method`, `configs`
+
+**Testing**: 250+ tests in `tests/core/test_*_multi*.py`, `tests/ui/test_*_multi*.py`, `tests/integration/test_multi_aquarium_e2e.py`, `tests/analysis/test_trajectory_validator.py`
+
+**ADR**: `docs/decisions/ADR-001-multi-aquarium-support.md`
+
 ## Common Patterns
 
 ### Logging (structlog)

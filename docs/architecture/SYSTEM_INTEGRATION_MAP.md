@@ -131,7 +131,45 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `ZONE_FINISH_DRAWING` | - | `ZoneControls` | `EventDispatcher` → `CanvasManager.finish_current_polygon()` |
 | `ZONE_CONCLUDE_VIDEO` | - | `ZoneControls` | `EventDispatcher` → `ZoneControlBuilder._on_conclude_video()` |
 
-### 3.4. Processing & Analysis Events
+### 3.4. Multi-Aquarium Events (Dec 2025)
+
+| Event (Events class) | Payload Keys | Publishers | Subscribers |
+|---------------------|--------------|------------|-------------|
+| `ZONE_MULTI_AUTO_DETECT` | `video_path`, `stabilization_frames`, `expected_count` | `ZoneControls` | `ProcessingCoordinator._handle_multi_auto_detect()` |
+| `ZONE_MULTI_AUTO_DETECT_SUCCESS` | `video_path`, `polygons` (list) | `ProcessingCoordinator` | `ZoneControls`, `CanvasManager` |
+| `ZONE_MULTI_AUTO_DETECT_FAILED` | `video_path`, `reason` (str) | `ProcessingCoordinator` | `ZoneControls` |
+| `ZONE_AQUARIUM_SELECTED` | `aquarium_id` (int) | `ZoneControls`, `AquariumAssignmentDialog` | `CanvasManager`, `ZoneControlBuilder` |
+| `ZONE_MULTI_DETECT_COMPLETED` | `count` (int), `aquariums` (list) | `AquariumDetector` | `ZoneControlBuilder`, `MultiAquariumConfirmDialog` |
+| `ZONE_AQUARIUM_CONFIG_CONFIRMED` | `configs` (list[AquariumConfig]) | `AquariumAssignmentDialog` | `ProjectManager`, `CanvasManager` |
+| `ZONE_AQUARIUM_CONFIG_UPDATED` | `aquarium_id`, `config`, `video_path` | `AquariumAssignmentDialog` | `ProjectLifecycleCoordinator._handle_aquarium_config_updated()` |
+| `ZONE_AQUARIUM_COUNT_CONFIRMED` | `count` (int) | `MultiAquariumConfirmDialog` | `ZoneControlBuilder` |
+| `ZONE_AQUARIUM_ASSIGNMENT_COMPLETED` | `configs` (list[AquariumConfig]), `apply_to_all` (bool) | `AquariumAssignmentDialog` | `ProjectManager`, `WizardService` |
+| `ZONE_SHOW_AQUARIUM_COUNT_DIALOG` | - | `ZoneControls` | `DialogManager` → `MultiAquariumConfirmDialog` |
+| `ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG` | - | `ZoneControls` | `DialogManager` → `AquariumAssignmentDialog` |
+
+**Track ID Convention**: Global ID = `aquarium_id * 1000 + local_track_id`. Aquarium 0 tracks: 0-999; Aquarium 1 tracks: 1000-1999; Aquarium 2 tracks: 2000-2999.
+
+**Multi-Aquarium Detection Features (Phase 1-5)**:
+- **ROI Cropping**: `Detector._crop_aquarium_region()` extracts per-aquarium frames
+- **Parallel Detection**: `Detector.detect_partitioned_parallel()` uses ThreadPoolExecutor
+- **Batch Inference**: `Detector.detect_batch()` for offline multi-frame processing
+- **Uncertainty Tracking**: `uncertainty` and `bbox_iou` columns in Parquet
+- **Error Recovery**: Failed aquarium detection doesn't crash others
+- **Validation**: `TrajectoryQualityValidator` checks ID bounds, gaps per aquarium
+
+**Output Structure** (per video with multi-aquarium):
+```
+<video>_aquarium_1/
+  1_ArenaROI_<video>.parquet
+  3_CoordMovimento_<video>.parquet
+  ...
+<video>_aquarium_2/
+  1_ArenaROI_<video>.parquet
+  3_CoordMovimento_<video>.parquet
+  ...
+```
+
+### 3.5. Processing & Analysis Events
 
 | Event (UIEvents) | Payload Keys | Publishers | Subscribers |
 |-----------------|--------------|------------|-------------|
@@ -141,7 +179,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `ANALYSIS_STARTED` | - | (lifecycle) | (consumers) |
 | `ANALYSIS_COMPLETED` | - | (lifecycle) | (consumers) |
 
-### 3.5. Notification Events
+### 3.6. Notification Events
 
 | Event (UIEvents) | Payload Keys | Publishers | Subscribers |
 |-----------------|--------------|------------|-------------|

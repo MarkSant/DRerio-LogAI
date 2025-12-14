@@ -166,6 +166,39 @@ class MultiAquariumZoneData:
 7. **Phase 12-13**: E2E tests, documentation
 8. **Phase 14-15**: Test updates, validation, merge
 
+## Multi-Aquarium v2 Enhancements (January 2025)
+
+### Phase 1: Foundation
+- **ROI Cropping**: `_crop_aquarium_region()` for per-aquarium frame extraction
+- **Uncertainty Metrics**: Added `uncertainty` (1 - confidence) column to Parquet
+- **Export Scripts**: `export_r_script()` and `export_python_script()` for statistical analysis
+- **Thigmotaxis**: Edge-preference metrics in `data_transformer.py`
+- **Feather Export**: `export_feather()` for R integration
+
+### Phase 2: Performance
+- **Parallel Detection**: `detect_partitioned_parallel()` with ThreadPoolExecutor (~30-40% speedup)
+- **Batch Inference**: `detect_batch()` for offline processing optimization
+- **Metrics Cache**: Caching for frequently-accessed detection metrics
+
+### Phase 3: UI/UX
+- **Side-by-Side Preview**: `create_side_by_side_preview()` for visual comparison
+- **Enhanced Validation**: `validate_multi_aquarium_config()` returns (is_valid, errors, warnings)
+
+### Phase 4: Robustness
+- **Per-Aquarium Tracking Validation**: `_validate_multi_aquarium_ids()` in TrajectoryQualityValidator
+- **Gap Detection**: `_detect_per_aquarium_gaps()` for missing frame detection per aquarium
+- **Error Recovery**: Fallback mechanism when detection fails for individual aquariums
+- **IoU Tracking**: `bbox_iou` column for tracking stability analysis
+
+### Phase 5: Event System
+- **New Events**:
+  - `ZONE_MULTI_AUTO_DETECT_SUCCESS` - Detection succeeded with polygons
+  - `ZONE_MULTI_AUTO_DETECT_FAILED` - Detection failed with reason
+  - `ZONE_AQUARIUM_CONFIG_UPDATED` - Individual aquarium config changed
+- **New Handlers**:
+  - `ProcessingCoordinator._handle_multi_auto_detect()`
+  - `ProjectLifecycleCoordinator._handle_aquarium_config_updated()`
+
 ## References
 
 - [PLANO_MULTI_AQUARIUM.md](../../PLANO_MULTI_AQUARIUM.md) - Detailed implementation plan
@@ -177,3 +210,4 @@ class MultiAquariumZoneData:
 | Date | Version | Author | Changes |
 |------|---------|--------|---------|
 | 2024-12 | 1.0 | Development Team | Initial ADR |
+| 2025-01 | 2.0 | Development Team | Multi-Aquarium v2 (Phases 1-5) |

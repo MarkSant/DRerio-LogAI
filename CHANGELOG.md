@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🟢 New Features
 
+#### Multi-Aquarium v2 Improvements (Phase 1-5)
+
+##### Phase 1: Foundation Enhancements
+- **ROI Cropping**: `_crop_aquarium_region()` for per-aquarium frame extraction
+- **Uncertainty Metrics**: Added `uncertainty` and `bbox_iou` columns to Parquet output
+- **Export Formats**: New `export_feather()`, `export_r_script()`, `export_python_script()` in Reporter
+- **Thigmotaxis**: Added thigmotaxis metrics calculation in DataTransformer
+
+##### Phase 2: Performance Optimizations
+- **Parallel Detection**: `detect_partitioned_parallel()` with ThreadPoolExecutor (~30-40% speedup)
+- **Batch Inference**: `detect_batch()` for offline multi-frame batch processing
+- **Metrics Cache**: Verified MetricsCache for analysis result caching
+
+##### Phase 3: UI/UX Improvements
+- **Side-by-Side Preview**: `create_side_by_side_preview()` in CanvasManager for aquarium comparison
+- **Enhanced Validation**: `validate_multi_aquarium_config()` now returns warnings (polygon overlap, small areas)
+
+##### Phase 4: Robustness
+- **Tracking Validation**: Multi-aquarium track ID validation (ID bounds, large jumps)
+- **Gap Detection**: Per-aquarium frame coverage analysis with gap statistics
+- **Error Recovery**: Graceful handling when one aquarium fails in parallel detection
+
+##### Phase 5: Event System
+- **New Events**: `ZONE_MULTI_AUTO_DETECT_SUCCESS`, `ZONE_MULTI_AUTO_DETECT_FAILED`, `ZONE_AQUARIUM_CONFIG_UPDATED`
+- **Multi-Auto-Detect Handler**: `ProcessingCoordinator._handle_multi_auto_detect()`
+- **Config Update Handler**: `ProjectLifecycleCoordinator._handle_aquarium_config_updated()`
+
 #### Zone Copy/Paste/Delete Context Menu
 - **NEW**: Right-click context menu on video tree in Zone Configuration tab
 - Copy zones from one video and paste to others (arena + all ROIs)

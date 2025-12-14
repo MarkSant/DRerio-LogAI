@@ -55,6 +55,7 @@ poetry run ruff check . --fix
 - **Service Layer:** Business logic is encapsulated in services (e.g., `DetectorService`, `ArduinoManager`).
 - **Coordinator Layer (Phase 3):** Super coordinators consolidate orchestration: `ProcessingCoordinator`, `HardwareCoordinator`, `SessionCoordinator`, `ProjectLifecycleCoordinator`. See `docs/architecture/SYSTEM_INTEGRATION_MAP.md`.
 - **UIScheduler vs UICoordinator:** `core/ui_scheduler.UIScheduler` schedules Tkinter updates via `root.after()`. `ui/ui_coordinator.UICoordinator` is the EventBus mediator. Different purposes, no conflict.
+- **Multi-Aquarium v2:** Parallel detection (`detect_partitioned_parallel`), batch inference (`detect_batch`), ROI cropping, uncertainty/IoU tracking, thigmotaxis metrics, validation with warnings, trajectory gap detection, error recovery. Events: `ZONE_MULTI_AUTO_DETECT_SUCCESS`, `ZONE_MULTI_AUTO_DETECT_FAILED`, `ZONE_AQUARIUM_CONFIG_UPDATED`. Track ID: `aquarium_id * 1000 + local_track_id` (Aquarium 0: 0-999, Aquarium 1: 1000-1999).
 
 ## 5. Important Rules & Conventions
 
