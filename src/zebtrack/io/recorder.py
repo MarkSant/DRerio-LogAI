@@ -25,6 +25,8 @@ class Recorder:
     Manages the recording of analysis data, including video and Parquet files.
 
     Supports context manager protocol for automatic file closure.
+    Supports multi-aquarium mode for recording data from multiple aquariums
+    simultaneously with separate output folders per aquarium.
 
     Example:
         recorder = Recorder(settings_obj=settings)
@@ -32,6 +34,20 @@ class Recorder:
             recorder.start_recording(...)
             recorder.write_detection_data(timestamp, frame_num, detections)
         # Files automatically closed and saved on exit
+
+    Multi-aquarium Example:
+        recorder = Recorder(settings_obj=settings)
+        recorder.start_recording_multi_aquarium(
+            output_folder="results/",
+            width=1280,
+            height=720,
+            zones_by_aquarium={0: zone_data_0, 1: zone_data_1}
+        )
+        recorder.write_partitioned_detection_data(
+            timestamp, frame_num,
+            {0: detections_aq0, 1: detections_aq1}
+        )
+        recorder.stop_recording_multi_aquarium()
     """
 
     def __init__(self, settings_obj: "Settings | None" = None):
@@ -57,6 +73,12 @@ class Recorder:
         self._initial_schema_columns: FrozenSet[str] | None = None  # noqa: UP006
         self._parquet_filename: str = ""
         self._last_flush_time: float = 0.0
+
+        # Multi-aquarium support (Phase 7)
+        self._multi_aquarium_mode: bool = False
+        self._aquarium_recorders: dict[int, "Recorder"] = {}
+        self._aquarium_id: int | None = None  # Set when this recorder is for a specific aquarium
+        self._settings_obj = settings_obj  # Store for creating sub-recorders
 
         # Extract settings with defaults
         self._fps = 30.0  # Default fps
@@ -247,6 +269,221 @@ class Recorder:
         self.is_recording = False
         log.info("recorder.stop.success", base_name=self.base_name)
 
+    # =========================================================================
+    # Multi-Aquarium Recording Methods (Phase 7)
+    # =========================================================================
+
+    def start_recording_multi_aquarium(
+        self,
+        output_folder: str,
+        width: int,
+        height: int,
+        zones_by_aquarium: dict[int, ZoneData],
+        fps: float = 30.0,
+        write_video: bool = True,
+        pixel_per_cm_ratio: tuple[float, float] | None = None,
+        calibration: Any = None,
+    ) -> bool:
+        """
+        Start recording for multiple aquariums with separate output folders.
+
+        Creates structure:
+            output_folder/
+            ├── aquarium_0/
+            │   ├── 1_ProcessingArea_*.parquet
+            │   ├── 2_AreasOfInterest_*.parquet
+            │   └── 3_CoordMovimento_*.parquet
+            └── aquarium_1/
+                ├── 1_ProcessingArea_*.parquet
+                ├── 2_AreasOfInterest_*.parquet
+                └── 3_CoordMovimento_*.parquet
+
+        Args:
+            output_folder: Base folder for all aquarium outputs.
+            width: Frame width in pixels.
+            height: Frame height in pixels.
+            zones_by_aquarium: Dict mapping aquarium_id to ZoneData.
+            fps: Frames per second (default: 30.0).
+            write_video: If True, also writes video files per aquarium.
+            pixel_per_cm_ratio: Optional calibration ratio (x_ratio, y_ratio).
+            calibration: Optional calibration object for coordinate transform.
+
+        Returns:
+            True if all recordings started successfully, False otherwise.
+        """
+        if self.is_recording or self._multi_aquarium_mode:
+            log.warning("recorder.multi_aquarium.already_recording")
+            return False
+
+        if len(zones_by_aquarium) > 2:
+            log.error(
+                "recorder.multi_aquarium.max_exceeded",
+                count=len(zones_by_aquarium),
+                max_allowed=2,
+            )
+            return False
+
+        self._multi_aquarium_mode = True
+        base_folder = Path(output_folder)
+        base_folder.mkdir(parents=True, exist_ok=True)
+
+        for aq_id, zone_data in zones_by_aquarium.items():
+            aq_folder = base_folder / f"aquarium_{aq_id}"
+            aq_folder.mkdir(parents=True, exist_ok=True)
+
+            # Create sub-recorder for this aquarium
+            aq_recorder = Recorder(settings_obj=self._settings_obj)
+            aq_recorder._aquarium_id = aq_id  # Mark this recorder for specific aquarium
+            aq_recorder._fps = fps
+
+            try:
+                success = aq_recorder.start_recording(
+                    output_folder=str(aq_folder),
+                    frame_width=width,
+                    frame_height=height,
+                    zones=zone_data,
+                    is_video_file=not write_video,
+                    pixel_per_cm_ratio=pixel_per_cm_ratio,
+                    base_name=f"aquarium_{aq_id}",
+                    calibration=calibration,
+                )
+
+                if success:
+                    self._aquarium_recorders[aq_id] = aq_recorder
+                    log.info(
+                        "recorder.multi_aquarium.recorder_started",
+                        aquarium_id=aq_id,
+                        folder=str(aq_folder),
+                    )
+                else:
+                    log.error(
+                        "recorder.multi_aquarium.recorder_failed",
+                        aquarium_id=aq_id,
+                    )
+                    # Cleanup already started recorders
+                    self._cleanup_aquarium_recorders()
+                    return False
+
+            except Exception as e:
+                log.error(
+                    "recorder.multi_aquarium.recorder_error",
+                    aquarium_id=aq_id,
+                    error=str(e),
+                    exc_info=True,
+                )
+                self._cleanup_aquarium_recorders()
+                return False
+
+        log.info(
+            "recorder.multi_aquarium.started",
+            aquarium_count=len(self._aquarium_recorders),
+            output_folder=str(base_folder),
+        )
+        return True
+
+    def write_partitioned_detection_data(
+        self,
+        timestamp: float,
+        frame_number: int,
+        partitioned_detections: dict[int, list[tuple]],
+    ) -> None:
+        """
+        Write detection data partitioned by aquarium.
+
+        Args:
+            timestamp: Current timestamp in seconds.
+            frame_number: Current frame number.
+            partitioned_detections: Dict mapping aquarium_id to list of detections.
+                Each detection is a tuple of (x1, y1, x2, y2, conf, track_id, class_id).
+
+        Raises:
+            RuntimeError: If not in multi-aquarium mode.
+        """
+        if not self._multi_aquarium_mode:
+            raise RuntimeError("Recorder not in multi-aquarium mode")
+
+        for aq_id, detections in partitioned_detections.items():
+            if aq_id in self._aquarium_recorders:
+                recorder = self._aquarium_recorders[aq_id]
+                recorder.write_detection_data(timestamp, frame_number, detections)
+            else:
+                log.warning(
+                    "recorder.multi_aquarium.unknown_aquarium",
+                    aquarium_id=aq_id,
+                    known_ids=list(self._aquarium_recorders.keys()),
+                )
+
+    def write_video_frame_multi_aquarium(
+        self,
+        aquarium_id: int,
+        frame: np.ndarray,
+    ) -> None:
+        """
+        Write a video frame for a specific aquarium.
+
+        Args:
+            aquarium_id: The aquarium ID to write the frame for.
+            frame: The video frame to write.
+        """
+        if not self._multi_aquarium_mode:
+            log.warning("recorder.multi_aquarium.write_frame.not_active")
+            return
+
+        if aquarium_id in self._aquarium_recorders:
+            self._aquarium_recorders[aquarium_id].write_video_frame(frame)
+
+    def stop_recording_multi_aquarium(self, force_stop: bool = False) -> None:
+        """
+        Stop recording for all aquariums.
+
+        Args:
+            force_stop: If True, forces cleanup without saving data.
+        """
+        if not self._multi_aquarium_mode:
+            log.warning("recorder.multi_aquarium.stop.not_active")
+            return
+
+        for aq_id, recorder in list(self._aquarium_recorders.items()):
+            try:
+                recorder.stop_recording(force_stop=force_stop)
+                log.info(
+                    "recorder.multi_aquarium.recorder_stopped",
+                    aquarium_id=aq_id,
+                )
+            except Exception as e:
+                log.error(
+                    "recorder.multi_aquarium.stop_failed",
+                    aquarium_id=aq_id,
+                    error=str(e),
+                    exc_info=True,
+                )
+
+        self._aquarium_recorders.clear()
+        self._multi_aquarium_mode = False
+        log.info("recorder.multi_aquarium.stopped")
+
+    def is_multi_aquarium_mode(self) -> bool:
+        """Check if recorder is in multi-aquarium mode."""
+        return self._multi_aquarium_mode
+
+    def get_aquarium_recorders(self) -> dict[int, "Recorder"]:
+        """Get all aquarium recorders (for testing/debugging)."""
+        return self._aquarium_recorders.copy()
+
+    def _cleanup_aquarium_recorders(self) -> None:
+        """Cleanup all aquarium recorders on error."""
+        for aq_id, recorder in list(self._aquarium_recorders.items()):
+            try:
+                recorder.stop_recording(force_stop=True, reason="Cleanup on error")
+            except Exception:
+                pass  # Best effort cleanup
+        self._aquarium_recorders.clear()
+        self._multi_aquarium_mode = False
+
+    # =========================================================================
+    # Standard Recording Methods
+    # =========================================================================
+
     def write_video_frame(self, frame):
         """Writes a single frame to the video file."""
         if self.is_recording and self.video_writer:
@@ -293,6 +530,11 @@ class Recorder:
                 "y2": y2,
                 "confidence": confidence,
             }
+
+            # Add aquarium_id if this is an aquarium-specific recorder
+            if self._aquarium_id is not None:
+                data_point["aquarium_id"] = self._aquarium_id
+
             # Calculate center point and add cm conversion if ratio is available
             x_center = (x1 + x2) / 2
             y_center = (y1 + y2) / 2
@@ -338,11 +580,26 @@ class Recorder:
         except (TypeError, ValueError):
             return None
 
-    def _determine_parquet_columns(self) -> list[str]:
+    def _determine_parquet_columns(self, include_aquarium_id: bool = False) -> list[str]:
+        """Determine columns for Parquet schema.
+
+        Args:
+            include_aquarium_id: If True, includes aquarium_id column after track_id.
+
+        Returns:
+            List of column names.
+        """
         columns = [
             "timestamp",
             "frame",
             "track_id",
+        ]
+
+        # Add aquarium_id for multi-aquarium mode
+        if include_aquarium_id or self._aquarium_id is not None:
+            columns.append("aquarium_id")
+
+        columns.extend([
             "x1",
             "y1",
             "x2",
@@ -350,7 +607,8 @@ class Recorder:
             "confidence",
             "x_center_px",
             "y_center_px",
-        ]
+        ])
+
         if self.pixel_per_cm_ratio:
             columns.extend(
                 [

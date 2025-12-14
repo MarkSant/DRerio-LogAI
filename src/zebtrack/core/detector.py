@@ -167,6 +167,13 @@ class Detector:
         self._context: str = "tracking"
         self._aquarium_region_defined: bool = False
 
+        # Multi-aquarium mode state
+        self._multi_aquarium_mode: bool = False
+        self._aquariums: list[AquariumData] = []
+        self._byte_trackers_multi: dict[int, BYTETracker] = {}
+        self._scaled_aquarium_polygons: dict[int, np.ndarray] = {}
+        self._scaled_aquarium_roi_polygons: dict[int, list[np.ndarray]] = {}
+
         # Dynamic class ID resolution
         self.aquarium_class_id = 0
         self.animal_class_id = 1
@@ -1258,3 +1265,417 @@ class Detector:
                 (255, 0, 255),
                 2,
             )
+
+    # =========================================================================
+    # Multi-Aquarium Mode Methods
+    # =========================================================================
+
+    def set_multi_aquarium_zones(
+        self,
+        aquariums: list[AquariumData],
+        actual_width: int,
+        actual_height: int,
+    ) -> None:
+        """Configure zones for multiple aquariums with independent tracking.
+
+        Sets up separate ByteTracker instances for each aquarium to enable
+        independent tracking. Track IDs are offset by aquarium_id * 1000.
+
+        Args:
+            aquariums: List of AquariumData objects (max 2).
+            actual_width: Actual video frame width for scaling.
+            actual_height: Actual video frame height for scaling.
+
+        Raises:
+            ValueError: If more than 2 aquariums or invalid dimensions.
+        """
+        if len(aquariums) > 2:
+            raise ValueError("Maximum of 2 aquariums supported")
+
+        if actual_width <= 0 or actual_height <= 0:
+            raise ValueError(
+                f"Invalid dimensions: width={actual_width}, height={actual_height}"
+            )
+
+        self._multi_aquarium_mode = True
+        self._aquariums = aquariums
+
+        # Calculate scaling factors
+        scale_x = actual_width / self.base_width
+        scale_y = actual_height / self.base_height
+
+        # Create ByteTracker and scaled polygons for each aquarium
+        for aq in aquariums:
+            # Create independent ByteTracker for this aquarium
+            # ByteTracker expects a namespace-like args object
+            tracker_args = SimpleNamespace(
+                track_thresh=self._get_track_threshold(),
+                match_thresh=self._get_match_threshold(),
+                track_buffer=self._get_track_buffer(),
+                mot20=False,
+            )
+            model_height, model_width = self._resolve_model_input_shape()
+            self._byte_trackers_multi[aq.id] = BYTETracker(
+                args=tracker_args,
+                frame_rate=30,
+                use_hybrid_matching=True,
+                max_center_distance=300.0,
+                processing_interval=1,
+            )
+
+            # Scale the main polygon
+            if aq.polygon:
+                polygon_np = np.array(aq.polygon, dtype=np.float32)
+                self._scaled_aquarium_polygons[aq.id] = (
+                    polygon_np * [scale_x, scale_y]
+                ).astype(np.int32)
+            else:
+                self._scaled_aquarium_polygons[aq.id] = np.array([], dtype=np.int32)
+
+            # Scale ROI polygons
+            scaled_rois = []
+            for roi in aq.roi_polygons:
+                roi_np = np.array(roi, dtype=np.float32)
+                scaled_roi = (roi_np * [scale_x, scale_y]).astype(np.int32)
+                scaled_rois.append(scaled_roi)
+            self._scaled_aquarium_roi_polygons[aq.id] = scaled_rois
+
+        self._zones_configured = True
+        self._last_width = actual_width
+        self._last_height = actual_height
+        self._aquarium_region_defined = True
+
+        log.info(
+            "detector.multi_aquarium.zones_set",
+            aquarium_count=len(aquariums),
+            dimensions=(actual_width, actual_height),
+            aquarium_ids=[aq.id for aq in aquariums],
+        )
+
+    def detect_partitioned(
+        self,
+        frame: np.ndarray,
+        project_type: str = "multi_aquarium",
+    ) -> dict[int, list[tuple]]:
+        """Execute detection and partition results by aquarium.
+
+        Runs detection on the full frame, then assigns detections to
+        aquariums based on centroid location. Each aquarium has independent
+        tracking with offset track IDs.
+
+        Args:
+            frame: Input BGR frame.
+            project_type: Project type string (not used, for API compatibility).
+
+        Returns:
+            Dictionary mapping aquarium_id to list of detection tuples:
+            {aquarium_id: [(x1, y1, x2, y2, conf, track_id, class_id), ...]}
+            Track IDs are offset: aquarium_id * 1000 + local_track_id
+
+        Raises:
+            RuntimeError: If detector not in multi-aquarium mode.
+            ValueError: If frame is invalid.
+        """
+        if not self._multi_aquarium_mode:
+            raise RuntimeError(
+                "Detector is not in multi-aquarium mode. "
+                "Call set_multi_aquarium_zones() first."
+            )
+
+        # Validate frame
+        if frame is None or not isinstance(frame, np.ndarray):
+            raise ValueError("Frame must be a valid numpy array")
+
+        if frame.size == 0:
+            raise ValueError("Frame cannot be empty")
+
+        if len(frame.shape) != 3 or frame.shape[2] != 3:
+            raise ValueError(f"Frame must be HxWx3 (BGR), got shape {frame.shape}")
+
+        # Execute detection on full frame
+        raw_detections = self.plugin.detect(frame)
+
+        # Partition detections by aquarium
+        partitioned: dict[int, list] = {aq.id: [] for aq in self._aquariums}
+
+        for det in raw_detections:
+            det = self._ensure_track_tuple(det)
+            x1, y1, x2, y2, conf, _, class_id = det
+
+            # Calculate centroid
+            centroid = ((x1 + x2) / 2, (y1 + y2) / 2)
+
+            # Find which aquarium contains this detection
+            for aq in self._aquariums:
+                polygon = self._scaled_aquarium_polygons.get(aq.id)
+                if polygon is not None and polygon.size > 0:
+                    if self._point_in_polygon(centroid, polygon):
+                        partitioned[aq.id].append(det)
+                        break
+
+        # Apply independent tracking per aquarium
+        results: dict[int, list[tuple]] = {}
+
+        for aq_id, detections in partitioned.items():
+            if detections:
+                tracker = self._byte_trackers_multi[aq_id]
+                tracked = self._apply_byte_tracking_multi(detections, tracker)
+
+                # Offset track_id: aquarium_id * 1000 + local_track_id
+                offset_tracked = []
+                for det in tracked:
+                    x1, y1, x2, y2, conf, track_id, class_id = det
+                    if track_id is not None:
+                        offset_id = aq_id * 1000 + track_id
+                    else:
+                        offset_id = None
+                    offset_tracked.append(
+                        (x1, y1, x2, y2, conf, offset_id, class_id)
+                    )
+                results[aq_id] = offset_tracked
+            else:
+                results[aq_id] = []
+
+        log.debug(
+            "detector.partitioned.results",
+            aquarium_counts={aq_id: len(dets) for aq_id, dets in results.items()},
+        )
+
+        return results
+
+    def _point_in_polygon(
+        self,
+        point: tuple[float, float],
+        polygon: np.ndarray,
+    ) -> bool:
+        """Check if a point is inside a polygon.
+
+        Args:
+            point: (x, y) coordinates.
+            polygon: Polygon vertices as numpy array.
+
+        Returns:
+            True if point is inside or on boundary of polygon.
+        """
+        if polygon.size == 0:
+            return False
+        return cv2.pointPolygonTest(polygon, point, False) >= 0
+
+    def _apply_byte_tracking_multi(
+        self,
+        detections: list[tuple],
+        tracker: BYTETracker,
+    ) -> list[tuple]:
+        """Apply ByteTracker to a list of detections for multi-aquarium mode.
+
+        Args:
+            detections: List of (x1, y1, x2, y2, conf, track_id, class_id) tuples.
+            tracker: ByteTracker instance to use.
+
+        Returns:
+            List of detections with updated track_ids.
+        """
+        if not detections:
+            return []
+
+        # Convert to numpy array format for ByteTracker (only 5 columns: x1, y1, x2, y2, conf)
+        det_array = np.array([
+            [d[0], d[1], d[2], d[3], d[4]]  # x1, y1, x2, y2, conf
+            for d in detections
+        ])
+
+        # Update tracker
+        online_targets = tracker.update(
+            det_array,
+            [self._last_height or 720, self._last_width or 1280],
+            [self._last_height or 720, self._last_width or 1280],
+        )
+
+        # Convert back to tuple format
+        tracked = []
+        for track in online_targets:
+            tlbr = track.tlbr
+            x1, y1, x2, y2 = int(tlbr[0]), int(tlbr[1]), int(tlbr[2]), int(tlbr[3])
+            track_id = track.track_id
+            conf = track.score
+
+            # Find original class_id from closest detection
+            class_id = self.animal_class_id
+            for det in detections:
+                if abs(det[0] - x1) < 10 and abs(det[1] - y1) < 10:
+                    class_id = det[6]
+                    break
+
+            tracked.append((x1, y1, x2, y2, conf, track_id, class_id))
+
+        return tracked
+
+    def reset_multi_aquarium_tracking(
+        self,
+        aquarium_id: int | None = None,
+    ) -> None:
+        """Reset tracking state for one or all aquariums.
+
+        Args:
+            aquarium_id: Specific aquarium to reset, or None for all.
+        """
+        tracker_args = SimpleNamespace(
+            track_thresh=self._get_track_threshold(),
+            match_thresh=self._get_match_threshold(),
+            track_buffer=self._get_track_buffer(),
+            mot20=False,
+        )
+
+        if aquarium_id is not None:
+            if aquarium_id in self._byte_trackers_multi:
+                self._byte_trackers_multi[aquarium_id] = BYTETracker(
+                    args=tracker_args,
+                    frame_rate=30,
+                    use_hybrid_matching=True,
+                    max_center_distance=300.0,
+                    processing_interval=1,
+                )
+                log.debug(
+                    "detector.multi_aquarium.tracking_reset",
+                    aquarium_id=aquarium_id,
+                )
+        else:
+            for aq_id in list(self._byte_trackers_multi.keys()):
+                self._byte_trackers_multi[aq_id] = BYTETracker(
+                    args=tracker_args,
+                    frame_rate=30,
+                    use_hybrid_matching=True,
+                    max_center_distance=300.0,
+                    processing_interval=1,
+                )
+            log.debug(
+                "detector.multi_aquarium.tracking_reset_all",
+                aquarium_count=len(self._byte_trackers_multi),
+            )
+
+    def is_multi_aquarium_mode(self) -> bool:
+        """Check if detector is in multi-aquarium mode.
+
+        Returns:
+            True if multi-aquarium mode is enabled.
+        """
+        return self._multi_aquarium_mode
+
+    def get_aquarium_polygon(self, aquarium_id: int) -> np.ndarray | None:
+        """Get scaled polygon for a specific aquarium.
+
+        Args:
+            aquarium_id: Aquarium ID (0 or 1).
+
+        Returns:
+            Scaled polygon as numpy array, or None if not found.
+        """
+        return self._scaled_aquarium_polygons.get(aquarium_id)
+
+    def get_aquarium_roi_polygons(self, aquarium_id: int) -> list[np.ndarray]:
+        """Get scaled ROI polygons for a specific aquarium.
+
+        Args:
+            aquarium_id: Aquarium ID (0 or 1).
+
+        Returns:
+            List of scaled ROI polygons.
+        """
+        return self._scaled_aquarium_roi_polygons.get(aquarium_id, [])
+
+    def get_multi_aquarium_data(self) -> list[AquariumData]:
+        """Get the configured aquarium data.
+
+        Returns:
+            List of AquariumData objects.
+        """
+        return self._aquariums
+
+    def draw_multi_aquarium_overlay(
+        self,
+        frame: np.ndarray,
+        partitioned_detections: dict[int, list[tuple]],
+    ) -> np.ndarray:
+        """Draw detection overlays for multi-aquarium mode.
+
+        Draws each aquarium's polygon and ROIs with distinct colors,
+        plus detection bounding boxes with aquarium-specific coloring.
+
+        Args:
+            frame: Input BGR frame (modified in-place).
+            partitioned_detections: Detection results from detect_partitioned().
+
+        Returns:
+            Frame with overlays drawn.
+        """
+        # Colors for each aquarium
+        aquarium_colors = {
+            0: (0, 255, 0),    # Green for aquarium 0 (left)
+            1: (255, 165, 0),  # Orange for aquarium 1 (right)
+        }
+
+        for aq in self._aquariums:
+            aq_color = aquarium_colors.get(aq.id, (255, 255, 255))
+
+            # Draw aquarium polygon
+            polygon = self._scaled_aquarium_polygons.get(aq.id)
+            if polygon is not None and polygon.size > 0:
+                cv2.polylines(
+                    frame,
+                    [polygon],
+                    isClosed=True,
+                    color=aq_color,
+                    thickness=2,
+                )
+
+                # Draw aquarium label
+                if polygon.size > 0:
+                    x, y = polygon[0]
+                    label = f"Aquario {aq.id + 1}"
+                    if aq.group:
+                        label += f" ({aq.group})"
+                    cv2.putText(
+                        frame,
+                        label,
+                        (int(x), int(y) - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        aq_color,
+                        2,
+                    )
+
+            # Draw ROI polygons
+            roi_polygons = self._scaled_aquarium_roi_polygons.get(aq.id, [])
+            for i, roi_polygon in enumerate(roi_polygons):
+                if i < len(aq.roi_colors):
+                    roi_color = aq.roi_colors[i]
+                else:
+                    roi_color = aq_color
+                cv2.polylines(
+                    frame,
+                    [roi_polygon],
+                    isClosed=True,
+                    color=roi_color,
+                    thickness=1,
+                )
+
+            # Draw detections for this aquarium
+            detections = partitioned_detections.get(aq.id, [])
+            for det in detections:
+                if len(det) >= 6:
+                    x1, y1, x2, y2, conf, track_id = det[:6]
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), aq_color, 2)
+
+                    # Label with track ID
+                    label = f"ID:{track_id}" if track_id else f"{conf:.0%}"
+                    cv2.putText(
+                        frame,
+                        label,
+                        (x1, y1 - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        aq_color,
+                        1,
+                    )
+
+        return frame
