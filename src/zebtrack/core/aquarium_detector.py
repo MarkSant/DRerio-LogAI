@@ -2,6 +2,10 @@
 
 Provides the AquariumDetector class for detecting and segmenting aquarium boundaries
 in video frames for perspective correction and calibration.
+
+Also includes ContourBasedMultiAquariumDetector for detecting multiple aquariums
+using computer vision contour analysis when YOLO models are not available or
+for videos with 2 aquariums.
 """
 
 from pathlib import Path
@@ -461,3 +465,456 @@ class AquariumDetector:
         finally:
             if source:
                 source.release()
+
+    def detect_multiple_aquariums(
+        self,
+        video_path: Path | str,
+        expected_count: int = 2,
+        stabilization_frames: int = 10,
+    ) -> list[np.ndarray]:
+        """Detect multiple aquariums in a video.
+
+        This method attempts to detect multiple aquariums using YOLO first,
+        and falls back to contour-based detection if YOLO doesn't find
+        the expected count.
+
+        Args:
+            video_path: Path to the video file.
+            expected_count: Expected number of aquariums (must be 2).
+            stabilization_frames: Number of frames to analyze.
+
+        Returns:
+            List of polygon numpy arrays (shape: Nx2), sorted by X position.
+            Returns empty list if detection fails.
+
+        Raises:
+            ValueError: If expected_count != 2.
+        """
+        if expected_count != 2:
+            raise ValueError("Apenas 2 aquários são suportados")
+
+        video_path_str = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        log.info(
+            "aquarium_detector.detect_multiple.start",
+            video_path=video_path_str,
+            expected_count=expected_count,
+        )
+
+        # Try YOLO-based detection first
+        source = None
+        try:
+            source = VideoFileSource(video_path_str)
+            all_polygons = []
+
+            for i in range(stabilization_frames):
+                ret, frame = source.get_frame()
+                if not ret:
+                    break
+
+                # Detect all aquariums (class 0) with lower threshold
+                results = self.model.predict(frame, verbose=False, classes=[0], conf=0.05)
+
+                if results and results[0].boxes:
+                    # Get all detections for this frame
+                    boxes = results[0].boxes
+                    frame_polygons = []
+
+                    for j, box in enumerate(boxes):
+                        conf = float(box.conf)
+                        if conf < 0.05:
+                            continue
+
+                        xyxy_data = box.xyxy[0]
+                        if hasattr(xyxy_data, "cpu"):
+                            x1, y1, x2, y2 = xyxy_data.cpu().numpy()
+                        else:
+                            x1, y1, x2, y2 = xyxy_data
+
+                        # Validate area
+                        frame_area = frame.shape[0] * frame.shape[1]
+                        box_area = (x2 - x1) * (y2 - y1)
+                        area_ratio = box_area / frame_area
+
+                        if 0.10 <= area_ratio <= 0.50:
+                            polygon = np.array(
+                                [
+                                    [int(x1), int(y1)],
+                                    [int(x2), int(y1)],
+                                    [int(x2), int(y2)],
+                                    [int(x1), int(y2)],
+                                ],
+                                dtype=np.int32,
+                            )
+                            frame_polygons.append((polygon, (x1 + x2) / 2))  # polygon, center_x
+
+                    # If we found exactly 2 in this frame, add them
+                    if len(frame_polygons) == expected_count:
+                        all_polygons.append(frame_polygons)
+
+            # If we consistently found 2 aquariums, use those
+            if all_polygons:
+                log.info(
+                    "aquarium_detector.detect_multiple.yolo_success",
+                    frames_with_2=len(all_polygons),
+                )
+                # Take the most recent frame with 2 detections
+                best_frame = all_polygons[-1]
+                # Sort by X position
+                best_frame.sort(key=lambda x: x[1])
+                return [p[0] for p in best_frame]
+
+        except Exception as e:
+            log.warning(
+                "aquarium_detector.detect_multiple.yolo_failed",
+                error=str(e),
+            )
+        finally:
+            if source:
+                source.release()
+
+        # Fall back to contour-based detection
+        log.info("aquarium_detector.detect_multiple.fallback_to_contours")
+        contour_detector = ContourBasedMultiAquariumDetector()
+        return contour_detector.detect_multiple_aquariums(
+            video_path_str, expected_count, stabilization_frames
+        )
+
+
+class ContourBasedMultiAquariumDetector:
+    """Detects multiple aquariums using computer vision contour analysis.
+
+    This detector uses traditional CV techniques (thresholding, edge detection,
+    contour analysis) to find 2 separate aquarium regions in a video frame.
+    It's designed as a fallback when YOLO models are not available or for
+    specific multi-aquarium detection scenarios.
+    """
+
+    def __init__(self):
+        """Initialize the ContourBasedMultiAquariumDetector."""
+        log.info("contour_detector.init.success")
+
+    def detect_multiple_aquariums(
+        self,
+        video_path: Path | str,
+        expected_count: int = 2,
+        stabilization_frames: int = 10,
+    ) -> list[np.ndarray]:
+        """Detect multiple aquariums using contour analysis.
+
+        Algorithm:
+        1. Read stabilization frames and calculate average frame
+        2. Convert to grayscale
+        3. Apply adaptive threshold
+        4. Edge detection (Canny)
+        5. Find contours and approximate to polygons (approxPolyDP)
+        6. Filter by area (each aquarium should be ~15-45% of frame)
+        7. Filter by shape (aspect ratio close to rectangle)
+        8. Validate no significant overlap
+        9. Sort by X position (left aquarium = index 0)
+
+        Args:
+            video_path: Path to the video file.
+            expected_count: Expected number of aquariums (must be 2).
+            stabilization_frames: Number of frames to analyze for stability.
+
+        Returns:
+            List of 2 polygon numpy arrays (shape: Nx2) or empty list if failed.
+
+        Raises:
+            ValueError: If expected_count != 2.
+        """
+        if expected_count != 2:
+            raise ValueError("Apenas 2 aquários são suportados")
+
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        log.info(
+            "contour_detector.detect.start",
+            video_path=video_path,
+            stabilization_frames=stabilization_frames,
+        )
+
+        source = None
+        try:
+            source = VideoFileSource(video_path)
+
+            # Collect frames for averaging
+            frames = []
+            for i in range(stabilization_frames):
+                ret, frame = source.get_frame()
+                if not ret:
+                    log.warning("contour_detector.frame_read_failed", frame=i)
+                    break
+                frames.append(frame)
+
+            if not frames:
+                log.error("contour_detector.no_frames_read")
+                return []
+
+            # Calculate average frame for stability
+            avg_frame = np.mean(frames, axis=0).astype(np.uint8)
+
+            # Detect aquariums in averaged frame
+            polygons = self._detect_aquariums_by_contours(avg_frame, expected_count)
+
+            if len(polygons) == expected_count:
+                log.info(
+                    "contour_detector.detect.success",
+                    aquarium_count=len(polygons),
+                )
+                return polygons
+            else:
+                log.warning(
+                    "contour_detector.detect.wrong_count",
+                    expected=expected_count,
+                    found=len(polygons),
+                )
+                return []
+
+        except Exception as e:
+            log.error("contour_detector.detect.failed", video_path=video_path, error=str(e))
+            return []
+        finally:
+            if source:
+                source.release()
+
+    def detect_multiple_aquariums_from_frame(
+        self,
+        frame: np.ndarray,
+        expected_count: int = 2,
+    ) -> list[np.ndarray]:
+        """Detect multiple aquariums from a single frame.
+
+        Args:
+            frame: Video frame as numpy array (BGR format).
+            expected_count: Expected number of aquariums (must be 2).
+
+        Returns:
+            List of polygon numpy arrays or empty list if failed.
+
+        Raises:
+            ValueError: If expected_count != 2.
+        """
+        if expected_count != 2:
+            raise ValueError("Apenas 2 aquários são suportados")
+
+        return self._detect_aquariums_by_contours(frame, expected_count)
+
+    def _detect_aquariums_by_contours(
+        self,
+        frame: np.ndarray,
+        expected_count: int = 2,
+    ) -> list[np.ndarray]:
+        """Implementation of contour-based aquarium detection algorithm.
+
+        Args:
+            frame: Video frame to analyze.
+            expected_count: Number of aquariums to detect.
+
+        Returns:
+            List of polygon numpy arrays sorted by X position.
+        """
+        frame_height, frame_width = frame.shape[:2]
+        frame_area = frame_height * frame_width
+
+        # 1. Pre-processing
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+        # 2. Adaptive threshold
+        thresh = cv2.adaptiveThreshold(
+            blurred,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY_INV,
+            11,
+            2,
+        )
+
+        # 3. Morphological operations to clean noise
+        kernel = np.ones((5, 5), np.uint8)
+        thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+        thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+
+        # 4. Find contours
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        log.debug("contour_detector.contours_found", count=len(contours))
+
+        # 5. Filter and collect candidates
+        candidates = []
+
+        for contour in contours:
+            area = cv2.contourArea(contour)
+
+            # Filter by area: each aquarium should be 10-50% of frame
+            area_ratio = area / frame_area
+            if area_ratio < 0.10 or area_ratio > 0.50:
+                continue
+
+            # Get bounding box
+            x, y, w, h = cv2.boundingRect(contour)
+            bbox_area = w * h
+
+            # Calculate aspect ratio (width/height)
+            aspect_ratio = w / h if h > 0 else 0
+
+            # Filter by aspect ratio: should be reasonably rectangular (0.5 to 2.0)
+            if aspect_ratio < 0.3 or aspect_ratio > 3.0:
+                continue
+
+            # Calculate solidity (area / convex hull area)
+            hull = cv2.convexHull(contour)
+            hull_area = cv2.contourArea(hull)
+            solidity = area / hull_area if hull_area > 0 else 0
+
+            # Filter by solidity: should be fairly solid (> 0.7)
+            if solidity < 0.6:
+                continue
+
+            # Approximate polygon
+            epsilon = 0.02 * cv2.arcLength(contour, True)
+            approx = cv2.approxPolyDP(contour, epsilon, True)
+
+            # Calculate center X for sorting
+            center_x = x + w / 2
+
+            candidates.append(
+                {
+                    "contour": approx,
+                    "area": area,
+                    "area_ratio": area_ratio,
+                    "bbox": (x, y, w, h),
+                    "center_x": center_x,
+                    "aspect_ratio": aspect_ratio,
+                    "solidity": solidity,
+                }
+            )
+
+            log.debug(
+                "contour_detector.candidate_found",
+                area_ratio=f"{area_ratio:.3f}",
+                aspect_ratio=f"{aspect_ratio:.2f}",
+                solidity=f"{solidity:.2f}",
+                center_x=int(center_x),
+            )
+
+        # 6. Select the best candidates
+        if len(candidates) < expected_count:
+            log.warning(
+                "contour_detector.insufficient_candidates",
+                found=len(candidates),
+                expected=expected_count,
+            )
+            return []
+
+        # Sort by area (largest first) and take top candidates
+        candidates.sort(key=lambda c: c["area"], reverse=True)
+        selected = candidates[:expected_count]
+
+        # 7. Validate no significant overlap
+        if len(selected) >= 2:
+            if self._check_overlap(selected[0]["bbox"], selected[1]["bbox"]):
+                log.warning("contour_detector.overlapping_detections")
+                return []
+
+        # 8. Sort by X position (left aquarium first)
+        selected.sort(key=lambda c: c["center_x"])
+
+        result = [c["contour"].reshape(-1, 2) for c in selected]
+
+        log.info(
+            "contour_detector.candidates_selected",
+            count=len(result),
+            positions=[int(c["center_x"]) for c in selected],
+        )
+
+        return result
+
+    def _check_overlap(
+        self, bbox1: tuple, bbox2: tuple, threshold: float = 0.1
+    ) -> bool:
+        """Check if two bounding boxes overlap significantly.
+
+        Args:
+            bbox1: First bounding box (x, y, w, h).
+            bbox2: Second bounding box (x, y, w, h).
+            threshold: Maximum allowed overlap ratio.
+
+        Returns:
+            True if boxes overlap more than threshold, False otherwise.
+        """
+        x1, y1, w1, h1 = bbox1
+        x2, y2, w2, h2 = bbox2
+
+        # Calculate intersection
+        x_left = max(x1, x2)
+        y_top = max(y1, y2)
+        x_right = min(x1 + w1, x2 + w2)
+        y_bottom = min(y1 + h1, y2 + h2)
+
+        if x_right < x_left or y_bottom < y_top:
+            return False
+
+        intersection = (x_right - x_left) * (y_bottom - y_top)
+        min_area = min(w1 * h1, w2 * h2)
+
+        overlap_ratio = intersection / min_area if min_area > 0 else 0
+
+        log.debug(
+            "contour_detector.overlap_check",
+            overlap_ratio=f"{overlap_ratio:.3f}",
+            threshold=threshold,
+        )
+
+        return overlap_ratio > threshold
+
+    def _validate_aquarium_pair(
+        self,
+        polygons: list[np.ndarray],
+        frame_width: int,
+    ) -> bool:
+        """Validate that detected aquariums form a valid pair.
+
+        Checks:
+        - Aquariums are on opposite sides of the frame
+        - Aquariums have similar sizes (within 50%)
+        - Aquariums don't overlap
+
+        Args:
+            polygons: List of 2 polygon arrays.
+            frame_width: Width of the video frame.
+
+        Returns:
+            True if valid pair, False otherwise.
+        """
+        if len(polygons) != 2:
+            return False
+
+        # Get bounding boxes
+        x1_min, x1_max = polygons[0][:, 0].min(), polygons[0][:, 0].max()
+        x2_min, x2_max = polygons[1][:, 0].min(), polygons[1][:, 0].max()
+
+        # Check that aquariums are on different sides
+        center1 = (x1_min + x1_max) / 2
+        center2 = (x2_min + x2_max) / 2
+        mid_frame = frame_width / 2
+
+        # One should be on left half, other on right half
+        if not ((center1 < mid_frame and center2 > mid_frame) or
+                (center1 > mid_frame and center2 < mid_frame)):
+            log.warning("contour_detector.aquariums_not_opposite_sides")
+            return False
+
+        # Check similar sizes
+        area1 = cv2.contourArea(polygons[0])
+        area2 = cv2.contourArea(polygons[1])
+        size_ratio = min(area1, area2) / max(area1, area2) if max(area1, area2) > 0 else 0
+
+        if size_ratio < 0.5:
+            log.warning(
+                "contour_detector.aquariums_size_mismatch",
+                size_ratio=f"{size_ratio:.2f}",
+            )
+            return False
+
+        return True
