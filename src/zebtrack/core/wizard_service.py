@@ -684,45 +684,52 @@ class WizardService:
     def validate_multi_aquarium_config(
         config: "MultiAquariumData",
         sample_filenames: list[str] | None = None,
-    ) -> tuple[bool, list[str]]:
+    ) -> tuple[bool, list[str], list[str]]:
         """
         Validate multi-aquarium configuration.
+
+        Phase 3.2: Enhanced validation with warnings for potential issues.
 
         Performs the following checks:
         1. If enabled, must have exactly 2 aquariums configured
         2. If regex is provided, it must be valid
         3. If regex is provided, it must capture expected fields
         4. If sample filenames provided, test regex against them
+        5. [Warning] Check for aquarium polygon overlap
+        6. [Warning] Check for very small aquarium areas
 
         Args:
             config: MultiAquariumData configuration to validate
             sample_filenames: Optional list of filenames to test regex against
 
         Returns:
-            Tuple of (is_valid, list of error messages)
+            Tuple of (is_valid, list of error messages, list of warning messages)
         """
         import re
 
         from zebtrack.ui.wizard.models import MultiAquariumData
 
         errors: list[str] = []
+        warnings: list[str] = []
 
         # Type check for proper configuration object
         if not isinstance(config, MultiAquariumData):
             # Try dict-like access for backwards compatibility
             try:
-                enabled = config.get("enabled", False) if hasattr(config, "get") else getattr(
-                    config, "enabled", False
+                enabled = (
+                    config.get("enabled", False)
+                    if hasattr(config, "get")
+                    else getattr(config, "enabled", False)
                 )
             except Exception:
                 errors.append("Configuração multi-aquário inválida")
-                return False, errors
+                return False, errors, warnings
         else:
             enabled = config.enabled
 
         # If not enabled, no validation needed
         if not enabled:
-            return True, []
+            return True, [], []
 
         # Check 1: Number of aquariums
         if isinstance(config, MultiAquariumData):
@@ -738,6 +745,59 @@ class WizardService:
 
         if len(aquarium_configs) != 2:
             errors.append("Exatamente 2 aquários devem ser configurados")
+
+        # Phase 3.2: Check aquarium configurations for potential issues
+        for i, aq_config in enumerate(aquarium_configs):
+            polygon = getattr(aq_config, "polygon", None)
+            if polygon is None and hasattr(aq_config, "get"):
+                polygon = aq_config.get("polygon", [])
+            if polygon and len(polygon) >= 3:
+                # Calculate approximate area
+                import numpy as np
+
+                pts = np.array(polygon)
+                # Shoelace formula for polygon area
+                n = len(pts)
+                if n >= 3:
+                    area = 0.5 * abs(
+                        sum(
+                            pts[i][0] * pts[(i + 1) % n][1]
+                            - pts[(i + 1) % n][0] * pts[i][1]
+                            for i in range(n)
+                        )
+                    )
+                    if area < 10000:  # Less than ~100x100 pixels
+                        warnings.append(
+                            f"Aquário {i} tem área muito pequena ({int(area)} px²). "
+                            "Pode afetar precisão da detecção."
+                        )
+
+        # Check for polygon overlap (only if 2 aquariums)
+        if len(aquarium_configs) == 2:
+            import numpy as np
+
+            poly1 = getattr(aquarium_configs[0], "polygon", None)
+            if poly1 is None and hasattr(aquarium_configs[0], "get"):
+                poly1 = aquarium_configs[0].get("polygon", [])
+            poly2 = getattr(aquarium_configs[1], "polygon", None)
+            if poly2 is None and hasattr(aquarium_configs[1], "get"):
+                poly2 = aquarium_configs[1].get("polygon", [])
+            if poly1 and poly2:
+                import cv2
+
+                pts1 = np.array(poly1, dtype=np.int32)
+                pts2 = np.array(poly2, dtype=np.int32)
+
+                # Check if bounding boxes overlap
+                x1, y1, w1, h1 = cv2.boundingRect(pts1)
+                x2, y2, w2, h2 = cv2.boundingRect(pts2)
+
+                # Check for intersection
+                if not (x1 + w1 < x2 or x2 + w2 < x1 or y1 + h1 < y2 or y2 + h2 < y1):
+                    warnings.append(
+                        "Polígonos dos aquários parecem se sobrepor. "
+                        "Isso pode causar detecções duplicadas."
+                    )
 
         # Check 2: Validate regex if provided
         if regex_pattern:
@@ -773,7 +833,7 @@ class WizardService:
             config_count=len(aquarium_configs),
             has_regex=bool(regex_pattern),
             errors=errors,
+            warnings=warnings,
         )
 
-        return len(errors) == 0, errors
-
+        return len(errors) == 0, errors, warnings

@@ -8,8 +8,6 @@ These tests cover:
 - Validation against sample filenames
 """
 
-import pytest
-
 from zebtrack.core.wizard_service import WizardService
 from zebtrack.ui.wizard.models import AquariumConfig, MultiAquariumData
 
@@ -21,7 +19,7 @@ class TestValidateMultiAquariumConfig:
         """Test that disabled config passes validation."""
         config = MultiAquariumData(enabled=False)
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(config)
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is True
         assert errors == []
@@ -36,7 +34,7 @@ class TestValidateMultiAquariumConfig:
             ],
         )
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(config)
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is True
         assert errors == []
@@ -53,7 +51,7 @@ class TestValidateMultiAquariumConfig:
             regex_day_field="day",
         )
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(config)
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is False
         assert any("2 aquários" in e for e in errors)
@@ -69,7 +67,7 @@ class TestValidateMultiAquariumConfig:
             regex_day_field="day",
         )
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(config)
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is False
         assert any("2 aquários" in e for e in errors)
@@ -88,7 +86,7 @@ class TestValidateMultiAquariumConfig:
             regex_day_field="day",
         )
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(config)
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is False
         assert any("regex inválido" in e.lower() for e in errors)
@@ -107,7 +105,7 @@ class TestValidateMultiAquariumConfig:
             regex_day_field="day",
         )
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(config)
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is False
         assert any("não captura" in e for e in errors)
@@ -125,7 +123,7 @@ class TestValidateMultiAquariumConfig:
             regex_subject_field="subject",
         )
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(config)
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is True
         assert errors == []
@@ -146,9 +144,7 @@ class TestValidateMultiAquariumConfig:
             "Treatment_S02_day1.mp4",
         ]
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(
-            config, sample_filenames
-        )
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config, sample_filenames)
 
         assert is_valid is True
         assert errors == []
@@ -169,9 +165,7 @@ class TestValidateMultiAquariumConfig:
             "another_bad_format.mp4",
         ]
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(
-            config, sample_filenames
-        )
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config, sample_filenames)
 
         assert is_valid is False
         assert any("não corresponde" in e for e in errors)
@@ -187,7 +181,7 @@ class TestValidateMultiAquariumConfig:
             regex_pattern="",  # Empty regex is OK
         )
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(config)
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is True
         assert errors == []
@@ -209,9 +203,7 @@ class TestValidateMultiAquariumConfig:
             "Control_S03.mp4",  # Matches
         ]
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(
-            config, sample_filenames
-        )
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config, sample_filenames)
 
         # Should fail because Treatment doesn't match
         assert is_valid is False
@@ -227,7 +219,7 @@ class TestValidateMultiAquariumConfigEdgeCases:
             "enabled": False,
         }
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(config)
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is True
         assert errors == []
@@ -242,7 +234,7 @@ class TestValidateMultiAquariumConfigEdgeCases:
             "regex_subject_field": "subject",
         }
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(config)
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is False
         assert any("2 aquários" in e for e in errors)
@@ -257,7 +249,7 @@ class TestValidateMultiAquariumConfigEdgeCases:
             ],
         )
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(config, None)
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config, None)
 
         assert is_valid is True
         assert errors == []
@@ -273,7 +265,7 @@ class TestValidateMultiAquariumConfigEdgeCases:
             regex_pattern=r"(?P<group>\w+)_(?P<subject>\w+)",
         )
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(config, [])
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config, [])
 
         assert is_valid is True
         assert errors == []
@@ -294,9 +286,7 @@ class TestValidateMultiAquariumConfigEdgeCases:
             "Treatment_D02_S02.mp4",
         ]
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(
-            config, sample_filenames
-        )
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config, sample_filenames)
 
         assert is_valid is True
         assert errors == []
@@ -312,7 +302,7 @@ class TestValidateMultiAquariumConfigEdgeCases:
             regex_day_field="day",
         )
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(config)
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
         assert is_valid is False
         # Should have at least 2 errors
@@ -326,7 +316,7 @@ class TestIntegrationWithWizardFlow:
         """Test validation as it would be called in wizard flow."""
         # Step 1: Create empty config
         config = MultiAquariumData(enabled=False)
-        is_valid, _ = WizardService.validate_multi_aquarium_config(config)
+        is_valid, _, _ = WizardService.validate_multi_aquarium_config(config)
         assert is_valid is True
 
         # Step 2: Enable and configure
@@ -344,9 +334,7 @@ class TestIntegrationWithWizardFlow:
             "CBD_S02_D01.mp4",
         ]
 
-        is_valid, errors = WizardService.validate_multi_aquarium_config(
-            config, sample_filenames
-        )
+        is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config, sample_filenames)
 
         assert is_valid is True
         assert errors == []

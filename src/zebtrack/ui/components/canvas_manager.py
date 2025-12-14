@@ -64,7 +64,7 @@ class CanvasManager:
         but video_display is only created later when build_zone_tab() is called.
         Also handles the case where the canvas has been destroyed (e.g., project close).
         """
-        if not hasattr(self.gui, 'video_display') or not self.gui.video_display:
+        if not hasattr(self.gui, "video_display") or not self.gui.video_display:
             return None
         canvas = self.gui.video_display.canvas
         if canvas is None:
@@ -102,8 +102,9 @@ class CanvasManager:
             data: Event payload containing zone_data
         """
         if not isinstance(data, dict):
-            log.warning("canvas_manager._on_zones_updated.invalid_data_type",
-                       data_type=type(data).__name__)
+            log.warning(
+                "canvas_manager._on_zones_updated.invalid_data_type", data_type=type(data).__name__
+            )
             return
         zone_data = data.get("zone_data")
         log.debug(
@@ -119,8 +120,10 @@ class CanvasManager:
                 - polygon: np.ndarray of polygon points
         """
         if not isinstance(data, dict):
-            log.warning("canvas_manager._on_polygon_edit_requested.invalid_data_type",
-                       data_type=type(data).__name__)
+            log.warning(
+                "canvas_manager._on_polygon_edit_requested.invalid_data_type",
+                data_type=type(data).__name__,
+            )
             return
         polygon = data.get("polygon")
         if polygon is not None:
@@ -678,7 +681,9 @@ class CanvasManager:
                     color_hex = f"#{color_bgr[2]:02x}{color_bgr[1]:02x}{color_bgr[0]:02x}"
                     # Get color name from BGR value
                     color_name = self._get_color_name_from_bgr(color_bgr)
-                    controls.add_zone_to_list(f"roi_{i}", f"📍 {name}", "ROI", color_name, color_hex)
+                    controls.add_zone_to_list(
+                        f"roi_{i}", f"📍 {name}", "ROI", color_name, color_hex
+                    )
 
         self.update_roi_button_state()
 
@@ -848,9 +853,7 @@ class CanvasManager:
         """Clear all interactive elements."""
         canvas = self._get_canvas()
         if canvas:
-            canvas.delete(
-                "interactive_polygon", "handle", "suggested_polygon"
-            )
+            canvas.delete("interactive_polygon", "handle", "suggested_polygon")
 
         if hasattr(self.gui, "zone_controls") and self.gui.zone_controls:
             self.gui.zone_controls.hide_interactive_buttons()
@@ -1304,9 +1307,7 @@ class CanvasManager:
                 for i, roi_polygon in enumerate(aq.roi_polygons):
                     roi_np = np.array(roi_polygon, dtype=np.int32)
                     # Use ROI color if available, otherwise use aquarium border color
-                    roi_color = (
-                        aq.roi_colors[i] if i < len(aq.roi_colors) else border_color
-                    )
+                    roi_color = aq.roi_colors[i] if i < len(aq.roi_colors) else border_color
                     cv2.polylines(overlay, [roi_np], True, roi_color, 1)
 
                     # Draw ROI name at centroid
@@ -1361,3 +1362,117 @@ class CanvasManager:
         hex_color = hex_color.lstrip("#")
         r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
         return (b, g, r)  # OpenCV uses BGR
+
+    def create_side_by_side_preview(
+        self,
+        frame: np.ndarray,
+        zone_data: "MultiAquariumZoneData",
+        detections_by_aquarium: dict[int, list] | None = None,
+        target_width: int = 1280,
+        show_labels: bool = True,
+        padding: int = 10,
+    ) -> np.ndarray:
+        """Create side-by-side preview of each aquarium cropped from the frame.
+
+        Phase 3.1: Creates a composite image showing each aquarium region
+        side by side for easier comparison during analysis review.
+
+        Args:
+            frame: Input BGR frame.
+            zone_data: MultiAquariumZoneData containing aquarium configurations.
+            detections_by_aquarium: Optional dict mapping aquarium_id to detections.
+            target_width: Target width for the composite image.
+            show_labels: Whether to show aquarium labels.
+            padding: Pixels between aquarium previews.
+
+        Returns:
+            Composite image with aquariums displayed side by side.
+
+        Example:
+            >>> preview = canvas_manager.create_side_by_side_preview(
+            ...     frame, zone_data, detections
+            ... )
+            >>> cv2.imshow("Side-by-Side", preview)
+        """
+        if not zone_data or not zone_data.aquariums:
+            return frame
+
+        num_aquariums = len(zone_data.aquariums)
+        if num_aquariums == 0:
+            return frame
+
+        # Calculate dimensions for each aquarium panel
+        panel_width = (target_width - padding * (num_aquariums + 1)) // num_aquariums
+        crops = []
+
+        for aq in zone_data.aquariums:
+            # Get bounding box of aquarium polygon
+            aq_np = np.array(aq.polygon, dtype=np.int32)
+            x, y, w, h = cv2.boundingRect(aq_np)
+
+            # Clamp to frame bounds
+            x1 = max(0, x)
+            y1 = max(0, y)
+            x2 = min(frame.shape[1], x + w)
+            y2 = min(frame.shape[0], y + h)
+
+            # Crop aquarium region
+            crop = frame[y1:y2, x1:x2].copy()
+
+            # Draw detections on crop (adjusting coordinates)
+            if detections_by_aquarium and aq.id in detections_by_aquarium:
+                border_color = self.AQUARIUM_COLORS.get(aq.id, ("#AAAAAA", f"Aq{aq.id}"))
+                border_color = self.hex_to_bgr(border_color[0])
+                for det in detections_by_aquarium[aq.id]:
+                    if len(det) >= 6:
+                        dx1, dy1, dx2, dy2, conf, track_id = det[:6]
+                        # Adjust to crop coordinates
+                        dx1, dy1 = int(dx1 - x1), int(dy1 - y1)
+                        dx2, dy2 = int(dx2 - x1), int(dy2 - y1)
+                        if dx1 >= 0 and dy1 >= 0:
+                            cv2.rectangle(crop, (dx1, dy1), (dx2, dy2), border_color, 2)
+                            if track_id is not None:
+                                local_id = int(track_id) % 1000
+                                cv2.putText(
+                                    crop, f"ID:{local_id}", (dx1, dy1 - 5),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, border_color, 2
+                                )
+
+            # Add label
+            if show_labels:
+                colors = self.AQUARIUM_COLORS.get(aq.id, ("#AAAAAA", f"Aq{aq.id}"))
+                label = colors[1]
+                if aq.group:
+                    label += f" ({aq.group})"
+                cv2.putText(
+                    crop, label, (10, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2
+                )
+                cv2.putText(
+                    crop, label, (10, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, self.hex_to_bgr(colors[0]), 1
+                )
+
+            # Resize to panel width maintaining aspect ratio
+            aspect = crop.shape[0] / crop.shape[1] if crop.shape[1] > 0 else 1
+            panel_height = int(panel_width * aspect)
+            resized = cv2.resize(crop, (panel_width, panel_height))
+            crops.append(resized)
+
+        # Find max height for uniform composite
+        max_height = max(c.shape[0] for c in crops) if crops else 100
+
+        # Create composite image
+        composite_width = target_width
+        composite = np.zeros((max_height + padding * 2, composite_width, 3), dtype=np.uint8)
+        composite[:] = (40, 40, 40)  # Dark gray background
+
+        # Place each crop
+        x_offset = padding
+        for crop in crops:
+            h, w = crop.shape[:2]
+            y_offset = padding + (max_height - h) // 2  # Center vertically
+            composite[y_offset:y_offset + h, x_offset:x_offset + w] = crop
+            x_offset += w + padding
+
+        return composite
