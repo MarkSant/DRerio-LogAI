@@ -240,7 +240,7 @@ class ProcessingCoordinator(BaseCoordinator):
             lambda data: self.start_single_video_processing(
                 data.get("video_path") if isinstance(data, dict) else None,
                 data.get("config") if isinstance(data, dict) else {},
-                data.get("zone_data") if isinstance(data, dict) else None
+                data.get("zone_data") if isinstance(data, dict) else None,
             ),
         )
         bus.subscribe(
@@ -255,7 +255,8 @@ class ProcessingCoordinator(BaseCoordinator):
             lambda data: self.run_aquarium_detection(
                 video_path=data.get("video_path") if isinstance(data, dict) else None,
                 stabilization_frames=int(data.get("stabilization_frames", 10))
-                if isinstance(data, dict) else 10,
+                if isinstance(data, dict)
+                else 10,
             ),
         )
         # Generate reports event
@@ -265,6 +266,13 @@ class ProcessingCoordinator(BaseCoordinator):
                 data.get("video_paths") if isinstance(data, dict) else None
             ),
         )
+
+        # Multi-aquarium auto-detection event (Phase 5)
+        bus.subscribe(
+            Events.ZONE_MULTI_AUTO_DETECT,
+            lambda data: self._handle_multi_auto_detect(data),
+        )
+
         # Unified report generation
         def _handle_report_generate(data):
             if not isinstance(data, dict):
@@ -280,7 +288,7 @@ class ProcessingCoordinator(BaseCoordinator):
 
         bus.subscribe(Events.REPORT_GENERATE, _handle_report_generate)
 
-        log.info("processing_coordinator.register_handlers.complete", count=4)
+        log.info("processing_coordinator.register_handlers.complete", count=5)
 
     def select_eligible_videos(
         self,
@@ -462,7 +470,7 @@ class ProcessingCoordinator(BaseCoordinator):
             experiment_id: str,
             fraction: float,
             message: str,
-            stats: dict | None
+            stats: dict | None,
         ):
             """Call with progress updates."""
             if self.cancel_event.is_set() or not self.view:
@@ -688,7 +696,6 @@ class ProcessingCoordinator(BaseCoordinator):
         if self.processing_worker and self.processing_worker.is_running:
             log.info("coordinator.cancelling_worker")
             self.processing_worker.cancel()
-
 
     def make_progress_callback(
         self,
@@ -1159,6 +1166,90 @@ class ProcessingCoordinator(BaseCoordinator):
                 source="calibration.aquarium.complete",
                 force=True,
             )
+            self._publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
+
+    def _handle_multi_auto_detect(self, data: dict) -> None:
+        """Handle multi-aquarium auto-detection event.
+
+        Phase 5: Event handler for ZONE_MULTI_AUTO_DETECT.
+
+        Args:
+            data: Event payload with video_path and optional stabilization_frames.
+        """
+        if not isinstance(data, dict):
+            return
+
+        video_path = data.get("video_path")
+        stabilization_frames = int(data.get("stabilization_frames", 10))
+        expected_count = int(data.get("expected_count", 2))
+
+        if not video_path:
+            log.warning("multi_auto_detect.no_video_path")
+            return
+
+        log.info(
+            "multi_auto_detect.start",
+            video_path=str(video_path),
+            expected_count=expected_count,
+        )
+
+        self._publish_event(
+            Events.UI_SET_STATUS,
+            {"message": f"Detectando {expected_count} aquários, por favor aguarde..."},
+        )
+
+        try:
+            # Get detection method and model
+            aquarium_method = self.settings.model_selection.aquarium_method
+            model_path = self.weight_manager.get_weight_path_by_method(
+                aquarium_method, "aquarium"
+            )
+
+            if not model_path:
+                self._publish_event(
+                    Events.ZONE_MULTI_AUTO_DETECT_FAILED,
+                    {
+                        "video_path": str(video_path),
+                        "reason": f"Modelo {aquarium_method} não encontrado",
+                    },
+                )
+                return
+
+            detector = AquariumDetector(model_path=model_path, mode=aquarium_method)
+            polygons = detector.detect_multiple_aquariums(
+                video_path=str(video_path),
+                expected_count=expected_count,
+                stabilization_frames=stabilization_frames,
+            )
+
+            if len(polygons) == expected_count:
+                log.info(
+                    "multi_auto_detect.success",
+                    video_path=str(video_path),
+                    count=len(polygons),
+                )
+                self._publish_event(
+                    Events.ZONE_MULTI_AUTO_DETECT_SUCCESS,
+                    {
+                        "video_path": str(video_path),
+                        "polygons": [p.tolist() if hasattr(p, "tolist") else p for p in polygons],
+                    },
+                )
+            else:
+                reason = f"Encontrados {len(polygons)} aquários, esperados {expected_count}"
+                log.warning("multi_auto_detect.count_mismatch", reason=reason)
+                self._publish_event(
+                    Events.ZONE_MULTI_AUTO_DETECT_FAILED,
+                    {"video_path": str(video_path), "reason": reason},
+                )
+
+        except Exception as e:
+            log.error("multi_auto_detect.failed", error=str(e), exc_info=True)
+            self._publish_event(
+                Events.ZONE_MULTI_AUTO_DETECT_FAILED,
+                {"video_path": str(video_path), "reason": str(e)},
+            )
+        finally:
             self._publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
 
     def generate_parquet_summaries(
@@ -1789,7 +1880,7 @@ class ProcessingCoordinator(BaseCoordinator):
                             "processing_coordinator.found_project_rois",
                             video=path,
                             roi_count=len(zone_data.roi_names),
-                            roi_names=zone_data.roi_names
+                            roi_names=zone_data.roi_names,
                         )
                         return list(zone_data.roi_names)
             except Exception as e:
@@ -1808,7 +1899,9 @@ class ProcessingCoordinator(BaseCoordinator):
         self._publish_event(Events.UI_SET_STATUS, {"message": "Gerando relatório unificado..."})
 
         if not self.project_manager.project_path:
-            self._publish_event(Events.UI_SHOW_ERROR, {"title": "Erro", "message": "Nenhum projeto carregado."})
+            self._publish_event(
+                Events.UI_SHOW_ERROR, {"title": "Erro", "message": "Nenhum projeto carregado."}
+            )
             return
 
         unified_dir = self.project_manager.project_path / "unified_reports"
@@ -1831,7 +1924,9 @@ class ProcessingCoordinator(BaseCoordinator):
                         if roi_name not in roi_colors_map:
                             roi_colors_map[roi_name] = color
             except Exception as e:
-                log.debug("workflow.unified_report.color_collection_failed", path=path, error=str(e))
+                log.debug(
+                    "workflow.unified_report.color_collection_failed", path=path, error=str(e)
+                )
 
             # Find summary parquet
             parquet_files = entry.get("parquet_files", {})
@@ -1858,24 +1953,42 @@ class ProcessingCoordinator(BaseCoordinator):
                         if current_metadata:
                             # Update group_id if unassigned
                             if "group_id" in df.columns and (df["group_id"] == "unassigned").any():
-                                group_id = current_metadata.get("group_id") or current_metadata.get("group")
+                                group_id = current_metadata.get("group_id") or current_metadata.get(
+                                    "group"
+                                )
                                 if group_id:
-                                    df.loc[df["group_id"] == "unassigned", "group_id"] = str(group_id)
+                                    df.loc[df["group_id"] == "unassigned", "group_id"] = str(
+                                        group_id
+                                    )
 
                             # Update experiment_id if unknown
-                            if "experiment_id" in df.columns and (df["experiment_id"] == "unknown").any():
-                                exp_id = current_metadata.get("experiment_id") or entry.get("experiment_id") or current_metadata.get("name")
+                            if (
+                                "experiment_id" in df.columns
+                                and (df["experiment_id"] == "unknown").any()
+                            ):
+                                exp_id = (
+                                    current_metadata.get("experiment_id")
+                                    or entry.get("experiment_id")
+                                    or current_metadata.get("name")
+                                )
                                 if exp_id:
-                                    df.loc[df["experiment_id"] == "unknown", "experiment_id"] = str(exp_id)
+                                    df.loc[df["experiment_id"] == "unknown", "experiment_id"] = str(
+                                        exp_id
+                                    )
 
                     dfs.append(df)
                 except Exception as e:
-                    log.warning("workflow.unified_report.read_failed", file=summary_path, error=str(e))
+                    log.warning(
+                        "workflow.unified_report.read_failed", file=summary_path, error=str(e)
+                    )
 
         if not dfs:
             self._publish_event(
                 Events.UI_SHOW_WARNING,
-                {"title": "Dados insuficientes", "message": "Não foi possível encontrar sumários para os vídeos selecionados."}
+                {
+                    "title": "Dados insuficientes",
+                    "message": "Não foi possível encontrar sumários para os vídeos selecionados.",
+                },
             )
             return
 
@@ -1889,7 +2002,11 @@ class ProcessingCoordinator(BaseCoordinator):
             roi_pattern_prefixes = ["tempo_no_", "entradas_no_", "distancia_no_"]
             roi_columns_per_df = []
             for df in dfs:
-                roi_cols = {col for col in df.columns if any(col.startswith(prefix) for prefix in roi_pattern_prefixes)}
+                roi_cols = {
+                    col
+                    for col in df.columns
+                    if any(col.startswith(prefix) for prefix in roi_pattern_prefixes)
+                }
                 roi_columns_per_df.append(roi_cols)
 
             # Schema mismatch only if ROI columns differ
@@ -1907,13 +2024,18 @@ class ProcessingCoordinator(BaseCoordinator):
 
             # Suppress FutureWarning from pandas about empty/all-NA columns
             import warnings
+
             with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=FutureWarning, message=".*DataFrame concatenation.*")
+                warnings.filterwarnings(
+                    "ignore", category=FutureWarning, message=".*DataFrame concatenation.*"
+                )
                 aggregated_df = pd.concat(aligned_dfs, ignore_index=True)
 
             # Warn user if ROI schemas differ (unless suppressed)
             if schema_mismatch and not self.settings.ui_features.suppress_roi_mismatch_warning:
-                log.warning("workflow.unified_report.schema_mismatch", column_count=len(all_columns))
+                log.warning(
+                    "workflow.unified_report.schema_mismatch", column_count=len(all_columns)
+                )
                 self._publish_event(
                     Events.UI_SHOW_WARNING,
                     {
@@ -1924,8 +2046,8 @@ class ProcessingCoordinator(BaseCoordinator):
                             "para relatórios consistentes.\n\n"
                             "Você pode suprimir este aviso em config.yaml: "
                             "ui_features.suppress_roi_mismatch_warning: true"
-                        )
-                    }
+                        ),
+                    },
                 )
 
             # Generate filenames with timestamp
@@ -1935,17 +2057,14 @@ class ProcessingCoordinator(BaseCoordinator):
             # Export Word (pass ROI colors, detector_params is optional)
             word_path = unified_dir / f"{base_name}.docx"
             Reporter.export_project_report(
-                aggregated_df,
-                word_path,
-                roi_colors=roi_colors_map,
-                detector_params=None
+                aggregated_df, word_path, roi_colors=roi_colors_map, detector_params=None
             )
 
             # Export Excel (replace pd.NA with 0 for numeric columns to avoid empty cells)
             excel_path = unified_dir / f"{base_name}.xlsx"
             excel_df = aggregated_df.copy()
             # Replace pd.NA with 0 in numeric columns only
-            for col in excel_df.select_dtypes(include=['number']).columns:
+            for col in excel_df.select_dtypes(include=["number"]).columns:
                 excel_df[col] = excel_df[col].fillna(0)
             excel_df.to_excel(excel_path, index=False)
 
@@ -1958,15 +2077,15 @@ class ProcessingCoordinator(BaseCoordinator):
                 word_path=str(word_path),
                 excel_path=str(excel_path),
                 parquet_path=str(parquet_path),
-                row_count=len(aggregated_df)
+                row_count=len(aggregated_df),
             )
 
             self._publish_event(
                 Events.UI_SHOW_INFO,
                 {
                     "title": "Relatório Unificado Gerado",
-                    "message": f"Relatórios salvos em:\n{unified_dir}\n\nArquivos:\n• {word_path.name}\n• {excel_path.name}"
-                }
+                    "message": f"Relatórios salvos em:\n{unified_dir}\n\nArquivos:\n• {word_path.name}\n• {excel_path.name}",
+                },
             )
 
             # Clear UI status and refresh views
@@ -1977,7 +2096,7 @@ class ProcessingCoordinator(BaseCoordinator):
             log.error("workflow.unified_report.failed", error=str(e))
             self._publish_event(
                 Events.UI_SHOW_ERROR,
-                {"title": "Erro na Geração", "message": f"Falha ao gerar relatório unificado: {e}"}
+                {"title": "Erro na Geração", "message": f"Falha ao gerar relatório unificado: {e}"},
             )
 
     def generate_project_reports(self, video_paths: list[str] | None = None) -> None:
@@ -2005,6 +2124,7 @@ class ProcessingCoordinator(BaseCoordinator):
         # Ensure analysis service is available and configured
         if not self.analysis_service:
             from zebtrack.analysis.analysis_service import AnalysisService
+
             self.analysis_service = AnalysisService(settings_obj=self.settings)
             log.info("workflow.reports.analysis_service_created_lazy")
         elif self.analysis_service.settings is None:
@@ -2062,19 +2182,20 @@ class ProcessingCoordinator(BaseCoordinator):
                 rois = []
                 roi_colors_map = {}
                 if zone_data:
-                    from zebtrack.analysis.roi import ROI
                     from shapely.geometry import Polygon
+
+                    from zebtrack.analysis.roi import ROI
 
                     for i, poly in enumerate(zone_data.roi_polygons):
                         name = (
-                            zone_data.roi_names[i]
-                            if i < len(zone_data.roi_names)
-                            else f"ROI_{i}"
+                            zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i}"
                         )
                         # Fix: Convert list of points to Polygon geometry
                         if len(poly) >= 3:
                             roi_geometry = Polygon(poly)
-                            rois.append(ROI(name=name, geometry=roi_geometry, coordinate_space="px"))
+                            rois.append(
+                                ROI(name=name, geometry=roi_geometry, coordinate_space="px")
+                            )
 
                         if i < len(zone_data.roi_colors):
                             roi_colors_map[name] = zone_data.roi_colors[i]
@@ -2093,7 +2214,7 @@ class ProcessingCoordinator(BaseCoordinator):
                     metadata=metadata,
                     roi_colors=roi_colors_map,
                     freezing_vel_threshold=self.settings.video_processing.freezing_velocity_threshold,
-                    freezing_min_duration=self.settings.video_processing.freezing_min_duration_s
+                    freezing_min_duration=self.settings.video_processing.freezing_min_duration_s,
                 )
 
                 reporter = Reporter.from_analysis(analysis_result)
@@ -2122,8 +2243,8 @@ class ProcessingCoordinator(BaseCoordinator):
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Erros na Geração de Relatórios",
-                    "message": "Alguns relatórios falharam:\n" + "\n".join(errors[:5])
-                }
+                    "message": "Alguns relatórios falharam:\n" + "\n".join(errors[:5]),
+                },
             )
         elif count > 0:
             self._publish_event(
@@ -2344,6 +2465,7 @@ class ProcessingCoordinator(BaseCoordinator):
         # Ensure analysis service is available and configured
         if not self.analysis_service:
             from zebtrack.analysis.analysis_service import AnalysisService
+
             self.analysis_service = AnalysisService(settings_obj=self.settings)
         elif self.analysis_service.settings is None:
             self.analysis_service.settings = self.settings
@@ -2485,7 +2607,9 @@ class ProcessingCoordinator(BaseCoordinator):
 
             os.makedirs(results_dir, exist_ok=True)
             parquet_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
-            reporter.export_summary_data(parquet_path, format="parquet", expected_roi_names=expected_roi_names)
+            reporter.export_summary_data(
+                parquet_path, format="parquet", expected_roi_names=expected_roi_names
+            )
 
             video.setdefault("parquet_files", {})["summary"] = parquet_path
             video["has_complete_data"] = True

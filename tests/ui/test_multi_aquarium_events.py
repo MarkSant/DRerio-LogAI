@@ -4,8 +4,6 @@ Unit tests for multi-aquarium events.
 Tests for event constant definitions and event handling patterns.
 """
 
-import pytest
-
 from zebtrack.ui.events import Events
 
 
@@ -137,3 +135,22 @@ class TestEventPayloadDocumentation:
         assert "Multi-Aquarium Events" in events.__doc__
         assert "zone:aquarium_selected" in events.__doc__
         assert "aquarium_id" in events.__doc__
+
+
+class TestMultiAutoDetectSuccessFailEvents:
+    """Tests for ZONE_MULTI_AUTO_DETECT_SUCCESS/FAILED events."""
+
+    def test_zone_multi_auto_detect_success_event_exists(self):
+        """Test ZONE_MULTI_AUTO_DETECT_SUCCESS event constant exists."""
+        assert hasattr(Events, "ZONE_MULTI_AUTO_DETECT_SUCCESS")
+        assert Events.ZONE_MULTI_AUTO_DETECT_SUCCESS == "zone:multi_auto_detect_success"
+
+    def test_zone_multi_auto_detect_failed_event_exists(self):
+        """Test ZONE_MULTI_AUTO_DETECT_FAILED event constant exists."""
+        assert hasattr(Events, "ZONE_MULTI_AUTO_DETECT_FAILED")
+        assert Events.ZONE_MULTI_AUTO_DETECT_FAILED == "zone:multi_auto_detect_failed"
+
+    def test_zone_aquarium_config_updated_event_exists(self):
+        """Test ZONE_AQUARIUM_CONFIG_UPDATED event constant exists."""
+        assert hasattr(Events, "ZONE_AQUARIUM_CONFIG_UPDATED")
+        assert Events.ZONE_AQUARIUM_CONFIG_UPDATED == "zone:aquarium_config_updated"

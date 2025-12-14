@@ -192,12 +192,19 @@ class Events:
     # Multi-Aquarium Events
     # User wants to auto-detect multiple aquariums
     ZONE_MULTI_AUTO_DETECT = "zone:multi_auto_detect"
+    # Multi-aquarium auto-detection succeeded (payload: {video_path: str, polygons: list})
+    ZONE_MULTI_AUTO_DETECT_SUCCESS = "zone:multi_auto_detect_success"
+    # Multi-aquarium auto-detection failed (payload: {video_path: str, reason: str})
+    ZONE_MULTI_AUTO_DETECT_FAILED = "zone:multi_auto_detect_failed"
     # User selected which aquarium to work with (payload: {aquarium_id: int})
     ZONE_AQUARIUM_SELECTED = "zone:aquarium_selected"
     # Multi-aquarium detection completed (payload: {count: int, aquariums: list})
     ZONE_MULTI_DETECT_COMPLETED = "zone:multi_detect_completed"
     # User confirmed aquarium configuration
     ZONE_AQUARIUM_CONFIG_CONFIRMED = "zone:aquarium_config_confirmed"
+    # Aquarium configuration was updated
+    # payload: {aquarium_id: int, config: dict, video_path: str}
+    ZONE_AQUARIUM_CONFIG_UPDATED = "zone:aquarium_config_updated"
     # User confirmed number of aquariums (payload: {count: int})
     ZONE_AQUARIUM_COUNT_CONFIRMED = "zone:aquarium_count_confirmed"
     # Aquarium assignment completed (payload: {configs: list[AquariumConfig], apply_to_all: bool})
