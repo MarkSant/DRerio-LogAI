@@ -1204,3 +1204,160 @@ class CanvasManager:
                     source="CanvasManager.delete_zones_from_video",
                 )
             )
+
+    # -------------------------------------------------------------------------
+    # Multi-Aquarium Overlay Methods (Phase 11)
+    # -------------------------------------------------------------------------
+
+    # Distinct colors for each aquarium
+    AQUARIUM_COLORS = {
+        0: {"border": (0, 102, 204), "fill": (0, 102, 204, 51), "text": "Aquário 1"},
+        1: {"border": (0, 204, 102), "fill": (0, 204, 102, 51), "text": "Aquário 2"},
+    }
+
+    def draw_multi_aquarium_overlay(
+        self,
+        frame: np.ndarray,
+        zone_data: "MultiAquariumZoneData",
+        detections_by_aquarium: dict[int, list] | None = None,
+        show_labels: bool = True,
+        show_rois: bool = True,
+    ) -> np.ndarray:
+        """
+        Draw overlay with multiple aquariums on a video frame.
+
+        Each aquarium is drawn with a distinct border color, and optionally
+        includes labels indicating the aquarium number and experimental group.
+        Detections (bounding boxes) are drawn with the corresponding aquarium color.
+
+        Args:
+            frame: The video frame as a numpy array (BGR format from OpenCV).
+            zone_data: MultiAquariumZoneData containing aquarium configurations.
+            detections_by_aquarium: Optional dict mapping aquarium_id to list of
+                detections. Each detection is a tuple (x1, y1, x2, y2, conf, track_id, class_id).
+            show_labels: Whether to show aquarium labels (default True).
+            show_rois: Whether to show ROI polygons (default True).
+
+        Returns:
+            The frame with overlay drawn (modified in place but also returned).
+
+        Example:
+            >>> overlay_frame = canvas_manager.draw_multi_aquarium_overlay(
+            ...     frame=current_frame,
+            ...     zone_data=multi_aquarium_zone_data,
+            ...     detections_by_aquarium={0: [...], 1: [...]},
+            ... )
+        """
+        from zebtrack.core.detector import MultiAquariumZoneData
+
+        if not isinstance(zone_data, MultiAquariumZoneData):
+            log.warning(
+                "canvas_manager.draw_multi_aquarium_overlay.invalid_zone_data",
+                zone_data_type=type(zone_data).__name__,
+            )
+            return frame
+
+        overlay = frame.copy()
+
+        for aq in zone_data.aquariums:
+            colors = self.AQUARIUM_COLORS.get(aq.id, self.AQUARIUM_COLORS[0])
+            border_color = colors["border"]  # BGR tuple
+
+            # Draw aquarium polygon border
+            if aq.polygon:
+                polygon_np = np.array(aq.polygon, dtype=np.int32)
+                cv2.polylines(overlay, [polygon_np], True, border_color, 2)
+
+                # Draw label in top-left corner of aquarium
+                if show_labels and len(polygon_np) > 0:
+                    # Find top-left corner (minimum x, y)
+                    min_x = int(np.min(polygon_np[:, 0]))
+                    min_y = int(np.min(polygon_np[:, 1]))
+
+                    label = f"{colors['text']}"
+                    if aq.group:
+                        label += f" - {aq.group}"
+
+                    # Draw background rectangle for label
+                    (text_w, text_h), baseline = cv2.getTextSize(
+                        label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
+                    )
+                    cv2.rectangle(
+                        overlay,
+                        (min_x, min_y),
+                        (min_x + text_w + 10, min_y + text_h + 10),
+                        border_color,
+                        -1,  # Filled
+                    )
+                    cv2.putText(
+                        overlay,
+                        label,
+                        (min_x + 5, min_y + text_h + 5),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (255, 255, 255),  # White text
+                        2,
+                    )
+
+            # Draw ROIs for this aquarium
+            if show_rois and aq.roi_polygons:
+                for i, roi_polygon in enumerate(aq.roi_polygons):
+                    roi_np = np.array(roi_polygon, dtype=np.int32)
+                    # Use ROI color if available, otherwise use aquarium border color
+                    roi_color = (
+                        aq.roi_colors[i] if i < len(aq.roi_colors) else border_color
+                    )
+                    cv2.polylines(overlay, [roi_np], True, roi_color, 1)
+
+                    # Draw ROI name at centroid
+                    if i < len(aq.roi_names) and len(roi_np) > 0:
+                        centroid = np.mean(roi_np, axis=0).astype(int)
+                        cv2.putText(
+                            overlay,
+                            aq.roi_names[i],
+                            (centroid[0] - 20, centroid[1]),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.4,
+                            roi_color,
+                            1,
+                        )
+
+            # Draw detections for this aquarium
+            if detections_by_aquarium and aq.id in detections_by_aquarium:
+                for det in detections_by_aquarium[aq.id]:
+                    if len(det) >= 6:
+                        x1, y1, x2, y2, conf, track_id = det[:6]
+                        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+
+                        # Draw bounding box
+                        cv2.rectangle(overlay, (x1, y1), (x2, y2), border_color, 2)
+
+                        # Draw track ID (local ID without offset)
+                        if track_id is not None:
+                            local_id = int(track_id) % 1000
+                            id_label = f"ID:{local_id}"
+                            cv2.putText(
+                                overlay,
+                                id_label,
+                                (x1, y1 - 5),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                0.5,
+                                border_color,
+                                2,
+                            )
+
+        return overlay
+
+    @staticmethod
+    def hex_to_bgr(hex_color: str) -> tuple[int, int, int]:
+        """Convert hex color string to BGR tuple for OpenCV.
+
+        Args:
+            hex_color: Hex color string (e.g., "#0066CC").
+
+        Returns:
+            BGR tuple (e.g., (204, 102, 0) for "#0066CC").
+        """
+        hex_color = hex_color.lstrip("#")
+        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+        return (b, g, r)  # OpenCV uses BGR

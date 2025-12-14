@@ -944,3 +944,122 @@ class Reporter:
 
         file_path = f"{output_path}.docx"
         document.save(file_path)
+
+    @staticmethod
+    def export_multi_aquarium_reports(
+        results_by_aquarium: dict[int, "AnalysisResult | None"],
+        output_dirs_by_aquarium: dict[int, "Path"],
+        base_name: str,
+        aquarium_configs: list | None = None,
+        settings_obj=None,
+    ) -> dict[int, dict[str, str]]:
+        """
+        Export separate reports for each aquarium in multi-aquarium mode.
+
+        This method creates individual analysis reports for each aquarium,
+        stored in their respective output directories.
+
+        Args:
+            results_by_aquarium: Dictionary mapping aquarium_id to AnalysisResult
+                (or None if analysis failed for that aquarium).
+            output_dirs_by_aquarium: Dictionary mapping aquarium_id to output Path.
+            base_name: Base name for output files (e.g., video name without extension).
+            aquarium_configs: Optional list of AquariumConfig objects for metadata.
+            settings_obj: Optional Settings instance for Reporter configuration.
+
+        Returns:
+            Dictionary mapping aquarium_id to output paths:
+            {
+                0: {"summary_path": "/path/to/summary.xlsx", "report_path": "/path/to/report.docx"},
+                1: {"summary_path": "/path/to/summary.xlsx", "report_path": "/path/to/report.docx"},
+            }
+
+        Example:
+            >>> results = analysis_service.run_multi_aquarium_analysis(aquarium_map)
+            >>> output_dirs = {0: Path("/output/aq0"), 1: Path("/output/aq1")}
+            >>> paths = Reporter.export_multi_aquarium_reports(
+            ...     results, output_dirs, "video_001", aquarium_configs
+            ... )
+        """
+        from pathlib import Path
+
+        output_paths: dict[int, dict[str, str]] = {}
+
+        for aq_id, result in results_by_aquarium.items():
+            if result is None:
+                log.warning(
+                    "reporter.multi_aquarium.skipping_failed",
+                    aquarium_id=aq_id,
+                    reason="Analysis result is None",
+                )
+                continue
+
+            output_dir = output_dirs_by_aquarium.get(aq_id)
+            if not output_dir:
+                log.warning(
+                    "reporter.multi_aquarium.no_output_dir",
+                    aquarium_id=aq_id,
+                )
+                continue
+
+            # Ensure output directory exists
+            output_dir = Path(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Get config for this aquarium if available
+            config = None
+            if aquarium_configs:
+                config = next(
+                    (c for c in aquarium_configs if getattr(c, "aquarium_id", None) == aq_id),
+                    None,
+                )
+
+            # Build filename suffix with metadata
+            if config:
+                group = getattr(config, "group", f"aq{aq_id}")
+                subject = getattr(config, "subject_id", "")
+                suffix = f"_{group}_{subject}" if subject else f"_{group}"
+            else:
+                suffix = f"_aq{aq_id}"
+
+            output_base = f"{base_name}{suffix}"
+
+            try:
+                # Create reporter from analysis result
+                reporter = Reporter.from_analysis(result)
+
+                # Export summary data (Excel)
+                summary_path = output_dir / f"{output_base}_summary.xlsx"
+                reporter.export_summary_data(str(summary_path))
+
+                # Export individual report (Word)
+                report_path = output_dir / f"{output_base}_report.docx"
+                reporter.export_individual_report(str(report_path))
+
+                output_paths[aq_id] = {
+                    "summary_path": str(summary_path),
+                    "report_path": str(report_path),
+                }
+
+                log.info(
+                    "reporter.multi_aquarium.exported",
+                    aquarium_id=aq_id,
+                    summary_path=str(summary_path),
+                    report_path=str(report_path),
+                )
+
+            except Exception as e:
+                log.error(
+                    "reporter.multi_aquarium.export_failed",
+                    aquarium_id=aq_id,
+                    error=str(e),
+                    exc_info=True,
+                )
+
+        log.info(
+            "reporter.multi_aquarium.summary",
+            total_aquariums=len(results_by_aquarium),
+            exported=len(output_paths),
+        )
+
+        return output_paths
