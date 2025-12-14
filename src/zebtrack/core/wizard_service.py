@@ -679,3 +679,101 @@ class WizardService:
             return (False, "A altura do aquário deve ser maior que zero")
 
         return (True, "")
+
+    @staticmethod
+    def validate_multi_aquarium_config(
+        config: "MultiAquariumData",
+        sample_filenames: list[str] | None = None,
+    ) -> tuple[bool, list[str]]:
+        """
+        Validate multi-aquarium configuration.
+
+        Performs the following checks:
+        1. If enabled, must have exactly 2 aquariums configured
+        2. If regex is provided, it must be valid
+        3. If regex is provided, it must capture expected fields
+        4. If sample filenames provided, test regex against them
+
+        Args:
+            config: MultiAquariumData configuration to validate
+            sample_filenames: Optional list of filenames to test regex against
+
+        Returns:
+            Tuple of (is_valid, list of error messages)
+        """
+        import re
+
+        from zebtrack.ui.wizard.models import MultiAquariumData
+
+        errors: list[str] = []
+
+        # Type check for proper configuration object
+        if not isinstance(config, MultiAquariumData):
+            # Try dict-like access for backwards compatibility
+            try:
+                enabled = config.get("enabled", False) if hasattr(config, "get") else getattr(
+                    config, "enabled", False
+                )
+            except Exception:
+                errors.append("Configuração multi-aquário inválida")
+                return False, errors
+        else:
+            enabled = config.enabled
+
+        # If not enabled, no validation needed
+        if not enabled:
+            return True, []
+
+        # Check 1: Number of aquariums
+        if isinstance(config, MultiAquariumData):
+            aquarium_configs = config.aquarium_configs
+            regex_pattern = config.regex_pattern
+            regex_group_field = config.regex_group_field
+            regex_subject_field = config.regex_subject_field
+        else:
+            aquarium_configs = config.get("aquarium_configs", [])
+            regex_pattern = config.get("regex_pattern", "")
+            regex_group_field = config.get("regex_group_field", "group")
+            regex_subject_field = config.get("regex_subject_field", "subject")
+
+        if len(aquarium_configs) != 2:
+            errors.append("Exatamente 2 aquários devem ser configurados")
+
+        # Check 2: Validate regex if provided
+        if regex_pattern:
+            try:
+                compiled = re.compile(regex_pattern)
+                groups = set(compiled.groupindex.keys())
+
+                # Check if expected fields are captured
+                expected = {regex_group_field, regex_subject_field}
+                missing = expected - groups
+                if missing:
+                    errors.append(f"Regex não captura campos esperados: {missing}")
+
+                # Check 3: Test against sample filenames
+                if sample_filenames:
+                    unmatched = []
+                    for filename in sample_filenames[:3]:  # Test first 3
+                        match = compiled.search(filename)
+                        if not match:
+                            unmatched.append(filename)
+
+                    if unmatched:
+                        errors.append(
+                            f"Regex não corresponde a arquivos: {', '.join(unmatched[:2])}"
+                        )
+
+            except re.error as e:
+                errors.append(f"Padrão regex inválido: {e}")
+
+        log.debug(
+            "wizard_service.validate_multi_aquarium_config",
+            enabled=enabled,
+            config_count=len(aquarium_configs),
+            has_regex=bool(regex_pattern),
+            errors=errors,
+        )
+
+        return len(errors) == 0, errors
+

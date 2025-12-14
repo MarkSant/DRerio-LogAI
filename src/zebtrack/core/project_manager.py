@@ -2223,6 +2223,177 @@ class ProjectManager:
 
         return changed
 
+    # =========================================================================
+    # Multi-Aquarium Support Methods (Phase 8)
+    # =========================================================================
+
+    def resolve_multi_aquarium_results_directories(
+        self,
+        experiment_id: str,
+        aquarium_configs: list[dict],
+    ) -> dict[int, Path]:
+        """
+        Resolve results directories for multiple aquariums.
+
+        Creates hierarchical structure:
+            {project_root}/Grupo_{group}/Dia_{day}/Sujeito_{subject_id}/
+
+        Args:
+            experiment_id: Experiment/video identifier
+            aquarium_configs: List of aquarium configuration dicts with keys:
+                - aquarium_id: int (0 or 1)
+                - group: str
+                - subject_id: str
+                - day: int
+
+        Returns:
+            Dict mapping aquarium_id to Path for each aquarium's results directory.
+        """
+        if not self.project_path:
+            log.warning("project.multi_aquarium.no_project_path")
+            return {}
+
+        result: dict[int, Path] = {}
+
+        for config in aquarium_configs:
+            aq_id = config.get("aquarium_id", 0)
+            group = config.get("group", "Sem_Grupo")
+            subject_id = config.get("subject_id", "")
+            day = config.get("day", 1)
+
+            # Build hierarchical path using existing formatters
+            group_component = self._format_group_component({"group": group})
+            day_component = self._format_day_component({"day": day})
+            subject_component = self._format_subject_component({"subject_id": subject_id})
+
+            results_dir = (
+                self.project_path
+                / group_component
+                / day_component
+                / subject_component
+            )
+
+            results_dir.mkdir(parents=True, exist_ok=True)
+            result[aq_id] = results_dir
+
+            log.info(
+                "project.multi_aquarium.directory_resolved",
+                aquarium_id=aq_id,
+                path=str(results_dir),
+                experiment=experiment_id,
+            )
+
+        return result
+
+    def register_multi_aquarium_outputs(
+        self,
+        video_path: Path | str,
+        outputs_by_aquarium: dict[int, dict],
+    ) -> bool:
+        """
+        Register outputs from multiple aquariums in the project.
+
+        Args:
+            video_path: Path to the video file.
+            outputs_by_aquarium: Dict mapping aquarium_id to output info:
+                {
+                    aquarium_id: {
+                        "results_dir": str,
+                        "parquet_files": {"trajectory": str, "summary": str, ...},
+                        "group": str,
+                        "subject_id": str,
+                        "day": int
+                    }
+                }
+
+        Returns:
+            True if registration was successful, False otherwise.
+        """
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        video_entry = self.find_video_entry(path=video_path)
+
+        if not video_entry:
+            log.warning(
+                "project.multi_aquarium.video_not_found",
+                video_path=video_path,
+            )
+            return False
+
+        # Store multi-aquarium outputs in video entry
+        video_entry["multi_aquarium_mode"] = True
+        video_entry["multi_aquarium_outputs"] = {}
+
+        for aq_id, output_info in outputs_by_aquarium.items():
+            video_entry["multi_aquarium_outputs"][aq_id] = {
+                "results_dir": output_info.get("results_dir", ""),
+                "parquet_files": output_info.get("parquet_files", {}),
+                "group": output_info.get("group", ""),
+                "subject_id": output_info.get("subject_id", ""),
+                "day": output_info.get("day", 1),
+            }
+
+        # Update status if both aquariums have trajectory data
+        all_have_trajectory = all(
+            aq_output.get("parquet_files", {}).get("trajectory")
+            for aq_output in video_entry["multi_aquarium_outputs"].values()
+        )
+        if all_have_trajectory:
+            video_entry["status"] = "processed"
+            video_entry["has_trajectory"] = True
+
+        log.info(
+            "project.multi_aquarium.outputs_registered",
+            video=os.path.basename(video_path),
+            aquarium_count=len(outputs_by_aquarium),
+        )
+
+        if self.project_path:
+            self.save_project()
+
+        return True
+
+    def get_multi_aquarium_outputs(
+        self,
+        video_path: Path | str,
+    ) -> dict[int, dict] | None:
+        """
+        Get multi-aquarium outputs for a video.
+
+        Args:
+            video_path: Path to the video file.
+
+        Returns:
+            Dict mapping aquarium_id to output info, or None if not found/not multi-aquarium.
+        """
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        video_entry = self.find_video_entry(path=video_path)
+
+        if not video_entry:
+            return None
+
+        if not video_entry.get("multi_aquarium_mode"):
+            return None
+
+        return video_entry.get("multi_aquarium_outputs")
+
+    def is_multi_aquarium_video(self, video_path: Path | str) -> bool:
+        """
+        Check if a video is configured for multi-aquarium mode.
+
+        Args:
+            video_path: Path to the video file.
+
+        Returns:
+            True if video is in multi-aquarium mode, False otherwise.
+        """
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        video_entry = self.find_video_entry(path=video_path)
+
+        if not video_entry:
+            return False
+
+        return video_entry.get("multi_aquarium_mode", False)
+
     def get_next_video(self):
         """
         Return the path of the next video with 'pending' status from all batches.
