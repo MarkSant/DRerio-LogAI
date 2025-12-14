@@ -63,6 +63,9 @@ def coordinator(mock_settings, mock_project_manager):
         ui_state_controller=MagicMock(),
         state_manager=MagicMock(),
         cancel_event=MagicMock(),
+        video_selection_service=MagicMock(),
+        video_validation_service=MagicMock(),
+        video_classification_service=MagicMock(),
     )
     coord._publish_event = MagicMock()
     return coord
@@ -369,7 +372,7 @@ def test_roi_mismatch_warning_suppressed_by_setting(
 ):
     """Test that ROI mismatch warning is suppressed when setting is enabled."""
     # Setup: Enable warning suppression
-    coordinator.settings_obj.ui_features.suppress_roi_mismatch_warning = True
+    coordinator.settings.ui_features.suppress_roi_mismatch_warning = True
 
     video1_results = tmp_path / "video1_results"
     video1_results.mkdir()

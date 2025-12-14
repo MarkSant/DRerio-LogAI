@@ -460,3 +460,187 @@ def tkinter_root(tkinter_session_root):
         pass
     except Exception:
         pass
+
+
+# -----------------------------------------------------------------------------
+# Multi-Aquarium Fixtures (Phase 14)
+# -----------------------------------------------------------------------------
+
+
+@pytest.fixture
+def single_aquarium_zone_data():
+    """
+    ZoneData for single-aquarium tests (backward compatibility).
+
+    Returns a MultiAquariumZoneData with a single aquarium covering
+    the entire frame. Use this fixture when testing single-subject
+    workflows that should work with the new data model.
+    """
+    from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+
+    return MultiAquariumZoneData(
+        aquariums=[
+            AquariumData(
+                id=0,
+                polygon=[(0, 0), (1280, 0), (1280, 720), (0, 720)],
+                roi_polygons=[],
+                roi_names=[],
+                roi_colors=[],
+                group="Default",
+                subject_id="S01",
+                day=1,
+            )
+        ],
+        video_width=1280,
+        video_height=720,
+    )
+
+
+@pytest.fixture
+def multi_aquarium_zone_data():
+    """
+    MultiAquariumZoneData for dual-aquarium tests.
+
+    Returns zone data with two non-overlapping aquariums:
+    - Aquarium 0 (left): x=0-600, group="Controle", subject="S01"
+    - Aquarium 1 (right): x=680-1280, group="Tratamento", subject="S02"
+
+    Use this fixture for testing multi-aquarium workflows.
+    """
+    from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+
+    return MultiAquariumZoneData(
+        aquariums=[
+            AquariumData(
+                id=0,
+                polygon=[(0, 0), (600, 0), (600, 720), (0, 720)],
+                roi_polygons=[],
+                roi_names=[],
+                roi_colors=[],
+                group="Controle",
+                subject_id="S01",
+                day=1,
+            ),
+            AquariumData(
+                id=1,
+                polygon=[(680, 0), (1280, 0), (1280, 720), (680, 720)],
+                roi_polygons=[],
+                roi_names=[],
+                roi_colors=[],
+                group="Tratamento",
+                subject_id="S02",
+                day=1,
+            ),
+        ],
+        video_width=1280,
+        video_height=720,
+    )
+
+
+@pytest.fixture
+def multi_aquarium_zone_data_with_rois():
+    """
+    MultiAquariumZoneData with ROIs defined for each aquarium.
+
+    Extends multi_aquarium_zone_data with sample ROI polygons
+    for testing ROI-based analysis in multi-aquarium mode.
+    """
+    from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+
+    return MultiAquariumZoneData(
+        aquariums=[
+            AquariumData(
+                id=0,
+                polygon=[(0, 0), (600, 0), (600, 720), (0, 720)],
+                roi_polygons=[
+                    [(50, 50), (200, 50), (200, 200), (50, 200)],  # Top-left ROI
+                    [(50, 520), (200, 520), (200, 670), (50, 670)],  # Bottom-left ROI
+                ],
+                roi_names=["Top", "Bottom"],
+                roi_colors=[(0, 255, 0), (255, 0, 0)],
+                group="Controle",
+                subject_id="S01",
+                day=1,
+            ),
+            AquariumData(
+                id=1,
+                polygon=[(680, 0), (1280, 0), (1280, 720), (680, 720)],
+                roi_polygons=[
+                    [(730, 50), (880, 50), (880, 200), (730, 200)],  # Top ROI
+                ],
+                roi_names=["Top"],
+                roi_colors=[(0, 255, 0)],
+                group="Tratamento",
+                subject_id="S02",
+                day=1,
+            ),
+        ],
+        video_width=1280,
+        video_height=720,
+    )
+
+
+@pytest.fixture
+def sample_trajectory_df():
+    """
+    Sample trajectory DataFrame for testing analysis.
+
+    Returns a DataFrame with the standard tracking schema:
+    timestamp, frame, track_id, x1, y1, x2, y2, confidence, center_x, center_y
+    """
+    import numpy as np
+    import pandas as pd
+
+    n_frames = 100
+    return pd.DataFrame(
+        {
+            "timestamp": np.linspace(0, 3.33, n_frames),  # ~30 fps
+            "frame": range(n_frames),
+            "track_id": [1] * n_frames,
+            "x1": np.linspace(100, 500, n_frames) + np.random.normal(0, 2, n_frames),
+            "y1": np.linspace(200, 400, n_frames) + np.random.normal(0, 2, n_frames),
+            "x2": np.linspace(130, 530, n_frames) + np.random.normal(0, 2, n_frames),
+            "y2": np.linspace(230, 430, n_frames) + np.random.normal(0, 2, n_frames),
+            "confidence": np.random.uniform(0.85, 0.99, n_frames),
+            "center_x": np.linspace(115, 515, n_frames) + np.random.normal(0, 2, n_frames),
+            "center_y": np.linspace(215, 415, n_frames) + np.random.normal(0, 2, n_frames),
+        }
+    )
+
+
+@pytest.fixture
+def sample_multi_aquarium_trajectories(sample_trajectory_df):
+    """
+    Sample trajectories for multi-aquarium testing.
+
+    Returns a dict mapping aquarium_id to (trajectory_df, AquariumData).
+    Uses track ID offset convention: aquarium_id * 1000 + local_id.
+    """
+    from zebtrack.core.detector import AquariumData
+
+    # Aquarium 0: original trajectory
+    df_aq0 = sample_trajectory_df.copy()
+    aq0 = AquariumData(
+        id=0,
+        polygon=[(0, 0), (600, 0), (600, 720), (0, 720)],
+        group="Controle",
+        subject_id="S01",
+    )
+
+    # Aquarium 1: shifted trajectory with offset track IDs
+    df_aq1 = sample_trajectory_df.copy()
+    df_aq1["track_id"] = df_aq1["track_id"] + 1000  # Offset for aquarium 1
+    df_aq1["x1"] = df_aq1["x1"] + 680  # Shift to right aquarium
+    df_aq1["x2"] = df_aq1["x2"] + 680
+    df_aq1["center_x"] = df_aq1["center_x"] + 680
+    aq1 = AquariumData(
+        id=1,
+        polygon=[(680, 0), (1280, 0), (1280, 720), (680, 720)],
+        group="Tratamento",
+        subject_id="S02",
+    )
+
+    return {
+        0: (df_aq0, aq0),
+        1: (df_aq1, aq1),
+    }

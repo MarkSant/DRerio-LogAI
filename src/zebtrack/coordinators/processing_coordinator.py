@@ -1932,13 +1932,13 @@ class ProcessingCoordinator(BaseCoordinator):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             base_name = f"relatorio_unificado_{timestamp}"
 
-            # Export Word (pass ROI colors and detector params)
+            # Export Word (pass ROI colors, detector_params is optional)
             word_path = unified_dir / f"{base_name}.docx"
             Reporter.export_project_report(
                 aggregated_df,
                 word_path,
                 roi_colors=roi_colors_map,
-                detector_params=detector_params
+                detector_params=None
             )
 
             # Export Excel (replace pd.NA with 0 for numeric columns to avoid empty cells)
