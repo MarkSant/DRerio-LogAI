@@ -363,7 +363,7 @@ class Reporter:
         self,
         output_path: Path | str,
         format: str = "excel",
-        expected_roi_names: list[str] | None = None
+        expected_roi_names: list[str] | None = None,
     ):
         """Export summary data to file (Excel, CSV, or Parquet).
 
@@ -383,8 +383,7 @@ class Reporter:
         data_to_export = self.tidy_data
         if expected_roi_names:
             data_to_export = self.data_transformer.standardize_roi_columns(
-                self.tidy_data,
-                expected_roi_names
+                self.tidy_data, expected_roi_names
             )
 
         self.data_transformer.validate_schema(data_to_export)
@@ -832,7 +831,7 @@ class Reporter:
         aggregated_df: pd.DataFrame,
         output_path: Path | str,
         roi_colors: dict[str, tuple[int, int, int]] | None = None,
-        detector_params: dict[str, any] | None = None
+        detector_params: dict[str, any] | None = None,
     ):
         """Export aggregated project report with comparative analysis.
 
@@ -1063,3 +1062,306 @@ class Reporter:
         )
 
         return output_paths
+
+    # =========================================================================
+    # Phase 1.3: R/Python Export Methods
+    # =========================================================================
+
+    def export_for_r(
+        self,
+        output_path: Path | str,
+        include_script: bool = True,
+    ) -> dict[str, Path]:
+        """Export data in R-friendly formats (Feather and RDS-compatible).
+
+        Creates:
+        - data.feather: Fast, efficient format readable by R's arrow::read_feather()
+        - data.csv: Universal fallback
+        - analysis_script.R: Template R script for loading and analyzing data
+
+        Args:
+            output_path: Directory to export files to.
+            include_script: If True, includes a template R script.
+
+        Returns:
+            Dictionary with paths to created files.
+        """
+        import pyarrow.feather as feather
+
+        output_dir = Path(output_path) if isinstance(output_path, str) else output_path
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        created_files: dict[str, Path] = {}
+
+        # Export as Feather (fast, efficient for R)
+        feather_path = output_dir / "data.feather"
+        feather.write_feather(
+            self.tidy_data,
+            feather_path,
+            compression="zstd",
+        )
+        created_files["feather"] = feather_path
+        log.info("reporter.export_r.feather_saved", path=str(feather_path))
+
+        # Export as CSV (universal fallback)
+        csv_path = output_dir / "data.csv"
+        self.tidy_data.to_csv(csv_path, index=False)
+        created_files["csv"] = csv_path
+
+        if include_script:
+            script_path = output_dir / "analysis_script.R"
+            r_script = self._generate_r_script_template()
+            script_path.write_text(r_script, encoding="utf-8")
+            created_files["script"] = script_path
+            log.info("reporter.export_r.script_saved", path=str(script_path))
+
+        log.info(
+            "reporter.export_r.complete",
+            output_dir=str(output_dir),
+            files=list(created_files.keys()),
+        )
+
+        return created_files
+
+    def export_for_python(
+        self,
+        output_path: Path | str,
+        include_script: bool = True,
+    ) -> dict[str, Path]:
+        """Export data in Python-friendly formats.
+
+        Creates:
+        - data.parquet: Efficient columnar format for pandas/polars
+        - data.feather: Alternative fast format
+        - analysis_notebook.py: Template Python script for Jupyter/VS Code
+
+        Args:
+            output_path: Directory to export files to.
+            include_script: If True, includes a template Python script.
+
+        Returns:
+            Dictionary with paths to created files.
+        """
+        import pyarrow.feather as feather
+
+        output_dir = Path(output_path) if isinstance(output_path, str) else output_path
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        created_files: dict[str, Path] = {}
+
+        # Export as Parquet (best for Python)
+        parquet_path = output_dir / "data.parquet"
+        self.tidy_data.to_parquet(parquet_path, index=False)
+        created_files["parquet"] = parquet_path
+        log.info("reporter.export_python.parquet_saved", path=str(parquet_path))
+
+        # Export as Feather (cross-platform compatibility)
+        feather_path = output_dir / "data.feather"
+        feather.write_feather(self.tidy_data, feather_path, compression="zstd")
+        created_files["feather"] = feather_path
+
+        if include_script:
+            script_path = output_dir / "analysis_notebook.py"
+            py_script = self._generate_python_script_template()
+            script_path.write_text(py_script, encoding="utf-8")
+            created_files["script"] = script_path
+            log.info("reporter.export_python.script_saved", path=str(script_path))
+
+        log.info(
+            "reporter.export_python.complete",
+            output_dir=str(output_dir),
+            files=list(created_files.keys()),
+        )
+
+        return created_files
+
+    def _generate_r_script_template(self) -> str:
+        """Generate template R script for data analysis."""
+        return '''# ZebTrack-AI Analysis Script for R
+# Generated automatically - customize as needed
+
+# Required packages
+if (!require("arrow")) install.packages("arrow")
+if (!require("ggplot2")) install.packages("ggplot2")
+if (!require("dplyr")) install.packages("dplyr")
+
+library(arrow)
+library(ggplot2)
+library(dplyr)
+
+# Load data (Feather is fastest, CSV is universal fallback)
+data <- arrow::read_feather("data.feather")
+# Alternative: data <- read.csv("data.csv")
+
+# Preview data structure
+str(data)
+summary(data)
+
+# ============================================================
+# Basic Movement Analysis
+# ============================================================
+
+# Calculate total distance per subject
+distance_summary <- data %>%
+  group_by(subject_id) %>%
+  summarise(
+    total_distance_cm = sum(velocity_cm_s * (1/30), na.rm = TRUE),  # 30 fps
+    mean_velocity = mean(velocity_cm_s, na.rm = TRUE),
+    max_velocity = max(velocity_cm_s, na.rm = TRUE),
+    time_in_center_pct = mean(in_center_roi, na.rm = TRUE) * 100
+  )
+
+print(distance_summary)
+
+# ============================================================
+# Trajectory Plot
+# ============================================================
+
+ggplot(data, aes(x = x_cm, y = y_cm, color = as.factor(subject_id))) +
+  geom_path(alpha = 0.5) +
+  labs(
+    title = "Zebrafish Trajectories",
+    x = "X Position (cm)",
+    y = "Y Position (cm)",
+    color = "Subject"
+  ) +
+  theme_minimal()
+
+# ============================================================
+# Velocity Over Time
+# ============================================================
+
+ggplot(data, aes(x = timestamp, y = velocity_cm_s)) +
+  geom_line(alpha = 0.5) +
+  geom_smooth(method = "loess", se = TRUE) +
+  labs(
+    title = "Velocity Over Time",
+    x = "Time (seconds)",
+    y = "Velocity (cm/s)"
+  ) +
+  theme_minimal()
+
+# ============================================================
+# Statistical Tests (Example)
+# ============================================================
+
+# If you have experimental groups, add group column and run tests
+# Example:
+# t.test(velocity_cm_s ~ group, data = data)
+# wilcox.test(velocity_cm_s ~ group, data = data)
+'''
+
+    def _generate_python_script_template(self) -> str:
+        """Generate template Python script for data analysis."""
+        return '''# %% [markdown]
+# # ZebTrack-AI Analysis Notebook
+# Generated automatically - customize as needed
+
+# %% [markdown]
+# ## Load Data
+
+# %%
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load data (Parquet is fastest)
+df = pd.read_parquet("data.parquet")
+# Alternative: df = pd.read_feather("data.feather")
+
+# Preview data
+print(f"Shape: {df.shape}")
+print(f"Columns: {list(df.columns)}")
+df.head()
+
+# %%
+df.describe()
+
+# %% [markdown]
+# ## Basic Movement Analysis
+
+# %%
+# Calculate summary statistics per subject
+summary = df.groupby("subject_id").agg({
+    "velocity_cm_s": ["mean", "max", "std"],
+    "x_cm": ["min", "max"],
+    "y_cm": ["min", "max"],
+}).round(2)
+
+summary.columns = ["_".join(col) for col in summary.columns]
+print(summary)
+
+# %% [markdown]
+# ## Trajectory Visualization
+
+# %%
+fig, ax = plt.subplots(figsize=(10, 8))
+
+for subject_id in df["subject_id"].unique():
+    subject_data = df[df["subject_id"] == subject_id]
+    ax.plot(
+        subject_data["x_cm"],
+        subject_data["y_cm"],
+        alpha=0.6,
+        label=f"Subject {subject_id}"
+    )
+
+ax.set_xlabel("X Position (cm)")
+ax.set_ylabel("Y Position (cm)")
+ax.set_title("Zebrafish Trajectories")
+ax.legend()
+ax.set_aspect("equal")
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ## Velocity Analysis
+
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# Velocity over time
+ax1 = axes[0]
+ax1.plot(df["timestamp"], df["velocity_cm_s"], alpha=0.3, linewidth=0.5)
+# Rolling average
+rolling = df["velocity_cm_s"].rolling(window=30, min_periods=1).mean()
+ax1.plot(df["timestamp"], rolling, color="red", linewidth=2, label="30-frame avg")
+ax1.set_xlabel("Time (s)")
+ax1.set_ylabel("Velocity (cm/s)")
+ax1.set_title("Velocity Over Time")
+ax1.legend()
+
+# Velocity distribution
+ax2 = axes[1]
+ax2.hist(df["velocity_cm_s"].dropna(), bins=50, edgecolor="black", alpha=0.7)
+ax2.axvline(df["velocity_cm_s"].mean(), color="red", linestyle="--", label="Mean")
+ax2.set_xlabel("Velocity (cm/s)")
+ax2.set_ylabel("Frequency")
+ax2.set_title("Velocity Distribution")
+ax2.legend()
+
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ## Export Results
+
+# %%
+# Save summary to CSV for further analysis
+summary.to_csv("analysis_summary.csv")
+print("Summary saved to analysis_summary.csv")
+
+# %% [markdown]
+# ## Statistical Tests (Add Your Groups)
+
+# %%
+# If you have experimental groups, uncomment and modify:
+# from scipy import stats
+#
+# group_a = df[df["group"] == "control"]["velocity_cm_s"]
+# group_b = df[df["group"] == "treatment"]["velocity_cm_s"]
+#
+# t_stat, p_value = stats.ttest_ind(group_a, group_b)
+# print(f"T-test: t={t_stat:.3f}, p={p_value:.4f}")
+'''

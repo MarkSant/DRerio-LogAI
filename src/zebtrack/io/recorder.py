@@ -76,9 +76,12 @@ class Recorder:
 
         # Multi-aquarium support (Phase 7)
         self._multi_aquarium_mode: bool = False
-        self._aquarium_recorders: dict[int, "Recorder"] = {}
+        self._aquarium_recorders: dict[int, Recorder] = {}
         self._aquarium_id: int | None = None  # Set when this recorder is for a specific aquarium
         self._settings_obj = settings_obj  # Store for creating sub-recorders
+
+        # Uncertainty tracking (Phase 1.2)
+        self._last_detections_by_track: dict[int, tuple[float, float, float, float]] = {}
 
         # Extract settings with defaults
         self._fps = 30.0  # Default fps
@@ -158,6 +161,40 @@ class Recorder:
 
         self._calibration = value
 
+    @staticmethod
+    def _calculate_iou(
+        box1: tuple[float, float, float, float],
+        box2: tuple[float, float, float, float],
+    ) -> float:
+        """Calculate Intersection over Union between two bounding boxes.
+
+        Args:
+            box1: First bounding box (x1, y1, x2, y2).
+            box2: Second bounding box (x1, y1, x2, y2).
+
+        Returns:
+            IoU value between 0.0 and 1.0.
+        """
+        # Calculate intersection
+        x1_inter = max(box1[0], box2[0])
+        y1_inter = max(box1[1], box2[1])
+        x2_inter = min(box1[2], box2[2])
+        y2_inter = min(box1[3], box2[3])
+
+        inter_width = max(0, x2_inter - x1_inter)
+        inter_height = max(0, y2_inter - y1_inter)
+        inter_area = inter_width * inter_height
+
+        # Calculate union
+        area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
+        area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
+        union_area = area1 + area2 - inter_area
+
+        if union_area <= 0:
+            return 0.0
+
+        return inter_area / union_area
+
     def start_recording(
         self,
         output_folder,
@@ -236,6 +273,8 @@ class Recorder:
 
         self.is_recording = True
         self.start_time = time.time()
+        # Phase 1.2: Clear previous detection cache for new recording
+        self._last_detections_by_track.clear()
         log_context.info("recorder.start.success")
         return True
 
@@ -531,6 +570,23 @@ class Recorder:
                 "confidence": confidence,
             }
 
+            # Phase 1.2: Add uncertainty metrics
+            # Uncertainty = 1 - confidence (higher = less certain)
+            data_point["uncertainty"] = 1.0 - float(confidence)
+
+            # Calculate bbox IoU with previous detection for same track
+            current_bbox = (float(x1), float(y1), float(x2), float(y2))
+            if normalised_track is not None:
+                prev_bbox = self._last_detections_by_track.get(normalised_track)
+                if prev_bbox is not None:
+                    data_point["bbox_iou"] = self._calculate_iou(prev_bbox, current_bbox)
+                else:
+                    data_point["bbox_iou"] = 1.0  # First detection, assume stable
+                # Update last detection for this track
+                self._last_detections_by_track[normalised_track] = current_bbox
+            else:
+                data_point["bbox_iou"] = None
+
             # Add aquarium_id if this is an aquarium-specific recorder
             if self._aquarium_id is not None:
                 data_point["aquarium_id"] = self._aquarium_id
@@ -599,15 +655,19 @@ class Recorder:
         if include_aquarium_id or self._aquarium_id is not None:
             columns.append("aquarium_id")
 
-        columns.extend([
-            "x1",
-            "y1",
-            "x2",
-            "y2",
-            "confidence",
-            "x_center_px",
-            "y_center_px",
-        ])
+        columns.extend(
+            [
+                "x1",
+                "y1",
+                "x2",
+                "y2",
+                "confidence",
+                "uncertainty",  # Phase 1.2: 1 - confidence
+                "bbox_iou",  # Phase 1.2: IoU with previous detection
+                "x_center_px",
+                "y_center_px",
+            ]
+        )
 
         if self.pixel_per_cm_ratio:
             columns.extend(
@@ -974,7 +1034,13 @@ class Recorder:
 
 if __name__ == "__main__":
     # Example usage for testing the Recorder module
-    print("Testing Recorder module...")
+    # Note: Use pytest for proper testing - this is for quick manual verification only
+    import logging
+
+    logging.basicConfig(level=logging.INFO)
+    _test_log = logging.getLogger(__name__)
+
+    _test_log.info("Testing Recorder module...")
 
     # Dummy data
     test_output_dir = "test_project/group1_cobaia1"
@@ -990,7 +1056,7 @@ if __name__ == "__main__":
     success = recorder.start_recording(test_output_dir, frame_width, frame_height, zones=mock_zones)
 
     if success:
-        print("\nRecording started successfully.")
+        _test_log.info("Recording started successfully.")
 
         # Test writing data
         recorder.recording_start_frame = 100
@@ -1014,14 +1080,14 @@ if __name__ == "__main__":
 
             time.sleep(0.1)
 
-        print("\nFinished writing test data.")
+        _test_log.info("Finished writing test data.")
 
         # Test stop recording
         recorder.stop_recording()
 
-        print(f"\nCheck the '{test_output_dir}' directory for output files.")
+        _test_log.info("Check '%s' directory for output files.", test_output_dir)
 
     else:
-        print("\nFailed to start recording.")
+        _test_log.warning("Failed to start recording.")
 
-    print("\nRecorder test finished.")
+    _test_log.info("Recorder test finished.")

@@ -9,11 +9,12 @@ Tests for:
 - reset_multi_aquarium_tracking()
 """
 
-import pytest
-import numpy as np
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-from zebtrack.core.detector import Detector, AquariumData, ZoneData
+import numpy as np
+import pytest
+
+from zebtrack.core.detector import AquariumData, Detector
 
 
 @pytest.fixture
@@ -91,6 +92,32 @@ class TestSetMultiAquariumZones:
         assert 1 in detector._byte_trackers_multi
         assert detector._byte_trackers_multi[0] is not detector._byte_trackers_multi[1]
 
+    def test_set_multi_aquarium_zones_uses_single_animal_mode(
+        self, detector, dual_aquarium_setup
+    ):
+        """Test that ByteTrackers use single_animal_mode=True for 1 animal per aquarium.
+
+        This ensures each aquarium gets stable tracking with ID Resurrection
+        and Immediate Activation, just like single-aquarium mode.
+        Track IDs will be: Aquarium 0 → local 1 → global 1
+                          Aquarium 1 → local 1 → global 1001
+        """
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        # Verify each ByteTracker has single_animal_mode enabled
+        for aq_id in [0, 1]:
+            tracker = detector._byte_trackers_multi[aq_id]
+            assert hasattr(tracker, "single_animal_mode"), (
+                f"ByteTracker for aquarium {aq_id} missing single_animal_mode attribute"
+            )
+            assert tracker.single_animal_mode is True, (
+                f"ByteTracker for aquarium {aq_id} should have single_animal_mode=True"
+            )
+
     def test_set_multi_aquarium_zones_scales_polygons(self, detector, dual_aquarium_setup):
         """Test that polygons are scaled correctly."""
         # Use different dimensions to test scaling
@@ -161,7 +188,9 @@ class TestDetectPartitioned:
         with pytest.raises(ValueError, match="cannot be empty"):
             detector.detect_partitioned(np.array([]))
 
-    def test_detect_partitioned_correct_assignment(self, detector, mock_plugin, dual_aquarium_setup):
+    def test_detect_partitioned_correct_assignment(
+        self, detector, mock_plugin, dual_aquarium_setup
+    ):
         """Test detections are assigned to correct aquarium."""
         detector.set_multi_aquarium_zones(
             aquariums=dual_aquarium_setup,
@@ -270,6 +299,27 @@ class TestResetMultiAquariumTracking:
 
         assert detector._byte_trackers_multi[0] is not original_0
         assert detector._byte_trackers_multi[1] is not original_1
+
+    def test_reset_preserves_single_animal_mode(self, detector, dual_aquarium_setup):
+        """Test that reset tracking preserves single_animal_mode=True."""
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        # Reset all aquariums
+        detector.reset_multi_aquarium_tracking(aquarium_id=None)
+
+        # Verify single_animal_mode is preserved after reset
+        for aq_id in [0, 1]:
+            tracker = detector._byte_trackers_multi[aq_id]
+            assert hasattr(tracker, "single_animal_mode"), (
+                f"Reset ByteTracker for aquarium {aq_id} missing single_animal_mode"
+            )
+            assert tracker.single_animal_mode is True, (
+                f"Reset ByteTracker for aquarium {aq_id} should have single_animal_mode=True"
+            )
 
 
 class TestMultiAquariumHelpers:
@@ -402,3 +452,181 @@ class TestDrawMultiAquariumOverlay:
 
         # Frame should have been modified (not all zeros)
         assert np.any(result > 0)
+
+
+class TestROICroppingOptimization:
+    """Tests for ROI cropping optimization methods."""
+
+    def test_crop_aquarium_region_returns_correct_crop(self, detector, dual_aquarium_setup):
+        """Test that _crop_aquarium_region returns correctly cropped region."""
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        # Create a frame with identifiable pattern
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        # Mark aquarium 0 region (left side: 0-600)
+        frame[0:720, 0:600, 0] = 100  # Blue channel = 100 for left side
+        # Mark aquarium 1 region (right side: 640-1280)
+        frame[0:720, 640:1280, 1] = 200  # Green channel = 200 for right side
+
+        # Crop aquarium 0
+        cropped_0, crop_info_0 = detector._crop_aquarium_region(frame, 0, padding=0)
+        assert cropped_0 is not None
+        assert crop_info_0 is not None
+        x_off, y_off, w, h = crop_info_0
+        # Cropped region should contain the aquarium 0 marker
+        assert np.mean(cropped_0[:, :, 0]) > 50  # Blue channel should be present
+
+        # Crop aquarium 1
+        cropped_1, crop_info_1 = detector._crop_aquarium_region(frame, 1, padding=0)
+        assert cropped_1 is not None
+        x_off_1, _, _, _ = crop_info_1
+        # Aquarium 1 offset should be around 640
+        assert x_off_1 >= 600
+
+    def test_crop_aquarium_region_with_padding(self, detector, dual_aquarium_setup):
+        """Test cropping with padding expands the region."""
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+        # Get crop without padding
+        _, info_no_pad = detector._crop_aquarium_region(frame, 0, padding=0)
+        # Get crop with padding
+        _, info_with_pad = detector._crop_aquarium_region(frame, 0, padding=20)
+
+        x0, y0, w0, h0 = info_no_pad
+        x1, y1, w1, h1 = info_with_pad
+
+        # With padding, offset should be smaller (or equal if at edge)
+        assert x1 <= x0
+        assert y1 <= y0
+        # Width and height should be larger (or equal if at edge)
+        assert w1 >= w0
+        assert h1 >= h0
+
+    def test_crop_aquarium_region_invalid_aquarium(self, detector, dual_aquarium_setup):
+        """Test cropping with invalid aquarium ID falls back to full frame."""
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+        # Try to crop non-existent aquarium - should fall back to full frame
+        cropped, crop_info = detector._crop_aquarium_region(frame, 999, padding=0)
+        # Should return full frame dimensions as fallback
+        assert cropped is not None
+        assert crop_info == (0, 0, 1280, 720)
+
+    def test_crop_aquarium_region_without_multi_aquarium(self, detector):
+        """Test cropping when multi-aquarium is not configured returns full frame."""
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+        # Should return full frame as fallback when no multi-aquarium configured
+        cropped, crop_info = detector._crop_aquarium_region(frame, 0, padding=0)
+        assert cropped is not None
+        assert crop_info == (0, 0, 1280, 720)
+
+    def test_detect_partitioned_optimized_coordinates_adjusted(
+        self, detector, dual_aquarium_setup, mock_plugin
+    ):
+        """Test that detect_partitioned_optimized adjusts coordinates correctly."""
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+        # Mock detection in cropped region - returns local coordinates
+        # For aquarium 1 (right side), local detection at (50, 50, 80, 80)
+        # should be adjusted to global coordinates
+        mock_plugin.detect.return_value = [(50, 50, 80, 80, 0.95, 1)]
+
+        detections = detector.detect_partitioned_optimized(frame, use_cropping=True)
+
+        # Should have detections from both aquariums
+        assert 0 in detections
+        assert 1 in detections
+
+    def test_detect_partitioned_optimized_without_cropping_fallback(
+        self, detector, dual_aquarium_setup, mock_plugin
+    ):
+        """Test that use_cropping=False falls back to regular method."""
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        mock_plugin.detect.return_value = []
+
+        # Should work with cropping disabled
+        detections = detector.detect_partitioned_optimized(frame, use_cropping=False)
+
+        assert isinstance(detections, dict)
+        assert 0 in detections
+        assert 1 in detections
+
+    def test_cropping_reduces_processed_pixels(self, detector, dual_aquarium_setup):
+        """Test that cropping reduces the number of pixels processed."""
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        full_frame_pixels = frame.shape[0] * frame.shape[1]  # 720 * 1280 = 921,600
+
+        # Get cropped regions for both aquariums
+        cropped_0, info_0 = detector._crop_aquarium_region(frame, 0, padding=10)
+        cropped_1, info_1 = detector._crop_aquarium_region(frame, 1, padding=10)
+
+        if cropped_0 is not None and cropped_1 is not None:
+            cropped_pixels = (
+                cropped_0.shape[0] * cropped_0.shape[1]
+                + cropped_1.shape[0] * cropped_1.shape[1]
+            )
+
+            # Total cropped pixels should be less than full frame
+            # (since aquariums don't overlap and don't cover entire frame)
+            assert cropped_pixels < full_frame_pixels
+
+    def test_crop_info_format(self, detector, dual_aquarium_setup):
+        """Test that crop_info returns correct format (x_offset, y_offset, width, height)."""
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        cropped, crop_info = detector._crop_aquarium_region(frame, 0, padding=0)
+
+        assert cropped is not None
+        assert len(crop_info) == 4
+
+        x_offset, y_offset, width, height = crop_info
+
+        # All values should be non-negative
+        assert x_offset >= 0
+        assert y_offset >= 0
+        assert width > 0
+        assert height > 0
+
+        # Cropped image dimensions should match crop_info
+        assert cropped.shape[0] == height
+        assert cropped.shape[1] == width

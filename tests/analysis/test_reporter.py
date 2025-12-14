@@ -459,5 +459,131 @@ class TestEdgeCases:
         assert reporter.b_analyzer is not None
 
 
+class TestExportRPython:
+    """Tests for Phase 1.3: R/Python export methods."""
+
+    @pytest.fixture
+    def sample_reporter(self, mock_settings, sample_trajectory_df, sample_rois):
+        """Create a sample Reporter for export tests."""
+        service = AnalysisService(settings_obj=mock_settings)
+        analysis = service.run_full_analysis_as_dto(
+            arena_polygon_px=[(0, 0), (100, 0), (100, 100), (0, 100)],
+            fps=30.0,
+            metadata={"video_name": "test_video"},
+            pixelcm_x=10.0,
+            pixelcm_y=10.0,
+            rois=sample_rois,
+            roi_colors={"Center": (255, 0, 0), "Edge": (0, 255, 0)},
+            trajectory_df=sample_trajectory_df,
+            video_height_px=100,
+            freezing_vel_threshold=1.0,
+            freezing_min_duration=2.0,
+        )
+        return Reporter.from_analysis(analysis)
+
+    def test_export_for_r_creates_feather_file(self, sample_reporter, tmp_path):
+        """Test that export_for_r creates a Feather file."""
+        output_dir = tmp_path / "r_export"
+
+        result = sample_reporter.export_for_r(output_dir)
+
+        assert "feather" in result
+        assert result["feather"].exists()
+        assert result["feather"].suffix == ".feather"
+
+    def test_export_for_r_creates_csv_file(self, sample_reporter, tmp_path):
+        """Test that export_for_r creates a CSV fallback."""
+        output_dir = tmp_path / "r_export"
+
+        result = sample_reporter.export_for_r(output_dir)
+
+        assert "csv" in result
+        assert result["csv"].exists()
+        assert result["csv"].suffix == ".csv"
+
+    def test_export_for_r_creates_script(self, sample_reporter, tmp_path):
+        """Test that export_for_r creates an R script template."""
+        output_dir = tmp_path / "r_export"
+
+        result = sample_reporter.export_for_r(output_dir, include_script=True)
+
+        assert "script" in result
+        assert result["script"].exists()
+        assert result["script"].suffix == ".R"
+
+        # Verify script content has R code
+        content = result["script"].read_text()
+        assert "library(arrow)" in content
+        assert "read_feather" in content
+
+    def test_export_for_r_without_script(self, sample_reporter, tmp_path):
+        """Test that export_for_r respects include_script=False."""
+        output_dir = tmp_path / "r_export"
+
+        result = sample_reporter.export_for_r(output_dir, include_script=False)
+
+        assert "script" not in result
+        assert "feather" in result
+        assert "csv" in result
+
+    def test_export_for_python_creates_parquet_file(self, sample_reporter, tmp_path):
+        """Test that export_for_python creates a Parquet file."""
+        output_dir = tmp_path / "python_export"
+
+        result = sample_reporter.export_for_python(output_dir)
+
+        assert "parquet" in result
+        assert result["parquet"].exists()
+        assert result["parquet"].suffix == ".parquet"
+
+    def test_export_for_python_creates_feather_file(self, sample_reporter, tmp_path):
+        """Test that export_for_python creates a Feather file."""
+        output_dir = tmp_path / "python_export"
+
+        result = sample_reporter.export_for_python(output_dir)
+
+        assert "feather" in result
+        assert result["feather"].exists()
+
+    def test_export_for_python_creates_script(self, sample_reporter, tmp_path):
+        """Test that export_for_python creates a Python script template."""
+        output_dir = tmp_path / "python_export"
+
+        result = sample_reporter.export_for_python(output_dir, include_script=True)
+
+        assert "script" in result
+        assert result["script"].exists()
+        assert result["script"].suffix == ".py"
+
+        # Verify script content has Python code
+        content = result["script"].read_text()
+        assert "import pandas" in content
+        assert "read_parquet" in content
+
+    def test_export_for_python_data_readable(self, sample_reporter, tmp_path):
+        """Test that exported Parquet is readable by pandas."""
+        import pyarrow.parquet as pq
+
+        output_dir = tmp_path / "python_export"
+        result = sample_reporter.export_for_python(output_dir)
+
+        # Read back and verify
+        df = pq.read_table(result["parquet"]).to_pandas()
+        assert len(df) > 0
+        # tidy_data is summary data with video_name column
+        assert "video_name" in df.columns or "total_distance_cm" in df.columns
+
+    def test_export_for_r_data_readable(self, sample_reporter, tmp_path):
+        """Test that exported Feather is readable."""
+        import pyarrow.feather as feather
+
+        output_dir = tmp_path / "r_export"
+        result = sample_reporter.export_for_r(output_dir)
+
+        # Read back and verify
+        df = feather.read_feather(result["feather"])
+        assert len(df) > 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

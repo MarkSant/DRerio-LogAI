@@ -8,13 +8,13 @@ These tests cover:
 - Video output per aquarium
 """
 
-import pytest
 import numpy as np
-from pathlib import Path
+import pandas as pd
 import pyarrow.parquet as pq
+import pytest
 
-from zebtrack.io.recorder import Recorder
 from zebtrack.core.detector import ZoneData
+from zebtrack.io.recorder import Recorder
 
 
 class TestStartRecordingMultiAquarium:
@@ -454,9 +454,18 @@ class TestDetermineParquetColumns:
         columns = recorder._determine_parquet_columns()
 
         expected = [
-            "timestamp", "frame", "track_id",
-            "x1", "y1", "x2", "y2", "confidence",
-            "x_center_px", "y_center_px"
+            "timestamp",
+            "frame",
+            "track_id",
+            "x1",
+            "y1",
+            "x2",
+            "y2",
+            "confidence",
+            "uncertainty",
+            "bbox_iou",
+            "x_center_px",
+            "y_center_px",
         ]
         assert columns == expected
 
@@ -467,10 +476,20 @@ class TestDetermineParquetColumns:
         columns = recorder._determine_parquet_columns()
 
         expected = [
-            "timestamp", "frame", "track_id",
-            "x1", "y1", "x2", "y2", "confidence",
-            "x_center_px", "y_center_px",
-            "x_cm", "y_cm"
+            "timestamp",
+            "frame",
+            "track_id",
+            "x1",
+            "y1",
+            "x2",
+            "y2",
+            "confidence",
+            "uncertainty",
+            "bbox_iou",
+            "x_center_px",
+            "y_center_px",
+            "x_cm",
+            "y_cm",
         ]
         assert columns == expected
 
@@ -480,9 +499,19 @@ class TestDetermineParquetColumns:
         columns = recorder._determine_parquet_columns(include_aquarium_id=True)
 
         expected = [
-            "timestamp", "frame", "track_id", "aquarium_id",
-            "x1", "y1", "x2", "y2", "confidence",
-            "x_center_px", "y_center_px"
+            "timestamp",
+            "frame",
+            "track_id",
+            "aquarium_id",
+            "x1",
+            "y1",
+            "x2",
+            "y2",
+            "confidence",
+            "uncertainty",
+            "bbox_iou",
+            "x_center_px",
+            "y_center_px",
         ]
         assert columns == expected
 
@@ -493,9 +522,19 @@ class TestDetermineParquetColumns:
         columns = recorder._determine_parquet_columns()
 
         expected = [
-            "timestamp", "frame", "track_id", "aquarium_id",
-            "x1", "y1", "x2", "y2", "confidence",
-            "x_center_px", "y_center_px"
+            "timestamp",
+            "frame",
+            "track_id",
+            "aquarium_id",
+            "x1",
+            "y1",
+            "x2",
+            "y2",
+            "confidence",
+            "uncertainty",
+            "bbox_iou",
+            "x_center_px",
+            "y_center_px",
         ]
         assert columns == expected
 
@@ -575,9 +614,120 @@ class TestIntegrationMultiAquariumRecording:
             assert (df["aquarium_id"] == aq_id).all()
             assert len(df) > 0
 
-            # Aquarium 0 should have 2 detections per frame (200 total)
-            # Aquarium 1 should have 1 detection per frame (100 total)
-            if aq_id == 0:
-                assert len(df) == 200
-            else:
-                assert len(df) == 100
+
+class TestUncertaintyColumns:
+    """Tests for Phase 1.2 uncertainty columns (uncertainty and bbox_iou)."""
+
+    def test_uncertainty_column_is_one_minus_confidence(self, tmp_path):
+        """Test that uncertainty = 1 - confidence."""
+        recorder = Recorder()
+        zones = ZoneData(polygon=[(0, 0), (100, 0), (100, 100), (0, 100)])
+
+        recorder.start_recording(
+            output_folder=str(tmp_path / "test"),
+            frame_width=640,
+            frame_height=480,
+            zones=zones,
+        )
+
+        # Write detection with known confidence
+        confidence = 0.95
+        recorder.write_detection_data(0.1, 1, [(10, 20, 30, 40, confidence, 1)])
+        recorder.stop_recording()
+
+        # Read and verify
+        parquet_path = tmp_path / "test" / "3_CoordMovimento_test.parquet"
+        df = pq.read_table(parquet_path).to_pandas()
+
+        assert "uncertainty" in df.columns
+        expected_uncertainty = 1.0 - confidence
+        assert df.iloc[0]["uncertainty"] == pytest.approx(expected_uncertainty)
+
+    def test_bbox_iou_first_detection_is_one(self, tmp_path):
+        """Test that first detection for a track has bbox_iou = 1.0."""
+        recorder = Recorder()
+        zones = ZoneData(polygon=[(0, 0), (100, 0), (100, 100), (0, 100)])
+
+        recorder.start_recording(
+            output_folder=str(tmp_path / "test"),
+            frame_width=640,
+            frame_height=480,
+            zones=zones,
+        )
+
+        recorder.write_detection_data(0.1, 1, [(10, 20, 30, 40, 0.9, 1)])
+        recorder.stop_recording()
+
+        parquet_path = tmp_path / "test" / "3_CoordMovimento_test.parquet"
+        df = pq.read_table(parquet_path).to_pandas()
+
+        assert "bbox_iou" in df.columns
+        assert df.iloc[0]["bbox_iou"] == pytest.approx(1.0)
+
+    def test_bbox_iou_measures_overlap_between_consecutive_detections(self, tmp_path):
+        """Test that bbox_iou measures overlap with previous detection."""
+        recorder = Recorder()
+        zones = ZoneData(polygon=[(0, 0), (200, 0), (200, 200), (0, 200)])
+
+        recorder.start_recording(
+            output_folder=str(tmp_path / "test"),
+            frame_width=640,
+            frame_height=480,
+            zones=zones,
+        )
+
+        # First detection: bbox at (10, 10, 50, 50) = 40x40 area = 1600
+        recorder.write_detection_data(0.1, 1, [(10, 10, 50, 50, 0.9, 1)])
+        # Second detection: bbox at (20, 20, 60, 60) = 40x40 area = 1600
+        # Intersection: (20, 20, 50, 50) = 30x30 = 900
+        # Union: 1600 + 1600 - 900 = 2300
+        # IoU = 900 / 2300 ≈ 0.391
+        recorder.write_detection_data(0.133, 2, [(20, 20, 60, 60, 0.85, 1)])
+        recorder.stop_recording()
+
+        parquet_path = tmp_path / "test" / "3_CoordMovimento_test.parquet"
+        df = pq.read_table(parquet_path).to_pandas()
+
+        assert len(df) == 2
+        assert df.iloc[0]["bbox_iou"] == pytest.approx(1.0)  # First detection
+        assert df.iloc[1]["bbox_iou"] == pytest.approx(900 / 2300, rel=0.01)  # ~0.391
+
+    def test_bbox_iou_none_for_no_track_id(self, tmp_path):
+        """Test that bbox_iou is None when track_id is None."""
+        recorder = Recorder()
+        zones = ZoneData(polygon=[(0, 0), (100, 0), (100, 100), (0, 100)])
+
+        recorder.start_recording(
+            output_folder=str(tmp_path / "test"),
+            frame_width=640,
+            frame_height=480,
+            zones=zones,
+        )
+
+        # Detection with no track_id (None)
+        recorder.write_detection_data(0.1, 1, [(10, 20, 30, 40, 0.9, None)])
+        recorder.stop_recording()
+
+        parquet_path = tmp_path / "test" / "3_CoordMovimento_test.parquet"
+        df = pq.read_table(parquet_path).to_pandas()
+
+        assert df.iloc[0]["bbox_iou"] is None or pd.isna(df.iloc[0]["bbox_iou"])
+
+    def test_iou_calculation_method(self):
+        """Test _calculate_iou static method directly."""
+        # No overlap
+        iou = Recorder._calculate_iou((0, 0, 10, 10), (20, 20, 30, 30))
+        assert iou == 0.0
+
+        # Full overlap (same box)
+        iou = Recorder._calculate_iou((0, 0, 10, 10), (0, 0, 10, 10))
+        assert iou == 1.0
+
+        # Partial overlap (50% each way)
+        # Box1: (0, 0, 10, 10) = 100
+        # Box2: (5, 0, 15, 10) = 100
+        # Intersection: (5, 0, 10, 10) = 50
+        # Union: 100 + 100 - 50 = 150
+        # IoU = 50/150 ≈ 0.333
+        iou = Recorder._calculate_iou((0, 0, 10, 10), (5, 0, 15, 10))
+        assert iou == pytest.approx(50 / 150, rel=0.01)

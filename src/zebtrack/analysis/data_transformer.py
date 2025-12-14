@@ -44,6 +44,9 @@ COLUMN_MAPPING = {
     "periodos_inatividade_duracao_total_s": "inactivity_total_duration_s",
     "periodos_inatividade_percentual_registro": "inactivity_percentage_of_recording",
     "periodos_inatividade_limiar_cm_s": "inactivity_threshold_cm_s",
+    # Phase 1.4: Thigmotaxis columns
+    "thigmotaxis_avg_wall_distance_cm": "thigmotaxis_avg_wall_distance_cm",
+    "thigmotaxis_time_near_wall_pct": "thigmotaxis_time_near_wall_pct",
 }
 
 # Dynamic prefix mappings for Portuguese → English translation of ROI-specific columns
@@ -200,6 +203,21 @@ class DataTransformer:
         )
         combined_data["periodos_inatividade_limiar_cm_s"] = inactivity.get("threshold_cm_s")
 
+        # --- Thigmotaxis Metrics (Phase 1.4) ---
+        # Calculate thigmotaxis (wall-hugging behavior) from BehavioralAnalyzer
+        try:
+            thigmotaxis_avg = b_analyzer.calculate_thigmotaxis_index(method="average_distance")
+            combined_data["thigmotaxis_avg_wall_distance_cm"] = thigmotaxis_avg
+            # Time near wall with 1cm threshold (configurable in future)
+            thigmotaxis_pct = b_analyzer.calculate_thigmotaxis_index(
+                method="time_near_wall", distance_threshold=1.0
+            )
+            combined_data["thigmotaxis_time_near_wall_pct"] = thigmotaxis_pct
+        except (ValueError, AttributeError):
+            # Thigmotaxis may not be available if arena is not defined
+            combined_data["thigmotaxis_avg_wall_distance_cm"] = None
+            combined_data["thigmotaxis_time_near_wall_pct"] = None
+
         # --- ROI-Specific Metrics (only if ROI analysis was performed) ---
         if r_analyzer:
             roi_colors_dict = roi_colors if roi_colors else {}
@@ -282,9 +300,7 @@ class DataTransformer:
         return combined_data
 
     def standardize_roi_columns(
-        self,
-        df: pd.DataFrame,
-        expected_roi_names: list[str] | None = None
+        self, df: pd.DataFrame, expected_roi_names: list[str] | None = None
     ) -> pd.DataFrame:
         """Ensure DataFrame has columns for all expected ROIs, padding with NaN/0 if missing.
 
@@ -309,7 +325,7 @@ class DataTransformer:
             ("tempo_no_{}_s", pd.NA),
             ("percentual_tempo_no_{}", pd.NA),
             ("entradas_no_{}", 0),  # Count: use 0 instead of NaN
-            ("saidas_do_{}", 0),    # Count: use 0 instead of NaN
+            ("saidas_do_{}", 0),  # Count: use 0 instead of NaN
             ("latencia_para_{}_s", pd.NA),
             ("distancia_no_{}_cm", pd.NA),
             ("velocidade_media_no_{}_cm_s", pd.NA),
