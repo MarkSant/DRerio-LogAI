@@ -746,3 +746,86 @@ class TestBatchInference:
         # Should use native batch method
         mock_plugin.detect_batch.assert_called_once()
         assert len(results) == 2
+
+
+class TestParallelDetectionErrorRecovery:
+    """Test 4.3: Error recovery in parallel detection."""
+
+    def test_parallel_continues_when_one_aquarium_fails(self, detector, dual_aquarium_setup, mock_plugin):
+        """Test that parallel detection continues when one aquarium fails."""
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+        # First call succeeds, second throws exception
+        call_count = 0
+
+        def detect_with_error(cropped_frame):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:
+                raise RuntimeError("Simulated detection failure")
+            return [(10, 10, 50, 50, 0.9, 1)]
+
+        mock_plugin.detect.side_effect = detect_with_error
+
+        results = detector.detect_partitioned_parallel(frame)
+
+        # Should return results dict with both aquariums (one empty due to error)
+        assert isinstance(results, dict)
+        assert 0 in results or 1 in results
+        # At least one aquarium should have empty results due to error
+        empty_count = sum(1 for v in results.values() if len(v) == 0)
+        assert empty_count >= 1
+
+    def test_parallel_returns_empty_for_failed_aquariums(self, detector, dual_aquarium_setup, mock_plugin):
+        """Test that failed aquariums return empty detection lists."""
+        detector.set_multi_aquarium_zones(
+            aquariums=dual_aquarium_setup,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+        # Always fail
+        mock_plugin.detect.side_effect = ValueError("Detection model error")
+
+        results = detector.detect_partitioned_parallel(frame)
+
+        # All aquariums should have empty results
+        for aq_id in results:
+            assert len(results[aq_id]) == 0
+
+    def test_parallel_handles_invalid_cropped_region(self, detector, mock_plugin):
+        """Test graceful handling when crop region is invalid."""
+        # Create aquarium with polygon outside frame bounds
+        aquariums = [
+            AquariumData(
+                id=0,
+                polygon=[[2000, 2000], [3000, 2000], [3000, 3000], [2000, 3000]],
+                roi_polygons=[],
+                roi_names=[],
+                roi_colors=[],
+                group="Test",
+                subject_id="S01",
+                day=1,
+            ),
+        ]
+
+        detector.set_multi_aquarium_zones(
+            aquariums=aquariums,
+            actual_width=1280,
+            actual_height=720,
+        )
+
+        frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+        # Should not crash - returns empty for invalid region
+        results = detector.detect_partitioned_parallel(frame)
+        assert isinstance(results, dict)
+

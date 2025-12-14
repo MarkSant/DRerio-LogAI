@@ -1688,31 +1688,50 @@ class Detector:
             raise ValueError("Frame must be a valid non-empty numpy array")
 
         results: dict[int, list[tuple]] = {}
+        errors: dict[int, str] = {}
 
-        def process_aquarium(aq_id: int) -> tuple[int, list[tuple]]:
-            """Process a single aquarium region."""
-            aq = next((a for a in self._aquariums if a.id == aq_id), None)
-            if aq is None:
-                return aq_id, []
+        def process_aquarium(aq_id: int) -> tuple[int, list[tuple], str | None]:
+            """Process a single aquarium region with error recovery.
 
-            # Crop and detect
-            cropped, (offset_x, offset_y, _, _) = self._crop_aquarium_region(frame, aq_id)
-            raw_detections = self.plugin.detect(cropped)
+            Returns:
+                Tuple of (aquarium_id, detections, error_message or None)
+            """
+            try:
+                aq = next((a for a in self._aquariums if a.id == aq_id), None)
+                if aq is None:
+                    return aq_id, [], f"Aquarium {aq_id} not found in configuration"
 
-            # Adjust coordinates
-            adjusted = []
-            for det in raw_detections:
-                det = self._ensure_track_tuple(det)
-                x1, y1, x2, y2, conf, _, class_id = det
-                adjusted.append((
-                    x1 + offset_x, y1 + offset_y,
-                    x2 + offset_x, y2 + offset_y,
-                    conf, None, class_id
-                ))
+                # Crop and detect
+                cropped, (offset_x, offset_y, _, _) = self._crop_aquarium_region(frame, aq_id)
 
-            return aq_id, adjusted
+                # Validate cropped region
+                if cropped is None or cropped.size == 0:
+                    return aq_id, [], f"Aquarium {aq_id}: Empty crop region"
 
-        # Process aquariums in parallel
+                raw_detections = self.plugin.detect(cropped)
+
+                # Adjust coordinates
+                adjusted = []
+                for det in raw_detections:
+                    det = self._ensure_track_tuple(det)
+                    x1, y1, x2, y2, conf, _, class_id = det
+                    adjusted.append((
+                        x1 + offset_x, y1 + offset_y,
+                        x2 + offset_x, y2 + offset_y,
+                        conf, None, class_id
+                    ))
+
+                return aq_id, adjusted, None
+            except Exception as e:
+                # Log but don't raise - allow other aquariums to continue
+                log.warning(
+                    "detector.partitioned_parallel.aquarium_error",
+                    aquarium_id=aq_id,
+                    error=str(e),
+                )
+                return aq_id, [], f"Aquarium {aq_id}: {e!s}"
+
+        # Process aquariums in parallel with error recovery
         start_time = time.perf_counter()
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
@@ -1720,18 +1739,36 @@ class Detector:
                 for aq in self._aquariums
             }
             for future in as_completed(futures):
-                aq_id, detections = future.result()
-                # Apply tracking (must be sequential - ByteTracker is not thread-safe)
-                if detections:
-                    tracker = self._byte_trackers_multi[aq_id]
-                    tracked = self._apply_byte_tracking_multi(detections, tracker)
-                    offset_tracked = []
-                    for det in tracked:
-                        x1, y1, x2, y2, conf, track_id, class_id = det
-                        offset_id = aq_id * 1000 + track_id if track_id is not None else None
-                        offset_tracked.append((x1, y1, x2, y2, conf, offset_id, class_id))
-                    results[aq_id] = offset_tracked
-                else:
+                try:
+                    aq_id, detections, error_msg = future.result()
+
+                    # Track errors but continue processing
+                    if error_msg:
+                        errors[aq_id] = error_msg
+                        results[aq_id] = []
+                        continue
+
+                    # Apply tracking (must be sequential - ByteTracker is not thread-safe)
+                    if detections:
+                        tracker = self._byte_trackers_multi[aq_id]
+                        tracked = self._apply_byte_tracking_multi(detections, tracker)
+                        offset_tracked = []
+                        for det in tracked:
+                            x1, y1, x2, y2, conf, track_id, class_id = det
+                            offset_id = aq_id * 1000 + track_id if track_id is not None else None
+                            offset_tracked.append((x1, y1, x2, y2, conf, offset_id, class_id))
+                        results[aq_id] = offset_tracked
+                    else:
+                        results[aq_id] = []
+                except Exception as e:
+                    # Handle executor-level failures
+                    aq_id = futures[future]
+                    log.error(
+                        "detector.partitioned_parallel.future_error",
+                        aquarium_id=aq_id,
+                        error=str(e),
+                    )
+                    errors[aq_id] = f"Executor error: {e!s}"
                     results[aq_id] = []
 
         elapsed = time.perf_counter() - start_time
@@ -1739,6 +1776,7 @@ class Detector:
             "detector.partitioned_parallel.complete",
             elapsed_ms=round(elapsed * 1000, 2),
             aquarium_counts={aq_id: len(dets) for aq_id, dets in results.items()},
+            errors=errors if errors else None,
         )
 
         return results

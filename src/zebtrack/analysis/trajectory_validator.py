@@ -185,6 +185,24 @@ class TrajectoryQualityValidator:
                 f"This should have been caught by Bug Fix #2 validation."
             )
 
+        # 6. Multi-aquarium track ID validation (IDs should stay within aquarium bounds)
+        if "track_id" in df.columns and "aquarium_id" in df.columns:
+            aquarium_id_issues = self._validate_multi_aquarium_ids(df)
+            if aquarium_id_issues["errors"]:
+                errors.extend(aquarium_id_issues["errors"])
+            if aquarium_id_issues["warnings"]:
+                warnings.extend(aquarium_id_issues["warnings"])
+            if aquarium_id_issues["stats"]:
+                stats["multi_aquarium_validation"] = aquarium_id_issues["stats"]
+
+        # 7. Per-aquarium gap detection
+        if "frame" in df.columns and "aquarium_id" in df.columns:
+            per_aquarium_gaps = self._detect_per_aquarium_gaps(df)
+            if per_aquarium_gaps["warnings"]:
+                warnings.extend(per_aquarium_gaps["warnings"])
+            if per_aquarium_gaps["stats"]:
+                stats["per_aquarium_gaps"] = per_aquarium_gaps["stats"]
+
         # Calculate overall quality metrics
         base_stats = {
             "total_frames": len(df),
@@ -233,3 +251,141 @@ class TrajectoryQualityValidator:
             "errors": errors,
             "stats": stats,
         }
+
+    def _validate_multi_aquarium_ids(self, df: pd.DataFrame) -> dict:
+        """Validate track IDs stay within their aquarium bounds.
+
+        Track ID convention: aquarium_id * 1000 + local_track_id
+        So aquarium 0 should have IDs 0-999, aquarium 1 should have IDs 1000-1999, etc.
+
+        Returns:
+            dict with errors, warnings, and stats
+        """
+        errors: list[str] = []
+        warnings: list[str] = []
+        stats: dict = {}
+
+        # Group by aquarium and check ID ranges
+        id_violations = []
+        aquarium_stats = {}
+
+        for aq_id, group in df.groupby("aquarium_id"):
+            expected_min = int(aq_id) * 1000
+            expected_max = expected_min + 999
+
+            track_ids = group["track_id"].dropna().unique()
+            out_of_range = [
+                tid for tid in track_ids if not (expected_min <= tid <= expected_max)
+            ]
+
+            aquarium_stats[f"aquarium_{aq_id}"] = {
+                "track_ids": list(map(int, track_ids)),
+                "expected_range": [expected_min, expected_max],
+                "out_of_range": list(map(int, out_of_range)) if out_of_range else [],
+            }
+
+            if out_of_range:
+                id_violations.append((aq_id, out_of_range))
+
+        if id_violations:
+            for aq_id, bad_ids in id_violations:
+                warnings.append(
+                    f"Aquarium {aq_id}: Track IDs {bad_ids} are outside expected range "
+                    f"({int(aq_id) * 1000}-{int(aq_id) * 1000 + 999}). "
+                    f"This may indicate cross-aquarium ID assignment."
+                )
+
+        # Check for ID jumps (sudden large changes in track ID within same aquarium)
+        id_jumps = []
+        for aq_id, group in df.groupby("aquarium_id"):
+            if len(group) < 2:
+                continue
+
+            sorted_group = group.sort_values("frame")
+            track_diffs = sorted_group["track_id"].diff().abs()
+
+            # ID jump threshold: more than 100 suggests aquarium boundary crossed
+            large_jumps = track_diffs[track_diffs > 100]
+            if len(large_jumps) > 0:
+                id_jumps.append((aq_id, len(large_jumps), int(large_jumps.max())))
+
+        if id_jumps:
+            for aq_id, num_jumps, max_jump in id_jumps:
+                warnings.append(
+                    f"Aquarium {aq_id}: Detected {num_jumps} large track ID jumps "
+                    f"(max jump: {max_jump}). May indicate tracking loss/recovery."
+                )
+
+        stats["aquariums"] = aquarium_stats
+        stats["id_violations_count"] = sum(len(v[1]) for v in id_violations)
+        stats["id_jumps_count"] = sum(j[1] for j in id_jumps)
+
+        return {"errors": errors, "warnings": warnings, "stats": stats}
+
+    def _detect_per_aquarium_gaps(self, df: pd.DataFrame) -> dict:
+        """Detect frames with missing detections per aquarium.
+
+        Returns:
+            dict with warnings and stats for per-aquarium gap analysis
+        """
+        warnings: list[str] = []
+        stats: dict = {}
+
+        # Get overall frame range
+        frame_min = int(df["frame"].min())
+        frame_max = int(df["frame"].max())
+        all_frames = set(range(frame_min, frame_max + 1))
+
+        per_aquarium_stats = {}
+
+        for aq_id, group in df.groupby("aquarium_id"):
+            detected_frames = set(group["frame"].unique())
+            missing_frames = all_frames - detected_frames
+
+            # Find continuous gap sequences
+            if missing_frames:
+                sorted_missing = sorted(missing_frames)
+                gaps = []
+                gap_start = sorted_missing[0]
+                gap_end = sorted_missing[0]
+
+                for frame in sorted_missing[1:]:
+                    if frame == gap_end + 1:
+                        gap_end = frame
+                    else:
+                        gaps.append((gap_start, gap_end, gap_end - gap_start + 1))
+                        gap_start = frame
+                        gap_end = frame
+                gaps.append((gap_start, gap_end, gap_end - gap_start + 1))
+
+                # Find longest gap
+                longest_gap = max(gaps, key=lambda g: g[2])
+
+                per_aquarium_stats[f"aquarium_{aq_id}"] = {
+                    "total_missing_frames": len(missing_frames),
+                    "coverage_percent": 100 * len(detected_frames) / len(all_frames),
+                    "gap_count": len(gaps),
+                    "longest_gap_frames": longest_gap[2],
+                    "longest_gap_range": [longest_gap[0], longest_gap[1]],
+                }
+
+                # Warn if coverage is low
+                coverage = len(detected_frames) / len(all_frames)
+                if coverage < 0.9:  # Less than 90% coverage
+                    gap_len = longest_gap[2]
+                    warnings.append(
+                        f"Aquarium {aq_id}: Low detection coverage ({100 * coverage:.1f}%). "
+                        f"Missing {len(missing_frames)} frames, longest gap: {gap_len} frames."
+                    )
+            else:
+                per_aquarium_stats[f"aquarium_{aq_id}"] = {
+                    "total_missing_frames": 0,
+                    "coverage_percent": 100.0,
+                    "gap_count": 0,
+                    "longest_gap_frames": 0,
+                    "longest_gap_range": None,
+                }
+
+        stats["per_aquarium"] = per_aquarium_stats
+
+        return {"warnings": warnings, "stats": stats}
