@@ -8,7 +8,6 @@ These tests cover:
 """
 
 import pytest
-from pathlib import Path
 
 from zebtrack.core.project_manager import ProjectManager
 from zebtrack.core.state_manager import StateManager
@@ -188,7 +187,9 @@ class TestResolveMultiAquariumResultsDirectories:
         assert len(result) == 1
         path_str = str(result[0])
         # Should not contain problematic characters
-        assert "/" not in path_str.split("Grupo_")[1].split("\\")[0] if "Grupo_" in path_str else True
+        assert (
+            "/" not in path_str.split("Grupo_")[1].split("\\")[0] if "Grupo_" in path_str else True
+        )
 
 
 class TestRegisterMultiAquariumOutputs:
@@ -316,9 +317,7 @@ class TestGetMultiAquariumOutputs:
     def test_get_outputs_returns_none_for_nonexistent_video(self, project_setup):
         """Test returns None for non-existent video."""
         project_manager, tmp_path, _, _ = project_setup
-        result = project_manager.get_multi_aquarium_outputs(
-            str(tmp_path / "nonexistent.mp4")
-        )
+        result = project_manager.get_multi_aquarium_outputs(str(tmp_path / "nonexistent.mp4"))
 
         assert result is None
 
@@ -351,9 +350,7 @@ class TestIsMultiAquariumVideo:
     def test_returns_false_for_nonexistent_video(self, project_setup):
         """Test returns False for non-existent video."""
         project_manager, tmp_path, _, _ = project_setup
-        result = project_manager.is_multi_aquarium_video(
-            str(tmp_path / "nonexistent.mp4")
-        )
+        result = project_manager.is_multi_aquarium_video(str(tmp_path / "nonexistent.mp4"))
 
         assert result is False
 

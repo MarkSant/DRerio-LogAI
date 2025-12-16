@@ -1,6 +1,6 @@
 import multiprocessing as mp
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -61,8 +61,9 @@ def test_initialize_detector_syncs_interval_and_single_mode(worker_config):
 
     worker = _WorkerProcess(worker_config, result_queue, command_queue)
 
-    with patch("zebtrack.plugins.ultralytics_detector.UltralyticsDetectorPlugin", FakePlugin), patch(
-        "zebtrack.core.processing_worker.Detector", FakeDetector
+    with (
+        patch("zebtrack.plugins.ultralytics_detector.UltralyticsDetectorPlugin", FakePlugin),
+        patch("zebtrack.core.processing_worker.Detector", FakeDetector),
     ):
         detector = worker._initialize_detector()
 

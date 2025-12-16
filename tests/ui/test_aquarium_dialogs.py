@@ -6,12 +6,13 @@ Tests for:
 - AquariumAssignmentDialog
 """
 
-import pytest
 import tkinter as tk
 from unittest.mock import MagicMock, patch
 
-from zebtrack.ui.dialogs.multi_aquarium_confirm_dialog import MultiAquariumConfirmDialog
+import pytest
+
 from zebtrack.ui.dialogs.aquarium_assignment_dialog import AquariumAssignmentDialog
+from zebtrack.ui.dialogs.multi_aquarium_confirm_dialog import MultiAquariumConfirmDialog
 from zebtrack.ui.wizard.models import AquariumConfig
 
 
@@ -212,8 +213,8 @@ class TestDialogImports:
     def test_dialogs_exported(self):
         """Test new dialogs are exported from package."""
         from zebtrack.ui.dialogs import (
-            MultiAquariumConfirmDialog,
             AquariumAssignmentDialog,
+            MultiAquariumConfirmDialog,
         )
 
         assert MultiAquariumConfirmDialog is not None

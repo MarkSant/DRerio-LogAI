@@ -238,7 +238,7 @@ class TestDetector(unittest.TestCase):
         self.assertLess(
             abs(result_bbox[0] - near_bbox[0]) + abs(result_bbox[1] - near_bbox[1]),
             50,  # Allow some tolerance for Kalman filter smoothing
-            f"Expected tracking to follow nearby detection {near_bbox}, got {result_bbox}"
+            f"Expected tracking to follow nearby detection {near_bbox}, got {result_bbox}",
         )
 
     def test_reset_tracking_state_clears_single_subject_tracker(self):

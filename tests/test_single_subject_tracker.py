@@ -57,7 +57,7 @@ class TestSingleSubjectTracker(unittest.TestCase):
         # New detection at center (100, 100) - distance ~113 pixels (within 200)
         # Far detection at center (500, 500) with higher confidence
         detections = [
-            (90, 90, 110, 110, 0.5, None, 0),    # Close by distance (center: 100, 100)
+            (90, 90, 110, 110, 0.5, None, 0),  # Close by distance (center: 100, 100)
             (490, 490, 510, 510, 0.95, None, 0),  # Far away, but higher confidence
         ]
 
@@ -95,14 +95,13 @@ class TestSingleSubjectTracker(unittest.TestCase):
             (100, 100, 130, 130, 0.9, None, 0),  # Initial position
             (150, 160, 180, 190, 0.85, None, 0),  # Moved ~70 pixels
             (220, 200, 250, 230, 0.88, None, 0),  # Moved ~80 pixels
-            (350, 300, 380, 330, 0.9, None, 0),   # Moved ~160 pixels (large move)
+            (350, 300, 380, 330, 0.9, None, 0),  # Moved ~160 pixels (large move)
         ]
 
         for i, det in enumerate(positions):
             result = tracker.assign([det])
             self.assertEqual(
-                result[0][5], 1,
-                f"Frame {i}: track_id should be 1 but got {result[0][5]}"
+                result[0][5], 1, f"Frame {i}: track_id should be 1 but got {result[0][5]}"
             )
 
 

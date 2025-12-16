@@ -70,8 +70,9 @@ class TrajectoryQualityValidator:
                 "stats": dict,              # Quality metrics
             }
         """
-        warnings, errors = [], []
-        stats = {}
+        warnings: list[str] = []
+        errors: list[str] = []
+        stats: dict[str, Any] = {}
 
         # Skip validation if dataframe is empty
         if df.empty:
@@ -92,7 +93,34 @@ class TrajectoryQualityValidator:
                 f"Skipping some validation checks."
             )
 
-        # 0. Check minimum trajectory length
+        # Run individual validation checks (refactored for complexity reduction)
+        self._check_trajectory_length(df, warnings)
+        self._check_temporal_gaps(df, warnings, stats)
+        self._check_speed_violations(df, errors, stats)
+        self._check_track_id_stability(df, warnings, stats)
+        self._check_arena_violations(df, arena_polygon, warnings, stats)
+        self._check_duplicate_frames(df, errors)
+        self._check_multi_aquarium_validation(df, errors, warnings, stats)
+        self._check_per_aquarium_gaps(df, warnings, stats)
+
+        # Calculate overall quality metrics
+        stats.update(self._calculate_base_stats(df))
+
+        # Determine overall validity and log result
+        is_valid = len(errors) == 0
+        self._log_validation_result(is_valid, errors, warnings, stats)
+
+        return {
+            "is_valid": is_valid,
+            "warnings": warnings,
+            "errors": errors,
+            "stats": stats,
+        }
+
+    def _check_trajectory_length(
+        self, df: pd.DataFrame, warnings: list[str]
+    ) -> None:
+        """Check minimum trajectory length."""
         if len(df) < self.min_trajectory_frames:
             warnings.append(
                 f"Trajectory is short: {len(df)} frames "
@@ -100,83 +128,112 @@ class TrajectoryQualityValidator:
                 f"Results may be less reliable."
             )
 
-        # 1. Check for temporal gaps (missing frames)
-        if "frame" in df.columns:
-            frame_diffs = df["frame"].diff()
-            gaps = frame_diffs[frame_diffs > 1]
-            if len(gaps) > 0:
-                max_gap = int(gaps.max())
-                avg_gap = gaps.mean()
-                warnings.append(
-                    f"Found {len(gaps)} temporal gaps (frames missing). "
-                    f"Max gap: {max_gap} frames, Avg gap: {avg_gap:.1f} frames"
-                )
-                stats["temporal_gaps"] = {
-                    "count": len(gaps),
-                    "max_gap_frames": max_gap,
-                    "avg_gap_frames": float(avg_gap),
-                }
+    def _check_temporal_gaps(
+        self, df: pd.DataFrame, warnings: list[str], stats: dict[str, Any]
+    ) -> None:
+        """Check for temporal gaps (missing frames)."""
+        if "frame" not in df.columns:
+            return
 
-        # 2. Check for implausible speeds (teleportation)
-        if "x_cm" in df.columns and "y_cm" in df.columns:
-            displacements = np.sqrt(df["x_cm"].diff() ** 2 + df["y_cm"].diff() ** 2)
-            speeds = displacements / self.frame_interval
-            implausible = speeds > self.max_plausible_speed
+        frame_diffs = df["frame"].diff()
+        gaps = frame_diffs[frame_diffs > 1]
+        if len(gaps) > 0:
+            max_gap = int(gaps.max())
+            avg_gap = gaps.mean()
+            warnings.append(
+                f"Found {len(gaps)} temporal gaps (frames missing). "
+                f"Max gap: {max_gap} frames, Avg gap: {avg_gap:.1f} frames"
+            )
+            stats["temporal_gaps"] = {
+                "count": len(gaps),
+                "max_gap_frames": max_gap,
+                "avg_gap_frames": float(avg_gap),
+            }
 
-            if implausible.any():
-                max_speed = speeds.max()
-                num_implausible = int(implausible.sum())
-                errors.append(
-                    f"Found {num_implausible} frames with implausible speed. "
-                    f"Max: {max_speed:.1f} cm/s, Threshold: {self.max_plausible_speed} cm/s. "
-                    f"This may indicate tracking errors or calibration issues."
-                )
-                stats["speed_violations"] = {
-                    "count": num_implausible,
-                    "max_speed_cm_s": float(max_speed),
-                    "threshold_cm_s": self.max_plausible_speed,
-                }
+    def _check_speed_violations(
+        self, df: pd.DataFrame, errors: list[str], stats: dict[str, Any]
+    ) -> None:
+        """Check for implausible speeds (teleportation)."""
+        if "x_cm" not in df.columns or "y_cm" not in df.columns:
+            return
 
-        # 3. Check for track_id instability (frequent switches)
-        if "track_id" in df.columns:
-            # Handle potential None/NaN values in track_id which cause diff() to fail
-            # Use a placeholder that won't collide with valid IDs (usually positive ints)
-            track_series = df["track_id"].fillna(-1)
-            track_changes = (track_series.diff() != 0).sum()
-            switch_rate = track_changes / len(df)
+        displacements = np.sqrt(df["x_cm"].diff() ** 2 + df["y_cm"].diff() ** 2)
+        speeds = displacements / self.frame_interval
+        implausible = speeds > self.max_plausible_speed
 
-            if switch_rate > 0.1:  # More than 10% switches
-                warnings.append(
-                    f"High frequency of track_id changes: {track_changes} switches "
-                    f"({switch_rate * 100:.1f}% of frames). "
-                    f"This may indicate ID switching or multiple animals."
-                )
-                stats["track_id_stability"] = {
-                    "switches": int(track_changes),
-                    "switch_rate": float(switch_rate),
-                }
+        if implausible.any():
+            max_speed = speeds.max()
+            num_implausible = int(implausible.sum())
+            errors.append(
+                f"Found {num_implausible} frames with implausible speed. "
+                f"Max: {max_speed:.1f} cm/s, Threshold: {self.max_plausible_speed} cm/s. "
+                f"This may indicate tracking errors or calibration issues."
+            )
+            stats["speed_violations"] = {
+                "count": num_implausible,
+                "max_speed_cm_s": float(max_speed),
+                "threshold_cm_s": self.max_plausible_speed,
+            }
 
-        # 4. Check for position outliers (outside arena)
-        if arena_polygon is not None and "x_cm" in df.columns and "y_cm" in df.columns:
-            from shapely.geometry import Point, Polygon
+    def _check_track_id_stability(
+        self, df: pd.DataFrame, warnings: list[str], stats: dict[str, Any]
+    ) -> None:
+        """Check for track_id instability (frequent switches)."""
+        if "track_id" not in df.columns:
+            return
 
-            arena_poly = Polygon(arena_polygon)
-            points = [Point(x, y) for x, y in zip(df["x_cm"], df["y_cm"])]
-            outside = [not arena_poly.contains(p) for p in points]
-            num_outside = sum(outside)
+        # Handle potential None/NaN values in track_id
+        track_series = df["track_id"].fillna(-1)
+        track_changes = (track_series.diff() != 0).sum()
+        switch_rate = track_changes / len(df)
 
-            if num_outside > 0:
-                warnings.append(
-                    f"Found {num_outside} frames with positions outside arena "
-                    f"({100 * num_outside / len(df):.1f}% of trajectory). "
-                    f"This may indicate tracking errors or incorrect calibration."
-                )
-                stats["arena_violations"] = {
-                    "count": num_outside,
-                    "percentage": float(100 * num_outside / len(df)),
-                }
+        if switch_rate > 0.1:  # More than 10% switches
+            warnings.append(
+                f"High frequency of track_id changes: {track_changes} switches "
+                f"({switch_rate * 100:.1f}% of frames). "
+                f"This may indicate ID switching or multiple animals."
+            )
+            stats["track_id_stability"] = {
+                "switches": int(track_changes),
+                "switch_rate": float(switch_rate),
+            }
 
-        # 5. Check for duplicate frames (already handled by Bug #2, but double-check)
+    def _check_arena_violations(
+        self,
+        df: pd.DataFrame,
+        arena_polygon: list[tuple[float, float]] | None,
+        warnings: list[str],
+        stats: dict[str, Any],
+    ) -> None:
+        """Check for position outliers (outside arena)."""
+        if arena_polygon is None:
+            return
+        if "x_cm" not in df.columns or "y_cm" not in df.columns:
+            return
+
+        from shapely.geometry import Point, Polygon
+
+        arena_poly = Polygon(arena_polygon)
+        points = [Point(x, y) for x, y in zip(df["x_cm"], df["y_cm"])]
+        outside = [not arena_poly.contains(p) for p in points]
+        num_outside = sum(outside)
+
+        if num_outside > 0:
+            warnings.append(
+                f"Found {num_outside} frames with positions outside arena "
+                f"({100 * num_outside / len(df):.1f}% of trajectory). "
+                f"This may indicate tracking errors or incorrect calibration."
+            )
+            stats["arena_violations"] = {
+                "count": num_outside,
+                "percentage": float(100 * num_outside / len(df)),
+            }
+
+    def _check_duplicate_frames(self, df: pd.DataFrame, errors: list[str]) -> None:
+        """Check for duplicate frames."""
+        if "frame" not in df.columns or "track_id" not in df.columns:
+            return
+
         duplicates = df.duplicated(subset=["frame", "track_id"])
         if duplicates.any():
             num_duplicates = int(duplicates.sum())
@@ -185,31 +242,45 @@ class TrajectoryQualityValidator:
                 f"This should have been caught by Bug Fix #2 validation."
             )
 
-        # 6. Multi-aquarium track ID validation (IDs should stay within aquarium bounds)
-        if "track_id" in df.columns and "aquarium_id" in df.columns:
-            aquarium_id_issues = self._validate_multi_aquarium_ids(df)
-            if aquarium_id_issues["errors"]:
-                errors.extend(aquarium_id_issues["errors"])
-            if aquarium_id_issues["warnings"]:
-                warnings.extend(aquarium_id_issues["warnings"])
-            if aquarium_id_issues["stats"]:
-                stats["multi_aquarium_validation"] = aquarium_id_issues["stats"]
+    def _check_multi_aquarium_validation(
+        self,
+        df: pd.DataFrame,
+        errors: list[str],
+        warnings: list[str],
+        stats: dict[str, Any],
+    ) -> None:
+        """Check multi-aquarium track ID validation."""
+        if "track_id" not in df.columns or "aquarium_id" not in df.columns:
+            return
 
-        # 7. Per-aquarium gap detection
-        if "frame" in df.columns and "aquarium_id" in df.columns:
-            per_aquarium_gaps = self._detect_per_aquarium_gaps(df)
-            if per_aquarium_gaps["warnings"]:
-                warnings.extend(per_aquarium_gaps["warnings"])
-            if per_aquarium_gaps["stats"]:
-                stats["per_aquarium_gaps"] = per_aquarium_gaps["stats"]
+        aquarium_id_issues = self._validate_multi_aquarium_ids(df)
+        if aquarium_id_issues["errors"]:
+            errors.extend(aquarium_id_issues["errors"])
+        if aquarium_id_issues["warnings"]:
+            warnings.extend(aquarium_id_issues["warnings"])
+        if aquarium_id_issues["stats"]:
+            stats["multi_aquarium_validation"] = aquarium_id_issues["stats"]
 
-        # Calculate overall quality metrics
-        base_stats = {
+    def _check_per_aquarium_gaps(
+        self, df: pd.DataFrame, warnings: list[str], stats: dict[str, Any]
+    ) -> None:
+        """Check per-aquarium gap detection."""
+        if "frame" not in df.columns or "aquarium_id" not in df.columns:
+            return
+
+        per_aquarium_gaps = self._detect_per_aquarium_gaps(df)
+        if per_aquarium_gaps["warnings"]:
+            warnings.extend(per_aquarium_gaps["warnings"])
+        if per_aquarium_gaps["stats"]:
+            stats["per_aquarium_gaps"] = per_aquarium_gaps["stats"]
+
+    def _calculate_base_stats(self, df: pd.DataFrame) -> dict[str, Any]:
+        """Calculate overall quality metrics."""
+        base_stats: dict[str, Any] = {
             "total_frames": len(df),
             "unique_tracks": int(df["track_id"].nunique()) if "track_id" in df.columns else 1,
         }
 
-        # Add frame-based stats only if frame column exists
         if "frame" in df.columns:
             base_stats["frame_range"] = {
                 "min": int(df["frame"].min()),
@@ -220,12 +291,16 @@ class TrajectoryQualityValidator:
                 len(df) / (df["frame"].max() - df["frame"].min() + 1)
             )
 
-        stats.update(base_stats)
+        return base_stats
 
-        # Determine overall validity
-        is_valid = len(errors) == 0
-
-        # Log validation result
+    def _log_validation_result(
+        self,
+        is_valid: bool,
+        errors: list[str],
+        warnings: list[str],
+        stats: dict[str, Any],
+    ) -> None:
+        """Log validation result."""
         if not is_valid:
             log.error(
                 "trajectory_validator.validation_failed",
@@ -244,13 +319,6 @@ class TrajectoryQualityValidator:
                 "trajectory_validator.validation_passed",
                 stats=stats,
             )
-
-        return {
-            "is_valid": is_valid,
-            "warnings": warnings,
-            "errors": errors,
-            "stats": stats,
-        }
 
     def _validate_multi_aquarium_ids(self, df: pd.DataFrame) -> dict:
         """Validate track IDs stay within their aquarium bounds.

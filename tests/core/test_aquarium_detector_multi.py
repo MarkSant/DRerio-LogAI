@@ -85,14 +85,18 @@ class TestContourBasedMultiAquariumDetector:
     def test_detect_from_frame_wrong_expected_count(self, detector, sample_dual_aquarium_frame):
         """Testa erro quando expected_count != 2."""
         with pytest.raises(ValueError) as exc_info:
-            detector.detect_multiple_aquariums_from_frame(sample_dual_aquarium_frame, expected_count=3)
+            detector.detect_multiple_aquariums_from_frame(
+                sample_dual_aquarium_frame, expected_count=3
+            )
 
         assert "2" in str(exc_info.value)
 
     def test_detect_from_frame_expected_count_one(self, detector, sample_dual_aquarium_frame):
         """Testa erro quando expected_count = 1."""
         with pytest.raises(ValueError) as exc_info:
-            detector.detect_multiple_aquariums_from_frame(sample_dual_aquarium_frame, expected_count=1)
+            detector.detect_multiple_aquariums_from_frame(
+                sample_dual_aquarium_frame, expected_count=1
+            )
 
         assert "2" in str(exc_info.value)
 

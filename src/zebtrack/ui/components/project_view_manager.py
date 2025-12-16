@@ -70,7 +70,7 @@ class ProjectViewManager:
                 reason=d.get("reason"),
                 append_summary=d.get("append_summary", False),
                 immediate=d.get("immediate", False),
-            )
+            ),
         )
 
         # Subscribe to READINESS_SNAPSHOT_UPDATED event
@@ -87,15 +87,13 @@ class ProjectViewManager:
 
         # Subscribe to PROCESSING_REPORTS_ITEM_RIGHT_CLICK (V2)
         self.event_bus_v2.subscribe(
-            UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK,
-            self._on_processing_reports_right_click
+            UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK, self._on_processing_reports_right_click
         )
 
         # Bridge: Subscribe to V1 event from widget (Legacy EventBus)
         if self.gui.event_bus:
             self.gui.event_bus.subscribe(
-                "processing_reports.item_right_click",
-                self._on_processing_reports_right_click
+                "processing_reports.item_right_click", self._on_processing_reports_right_click
             )
 
         log.debug(
@@ -148,7 +146,7 @@ class ProjectViewManager:
 
         confirm = self.gui.dialog_manager.ask_ok_cancel(
             "Apagar Dados de Processamento",
-            f"Tem certeza que deseja apagar TODOS os dados de processamento (Arena, ROIs, Trajetória, Relatórios) para:\n\n{os.path.basename(video_path)}?\n\nO vídeo será mantido no projeto."
+            f"Tem certeza que deseja apagar TODOS os dados de processamento (Arena, ROIs, Trajetória, Relatórios) para:\n\n{os.path.basename(video_path)}?\n\nO vídeo será mantido no projeto.",
         )
         if not confirm:
             return
@@ -163,7 +161,9 @@ class ProjectViewManager:
                 changed = True
 
         if changed:
-            self.refresh_project_views(reason="Dados de processamento apagados", append_summary=True)
+            self.refresh_project_views(
+                reason="Dados de processamento apagados", append_summary=True
+            )
 
     def _delete_video_from_project(self, video_path: str) -> None:
         """Delete video from project."""
@@ -176,8 +176,10 @@ class ProjectViewManager:
             data: Event payload containing filter_text
         """
         if not isinstance(data, dict):
-            log.warning("project_view_manager._on_video_tree_refresh_requested.invalid_data_type",
-                       data_type=type(data).__name__)
+            log.warning(
+                "project_view_manager._on_video_tree_refresh_requested.invalid_data_type",
+                data_type=type(data).__name__,
+            )
             return
         filter_text = data.get("filter_text")
         log.debug("project_view_manager.video_tree_refresh_event_received", filter_text=filter_text)
@@ -190,8 +192,10 @@ class ProjectViewManager:
             data: Event payload containing readiness snapshot data
         """
         if not isinstance(data, dict):
-            log.warning("project_view_manager._on_readiness_snapshot_updated.invalid_data_type",
-                       data_type=type(data).__name__)
+            log.warning(
+                "project_view_manager._on_readiness_snapshot_updated.invalid_data_type",
+                data_type=type(data).__name__,
+            )
             return
         ready_with_trajectory = data.get("ready_with_trajectory", [])
         ready_with_zones = data.get("ready_with_zones", [])
@@ -389,8 +393,8 @@ class ProjectViewManager:
             # Use prepare_overview_hierarchy_for_widget to get the correct structure
             # (groups, summaries) instead of build_video_hierarchy_snapshot
             # which returns a simpler list
-            hierarchy_data = (
-                self.gui.validation_manager.prepare_overview_hierarchy_for_widget(all_videos)
+            hierarchy_data = self.gui.validation_manager.prepare_overview_hierarchy_for_widget(
+                all_videos
             )
 
             # Extract the 'groups' list which contains the snapshot data
@@ -900,7 +904,7 @@ class ProjectViewManager:
                     "debug.refresh_tab.video_state",
                     path=os.path.basename(v.get("path")),
                     has_traj=v.get("has_trajectory"),
-                    has_arena=v.get("has_arena")
+                    has_arena=v.get("has_arena"),
                 )
 
         # Build hierarchy
@@ -1232,7 +1236,7 @@ class ProjectViewManager:
             widget.tree,
             hierarchy,
             "",  # specific root if needed, else empty for actual root
-            metadata_store
+            metadata_store,
         )
 
         # Update status cards
@@ -1291,7 +1295,9 @@ class ProjectViewManager:
                             # Use ValidationManager logic or similar consistent formatting if available
                             # For now, simplistic fallback to match previous potential intent
                             day_val = meta.get("day")
-                            day_label = f"{day_val:02d}" if isinstance(day_val, int) else str(day_val)
+                            day_label = (
+                                f"{day_val:02d}" if isinstance(day_val, int) else str(day_val)
+                            )
                         elif "day_label" in first_video:
                             day_label = first_video["day_label"]
 
@@ -1343,7 +1349,14 @@ class ProjectViewManager:
                         "end",
                         iid=video_node_id,
                         text=f"🐟 {subject_label}",
-                        values=(col_arena, col_rois, col_traj, col_summary, status_label, video_path),
+                        values=(
+                            col_arena,
+                            col_rois,
+                            col_traj,
+                            col_summary,
+                            status_label,
+                            video_path,
+                        ),
                     )
 
                     metadata_store[video_node_id] = {
@@ -1356,14 +1369,15 @@ class ProjectViewManager:
                     # Use ProjectManager lookup for robustness if not in entry
                     results_dir = video.get("results_dir")
                     if not results_dir:
-                         pm = self.gui.controller.project_manager
-                         results_dir = pm.resolve_results_directory(
-                            experiment_id=video.get("experiment_id") or video.get("metadata", {}).get("experiment_id"),
+                        pm = self.gui.controller.project_manager
+                        results_dir = pm.resolve_results_directory(
+                            experiment_id=video.get("experiment_id")
+                            or video.get("metadata", {}).get("experiment_id"),
                             video_path=video_path,
-                            metadata=video.get("metadata")
-                         )
-                         if isinstance(results_dir, Path):
-                             results_dir = str(results_dir)
+                            metadata=video.get("metadata"),
+                        )
+                        if isinstance(results_dir, Path):
+                            results_dir = str(results_dir)
 
                     if results_dir and os.path.exists(results_dir):
                         self.append_processing_reports_artifacts(

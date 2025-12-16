@@ -8,7 +8,6 @@ Tests cover:
 - ROI column standardization for future parquets
 """
 
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -18,7 +17,6 @@ import pytest
 
 from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
 from zebtrack.ui.events import Events
-
 
 # =============================================================================
 # FIXTURES
@@ -74,40 +72,46 @@ def coordinator(mock_settings, mock_project_manager):
 @pytest.fixture
 def sample_summary_df():
     """Create a sample summary DataFrame."""
-    return pd.DataFrame({
-        "experiment_id": ["video1", "video1"],
-        "group_id": ["control", "control"],
-        "total_distance_cm": [100.5, 150.3],
-        "mean_speed_cm_s": [5.2, 7.1],
-        "tempo_no_roi1_s": [10.5, 15.2],
-        "entradas_no_roi1": [3, 5],
-    })
+    return pd.DataFrame(
+        {
+            "experiment_id": ["video1", "video1"],
+            "group_id": ["control", "control"],
+            "total_distance_cm": [100.5, 150.3],
+            "mean_speed_cm_s": [5.2, 7.1],
+            "tempo_no_roi1_s": [10.5, 15.2],
+            "entradas_no_roi1": [3, 5],
+        }
+    )
 
 
 @pytest.fixture
 def sample_summary_df_unassigned():
     """Create a sample summary DataFrame with unassigned metadata."""
-    return pd.DataFrame({
-        "experiment_id": ["unknown", "unknown"],
-        "group_id": ["unassigned", "unassigned"],
-        "total_distance_cm": [100.5, 150.3],
-        "mean_speed_cm_s": [5.2, 7.1],
-        "tempo_no_roi1_s": [10.5, 15.2],
-        "entradas_no_roi1": [3, 5],
-    })
+    return pd.DataFrame(
+        {
+            "experiment_id": ["unknown", "unknown"],
+            "group_id": ["unassigned", "unassigned"],
+            "total_distance_cm": [100.5, 150.3],
+            "mean_speed_cm_s": [5.2, 7.1],
+            "tempo_no_roi1_s": [10.5, 15.2],
+            "entradas_no_roi1": [3, 5],
+        }
+    )
 
 
 @pytest.fixture
 def sample_summary_df_different_rois():
     """Create a sample summary DataFrame with different ROIs."""
-    return pd.DataFrame({
-        "experiment_id": ["video2", "video2"],
-        "group_id": ["treatment", "treatment"],
-        "total_distance_cm": [120.8, 180.5],
-        "mean_speed_cm_s": [6.0, 8.5],
-        "tempo_no_roiA_s": [12.3, 18.7],
-        "entradas_no_roiA": [4, 6],
-    })
+    return pd.DataFrame(
+        {
+            "experiment_id": ["video2", "video2"],
+            "group_id": ["treatment", "treatment"],
+            "total_distance_cm": [120.8, 180.5],
+            "mean_speed_cm_s": [6.0, 8.5],
+            "tempo_no_roiA_s": [12.3, 18.7],
+            "entradas_no_roiA": [4, 6],
+        }
+    )
 
 
 # =============================================================================
@@ -124,17 +128,20 @@ def test_status_clears_after_unified_report_success(coordinator, sample_summary_
     sample_summary_df.to_parquet(parquet_path, index=False)
 
     # Mock project manager to return video entries
-    coordinator.project_manager.find_video_entry = Mock(return_value={
-        "parquet_files": {"summary": str(parquet_path)},
-        "metadata": {"group_id": "control", "experiment_id": "video1"}
-    })
+    coordinator.project_manager.find_video_entry = Mock(
+        return_value={
+            "parquet_files": {"summary": str(parquet_path)},
+            "metadata": {"group_id": "control", "experiment_id": "video1"},
+        }
+    )
 
     # Execute
     coordinator.generate_unified_report([str(tmp_path / "video1.mp4")])
 
     # Verify: Check that UI_SET_STATUS was called with "Pronto."
     status_calls = [
-        call for call in coordinator._publish_event.call_args_list
+        call
+        for call in coordinator._publish_event.call_args_list
         if call[0][0] == Events.UI_SET_STATUS
     ]
 
@@ -148,17 +155,17 @@ def test_status_clears_after_unified_report_success(coordinator, sample_summary_
 def test_status_not_cleared_on_failure(coordinator):
     """Test that UI status is not set to 'Pronto.' when unified report generation fails."""
     # Setup: No parquet files exist
-    coordinator.project_manager.find_video_entry = Mock(return_value={
-        "parquet_files": {},
-        "metadata": {}
-    })
+    coordinator.project_manager.find_video_entry = Mock(
+        return_value={"parquet_files": {}, "metadata": {}}
+    )
 
     # Execute
     coordinator.generate_unified_report(["/nonexistent/video.mp4"])
 
     # Verify: UI_SET_STATUS should only be called for initial "Gerando..." message
     status_calls = [
-        call for call in coordinator._publish_event.call_args_list
+        call
+        for call in coordinator._publish_event.call_args_list
         if call[0][0] == Events.UI_SET_STATUS
     ]
 
@@ -183,13 +190,15 @@ def test_metadata_enrichment_updates_unassigned_group_id(
     sample_summary_df_unassigned.to_parquet(parquet_path, index=False)
 
     # Mock project manager to return updated metadata
-    coordinator.project_manager.find_video_entry = Mock(return_value={
-        "parquet_files": {"summary": str(parquet_path)},
-        "metadata": {"group_id": "treatment", "experiment_id": "exp001"}
-    })
+    coordinator.project_manager.find_video_entry = Mock(
+        return_value={
+            "parquet_files": {"summary": str(parquet_path)},
+            "metadata": {"group_id": "treatment", "experiment_id": "exp001"},
+        }
+    )
 
     # Mock to avoid actual file operations in generate_unified_report
-    with patch.object(coordinator.project_manager, 'project_path', tmp_path):
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
         coordinator.generate_unified_report([str(tmp_path / "video1.mp4")])
 
     # Verify: Check that parquet was read and metadata enriched
@@ -214,13 +223,15 @@ def test_metadata_enrichment_updates_unknown_experiment_id(
     sample_summary_df_unassigned.to_parquet(parquet_path, index=False)
 
     # Mock project manager
-    coordinator.project_manager.find_video_entry = Mock(return_value={
-        "parquet_files": {"summary": str(parquet_path)},
-        "metadata": {"group_id": "control", "experiment_id": "exp002"},
-        "experiment_id": "exp002"
-    })
+    coordinator.project_manager.find_video_entry = Mock(
+        return_value={
+            "parquet_files": {"summary": str(parquet_path)},
+            "metadata": {"group_id": "control", "experiment_id": "exp002"},
+            "experiment_id": "exp002",
+        }
+    )
 
-    with patch.object(coordinator.project_manager, 'project_path', tmp_path):
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
         coordinator.generate_unified_report([str(tmp_path / "video1.mp4")])
 
     # Verify via output file
@@ -233,9 +244,7 @@ def test_metadata_enrichment_updates_unknown_experiment_id(
             assert "exp002" in result_df["experiment_id"].values
 
 
-def test_metadata_enrichment_preserves_existing_values(
-    coordinator, sample_summary_df, tmp_path
-):
+def test_metadata_enrichment_preserves_existing_values(coordinator, sample_summary_df, tmp_path):
     """Test that metadata enrichment doesn't overwrite existing valid values."""
     # Setup
     video1_results = tmp_path / "video1_results"
@@ -243,12 +252,14 @@ def test_metadata_enrichment_preserves_existing_values(
     parquet_path = video1_results / "video1_summary.parquet"
     sample_summary_df.to_parquet(parquet_path, index=False)
 
-    coordinator.project_manager.find_video_entry = Mock(return_value={
-        "parquet_files": {"summary": str(parquet_path)},
-        "metadata": {"group_id": "different_group", "experiment_id": "different_exp"}
-    })
+    coordinator.project_manager.find_video_entry = Mock(
+        return_value={
+            "parquet_files": {"summary": str(parquet_path)},
+            "metadata": {"group_id": "different_group", "experiment_id": "different_exp"},
+        }
+    )
 
-    with patch.object(coordinator.project_manager, 'project_path', tmp_path):
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
         coordinator.generate_unified_report([str(tmp_path / "video1.mp4")])
 
     # Verify: Original values should be preserved (not "unassigned" or "unknown")
@@ -286,21 +297,20 @@ def test_dataframe_alignment_with_mismatched_schemas(
         if "video1" in path:
             return {
                 "parquet_files": {"summary": str(parquet1)},
-                "metadata": {"group_id": "control"}
+                "metadata": {"group_id": "control"},
             }
         else:
             return {
                 "parquet_files": {"summary": str(parquet2)},
-                "metadata": {"group_id": "treatment"}
+                "metadata": {"group_id": "treatment"},
             }
 
     coordinator.project_manager.find_video_entry = Mock(side_effect=find_video_entry_side_effect)
 
-    with patch.object(coordinator.project_manager, 'project_path', tmp_path):
-        coordinator.generate_unified_report([
-            str(tmp_path / "video1.mp4"),
-            str(tmp_path / "video2.mp4")
-        ])
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
+        coordinator.generate_unified_report(
+            [str(tmp_path / "video1.mp4"), str(tmp_path / "video2.mp4")]
+        )
 
     # Verify: Result should have all columns from both DataFrames
     unified_dir = tmp_path / "unified_reports"
@@ -351,15 +361,15 @@ def test_roi_mismatch_warning_shown_when_schemas_differ(
 
     coordinator.project_manager.find_video_entry = Mock(side_effect=find_video_entry_side_effect)
 
-    with patch.object(coordinator.project_manager, 'project_path', tmp_path):
-        coordinator.generate_unified_report([
-            str(tmp_path / "video1.mp4"),
-            str(tmp_path / "video2.mp4")
-        ])
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
+        coordinator.generate_unified_report(
+            [str(tmp_path / "video1.mp4"), str(tmp_path / "video2.mp4")]
+        )
 
     # Verify: Warning event should be published
     warning_calls = [
-        call for call in coordinator._publish_event.call_args_list
+        call
+        for call in coordinator._publish_event.call_args_list
         if call[0][0] == Events.UI_SHOW_WARNING and "ROIs Diferentes" in call[0][1].get("title", "")
     ]
 
@@ -392,15 +402,15 @@ def test_roi_mismatch_warning_suppressed_by_setting(
 
     coordinator.project_manager.find_video_entry = Mock(side_effect=find_video_entry_side_effect)
 
-    with patch.object(coordinator.project_manager, 'project_path', tmp_path):
-        coordinator.generate_unified_report([
-            str(tmp_path / "video1.mp4"),
-            str(tmp_path / "video2.mp4")
-        ])
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
+        coordinator.generate_unified_report(
+            [str(tmp_path / "video1.mp4"), str(tmp_path / "video2.mp4")]
+        )
 
     # Verify: No ROI mismatch warning should be shown
     warning_calls = [
-        call for call in coordinator._publish_event.call_args_list
+        call
+        for call in coordinator._publish_event.call_args_list
         if call[0][0] == Events.UI_SHOW_WARNING and "ROIs Diferentes" in call[0][1].get("title", "")
     ]
 
@@ -414,6 +424,7 @@ def test_roi_mismatch_warning_suppressed_by_setting(
 
 def test_find_project_roi_names_returns_first_video_rois(coordinator):
     """Test that _find_project_roi_names returns ROI names from first video with zones."""
+
     # Setup: Mock zone data for videos
     def get_zone_data_side_effect(video_path):
         if "video1" in video_path:
@@ -433,11 +444,9 @@ def test_find_project_roi_names_returns_first_video_rois(coordinator):
     coordinator.project_manager.get_zone_data = Mock(side_effect=get_zone_data_side_effect)
 
     # Execute
-    result = coordinator._find_project_roi_names([
-        "/path/to/video1.mp4",
-        "/path/to/video2.mp4",
-        "/path/to/video3.mp4"
-    ])
+    result = coordinator._find_project_roi_names(
+        ["/path/to/video1.mp4", "/path/to/video2.mp4", "/path/to/video3.mp4"]
+    )
 
     # Verify
     assert result == ["roi1", "roi2", "center"]
@@ -445,6 +454,7 @@ def test_find_project_roi_names_returns_first_video_rois(coordinator):
 
 def test_find_project_roi_names_returns_none_when_no_zones(coordinator):
     """Test that _find_project_roi_names returns None when no videos have zones."""
+
     # Setup: All videos have no zones
     def get_zone_data_side_effect(video_path):
         zone_data = MagicMock()
@@ -455,10 +465,7 @@ def test_find_project_roi_names_returns_none_when_no_zones(coordinator):
     coordinator.project_manager.get_zone_data = Mock(side_effect=get_zone_data_side_effect)
 
     # Execute
-    result = coordinator._find_project_roi_names([
-        "/path/to/video1.mp4",
-        "/path/to/video2.mp4"
-    ])
+    result = coordinator._find_project_roi_names(["/path/to/video1.mp4", "/path/to/video2.mp4"])
 
     # Verify
     assert result is None
@@ -497,28 +504,28 @@ def test_unified_report_full_workflow_with_different_rois(
         if "video1" in path:
             return {
                 "parquet_files": {"summary": str(parquet1)},
-                "metadata": {"group_id": "control", "experiment_id": "exp1"}
+                "metadata": {"group_id": "control", "experiment_id": "exp1"},
             }
         else:
             return {
                 "parquet_files": {"summary": str(parquet2)},
-                "metadata": {"group_id": "treatment", "experiment_id": "exp2"}
+                "metadata": {"group_id": "treatment", "experiment_id": "exp2"},
             }
 
     coordinator.project_manager.find_video_entry = Mock(side_effect=find_video_entry_side_effect)
 
     # Execute
-    with patch.object(coordinator.project_manager, 'project_path', tmp_path):
-        coordinator.generate_unified_report([
-            str(tmp_path / "video1.mp4"),
-            str(tmp_path / "video2.mp4")
-        ])
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
+        coordinator.generate_unified_report(
+            [str(tmp_path / "video1.mp4"), str(tmp_path / "video2.mp4")]
+        )
 
     # Verify all expectations
 
     # 1. Status messages
     status_calls = [
-        call for call in coordinator._publish_event.call_args_list
+        call
+        for call in coordinator._publish_event.call_args_list
         if call[0][0] == Events.UI_SET_STATUS
     ]
     assert len(status_calls) >= 2
@@ -527,15 +534,18 @@ def test_unified_report_full_workflow_with_different_rois(
 
     # 2. ROI mismatch warning
     warning_calls = [
-        call for call in coordinator._publish_event.call_args_list
+        call
+        for call in coordinator._publish_event.call_args_list
         if call[0][0] == Events.UI_SHOW_WARNING and "ROIs Diferentes" in call[0][1].get("title", "")
     ]
     assert len(warning_calls) == 1
 
     # 3. Success info dialog
     info_calls = [
-        call for call in coordinator._publish_event.call_args_list
-        if call[0][0] == Events.UI_SHOW_INFO and "Relatório Unificado Gerado" in call[0][1].get("title", "")
+        call
+        for call in coordinator._publish_event.call_args_list
+        if call[0][0] == Events.UI_SHOW_INFO
+        and "Relatório Unificado Gerado" in call[0][1].get("title", "")
     ]
     assert len(info_calls) == 1
 

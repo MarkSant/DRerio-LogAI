@@ -17,6 +17,7 @@ from zebtrack.plugins.base import DetectorPlugin
 try:
     from zebtrack.utils.hardware_detection import is_cuda_available
 except ImportError:
+
     def is_cuda_available() -> bool:
         """Fallback if hardware_detection module is not available."""
         return False

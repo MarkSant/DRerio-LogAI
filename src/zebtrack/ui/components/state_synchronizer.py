@@ -253,7 +253,10 @@ class StateSynchronizer:
                 self.gui.project_overview_widget = None
             # Safely reset overview status caches only if they still exist
             try:
-                if hasattr(self.gui, "project_status_vars") and self.gui.project_status_vars is not None:
+                if (
+                    hasattr(self.gui, "project_status_vars")
+                    and self.gui.project_status_vars is not None
+                ):
                     self.gui.project_status_vars.clear()
             except Exception:
                 pass
@@ -524,6 +527,7 @@ class StateSynchronizer:
             # Strategy 1: Use start_time if provided (Legacy/Local)
             if start_time:
                 import time
+
                 elapsed = time.time() - start_time
                 elapsed_str = self._format_time(elapsed)
 
@@ -549,7 +553,11 @@ class StateSynchronizer:
                         # But we use video position for progress
                         remaining_video_frames = total_frames - video_position
                         # Scale by interval ratio
-                        expected_remaining_processed = remaining_video_frames * (processed_frames / video_position) if video_position > 0 else 0
+                        expected_remaining_processed = (
+                            remaining_video_frames * (processed_frames / video_position)
+                            if video_position > 0
+                            else 0
+                        )
                         if expected_remaining_processed > 0:
                             eta = expected_remaining_processed / fps
                             eta_str = self._format_time(eta)

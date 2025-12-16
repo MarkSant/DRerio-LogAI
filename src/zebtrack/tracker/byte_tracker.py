@@ -7,6 +7,7 @@ from zebtrack.tracker.kalman_filter import KalmanFilter
 
 log = structlog.get_logger()
 
+
 class STrack(BaseTrack):
     def __init__(self, tlwh, score):
         # wait activate
@@ -219,7 +220,6 @@ class BYTETracker:
             self.det_thresh = 0.0  # Accept any detection as a candidate
             self.iou_threshold = 0.0  # Prefer center-distance fallback for big jumps
 
-
     def update(self, output_results, img_info, img_size):
         self.frame_id += 1
         activated_starcks = []
@@ -281,9 +281,10 @@ class BYTETracker:
         # Use hybrid matching for better handling of fast-moving small objects
         if self.use_hybrid_matching:
             dists = matching.hybrid_iou_center_distance(
-                strack_pool, detections,
+                strack_pool,
+                detections,
                 iou_thresh=self.iou_threshold,  # Configurable IoU threshold
-                max_center_dist=self.max_center_distance
+                max_center_dist=self.max_center_distance,
             )
         else:
             dists = matching.iou_distance(strack_pool, detections)
@@ -300,7 +301,7 @@ class BYTETracker:
                 match_thresh=self.args.match_thresh,
                 min_cost=float(dists.min()) if dists.size > 0 else -1.0,
                 max_cost=float(dists.max()) if dists.size > 0 else -1.0,
-                matrix_shape=dists.shape
+                matrix_shape=dists.shape,
             )
 
         matches, u_track, u_detection = matching.linear_assignment(
@@ -323,9 +324,10 @@ class BYTETracker:
         # Use hybrid matching for unconfirmed tracks too
         if self.use_hybrid_matching:
             dists = matching.hybrid_iou_center_distance(
-                unconfirmed, detections_unconfirmed,
+                unconfirmed,
+                detections_unconfirmed,
                 iou_thresh=self.iou_threshold,
-                max_center_dist=self.max_center_distance
+                max_center_dist=self.max_center_distance,
             )
         else:
             dists = matching.iou_distance(unconfirmed, detections_unconfirmed)
@@ -364,9 +366,10 @@ class BYTETracker:
         # Use hybrid matching for second association as well
         if self.use_hybrid_matching:
             dists = matching.hybrid_iou_center_distance(
-                r_tracked_stracks, detections_second,
+                r_tracked_stracks,
+                detections_second,
                 iou_thresh=self.iou_threshold,
-                max_center_dist=self.max_center_distance
+                max_center_dist=self.max_center_distance,
             )
         else:
             dists = matching.iou_distance(r_tracked_stracks, detections_second)
@@ -377,7 +380,7 @@ class BYTETracker:
                 match_thresh=self.args.match_thresh,
                 min_cost=float(dists.min()) if dists.size > 0 else -1.0,
                 num_tracks=len(r_tracked_stracks),
-                num_dets=len(detections_second)
+                num_dets=len(detections_second),
             )
 
         matches, u_track, u_detection_second = matching.linear_assignment(
@@ -432,7 +435,7 @@ class BYTETracker:
 
                     # Force resurrection with ID preservation (or force ID 1)
                     refound_track.re_activate(track, self.frame_id, new_id=False)
-                    refound_track.track_id = 1 # Enforce ID 1
+                    refound_track.track_id = 1  # Enforce ID 1
                     refind_stracks.append(refound_track)
 
                     # Remove from lost_stracks since it's found

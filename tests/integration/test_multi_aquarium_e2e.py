@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
@@ -18,7 +17,7 @@ import pytest
 from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
 
 if TYPE_CHECKING:
-    from pytest import TempPathFactory
+    pass
 
 
 @pytest.fixture
@@ -91,9 +90,7 @@ def dual_aquarium_zone_data() -> MultiAquariumZoneData:
 class TestMultiAquariumE2E:
     """End-to-end tests for multi-aquarium workflow."""
 
-    def test_zone_data_structure(
-        self, dual_aquarium_zone_data: MultiAquariumZoneData
-    ) -> None:
+    def test_zone_data_structure(self, dual_aquarium_zone_data: MultiAquariumZoneData) -> None:
         """Test that zone data structure is valid for multi-aquarium."""
         assert len(dual_aquarium_zone_data.aquariums) == 2
         assert dual_aquarium_zone_data.aquariums[0].id == 0
@@ -370,9 +367,7 @@ class TestMultiAquariumDataFlow:
         }
 
         # Reconstruct from dict
-        reconstructed_aquariums = [
-            AquariumData(**aq_data) for aq_data in data_dict["aquariums"]
-        ]
+        reconstructed_aquariums = [AquariumData(**aq_data) for aq_data in data_dict["aquariums"]]
         reconstructed = MultiAquariumZoneData(
             aquariums=reconstructed_aquariums,
             video_width=data_dict["video_width"],

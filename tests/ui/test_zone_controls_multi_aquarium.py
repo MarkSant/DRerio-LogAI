@@ -4,9 +4,10 @@ Unit tests for ZoneControlsWidget multi-aquarium functionality.
 Tests for aquarium selector and related UI controls.
 """
 
-import pytest
 import tkinter as tk
 from unittest.mock import MagicMock
+
+import pytest
 
 from zebtrack.ui.components.zone_controls import ZoneControlsWidget
 

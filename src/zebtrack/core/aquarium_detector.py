@@ -753,7 +753,6 @@ class ContourBasedMultiAquariumDetector:
 
             # Get bounding box
             x, y, w, h = cv2.boundingRect(contour)
-            bbox_area = w * h
 
             # Calculate aspect ratio (width/height)
             aspect_ratio = w / h if h > 0 else 0
@@ -830,9 +829,7 @@ class ContourBasedMultiAquariumDetector:
 
         return result
 
-    def _check_overlap(
-        self, bbox1: tuple, bbox2: tuple, threshold: float = 0.1
-    ) -> bool:
+    def _check_overlap(self, bbox1: tuple, bbox2: tuple, threshold: float = 0.1) -> bool:
         """Check if two bounding boxes overlap significantly.
 
         Args:
@@ -900,8 +897,10 @@ class ContourBasedMultiAquariumDetector:
         mid_frame = frame_width / 2
 
         # One should be on left half, other on right half
-        if not ((center1 < mid_frame and center2 > mid_frame) or
-                (center1 > mid_frame and center2 < mid_frame)):
+        if not (
+            (center1 < mid_frame and center2 > mid_frame)
+            or (center1 > mid_frame and center2 < mid_frame)
+        ):
             log.warning("contour_detector.aquariums_not_opposite_sides")
             return False
 

@@ -163,7 +163,7 @@ class MultiAquariumData(BaseModel):
             try:
                 re.compile(v)
             except re.error as e:
-                raise ValueError(f"Padrão regex inválido: {e}")
+                raise ValueError(f"Padrão regex inválido: {e}") from e
         return v
 
     @model_validator(mode="after")

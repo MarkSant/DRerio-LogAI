@@ -1365,3 +1365,80 @@ print("Summary saved to analysis_summary.csv")
 # t_stat, p_value = stats.ttest_ind(group_a, group_b)
 # print(f"T-test: t={t_stat:.3f}, p={p_value:.4f}")
 '''
+
+    # =========================================================================
+    # API Aliases for Documentation Consistency
+    # =========================================================================
+
+    def export_feather(self, output_path: Path | str) -> Path:
+        """Export data as Feather format for fast R/Python loading.
+
+        Convenience alias that wraps export_for_r() to export only the Feather file.
+        Mentioned in CHANGELOG.md Phase 1 as a new export format.
+
+        Args:
+            output_path: Path to the output .feather file.
+
+        Returns:
+            Path to the created Feather file.
+
+        Example:
+            >>> reporter.export_feather("output/data.feather")
+        """
+        import pyarrow.feather as feather
+
+        output_file = Path(output_path) if isinstance(output_path, str) else output_path
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        feather.write_feather(self.tidy_data, output_file, compression="zstd")
+        log.info("reporter.export_feather.saved", path=str(output_file))
+
+        return output_file
+
+    def export_r_script(self, output_path: Path | str) -> Path:
+        """Export template R script for statistical analysis.
+
+        Convenience alias that extracts only the R script generation.
+        Mentioned in CHANGELOG.md Phase 1 as a new export format.
+
+        Args:
+            output_path: Path to the output .R file.
+
+        Returns:
+            Path to the created R script file.
+
+        Example:
+            >>> reporter.export_r_script("output/analysis.R")
+        """
+        output_file = Path(output_path) if isinstance(output_path, str) else output_path
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        r_script = self._generate_r_script_template()
+        output_file.write_text(r_script, encoding="utf-8")
+        log.info("reporter.export_r_script.saved", path=str(output_file))
+
+        return output_file
+
+    def export_python_script(self, output_path: Path | str) -> Path:
+        """Export template Python script for Jupyter/VS Code analysis.
+
+        Convenience alias that extracts only the Python script generation.
+        Mentioned in CHANGELOG.md Phase 1 as a new export format.
+
+        Args:
+            output_path: Path to the output .py file.
+
+        Returns:
+            Path to the created Python script file.
+
+        Example:
+            >>> reporter.export_python_script("output/analysis_notebook.py")
+        """
+        output_file = Path(output_path) if isinstance(output_path, str) else output_path
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        py_script = self._generate_python_script_template()
+        output_file.write_text(py_script, encoding="utf-8")
+        log.info("reporter.export_python_script.saved", path=str(output_file))
+
+        return output_file

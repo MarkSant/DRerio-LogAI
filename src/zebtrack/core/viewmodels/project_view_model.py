@@ -2,6 +2,7 @@
 
 Phase 3C: Refactored to use ProjectLifecycleCoordinator instead of ProjectOrchestrator.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any

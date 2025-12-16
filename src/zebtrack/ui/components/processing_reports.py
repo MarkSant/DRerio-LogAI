@@ -441,8 +441,8 @@ class ProcessingReportsWidget(BaseWidget):
             log.warning("processing_reports.open_unified.no_project_path")
             return
 
-        import os
         import glob
+        import os
 
         unified_dir = os.path.join(self._project_path, "unified_reports")
         if not os.path.exists(unified_dir):
@@ -466,6 +466,7 @@ class ProcessingReportsWidget(BaseWidget):
                 os.startfile(latest_file)
             elif os.name == "posix":  # macOS/Linux
                 import subprocess
+
                 if os.uname().sysname == "Darwin":  # macOS
                     subprocess.call(["open", latest_file])
                 else:  # Linux
@@ -516,6 +517,7 @@ class ProcessingReportsWidget(BaseWidget):
         # Check if unified reports exist and enable access buttons
         if project_path:
             import os
+
             self._project_path = project_path  # Cache for file opening
             unified_dir = os.path.join(project_path, "unified_reports")
             has_unified_reports = False
@@ -534,7 +536,9 @@ class ProcessingReportsWidget(BaseWidget):
                 if self.btn_open_unified_excel:
                     self.btn_open_unified_excel.config(state="normal" if has_excel else "disabled")
                 if self.btn_open_unified_parquet:
-                    self.btn_open_unified_parquet.config(state="normal" if has_parquet else "disabled")
+                    self.btn_open_unified_parquet.config(
+                        state="normal" if has_parquet else "disabled"
+                    )
             else:
                 # No unified_reports directory - disable all access buttons
                 if self.btn_open_unified_word:

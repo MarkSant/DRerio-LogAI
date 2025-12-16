@@ -26,7 +26,6 @@ from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.project_manager import ProjectManager
-from zebtrack.core.ui_scheduler import UIScheduler
 from zebtrack.core.video_processing_service import VideoProcessingService
 from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.events import Events

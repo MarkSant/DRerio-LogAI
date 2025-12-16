@@ -133,9 +133,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             Tuple of (frame, group_combobox).
         """
         position = "Esquerda" if aquarium_id == 0 else "Direita"
-        frame = ttk.LabelFrame(
-            parent, text=f"Aquário {aquarium_id + 1} ({position})", padding=10
-        )
+        frame = ttk.LabelFrame(parent, text=f"Aquário {aquarium_id + 1} ({position})", padding=10)
 
         # Group selection
         group_label = ttk.Label(frame, text="Grupo:")

@@ -23,7 +23,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
 import cv2
-import time
 import structlog
 
 from zebtrack.core.detector import Detector, ZoneData
@@ -59,7 +58,9 @@ class ProcessingCallbacks:
     """Callbacks for processing events."""
 
     on_started: Callable[[], None]
-    on_progress: Callable[[int, int, str, float, str, dict | None], None]  # index, total, experiment_id, fraction, message, stats
+    on_progress: Callable[
+        [int, int, str, float, str, dict | None], None
+    ]  # index, total, experiment_id, fraction, message, stats
     on_frame_processed: Callable[[Any, Any, Any], None]
     on_video_completed: Callable[[int, int, str, bool], None]
     on_error: Callable[[Exception, str], None]
@@ -125,7 +126,9 @@ class ProcessingWorker:
                 "worker.zone_data_serialized",
                 polygon_points=len(z_dict.get("polygon", [])) if z_dict else 0,
                 has_polygon=bool(z_dict and z_dict.get("polygon")),
-                polygon_sample=z_dict.get("polygon", [])[:3] if z_dict and z_dict.get("polygon") else "empty",
+                polygon_sample=z_dict.get("polygon", [])[:3]
+                if z_dict and z_dict.get("polygon")
+                else "empty",
             )
 
         # Create WorkerConfig
@@ -199,7 +202,7 @@ class ProcessingWorker:
                             msg.get("experiment_id", ""),
                             msg["fraction"],
                             msg["message"],
-                            msg.get("stats")
+                            msg.get("stats"),
                         )
 
                 elif msg_type == "frame":
@@ -280,10 +283,10 @@ class _WorkerProcess(multiprocessing.Process):
         # Configure logging for worker process (multiprocessing doesn't inherit parent config)
         # Use a separate log file for the worker to avoid file lock issues on Windows
         from zebtrack.logging_config import configure_logging
+
         configure_logging(log_file="analysis_worker.log")
 
         import os
-        import traceback
 
         log.info("worker.process.started", pid=os.getpid())
 
@@ -413,14 +416,18 @@ class _WorkerProcess(multiprocessing.Process):
         single_mode = False
 
         # Check animals_per_aquarium first
-        if hasattr(settings, "video_processing") and hasattr(settings.video_processing, "animals_per_aquarium"):
-             if settings.video_processing.animals_per_aquarium == 1:
-                 single_mode = True
+        if hasattr(settings, "video_processing") and hasattr(
+            settings.video_processing, "animals_per_aquarium"
+        ):
+            if settings.video_processing.animals_per_aquarium == 1:
+                single_mode = True
 
         # Check legacy/explicit override
-        if hasattr(settings, "tracking") and hasattr(settings.tracking, "use_single_subject_tracker"):
-             if settings.tracking.use_single_subject_tracker:
-                 single_mode = True
+        if hasattr(settings, "tracking") and hasattr(
+            settings.tracking, "use_single_subject_tracker"
+        ):
+            if settings.tracking.use_single_subject_tracker:
+                single_mode = True
 
         detector.set_single_subject_mode(single_mode)
         log.info("worker.detector.single_subject_mode_set", enabled=single_mode)
@@ -532,7 +539,9 @@ class _WorkerProcess(multiprocessing.Process):
             video_dimensions=(width, height),
             polygon_points=len(video_zone_data.polygon),
             has_aquarium=has_aquarium,
-            scaled_polygon_size=detector.scaled_polygon.size if hasattr(detector, 'scaled_polygon') else 'N/A',
+            scaled_polygon_size=detector.scaled_polygon.size
+            if hasattr(detector, "scaled_polygon")
+            else "N/A",
             aquarium_region_defined=detector._aquarium_region_defined,
         )
 
@@ -620,8 +629,11 @@ class _WorkerProcess(multiprocessing.Process):
                         if width > 1280:
                             scale = 1280 / width
                             preview_frame = cv2.resize(
-                                preview_frame, (0, 0), fx=scale, fy=scale,
-                                interpolation=cv2.INTER_NEAREST
+                                preview_frame,
+                                (0, 0),
+                                fx=scale,
+                                fy=scale,
+                                interpolation=cv2.INTER_NEAREST,
                             )
 
                         # Calculate stats

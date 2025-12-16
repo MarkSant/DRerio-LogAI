@@ -6,7 +6,7 @@ instead of going through the full MainViewModel stack.
 """
 
 import tempfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from zebtrack.core.project_workflow_service import ProjectWorkflowService
 

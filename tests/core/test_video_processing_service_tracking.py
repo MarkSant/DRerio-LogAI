@@ -12,7 +12,6 @@ from unittest.mock import Mock, patch
 
 import cv2
 import numpy as np
-
 import pytest
 
 from zebtrack.core.video_processing_service import VideoProcessingService
@@ -475,7 +474,9 @@ class TestVideoContextHelpers:
         )
         assert large_gap_cap.set_calls[-1] == (cv2.CAP_PROP_POS_FRAMES, 100)
 
-    def test_load_trajectory_dataframe_missing_publishes_event(self, video_processing_service, tmp_path):
+    def test_load_trajectory_dataframe_missing_publishes_event(
+        self, video_processing_service, tmp_path
+    ):
         video_processing_service.ui_event_bus.publish = Mock()
         missing_path = tmp_path / "missing.parquet"
 
@@ -484,7 +485,9 @@ class TestVideoContextHelpers:
         assert result is None
         video_processing_service.ui_event_bus.publish.assert_called_once()
 
-    def test_load_trajectory_dataframe_read_failure(self, video_processing_service, tmp_path, monkeypatch):
+    def test_load_trajectory_dataframe_read_failure(
+        self, video_processing_service, tmp_path, monkeypatch
+    ):
         video_processing_service.ui_event_bus.publish = Mock()
         bad_path = tmp_path / "bad.parquet"
         bad_path.write_text("not_parquet")
@@ -513,9 +516,7 @@ class TestVideoContextHelpers:
 
         assert success is False
         assert arena == [[0, 0], [1, 1], [1, 0]]
-        recorder.stop_recording.assert_called_once_with(
-            force_stop=True, reason="Cancelled by user"
-        )
+        recorder.stop_recording.assert_called_once_with(force_stop=True, reason="Cancelled by user")
         video_processing_service.ui_event_bus.publish_event.assert_called_once()
 
     @patch("zebtrack.core.video_processing_service.time.time", return_value=15.0)

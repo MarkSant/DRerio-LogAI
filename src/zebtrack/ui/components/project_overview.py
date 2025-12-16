@@ -164,10 +164,7 @@ class ProjectOverviewWidget(BaseWidget):
         )
 
         ttk.Label(
-            legend_frame,
-            text=legend_text,
-            font=("TkDefaultFont", 8),
-            foreground="#555555"
+            legend_frame, text=legend_text, font=("TkDefaultFont", 8), foreground="#555555"
         ).pack(anchor="w")
 
     # Event handlers

@@ -54,10 +54,10 @@ class ZoneControlBuilder:
         # 1. Save Project (Persist flags and data)
         if hasattr(self.gui, "controller") and self.gui.controller.project_manager:
             self.gui.controller.project_manager.save_project()
-            
+
         # 2. Refresh Tree (Update indicators)
         self._refresh_video_tree_dual_mode()
-        
+
         # 3. Optional: Feedback
         if hasattr(self.gui, "set_status"):
             self.gui.set_status("Edição concluída. Dados salvos e indicadores atualizados.")
@@ -180,7 +180,7 @@ class ZoneControlBuilder:
             actions_frame,
             text="✅ Concluir Edição do Vídeo",
             command=self._on_conclude_video,
-            style="Accent.TButton"
+            style="Accent.TButton",
         ).pack(fill="x", pady=2)
 
         template_frame = ttk.LabelFrame(

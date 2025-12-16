@@ -366,14 +366,14 @@ class AnalysisDisplayWidget(BaseWidget):
 
         try:
             from PIL import ImageTk
-            
+
             # If it's already a PhotoImage, use it directly
             if isinstance(image, ImageTk.PhotoImage):
                 tk_image = image
             else:
                 # Convert PIL Image to PhotoImage
                 tk_image = ImageTk.PhotoImage(image)
-            
+
             self.video_label.configure(image=tk_image)
             self.video_label.image = tk_image  # Keep reference to prevent garbage collection
         except Exception as e:

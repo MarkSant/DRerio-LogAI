@@ -688,8 +688,7 @@ class ZoneManager:
                 "id": aquarium.id,
                 "polygon": [list(point) for point in (aquarium.polygon or [])],
                 "roi_polygons": [
-                    [list(point) for point in polygon]
-                    for polygon in (aquarium.roi_polygons or [])
+                    [list(point) for point in polygon] for polygon in (aquarium.roi_polygons or [])
                 ],
                 "roi_names": list(aquarium.roi_names or []),
                 "roi_colors": [list(color) for color in (aquarium.roi_colors or [])],
@@ -722,8 +721,7 @@ class ZoneManager:
         for aquarium_dict in data.get("aquariums", []):
             polygon = [list(point) for point in aquarium_dict.get("polygon", [])]
             roi_polygons = [
-                [list(point) for point in poly]
-                for poly in aquarium_dict.get("roi_polygons", [])
+                [list(point) for point in poly] for poly in aquarium_dict.get("roi_polygons", [])
             ]
             roi_names = list(aquarium_dict.get("roi_names", []))
             roi_colors = [tuple(color) for color in aquarium_dict.get("roi_colors", [])]
@@ -922,4 +920,3 @@ class ZoneManager:
 
         if persist_callback:
             persist_callback()
-

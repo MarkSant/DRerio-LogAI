@@ -27,7 +27,7 @@ class CanvasRenderer:
 
     def _get_canvas(self):
         """Get the canvas safely, returning None if video_display doesn't exist or is destroyed."""
-        if not hasattr(self.gui, 'video_display') or not self.gui.video_display:
+        if not hasattr(self.gui, "video_display") or not self.gui.video_display:
             return None
         canvas = self.gui.video_display.canvas
         if canvas is None:
@@ -248,7 +248,7 @@ class CanvasRenderer:
         """
         # Skip drawing overlays on zone canvas during active analysis
         # The analysis tab has its own display with overlays already rendered on the frame
-        if getattr(self.gui, 'analysis_active', False):
+        if getattr(self.gui, "analysis_active", False):
             return
 
         canvas = self._get_canvas()
@@ -276,15 +276,12 @@ class CanvasRenderer:
 
                 # Style configuration
                 color = "magenta" if is_single_subject else "cyan"
-                if class_id == 0: # Aquarium
+                if class_id == 0:  # Aquarium
                     color = "yellow"
 
                 # Draw bounding box
                 canvas.create_rectangle(
-                    cx1, cy1, cx2, cy2,
-                    outline=color,
-                    width=2,
-                    tags="detection_overlay"
+                    cx1, cy1, cx2, cy2, outline=color, width=2, tags="detection_overlay"
                 )
 
                 # Draw label
@@ -294,12 +291,13 @@ class CanvasRenderer:
 
                 # Text background
                 canvas.create_text(
-                    cx1, cy1 - 10,
+                    cx1,
+                    cy1 - 10,
                     text=label_text,
                     fill=color,
                     anchor="sw",
                     font=("Arial", 10, "bold"),
-                    tags="detection_overlay"
+                    tags="detection_overlay",
                 )
 
             except Exception as e:
@@ -311,9 +309,7 @@ class CanvasRenderer:
         if not canvas:
             return
 
-        canvas.delete(
-            "interactive_polygon", "handle", "edit_clamp_indicator"
-        )
+        canvas.delete("interactive_polygon", "handle", "edit_clamp_indicator")
 
         canvas_points = []
         for point in self.gui.edited_polygon_points:
@@ -379,9 +375,7 @@ class CanvasRenderer:
                 handle, "<ButtonPress-1>", lambda e, i=i: self.gui._on_handle_press(e, i)
             )
             canvas.tag_bind(handle, "<B1-Motion>", self.gui._on_handle_drag)
-            canvas.tag_bind(
-                handle, "<ButtonRelease-1>", self.gui._on_handle_release
-            )
+            canvas.tag_bind(handle, "<ButtonRelease-1>", self.gui._on_handle_release)
 
     def redraw_polygon_in_progress(self):
         """Redraw the polygon vertices and edges after undo/redo."""

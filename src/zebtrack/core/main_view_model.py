@@ -168,7 +168,9 @@ class MainViewModel:
             ),
             Events.PROJECT_SELECTION_CHANGED: (
                 self.project_vm.on_video_selected,
-                ["video_path"],  # Assuming the payload has video_path or we handle it gracefully if missing
+                [
+                    "video_path"
+                ],  # Assuming the payload has video_path or we handle it gracefully if missing
                 "kwargs_get",
             ),
         }

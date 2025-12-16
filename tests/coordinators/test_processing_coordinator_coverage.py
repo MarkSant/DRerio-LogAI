@@ -11,13 +11,10 @@ Goal: Increase coverage from 12% to 70%+ by testing:
 Phase 2 of Test Coverage Improvement Plan.
 """
 
-import os
-from pathlib import Path
 from threading import Event
-from unittest.mock import MagicMock, Mock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from zebtrack.coordinators.processing_coordinator import (
@@ -27,7 +24,6 @@ from zebtrack.coordinators.processing_coordinator import (
 )
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.processing_mode import ProcessingMode
-
 
 # =============================================================================
 # FIXTURES - Extended for Coverage
@@ -41,9 +37,7 @@ def mock_state_manager():
     manager.get_state.return_value = {}
     manager.prefer_unified_state_api = True
     # Default: not processing
-    manager.get_processing_state.return_value = MagicMock(
-        is_processing=False, current_video=None
-    )
+    manager.get_processing_state.return_value = MagicMock(is_processing=False, current_video=None)
     return manager
 
 
@@ -163,9 +157,7 @@ def coordinator(
 class TestValidationComprehensive:
     """Comprehensive validation tests for all paths."""
 
-    def test_validation_fails_when_processing_active(
-        self, coordinator, mock_state_manager
-    ):
+    def test_validation_fails_when_processing_active(self, coordinator, mock_state_manager):
         """Test validation fails when processing is already active."""
         mock_state_manager.get_processing_state.return_value = MagicMock(
             is_processing=True, current_video="/some/video.mp4"
@@ -177,9 +169,7 @@ class TestValidationComprehensive:
         assert result.error_code == "processing_already_active"
         assert "já está em andamento" in result.error_message
 
-    def test_validation_fails_when_no_project_loaded(
-        self, coordinator, mock_project_manager
-    ):
+    def test_validation_fails_when_no_project_loaded(self, coordinator, mock_project_manager):
         """Test validation fails when no project is loaded."""
         mock_project_manager.project_path = None
 
@@ -188,9 +178,7 @@ class TestValidationComprehensive:
         assert result.is_valid is False
         assert result.error_code == "no_project_loaded"
 
-    def test_validation_fails_when_no_arena_defined(
-        self, coordinator, mock_project_manager
-    ):
+    def test_validation_fails_when_no_arena_defined(self, coordinator, mock_project_manager):
         """Test validation fails when no arena polygon is defined."""
         mock_project_manager.get_zone_data.return_value = ZoneData(
             polygon=[], roi_polygons=[], roi_names=[], roi_colors=[]
@@ -201,9 +189,7 @@ class TestValidationComprehensive:
         assert result.is_valid is False
         assert result.error_code == "no_main_arena"
 
-    def test_validation_fails_when_zone_data_is_none(
-        self, coordinator, mock_project_manager
-    ):
+    def test_validation_fails_when_zone_data_is_none(self, coordinator, mock_project_manager):
         """Test validation fails when zone_data is None."""
         mock_project_manager.get_zone_data.return_value = None
 
@@ -212,9 +198,7 @@ class TestValidationComprehensive:
         assert result.is_valid is False
         assert result.error_code == "no_main_arena"
 
-    def test_validation_fails_when_no_videos_in_project(
-        self, coordinator, mock_project_manager
-    ):
+    def test_validation_fails_when_no_videos_in_project(self, coordinator, mock_project_manager):
         """Test validation fails when no videos in project."""
         mock_project_manager.get_all_videos.return_value = []
 
@@ -230,9 +214,7 @@ class TestValidationComprehensive:
         assert result.is_valid is True
         assert result.error_code is None
 
-    def test_validation_skips_checks_when_disabled(
-        self, coordinator, mock_project_manager
-    ):
+    def test_validation_skips_checks_when_disabled(self, coordinator, mock_project_manager):
         """Test validation skips specific checks when disabled."""
         # No project loaded but check disabled
         mock_project_manager.project_path = None
@@ -243,9 +225,6 @@ class TestValidationComprehensive:
 
         assert result.is_valid is True
 
-
-
-
         def test_create_processing_context_syncs_single_subject(coordinator, mock_settings):
             coordinator._resolve_single_subject_tracker_preference = MagicMock(return_value=True)
 
@@ -253,9 +232,13 @@ class TestValidationComprehensive:
 
             assert mock_settings.tracking.use_single_subject_tracker is True
             assert mock_settings.video_processing.single_animal_per_aquarium is True
-            assert context.analysis_interval_frames == mock_settings.video_processing.processing_interval
-            assert context.display_interval_frames == mock_settings.video_processing.display_interval
-
+            assert (
+                context.analysis_interval_frames
+                == mock_settings.video_processing.processing_interval
+            )
+            assert (
+                context.display_interval_frames == mock_settings.video_processing.display_interval
+            )
 
         def test_resolve_single_subject_pref_prefers_single_video_config(coordinator):
             coordinator.detector_service._resolve_single_subject_tracker_preference.reset_mock()
@@ -266,7 +249,6 @@ class TestValidationComprehensive:
             assert result is True
             coordinator.detector_service._resolve_single_subject_tracker_preference.assert_not_called()
 
-
         def test_determine_processing_intervals_from_config(coordinator):
             analysis, display = coordinator._determine_processing_intervals(
                 {"analysis_interval_frames": 5, "display_interval_frames": 7}
@@ -274,6 +256,8 @@ class TestValidationComprehensive:
 
             assert analysis == 5
             assert display == 7
+
+
 # =============================================================================
 # ZONE AND ARENA MANAGEMENT TESTS
 # =============================================================================
@@ -282,9 +266,7 @@ class TestValidationComprehensive:
 class TestZoneArenaManagement:
     """Test zone and arena polygon management."""
 
-    def test_set_main_arena_polygon_with_valid_polygon(
-        self, coordinator, mock_project_manager
-    ):
+    def test_set_main_arena_polygon_with_valid_polygon(self, coordinator, mock_project_manager):
         """Test setting main arena polygon with valid coordinates."""
         polygon = [[0, 0], [100, 0], [100, 100], [0, 100]]
 
@@ -327,9 +309,7 @@ class TestZoneArenaManagement:
 class TestProcessingModeManagement:
     """Test processing mode determination and management."""
 
-    def test_determine_processing_mode_returns_processing_mode(
-        self, coordinator, mock_settings
-    ):
+    def test_determine_processing_mode_returns_processing_mode(self, coordinator, mock_settings):
         """Test _determine_processing_mode returns a ProcessingMode."""
         mode = coordinator._determine_processing_mode()
 
@@ -384,9 +364,7 @@ class TestReportGeneration:
         # Mock find_video_entry to return None to trigger early exit
         mock_project_manager.find_video_entry.return_value = None
 
-        with patch(
-            "zebtrack.analysis.analysis_service.AnalysisService"
-        ) as mock_as:
+        with patch("zebtrack.analysis.analysis_service.AnalysisService") as mock_as:
             coordinator.generate_project_reports([video_path])
 
             # AnalysisService should be created lazily
@@ -454,9 +432,7 @@ class TestVideoSelectionEligibility:
 class TestProcessingContextAndCallbacks:
     """Test processing context and callback creation."""
 
-    def test_create_processing_context_returns_context_object(
-        self, coordinator, tmp_path
-    ):
+    def test_create_processing_context_returns_context_object(self, coordinator, tmp_path):
         """Test create_processing_context returns ProcessingContext."""
         videos = [{"path": str(tmp_path / "test.mp4"), "metadata": {}}]
 
@@ -489,9 +465,7 @@ class TestProcessingContextAndCallbacks:
 class TestEventHandlerRegistration:
     """Test event handler registration."""
 
-    def test_register_event_handlers_subscribes_to_events(
-        self, coordinator, mock_event_bus
-    ):
+    def test_register_event_handlers_subscribes_to_events(self, coordinator, mock_event_bus):
         """Test that register_event_handlers subscribes to expected events."""
         coordinator.register_event_handlers()
 
@@ -536,9 +510,7 @@ class TestErrorHandling:
 
     def test_processing_coordinator_error_includes_context(self):
         """Test ProcessingCoordinatorError includes context."""
-        error = ProcessingCoordinatorError(
-            "Test error", context={"video": "test.mp4", "line": 100}
-        )
+        error = ProcessingCoordinatorError("Test error", context={"video": "test.mp4", "line": 100})
 
         assert str(error) == "Test error"
         assert error.context["video"] == "test.mp4"
@@ -622,9 +594,7 @@ class TestServiceIntegration:
 class TestProcessingIntervals:
     """Test processing interval determination."""
 
-    def test_determine_processing_intervals_returns_tuple(
-        self, coordinator, mock_settings
-    ):
+    def test_determine_processing_intervals_returns_tuple(self, coordinator, mock_settings):
         """Test _determine_processing_intervals returns tuple of intervals."""
         # Method requires single_video_config parameter
         intervals = coordinator._determine_processing_intervals(single_video_config={})
@@ -632,16 +602,12 @@ class TestProcessingIntervals:
         assert isinstance(intervals, tuple)
         assert len(intervals) == 2  # (analysis_interval, display_interval)
 
-    def test_determine_processing_intervals_uses_settings(
-        self, coordinator, mock_settings
-    ):
+    def test_determine_processing_intervals_uses_settings(self, coordinator, mock_settings):
         """Test intervals come from settings."""
         mock_settings.video_processing.processing_interval = 5
         mock_settings.video_processing.display_interval = 10
 
-        analysis, display = coordinator._determine_processing_intervals(
-            single_video_config={}
-        )
+        analysis, display = coordinator._determine_processing_intervals(single_video_config={})
 
         assert analysis == 5
         assert display == 10
@@ -655,9 +621,7 @@ class TestProcessingIntervals:
 class TestMetadataExtraction:
     """Test metadata extraction from config."""
 
-    def test_extract_metadata_from_config_returns_dict(
-        self, coordinator, mock_project_manager
-    ):
+    def test_extract_metadata_from_config_returns_dict(self, coordinator, mock_project_manager):
         """Test _extract_metadata_from_config returns dict."""
         video_path = "/path/to/video.mp4"
 
@@ -747,8 +711,6 @@ class TestValidationResultDataclass:
 
     def test_validation_result_failure_default_context(self):
         """Test failure() has empty dict as default context."""
-        result = ValidationResult.failure(
-            error_code="ERROR", error_message="Message"
-        )
+        result = ValidationResult.failure(error_code="ERROR", error_message="Message")
 
         assert result.context == {}

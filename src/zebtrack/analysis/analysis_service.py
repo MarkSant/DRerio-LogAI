@@ -26,6 +26,7 @@ from zebtrack.analysis.trajectory_validator import TrajectoryQualityValidator
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
+    from zebtrack.core.detector import AquariumData
     from zebtrack.settings import Settings
 
 log = structlog.get_logger()
@@ -399,7 +400,6 @@ class AnalysisService:
             ...         print(f"Aquarium {aq_id}: {result.report['metricas_globais']}")
         """
         from zebtrack.analysis.roi import ROI
-        from zebtrack.core.detector import AquariumData
 
         results: dict[int, AnalysisResult | None] = {}
         base_metadata = metadata or {}

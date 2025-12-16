@@ -40,7 +40,7 @@ def mock_tkinter_dialogs(request):
     - messagebox functions return True/False as appropriate
     - filedialog functions return empty string (cancelled dialog)
     """
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import MagicMock, patch
 
     # Only apply to tests marked with 'gui'
     if "gui" not in [marker.name for marker in request.node.iter_markers()]:

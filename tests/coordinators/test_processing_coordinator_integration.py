@@ -1,4 +1,3 @@
-import os
 from threading import Event
 from types import SimpleNamespace
 from unittest.mock import MagicMock

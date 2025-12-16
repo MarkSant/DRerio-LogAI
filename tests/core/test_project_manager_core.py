@@ -47,7 +47,11 @@ def test_validate_project_parameters_bounds(project_manager):
 
 
 def test_apply_project_migrations_sets_tracking_default(project_manager):
-    loaded = {"calibration": {}, "analysis_profiles": [], "tracking": {"use_single_subject_tracker": None}}
+    loaded = {
+        "calibration": {},
+        "analysis_profiles": [],
+        "tracking": {"use_single_subject_tracker": None},
+    }
     migrated_data, migrated, fields = project_manager._apply_project_migrations(
         loaded,
         structlog.get_logger().bind(test="migrations"),
@@ -73,7 +77,10 @@ def test_load_zones_from_parquet_roundtrip(tmp_path):
         }
     ).to_parquet(rois_path)
 
-    video_info = {"path": "video.mp4", "parquet_files": {"arena": str(arena_path), "rois": str(rois_path)}}
+    video_info = {
+        "path": "video.mp4",
+        "parquet_files": {"arena": str(arena_path), "rois": str(rois_path)},
+    }
 
     zone_data = ProjectManager.load_zones_from_parquet(video_info)
 
@@ -95,7 +102,10 @@ def test_copy_zone_parquet_files_updates_project_entry(scan_input_paths, project
     ]
 
     target_video_path = tmp_path / "videos" / "target.mp4"
-    video_entry = {"path": str(target_video_path), "metadata": {"group": "G1", "day": 2, "subject": "A"}}
+    video_entry = {
+        "path": str(target_video_path),
+        "metadata": {"group": "G1", "day": 2, "subject": "A"},
+    }
     project_manager.project_data["batches"].append({"videos": [video_entry]})
 
     copied = project_manager.copy_zone_parquet_files("src.mp4", str(target_video_path))
@@ -105,6 +115,8 @@ def test_copy_zone_parquet_files_updates_project_entry(scan_input_paths, project
     assert os.path.exists(parquet_map["arena"])
     assert os.path.exists(parquet_map["rois"])
 
-    hierarchical_dir = project_manager.resolve_results_directory("target", video_path=str(target_video_path))
+    hierarchical_dir = project_manager.resolve_results_directory(
+        "target", video_path=str(target_video_path)
+    )
     assert (hierarchical_dir / "1_ProcessingArea_target.parquet").exists()
     assert (hierarchical_dir / "2_AreasOfInterest_target.parquet").exists()

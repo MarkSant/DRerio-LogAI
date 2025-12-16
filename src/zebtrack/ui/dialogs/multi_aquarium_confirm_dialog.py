@@ -73,9 +73,13 @@ class MultiAquariumConfirmDialog(simpledialog.Dialog):
         header_label.pack(pady=(0, 15))
 
         # Description
+        desc_text = (
+            "Selecione a quantidade de aquários para configurar\n"
+            "a detecção automática corretamente."
+        )
         desc_label = ttk.Label(
             master,
-            text="Selecione a quantidade de aquários para configurar\na detecção automática corretamente.",
+            text=desc_text,
             justify=tk.CENTER,
             foreground="gray",
         )
@@ -105,9 +109,7 @@ class MultiAquariumConfirmDialog(simpledialog.Dialog):
         single_desc.pack(anchor=tk.W, padx=10)
 
         # Separator
-        ttk.Separator(radio_frame, orient=tk.HORIZONTAL).pack(
-            fill=tk.X, pady=10, padx=10
-        )
+        ttk.Separator(radio_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10, padx=10)
 
         # Option 2: Multi aquarium
         multi_radio = ttk.Radiobutton(

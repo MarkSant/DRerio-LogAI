@@ -123,15 +123,15 @@ class OpenVINOPlugin(DetectorPlugin):
         log.info("openvino.available_devices", devices=available_devices)
 
         self._use_embedded_preprocessing = False
-        self._target_h, self._target_w = 640, 640 # Default backup
+        self._target_h, self._target_w = 640, 640  # Default backup
 
         try:
-             # Just get shapes for target size
-             input_node = model.input(0)
-             shape = input_node.partial_shape
-             if shape.rank.is_static and len(shape) == 4:
-                 self._target_h = int(shape[2].get_length())
-                 self._target_w = int(shape[3].get_length())
+            # Just get shapes for target size
+            input_node = model.input(0)
+            shape = input_node.partial_shape
+            if shape.rank.is_static and len(shape) == 4:
+                self._target_h = int(shape[2].get_length())
+                self._target_w = int(shape[3].get_length())
 
         except Exception as e:
             log.warning("openvino.shape_check.failed", error=str(e))
@@ -143,13 +143,15 @@ class OpenVINOPlugin(DetectorPlugin):
 
         config = {"PERFORMANCE_HINT": "LATENCY"}
         try:
-            self.compiled_model = core.compile_model(model=model, device_name=device_name, config=config)
+            self.compiled_model = core.compile_model(
+                model=model, device_name=device_name, config=config
+            )
         except Exception as e:
             log.warning(
                 "openvino.compilation.failed_on_target",
                 target_device=device_name,
                 error=str(e),
-                fallback="AUTO"
+                fallback="AUTO",
             )
             self.compiled_model = core.compile_model(model=model, device_name="AUTO", config=config)
 
@@ -362,14 +364,14 @@ class OpenVINOPlugin(DetectorPlugin):
         # Use target dimensions set during initialization.
         # Fallback to input_layer.shape if not set, but handle rank properly.
         if hasattr(self, "_target_h") and hasattr(self, "_target_w"):
-             w, h = self._target_w, self._target_h
+            w, h = self._target_w, self._target_h
         else:
-             # Fallback for dynamic shape or legacy
-             shape = self.input_layer.shape
-             if len(shape) == 4:
-                 h, w = shape[2], shape[3]
-             else:
-                 h, w = 640, 640 # Last resort fallback
+            # Fallback for dynamic shape or legacy
+            shape = self.input_layer.shape
+            if len(shape) == 4:
+                h, w = shape[2], shape[3]
+            else:
+                h, w = 640, 640  # Last resort fallback
 
         letterboxed_frame, _, _ = _letterbox(frame, new_shape=(w, h), auto=False)
 

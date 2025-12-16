@@ -122,31 +122,31 @@ class VideoValidationService:
                 path = info.get("path")
                 if not path:
                     continue
-                
+
                 video_entry = project_manager.find_video_entry(path=path)
                 if not video_entry:
                     continue
-                
+
                 # Check registered parquet files in project data
                 registered_parquets = video_entry.get("parquet_files", {})
                 if not registered_parquets:
                     continue
-                
+
                 # Update info if files exist
                 scan_parquets = info.setdefault("parquet_files", {})
-                
+
                 # Check Arena
                 arena_path = registered_parquets.get("arena")
                 if arena_path and os.path.exists(arena_path):
                     scan_parquets["arena"] = arena_path
                     info["has_arena"] = True
-                
+
                 # Check ROIs
                 rois_path = registered_parquets.get("rois")
                 if rois_path and os.path.exists(rois_path):
                     scan_parquets["rois"] = rois_path
                     info["has_rois"] = True
-                
+
                 # Check Trajectory
                 traj_path = registered_parquets.get("trajectory")
                 if traj_path and os.path.exists(traj_path):

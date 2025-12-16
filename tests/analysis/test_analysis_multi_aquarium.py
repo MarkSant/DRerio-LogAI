@@ -5,15 +5,15 @@ These tests cover:
 - Reporter.export_multi_aquarium_reports()
 """
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pandas as pd
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 from zebtrack.analysis.analysis_service import AnalysisService
-from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.models import AnalysisResult
+from zebtrack.analysis.reporter import Reporter
 from zebtrack.core.detector import AquariumData
 
 
@@ -33,17 +33,19 @@ def sample_trajectory_df():
     np.random.seed(42)
     n_frames = 100
 
-    return pd.DataFrame({
-        "timestamp": np.arange(n_frames) / 30.0,
-        "frame": np.arange(n_frames),
-        "track_id": [1] * n_frames,
-        "x_center_px": 100 + np.cumsum(np.random.randn(n_frames) * 2),
-        "y_center_px": 100 + np.cumsum(np.random.randn(n_frames) * 2),
-        "x1": 90 + np.cumsum(np.random.randn(n_frames) * 2),
-        "y1": 90 + np.cumsum(np.random.randn(n_frames) * 2),
-        "x2": 110 + np.cumsum(np.random.randn(n_frames) * 2),
-        "y2": 110 + np.cumsum(np.random.randn(n_frames) * 2),
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": np.arange(n_frames) / 30.0,
+            "frame": np.arange(n_frames),
+            "track_id": [1] * n_frames,
+            "x_center_px": 100 + np.cumsum(np.random.randn(n_frames) * 2),
+            "y_center_px": 100 + np.cumsum(np.random.randn(n_frames) * 2),
+            "x1": 90 + np.cumsum(np.random.randn(n_frames) * 2),
+            "y1": 90 + np.cumsum(np.random.randn(n_frames) * 2),
+            "x2": 110 + np.cumsum(np.random.randn(n_frames) * 2),
+            "y2": 110 + np.cumsum(np.random.randn(n_frames) * 2),
+        }
+    )
 
 
 @pytest.fixture
@@ -100,9 +102,7 @@ def dual_aquarium_data(sample_trajectory_df):
 class TestAnalysisServiceMultiAquarium:
     """Tests for AnalysisService.run_multi_aquarium_analysis()."""
 
-    def test_run_multi_aquarium_analysis_returns_dict(
-        self, mock_settings, dual_aquarium_data
-    ):
+    def test_run_multi_aquarium_analysis_returns_dict(self, mock_settings, dual_aquarium_data):
         """Test that method returns dict with results for each aquarium."""
         service = AnalysisService(settings_obj=mock_settings)
 
@@ -118,9 +118,7 @@ class TestAnalysisServiceMultiAquarium:
         assert 0 in results
         assert 1 in results
 
-    def test_results_contain_analysis_result_or_none(
-        self, mock_settings, dual_aquarium_data
-    ):
+    def test_results_contain_analysis_result_or_none(self, mock_settings, dual_aquarium_data):
         """Test that results are AnalysisResult instances or None."""
         service = AnalysisService(settings_obj=mock_settings)
 
@@ -132,9 +130,7 @@ class TestAnalysisServiceMultiAquarium:
         for aq_id, result in results.items():
             assert result is None or isinstance(result, AnalysisResult)
 
-    def test_metadata_includes_aquarium_info(
-        self, mock_settings, dual_aquarium_data
-    ):
+    def test_metadata_includes_aquarium_info(self, mock_settings, dual_aquarium_data):
         """Test that metadata includes aquarium-specific information."""
         service = AnalysisService(settings_obj=mock_settings)
 
@@ -201,9 +197,7 @@ class TestAnalysisServiceMultiAquarium:
         assert results[0] is None
         # Second may or may not succeed depending on data validity
 
-    def test_passes_analysis_parameters(
-        self, mock_settings, dual_aquarium_data
-    ):
+    def test_passes_analysis_parameters(self, mock_settings, dual_aquarium_data):
         """Test that analysis parameters are passed correctly."""
         service = AnalysisService(settings_obj=mock_settings)
 
@@ -366,9 +360,7 @@ class TestReporterMultiAquarium:
 class TestMultiAquariumIntegration:
     """Integration tests for multi-aquarium analysis workflow."""
 
-    def test_full_workflow_analysis_to_report(
-        self, mock_settings, dual_aquarium_data, tmp_path
-    ):
+    def test_full_workflow_analysis_to_report(self, mock_settings, dual_aquarium_data, tmp_path):
         """Test complete workflow from analysis to report generation."""
         service = AnalysisService(settings_obj=mock_settings)
 

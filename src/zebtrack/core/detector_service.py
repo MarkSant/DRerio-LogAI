@@ -493,11 +493,7 @@ class DetectorService:
             self.detector.set_single_subject_mode(bool(enabled))
             log.info("detector_service.single_subject.configured", enabled=enabled)
         except Exception as e:
-            log.error(
-                "detector_service.single_subject.failed",
-                error=str(e),
-                enabled=enabled
-            )
+            log.error("detector_service.single_subject.failed", error=str(e), enabled=enabled)
 
     def get_detector_parameters(self) -> dict[str, float]:
         """
@@ -878,22 +874,22 @@ class DetectorService:
                 "detector_service.validate_classes.unknown_classes",
                 plugin_classes=plugin_classes,
                 model_path=model_path,
-                message="No recognized aquarium or animal classes found. Tracking may fail."
+                message="No recognized aquarium or animal classes found. Tracking may fail.",
             )
             # We don't raise here to allow custom models with weird names,
             # but we log a strong warning.
             return
 
         if not has_animal:
-             # If we are loading the ANIMAL detection model, we really need an animal class.
-             # However, maybe the user is using a generic model (person, etc.)?
-             # Let's just warn.
-             log.warning(
+            # If we are loading the ANIMAL detection model, we really need an animal class.
+            # However, maybe the user is using a generic model (person, etc.)?
+            # Let's just warn.
+            log.warning(
                 "detector_service.validate_classes.no_animal_class",
                 plugin_classes=plugin_classes,
                 model_path=model_path,
-                message="Model does not seem to have a 'zebrafish' class."
-             )
+                message="Model does not seem to have a 'zebrafish' class.",
+            )
 
         log.info(
             "detector_service.validate_classes.success",

@@ -156,7 +156,9 @@ class ApplicationGUI:
         log.info(
             "gui.init.event_dispatcher_created",
             gui_event_bus_id=id(self.event_bus) if self.event_bus else None,
-            dispatcher_event_bus_id=id(self.event_dispatcher.event_bus) if self.event_dispatcher.event_bus else None,
+            dispatcher_event_bus_id=id(self.event_dispatcher.event_bus)
+            if self.event_dispatcher.event_bus
+            else None,
             same_bus=self.event_bus is self.event_dispatcher.event_bus if self.event_bus else "N/A",
         )
 
@@ -372,7 +374,6 @@ class ApplicationGUI:
             self.update_openvino_status_display(ov_status)
         except Exception:
             log.warning("gui.post_init.controller_sync_failed", exc_info=True)
-
 
     def handle_request_weight_type(self, filepath: str) -> None:
         """Handle request to identify weight type."""
@@ -716,7 +717,7 @@ class ApplicationGUI:
             return
 
         # Safety check: video_display may not exist yet
-        if not hasattr(self, 'video_display') or not self.video_display:
+        if not hasattr(self, "video_display") or not self.video_display:
             return
 
         # Remove the old image
@@ -1550,19 +1551,22 @@ class ApplicationGUI:
         # Check if we are in single subject mode
         # If processing_mode is available, use it. Otherwise check controller.
         from zebtrack.core.processing_mode import ProcessingMode
-        is_single_subject = (processing_mode == ProcessingMode.SINGLE_SUBJECT)
+
+        is_single_subject = processing_mode == ProcessingMode.SINGLE_SUBJECT
 
         # If report didn't provide mode, fallback to current controller state
         if processing_mode is None and self.controller:
-             # Access private attribute directly if property isn't exposed or simply default to False
-             # to avoid another AttributeError.
-             # Ideally controller has a property for this.
-             try:
-                 # Check if controller has active_processing_mode property or attribute
-                 if hasattr(self.controller, "_active_processing_mode"):
-                     is_single_subject = (self.controller._active_processing_mode == ProcessingMode.SINGLE_SUBJECT)
-             except Exception:
-                 pass
+            # Access private attribute directly if property isn't exposed or simply default to False
+            # to avoid another AttributeError.
+            # Ideally controller has a property for this.
+            try:
+                # Check if controller has active_processing_mode property or attribute
+                if hasattr(self.controller, "_active_processing_mode"):
+                    is_single_subject = (
+                        self.controller._active_processing_mode == ProcessingMode.SINGLE_SUBJECT
+                    )
+            except Exception:
+                pass
 
         self.canvas_manager.renderer.update_overlay(detections, is_single_subject)
 

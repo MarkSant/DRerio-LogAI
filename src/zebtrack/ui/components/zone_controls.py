@@ -194,7 +194,7 @@ class ZoneControlsWidget(BaseWidget):
             text="✅ Concluir",
             command=self._on_conclude_video_clicked,
             state="disabled",
-            style="Accent.TButton"
+            style="Accent.TButton",
         )
         self.conclude_video_btn.pack(side="left", fill="x", expand=True, padx=2, pady=2)
 
@@ -229,9 +229,7 @@ class ZoneControlsWidget(BaseWidget):
             self.drawing_actions_parent if self.drawing_actions_parent else self.zone_controls_frame
         )
 
-        self.aquarium_selector_frame = ttk.LabelFrame(
-            parent, text="🐟 Aquário Ativo", padding=5
-        )
+        self.aquarium_selector_frame = ttk.LabelFrame(parent, text="🐟 Aquário Ativo", padding=5)
         # Initially hidden - shown only when 2 aquariums are detected
         # self.aquarium_selector_frame.pack(fill="x", pady=5, padx=5)
 
@@ -799,23 +797,17 @@ class ZoneControlsWidget(BaseWidget):
     def _on_copy_zones_clicked(self) -> None:
         """Handle copy zones from context menu."""
         if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
-            self.emit_event(
-                "zone.copy_zones", {"video_path": self._context_menu_video_path}
-            )
+            self.emit_event("zone.copy_zones", {"video_path": self._context_menu_video_path})
 
     def _on_paste_zones_clicked(self) -> None:
         """Handle paste zones from context menu."""
         if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
-            self.emit_event(
-                "zone.paste_zones", {"video_path": self._context_menu_video_path}
-            )
+            self.emit_event("zone.paste_zones", {"video_path": self._context_menu_video_path})
 
     def _on_delete_zones_clicked(self) -> None:
         """Handle delete zones from context menu."""
         if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
-            self.emit_event(
-                "zone.delete_zones", {"video_path": self._context_menu_video_path}
-            )
+            self.emit_event("zone.delete_zones", {"video_path": self._context_menu_video_path})
 
     def _on_load_video_frame_clicked(self) -> None:
         """Handle load video frame button click."""

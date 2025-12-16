@@ -329,9 +329,7 @@ class TestMultiAquariumDataPydantic:
 
     def test_valid_regex_pattern(self):
         """Testa padrão regex válido."""
-        data = MultiAquariumData(
-            regex_pattern=r"(?P<group>\w+)_(?P<subject>S\d+)_D(?P<day>\d+)"
-        )
+        data = MultiAquariumData(regex_pattern=r"(?P<group>\w+)_(?P<subject>S\d+)_D(?P<day>\d+)")
 
         assert data.regex_pattern == r"(?P<group>\w+)_(?P<subject>S\d+)_D(?P<day>\d+)"
 
@@ -359,9 +357,7 @@ class TestMultiAquariumDataPydantic:
 
     def test_regex_extraction_no_match(self):
         """Testa extração quando regex não faz match."""
-        data = MultiAquariumData(
-            regex_pattern=r"(?P<group>\w+)_(?P<subject>S\d+)_D(?P<day>\d+)"
-        )
+        data = MultiAquariumData(regex_pattern=r"(?P<group>\w+)_(?P<subject>S\d+)_D(?P<day>\d+)")
 
         result = data.extract_metadata("video_sem_padrao.mp4")
 
