@@ -28,7 +28,6 @@ import cv2
 import numpy as np
 import pandas as pd
 import structlog
-
 from shapely.geometry import Polygon
 
 from zebtrack.analysis.reporter import Reporter
@@ -2324,6 +2323,141 @@ class ProcessingCoordinator(BaseCoordinator):
                         experiment_id, video_path=path
                     )
 
+                # Check for multi-aquarium mode
+                multi_outputs = video_entry.get("multi_aquarium_outputs") if video_entry else None
+                if multi_outputs:
+                    # Handle multi-aquarium video - generate reports per aquarium
+                    log.info(
+                        "workflow.reports.multi_aquarium.start",
+                        video=experiment_id,
+                        aquarium_count=len(multi_outputs),
+                    )
+
+                    project_data = getattr(self.project_manager, "project_data", {}) or {}
+                    calib = project_data.get("calibration", {})
+                    pixelcm_x = float(calib.get("pixel_per_cm_x", 1.0))
+                    pixelcm_y = float(calib.get("pixel_per_cm_y", 1.0))
+                    fps = float(self.settings.video_processing.fps)
+                    video_height = 720
+
+                    for aq_id_str, output_info in multi_outputs.items():
+                        try:
+                            aq_id = int(aq_id_str)
+                            aq_results_dir = output_info.get("results_dir")
+                            aq_parquet_files = output_info.get("parquet_files", {})
+                            trajectory_path = aq_parquet_files.get("trajectory")
+
+                            if not trajectory_path or not os.path.exists(trajectory_path):
+                                log.warning(
+                                    "workflow.reports.multi_aquarium.missing_trajectory",
+                                    video=path,
+                                    aquarium_id=aq_id,
+                                    trajectory_path=trajectory_path,
+                                )
+                                continue
+
+                            # Load trajectory
+                            df = pd.read_parquet(trajectory_path)
+
+                            # Build aquarium-specific metadata
+                            aq_metadata = {
+                                **metadata,
+                                "aquarium_id": aq_id,
+                                "group": output_info.get("group", metadata.get("group")),
+                                "subject": output_info.get("subject_id", metadata.get("subject")),
+                            }
+
+                            # Get zone data - try multi-aquarium specific first
+                            zone_data = self.project_manager.get_zone_data(video_path=path)
+
+                            # Extract aquarium-specific polygon and ROIs
+                            arena_polygon = []
+                            rois = []
+                            roi_colors_map = {}
+
+                            # Check if zone_data is MultiAquariumZoneData
+                            if hasattr(zone_data, "aquariums") and zone_data.aquariums:
+                                # Multi-aquarium zone data
+                                for aq in zone_data.aquariums:
+                                    if aq.id == aq_id:
+                                        arena_polygon = aq.polygon if aq.polygon else []
+                                        # Build ROIs
+                                        from shapely.geometry import Polygon
+
+                                        from zebtrack.analysis.roi import ROI
+
+                                        for i, poly in enumerate(aq.roi_polygons):
+                                            name = (
+                                                aq.roi_names[i]
+                                                if i < len(aq.roi_names)
+                                                else f"ROI_{i}"
+                                            )
+                                            if len(poly) >= 3:
+                                                roi_geometry = Polygon(poly)
+                                                rois.append(
+                                                    ROI(
+                                                        name=name,
+                                                        geometry=roi_geometry,
+                                                        coordinate_space="px",
+                                                    )
+                                                )
+                                            if i < len(aq.roi_colors):
+                                                roi_colors_map[name] = aq.roi_colors[i]
+                                        break
+                            elif zone_data:
+                                # Standard zone data (fallback)
+                                arena_polygon = zone_data.polygon if zone_data.polygon else []
+
+                            # Run Analysis
+                            analysis_result = self.analysis_service.run_full_analysis_as_dto(
+                                trajectory_df=df,
+                                pixelcm_x=pixelcm_x,
+                                pixelcm_y=pixelcm_y,
+                                video_height_px=video_height,
+                                arena_polygon_px=arena_polygon,
+                                rois=rois,
+                                fps=fps,
+                                metadata=aq_metadata,
+                                roi_colors=roi_colors_map,
+                                freezing_vel_threshold=(
+                                    self.settings.video_processing.freezing_velocity_threshold
+                                ),
+                                freezing_min_duration=(
+                                    self.settings.video_processing.freezing_min_duration_s
+                                ),
+                            )
+
+                            reporter = Reporter.from_analysis(analysis_result)
+
+                            # Export with aquarium suffix
+                            os.makedirs(aq_results_dir, exist_ok=True)
+                            aq_experiment_id = f"{experiment_id}_aq{aq_id}"
+                            report_base = os.path.join(
+                                aq_results_dir, f"4_Relatorio_{aq_experiment_id}"
+                            )
+                            reporter.export_individual_report(f"{report_base}.docx")
+                            reporter.export_summary_data(f"{report_base}.xlsx", format="excel")
+
+                            log.info(
+                                "workflow.reports.multi_aquarium.generated",
+                                video=experiment_id,
+                                aquarium_id=aq_id,
+                                report_path=f"{report_base}.docx",
+                            )
+                            count += 1
+
+                        except Exception as aq_e:
+                            log.error(
+                                "workflow.reports.multi_aquarium.aquarium_failed",
+                                video=path,
+                                aquarium_id=aq_id_str,
+                                error=str(aq_e),
+                            )
+                            errors.append(f"{experiment_id}_aq{aq_id_str}: {aq_e!s}")
+
+                    continue  # Skip to next video after handling multi-aquarium
+
+                # Standard single-aquarium processing
                 results_path = self.project_manager.resolve_results_directory(
                     experiment_id, video_path=path, metadata=metadata
                 )

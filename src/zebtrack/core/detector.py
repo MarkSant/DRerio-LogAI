@@ -263,8 +263,19 @@ class Detector:
                          mot20=False
                      )
 
-                     # Create Tracker
-                     self._byte_trackers_multi[aq.id] = BYTETracker(tracker_args)
+                     # Create Tracker with error handling
+                     try:
+                         self._byte_trackers_multi[aq.id] = BYTETracker(tracker_args)
+                     except Exception as e:
+                         log.error(
+                             "detector.bytetracker_init_failed",
+                             aquarium_id=aq.id,
+                             error=str(e),
+                             exc_info=True,
+                         )
+                         raise RuntimeError(
+                             f"Falha ao inicializar ByteTracker para aquário {aq.id}: {e}"
+                         ) from e
         else:
             self._aquariums = []
 
@@ -456,7 +467,7 @@ class Detector:
 
     def detect(
         self, frame: np.ndarray, project_type: str, conf_threshold: float | None = None
-    ):  # noqa: C901
+    ):
         """Process a single frame for object detection and state tracking."""
         # Task 1.3: Frame validation to prevent crashes with invalid input
         if frame is None or not isinstance(frame, np.ndarray):
@@ -1426,6 +1437,20 @@ class Detector:
         scale_x = actual_width / self.base_width
         scale_y = actual_height / self.base_height
 
+        # Validate all aquarium polygons before proceeding
+        for aq in aquariums:
+            if not aq.polygon or len(aq.polygon) < 3:
+                log.error(
+                    "detector.multi_aquarium.invalid_polygon",
+                    aquarium_id=aq.id,
+                    polygon_points=len(aq.polygon) if aq.polygon else 0,
+                )
+                polygon_count = len(aq.polygon) if aq.polygon else 0
+                raise ValueError(
+                    f"Aquário {aq.id} possui polígono inválido: "
+                    f"mínimo 3 pontos, encontrado {polygon_count}"
+                )
+
         # Create ByteTracker and scaled polygons for each aquarium
         # Each aquarium has exactly 1 animal, so we use single_animal_mode=True
         # This ensures stable tracking with ID Resurrection and Immediate Activation
@@ -1455,15 +1480,26 @@ class Detector:
             else:
                 frame_rate = 30
 
-            self._byte_trackers_multi[aq.id] = BYTETracker(
-                args=tracker_args,
-                frame_rate=frame_rate,
-                use_hybrid_matching=True,
-                max_center_distance=self._get_max_center_distance(),
-                processing_interval=processing_interval,
-                iou_threshold=self._get_iou_threshold(),
-                single_animal_mode=True,  # Each aquarium has exactly 1 animal
-            )
+            try:
+                self._byte_trackers_multi[aq.id] = BYTETracker(
+                    args=tracker_args,
+                    frame_rate=frame_rate,
+                    use_hybrid_matching=True,
+                    max_center_distance=self._get_max_center_distance(),
+                    processing_interval=processing_interval,
+                    iou_threshold=self._get_iou_threshold(),
+                    single_animal_mode=True,  # Each aquarium has exactly 1 animal
+                )
+            except Exception as e:
+                log.error(
+                    "detector.multi_aquarium.bytetracker_init_failed",
+                    aquarium_id=aq.id,
+                    error=str(e),
+                    exc_info=True,
+                )
+                raise RuntimeError(
+                    f"Falha ao inicializar ByteTracker para aquário {aq.id}: {e}"
+                ) from e
 
             log.debug(
                 "detector.multi_aquarium.tracker_created",
@@ -1568,6 +1604,14 @@ class Detector:
                     if self._point_in_polygon(centroid, polygon):
                         partitioned[aq.id].append(det)
                         break
+            else:
+                # Detection not assigned to any aquarium - log warning
+                log.warning(
+                    "detector.partitioned.detection_unassigned",
+                    centroid=centroid,
+                    confidence=conf,
+                    aquariums_checked=len(self._aquariums),
+                )
 
         # DEBUG: Log partitioning results
         partition_counts = {aqid: len(dets) for aqid, dets in partitioned.items()}
@@ -1578,7 +1622,20 @@ class Detector:
 
         for aq_id, detections in partitioned.items():
             if detections:
-                tracker = self._byte_trackers_multi[aq_id]
+                # Safe tracker access with validation
+                tracker = self._byte_trackers_multi.get(aq_id)
+                if tracker is None:
+                    log.error(
+                        "detector.partitioned.tracker_missing",
+                        aquarium_id=aq_id,
+                        available_trackers=list(self._byte_trackers_multi.keys()),
+                    )
+                    raise RuntimeError(
+                        f"ByteTracker não inicializado para aquário {aq_id}. "
+                        f"Disponíveis: {list(self._byte_trackers_multi.keys())}. "
+                        "Chame set_multi_aquarium_zones() primeiro."
+                    )
+
                 tracked = self._apply_byte_tracking_multi(detections, tracker)
 
                 # Offset track_id: aquarium_id * 1000 + local_track_id
@@ -1588,13 +1645,16 @@ class Detector:
                     x1, y1, x2, y2, conf, track_id, class_id = det
                     if track_id is not None:
                         if track_id >= 1000:
-                            log.warning(
+                            log.error(
                                 "detector.partitioned.track_id_overflow",
                                 aquarium_id=aq_id,
                                 local_track_id=track_id,
-                                msg="local_track_id >= 1000 may cause ID collisions",
+                                msg="local_track_id >= 1000 causa colisão de IDs",
                             )
-                        offset_id = aq_id * 1000 + track_id
+                            # Use modulo to prevent collision while preserving tracking
+                            offset_id = aq_id * 1000 + (track_id % 1000)
+                        else:
+                            offset_id = aq_id * 1000 + track_id
                     else:
                         offset_id = None
                     offset_tracked.append((x1, y1, x2, y2, conf, offset_id, class_id))
@@ -1753,7 +1813,20 @@ class Detector:
 
             # Apply tracking
             if adjusted_detections:
-                tracker = self._byte_trackers_multi[aq.id]
+                # Safe tracker access with validation
+                tracker = self._byte_trackers_multi.get(aq.id)
+                if tracker is None:
+                    log.error(
+                        "detector.partitioned_optimized.tracker_missing",
+                        aquarium_id=aq.id,
+                        available_trackers=list(self._byte_trackers_multi.keys()),
+                    )
+                    raise RuntimeError(
+                        f"ByteTracker não inicializado para aquário {aq.id}. "
+                        f"Disponíveis: {list(self._byte_trackers_multi.keys())}. "
+                        "Chame set_multi_aquarium_zones() primeiro."
+                    )
+
                 tracked = self._apply_byte_tracking_multi(adjusted_detections, tracker)
 
                 # Offset track_id
@@ -1762,13 +1835,16 @@ class Detector:
                     x1, y1, x2, y2, conf, track_id, class_id = det
                     if track_id is not None:
                         if track_id >= 1000:
-                            log.warning(
-                                "detector.partitioned.track_id_overflow",
+                            log.error(
+                                "detector.partitioned_optimized.track_id_overflow",
                                 aquarium_id=aq.id,
                                 local_track_id=track_id,
-                                msg="local_track_id >= 1000 may cause ID collisions",
+                                msg="local_track_id >= 1000 causa colisão de IDs",
                             )
-                        offset_id = aq.id * 1000 + track_id
+                            # Use modulo to prevent collision while preserving tracking
+                            offset_id = aq.id * 1000 + (track_id % 1000)
+                        else:
+                            offset_id = aq.id * 1000 + track_id
                     else:
                         offset_id = None
                     offset_tracked.append((x1, y1, x2, y2, conf, offset_id, class_id))
@@ -1897,12 +1973,35 @@ class Detector:
 
                     # Apply tracking (must be sequential - ByteTracker is not thread-safe)
                     if detections:
-                        tracker = self._byte_trackers_multi[aq_id]
+                        # Safe tracker access with validation
+                        tracker = self._byte_trackers_multi.get(aq_id)
+                        if tracker is None:
+                            log.error(
+                                "detector.partitioned_parallel.tracker_missing",
+                                aquarium_id=aq_id,
+                                available_trackers=list(self._byte_trackers_multi.keys()),
+                            )
+                            errors[aq_id] = f"ByteTracker não inicializado para aquário {aq_id}"
+                            results[aq_id] = []
+                            continue
+
                         tracked = self._apply_byte_tracking_multi(detections, tracker)
                         offset_tracked = []
                         for det in tracked:
                             x1, y1, x2, y2, conf, track_id, class_id = det
-                            offset_id = aq_id * 1000 + track_id if track_id is not None else None
+                            if track_id is not None:
+                                if track_id >= 1000:
+                                    log.error(
+                                        "detector.partitioned_parallel.track_id_overflow",
+                                        aquarium_id=aq_id,
+                                        local_track_id=track_id,
+                                        msg="local_track_id >= 1000 causa colisão de IDs",
+                                    )
+                                    offset_id = aq_id * 1000 + (track_id % 1000)
+                                else:
+                                    offset_id = aq_id * 1000 + track_id
+                            else:
+                                offset_id = None
                             offset_tracked.append((x1, y1, x2, y2, conf, offset_id, class_id))
                         results[aq_id] = offset_tracked
                     else:
