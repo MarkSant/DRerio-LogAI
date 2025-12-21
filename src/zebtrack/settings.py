@@ -489,6 +489,26 @@ class DetectionZonesSettings(BaseModel):
         description="The BGR colors for drawing each ROI polygon on the overlay.",
     )
 
+    # Aquarium detection constraints
+    min_aquarium_area_ratio: float = Field(
+        0.10,
+        ge=0.01,
+        le=0.9,
+        description=(
+            "Minimum area ratio (relative to frame size) for a detection to be considered "
+            "a valid aquarium. Default 0.10 (10%)."
+        ),
+    )
+    max_aquarium_area_ratio: float = Field(
+        0.98,
+        ge=0.1,
+        le=1.0,
+        description=(
+            "Maximum area ratio (relative to frame size) for a detection to be considered "
+            "a valid aquarium. Default 0.98 (98%) to avoid full-frame false positives."
+        ),
+    )
+
 
 class ReproducibilitySettings(BaseModel):
     """Settings related to ensuring reproducible results."""
@@ -642,6 +662,19 @@ class LoggingSettings(BaseModel):
         return {k: v.upper() for k, v in v.items()}
 
 
+class AnalysisConfigSettings(BaseModel):
+    """Configuration for analysis parameters."""
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    num_aquariums: int = Field(
+        1,
+        ge=1,
+        le=4,
+        description="Number of aquariums expected in the video (1 or 2 currently supported).",
+    )
+
+
 class Settings(BaseModel):
     """Main settings model that nests all other configuration sections.
 
@@ -695,6 +728,9 @@ class Settings(BaseModel):
         description="Settings for weight file selection by type",
     )
 
+
+
+
     # ROI inclusion rule settings
     roi_inclusion_rule: Literal[
         "centroid_in",
@@ -715,6 +751,11 @@ class Settings(BaseModel):
         ge=0.0,
         le=1.0,
         description="Minimum overlap ratio required for bbox_intersects or seg_overlap",
+    )
+
+    analysis_config: "AnalysisConfigSettings" = Field(
+        default_factory=lambda: AnalysisConfigSettings(),  # type: ignore[call-arg]
+        description="Configuration for analysis parameters like number of aquariums.",
     )
 
     # Analysis settings

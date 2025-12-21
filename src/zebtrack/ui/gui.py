@@ -1315,6 +1315,13 @@ class ApplicationGUI:
         self.pending_single_video_path = video_path
         self.pending_single_video_config = config
 
+        # MELHORIA: Save num_aquariums to global settings so ProcessingCoordinator can see it during auto-detection
+        if config and "num_aquariums" in config and self.settings:
+             try:
+                 self.settings.analysis_config.num_aquariums = int(config["num_aquariums"])
+             except Exception as e:
+                 log.warning("gui.setup_zone_definition.update_settings_failed", error=str(e))
+
         # Ensure zone edits persist under the selected video
         self.controller.project_manager.set_active_zone_video(video_path)
 
@@ -1407,7 +1414,14 @@ class ApplicationGUI:
 
         # 1. Get the zone data that the user drew
         zone_data = self._get_zone_data_for_active_context()
-        if not zone_data.polygon:
+
+        # Validation for Single vs Multi Aquarium
+        from zebtrack.core.detector import MultiAquariumZoneData
+        if isinstance(zone_data, MultiAquariumZoneData):
+             if not zone_data.aquariums:
+                 self.show_error("Erro", "Nenhum aquário foi definido.")
+                 return
+        elif not zone_data.polygon:
             self.show_error("Erro", "A área principal do aquário (polígono) não foi definida.")
             return
 

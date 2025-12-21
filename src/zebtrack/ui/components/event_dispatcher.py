@@ -544,6 +544,14 @@ class EventDispatcher:
             ),
         )
 
+        # Multi-Aquarium Success
+        self.event_bus.subscribe(
+            Events.ZONE_MULTI_AUTO_DETECT_SUCCESS,
+            lambda d: self.gui.canvas_manager.on_multi_auto_detect_success(
+                d if isinstance(d, dict) else {}
+            ),
+        )
+
         # ROI Settings
         self.event_bus.subscribe(
             Events.DETECTOR_UPDATE_PARAMETERS,

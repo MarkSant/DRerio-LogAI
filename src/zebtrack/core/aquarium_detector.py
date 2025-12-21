@@ -83,13 +83,21 @@ class AquariumDetector:
             )
             return 0.0
 
-    def _extract_polygon_from_detection(self, frame, results) -> np.ndarray | None:
+    def _extract_polygon_from_detection(
+        self,
+        frame,
+        results,
+        min_area_ratio: float = 0.1,
+        max_area_ratio: float = 0.98,
+    ) -> np.ndarray | None:
         """
         Extract a polygon from detection results (bounding boxes).
 
         Args:
             frame: The frame from which detection was performed
             results: YOLO detection results
+            min_area_ratio: Minimum area ratio for validation
+            max_area_ratio: Maximum area ratio for validation
 
         Returns:
             Polygon as numpy array of shape (N, 2) or None if no valid detection
@@ -134,19 +142,21 @@ class AquariumDetector:
         box_area = (x2 - x1) * (y2 - y1)
         area_ratio = box_area / frame_area
 
-        if area_ratio < 0.1:  # Too small
+        if area_ratio < min_area_ratio:  # Too small
             log.warning(
                 "aquarium_detector.detection_too_small",
                 confidence=best_conf,
                 area_ratio=area_ratio,
+                min_ratio=min_area_ratio,
             )
             return None
 
-        if area_ratio > 0.95:  # Almost entire frame, likely false positive
+        if area_ratio > max_area_ratio:  # Almost entire frame, likely false positive
             log.warning(
                 "aquarium_detector.detection_too_large",
                 confidence=best_conf,
                 area_ratio=area_ratio,
+                max_ratio=max_area_ratio,
             )
             return None
 
@@ -159,7 +169,14 @@ class AquariumDetector:
 
         return polygon
 
-    def _process_segmentation_results(self, frame, results, frame_index: int) -> np.ndarray | None:
+    def _process_segmentation_results(
+        self,
+        frame,
+        results,
+        frame_index: int,
+        min_area_ratio: float = 0.1,
+        max_area_ratio: float = 0.98,
+    ) -> np.ndarray | None:
         """
         Process segmentation results to extract a valid aquarium polygon.
 
@@ -167,6 +184,8 @@ class AquariumDetector:
             frame: Video frame
             results: YOLO results
             frame_index: Frame number for logging
+            min_area_ratio: Minimum area ratio for validation
+            max_area_ratio: Maximum area ratio for validation
 
         Returns:
             Valid polygon or None
@@ -217,13 +236,14 @@ class AquariumDetector:
             if len(polygons) == 1:
                 polygon = polygons[0].astype(np.int32)
 
-                # Validate that it's large enough (more than 30% of frame)
+                # Validate that it's large enough (more than min_area_ratio of frame)
                 frame_area = frame.shape[0] * frame.shape[1]
                 x_min, y_min = polygon[:, 0].min(), polygon[:, 1].min()
                 x_max, y_max = polygon[:, 0].max(), polygon[:, 1].max()
                 poly_area = (x_max - x_min) * (y_max - y_min)
 
-                area_valid = poly_area > frame_area * 0.3
+                area_ratio = poly_area / frame_area
+                area_valid = min_area_ratio <= area_ratio <= max_area_ratio
 
                 # Additional confidence validation (if there are boxes)
                 # But doesn't block if there aren't - maintains robustness
@@ -238,22 +258,25 @@ class AquariumDetector:
                     log.info(
                         "aquarium_detector.good_polygon",
                         frame=frame_index,
-                        area_ratio=poly_area / frame_area,
+                        area_ratio=area_ratio,
                         confidence=conf_info,
+                        min_ratio=min_area_ratio,
                     )
                     return polygon
                 elif not area_valid:
                     log.warning(
-                        "aquarium_detector.polygon_too_small",
+                        "aquarium_detector.polygon_size_invalid",
                         frame=frame_index,
-                        area_ratio=poly_area / frame_area,
+                        area_ratio=area_ratio,
                         confidence=conf_info,
+                        min_ratio=min_area_ratio,
+                        max_ratio=max_area_ratio,
                     )
                 elif not conf_valid:
                     log.warning(
                         "aquarium_detector.confidence_too_low",
                         frame=frame_index,
-                        area_ratio=poly_area / frame_area,
+                        area_ratio=area_ratio,
                         confidence=conf_info,
                         threshold=0.05,
                     )
@@ -400,7 +423,13 @@ class AquariumDetector:
             log.warning("aquarium_detector.detect.consensus_failed")
             return []
 
-    def detect_aquariums(self, video_path: Path | str, stabilization_frames: int = 10) -> list:
+    def detect_aquariums(
+        self,
+        video_path: Path | str,
+        stabilization_frames: int = 10,
+        min_area_ratio: float = 0.1,
+        max_area_ratio: float = 0.98,
+    ) -> list:
         """
         Analyzes initial frames of a video to find the most stable aquarium polygon.
 
@@ -411,22 +440,45 @@ class AquariumDetector:
         Args:
             video_path: The path to the video file.
             stabilization_frames: The number of initial frames to analyze.
+            min_area_ratio: Minimum area ratio relative to frame size.
+            max_area_ratio: Maximum area ratio relative to frame size.
+            frame_skip: Frames to skip between analysis attempts (default 5).
 
         Returns:
             A list containing the single most stable polygon, or an empty list if
             no stable polygon could be found.
         """
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
-        log.info("aquarium_detector.detect.start", video_path=video_path, mode=self.mode)
+        log.info(
+            "aquarium_detector.detect.start",
+            video_path=video_path,
+            mode=self.mode,
+            min_ratio=min_area_ratio,
+        )
         source = None
         try:
             source = VideoFileSource(video_path)
             good_polygons = []
 
-            for i in range(stabilization_frames):
+            # MELHORIA: Unified logic with LiveCameraService (frame skip + early exit)
+            frame_skip = 5
+            max_frames_to_check = stabilization_frames * frame_skip # e.g. 10 * 5 = 50 frames
+
+            analyzed_count = 0
+
+            for i in range(max_frames_to_check):
                 ret, frame = source.get_frame()
                 if not ret:
-                    log.warning("aquarium_detector.detect.frame_read_failed", frame=i)
+                    if i == 0:
+                        log.warning("aquarium_detector.detect.frame_read_failed", frame=i)
+                    break
+
+                # Frame skip logic
+                if i % frame_skip != 0:
+                    continue
+
+                analyzed_count += 1
+                if analyzed_count > stabilization_frames:
                     break
 
                 # Detect aquarium (class 0) with optimized threshold
@@ -446,15 +498,24 @@ class AquariumDetector:
 
                 if self.mode == "seg":
                     # Segmentation mode - use existing logic
-                    polygon = self._process_segmentation_results(frame, results, i)
+                    polygon = self._process_segmentation_results(
+                        frame, results, i, min_area_ratio, max_area_ratio
+                    )
                 elif self.mode == "det":
                     # Detection mode - extract polygon from bounding boxes
-                    polygon = self._extract_polygon_from_detection(frame, results)
+                    polygon = self._extract_polygon_from_detection(
+                        frame, results, min_area_ratio, max_area_ratio
+                    )
                     if polygon is not None:
                         log.info("aquarium_detector.detection_polygon_accepted", frame=i)
 
                 if polygon is not None:
                     good_polygons.append(polygon)
+
+                    # MELHORIA: Early exit if we have enough consistent data
+                    if len(good_polygons) >= 4:
+                        log.info("aquarium_detector.detect.early_exit", count=len(good_polygons))
+                        break
 
             # Apply the same consensus logic regardless of mode
             return self._find_consensus_polygon(good_polygons, source)
@@ -471,6 +532,8 @@ class AquariumDetector:
         video_path: Path | str,
         expected_count: int = 2,
         stabilization_frames: int = 10,
+        min_area_ratio: float = 0.1,
+        max_area_ratio: float = 0.98,
     ) -> list[np.ndarray]:
         """Detect multiple aquariums in a video.
 
@@ -482,6 +545,8 @@ class AquariumDetector:
             video_path: Path to the video file.
             expected_count: Expected number of aquariums (must be 2).
             stabilization_frames: Number of frames to analyze.
+            min_area_ratio: Minimum area ratio per aquarium.
+            max_area_ratio: Maximum area ratio per aquarium.
 
         Returns:
             List of polygon numpy arrays (shape: Nx2), sorted by X position.
@@ -506,9 +571,22 @@ class AquariumDetector:
             source = VideoFileSource(video_path_str)
             all_polygons = []
 
-            for i in range(stabilization_frames):
+            # MELHORIA: Unified logic with LiveCameraService (frame skip + early exit)
+            frame_skip = 5
+            max_frames_to_check = stabilization_frames * frame_skip
+            analyzed_count = 0
+
+            for i in range(max_frames_to_check):
                 ret, frame = source.get_frame()
                 if not ret:
+                    break
+
+                # Frame skip logic
+                if i % frame_skip != 0:
+                    continue
+
+                analyzed_count += 1
+                if analyzed_count > stabilization_frames:
                     break
 
                 # Detect all aquariums (class 0) with lower threshold
@@ -535,7 +613,7 @@ class AquariumDetector:
                         box_area = (x2 - x1) * (y2 - y1)
                         area_ratio = box_area / frame_area
 
-                        if 0.10 <= area_ratio <= 0.50:
+                        if min_area_ratio <= area_ratio <= 0.50:  # Cap max at 50 for multi
                             polygon = np.array(
                                 [
                                     [int(x1), int(y1)],
@@ -550,6 +628,11 @@ class AquariumDetector:
                     # If we found exactly 2 in this frame, add them
                     if len(frame_polygons) == expected_count:
                         all_polygons.append(frame_polygons)
+
+                        # MELHORIA: Early exit if we have enough consistent data
+                        if len(all_polygons) >= 4:
+                            log.info("aquarium_detector.detect_multiple.early_exit", count=len(all_polygons))
+                            break
 
             # If we consistently found 2 aquariums, use those
             if all_polygons:

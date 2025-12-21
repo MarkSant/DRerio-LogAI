@@ -23,12 +23,15 @@ class DetectorPlugin(ABC):
         pass
 
     @abstractmethod
-    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None, int]]:
+    def detect(
+        self, frame: np.ndarray, conf_threshold: float | None = None
+    ) -> list[tuple[int, int, int, int, float, int | None, int]]:
         """
         Performs object detection on a single frame.
 
         Args:
             frame (np.ndarray): The input video frame.
+            conf_threshold (float, optional): Confidence threshold override.
 
         Returns:
             A list of detections. Each detection is a tuple containing:

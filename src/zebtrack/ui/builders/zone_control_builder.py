@@ -53,9 +53,16 @@ class ZoneControlBuilder:
         """Handle 'Concluir Edição do Vídeo' button click."""
         # 1. Save Project (Persist flags and data)
         if hasattr(self.gui, "controller") and self.gui.controller.project_manager:
-            self.gui.controller.project_manager.save_project()
+            try:
+                self.gui.controller.project_manager.save_project()
+            except Exception as e:
+                # In Single Video Mode, project might not be created yet.
+                # This is expected and safe to ignore for "Conclude" action which mostly updates UI.
+                if "ProjectInvalidError" in str(type(e).__name__) or "caminho do projeto não definido" in str(e):
+                    log.debug("zone_control_builder.save_project.skipped", reason=str(e))
+                else:
+                    log.error("zone_control_builder.save_project.failed", error=str(e))
 
-        # 2. Refresh Tree (Update indicators)
         self._refresh_video_tree_dual_mode()
 
         # 3. Optional: Feedback

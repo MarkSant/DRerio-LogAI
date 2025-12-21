@@ -235,6 +235,31 @@ class ZoneManager:
             is_multi=isinstance(zone_data, MultiAquariumZoneData)
         )
 
+        root_videos = project_data.get("videos")
+        log.info("zone_manager.update_flags.debug_keys",
+                 root_videos_keys=list(root_videos.keys()) if isinstance(root_videos, dict) else "list/none",
+                 batch_count=len(project_data.get("batches", [])))
+
+        # Strategy 1: Search in root 'videos' (Single Video Mode or Legacy)
+        if root_videos:
+            # If dict (id -> entry) using values
+            iterator = root_videos.values() if isinstance(root_videos, dict) else root_videos
+            for video in iterator:
+                candidate_path = video.get("path")
+                if not candidate_path:
+                    continue
+                if ZoneManager.normalize_video_path(candidate_path) == normalized_target:
+                    video["has_arena"] = has_arena
+                    video["has_rois"] = has_rois
+                    video["zones_finalized"] = False # Re-open for edit logic
+                    log.info(
+                        "zone_manager.update_flags.updated_root",
+                        video=candidate_path,
+                        has_arena=has_arena,
+                    )
+                    return
+
+        # Strategy 2: Search in batches (Standard Project)
         for batch in project_data.get("batches", []):
             for video in batch.get("videos", []):
                 candidate_path = video.get("path")
@@ -245,11 +270,19 @@ class ZoneManager:
                     video["has_rois"] = has_rois
                     video["zones_finalized"] = False
                     log.info(
-                        "zone_manager.update_flags.updated",
+                        "zone_manager.update_flags.updated_batch",
                         video=candidate_path,
                         has_arena=has_arena,
                     )
                     return
+
+        # If we reached here, no match found.
+        batches = project_data.get("batches", [])
+
+        # Check if project is empty (Single Video Mode) to avoid noise
+        if not root_videos and not batches:
+            log.debug("zone_manager.update_flags.single_video_mode_skip", target=normalized_target)
+            return
 
         log.warning("zone_manager.update_flags.no_match_found", target=normalized_target)
 
@@ -402,6 +435,18 @@ class ZoneManager:
         self.ensure_zone_structures(project_data)
 
         target_video = video_path if video_path is not None else self._active_zone_video
+
+        # Determine serialization method based on data type
+        if hasattr(zone_data, "aquariums"):
+            # Multi-Aquarium Data
+            serialized = self.multi_aquarium_zone_data_to_dict(zone_data)
+            # Store in dedicated multi-aquarium section if applicable, or general zones?
+            # Current architecture seems to use 'multi_aquarium_zones' for this.
+            self.save_multi_aquarium_zone_data(project_data, target_video, zone_data)
+            # We return early because save_multi_aquarium_zone_data handles persistence
+            if persist_callback:
+                persist_callback()
+            return
 
         serialized = self.zone_data_to_dict(zone_data)
         project_data["detection_zones"] = serialized

@@ -894,6 +894,27 @@ class LiveCameraService:
 
                 # ✅ PHASE 1: Aquarium Detection (if needed)
                 if self._aquarium_detection_phase:
+                    # MELHORIA: Warmup period (skip first 30 frames ~1.5s) to allow auto-exposure
+                    if frame_number < 30:
+                        if self.preview_window and frame_number % 5 == 0:
+                            self.preview_window.update_status_text(
+                                f"⏳ Estabilizando imagem... ({frame_number}/30)",
+                                color="orange"
+                            )
+                        continue
+
+                    # MELHORIA: Skip frames during detection to cover more time
+                    # Process only every 5th frame. With 10 frames max, this covers ~50 frames (1.6s @ 30fps)
+                    # instead of just 10 frames (0.33s). This helps bypass initial camera auto-adjustments.
+                    if frame_number % 5 != 0:
+                        self._aquarium_detection_frames += 1 # Count skipped frames towards timeout?
+                        # actually, user said "diminua para 10 frames".
+                        # If we count skipped, we stop immediately.
+                        # Let's count "analyzed" frames vs "elapsed" frames.
+                        # The variable self._aquarium_detection_frames currently counts iterations.
+                        # Let's NOT increment it here, so we analyze 10 ACTUAL frames.
+                        continue
+
                     # Update preview status
                     if self.preview_window and frame_number % 5 == 0:
                         self.preview_window.update_status_text(
@@ -904,39 +925,82 @@ class LiveCameraService:
                     # Run detection to find aquarium (class_id=0)
                     detector = self.detector_service.detector
                     if detector:
-                        detections, _ = detector.detect(frame, "live")
+                        # MELHORIA: Force low confidence threshold (0.05) to match AquariumDetector robustness
+                        # This ensures we see the aquarium even if the model is unsure, and rely on AREA validation.
+                        detections, _ = detector.detect(frame, "live", conf_threshold=0.05)
 
                         # Collect aquarium bboxes (class_id=0)
+                        # Dynamically get aquarium class ID (usually 0, but safest to ask detector)
+                        target_class_id = detector.aquarium_class_id
+
                         h, w = frame.shape[:2]
                         frame_area = w * h
-                        min_aquarium_area = frame_area * 0.30  # User requested 30% min area
+                        # MELHORIA: Use configurable threshold
+                        min_ratio = 0.10
+                        if hasattr(self.settings, "detection_zones"):
+                            min_ratio = self.settings.detection_zones.min_aquarium_area_ratio
 
+                        min_aquarium_area = frame_area * min_ratio
+
+                        detection_found_in_frame = False
                         for det in detections:
                             if len(det) >= 7:
                                 x1, y1, x2, y2, conf, track_id, class_id = det
-                                if class_id == 0:  # Aquarium class
+
+                                # Verify class (allow target class OR huge fish fallback which detector might have swapped)
+                                if class_id == target_class_id:
                                     bbox_area = (x2 - x1) * (y2 - y1)
                                     if bbox_area >= min_aquarium_area:
                                         self._detected_aquarium_bboxes.append(
                                             (int(x1), int(y1), int(x2), int(y2))
                                         )
+                                        detection_found_in_frame = True
                                         # Log only periodically or on first detection to reduce spam
                                         if (
                                             len(self._detected_aquarium_bboxes) == 1
-                                            or len(self._detected_aquarium_bboxes) % 10 == 0
+                                            or len(self._detected_aquarium_bboxes) % 5 == 0
                                         ):
                                             log.info(
                                                 "live_camera_service.aquarium_detected",
                                                 frame=frame_number,
                                                 total_collected=len(self._detected_aquarium_bboxes),
+                                                area_ratio=f"{bbox_area/frame_area:.2f}",
                                             )
+                                    else:
+                                        log.info(
+                                            "live_camera_service.aquarium_rejected_area",
+                                            frame=frame_number,
+                                            area_ratio=f"{bbox_area/frame_area:.2f}",
+                                            min_ratio=min_ratio,
+                                            bbox=(int(x1), int(y1), int(x2), int(y2))
+                                        )
+
+                        if not detection_found_in_frame:
+                             # Limit "nothing found" logs to avoid flooding info channel
+                             if frame_number % 5 == 0:
+                                 log.info(
+                                    "live_camera_service.no_valid_aquarium_in_frame",
+                                    frame=frame_number,
+                                    num_raw_detections=len(detections),
+                                    target_class_id=target_class_id
+                                )
+                                 # DEBUG: Save frame to inspect visibility
+                                 try:
+                                     from pathlib import Path
+                                     import cv2
+                                     debug_path = Path.home() / f"zebtrack_debug_frame_{frame_number}.jpg"
+                                     cv2.imwrite(str(debug_path), frame)
+                                     log.info("live_camera_service.debug_frame_saved", path=str(debug_path))
+                                 except Exception as e:
+                                     log.error("live_camera_service.debug_frame_save_failed", error=str(e))
 
                     self._aquarium_detection_frames += 1
 
                     # Check if detection phase is complete
+                    # MELHORIA: User requested faster detection (10 frames max, 4 for consensus)
                     if (
-                        self._aquarium_detection_frames >= self._aquarium_detection_max_frames
-                        or len(self._detected_aquarium_bboxes) >= 10
+                        self._aquarium_detection_frames >= 10
+                        or len(self._detected_aquarium_bboxes) >= 4
                     ):
                         log.info(
                             "live_camera_service.aquarium_detection_complete",

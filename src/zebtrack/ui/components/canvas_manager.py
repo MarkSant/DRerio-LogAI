@@ -157,6 +157,58 @@ class CanvasManager:
 
         log.debug("canvas_manager.setup_interactive_polygon.complete", num_points=len(polygon_list))
 
+    def on_multi_auto_detect_success(self, data: dict):
+        """Handle successful multi-aquarium detection.
+
+        Args:
+            data: Payload with "polygons" (list of lists) and "video_path".
+        """
+        polygons = data.get("polygons")
+        video_path = data.get("video_path")
+
+        if not polygons or not video_path:
+            log.warning("canvas_manager.multi_success.missing_data", data=data)
+            return
+
+        log.info("canvas_manager.multi_success.called", count=len(polygons))
+
+        # 1. Create MultiAquariumZoneData
+        from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
+
+        # Initialize with N aquariums based on detection count
+        # FIXED: MultiAquariumZoneData takes a list of aquariums, not num_aquariums
+        from zebtrack.core.detector import AquariumData
+        aquariums_list = [AquariumData(id=i, polygon=p) for i, p in enumerate(polygons)]
+        multi_data = MultiAquariumZoneData(aquariums=aquariums_list)
+
+        # Assign polygons to each aquarium's zone data
+        for i, poly in enumerate(polygons):
+            if i < len(multi_data.aquariums):
+                multi_data.aquariums[i].polygon = poly
+
+        # 2. Save via ProjectManager
+        pm = self.gui.controller.project_manager
+        pm.save_multi_aquarium_zone_data(video_path, multi_data)
+
+        # 3. Update UI
+        # Ensure we are viewing this video
+        pm.set_active_zone_video(video_path)
+
+        # If ZoneControls exist, ensure the aquarium selector is set to 2 (or N)
+        if self.gui.zone_controls:
+             # Update UI state for N aquariums
+             self.gui.zone_controls.update_aquarium_count(len(polygons))
+
+        # Redraw
+        self.redraw_zones_from_project_data(multi_data)
+        self.update_zone_listbox(multi_data)
+
+        self.gui.show_info(
+            "Sucesso",
+            f"Detectados {len(polygons)} aquários com sucesso!\n"
+            "Verifique se as marcações estão corretas."
+        )
+
     # ========== Coordinate Transformation Methods ==========
 
     def _canvas_to_video(self, canvas_x, canvas_y):

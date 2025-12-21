@@ -140,7 +140,7 @@ class MainViewModel:
                 ["polygon_points"],
                 "kwargs_get",
             ),
-            Events.ZONE_AUTO_DETECT: (self.analysis_vm.auto_detect_zones, [], "kwargs_all"),
+
             Events.PROJECT_DELETE_ASSET: (
                 self.project_vm.handle_delete_project_asset,
                 [],

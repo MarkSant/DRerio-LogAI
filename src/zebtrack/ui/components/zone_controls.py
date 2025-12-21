@@ -1062,3 +1062,13 @@ class ZoneControlsWidget(BaseWidget):
         aquarium_id = max(0, min(1, aquarium_id))  # Clamp to 0-1
         self.active_aquarium_var.set(aquarium_id)
         log.debug("zone_controls.active_aquarium_set", aquarium_id=aquarium_id)
+
+    def update_aquarium_count(self, count: int) -> None:
+        """Update UI based on the number of aquariums."""
+        log.info("zone_controls.update_aquarium_count", count=count)
+        self.aquarium_count_var.set(count)
+
+        if count >= 2:
+            self.aquarium_selector_frame.pack(fill="x", pady=5, padx=5, after=self.drawing_actions_parent.winfo_children()[0] if self.drawing_actions_parent else None)
+        else:
+            self.aquarium_selector_frame.pack_forget()

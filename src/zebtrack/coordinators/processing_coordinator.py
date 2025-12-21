@@ -1194,9 +1194,7 @@ class ProcessingCoordinator(BaseCoordinator):
 
         self._is_detecting_aquarium = True
 
-        import traceback
         log.info("controller.aquarium_detection.start")
-        log.info("aquarium_detection.caller_stack", stack="".join(traceback.format_stack()[-10:]))
 
         self._publish_event(
             Events.UI_SET_STATUS,

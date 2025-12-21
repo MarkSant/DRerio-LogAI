@@ -990,7 +990,13 @@ class HardwareCoordinator(BaseCoordinator):
         model_to_test = config["model_to_test"]
 
         # Get active weight details
-        active_weight_name = getattr(self.weight_manager, "active_weight_name", None)
+        # 1. Try from config (passed by ViewModel)
+        active_weight_name = config.get("active_weight_name")
+
+        # 2. Fallback to WeightManager (if available, though typically stateless)
+        if not active_weight_name:
+            active_weight_name = getattr(self.weight_manager, "active_weight_name", None)
+
         if not active_weight_name and hasattr(self.weight_manager, "get_active_weight_name"):
             active_weight_name = self.weight_manager.get_active_weight_name()
 

@@ -81,7 +81,9 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         # ByteTrack buffer size
         self.track_buffer = 60
 
-    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None, int]]:
+    def detect(
+        self, frame: np.ndarray, conf_threshold: float | None = None
+    ) -> list[tuple[int, int, int, int, float, int | None, int]]:
         """
         Run the Ultralytics model and return raw detection boxes.
 
@@ -93,10 +95,14 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         # OPTIMIZATION: Use half precision (FP16) and configurable image size
         # half=True provides ~2x speedup on CUDA GPUs with minimal accuracy impact
         # imgsz controls input resolution (smaller = faster, larger = more accurate)
+
+        # Use provided threshold or instance default
+        conf = conf_threshold if conf_threshold is not None else self.conf_threshold
+
         results = self.model.predict(
             frame,
             verbose=False,
-            conf=self.conf_threshold,
+            conf=conf,
             iou=self.nms_threshold,
             classes=None,
             half=self._half_enabled,
