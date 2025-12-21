@@ -1619,6 +1619,19 @@ class Detector:
                 x2_global = x2 + offset_x
                 y2_global = y2 + offset_y
 
+                # FILTER 1: Class ID Check
+                if self.animal_class_id is not None and class_id != self.animal_class_id:
+                     continue
+
+                # FILTER: Ensure centroid is within the aquarium polygon
+                # Cropping includes padding, so we might pick up objects just outside the zone
+                centroid = ((x1_global + x2_global) / 2, (y1_global + y2_global) / 2)
+                polygon = self._scaled_aquarium_polygons.get(aq.id)
+
+                if polygon is not None and polygon.size > 0:
+                     if not self._point_in_polygon(centroid, polygon):
+                         continue
+
                 adjusted_detections.append(
                     (x1_global, y1_global, x2_global, y2_global, conf, None, class_id)
                 )
@@ -1712,12 +1725,31 @@ class Detector:
 
                 # Adjust coordinates
                 adjusted = []
+                # Get aquarium polygon for filtering
+                polygon = self._scaled_aquarium_polygons.get(aq_id)
+
                 for det in raw_detections:
                     det = self._ensure_track_tuple(det)
                     x1, y1, x2, y2, conf, _, class_id = det
+
+                    x1_global = x1 + offset_x
+                    y1_global = y1 + offset_y
+                    x2_global = x2 + offset_x
+                    y2_global = y2 + offset_y
+
+                    # FILTER 1: Class ID Check
+                    if self.animal_class_id is not None and class_id != self.animal_class_id:
+                         continue
+
+                    # FILTER 2: Ensure centroid is within the aquarium polygon
+                    centroid = ((x1_global + x2_global) / 2, (y1_global + y2_global) / 2)
+                    if polygon is not None and polygon.size > 0:
+                        if not self._point_in_polygon(centroid, polygon):
+                            continue
+
                     adjusted.append((
-                        x1 + offset_x, y1 + offset_y,
-                        x2 + offset_x, y2 + offset_y,
+                        x1_global, y1_global,
+                        x2_global, y2_global,
                         conf, None, class_id
                     ))
 

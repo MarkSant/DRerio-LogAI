@@ -776,6 +776,14 @@ class ApplicationGUI:
 
         if active_video:
             try:
+                # Check for multi-aquarium data first
+                if hasattr(pm, "is_multi_aquarium_video") and pm.is_multi_aquarium_video(
+                    active_video
+                ):
+                    multi_data = pm.get_multi_aquarium_zone_data(active_video)
+                    if multi_data:
+                        return multi_data
+
                 zone_data = pm.get_zone_data(
                     video_path=active_video,
                     fallback_to_global=False,

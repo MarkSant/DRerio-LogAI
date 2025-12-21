@@ -471,6 +471,18 @@ class _WorkerProcess(multiprocessing.Process):
         video_zone_dict = video_metadata.get("zone_data")
 
         if video_zone_dict and isinstance(video_zone_dict, dict):
+            # Check for multi-aquarium data (Phase 5)
+            if "aquariums" in video_zone_dict:
+                from zebtrack.core.zone_manager import ZoneManager
+
+                multi_data = ZoneManager.multi_aquarium_zone_data_from_dict(video_zone_dict)
+                log.info(
+                    "worker.using_multi_aquarium_zone_data",
+                    video=os.path.basename(video_metadata.get("path", "")),
+                    aquarium_count=len(multi_data.aquariums),
+                )
+                return multi_data
+
             # Use per-video zone data (batch processing)
             zd = ZoneData()
             zd.polygon = video_zone_dict.get("polygon", [])
@@ -526,18 +538,27 @@ class _WorkerProcess(multiprocessing.Process):
         # Force base dimensions to match video to prevent double-scaling if zones are already in native coords
         detector.base_width = width
         detector.base_height = height
-        detector.set_zones(video_zone_data, width, height)
 
-        # Fix: Ensure detector knows aquarium is defined if we have a polygon
-        has_aquarium = bool(video_zone_data.polygon and len(video_zone_data.polygon) >= 3)
-        detector.set_aquarium_region_defined(has_aquarium)
+        is_multi_aquarium = False
+        from zebtrack.core.detector import MultiAquariumZoneData
 
+        if isinstance(video_zone_data, MultiAquariumZoneData):
+            is_multi_aquarium = True
+            detector.set_multi_aquarium_zones(video_zone_data.aquariums, width, height)
+            has_aquarium = True
+        else:
+            detector.set_zones(video_zone_data, width, height)
+            # Fix: Ensure detector knows aquarium is defined if we have a polygon
+            has_aquarium = bool(video_zone_data.polygon and len(video_zone_data.polygon) >= 3)
+            detector.set_aquarium_region_defined(has_aquarium)
+
+        # DEBUG: Log zone setup results
         # DEBUG: Log zone setup results
         log.info(
             "worker.zones_configured_for_video",
             video=experiment_id,
             video_dimensions=(width, height),
-            polygon_points=len(video_zone_data.polygon),
+            polygon_points=len(video_zone_data.aquariums[0].polygon) if is_multi_aquarium and video_zone_data.aquariums else len(video_zone_data.polygon) if hasattr(video_zone_data, "polygon") else 0,
             has_aquarium=has_aquarium,
             scaled_polygon_size=detector.scaled_polygon.size
             if hasattr(detector, "scaled_polygon")
@@ -569,15 +590,26 @@ class _WorkerProcess(multiprocessing.Process):
 
         pixel_ratio = None
 
-        recorder.start_recording(
-            output_folder=results_dir,
-            frame_width=width,
-            frame_height=height,
-            zones=video_zone_data,
-            is_video_file=True,
-            base_name=experiment_id,
-            pixel_per_cm_ratio=pixel_ratio,
-        )
+        if is_multi_aquarium:
+            zones_by_aq = {aq.id: aq.to_zone_data() for aq in video_zone_data.aquariums}
+            recorder.start_recording_multi_aquarium(
+                output_folder=results_dir,
+                width=width,
+                height=height,
+                zones_by_aquarium=zones_by_aq,
+                base_name=experiment_id,
+                write_video=False,
+            )
+        else:
+            recorder.start_recording(
+                output_folder=results_dir,
+                frame_width=width,
+                frame_height=height,
+                zones=video_zone_data,
+                is_video_file=True,
+                base_name=experiment_id,
+                pixel_per_cm_ratio=pixel_ratio,
+            )
 
         detector.reset_tracking_state()
 
@@ -603,7 +635,14 @@ class _WorkerProcess(multiprocessing.Process):
                         break
 
                     # Detect
-                    detections, _ = detector.detect(frame, project_type="pre-recorded")
+                    if is_multi_aquarium:
+                        partitioned_detections = detector.detect_partitioned_optimized(frame)
+                        detections = []
+                        for aq_dets in partitioned_detections.values():
+                            detections.extend(aq_dets)
+                    else:
+                        detections, _ = detector.detect(frame, project_type="pre-recorded")
+
                     processed_frames += 1  # Count actually processed frames
 
                     # Count frames with detections
@@ -616,7 +655,12 @@ class _WorkerProcess(multiprocessing.Process):
 
                     # Record
                     timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
-                    recorder.write_detection_data(timestamp, frame_num, detections)
+                    if is_multi_aquarium:
+                        recorder.write_partitioned_detection_data(
+                            timestamp, frame_num, partitioned_detections
+                        )
+                    else:
+                        recorder.write_detection_data(timestamp, frame_num, detections)
 
                     # Display Update?
                     if frame_num % self.config.display_interval_frames == 0:
@@ -677,7 +721,10 @@ class _WorkerProcess(multiprocessing.Process):
 
         finally:
             cap.release()
-            recorder.stop_recording()
+            if is_multi_aquarium:
+                recorder.stop_recording_multi_aquarium()
+            else:
+                recorder.stop_recording()
 
         return True
 

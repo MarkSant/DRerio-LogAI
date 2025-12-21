@@ -105,7 +105,7 @@ def test_recorder_creates_complete_dataset(temp_project_dir, sample_zones):
     coords_table = pq.read_table(str(coords_file))
     assert len(coords_table) == 100, f"Expected 100 rows, got {len(coords_table)}"
 
-    # Verify schema
+    # Verify schema (includes Multi-Aquarium extensions: uncertainty, bbox_iou)
     expected_columns = {
         "timestamp",
         "frame",
@@ -115,6 +115,8 @@ def test_recorder_creates_complete_dataset(temp_project_dir, sample_zones):
         "x2",
         "y2",
         "confidence",
+        "uncertainty",
+        "bbox_iou",
         "x_center_px",
         "y_center_px",
     }

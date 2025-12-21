@@ -492,6 +492,10 @@ class EventDispatcher:
 
         # Zone List
         self.event_bus.subscribe(
+            Events.ZONE_AQUARIUM_SELECTED,
+            lambda d: self.gui.canvas_manager.update_zone_listbox(),
+        )
+        self.event_bus.subscribe(
             Events.ZONE_LIST_ITEM_DOUBLE_CLICK,
             lambda d: self.gui.canvas_manager.edit_selected_zone_vertices(),
         )

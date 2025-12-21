@@ -38,6 +38,7 @@ class UIEvents(Enum):
     VIDEO_HIERARCHY_SNAPSHOT_UPDATED = auto()  # New: Snapshot data ready
     READINESS_SNAPSHOT_UPDATED = auto()  # Replaces apply_pending_readiness_snapshot
     PROCESSING_REPORTS_ITEM_RIGHT_CLICK = auto()  # New: Right click context menu
+    UI_REQUEST_PROCESS_VIDEOS = auto()  # Selection-aware processing trigger
 
     # Analysis & Processing
     PROCESSING_STATS_UPDATED = auto()  # Replaces update_processing_stats

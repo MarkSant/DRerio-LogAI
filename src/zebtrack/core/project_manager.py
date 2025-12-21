@@ -1548,6 +1548,10 @@ class ProjectManager:
                     fields=migrated_fields,
                 )
                 self.save_project()
+
+            # Synchronize multi-aquarium flags from registry to video entries
+            self._sync_multi_aquarium_flags()
+
             self.load_metadata()  # Load metadata right after loading the project
             log_context.info(
                 "project.load.success",
@@ -1561,6 +1565,41 @@ class ProjectManager:
                 path=project_path,
                 cause=e,
             ) from e
+
+    def _sync_multi_aquarium_flags(self) -> None:
+        """
+        Synchronize has_arena/has_rois flags for multi-aquarium videos.
+
+        Ensures that video entries reflect the state of the multi-aquarium zone registry
+        upon project load, fixing UI discrepancies.
+        """
+        updates = 0
+        for _, video_entry in self._iter_project_videos():
+            path = video_entry.get("path")
+            if not path:
+                continue
+
+            # Check registry transparently
+            multi_data = self.get_multi_aquarium_zone_data(path)
+            if multi_data and multi_data.aquariums:
+                check_arena = False
+                check_rois = False
+                for aq in multi_data.aquariums:
+                    if aq.polygon and len(aq.polygon) >= 3:
+                        check_arena = True
+                    if aq.roi_polygons:
+                        check_rois = True
+
+                # Apply updates if needed
+                if check_arena and not video_entry.get("has_arena"):
+                    video_entry["has_arena"] = True
+                    updates += 1
+                if check_rois and not video_entry.get("has_rois"):
+                    video_entry["has_rois"] = True
+                    updates += 1
+
+        if updates > 0:
+            log.info("project.load.synced_multi_aquarium_flags", updates=updates)
 
     @_threadsafe
     def save_project(self) -> None:
@@ -2377,24 +2416,6 @@ class ProjectManager:
 
         return video_entry.get("multi_aquarium_outputs")
 
-    def is_multi_aquarium_video(self, video_path: Path | str) -> bool:
-        """
-        Check if a video is configured for multi-aquarium mode.
-
-        Args:
-            video_path: Path to the video file.
-
-        Returns:
-            True if video is in multi-aquarium mode, False otherwise.
-        """
-        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
-        video_entry = self.find_video_entry(path=video_path)
-
-        if not video_entry:
-            return False
-
-        return video_entry.get("multi_aquarium_mode", False)
-
     def get_next_video(self):
         """
         Return the path of the next video with 'pending' status from all batches.
@@ -2432,6 +2453,124 @@ class ProjectManager:
         """
         return self.zone_manager.get_zone_data(
             self.project_data, video_path=video_path, fallback_to_global=fallback_to_global
+        )
+
+    def get_multi_aquarium_zone_data(
+        self,
+        video_path: Path | str | None,
+    ):
+        """
+        Retrieve multi-aquarium zone data for a specific video.
+
+        Delegates to ZoneManager.
+        """
+        return self.zone_manager.get_multi_aquarium_zone_data(self.project_data, video_path)
+
+    def save_multi_aquarium_zone_data(
+        self,
+        video_path: Path | str | None,
+        multi_data,
+        *,
+        persist: bool = True,
+    ) -> None:
+        """
+        Save multi-aquarium zone data for a specific video.
+
+        Delegates to ZoneManager.
+        """
+        # Phase 1: Save zone data (and update has_arena flags in memory)
+        # We defer persistence until after parquet export
+        self.zone_manager.save_multi_aquarium_zone_data(
+            self.project_data,
+            video_path,
+            multi_data,
+            persist_callback=None,
+        )
+
+        # Phase 2: Export parquet for compatibility/detection
+        # This ensures 'scan_input_paths' detects 'has_arena'
+        if video_path and multi_data.aquariums:
+            try:
+                # Use AQ0 as the "main" parquet for compatibility
+                exported = self.export_zones_to_parquet(video_path, multi_data.to_zone_data(0))
+
+                # Update video entry with new parquet files AND flags
+                video_entry = self.find_video_entry(path=video_path)
+                if video_entry:
+                    # Update parquet_files map
+                    if exported:
+                        parquet_map = video_entry.setdefault("parquet_files", {})
+                        parquet_map.update(exported)
+
+                    # Explicitly update has_arena/has_rois flags
+                    # (fallback if update_video_zone_flags missed)
+                    has_arena = any(aq.polygon for aq in multi_data.aquariums)
+                    has_rois = any(aq.roi_polygons for aq in multi_data.aquariums)
+                    video_entry["has_arena"] = has_arena
+                    video_entry["has_rois"] = has_rois
+                    video_entry["zones_finalized"] = False
+
+                    log.info(
+                        "project_manager.multi_aquarium.video_entry_updated",
+                        video=str(video_path),
+                        has_arena=has_arena,
+                        has_rois=has_rois,
+                        parquet_count=len(exported) if exported else 0,
+                    )
+            except Exception as e:
+                log.error("project_manager.multi_aquarium.parquet_export_failed", error=str(e))
+
+        # Phase 3: Persist everything
+        if persist:
+            self.save_project()
+
+    def is_multi_aquarium_video(self, video_path: Path | str | None) -> bool:
+        """
+        Check if a video has multi-aquarium configuration.
+
+        A video is considered multi-aquarium if it has:
+        - Multi-aquarium zone data configured (via ZoneManager), OR
+        - Multi-aquarium outputs registered (via register_multi_aquarium_outputs)
+
+        Delegates to ZoneManager for zone data check, also checks outputs.
+        """
+        # Check zone data first (preferred source of truth)
+        if self.zone_manager.is_multi_aquarium_video(self.project_data, video_path):
+            return True
+
+        # Fallback: check if multi-aquarium outputs are registered
+        video_entry = self.find_video_entry(path=video_path)
+        if video_entry:
+            outputs = video_entry.get("multi_aquarium_outputs", {})
+            if len(outputs) >= 2:
+                return True
+
+        return False
+
+    def get_aquarium_count(self, video_path: Path | str | None) -> int:
+        """
+        Get the number of aquariums configured for a video (1 or 2).
+
+        Delegates to ZoneManager.
+        """
+        return self.zone_manager.get_aquarium_count(self.project_data, video_path)
+
+    def clear_multi_aquarium_zone_data(
+        self,
+        video_path: Path | str | None,
+        *,
+        persist: bool = True,
+    ) -> None:
+        """
+        Clear multi-aquarium zone data for a video.
+
+        Delegates to ZoneManager.
+        """
+        persist_callback = self.save_project if persist else None
+        self.zone_manager.clear_multi_aquarium_zone_data(
+            self.project_data,
+            video_path,
+            persist_callback=persist_callback,
         )
 
     def update_main_polygon(self, points: list):
@@ -2483,7 +2622,7 @@ class ProjectManager:
             self.metadata = None
             log.info("project.metadata.not_found", path=metadata_path)
 
-    def get_metadata_for_experiment(self, experiment_id: str) -> dict:
+    def get_metadata_for_experiment(self, experiment_id: str | None) -> dict:
         """
         Retrieve a dictionary of metadata for a given experiment ID.
 
@@ -2492,10 +2631,19 @@ class ProjectManager:
 
         Args:
             experiment_id: The ID of the experiment (e.g., the video file stem).
+                          Can be None for projects without hierarchy.
 
         Returns:
             A dictionary of metadata for that experiment.
         """
+        # Guard against None or empty experiment_id
+        if not experiment_id:
+            log.debug(
+                "metadata.lookup.skipped",
+                reason="experiment_id is None or empty",
+            )
+            return {}
+
         # First, try to find the data in the metadata.csv file
         if self.metadata is not None and "experiment_id" in self.metadata.columns:
             row = self.metadata[self.metadata["experiment_id"] == experiment_id]

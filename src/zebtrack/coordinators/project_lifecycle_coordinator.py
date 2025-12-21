@@ -164,7 +164,9 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             return
 
         try:
-            zone_data = self._zone_manager.get_zone_data_for_video(video_path)
+            zone_data = self._zone_manager.get_multi_aquarium_zone_data(
+                self.project_manager.project_data, video_path
+            )
             if not zone_data:
                 log.warning(
                     "aquarium_config_update.no_zone_data",

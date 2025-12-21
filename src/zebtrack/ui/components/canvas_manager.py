@@ -664,6 +664,17 @@ class CanvasManager:
             zone_data = self.gui._get_zone_data_for_active_context()
 
         controls = getattr(self.gui, "zone_controls", None)
+
+        # Handle Multi-Aquarium Data for Listbox
+        from zebtrack.core.detector import MultiAquariumZoneData
+        if isinstance(zone_data, MultiAquariumZoneData):
+            if controls:
+                active_id = controls.active_aquarium_var.get()
+                zone_data = zone_data.to_zone_data(active_id)
+            else:
+                # Fallback to first aquarium if controls not available
+                zone_data = zone_data.to_zone_data(0)
+
         if controls:
             controls.clear_zone_list()
             # Add Arena with dark teal color (matching the overlay drawing)
@@ -692,34 +703,46 @@ class CanvasManager:
         zone_data = self.gui._get_zone_data_for_active_context()
         all_polygons = []
 
-        # Add main arena polygon if it exists
-        if zone_data.polygon:
-            # Convert to canvas coordinates
-            canvas_polygon = []
-            for point in zone_data.polygon:
-                canvas_pt = self._video_to_canvas(point[0], point[1])
-                canvas_polygon.append(canvas_pt)
+        from zebtrack.core.detector import MultiAquariumZoneData
 
-            # Only add if not editing this polygon
-            if not (exclude_current_polygon and self.current_editing_zone == "arena"):
-                all_polygons.append(canvas_polygon)
+        # Normalize to a list of (ZoneData, is_active) tuples
+        targets = []
+        if isinstance(zone_data, MultiAquariumZoneData):
+            zone_controls = getattr(self.gui, "zone_controls", None)
+            active_id = zone_controls.active_aquarium_var.get() if zone_controls else 0
+            for aq in zone_data.aquariums:
+                targets.append((aq.to_zone_data(), aq.id == active_id))
+        else:
+            targets.append((zone_data, True))
 
-        # Add all ROI polygons
-        for idx, roi_polygon in enumerate(zone_data.roi_polygons):
-            canvas_polygon = []
-            for point in roi_polygon:
-                canvas_pt = self._video_to_canvas(point[0], point[1])
-                canvas_polygon.append(canvas_pt)
+        for zd, is_active in targets:
+            # Arena
+            if zd.polygon:
+                canvas_polygon = []
+                for point in zd.polygon:
+                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_polygon.append(canvas_pt)
 
-            # Only add if not editing this specific ROI
-            skip_this_roi = (
-                exclude_current_polygon
-                and isinstance(self.current_editing_zone, tuple)
-                and self.current_editing_zone[0] == "roi"
-                and self.current_editing_zone[1] == idx
-            )
-            if not skip_this_roi:
-                all_polygons.append(canvas_polygon)
+                # Exclude if it's the one we are editing
+                if not (is_active and exclude_current_polygon and self.current_editing_zone == "arena"):
+                    all_polygons.append(canvas_polygon)
+
+            # ROIs
+            for idx, roi_polygon in enumerate(zd.roi_polygons):
+                canvas_polygon = []
+                for point in roi_polygon:
+                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_polygon.append(canvas_pt)
+
+                skip = (
+                    is_active
+                    and exclude_current_polygon
+                    and isinstance(self.current_editing_zone, tuple)
+                    and self.current_editing_zone[0] == "roi"
+                    and self.current_editing_zone[1] == idx
+                )
+                if not skip:
+                    all_polygons.append(canvas_polygon)
 
         return GeometryService.apply_snapping(
             canvas_x, canvas_y, all_polygons, threshold=snap_threshold
@@ -736,6 +759,12 @@ class CanvasManager:
 
         self.gui.drawing_state_manager.drawing_type = "arena"
         self.start_polygon_drawing()
+
+        # Show aquarium indicator if in multi-aquarium mode
+        zone_controls = self.gui.zone_controls
+        if zone_controls and zone_controls.aquarium_count_var.get() == 2:
+            active_id = zone_controls.active_aquarium_var.get()
+            self._show_aquarium_indicator(f"Desenhando: Aquário {active_id + 1} de 2")
 
     def start_roi_drawing(self):
         """Start drawing an ROI polygon."""
@@ -759,8 +788,68 @@ class CanvasManager:
 
     def save_arena(self):
         """Save the edited polygon."""
+        # Check for multi-aquarium mode first
+        zone_controls = getattr(self.gui, "zone_controls", None)
+        if (
+            self.current_editing_zone == "arena"
+            and zone_controls
+            and zone_controls.aquarium_count_var.get() == 2
+        ):
+            active_id = zone_controls.active_aquarium_var.get()
+            video_path = self.gui.controller.project_manager.get_active_zone_video()
+
+            # Get existing multi-aquarium data
+            pm = self.gui.controller.project_manager
+            multi_data = pm.get_multi_aquarium_zone_data(video_path)
+
+            if multi_data:
+                # Update specific aquarium
+                aquarium = multi_data.get_aquarium(active_id)
+                if aquarium:
+                    aquarium.polygon = self.gui.edited_polygon_points
+
+                    # Save updated multi-aquarium data
+                    self.gui.controller.project_manager.save_multi_aquarium_zone_data(
+                        video_path, multi_data
+                    )
+
+                    status_message = f"Arena do Aquário {active_id + 1} salva com sucesso."
+                    self.gui.set_status(status_message)
+
+                    # Refresh UI
+                    self.clear_interactive_polygon()
+                    self.redraw_zones_from_project_data()
+
+                    from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                    if self.event_bus_v2:
+                        # Emit ZONES_UPDATED for zone listbox refresh
+                        self.event_bus_v2.publish(
+                            Event(
+                                type=UIEvents.ZONES_UPDATED,
+                                data={"zone_data": None},
+                                source="CanvasManager.save_arena.multi_aquarium",
+                            )
+                        )
+                        # Emit PROJECT_VIEWS_REFRESH to update VideoTree badges
+                        self.event_bus_v2.publish(
+                            Event(
+                                type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                                data={"reason": status_message, "append_summary": True},
+                                source="CanvasManager.save_arena.multi_aquarium",
+                            )
+                        )
+                        # Also emit VIDEO_TREE_REFRESH for immediate tree update
+                        self.event_bus_v2.publish(
+                            Event(
+                                type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                                data={"filter_text": None},
+                                source="CanvasManager.save_arena.multi_aquarium",
+                            )
+                        )
+                    return
+
         if self.current_editing_zone == "arena":
-            # Save main arena
+            # Save main arena (Single Aquarium)
             self.gui.event_dispatcher.publish_event(
                 Events.ZONE_SAVE_MANUAL_ARENA,
                 {"polygon_points": self.gui.edited_polygon_points},
@@ -836,6 +925,151 @@ class CanvasManager:
                 )
             )
 
+        # Check if we should prompt to add a second aquarium
+        self.gui.root.after(100, self._check_prompt_second_aquarium)
+
+    def _check_prompt_second_aquarium(self) -> None:
+        """Check if we should prompt to add a second aquarium."""
+        zone_controls = self.gui.zone_controls
+        if not zone_controls:
+            return
+
+        # Only prompt if still in single-aquarium mode
+        if zone_controls.aquarium_count_var.get() != 1:
+            return
+
+        # Only prompt if saving the first aquarium
+        if zone_controls.active_aquarium_var.get() != 0:
+            return
+
+        self._prompt_add_second_aquarium()
+
+    def _prompt_add_second_aquarium(self) -> None:
+        """Ask user if they want to add a second aquarium."""
+        from tkinter import messagebox
+
+        result = messagebox.askyesno(
+            "Adicionar Segundo Aquário",
+            "Polígono salvo com sucesso!\n\n"
+            "Este vídeo possui dois aquários?\n"
+            "Se sim, você poderá desenhar o polígono do segundo.",
+            icon="question",
+        )
+
+        if result:
+            # Convert existing zone data to multi-aquarium format
+            self._convert_to_multi_aquarium_format()
+
+            # Activate multi-aquarium mode in UI
+            self.gui.zone_controls.set_aquarium_count(2)
+            # Select aquarium 2
+            self.gui.zone_controls.active_aquarium_var.set(1)
+            self.gui.zone_controls._on_aquarium_selected()
+            # Start drawing after delay
+            self.gui.root.after(200, self._start_second_aquarium_drawing)
+
+    def _convert_to_multi_aquarium_format(self) -> None:
+        """Convert current zone data to multi-aquarium format."""
+        from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+
+        video_path = self.gui.controller.project_manager.get_active_zone_video()
+        if not video_path:
+            return
+
+        # Get current zone data with first polygon
+        zone_data = self.gui.controller.project_manager.get_zone_data(video_path)
+        if not zone_data or not zone_data.polygon:
+            return
+
+        # Create AquariumData for first aquarium
+        aquarium_0 = AquariumData(
+            id=0,
+            polygon=zone_data.polygon,
+            roi_polygons=zone_data.roi_polygons,
+            roi_names=zone_data.roi_names,
+            roi_colors=zone_data.roi_colors,
+        )
+
+        # Create empty AquariumData for second aquarium
+        aquarium_1 = AquariumData(id=1)
+
+        # Create MultiAquariumZoneData
+        multi_data = MultiAquariumZoneData(
+            aquariums=[aquarium_0, aquarium_1],
+        )
+
+        # Save multi-aquarium data via ProjectManager to ensure parquet export
+        # and validation flags are updated correctly.
+        self.gui.controller.project_manager.save_multi_aquarium_zone_data(
+            video_path,
+            multi_data,
+            persist=True,
+        )
+
+    def _start_second_aquarium_drawing(self) -> None:
+        """Start drawing the second aquarium polygon."""
+        self.gui.show_info(
+            "Informação",
+            "Desenhe o polígono do Aquário 2.\n"
+            "O polígono do Aquário 1 será mostrado como referência."
+        )
+        self.start_main_arena_drawing()
+
+    def get_other_aquarium_polygon(self) -> list[list[int]] | None:
+        """Get the polygon of the OTHER aquarium for ghost rendering.
+
+        Returns:
+            The polygon points of the other aquarium, or None if not available.
+        """
+        zone_controls = self.gui.zone_controls
+        if not zone_controls or zone_controls.aquarium_count_var.get() != 2:
+            return None
+
+        active_id = zone_controls.active_aquarium_var.get()
+        other_id = 1 - active_id  # 0 -> 1, 1 -> 0
+
+        video_path = self.gui.controller.project_manager.get_active_zone_video()
+        if not video_path:
+            return None
+
+        project_data = self.gui.controller.project_manager.project_data
+        if not project_data:
+            return None
+
+        # Try to get from multi-aquarium data structure
+        from zebtrack.core.zone_manager import ZoneManager
+
+        zone_manager = ZoneManager()
+        multi_data = zone_manager.get_multi_aquarium_zone_data(project_data, video_path)
+
+        if multi_data:
+            aquarium = multi_data.get_aquarium(other_id)
+            if aquarium and aquarium.polygon:
+                return aquarium.polygon
+
+        # Fallback: if other_id=0, try regular zone data
+        if other_id == 0:
+            zone_data = self.gui.controller.project_manager.get_zone_data(video_path)
+            if zone_data and hasattr(zone_data, "polygon") and zone_data.polygon:
+                return zone_data.polygon
+
+        return None
+
+    def _show_aquarium_indicator(self, text: str) -> None:
+        """Show indicator of which aquarium is being drawn."""
+        canvas = self._get_canvas()
+        if not canvas:
+            return
+        canvas.delete("aquarium_indicator")
+        canvas.create_text(
+            canvas.winfo_width() // 2,
+            30,
+            text=text,
+            fill="#0066CC",
+            font=("Segoe UI", 12, "bold"),
+            tags="aquarium_indicator",
+        )
+
     def discard_arena(self):
         """Discard the interactive polygon."""
         self.clear_interactive_polygon()
@@ -868,6 +1102,17 @@ class CanvasManager:
     def update_roi_button_state(self):
         """Enable ROI button if arena exists."""
         zone_data = self.gui._get_zone_data_for_active_context()
+
+        # Handle Multi-Aquarium Data
+        from zebtrack.core.detector import MultiAquariumZoneData
+        if isinstance(zone_data, MultiAquariumZoneData):
+            zone_controls = getattr(self.gui, "zone_controls", None)
+            if zone_controls:
+                active_id = zone_controls.active_aquarium_var.get()
+                zone_data = zone_data.to_zone_data(active_id)
+            else:
+                zone_data = zone_data.to_zone_data(0)
+
         widget = getattr(self.gui, "zone_controls", None)
         if widget:
             widget.set_draw_roi_enabled(bool(zone_data and zone_data.polygon))

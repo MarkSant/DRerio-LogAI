@@ -257,6 +257,7 @@ class Events:
     UI_SETUP_INTERACTIVE_POLYGON = "ui:setup_interactive_polygon"
     UI_DISPLAY_VIDEO_FRAME = "ui:display_video_frame"
     UI_UPDATE_PROCESSING_MODE = "ui:update_processing_mode"
+    UI_REQUEST_PROCESS_VIDEOS = "ui:request_process_videos"
 
     # Navigation
     UI_NAVIGATE_TO_WELCOME = "ui:navigate_to_welcome"

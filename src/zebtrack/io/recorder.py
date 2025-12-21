@@ -318,6 +318,7 @@ class Recorder:
         width: int,
         height: int,
         zones_by_aquarium: dict[int, ZoneData],
+        base_name: str | None = None,
         fps: float = 30.0,
         write_video: bool = True,
         pixel_per_cm_ratio: tuple[float, float] | None = None,
@@ -342,6 +343,7 @@ class Recorder:
             width: Frame width in pixels.
             height: Frame height in pixels.
             zones_by_aquarium: Dict mapping aquarium_id to ZoneData.
+            base_name: Optional base name for output files.
             fps: Frames per second (default: 30.0).
             write_video: If True, also writes video files per aquarium.
             pixel_per_cm_ratio: Optional calibration ratio (x_ratio, y_ratio).
@@ -375,6 +377,9 @@ class Recorder:
             aq_recorder._aquarium_id = aq_id  # Mark this recorder for specific aquarium
             aq_recorder._fps = fps
 
+            # Construct base name for sub-recorder
+            aq_base_name = f"{base_name}_aquarium_{aq_id}" if base_name else f"aquarium_{aq_id}"
+
             try:
                 success = aq_recorder.start_recording(
                     output_folder=str(aq_folder),
@@ -383,7 +388,7 @@ class Recorder:
                     zones=zone_data,
                     is_video_file=not write_video,
                     pixel_per_cm_ratio=pixel_per_cm_ratio,
-                    base_name=f"aquarium_{aq_id}",
+                    base_name=aq_base_name,
                     calibration=calibration,
                 )
 

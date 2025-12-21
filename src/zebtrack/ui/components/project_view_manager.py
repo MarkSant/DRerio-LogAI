@@ -63,6 +63,11 @@ class ProjectViewManager:
             UIEvents.VIDEO_TREE_REFRESH_REQUESTED, self._on_video_tree_refresh_requested
         )
 
+        # Subscribe to UI_REQUEST_PROCESS_VIDEOS (Selection-aware processing trigger)
+        self.event_bus_v2.subscribe(
+            UIEvents.UI_REQUEST_PROCESS_VIDEOS, self._on_request_process_videos
+        )
+
         # Subscribe to PROJECT_VIEWS_REFRESH_REQUESTED
         self.event_bus_v2.subscribe(
             UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
@@ -184,6 +189,16 @@ class ProjectViewManager:
         filter_text = data.get("filter_text")
         log.debug("project_view_manager.video_tree_refresh_event_received", filter_text=filter_text)
         self._populate_video_selector_tree(filter_text)
+
+    def _on_request_process_videos(self, data: dict) -> None:
+        """
+        Handle UI request to process videos (Selection with Fallback).
+
+        Called when users click "Process Video" in Analysis view.
+        Attempts to process current selection; if none, processes all pending videos.
+        """
+        log.info("project_view_manager.request_process_videos")
+        self.trigger_batch_trajectory_processing(fallback_to_pending=True)
 
     def _on_readiness_snapshot_updated(self, data: dict):
         """Handle READINESS_SNAPSHOT_UPDATED event.
@@ -758,8 +773,16 @@ class ProjectViewManager:
 
         _walk("")
 
-    def trigger_batch_trajectory_processing(self, selection=None) -> None:
-        """Trigger batch trajectory processing for selected or all videos."""
+    def trigger_batch_trajectory_processing(
+        self, selection=None, fallback_to_pending: bool = False
+    ) -> None:
+        """
+        Trigger batch trajectory processing for selected or all videos.
+
+        Args:
+            selection: Optional list of item IDs
+            fallback_to_pending: If True and no selection, triggers process all pending
+        """
         from zebtrack.ui.events import Events
 
         selections = []
@@ -771,6 +794,16 @@ class ProjectViewManager:
             selections = self.resolve_processing_reports_video_paths()
 
         if not selections:
+            if fallback_to_pending:
+                # Fallback: Process all pending videos (pass null paths)
+                self.gui.event_dispatcher.publish_event(
+                    Events.PROJECT_PROCESS_VIDEOS, {"video_paths": None}
+                )
+                self.request_overview_refresh()
+                # Switch to analysis tab to show progress
+                self.gui._switch_to_analysis_view()
+                return
+
             self.gui.show_info(
                 "Processamento",
                 "Nenhum vídeo elegível foi encontrado ou selecionado.",
@@ -823,9 +856,50 @@ class ProjectViewManager:
             {"videos": all_videos, "report_type": "unified"},
         )
 
+        return video_paths
+
+    def _resolve_selection_from_project_overview(self) -> list[str]:
+        """Resolve selected video paths from Project Overview tree."""
+        if not hasattr(self.gui, "project_overview_widget"):
+            return []
+        if not self.gui.project_overview_widget:
+            return []
+
+        tree = self.gui.project_overview_widget.tree
+        if not tree:
+            return []
+
+        selection = tree.selection()
+        video_paths = []
+
+        for item_id in selection:
+            # 1. Try to get path from values (index 5 based on _populate_project_tree params)
+            values = tree.item(item_id, "values")
+            log.warning("debug.selection_resolution", item_id=item_id, values=values)
+
+            if values and len(values) >= 6:
+                path_candidate = values[5]
+                # Check if it looks like a path (values are strings)
+                if path_candidate and os.path.exists(path_candidate):
+                    video_paths.append(path_candidate)
+                    continue
+                else:
+                    log.warning("debug.selection.invalid_path", path=path_candidate)
+
+            # 2. Legacy/Fallback: Check tags (if used elsewhere)
+            tags = tree.item(item_id, "tags")
+            if tags:
+                path_candidate = tags[0]
+                if path_candidate and os.path.exists(path_candidate):
+                    video_paths.append(path_candidate)
+                    continue
+
+        log.warning("debug.resolved_paths", count=len(video_paths), paths=video_paths)
+        return video_paths
+
     def resolve_processing_reports_video_paths(self, selection=None) -> list[str]:
         """
-        Resolve selected video paths from processing reports tree.
+        Resolve selected video paths from ANY active tree (Reports or Overview).
 
         Args:
             selection: Optional list of item IDs. If None, uses current tree selection.
@@ -833,24 +907,25 @@ class ProjectViewManager:
         Returns:
             List of selected video paths
         """
-        if not hasattr(self.gui, "processing_reports_widget"):
-            return []
-        if not self.gui.processing_reports_widget:
-            return []
+        # 1. Try Processing Reports Tree
+        reports_paths = []
+        if hasattr(self.gui, "processing_reports_widget") and self.gui.processing_reports_widget:
+            tree = self.gui.processing_reports_widget.tree
+            if tree:
+                selected = selection if selection is not None else tree.selection()
+                log.warning("debug.reports_tree.selection", count=len(selected))
+                for item_id in selected:
+                    video_path = tree.set(item_id, "video_path")
+                    if video_path and os.path.isfile(video_path):
+                        reports_paths.append(video_path)
 
-        tree = self.gui.processing_reports_widget.tree
-        if not tree:
-            return []
+        if reports_paths:
+            log.warning("debug.reports_tree.found", paths=reports_paths)
+            return reports_paths
 
-        selected = selection if selection is not None else tree.selection()
-        video_paths = []
-
-        for item_id in selected:
-            video_path = tree.set(item_id, "video_path")
-            if video_path and os.path.isfile(video_path):
-                video_paths.append(video_path)
-
-        return video_paths
+        log.warning("debug.fallback.project_overview")
+        # 2. Try Project Overview Tree (Fallback for selection)
+        return self._resolve_selection_from_project_overview()
 
     def populate_video_selector_tree(self, search_text: str = "") -> None:
         """

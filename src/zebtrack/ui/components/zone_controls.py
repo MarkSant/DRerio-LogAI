@@ -671,7 +671,7 @@ class ZoneControlsWidget(BaseWidget):
         aquarium_id = self.active_aquarium_var.get()
         log.debug("zone_controls.aquarium_selected", aquarium_id=aquarium_id)
         self.emit_event(
-            "zone.aquarium_selected",
+            Events.ZONE_AQUARIUM_SELECTED,
             {"aquarium_id": aquarium_id},
         )
 

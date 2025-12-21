@@ -47,6 +47,8 @@ class ZoneManager:
     def normalize_video_path(path: Path | str | None) -> str | None:
         """Normalize a video path for consistent comparison.
 
+        Always resolves to absolute path and uses forward slashes.
+
         Args:
             path: Path to normalize
 
@@ -209,9 +211,29 @@ class ZoneManager:
         if not project_data or not video_path_str:
             return
 
-        has_arena = bool(zone_data and zone_data.polygon)
-        has_rois = bool(zone_data and zone_data.roi_polygons)
+        has_arena = False
+        has_rois = False
+
+        from zebtrack.core.detector import MultiAquariumZoneData
+
+        if isinstance(zone_data, MultiAquariumZoneData):
+            for aq in zone_data.aquariums:
+                if aq.polygon:
+                    has_arena = True
+                if aq.roi_polygons:
+                    has_rois = True
+        elif zone_data:
+            has_arena = bool(zone_data.polygon)
+            has_rois = bool(zone_data.roi_polygons)
+
         normalized_target = ZoneManager.normalize_video_path(video_path_str)
+        log.info(
+            "zone_manager.update_flags.debug",
+            target=normalized_target,
+            has_arena=has_arena,
+            has_rois=has_rois,
+            is_multi=isinstance(zone_data, MultiAquariumZoneData)
+        )
 
         for batch in project_data.get("batches", []):
             for video in batch.get("videos", []):
@@ -222,7 +244,14 @@ class ZoneManager:
                     video["has_arena"] = has_arena
                     video["has_rois"] = has_rois
                     video["zones_finalized"] = False
+                    log.info(
+                        "zone_manager.update_flags.updated",
+                        video=candidate_path,
+                        has_arena=has_arena,
+                    )
                     return
+
+        log.warning("zone_manager.update_flags.no_match_found", target=normalized_target)
 
     def refresh_last_zone_source(
         self, project_data: dict, removed_path: Path | str | None = None
@@ -783,7 +812,7 @@ class ZoneManager:
                 project_data["zones_by_video"][store_key] = self.zone_data_to_dict(
                     first_aquarium_zone
                 )
-                self.update_video_zone_flags(project_data, video_path, first_aquarium_zone)
+                self.update_video_zone_flags(project_data, video_path, data)
 
             log.info(
                 "zone_manager.multi_aquarium.saved",

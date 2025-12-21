@@ -368,9 +368,8 @@ class CanvasEventHandler:
             if success:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
-                status_message = (
-                    f"✓ {self.gui.drawing_state_manager.drawing_type.title()} definida com sucesso!"
-                )
+                drawing_type = self.gui.drawing_state_manager.drawing_type
+                status_message = f"✓ {drawing_type.title()} definida com sucesso!"
                 self.gui.set_status(status_message)
                 self.gui.show_info(
                     "Sucesso",
@@ -387,6 +386,12 @@ class CanvasEventHandler:
                     )
 
                 self.manager.stop_drawing()
+
+                # Prompt for second aquarium if drawing arena in single-aquarium mode
+                if drawing_type == "arena":
+                    self.gui.root.after(
+                        100, self.manager._check_prompt_second_aquarium
+                    )
             else:
                 self.gui.set_status("❌ Erro ao salvar zona.")
                 self.gui.show_error("Erro", "Não foi possível salvar a zona.")
