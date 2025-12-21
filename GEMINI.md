@@ -150,7 +150,19 @@ What are the results?
 **4. Windows Taskbar Icon:**
 *   Added `AppUserModelID` setup in `__main__.py` to dissociate the app from the generic Python process icon on Windows.
 
+**5. Infinite Loop & Crash Fixes (Dec 2025):**
+*   **Infinite Detection Loop**: Fixed a recursive event cycle where `MainViewModel` subscribed to `ZONE_AUTO_DETECT` and called a method that re-published it. Removed the redundant subscription in `MainViewModel` (line 143), letting `ProcessingCoordinator` handle it exclusively.
+*   **Multi-Aquarium Analysis Crash**: Fixed `AttributeError: 'MultiAquariumZoneData' object has no attribute 'polygon'` in `ProcessingCoordinator.start_single_video_processing`. Added logic to detect `MultiAquariumZoneData` and correctly calculate `has_arena`/`has_rois` by checking the `aquariums` list.
+*   **Serialization Crash**: Fixed `ZoneManager.save_zone_data` blindly calling `zone_data_to_dict` (which expects single-aquarium data). Added detection to route `MultiAquariumZoneData` to `save_multi_aquarium_zone_data` automatically.
+*   **GUI Safety**: Updated `gui.py` to check for `MultiAquariumZoneData` before accessing `polygon`, and `ZoneControlBuilder` to handle `ProjectInvalidError` gracefully when clicking "Conclude" in Single Video Mode.
+
+**6. Multi-Aquarium Detector Logic Fixes (Dec 2025):**
+*   **Empty Aquarium List**: Fixed silent failure where `Detector.set_zones` was not populating `self._aquariums`, causing `detect_partitioned_optimized` to loop 0 times. Added explicit population of `self._aquariums = self.zones.aquariums` when in multi-aquarium mode.
+*   **Tracker Initialization Crash**: Fixed `KeyError: 0` by ensuring `self._byte_trackers_multi` is initialized for each aquarium ID in `set_zones`.
+*   **Tracker Arguments Error**: Fixed `TypeError` in `BYTETracker` initialization. `BYTETracker` expects a namespace object `args` (not kwargs). Updated instantiation to use `SimpleNamespace` wrapping `track_thresh`, `track_buffer`, etc.
+
 **Agent Instructions:**
 *   When modifying `ProjectManager` or `ZoneManager`, ensure `MultiAquariumZoneData` compatibility is maintained.
 *   Do NOT revert the explicit parquet export in `save_multi_aquarium_zone_data`—it is essential for the legacy validation scanner.
 *   Ensure `EventDispatcher` subscriptions are kept in sync with `ZoneControls` events.
+*   **Always check for infinite event loops** when adding new subscriptions to `MainViewModel`.

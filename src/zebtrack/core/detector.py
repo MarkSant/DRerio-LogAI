@@ -228,21 +228,76 @@ class Detector:
         self.zones = zones
         # Clear cache if zones are redefined, as scaling depends on zone data
         self._scaling_cache.clear()
+
+        # Handle MultiAquariumZoneData vs ZoneData
+        has_polygon = False
+        polygon_points = 0
+        roi_count = 0
+        polygon_sample = "empty"
+        is_multi = hasattr(self.zones, "aquariums")
+
+        self._multi_aquarium_mode = is_multi
+
+        if is_multi:
+            self._aquariums = self.zones.aquariums
+            # Initialize trackers for each aquarium if not already present
+            for aq in self._aquariums:
+                if aq.id not in self._byte_trackers_multi:
+                     if self.settings and hasattr(self.settings, "bytetrack"):
+                         bt = self.settings.bytetrack
+                         track_thresh = float(bt.track_threshold)
+                         track_buffer = int(bt.track_buffer)
+                         match_thresh = float(bt.match_threshold)
+                     else:
+                         # Defaults
+                         track_thresh = 0.5
+                         track_buffer = 30
+                         match_thresh = 0.8
+
+                     # Create Args Namespace
+                     # BYTETracker expects an object with these attributes, not kwargs
+                     tracker_args = SimpleNamespace(
+                         track_thresh=track_thresh,
+                         track_buffer=track_buffer,
+                         match_thresh=match_thresh,
+                         mot20=False
+                     )
+
+                     # Create Tracker
+                     self._byte_trackers_multi[aq.id] = BYTETracker(tracker_args)
+        else:
+            self._aquariums = []
+
         self._update_scaling(actual_width, actual_height)
 
+        # Collect stats for logging
+        if is_multi:
+            polygon_points = sum(len(aq.polygon) for aq in self.zones.aquariums)
+            roi_count = sum(len(aq.roi_polygons) for aq in self.zones.aquariums)
+            has_polygon = bool(self.zones.aquariums)
+            if has_polygon:
+                 # Sample first aquarium
+                 polygon_sample = str(self.zones.aquariums[0].polygon[:3])
+        else:
+            # Standard ZoneData
+            has_polygon = bool(self.zones.polygon)
+            polygon_points = len(self.zones.polygon) if self.zones.polygon else 0
+            roi_count = len(self.zones.roi_polygons) if self.zones.roi_polygons else 0
+            if has_polygon:
+                 # Handle list of tuples or numpy array
+                 poly_np = np.array(self.zones.polygon)
+                 polygon_sample = poly_np[:3].tolist() if poly_np.size > 0 else "empty"
+
         # DEBUG: Log zone setup with polygon details
-        polygon_sample = (
-            self.scaled_polygon[:3].tolist() if self.scaled_polygon.size > 0 else "empty"
-        )
         log.info(
             "detector.zones.set",
-            roi_count=len(self.zones.roi_polygons),
-            polygon_points=len(self.zones.polygon),
-            has_polygon=bool(self.zones.polygon),
-            scaled_polygon_size=self.scaled_polygon.size,
+            roi_count=roi_count,
+            polygon_points=polygon_points,
+            has_polygon=has_polygon,
             scaled_polygon_sample=polygon_sample,
             actual_dimensions=(actual_width, actual_height),
             base_dimensions=(self.base_width, self.base_height),
+            is_multi_aquarium=is_multi
         )
 
         self._zones_configured = True
@@ -285,6 +340,31 @@ class Detector:
             log.debug("detector.scaling.cache.hit", key=cache_key)
             return
 
+        # Handle MultiAquariumZoneData
+        if hasattr(self.zones, "aquariums"):
+            self._scaled_aquarium_polygons = {}
+            scale_x = actual_width / self.base_width
+            scale_y = actual_height / self.base_height
+
+            # Scale each aquarium's polygon
+            for aq in self.zones.aquariums:
+                base_poly = np.array(aq.polygon, dtype=np.int32)
+                if base_poly.size > 0:
+                     if actual_width == self.base_width and actual_height == self.base_height:
+                         scaled_poly = base_poly
+                     else:
+                         scaled_poly = (base_poly * [scale_x, scale_y]).astype(np.int32)
+                     self._scaled_aquarium_polygons[aq.id] = scaled_poly
+
+            # For backward compatibility / safe default, set main scaled_polygon to empty
+            # or to the bounding box of all aquariums if needed.
+            # For now, let's keep it empty to avoid confusion with single zone logic
+            self.scaled_polygon = np.array([], dtype=np.int32)
+            self.scaled_roi_polygons = []
+
+            return
+
+        # Single ZoneData Logic
         # Convert base polygons to numpy arrays for scaling
         base_polygon = np.array(self.zones.polygon, dtype=np.int32)
         base_roi_polygons = [np.array(p, dtype=np.int32) for p in self.zones.roi_polygons]
@@ -374,7 +454,9 @@ class Detector:
 
         return False
 
-    def detect(self, frame: np.ndarray, project_type: str):  # noqa: C901
+    def detect(
+        self, frame: np.ndarray, project_type: str, conf_threshold: float | None = None
+    ):  # noqa: C901
         """Process a single frame for object detection and state tracking."""
         # Task 1.3: Frame validation to prevent crashes with invalid input
         if frame is None or not isinstance(frame, np.ndarray):
@@ -414,7 +496,7 @@ class Detector:
 
             # 1. Delegate actual detection to the loaded plugin on the cropped frame
             predictions = []
-            for det in self.plugin.detect(cropped_frame):
+            for det in self.plugin.detect(cropped_frame, conf_threshold=conf_threshold):
                 (
                     x1_crop,
                     y1_crop,
@@ -431,7 +513,10 @@ class Detector:
                 predictions.append((x1, y1, x2, y2, conf, track_id, class_id))
         else:
             # Fallback to detecting on the full frame if no polygon is defined
-            predictions = [self._ensure_track_tuple(det) for det in self.plugin.detect(frame)]
+            predictions = [
+                self._ensure_track_tuple(det)
+                for det in self.plugin.detect(frame, conf_threshold=conf_threshold)
+            ]
 
         # 2. Filter detections to only those inside the main polygon
         # This is still necessary for non-rectangular polygons
@@ -440,26 +525,32 @@ class Detector:
         has_polygon = self.scaled_polygon.size > 0
 
         if len(predictions) > 0:
-            log.debug(
+            log.info(
                 "detector.predictions_before_polygon_filter",
                 count=len(predictions),
                 has_polygon=has_polygon,
+                sample=str(predictions[:3])
             )
 
             # 🔍 DEBUG: Log decision flags for polygon filtering
-            log.debug(
+            log.info(
                 "detector.polygon_filter_decision_flags",
                 has_polygon=has_polygon,
                 context=self._context,
                 aquarium_defined=self._aquarium_region_defined,
                 polygon_size=self.scaled_polygon.size,
+                is_multi=self._multi_aquarium_mode
             )
 
             # ✅ If no polygon defined and in diagnostic mode OR detecting aquarium,
-            # accept all detections
-            if not has_polygon and (
-                self._context == "diagnostic" or not self._aquarium_region_defined
-            ):
+            # accept all detections.
+            # In multi-mode, we generally enforce polygon constraints unless specifically detecting aquariums.
+            should_filter = True
+            if not has_polygon and not self._multi_aquarium_mode:
+                 if self._context == "diagnostic" or not self._aquarium_region_defined:
+                     should_filter = False
+
+            if not should_filter:
                 log.debug(
                     "detector.no_polygon_accept_all",
                     accepting_all_detections=len(predictions),
@@ -475,39 +566,43 @@ class Detector:
                 ]
             else:
                 # Normal polygon filtering - MUST filter by polygon
-                log.debug(
-                    "detector.polygon_filtering_active",
-                    has_polygon=has_polygon,
-                    polygon_size=self.scaled_polygon.size,
-                    context=self._context,
-                    aquarium_defined=self._aquarium_region_defined,
-                    predictions_count=len(predictions),
-                )
+                # Support Multi-Aquarium Filtering
                 for det in predictions:
                     x1, y1, x2, y2, confidence, track_id, class_id = det
                     x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
                     confidence = float(confidence)
 
-                    if self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon):
+                    is_inside = False
+
+                    if self._multi_aquarium_mode and hasattr(self, "_scaled_aquarium_polygons"):
+                         # Check against all aquarium polygons
+                         for aq_id, poly in self._scaled_aquarium_polygons.items():
+                             if self._is_inside_polygon(x1, y1, x2, y2, poly):
+                                 is_inside = True
+                                 # TODO (Phase 5): Attach aquarium ID to detection if tracking architecture supports it
+                                 break
+                    elif self.scaled_polygon.size > 0:
+                         # Check against main polygon
+                         is_inside = self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon)
+                    else:
+                         # No polygon defined but filtering required? Use default bound or skip?
+                         # If we are here, should_filter is True but no polygon exists?
+                         # This implies we should filter out EVERYTHING or logic error.
+                         # Assuming strict constraint: if filtering is on and no polygon, reject.
+                         is_inside = False
+
+
+                    if is_inside:
                         detections_in_polygon.append(
                             (x1, y1, x2, y2, confidence, track_id, class_id)
                         )
-                        # 🔍 DEBUG: Log why it passed
-                        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-                        log.debug(
-                            "detector.polygon_filter.passed",
-                            bbox=(x1, y1, x2, y2),
-                            center=(cx, cy),
-                            polygon_points=self.scaled_polygon.tolist()
-                            if hasattr(self.scaled_polygon, "tolist")
-                            else "unknown",
-                        )
                     else:
-                        log.debug(
+                        log.info(
                             "detector.filtered_outside_polygon",
                             bbox=(x1, y1, x2, y2),
                             track_id=track_id,
                             class_id=class_id,
+                            is_multi=self._multi_aquarium_mode
                         )
 
                 # Log summary of polygon filtering
@@ -516,9 +611,10 @@ class Detector:
                     predictions_count=len(predictions),
                     passed_filter=len(detections_in_polygon),
                     filtered_out=len(predictions) - len(detections_in_polygon),
+                    is_multi=self._multi_aquarium_mode
                 )
         else:
-            log.debug(
+            log.info(
                 "detector.no_predictions_from_model",
                 has_polygon=has_polygon,
             )
@@ -1448,6 +1544,13 @@ class Detector:
         # Execute detection on full frame
         raw_detections = self.plugin.detect(frame)
 
+        # DEBUG: Log raw detections
+        log.info(
+            "detector.multi.raw_detections",
+            count=len(raw_detections),
+            detections=str([str(d) for d in raw_detections[:3]])  # First 3 only
+        )
+
         # Partition detections by aquarium
         partitioned: dict[int, list] = {aq.id: [] for aq in self._aquariums}
 
@@ -1465,6 +1568,10 @@ class Detector:
                     if self._point_in_polygon(centroid, polygon):
                         partitioned[aq.id].append(det)
                         break
+
+        # DEBUG: Log partitioning results
+        partition_counts = {aqid: len(dets) for aqid, dets in partitioned.items()}
+        log.info("detector.multi.partitioning", counts=partition_counts)
 
         # Apply independent tracking per aquarium
         results: dict[int, list[tuple]] = {}
@@ -1606,6 +1713,14 @@ class Detector:
 
             # Run detection on cropped region
             raw_detections = self.plugin.detect(cropped)
+
+            # DEBUG: Log raw detections on crop
+            log.debug(
+                "detector.optimized.raw_crop",
+                aquarium_id=aq.id,
+                count=len(raw_detections),
+                detections=str([str(d) for d in raw_detections[:3]])
+            )
 
             # Adjust coordinates back to original frame
             adjusted_detections = []

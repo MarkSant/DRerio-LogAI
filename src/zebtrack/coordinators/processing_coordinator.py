@@ -28,6 +28,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import structlog
+
 from shapely.geometry import Polygon
 
 from zebtrack.analysis.reporter import Reporter
@@ -216,6 +217,7 @@ class ProcessingCoordinator(BaseCoordinator):
         self._active_processing_mode = ProcessingMode.MULTI_TRACK
         self.processing_worker: ProcessingWorker | None = None
         self.processing_thread: Any = None
+        self._is_detecting_aquarium: bool = False
 
         log.info("processing_coordinator.initialized.phase3")
 
@@ -844,12 +846,25 @@ class ProcessingCoordinator(BaseCoordinator):
 
             metadata = self._extract_metadata_from_config(config)
             video_name = os.path.splitext(os.path.basename(str(video_path)))[0]
+            # Determine arena/ROI presence based on zone data type
+            has_arena = False
+            has_rois = False
+
+            if zone_data:
+                # Check for MultiAquariumZoneData by attribute presence or type name to avoid imports
+                if hasattr(zone_data, "aquariums"):
+                     has_arena = bool(zone_data.aquariums)
+                     has_rois = any(bool(aq.roi_polygons) for aq in zone_data.aquariums)
+                else:
+                     has_arena = bool(zone_data.polygon)
+                     has_rois = bool(zone_data.roi_polygons)
+
             video_data = {
                 "path": str(video_path),
                 "experiment_id": video_name,
                 "status": "processing",
-                "has_arena": bool(zone_data and zone_data.polygon),
-                "has_rois": bool(zone_data and zone_data.roi_polygons),
+                "has_arena": has_arena,
+                "has_rois": has_rois,
             }
             if metadata:
                 video_data["metadata"] = metadata
@@ -865,12 +880,26 @@ class ProcessingCoordinator(BaseCoordinator):
             )
 
         # Save the zone data for this video
-        if zone_data and (zone_data.polygon or zone_data.roi_polygons):
+        should_save_zones = False
+        if zone_data:
+            if hasattr(zone_data, "aquariums"):
+                should_save_zones = bool(zone_data.aquariums)
+            else:
+                should_save_zones = bool(zone_data.polygon or zone_data.roi_polygons)
+
+        if should_save_zones:
+            # Safe log parameter calculation
+            roi_count = 0
+            if hasattr(zone_data, "aquariums"):
+                roi_count = sum(len(aq.roi_polygons) for aq in zone_data.aquariums)
+            elif hasattr(zone_data, "roi_polygons"):
+                roi_count = len(zone_data.roi_polygons)
+
             log.info(
                 "workflow.single_video.saving_zones",
                 video=str(video_path),
-                has_arena=bool(zone_data.polygon),
-                roi_count=len(zone_data.roi_polygons),
+                has_arena=should_save_zones, # Already computed
+                roi_count=roi_count,
             )
             self.project_manager.save_zone_data(
                 zone_data,
@@ -897,7 +926,7 @@ class ProcessingCoordinator(BaseCoordinator):
             )
 
             # Inform detector that aquarium region is defined
-            has_aquarium = bool(zone_data and zone_data.polygon)
+            has_aquarium = bool(zone_data and (zone_data.polygon or hasattr(zone_data, "aquariums")))
             self.detector.set_aquarium_region_defined(has_aquarium)
             log.info(
                 "controller.single_video.aquarium_status",
@@ -1158,9 +1187,16 @@ class ProcessingCoordinator(BaseCoordinator):
 
         Phase 3: Consolidated from AnalysisOrchestrator.run_aquarium_detection
         """
-        if video_path is not None:
-            video_path = Path(video_path) if isinstance(video_path, str) else video_path
+        # Guard against re-entry
+        if self._is_detecting_aquarium:
+            log.warning("aquarium_detection.guard.active")
+            return
+
+        self._is_detecting_aquarium = True
+
+        import traceback
         log.info("controller.aquarium_detection.start")
+        log.info("aquarium_detection.caller_stack", stack="".join(traceback.format_stack()[-10:]))
 
         self._publish_event(
             Events.UI_SET_STATUS,
@@ -1207,30 +1243,74 @@ class ProcessingCoordinator(BaseCoordinator):
                 return
 
             detector = AquariumDetector(model_path=model_path, mode=aquarium_method)
-            polygons = detector.detect_aquariums(
-                str(video_path), stabilization_frames=stabilization_frames
-            )
+
+            # MELHORIA: Check if we expect multiple aquariums based on settings
+            num_aquariums = self.settings.analysis_config.num_aquariums
+
+            if num_aquariums > 1:
+                # Multi-aquarium mode
+                polygons = detector.detect_multiple_aquariums(
+                    video_path=str(video_path),
+                    expected_count=num_aquariums,
+                    stabilization_frames=stabilization_frames,
+                    min_area_ratio=self.settings.detection_zones.min_aquarium_area_ratio,
+                    max_area_ratio=self.settings.detection_zones.max_aquarium_area_ratio,
+                )
+
+                if polygons:
+                     log.info(
+                        "controller.aquarium_detection.multi_success",
+                        count=len(polygons),
+                    )
+                     # For multi-aquarium, we might need a different event or payload structure
+                     # Check if UI supports list of polygons in UI_SETUP_INTERACTIVE_POLYGON
+                     # If not, we might need to send them one by one or change the event.
+                     # Assuming for now we send the first one as main or adapt.
+                     # EDIT: Multi-aquarium usually uses ZONE_MULTI_AUTO_DETECT_SUCCESS.
+                     # Let's try to adapt to UI_SETUP_INTERACTIVE_POLYGON strictness or use the multi event.
+
+                     if len(polygons) == num_aquariums:
+                          self._publish_event(
+                            Events.ZONE_MULTI_AUTO_DETECT_SUCCESS,
+                            {
+                                "video_path": str(video_path),
+                                "polygons": [p.tolist() if hasattr(p, "tolist") else p for p in polygons],
+                            },
+                        )
+                          # Also notify "Pronto" via status
+                     else:
+                          # Partial detection?
+                          pass
+
+            else:
+                # Original Single-aquarium mode
+                polygons = detector.detect_aquariums(
+                    str(video_path),
+                    stabilization_frames=stabilization_frames,
+                    min_area_ratio=self.settings.detection_zones.min_aquarium_area_ratio,
+                    max_area_ratio=self.settings.detection_zones.max_aquarium_area_ratio,
+                )
+
+                if polygons:
+                    main_polygon = polygons[0]
+                    log.info(
+                        "controller.aquarium_detection.success",
+                        polygon_points=len(main_polygon),
+                    )
+                    self._publish_event(Events.UI_SETUP_INTERACTIVE_POLYGON, {"polygon": main_polygon})
 
             if not polygons:
                 self._publish_event(
                     Events.UI_SHOW_WARNING,
                     {
                         "title": "Detecção Automática Falhou",
-                        "message": "Não foi possível identificar uma área de aquário estável "
+                        "message": f"Não foi possível identificar {num_aquariums} aquário(s) estável(is) "
                         "no vídeo. Isso pode ocorrer devido a reflexos, pouca luz ou "
                         "movimento excessivo da câmera.\n\nPor favor, defina a área "
-                        "do aquário manualmente utilizando a ferramenta 'Desenhar "
-                        "Polígono Principal'.",
+                        "manualmente.",
                     },
                 )
                 return
-
-            main_polygon = polygons[0]
-            log.info(
-                "controller.aquarium_detection.success",
-                polygon_points=len(main_polygon),
-            )
-            self._publish_event(Events.UI_SETUP_INTERACTIVE_POLYGON, {"polygon": main_polygon})
 
         except Exception as e:
             log.error("controller.aquarium_detection.error", exc_info=True)
@@ -1247,6 +1327,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 force=True,
             )
             self._publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
+            self._is_detecting_aquarium = False
 
     def _handle_multi_auto_detect(self, data: dict) -> None:
         """Handle multi-aquarium auto-detection event.
@@ -1300,6 +1381,8 @@ class ProcessingCoordinator(BaseCoordinator):
                 video_path=str(video_path),
                 expected_count=expected_count,
                 stabilization_frames=stabilization_frames,
+                min_area_ratio=self.settings.detection_zones.min_aquarium_area_ratio,
+                max_area_ratio=self.settings.detection_zones.max_aquarium_area_ratio,
             )
 
             if len(polygons) == expected_count:

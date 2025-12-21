@@ -114,18 +114,26 @@ class ProcessingWorker:
             if isinstance(z_data, dict):
                 z_dict = z_data
             else:
-                # Serialize ZoneData object
-                z_dict = {
-                    "polygon": getattr(z_data, "polygon", []),
-                    "roi_polygons": getattr(z_data, "roi_polygons", []),
-                    "roi_names": getattr(z_data, "roi_names", []),
-                    "roi_colors": getattr(z_data, "roi_colors", []),
-                }
+                # Check for MultiAquariumZoneData (attribute-based)
+                if hasattr(z_data, "aquariums"):
+                    from zebtrack.core.zone_manager import ZoneManager
+                    z_dict = ZoneManager.multi_aquarium_zone_data_to_dict(z_data)
+                else:
+                    # Serialize standard ZoneData object
+                    z_dict = {
+                        "polygon": getattr(z_data, "polygon", []),
+                        "roi_polygons": getattr(z_data, "roi_polygons", []),
+                        "roi_names": getattr(z_data, "roi_names", []),
+                        "roi_colors": getattr(z_data, "roi_colors", []),
+                    }
+
             # DEBUG: Log serialized zone data
+            has_multi = bool(z_dict and "aquariums" in z_dict)
             log.info(
                 "worker.zone_data_serialized",
                 polygon_points=len(z_dict.get("polygon", [])) if z_dict else 0,
                 has_polygon=bool(z_dict and z_dict.get("polygon")),
+                is_multi=has_multi,
                 polygon_sample=z_dict.get("polygon", [])[:3]
                 if z_dict and z_dict.get("polygon")
                 else "empty",
@@ -434,19 +442,33 @@ class _WorkerProcess(multiprocessing.Process):
 
         # Restore ZoneData
         if self.config.zone_data:
-            zd = ZoneData()
-            zd.polygon = self.config.zone_data.get("polygon", [])
-            zd.roi_polygons = self.config.zone_data.get("roi_polygons", [])
-            zd.roi_names = self.config.zone_data.get("roi_names", [])
-            zd.roi_colors = self.config.zone_data.get("roi_colors", [])
+            zd = None
+            # Check for MultiAquariumZoneData (dictionary key)
+            if "aquariums" in self.config.zone_data:
+                from zebtrack.core.zone_manager import ZoneManager
+                zd = ZoneManager.multi_aquarium_zone_data_from_dict(self.config.zone_data)
+                # DEBUG: Log deserialized multi-aquarium data
+                log.info(
+                    "worker.zone_data_deserialized",
+                    type="multi_aquarium",
+                    aquarium_count=len(zd.aquariums),
+                    has_polygon=bool(zd.aquariums), # Consider valid if aquariums exist
+                )
+            else:
+                zd = ZoneData()
+                zd.polygon = self.config.zone_data.get("polygon", [])
+                zd.roi_polygons = self.config.zone_data.get("roi_polygons", [])
+                zd.roi_names = self.config.zone_data.get("roi_names", [])
+                zd.roi_colors = self.config.zone_data.get("roi_colors", [])
 
-            # DEBUG: Log deserialized zone data
-            log.info(
-                "worker.zone_data_deserialized",
-                polygon_points=len(zd.polygon),
-                has_polygon=bool(zd.polygon),
-                polygon_sample=zd.polygon[:3] if zd.polygon else "empty",
-            )
+                # DEBUG: Log deserialized zone data
+                log.info(
+                    "worker.zone_data_deserialized",
+                    type="single_zone",
+                    polygon_points=len(zd.polygon),
+                    has_polygon=bool(zd.polygon),
+                    polygon_sample=zd.polygon[:3] if zd.polygon else "empty",
+                )
 
             # Store as 'default' zones for the detector
             self._default_zone_data = zd
@@ -502,7 +524,8 @@ class _WorkerProcess(multiprocessing.Process):
             log.info(
                 "worker.using_default_zone_data",
                 video=os.path.basename(video_metadata.get("path", "")),
-                polygon_points=len(self._default_zone_data.polygon),
+                is_multi=hasattr(self._default_zone_data, "aquariums"),
+                polygon_points=len(self._default_zone_data.polygon) if hasattr(self._default_zone_data, "polygon") else 0,
             )
             return self._default_zone_data
 
@@ -539,18 +562,20 @@ class _WorkerProcess(multiprocessing.Process):
         detector.base_width = width
         detector.base_height = height
 
-        is_multi_aquarium = False
-        from zebtrack.core.detector import MultiAquariumZoneData
+        # 2. Setup Zones
+        is_multi_aquarium = hasattr(video_zone_data, "aquariums")
 
-        if isinstance(video_zone_data, MultiAquariumZoneData):
-            is_multi_aquarium = True
-            detector.set_multi_aquarium_zones(video_zone_data.aquariums, width, height)
-            has_aquarium = True
+        if is_multi_aquarium:
+             # Multi-aquarium mode logic
+             detector.set_zones(video_zone_data, width, height)
+             has_aquarium = bool(video_zone_data.aquariums)
+             detector.set_aquarium_region_defined(has_aquarium)
         else:
-            detector.set_zones(video_zone_data, width, height)
-            # Fix: Ensure detector knows aquarium is defined if we have a polygon
-            has_aquarium = bool(video_zone_data.polygon and len(video_zone_data.polygon) >= 3)
-            detector.set_aquarium_region_defined(has_aquarium)
+             # Single aquarium legacy logic
+             detector.set_zones(video_zone_data, width, height)
+             # Fix: Ensure detector knows aquarium is defined if we have a polygon
+             has_aquarium = bool(video_zone_data.polygon and len(video_zone_data.polygon) >= 3)
+             detector.set_aquarium_region_defined(has_aquarium)
 
         # DEBUG: Log zone setup results
         # DEBUG: Log zone setup results
@@ -620,6 +645,7 @@ class _WorkerProcess(multiprocessing.Process):
         start_time = time.time()
 
         try:
+            log.info("worker.processing_loop.started", video=experiment_id)
             while True:
                 if self._check_cancellation():
                     return False
@@ -630,13 +656,19 @@ class _WorkerProcess(multiprocessing.Process):
                 if should_process:
                     # OPTIMIZATION: Only decode frames that will be processed
                     # cap.read() is expensive for high-res videos; only call when needed
+                    log.debug("worker.frame.reading", frame=frame_num)
                     ret, frame = cap.read()
                     if not ret:
+                        log.info("worker.video.ended", frame=frame_num)
                         break
+
+                    log.debug("worker.frame.read_success", frame=frame_num, shape=frame.shape)
 
                     # Detect
                     if is_multi_aquarium:
+                        log.debug("worker.detect_multi.start", frame=frame_num)
                         partitioned_detections = detector.detect_partitioned_optimized(frame)
+                        log.debug("worker.detect_multi.end", frame=frame_num)
                         detections = []
                         for aq_dets in partitioned_detections.values():
                             detections.extend(aq_dets)
@@ -713,8 +745,12 @@ class _WorkerProcess(multiprocessing.Process):
                 else:
                     # OPTIMIZATION: Fast seek without decoding for skipped frames
                     # cap.grab() is 10-20x faster than cap.read() for high-res videos
+                    if frame_num % 30 == 0:
+                         log.debug("worker.frame.skipping", frame=frame_num)
+
                     ret = cap.grab()
                     if not ret:
+                        log.debug("worker.video.end_on_skip", frame=frame_num)
                         break
 
                 frame_num += 1
