@@ -26,6 +26,7 @@ from zebtrack.analysis.trajectory_validator import TrajectoryQualityValidator
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
+    from zebtrack.core.detector import AquariumData
     from zebtrack.settings import Settings
 
 log = structlog.get_logger()
@@ -346,6 +347,142 @@ class AnalysisService:
             smoothing_window_length=smoothing_window_length,
             smoothing_polyorder=smoothing_polyorder,
         )
+
+    def run_multi_aquarium_analysis(
+        self,
+        aquarium_data_map: dict[int, tuple[pd.DataFrame, "AquariumData"]],
+        fps: float = 30.0,
+        pixelcm_x: float = 1.0,
+        pixelcm_y: float = 1.0,
+        video_height_px: int = 480,
+        metadata: dict | None = None,
+        freezing_vel_threshold: float = 1.5,
+        freezing_min_duration: float = 1.0,
+        smoothing_window_length: int | None = None,
+        smoothing_polyorder: int | None = None,
+        max_plausible_speed_cm_s: float = 50.0,
+        sharp_turn_threshold: float = 45.0,
+    ) -> dict[int, AnalysisResult | None]:
+        """
+        Execute complete analysis for each aquarium in multi-aquarium mode.
+
+        This method runs independent analysis pipelines for each aquarium,
+        returning results keyed by aquarium ID.
+
+        Args:
+            aquarium_data_map: Dictionary mapping aquarium_id to tuple of
+                (trajectory_df, AquariumData). Each trajectory_df contains
+                tracking data for that specific aquarium.
+            fps: Frames per second of the video.
+            pixelcm_x: Pixels-to-cm conversion factor (x-axis).
+            pixelcm_y: Pixels-to-cm conversion factor (y-axis).
+            video_height_px: Height of the video in pixels.
+            metadata: Optional base metadata to merge with aquarium-specific data.
+            freezing_vel_threshold: Velocity threshold for freezing detection.
+            freezing_min_duration: Minimum freezing episode duration.
+            smoothing_window_length: Trajectory smoothing window (optional).
+            smoothing_polyorder: Trajectory smoothing polynomial order (optional).
+            max_plausible_speed_cm_s: Maximum plausible speed for validation.
+            sharp_turn_threshold: Sharp turn detection threshold (deg/s).
+
+        Returns:
+            Dictionary mapping aquarium_id to AnalysisResult (or None if failed).
+
+        Example:
+            >>> service = AnalysisService(settings_obj=settings)
+            >>> aquarium_map = {
+            ...     0: (df_aq0, aquarium_data_0),
+            ...     1: (df_aq1, aquarium_data_1),
+            ... }
+            >>> results = service.run_multi_aquarium_analysis(aquarium_map, fps=30.0)
+            >>> for aq_id, result in results.items():
+            ...     if result:
+            ...         print(f"Aquarium {aq_id}: {result.report['metricas_globais']}")
+        """
+        from zebtrack.analysis.roi import ROI
+
+        results: dict[int, AnalysisResult | None] = {}
+        base_metadata = metadata or {}
+
+        for aq_id, (trajectory_df, aq_data) in aquarium_data_map.items():
+            self.log.info(
+                "analysis.multi_aquarium.starting",
+                aquarium_id=aq_id,
+                group=aq_data.group,
+                subject=aq_data.subject_id,
+                trajectory_rows=len(trajectory_df),
+            )
+
+            try:
+                # Build ROI objects from aquarium data
+                rois: list[ROI] = []
+                roi_colors: dict[str, tuple[int, int, int]] = {}
+
+                for i, roi_polygon in enumerate(aq_data.roi_polygons):
+                    roi_name = aq_data.roi_names[i] if i < len(aq_data.roi_names) else f"ROI_{i}"
+                    roi_color = (
+                        aq_data.roi_colors[i] if i < len(aq_data.roi_colors) else (255, 0, 0)
+                    )
+                    rois.append(ROI(name=roi_name, polygon=roi_polygon))
+                    roi_colors[roi_name] = roi_color
+
+                # Build aquarium-specific metadata
+                aq_metadata = {
+                    **base_metadata,
+                    "aquarium_id": aq_id,
+                    "group": aq_data.group,
+                    "subject_id": aq_data.subject_id,
+                    "day": aq_data.day,
+                }
+
+                # Run analysis using existing method
+                result = self.run_full_analysis_as_dto(
+                    trajectory_df=trajectory_df,
+                    pixelcm_x=pixelcm_x,
+                    pixelcm_y=pixelcm_y,
+                    video_height_px=video_height_px,
+                    arena_polygon_px=aq_data.polygon,
+                    rois=rois,
+                    fps=fps,
+                    metadata=aq_metadata,
+                    roi_colors=roi_colors,
+                    freezing_vel_threshold=freezing_vel_threshold,
+                    freezing_min_duration=freezing_min_duration,
+                    smoothing_window_length=smoothing_window_length,
+                    smoothing_polyorder=smoothing_polyorder,
+                    max_plausible_speed_cm_s=max_plausible_speed_cm_s,
+                    sharp_turn_threshold=sharp_turn_threshold,
+                )
+
+                results[aq_id] = result
+
+                self.log.info(
+                    "analysis.multi_aquarium.completed",
+                    aquarium_id=aq_id,
+                    group=aq_data.group,
+                    subject=aq_data.subject_id,
+                )
+
+            except Exception as e:
+                self.log.error(
+                    "analysis.multi_aquarium.failed",
+                    aquarium_id=aq_id,
+                    group=aq_data.group,
+                    error=str(e),
+                    exc_info=True,
+                )
+                results[aq_id] = None
+
+        # Log summary
+        success_count = sum(1 for r in results.values() if r is not None)
+        self.log.info(
+            "analysis.multi_aquarium.summary",
+            total_aquariums=len(aquarium_data_map),
+            successful=success_count,
+            failed=len(aquarium_data_map) - success_count,
+        )
+
+        return results
 
     # -------------------------------------------------------------------------
     # Analysis Orchestration Methods (Phase 1, Step 3)

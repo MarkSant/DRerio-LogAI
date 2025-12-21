@@ -266,6 +266,7 @@ def test_schema_validation_prevents_corruption(
         integration_recorder.pixel_per_cm_ratio = (10.0, 10.0)
 
     # Verify schema remained unchanged (no calibration columns added)
+    # Schema includes Multi-Aquarium extensions: uncertainty, bbox_iou
     expected_columns = {
         "timestamp",
         "frame",
@@ -275,6 +276,8 @@ def test_schema_validation_prevents_corruption(
         "x2",
         "y2",
         "confidence",
+        "uncertainty",
+        "bbox_iou",
         "x_center_px",
         "y_center_px",
     }

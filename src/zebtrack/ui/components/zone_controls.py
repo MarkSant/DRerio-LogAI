@@ -71,6 +71,10 @@ class ZoneControlsWidget(BaseWidget):
         self.roi_buffer_radius_var = StringVar(value="0.5")
         self.roi_overlap_ratio_var = StringVar(value="0.10")
 
+        # Multi-aquarium state variables
+        self.aquarium_count_var = tk.IntVar(value=1)
+        self.active_aquarium_var = tk.IntVar(value=0)  # 0 = Aquarium 1, 1 = Aquarium 2
+
         # Widget references
         self.draw_roi_button: ttk.Button | None = None
         self.toggle_view_btn: ttk.Button | None = None
@@ -86,6 +90,11 @@ class ZoneControlsWidget(BaseWidget):
         self.overlap_frame: ttk.Frame | None = None
         self.rule_help_label: ttk.Label | None = None
         self._video_tree_expanded = True
+
+        # Multi-aquarium widget references
+        self.aquarium_selector_frame: ttk.LabelFrame | None = None
+        self.aquarium_radio_1: ttk.Radiobutton | None = None
+        self.aquarium_radio_2: ttk.Radiobutton | None = None
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
@@ -125,6 +134,7 @@ class ZoneControlsWidget(BaseWidget):
 
         # 1. Top of Viz Frame (if parent provided) OR Top of Left Panel
         self._build_drawing_actions()
+        self._build_aquarium_selector()  # Multi-aquarium support
         self._build_interactive_buttons()
 
         # 2. Left Panel Components (Always in zone_controls_frame)
@@ -184,7 +194,7 @@ class ZoneControlsWidget(BaseWidget):
             text="✅ Concluir",
             command=self._on_conclude_video_clicked,
             state="disabled",
-            style="Accent.TButton"
+            style="Accent.TButton",
         )
         self.conclude_video_btn.pack(side="left", fill="x", expand=True, padx=2, pady=2)
 
@@ -202,6 +212,48 @@ class ZoneControlsWidget(BaseWidget):
             font=("TkDefaultFont", 8),
             foreground="gray",
         ).pack(side="left", padx=(5, 0))
+
+    def _build_aquarium_selector(self) -> None:
+        """Build the multi-aquarium selector section.
+
+        This section allows selecting which aquarium to work with when
+        the video has 2 aquariums configured.
+
+        Layout:
+        ┌─ Aquário Ativo ─────────────────────────┐
+        │  ○ Aquário 1 (Esquerda)                 │
+        │  ○ Aquário 2 (Direita)                  │
+        └─────────────────────────────────────────┘
+        """
+        parent = (
+            self.drawing_actions_parent if self.drawing_actions_parent else self.zone_controls_frame
+        )
+
+        self.aquarium_selector_frame = ttk.LabelFrame(parent, text="🐟 Aquário Ativo", padding=5)
+        # Initially hidden - shown only when 2 aquariums are detected
+        # self.aquarium_selector_frame.pack(fill="x", pady=5, padx=5)
+
+        # Radio buttons for aquarium selection
+        radio_container = ttk.Frame(self.aquarium_selector_frame)
+        radio_container.pack(fill="x")
+
+        self.aquarium_radio_1 = ttk.Radiobutton(
+            radio_container,
+            text="Aquário 1 (Esquerda)",
+            variable=self.active_aquarium_var,
+            value=0,
+            command=self._on_aquarium_selected,
+        )
+        self.aquarium_radio_1.pack(side="left", padx=(0, 15))
+
+        self.aquarium_radio_2 = ttk.Radiobutton(
+            radio_container,
+            text="Aquário 2 (Direita)",
+            variable=self.active_aquarium_var,
+            value=1,
+            command=self._on_aquarium_selected,
+        )
+        self.aquarium_radio_2.pack(side="left")
 
     def _build_interactive_buttons(self) -> None:
         """Build the interactive editing buttons (initially hidden)."""
@@ -614,6 +666,15 @@ class ZoneControlsWidget(BaseWidget):
             {"stabilization_frames": self.stabilization_frames_var.get()},
         )
 
+    def _on_aquarium_selected(self) -> None:
+        """Handle aquarium selection change."""
+        aquarium_id = self.active_aquarium_var.get()
+        log.debug("zone_controls.aquarium_selected", aquarium_id=aquarium_id)
+        self.emit_event(
+            Events.ZONE_AQUARIUM_SELECTED,
+            {"aquarium_id": aquarium_id},
+        )
+
     def _on_draw_main_polygon_clicked(self) -> None:
         """Handle draw main polygon button click."""
         self.emit_event("zone.draw_arena", {})
@@ -736,23 +797,17 @@ class ZoneControlsWidget(BaseWidget):
     def _on_copy_zones_clicked(self) -> None:
         """Handle copy zones from context menu."""
         if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
-            self.emit_event(
-                "zone.copy_zones", {"video_path": self._context_menu_video_path}
-            )
+            self.emit_event("zone.copy_zones", {"video_path": self._context_menu_video_path})
 
     def _on_paste_zones_clicked(self) -> None:
         """Handle paste zones from context menu."""
         if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
-            self.emit_event(
-                "zone.paste_zones", {"video_path": self._context_menu_video_path}
-            )
+            self.emit_event("zone.paste_zones", {"video_path": self._context_menu_video_path})
 
     def _on_delete_zones_clicked(self) -> None:
         """Handle delete zones from context menu."""
         if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
-            self.emit_event(
-                "zone.delete_zones", {"video_path": self._context_menu_video_path}
-            )
+            self.emit_event("zone.delete_zones", {"video_path": self._context_menu_video_path})
 
     def _on_load_video_frame_clicked(self) -> None:
         """Handle load video frame button click."""
@@ -941,3 +996,79 @@ class ZoneControlsWidget(BaseWidget):
                 tag_name = f"color_{zone_id}"
                 self.zone_listbox.tag_configure(tag_name, foreground=color_hex)
                 self.zone_listbox.item(zone_id, tags=(tag_name,))
+
+    # Multi-aquarium public API
+
+    def set_aquarium_count(self, count: int) -> None:
+        """Set the number of aquariums and show/hide the selector.
+
+        Args:
+            count: Number of aquariums (1 or 2).
+        """
+        count = max(1, min(2, count))  # Clamp to 1-2
+        self.aquarium_count_var.set(count)
+
+        if count == 2:
+            self.show_aquarium_selector()
+        else:
+            self.hide_aquarium_selector()
+            self.active_aquarium_var.set(0)  # Reset to aquarium 1
+
+        log.debug("zone_controls.aquarium_count_set", count=count)
+
+    def get_aquarium_count(self) -> int:
+        """Get the current aquarium count.
+
+        Returns:
+            Number of aquariums (1 or 2).
+        """
+        return self.aquarium_count_var.get()
+
+    def show_aquarium_selector(self) -> None:
+        """Show the aquarium selector frame."""
+        if self.aquarium_selector_frame:
+            try:
+                # Pack after drawing actions frame
+                parent = self.aquarium_selector_frame.master
+                # Find drawing actions frame to pack after it
+                for child in parent.winfo_children():
+                    if isinstance(child, ttk.LabelFrame) and "Desenho" in str(child.cget("text")):
+                        self.aquarium_selector_frame.pack(fill="x", pady=5, padx=5, after=child)
+                        return
+                # Fallback - just pack
+                self.aquarium_selector_frame.pack(fill="x", pady=5, padx=5)
+            except Exception:
+                self.aquarium_selector_frame.pack(fill="x", pady=5, padx=5)
+
+    def hide_aquarium_selector(self) -> None:
+        """Hide the aquarium selector frame."""
+        if self.aquarium_selector_frame:
+            self.aquarium_selector_frame.pack_forget()
+
+    def get_active_aquarium_id(self) -> int:
+        """Get the currently selected aquarium ID.
+
+        Returns:
+            Aquarium ID (0 for aquarium 1, 1 for aquarium 2).
+        """
+        return self.active_aquarium_var.get()
+
+    def set_active_aquarium(self, aquarium_id: int) -> None:
+        """Set the active aquarium programmatically.
+
+        Args:
+            aquarium_id: Aquarium ID (0 or 1).
+        """
+        aquarium_id = max(0, min(1, aquarium_id))  # Clamp to 0-1
+        self.active_aquarium_var.set(aquarium_id)
+        log.debug("zone_controls.active_aquarium_set", aquarium_id=aquarium_id)
+
+    def update_aquarium_count(self, count: int) -> None:
+        """Update UI based on the number of aquariums."""
+        log.info("zone_controls.update_aquarium_count", count=count)
+        self.aquarium_count_var.set(count)
+
+        if count >= 2:
+            self.aquarium_selector_frame.pack(fill="x", pady=5, padx=5, after=self.drawing_actions_parent.winfo_children()[0] if self.drawing_actions_parent else None)
+        else:
+            self.aquarium_selector_frame.pack_forget()

@@ -180,6 +180,8 @@ def test_write_detection_data_saves_parquet(recorder_setup):
         "x2",
         "y2",
         "confidence",
+        "uncertainty",
+        "bbox_iou",
         "x_center_px",
         "y_center_px",
         "x_cm",
@@ -195,6 +197,8 @@ def test_write_detection_data_saves_parquet(recorder_setup):
     assert row1["x1"] == 10
     assert row1["y1"] == 20
     assert row1["confidence"] == pytest.approx(0.98)
+    assert row1["uncertainty"] == pytest.approx(0.02)  # 1 - 0.98
+    assert row1["bbox_iou"] == pytest.approx(1.0)  # First detection
     assert row1["x_center_px"] == 20.0  # (10+30)/2
     assert row1["y_center_px"] == 30.0  # (20+40)/2
     assert row1["x_cm"] == pytest.approx(2.0)  # 20.0 / 10.0
@@ -263,16 +267,12 @@ def test_schema_mismatch_flush_forces_stop(recorder_setup):
     assert recorder.is_recording is False
     assert recorder.detection_data == []
 
-    # Wait for file to be created
+    # When force_stop=True is called (due to schema mismatch error),
+    # data is NOT saved to prevent corrupted files.
+    # So the parquet file should NOT exist.
     base_name = os.path.basename(output_folder)
     parquet_path = os.path.join(output_folder, f"3_CoordMovimento_{base_name}.parquet")
-    wait_for_condition(lambda: os.path.exists(parquet_path), timeout=2.0)
-
-    assert os.path.exists(parquet_path)
-
-    df = pd.read_parquet(parquet_path)
-    assert len(df) == 1
-    assert df.iloc[0]["track_id"] == 42
+    assert not os.path.exists(parquet_path), "Parquet should NOT be created on force_stop"
 
 
 def test_write_detection_data_coerces_track_id_types(recorder_setup):

@@ -135,8 +135,9 @@ def create_test_controller(root, **overrides):
 
     # Phase 3E: ProjectOrchestrator was removed - logic now in ProjectLifecycleCoordinator
     # Support use_real_project_lifecycle_coordinator for tests that need real workflow logic
-    use_real_project_lifecycle = overrides.get("use_real_project_orchestrator", False) or \
-                                  overrides.get("use_real_project_lifecycle_coordinator", False)
+    use_real_project_lifecycle = overrides.get(
+        "use_real_project_orchestrator", False
+    ) or overrides.get("use_real_project_lifecycle_coordinator", False)
 
     if use_real_project_lifecycle:
         # Create real ProjectWorkflowAdapter and ProjectLifecycleCoordinator

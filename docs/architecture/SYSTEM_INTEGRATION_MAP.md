@@ -97,6 +97,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `Events.VIDEO_ANALYZE_SINGLE` | `video_path` (str), `config` (dict) | - | `AnalysisControlViewModel` | Triggers the start of the single video analysis workflow. |
 | `Events.VIDEO_CANCEL_ANALYSIS` | - | - | `AnalysisControlViewModel` | **Delegates to `ProcessingCoordinator.cancel_processing()`**. Sets flags and stops workers. |
 | `Events.ZONE_AUTO_DETECT` | `video_path` (str or None) | `stabilization_frames` (int) | `ProcessingCoordinator` | Runs `AquariumDetector` to find the tank polygon automatically. |
+| `Events.PROCESSING_GENERATE_TRAJECTORIES` | `video_paths` (list, optional) | - | `ProcessingCoordinator` | Triggers `process_pending_project_videos`. Used by Reports tab to start analysis. |
 
 ---
 
@@ -131,7 +132,45 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `ZONE_FINISH_DRAWING` | - | `ZoneControls` | `EventDispatcher` → `CanvasManager.finish_current_polygon()` |
 | `ZONE_CONCLUDE_VIDEO` | - | `ZoneControls` | `EventDispatcher` → `ZoneControlBuilder._on_conclude_video()` |
 
-### 3.4. Processing & Analysis Events
+### 3.4. Multi-Aquarium Events (Dec 2025)
+
+| Event (Events class) | Payload Keys | Publishers | Subscribers |
+|---------------------|--------------|------------|-------------|
+| `ZONE_MULTI_AUTO_DETECT` | `video_path`, `stabilization_frames`, `expected_count` | `ZoneControls` | `ProcessingCoordinator._handle_multi_auto_detect()` |
+| `ZONE_MULTI_AUTO_DETECT_SUCCESS` | `video_path`, `polygons` (list) | `ProcessingCoordinator` | `ZoneControls`, `CanvasManager` |
+| `ZONE_MULTI_AUTO_DETECT_FAILED` | `video_path`, `reason` (str) | `ProcessingCoordinator` | `ZoneControls` |
+| `ZONE_AQUARIUM_SELECTED` | `aquarium_id` (int) | `ZoneControls`, `AquariumAssignmentDialog` | `EventDispatcher` → `CanvasManager.update_zone_listbox()` |
+| `ZONE_MULTI_DETECT_COMPLETED` | `count` (int), `aquariums` (list) | `AquariumDetector` | `ZoneControlBuilder`, `MultiAquariumConfirmDialog` |
+| `ZONE_AQUARIUM_CONFIG_CONFIRMED` | `configs` (list[AquariumConfig]) | `AquariumAssignmentDialog` | `ProjectManager`, `CanvasManager` |
+| `ZONE_AQUARIUM_CONFIG_UPDATED` | `aquarium_id`, `config`, `video_path` | `AquariumAssignmentDialog` | `ProjectLifecycleCoordinator._handle_aquarium_config_updated()` |
+| `ZONE_AQUARIUM_COUNT_CONFIRMED` | `count` (int) | `MultiAquariumConfirmDialog` | `ZoneControlBuilder` |
+| `ZONE_AQUARIUM_ASSIGNMENT_COMPLETED` | `configs` (list[AquariumConfig]), `apply_to_all` (bool) | `AquariumAssignmentDialog` | `ProjectManager`, `WizardService` |
+| `ZONE_SHOW_AQUARIUM_COUNT_DIALOG` | - | `ZoneControls` | `DialogManager` → `MultiAquariumConfirmDialog` |
+| `ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG` | - | `ZoneControls` | `DialogManager` → `AquariumAssignmentDialog` |
+
+**Track ID Convention**: Global ID = `aquarium_id * 1000 + local_track_id`. Aquarium 0 tracks: 0-999; Aquarium 1 tracks: 1000-1999; Aquarium 2 tracks: 2000-2999.
+
+**Multi-Aquarium Detection Features (Phase 1-5)**:
+- **ROI Cropping**: `Detector._crop_aquarium_region()` extracts per-aquarium frames
+- **Parallel Detection**: `Detector.detect_partitioned_parallel()` uses ThreadPoolExecutor
+- **Batch Inference**: `Detector.detect_batch()` for offline multi-frame processing
+- **Uncertainty Tracking**: `uncertainty` and `bbox_iou` columns in Parquet
+- **Error Recovery**: Failed aquarium detection doesn't crash others
+- **Validation**: `TrajectoryQualityValidator` checks ID bounds, gaps per aquarium
+
+**Output Structure** (per video with multi-aquarium):
+```
+<video>_aquarium_1/
+  1_ArenaROI_<video>.parquet
+  3_CoordMovimento_<video>.parquet
+  ...
+<video>_aquarium_2/
+  1_ArenaROI_<video>.parquet
+  3_CoordMovimento_<video>.parquet
+  ...
+```
+
+### 3.5. Processing & Analysis Events
 
 | Event (UIEvents) | Payload Keys | Publishers | Subscribers |
 |-----------------|--------------|------------|-------------|
@@ -141,7 +180,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `ANALYSIS_STARTED` | - | (lifecycle) | (consumers) |
 | `ANALYSIS_COMPLETED` | - | (lifecycle) | (consumers) |
 
-### 3.5. Notification Events
+### 3.6. Notification Events
 
 | Event (UIEvents) | Payload Keys | Publishers | Subscribers |
 |-----------------|--------------|------------|-------------|
@@ -268,6 +307,8 @@ Understanding who holds what references prevents "AttributeError" and circular d
 12. **Batch Processing Per-Video Results (Fixed Dec 2025):** In batch processing mode, the `ProcessingWorker` now creates a per-video results directory: `{experiment_id}_results/` next to each video file. Previously, all results went to the project root. The fix is in `processing_worker.py:_process_single_video()` which calculates `results_dir = os.path.join(video_dir, f"{experiment_id}_results")` for non-single-video mode.
 13. **Batch Processing Zone Data (Fixed Dec 2025):** When processing multiple videos in batch, each video has its own zone data. The `_load_zones_for_eligible_videos()` method now serializes zone data into each `video_info["zone_data"]` dict, and the worker uses `_get_zone_data_for_video(video_metadata)` to retrieve per-video zones instead of a global default.
 14. **ProcessingCallbacks.on_progress Signature (Updated Dec 2025):** The `on_progress` callback now has signature: `(index: int, total: int, experiment_id: str, fraction: float, message: str, stats: dict | None)`. The worker's `monitor_loop` passes all these fields, and `create_processing_callbacks` now publishes `UI_UPDATE_ANALYSIS_TASK_STATUS` with full video progress info.
+15. **Multi-Aquarium Zone Serialization (Fixed Dec 2025):** When processing multi-aquarium videos, `ProcessingCoordinator` serializes `MultiAquariumZoneData` using `ZoneManager.multi_aquarium_zone_data_to_dict`. The `ProcessingWorker` deserializes this using `ZoneManager.multi_aquarium_zone_data_from_dict`. This ensures the worker receives the complete configuration (aquariums list) instead of just a flattened/partial `ZoneData`.
+16. **Parquet Export for Compatibility (Fixed Dec 2025):** To ensure multi-aquarium videos are correctly classified as 'Ready for Analysis' (`has_arena=True`), `ProjectManager.save_multi_aquarium_zone_data` automatically exports the zones of Aquarium 0 to a standard parquet file (`1_ProcessingArea...`). This satisfies the legacy file scanner while preserving the full multi-aquarium structure in `project_config.json`. Also, `save_project()` is called strictly *after* updating the file paths in the video entry to ensure persistence.
 
 ---
 

@@ -18,7 +18,7 @@ from pathlib import Path
 
 import structlog
 
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detector import AquariumData, MultiAquariumZoneData, ZoneData
 
 log = structlog.get_logger()
 
@@ -46,6 +46,8 @@ class ZoneManager:
     @staticmethod
     def normalize_video_path(path: Path | str | None) -> str | None:
         """Normalize a video path for consistent comparison.
+
+        Always resolves to absolute path and uses forward slashes.
 
         Args:
             path: Path to normalize
@@ -209,10 +211,55 @@ class ZoneManager:
         if not project_data or not video_path_str:
             return
 
-        has_arena = bool(zone_data and zone_data.polygon)
-        has_rois = bool(zone_data and zone_data.roi_polygons)
-        normalized_target = ZoneManager.normalize_video_path(video_path_str)
+        has_arena = False
+        has_rois = False
 
+        from zebtrack.core.detector import MultiAquariumZoneData
+
+        if isinstance(zone_data, MultiAquariumZoneData):
+            for aq in zone_data.aquariums:
+                if aq.polygon:
+                    has_arena = True
+                if aq.roi_polygons:
+                    has_rois = True
+        elif zone_data:
+            has_arena = bool(zone_data.polygon)
+            has_rois = bool(zone_data.roi_polygons)
+
+        normalized_target = ZoneManager.normalize_video_path(video_path_str)
+        log.info(
+            "zone_manager.update_flags.debug",
+            target=normalized_target,
+            has_arena=has_arena,
+            has_rois=has_rois,
+            is_multi=isinstance(zone_data, MultiAquariumZoneData)
+        )
+
+        root_videos = project_data.get("videos")
+        log.info("zone_manager.update_flags.debug_keys",
+                 root_videos_keys=list(root_videos.keys()) if isinstance(root_videos, dict) else "list/none",
+                 batch_count=len(project_data.get("batches", [])))
+
+        # Strategy 1: Search in root 'videos' (Single Video Mode or Legacy)
+        if root_videos:
+            # If dict (id -> entry) using values
+            iterator = root_videos.values() if isinstance(root_videos, dict) else root_videos
+            for video in iterator:
+                candidate_path = video.get("path")
+                if not candidate_path:
+                    continue
+                if ZoneManager.normalize_video_path(candidate_path) == normalized_target:
+                    video["has_arena"] = has_arena
+                    video["has_rois"] = has_rois
+                    video["zones_finalized"] = False # Re-open for edit logic
+                    log.info(
+                        "zone_manager.update_flags.updated_root",
+                        video=candidate_path,
+                        has_arena=has_arena,
+                    )
+                    return
+
+        # Strategy 2: Search in batches (Standard Project)
         for batch in project_data.get("batches", []):
             for video in batch.get("videos", []):
                 candidate_path = video.get("path")
@@ -222,7 +269,22 @@ class ZoneManager:
                     video["has_arena"] = has_arena
                     video["has_rois"] = has_rois
                     video["zones_finalized"] = False
+                    log.info(
+                        "zone_manager.update_flags.updated_batch",
+                        video=candidate_path,
+                        has_arena=has_arena,
+                    )
                     return
+
+        # If we reached here, no match found.
+        batches = project_data.get("batches", [])
+
+        # Check if project is empty (Single Video Mode) to avoid noise
+        if not root_videos and not batches:
+            log.debug("zone_manager.update_flags.single_video_mode_skip", target=normalized_target)
+            return
+
+        log.warning("zone_manager.update_flags.no_match_found", target=normalized_target)
 
     def refresh_last_zone_source(
         self, project_data: dict, removed_path: Path | str | None = None
@@ -373,6 +435,18 @@ class ZoneManager:
         self.ensure_zone_structures(project_data)
 
         target_video = video_path if video_path is not None else self._active_zone_video
+
+        # Determine serialization method based on data type
+        if hasattr(zone_data, "aquariums"):
+            # Multi-Aquarium Data
+            serialized = self.multi_aquarium_zone_data_to_dict(zone_data)
+            # Store in dedicated multi-aquarium section if applicable, or general zones?
+            # Current architecture seems to use 'multi_aquarium_zones' for this.
+            self.save_multi_aquarium_zone_data(project_data, target_video, zone_data)
+            # We return early because save_multi_aquarium_zone_data handles persistence
+            if persist_callback:
+                persist_callback()
+            return
 
         serialized = self.zone_data_to_dict(zone_data)
         project_data["detection_zones"] = serialized
@@ -660,3 +734,263 @@ class ZoneManager:
         if zone_data.roi_polygons and not video_entry.get("has_rois"):
             video_entry["has_rois"] = True
             log.info("zone_manager.rois_flag_updated", video=video_path_str)
+
+    # =========================================================================
+    # Multi-Aquarium Support Methods (Phase 2)
+    # =========================================================================
+
+    @staticmethod
+    def multi_aquarium_zone_data_to_dict(data: MultiAquariumZoneData | None) -> dict:
+        """Serialize MultiAquariumZoneData into a JSON-friendly dictionary.
+
+        Args:
+            data: MultiAquariumZoneData object to serialize
+
+        Returns:
+            Dictionary with serialized multi-aquarium zone data
+        """
+        if not data:
+            return {
+                "aquariums": [],
+                "video_width": 0,
+                "video_height": 0,
+            }
+
+        aquariums_serialized = []
+        for aquarium in data.aquariums:
+            aquarium_dict = {
+                "id": aquarium.id,
+                "polygon": [list(point) for point in (aquarium.polygon or [])],
+                "roi_polygons": [
+                    [list(point) for point in polygon] for polygon in (aquarium.roi_polygons or [])
+                ],
+                "roi_names": list(aquarium.roi_names or []),
+                "roi_colors": [list(color) for color in (aquarium.roi_colors or [])],
+                "group": aquarium.group,
+                "subject_id": aquarium.subject_id,
+                "day": aquarium.day,
+            }
+            aquariums_serialized.append(aquarium_dict)
+
+        return {
+            "aquariums": aquariums_serialized,
+            "video_width": data.video_width,
+            "video_height": data.video_height,
+        }
+
+    @staticmethod
+    def multi_aquarium_zone_data_from_dict(data: dict | None) -> MultiAquariumZoneData:
+        """Deserialize multi-aquarium zone data from JSON back into MultiAquariumZoneData.
+
+        Args:
+            data: Dictionary with multi-aquarium zone data
+
+        Returns:
+            MultiAquariumZoneData object
+        """
+        if not data:
+            return MultiAquariumZoneData()
+
+        aquariums = []
+        for aquarium_dict in data.get("aquariums", []):
+            polygon = [list(point) for point in aquarium_dict.get("polygon", [])]
+            roi_polygons = [
+                [list(point) for point in poly] for poly in aquarium_dict.get("roi_polygons", [])
+            ]
+            roi_names = list(aquarium_dict.get("roi_names", []))
+            roi_colors = [tuple(color) for color in aquarium_dict.get("roi_colors", [])]
+
+            aquarium = AquariumData(
+                id=aquarium_dict.get("id", 0),
+                polygon=polygon,
+                roi_polygons=roi_polygons,
+                roi_names=roi_names,
+                roi_colors=roi_colors,
+                group=aquarium_dict.get("group", ""),
+                subject_id=aquarium_dict.get("subject_id", ""),
+                day=aquarium_dict.get("day", 0),
+            )
+            aquariums.append(aquarium)
+
+        return MultiAquariumZoneData(
+            aquariums=aquariums,
+            video_width=data.get("video_width", 0),
+            video_height=data.get("video_height", 0),
+        )
+
+    def save_multi_aquarium_zone_data(
+        self,
+        project_data: dict,
+        video_path: Path | str,
+        data: MultiAquariumZoneData,
+        *,
+        persist_callback: callable | None = None,
+    ) -> bool:
+        """Save multi-aquarium zone data for a video.
+
+        Args:
+            project_data: The project data dictionary to modify
+            video_path: Video path to save zones for
+            data: MultiAquariumZoneData to save
+            persist_callback: Optional callback to persist project after save
+
+        Returns:
+            True if saved successfully, False otherwise
+        """
+        try:
+            video_path = Path(video_path) if isinstance(video_path, str) else video_path
+            self.ensure_zone_structures(project_data)
+
+            # Ensure multi_aquarium_zones structure exists
+            if "multi_aquarium_zones" not in project_data:
+                project_data["multi_aquarium_zones"] = {}
+
+            normalized = self.normalize_video_path(video_path)
+            store_key = normalized or str(video_path.as_posix())
+
+            serialized = self.multi_aquarium_zone_data_to_dict(data)
+            project_data["multi_aquarium_zones"][store_key] = serialized
+
+            # Also update standard zones_by_video with first aquarium for compatibility
+            if data.aquariums:
+                first_aquarium_zone = data.to_zone_data(0)
+                project_data["zones_by_video"][store_key] = self.zone_data_to_dict(
+                    first_aquarium_zone
+                )
+                self.update_video_zone_flags(project_data, video_path, data)
+
+            log.info(
+                "zone_manager.multi_aquarium.saved",
+                video=store_key,
+                aquarium_count=len(data.aquariums),
+            )
+
+            if persist_callback:
+                persist_callback()
+
+            return True
+
+        except Exception as e:
+            log.error(
+                "zone_manager.multi_aquarium.save_failed",
+                video=str(video_path),
+                error=str(e),
+            )
+            return False
+
+    def get_multi_aquarium_zone_data(
+        self,
+        project_data: dict,
+        video_path: Path | str,
+    ) -> MultiAquariumZoneData | None:
+        """Retrieve multi-aquarium zone data for a specific video.
+
+        Args:
+            project_data: The project data dictionary
+            video_path: Video path to get zones for
+
+        Returns:
+            MultiAquariumZoneData object if found, None otherwise
+        """
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+        self.ensure_zone_structures(project_data)
+
+        multi_zones = project_data.get("multi_aquarium_zones", {})
+        if not multi_zones:
+            return None
+
+        normalized = self.normalize_video_path(video_path)
+
+        # Try normalized path first
+        if normalized and normalized in multi_zones:
+            return self.multi_aquarium_zone_data_from_dict(multi_zones[normalized])
+
+        # Try original path
+        video_path_str = str(video_path)
+        if video_path_str in multi_zones:
+            return self.multi_aquarium_zone_data_from_dict(multi_zones[video_path_str])
+
+        # Try matching by normalized comparison
+        if normalized:
+            for key, value in multi_zones.items():
+                if self.normalize_video_path(key) == normalized:
+                    return self.multi_aquarium_zone_data_from_dict(value)
+
+        return None
+
+    def get_aquarium_count(self, project_data: dict, video_path: Path | str) -> int:
+        """Return the number of aquariums configured for a video.
+
+        Args:
+            project_data: The project data dictionary
+            video_path: Video path to check
+
+        Returns:
+            Number of aquariums (0 if not multi-aquarium, 1 for standard, 2 for multi)
+        """
+        multi_data = self.get_multi_aquarium_zone_data(project_data, video_path)
+        if multi_data and multi_data.aquariums:
+            return len(multi_data.aquariums)
+
+        # Check if has standard zone data
+        if self.has_zone_data(project_data, video_path):
+            return 1
+
+        return 0
+
+    def is_multi_aquarium_video(self, project_data: dict, video_path: Path | str) -> bool:
+        """Check if a video is configured for multi-aquarium mode.
+
+        Args:
+            project_data: The project data dictionary
+            video_path: Video path to check
+
+        Returns:
+            True if video has multi-aquarium configuration, False otherwise
+        """
+        multi_data = self.get_multi_aquarium_zone_data(project_data, video_path)
+        return multi_data is not None and multi_data.is_multi_aquarium
+
+    def clear_multi_aquarium_zone_data(
+        self,
+        project_data: dict,
+        video_path: Path | str,
+        *,
+        persist_callback: callable | None = None,
+    ) -> None:
+        """Remove multi-aquarium zone data for a specific video.
+
+        Args:
+            project_data: The project data dictionary to modify
+            video_path: Video path to clear zones for
+            persist_callback: Optional callback to persist project after clear
+        """
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+        self.ensure_zone_structures(project_data)
+
+        multi_zones = project_data.get("multi_aquarium_zones", {})
+        normalized = self.normalize_video_path(video_path)
+
+        # Find and remove the key
+        key_to_remove = None
+        if normalized and normalized in multi_zones:
+            key_to_remove = normalized
+        else:
+            video_path_str = str(video_path)
+            if video_path_str in multi_zones:
+                key_to_remove = video_path_str
+            elif normalized:
+                for key in multi_zones.keys():
+                    if self.normalize_video_path(key) == normalized:
+                        key_to_remove = key
+                        break
+
+        if key_to_remove:
+            del multi_zones[key_to_remove]
+            log.info("zone_manager.multi_aquarium.cleared", video=key_to_remove)
+
+        # Also clear standard zone data
+        self.clear_zone_data_for_video(project_data, video_path)
+
+        if persist_callback:
+            persist_callback()

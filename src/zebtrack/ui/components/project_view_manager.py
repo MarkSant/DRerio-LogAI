@@ -63,6 +63,11 @@ class ProjectViewManager:
             UIEvents.VIDEO_TREE_REFRESH_REQUESTED, self._on_video_tree_refresh_requested
         )
 
+        # Subscribe to UI_REQUEST_PROCESS_VIDEOS (Selection-aware processing trigger)
+        self.event_bus_v2.subscribe(
+            UIEvents.UI_REQUEST_PROCESS_VIDEOS, self._on_request_process_videos
+        )
+
         # Subscribe to PROJECT_VIEWS_REFRESH_REQUESTED
         self.event_bus_v2.subscribe(
             UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
@@ -70,7 +75,7 @@ class ProjectViewManager:
                 reason=d.get("reason"),
                 append_summary=d.get("append_summary", False),
                 immediate=d.get("immediate", False),
-            )
+            ),
         )
 
         # Subscribe to READINESS_SNAPSHOT_UPDATED event
@@ -87,15 +92,13 @@ class ProjectViewManager:
 
         # Subscribe to PROCESSING_REPORTS_ITEM_RIGHT_CLICK (V2)
         self.event_bus_v2.subscribe(
-            UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK,
-            self._on_processing_reports_right_click
+            UIEvents.PROCESSING_REPORTS_ITEM_RIGHT_CLICK, self._on_processing_reports_right_click
         )
 
         # Bridge: Subscribe to V1 event from widget (Legacy EventBus)
         if self.gui.event_bus:
             self.gui.event_bus.subscribe(
-                "processing_reports.item_right_click",
-                self._on_processing_reports_right_click
+                "processing_reports.item_right_click", self._on_processing_reports_right_click
             )
 
         log.debug(
@@ -148,7 +151,7 @@ class ProjectViewManager:
 
         confirm = self.gui.dialog_manager.ask_ok_cancel(
             "Apagar Dados de Processamento",
-            f"Tem certeza que deseja apagar TODOS os dados de processamento (Arena, ROIs, Trajetória, Relatórios) para:\n\n{os.path.basename(video_path)}?\n\nO vídeo será mantido no projeto."
+            f"Tem certeza que deseja apagar TODOS os dados de processamento (Arena, ROIs, Trajetória, Relatórios) para:\n\n{os.path.basename(video_path)}?\n\nO vídeo será mantido no projeto.",
         )
         if not confirm:
             return
@@ -163,7 +166,9 @@ class ProjectViewManager:
                 changed = True
 
         if changed:
-            self.refresh_project_views(reason="Dados de processamento apagados", append_summary=True)
+            self.refresh_project_views(
+                reason="Dados de processamento apagados", append_summary=True
+            )
 
     def _delete_video_from_project(self, video_path: str) -> None:
         """Delete video from project."""
@@ -176,12 +181,24 @@ class ProjectViewManager:
             data: Event payload containing filter_text
         """
         if not isinstance(data, dict):
-            log.warning("project_view_manager._on_video_tree_refresh_requested.invalid_data_type",
-                       data_type=type(data).__name__)
+            log.warning(
+                "project_view_manager._on_video_tree_refresh_requested.invalid_data_type",
+                data_type=type(data).__name__,
+            )
             return
         filter_text = data.get("filter_text")
         log.debug("project_view_manager.video_tree_refresh_event_received", filter_text=filter_text)
         self._populate_video_selector_tree(filter_text)
+
+    def _on_request_process_videos(self, data: dict) -> None:
+        """
+        Handle UI request to process videos (Selection with Fallback).
+
+        Called when users click "Process Video" in Analysis view.
+        Attempts to process current selection; if none, processes all pending videos.
+        """
+        log.info("project_view_manager.request_process_videos")
+        self.trigger_batch_trajectory_processing(fallback_to_pending=True)
 
     def _on_readiness_snapshot_updated(self, data: dict):
         """Handle READINESS_SNAPSHOT_UPDATED event.
@@ -190,8 +207,10 @@ class ProjectViewManager:
             data: Event payload containing readiness snapshot data
         """
         if not isinstance(data, dict):
-            log.warning("project_view_manager._on_readiness_snapshot_updated.invalid_data_type",
-                       data_type=type(data).__name__)
+            log.warning(
+                "project_view_manager._on_readiness_snapshot_updated.invalid_data_type",
+                data_type=type(data).__name__,
+            )
             return
         ready_with_trajectory = data.get("ready_with_trajectory", [])
         ready_with_zones = data.get("ready_with_zones", [])
@@ -389,8 +408,8 @@ class ProjectViewManager:
             # Use prepare_overview_hierarchy_for_widget to get the correct structure
             # (groups, summaries) instead of build_video_hierarchy_snapshot
             # which returns a simpler list
-            hierarchy_data = (
-                self.gui.validation_manager.prepare_overview_hierarchy_for_widget(all_videos)
+            hierarchy_data = self.gui.validation_manager.prepare_overview_hierarchy_for_widget(
+                all_videos
             )
 
             # Extract the 'groups' list which contains the snapshot data
@@ -754,8 +773,16 @@ class ProjectViewManager:
 
         _walk("")
 
-    def trigger_batch_trajectory_processing(self, selection=None) -> None:
-        """Trigger batch trajectory processing for selected or all videos."""
+    def trigger_batch_trajectory_processing(
+        self, selection=None, fallback_to_pending: bool = False
+    ) -> None:
+        """
+        Trigger batch trajectory processing for selected or all videos.
+
+        Args:
+            selection: Optional list of item IDs
+            fallback_to_pending: If True and no selection, triggers process all pending
+        """
         from zebtrack.ui.events import Events
 
         selections = []
@@ -767,6 +794,16 @@ class ProjectViewManager:
             selections = self.resolve_processing_reports_video_paths()
 
         if not selections:
+            if fallback_to_pending:
+                # Fallback: Process all pending videos (pass null paths)
+                self.gui.event_dispatcher.publish_event(
+                    Events.PROJECT_PROCESS_VIDEOS, {"video_paths": None}
+                )
+                self.request_overview_refresh()
+                # Switch to analysis tab to show progress
+                self.gui._switch_to_analysis_view()
+                return
+
             self.gui.show_info(
                 "Processamento",
                 "Nenhum vídeo elegível foi encontrado ou selecionado.",
@@ -819,9 +856,50 @@ class ProjectViewManager:
             {"videos": all_videos, "report_type": "unified"},
         )
 
+        return video_paths
+
+    def _resolve_selection_from_project_overview(self) -> list[str]:
+        """Resolve selected video paths from Project Overview tree."""
+        if not hasattr(self.gui, "project_overview_widget"):
+            return []
+        if not self.gui.project_overview_widget:
+            return []
+
+        tree = self.gui.project_overview_widget.tree
+        if not tree:
+            return []
+
+        selection = tree.selection()
+        video_paths = []
+
+        for item_id in selection:
+            # 1. Try to get path from values (index 5 based on _populate_project_tree params)
+            values = tree.item(item_id, "values")
+            log.warning("debug.selection_resolution", item_id=item_id, values=values)
+
+            if values and len(values) >= 6:
+                path_candidate = values[5]
+                # Check if it looks like a path (values are strings)
+                if path_candidate and os.path.exists(path_candidate):
+                    video_paths.append(path_candidate)
+                    continue
+                else:
+                    log.warning("debug.selection.invalid_path", path=path_candidate)
+
+            # 2. Legacy/Fallback: Check tags (if used elsewhere)
+            tags = tree.item(item_id, "tags")
+            if tags:
+                path_candidate = tags[0]
+                if path_candidate and os.path.exists(path_candidate):
+                    video_paths.append(path_candidate)
+                    continue
+
+        log.warning("debug.resolved_paths", count=len(video_paths), paths=video_paths)
+        return video_paths
+
     def resolve_processing_reports_video_paths(self, selection=None) -> list[str]:
         """
-        Resolve selected video paths from processing reports tree.
+        Resolve selected video paths from ANY active tree (Reports or Overview).
 
         Args:
             selection: Optional list of item IDs. If None, uses current tree selection.
@@ -829,24 +907,25 @@ class ProjectViewManager:
         Returns:
             List of selected video paths
         """
-        if not hasattr(self.gui, "processing_reports_widget"):
-            return []
-        if not self.gui.processing_reports_widget:
-            return []
+        # 1. Try Processing Reports Tree
+        reports_paths = []
+        if hasattr(self.gui, "processing_reports_widget") and self.gui.processing_reports_widget:
+            tree = self.gui.processing_reports_widget.tree
+            if tree:
+                selected = selection if selection is not None else tree.selection()
+                log.warning("debug.reports_tree.selection", count=len(selected))
+                for item_id in selected:
+                    video_path = tree.set(item_id, "video_path")
+                    if video_path and os.path.isfile(video_path):
+                        reports_paths.append(video_path)
 
-        tree = self.gui.processing_reports_widget.tree
-        if not tree:
-            return []
+        if reports_paths:
+            log.warning("debug.reports_tree.found", paths=reports_paths)
+            return reports_paths
 
-        selected = selection if selection is not None else tree.selection()
-        video_paths = []
-
-        for item_id in selected:
-            video_path = tree.set(item_id, "video_path")
-            if video_path and os.path.isfile(video_path):
-                video_paths.append(video_path)
-
-        return video_paths
+        log.warning("debug.fallback.project_overview")
+        # 2. Try Project Overview Tree (Fallback for selection)
+        return self._resolve_selection_from_project_overview()
 
     def populate_video_selector_tree(self, search_text: str = "") -> None:
         """
@@ -900,7 +979,7 @@ class ProjectViewManager:
                     "debug.refresh_tab.video_state",
                     path=os.path.basename(v.get("path")),
                     has_traj=v.get("has_trajectory"),
-                    has_arena=v.get("has_arena")
+                    has_arena=v.get("has_arena"),
                 )
 
         # Build hierarchy
@@ -1232,7 +1311,7 @@ class ProjectViewManager:
             widget.tree,
             hierarchy,
             "",  # specific root if needed, else empty for actual root
-            metadata_store
+            metadata_store,
         )
 
         # Update status cards
@@ -1291,7 +1370,9 @@ class ProjectViewManager:
                             # Use ValidationManager logic or similar consistent formatting if available
                             # For now, simplistic fallback to match previous potential intent
                             day_val = meta.get("day")
-                            day_label = f"{day_val:02d}" if isinstance(day_val, int) else str(day_val)
+                            day_label = (
+                                f"{day_val:02d}" if isinstance(day_val, int) else str(day_val)
+                            )
                         elif "day_label" in first_video:
                             day_label = first_video["day_label"]
 
@@ -1343,7 +1424,14 @@ class ProjectViewManager:
                         "end",
                         iid=video_node_id,
                         text=f"🐟 {subject_label}",
-                        values=(col_arena, col_rois, col_traj, col_summary, status_label, video_path),
+                        values=(
+                            col_arena,
+                            col_rois,
+                            col_traj,
+                            col_summary,
+                            status_label,
+                            video_path,
+                        ),
                     )
 
                     metadata_store[video_node_id] = {
@@ -1356,14 +1444,15 @@ class ProjectViewManager:
                     # Use ProjectManager lookup for robustness if not in entry
                     results_dir = video.get("results_dir")
                     if not results_dir:
-                         pm = self.gui.controller.project_manager
-                         results_dir = pm.resolve_results_directory(
-                            experiment_id=video.get("experiment_id") or video.get("metadata", {}).get("experiment_id"),
+                        pm = self.gui.controller.project_manager
+                        results_dir = pm.resolve_results_directory(
+                            experiment_id=video.get("experiment_id")
+                            or video.get("metadata", {}).get("experiment_id"),
                             video_path=video_path,
-                            metadata=video.get("metadata")
-                         )
-                         if isinstance(results_dir, Path):
-                             results_dir = str(results_dir)
+                            metadata=video.get("metadata"),
+                        )
+                        if isinstance(results_dir, Path):
+                            results_dir = str(results_dir)
 
                     if results_dir and os.path.exists(results_dir):
                         self.append_processing_reports_artifacts(

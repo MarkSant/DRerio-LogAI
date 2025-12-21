@@ -28,7 +28,18 @@ class ArenaCompletionStrategy(PolygonCompletionStrategy):
         return True, None
 
     def complete(self, video_points: list, gui: "ApplicationGUI") -> bool:
-        success = gui.controller.set_main_arena_polygon(video_points)
+        # Check if in multi-aquarium mode
+        zone_controls = getattr(gui, "zone_controls", None)
+        is_multi_aquarium = (
+            zone_controls
+            and zone_controls.aquarium_count_var.get() == 2
+        )
+
+        if is_multi_aquarium:
+            success = self._complete_multi_aquarium(video_points, gui, zone_controls)
+        else:
+            success = gui.controller.set_main_arena_polygon(video_points)
+
         if success:
             gui.canvas_manager.redraw_zones_from_project_data()
 
@@ -46,6 +57,50 @@ class ArenaCompletionStrategy(PolygonCompletionStrategy):
 
             return True
         return False
+
+    def _complete_multi_aquarium(
+        self, video_points: list, gui: "ApplicationGUI", zone_controls
+    ) -> bool:
+        """Complete polygon in multi-aquarium mode."""
+        from zebtrack.core.zone_manager import ZoneManager
+
+        active_aquarium_id = zone_controls.active_aquarium_var.get()
+        video_path = gui.controller.project_manager.get_active_zone_video()
+
+        if not video_path:
+            return False
+
+        project_data = gui.controller.project_manager.project_data
+        if not project_data:
+            return False
+
+        zone_manager = ZoneManager()
+
+        # Get existing multi-aquarium data
+        multi_data = zone_manager.get_multi_aquarium_zone_data(project_data, video_path)
+
+        if not multi_data:
+            # Shouldn't happen - multi_data should have been created when mode was activated
+            return False
+
+        # Update the correct aquarium's polygon
+        aquarium = multi_data.get_aquarium(active_aquarium_id)
+        if aquarium:
+            aquarium.polygon = video_points
+        else:
+            # Create new aquarium if it doesn't exist
+            from zebtrack.core.detector import AquariumData
+
+            new_aquarium = AquariumData(id=active_aquarium_id, polygon=video_points)
+            multi_data.aquariums.append(new_aquarium)
+
+        # Save updated multi-aquarium data
+        return zone_manager.save_multi_aquarium_zone_data(
+            project_data,
+            video_path,
+            multi_data,
+            persist_callback=gui.controller.project_manager.save_project,
+        )
 
 
 class ROICompletionStrategy(PolygonCompletionStrategy):

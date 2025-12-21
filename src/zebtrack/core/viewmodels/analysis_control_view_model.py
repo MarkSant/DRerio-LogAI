@@ -127,7 +127,10 @@ class AnalysisControlViewModel:
 
         # If nothing is running, early return
         if not (
-            coord_worker_running or coord_thread_running or legacy_worker_running or legacy_thread_running
+            coord_worker_running
+            or coord_thread_running
+            or legacy_worker_running
+            or legacy_thread_running
         ):
             log.info("cancel_current_analysis.no_processing_active")
             return
@@ -208,15 +211,14 @@ class AnalysisControlViewModel:
         """Generate summaries (Word/Excel) for the given video paths."""
         log.info("analysis_control.generate_summaries.start", count=len(video_paths))
         threading.Thread(
-            target=self._generate_summaries_impl,
-            args=(video_paths,),
-            daemon=True
+            target=self._generate_summaries_impl, args=(video_paths,), daemon=True
         ).start()
 
     def _generate_summaries_impl(self, video_paths: list[str]):
         """Implementation of summary generation running in a separate thread."""
-        from zebtrack.analysis.reporter import Reporter
         import os
+
+        from zebtrack.analysis.reporter import Reporter
 
         if not self.ui_event_bus:
             return
@@ -225,8 +227,7 @@ class AnalysisControlViewModel:
         for i, video_path in enumerate(video_paths):
             try:
                 self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS,
-                    {"message": f"Gerando relatório {i+1}/{total}..."}
+                    Events.UI_SET_STATUS, {"message": f"Gerando relatório {i + 1}/{total}..."}
                 )
 
                 # Check directly in PM to ensure we have valid entry
@@ -240,16 +241,16 @@ class AnalysisControlViewModel:
                 experiment_id = entry.get("experiment_id", video_stem)
 
                 metadata = dict(entry.get("metadata", {}))
-                metadata.update({
-                    "experiment_id": experiment_id,
-                    "subject": entry.get("subject", "Unknown"),
-                    "group": entry.get("group", "Unknown"),
-                })
+                metadata.update(
+                    {
+                        "experiment_id": experiment_id,
+                        "subject": entry.get("subject", "Unknown"),
+                        "group": entry.get("group", "Unknown"),
+                    }
+                )
 
                 results_dir = self.project_manager.resolve_results_directory(
-                    experiment_id=experiment_id,
-                    video_path=video_path,
-                    metadata=metadata
+                    experiment_id=experiment_id, video_path=video_path, metadata=metadata
                 )
 
                 # Check for trajectory file using correct naming convention
@@ -271,8 +272,10 @@ class AnalysisControlViewModel:
                 arena_poly = zone_data.polygon or []
 
                 # ROI objects
-                from zebtrack.analysis.roi import ROI
                 from shapely.geometry import Polygon  # Correctly import Polygon
+
+                from zebtrack.analysis.roi import ROI
+
                 rois_list = []
                 roi_polys = zone_data.roi_polygons or []
                 roi_names = zone_data.roi_names or []
@@ -288,14 +291,18 @@ class AnalysisControlViewModel:
                     # FIX: ROI constructor kwarg is 'geometry', not 'polygon'.
                     # FIX: These come from ZoneData (pixels), so specify coordinate_space="px".
                     try:
-                        rois_list.append(ROI(name=name, geometry=Polygon(poly), coordinate_space="px"))
+                        rois_list.append(
+                            ROI(name=name, geometry=Polygon(poly), coordinate_space="px")
+                        )
                         roi_colors_dict[name] = color_rgb
                     except Exception as e:
                         log.warning(f"Skipping invalid ROI {name}: {e}")
 
                 # Retrieve analysis profile params
                 analysis_profile = self.project_manager.resolve_analysis_profile(metadata)
-                params = self.analysis_service.collect_analysis_parameters({"analysis_parameters": analysis_profile})
+                params = self.analysis_service.collect_analysis_parameters(
+                    {"analysis_parameters": analysis_profile}
+                )
 
                 # Load DataFrame using Service (efficient loading)
                 df = self.analysis_service.load_trajectory_dataframe(parquet_path)
@@ -314,7 +321,7 @@ class AnalysisControlViewModel:
                     trajectory_df=df,
                     pixelcm_x=pixelcm_x,
                     pixelcm_y=pixelcm_y,
-                    video_height_px=1080, # Placeholder, should come from video
+                    video_height_px=1080,  # Placeholder, should come from video
                     arena_polygon_px=arena_poly,
                     rois=rois_list,
                     fps=fps,
@@ -324,7 +331,7 @@ class AnalysisControlViewModel:
                     freezing_min_duration=params["freezing_min_duration"],
                     smoothing_window_length=params["smoothing_window_length"],
                     smoothing_polyorder=params["smoothing_polyorder"],
-                    video_path=video_path
+                    video_path=video_path,
                 )
 
                 # Generate Reports
@@ -332,7 +339,7 @@ class AnalysisControlViewModel:
 
                 # sanitize helper
                 def _san(s):
-                    return "".join(c for c in str(s) if c.isalnum() or c in ('-', '_')).strip()
+                    return "".join(c for c in str(s) if c.isalnum() or c in ("-", "_")).strip()
 
                 # Construct descriptive names
                 # Try to use display names if available or raw metadata
@@ -367,7 +374,7 @@ class AnalysisControlViewModel:
                     trajectory_path=parquet_path,  # Include trajectory path
                     summary_parquet=parquet_summary_path,  # Include summary parquet
                     summary_excel=excel_path,
-                    report_path=docx_path
+                    report_path=docx_path,
                 )
 
                 log.info(
@@ -378,14 +385,18 @@ class AnalysisControlViewModel:
                 )
 
             except Exception as e:
-                log.error("generate_summaries.failed", video=video_path, error=str(e), exc_info=True)
+                log.error(
+                    "generate_summaries.failed", video=video_path, error=str(e), exc_info=True
+                )
 
-        self.ui_event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Geração de relatórios concluída."})
+        self.ui_event_bus.publish_event(
+            Events.UI_SET_STATUS, {"message": "Geração de relatórios concluída."}
+        )
 
         # Refresh tree to show new artifacts
         self.ui_event_bus.publish_event(
             Events.UI_REFRESH_PROJECT_VIEWS,
-            {"reason": "reports_generated", "append_summary": True, "immediate": False}
+            {"reason": "reports_generated", "append_summary": True, "immediate": False},
         )
 
     def _process_single_video(self, detector, **kwargs):

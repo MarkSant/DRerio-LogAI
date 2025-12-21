@@ -114,6 +114,18 @@ def main():
 
     log.info("application.starting", component="main")
 
+    # Ensure Windows taskbar icon is displayed correctly (not generic Python icon)
+    import ctypes
+    import os
+
+    if os.name == "nt":
+        try:
+            # Arbitrary AppUserModelID to group taskbar icon
+            myappid = "zebtrack.ai.app.v1"
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except Exception:
+            pass  # Fail silently if not on Windows or other issue
+
     try:
         # Create Tkinter root FIRST (required for Toplevel widgets)
         root = tk.Tk()

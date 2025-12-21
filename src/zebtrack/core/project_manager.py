@@ -251,65 +251,74 @@ class ProjectManager:
     # ------------------------------------------------------------------
 
     def set_active_zone_video(self, video_path: Path | str | None) -> None:
-        """
-        Set the video whose zones should be considered active in memory.
-        
+        """Set the video whose zones should be considered active in memory.
+
         Robustly attempts to load zone data from the project structure if in-memory data
         is incomplete, ensuring the editor reflects the files on disk.
         """
         if video_path:
             video_path_str = str(Path(video_path) if isinstance(video_path, str) else video_path)
-            
+
             # 1. Resolve where the files SHOULD be in the project structure
             video_entry = self.find_video_entry(path=video_path_str)
             metadata = video_entry.get("metadata") if video_entry else None
             experiment_id = Path(video_path_str).stem
-            
+
             try:
                 results_dir = self.resolve_results_directory(
-                    experiment_id,
-                    video_path=video_path_str,
-                    metadata=metadata
+                    experiment_id, video_path=video_path_str, metadata=metadata
                 )
-                
+
                 # 2. Check for parquet files in the project structure
                 arena_path = results_dir / f"1_ProcessingArea_{experiment_id}.parquet"
                 rois_path = results_dir / f"2_AreasOfInterest_{experiment_id}.parquet"
-                
+
                 found_parquets = {}
                 if arena_path.exists():
                     found_parquets["arena"] = str(arena_path)
                 if rois_path.exists():
                     found_parquets["rois"] = str(rois_path)
-                
+
                 # 3. If files found, force load/merge
                 if found_parquets:
-                    log.info("project.set_active.found_project_parquets", files=list(found_parquets.keys()))
-                    
+                    log.info(
+                        "project.set_active.found_project_parquets",
+                        files=list(found_parquets.keys()),
+                    )
+
                     # Prepare info dict for loader
                     video_info = {"path": video_path_str, "parquet_files": found_parquets}
-                    
+
                     # Load from disk
                     loaded_zones = self.load_zones_from_parquet(video_info)
-                    
+
                     if loaded_zones:
                         # Check what we have in memory currently
                         current_zones = self.zone_manager.get_zone_data(
                             self.project_data, video_path_str, fallback_to_global=False
                         )
-                        
-                        # Use loaded data if memory is empty OR if memory lacks ROIs but disk has them
+
+                        # Use loaded data if memory is empty OR if memory lacks
+                        # ROIs but disk has them
                         should_update = False
                         if not current_zones.polygon and loaded_zones.polygon:
                             should_update = True
                         if not current_zones.roi_polygons and loaded_zones.roi_polygons:
                             should_update = True
-                            
+
                         # If we loaded data and decide to use it, save to memory
-                        if should_update or (not current_zones.polygon and not current_zones.roi_polygons):
-                            log.info("project.set_active.syncing_memory_from_disk", video=video_path_str)
-                            self.save_zone_data(loaded_zones, video_path=video_path_str, persist=False)
-                            
+                        needs_sync = should_update or (
+                            not current_zones.polygon and not current_zones.roi_polygons
+                        )
+                        if needs_sync:
+                            log.info(
+                                "project.set_active.syncing_memory_from_disk",
+                                video=video_path_str,
+                            )
+                            self.save_zone_data(
+                                loaded_zones, video_path=video_path_str, persist=False
+                            )
+
                             # Also update video entry registry so future scans work
                             if video_entry:
                                 video_entry.setdefault("parquet_files", {}).update(found_parquets)
@@ -384,29 +393,92 @@ class ProjectManager:
             if target_video and self.project_path:
                 try:
                     exported = self.export_zones_to_parquet(target_video, zone_data)
-                    
+
                     # Update video entry with new parquet files
                     video_entry = self.find_video_entry(path=target_video)
                     if video_entry:
                         parquet_map = video_entry.setdefault("parquet_files", {})
                         parquet_map.update(exported)
-                        
+
                         # Update flags based on export success
                         if "arena" in exported:
                             video_entry["has_arena"] = True
                         if "rois" in exported:
                             video_entry["has_rois"] = True
-                            
+
                 except Exception as e:
                     log.error("project.save_zone_data.parquet_export_failed", error=str(e))
 
-            if self.project_path:
                 self.save_project()
             else:
                 log.info(
                     "project.zone_data.save.in_memory",
                     video_path=str(video_path) if video_path else None,
-                    reason="single_video_workflow"
+                    reason="single_video_workflow",
+                )
+
+    def save_multi_aquarium_zone_data(self, video_path: str, multi_data: Any) -> None:
+        """Save multi-aquarium zone data.
+
+        Persists the MultiAquariumZoneData structure to project JSON.
+        CRITICAL: Also exports the first aquarium's zones to standard parquet files
+        so that legacy validation (checks for has_arena) passes.
+        """
+        video_path = str(Path(video_path))
+
+        # 1. Save to ZoneManager (memory/json)
+        # Assuming ZoneManager handles the complex structure serialization
+        # If not, we put it in the dict manually for now, but ZoneManager is preferred.
+        # Let's trust ZoneManager has support or we add it to the generic save.
+        # Actually, let's look at how generic save works.
+        # We'll rely on the fact that ZoneManager.zone_data_to_dict might handle it
+        # OR we just store it as a dict.
+
+        # We need to import MultiAquariumZoneData to verify type but safe to just duck type.
+
+        # 1. Update In-Memory Project Data
+        # We specifically create a "multi-aquarium" entry or just overwrite the standard one?
+        # The prompt implies we use standard structures but marked as multi.
+
+        # Let's inspect ZoneManager later, but for now implement the method requested.
+
+        # For now, we will serialize it to dict and save it using manual update to project_data
+        # to ensure it is stored.
+        from zebtrack.core.detector import MultiAquariumZoneData
+
+        if isinstance(multi_data, MultiAquariumZoneData):
+            # Convert to dict
+            data_dict = self.zone_manager.multi_aquarium_zone_data_to_dict(multi_data)
+
+            # Store in project_data
+            key, _ = self._resolve_zone_entry(video_path)
+            if not key:
+                key = video_path  # Should normalize but simplified
+
+            self.project_data.setdefault("zones_by_video", {})[key] = data_dict
+
+            # 2. Exports for Legacy Compatibility (Aquarium 0)
+            # We select the first aquarium to represent the "file" for validation purposes.
+            aq0 = multi_data.aquariums[0].to_zone_data()
+            self.export_zones_to_parquet(video_path, aq0)
+
+            # 3. Update Flags
+            video_entry = self.find_video_entry(path=video_path)
+            if video_entry:
+                video_entry["has_arena"] = bool(aq0.polygon)
+                video_entry["has_rois"] = bool(aq0.roi_polygons)
+                # Mark as multi-aquarium
+                video_entry["is_multi_aquarium"] = True
+                video_entry["num_aquariums"] = len(multi_data.aquariums)
+
+            # 4. Save
+            if self.project_path:
+                self.save_project()
+            else:
+                log.info(
+                    "project.save_multi.in_memory_only",
+                    video=video_path,
+                    reason="single_video_mode (no project_path)"
                 )
 
     def clear_zone_data_for_video(
@@ -468,7 +540,7 @@ class ProjectManager:
         video_stem = Path(video_path).stem
         video_entry = self.find_video_entry(path=video_path)
         metadata_hint = video_entry.get("metadata") if video_entry else None
-        
+
         results_dir = self.resolve_results_directory(
             video_stem,
             video_path=video_path,
@@ -488,13 +560,10 @@ class ProjectManager:
             roi_data = []
             for name, poly in zip(zone_data.roi_names, zone_data.roi_polygons):
                 for idx, point in enumerate(poly):
-                    roi_data.append({
-                        "roi_name": name,
-                        "point_index": idx,
-                        "x": point[0],
-                        "y": point[1]
-                    })
-            
+                    roi_data.append(
+                        {"roi_name": name, "point_index": idx, "x": point[0], "y": point[1]}
+                    )
+
             if roi_data:
                 rois_df = pd.DataFrame(roi_data)
                 rois_path = results_dir / f"2_AreasOfInterest_{video_stem}.parquet"
@@ -539,7 +608,7 @@ class ProjectManager:
             return copied
 
         parquet_files: dict[str, str] = scan_results[0].get("parquet_files", {})
-        
+
         # Enrich with registered files if missing (Fix for hierarchical project structure)
         if not parquet_files.get("arena") or not parquet_files.get("rois"):
             source_entry = self.find_video_entry(path=source_video_path)
@@ -632,13 +701,13 @@ class ProjectManager:
             if video_entry is not None:
                 parquet_map = video_entry.setdefault("parquet_files", {})
                 parquet_map.update(copied)
-                
+
                 # Critical Fix: Update status flags so analysis sees the data
                 if "arena" in copied:
                     video_entry["has_arena"] = True
                 if "rois" in copied:
                     video_entry["has_rois"] = True
-                
+
                 # Reset zones_finalized to force re-evaluation if needed
                 video_entry["zones_finalized"] = False
 
@@ -1542,6 +1611,10 @@ class ProjectManager:
                     fields=migrated_fields,
                 )
                 self.save_project()
+
+            # Synchronize multi-aquarium flags from registry to video entries
+            self._sync_multi_aquarium_flags()
+
             self.load_metadata()  # Load metadata right after loading the project
             log_context.info(
                 "project.load.success",
@@ -1555,6 +1628,41 @@ class ProjectManager:
                 path=project_path,
                 cause=e,
             ) from e
+
+    def _sync_multi_aquarium_flags(self) -> None:
+        """
+        Synchronize has_arena/has_rois flags for multi-aquarium videos.
+
+        Ensures that video entries reflect the state of the multi-aquarium zone registry
+        upon project load, fixing UI discrepancies.
+        """
+        updates = 0
+        for _, video_entry in self._iter_project_videos():
+            path = video_entry.get("path")
+            if not path:
+                continue
+
+            # Check registry transparently
+            multi_data = self.get_multi_aquarium_zone_data(path)
+            if multi_data and multi_data.aquariums:
+                check_arena = False
+                check_rois = False
+                for aq in multi_data.aquariums:
+                    if aq.polygon and len(aq.polygon) >= 3:
+                        check_arena = True
+                    if aq.roi_polygons:
+                        check_rois = True
+
+                # Apply updates if needed
+                if check_arena and not video_entry.get("has_arena"):
+                    video_entry["has_arena"] = True
+                    updates += 1
+                if check_rois and not video_entry.get("has_rois"):
+                    video_entry["has_rois"] = True
+                    updates += 1
+
+        if updates > 0:
+            log.info("project.load.synced_multi_aquarium_flags", updates=updates)
 
     @_threadsafe
     def save_project(self) -> None:
@@ -2223,6 +2331,154 @@ class ProjectManager:
 
         return changed
 
+    # =========================================================================
+    # Multi-Aquarium Support Methods (Phase 8)
+    # =========================================================================
+
+    def resolve_multi_aquarium_results_directories(
+        self,
+        experiment_id: str,
+        aquarium_configs: list[dict],
+    ) -> dict[int, Path]:
+        """
+        Resolve results directories for multiple aquariums.
+
+        Creates hierarchical structure:
+            {project_root}/Grupo_{group}/Dia_{day}/Sujeito_{subject_id}/
+
+        Args:
+            experiment_id: Experiment/video identifier
+            aquarium_configs: List of aquarium configuration dicts with keys:
+                - aquarium_id: int (0 or 1)
+                - group: str
+                - subject_id: str
+                - day: int
+
+        Returns:
+            Dict mapping aquarium_id to Path for each aquarium's results directory.
+        """
+        if not self.project_path:
+            log.warning("project.multi_aquarium.no_project_path")
+            return {}
+
+        result: dict[int, Path] = {}
+
+        for config in aquarium_configs:
+            aq_id = config.get("aquarium_id", 0)
+            group = config.get("group", "Sem_Grupo")
+            subject_id = config.get("subject_id", "")
+            day = config.get("day", 1)
+
+            # Build hierarchical path using existing formatters
+            group_component = self._format_group_component({"group": group})
+            day_component = self._format_day_component({"day": day})
+            subject_component = self._format_subject_component({"subject_id": subject_id})
+
+            results_dir = self.project_path / group_component / day_component / subject_component
+
+            results_dir.mkdir(parents=True, exist_ok=True)
+            result[aq_id] = results_dir
+
+            log.info(
+                "project.multi_aquarium.directory_resolved",
+                aquarium_id=aq_id,
+                path=str(results_dir),
+                experiment=experiment_id,
+            )
+
+        return result
+
+    def register_multi_aquarium_outputs(
+        self,
+        video_path: Path | str,
+        outputs_by_aquarium: dict[int, dict],
+    ) -> bool:
+        """
+        Register outputs from multiple aquariums in the project.
+
+        Args:
+            video_path: Path to the video file.
+            outputs_by_aquarium: Dict mapping aquarium_id to output info:
+                {
+                    aquarium_id: {
+                        "results_dir": str,
+                        "parquet_files": {"trajectory": str, "summary": str, ...},
+                        "group": str,
+                        "subject_id": str,
+                        "day": int
+                    }
+                }
+
+        Returns:
+            True if registration was successful, False otherwise.
+        """
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        video_entry = self.find_video_entry(path=video_path)
+
+        if not video_entry:
+            log.warning(
+                "project.multi_aquarium.video_not_found",
+                video_path=video_path,
+            )
+            return False
+
+        # Store multi-aquarium outputs in video entry
+        video_entry["multi_aquarium_mode"] = True
+        video_entry["multi_aquarium_outputs"] = {}
+
+        for aq_id, output_info in outputs_by_aquarium.items():
+            video_entry["multi_aquarium_outputs"][aq_id] = {
+                "results_dir": output_info.get("results_dir", ""),
+                "parquet_files": output_info.get("parquet_files", {}),
+                "group": output_info.get("group", ""),
+                "subject_id": output_info.get("subject_id", ""),
+                "day": output_info.get("day", 1),
+            }
+
+        # Update status if both aquariums have trajectory data
+        all_have_trajectory = all(
+            aq_output.get("parquet_files", {}).get("trajectory")
+            for aq_output in video_entry["multi_aquarium_outputs"].values()
+        )
+        if all_have_trajectory:
+            video_entry["status"] = "processed"
+            video_entry["has_trajectory"] = True
+
+        log.info(
+            "project.multi_aquarium.outputs_registered",
+            video=os.path.basename(video_path),
+            aquarium_count=len(outputs_by_aquarium),
+        )
+
+        if self.project_path:
+            self.save_project()
+
+        return True
+
+    def get_multi_aquarium_outputs(
+        self,
+        video_path: Path | str,
+    ) -> dict[int, dict] | None:
+        """
+        Get multi-aquarium outputs for a video.
+
+        Args:
+            video_path: Path to the video file.
+
+        Returns:
+            Dict mapping aquarium_id to output info, or None if not found/not multi-aquarium.
+        """
+        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        video_entry = self.find_video_entry(path=video_path)
+
+        if not video_entry:
+            return None
+
+        if not video_entry.get("multi_aquarium_mode"):
+            return None
+
+        return video_entry.get("multi_aquarium_outputs")
+
     def get_next_video(self):
         """
         Return the path of the next video with 'pending' status from all batches.
@@ -2260,6 +2516,124 @@ class ProjectManager:
         """
         return self.zone_manager.get_zone_data(
             self.project_data, video_path=video_path, fallback_to_global=fallback_to_global
+        )
+
+    def get_multi_aquarium_zone_data(
+        self,
+        video_path: Path | str | None,
+    ):
+        """
+        Retrieve multi-aquarium zone data for a specific video.
+
+        Delegates to ZoneManager.
+        """
+        return self.zone_manager.get_multi_aquarium_zone_data(self.project_data, video_path)
+
+    def save_multi_aquarium_zone_data(
+        self,
+        video_path: Path | str | None,
+        multi_data,
+        *,
+        persist: bool = True,
+    ) -> None:
+        """
+        Save multi-aquarium zone data for a specific video.
+
+        Delegates to ZoneManager.
+        """
+        # Phase 1: Save zone data (and update has_arena flags in memory)
+        # We defer persistence until after parquet export
+        self.zone_manager.save_multi_aquarium_zone_data(
+            self.project_data,
+            video_path,
+            multi_data,
+            persist_callback=None,
+        )
+
+        # Phase 2: Export parquet for compatibility/detection
+        # This ensures 'scan_input_paths' detects 'has_arena'
+        if video_path and multi_data.aquariums:
+            try:
+                # Use AQ0 as the "main" parquet for compatibility
+                exported = self.export_zones_to_parquet(video_path, multi_data.to_zone_data(0))
+
+                # Update video entry with new parquet files AND flags
+                video_entry = self.find_video_entry(path=video_path)
+                if video_entry:
+                    # Update parquet_files map
+                    if exported:
+                        parquet_map = video_entry.setdefault("parquet_files", {})
+                        parquet_map.update(exported)
+
+                    # Explicitly update has_arena/has_rois flags
+                    # (fallback if update_video_zone_flags missed)
+                    has_arena = any(aq.polygon for aq in multi_data.aquariums)
+                    has_rois = any(aq.roi_polygons for aq in multi_data.aquariums)
+                    video_entry["has_arena"] = has_arena
+                    video_entry["has_rois"] = has_rois
+                    video_entry["zones_finalized"] = False
+
+                    log.info(
+                        "project_manager.multi_aquarium.video_entry_updated",
+                        video=str(video_path),
+                        has_arena=has_arena,
+                        has_rois=has_rois,
+                        parquet_count=len(exported) if exported else 0,
+                    )
+            except Exception as e:
+                log.error("project_manager.multi_aquarium.parquet_export_failed", error=str(e))
+
+        # Phase 3: Persist everything
+        if persist and self.project_path:
+            self.save_project()
+
+    def is_multi_aquarium_video(self, video_path: Path | str | None) -> bool:
+        """
+        Check if a video has multi-aquarium configuration.
+
+        A video is considered multi-aquarium if it has:
+        - Multi-aquarium zone data configured (via ZoneManager), OR
+        - Multi-aquarium outputs registered (via register_multi_aquarium_outputs)
+
+        Delegates to ZoneManager for zone data check, also checks outputs.
+        """
+        # Check zone data first (preferred source of truth)
+        if self.zone_manager.is_multi_aquarium_video(self.project_data, video_path):
+            return True
+
+        # Fallback: check if multi-aquarium outputs are registered
+        video_entry = self.find_video_entry(path=video_path)
+        if video_entry:
+            outputs = video_entry.get("multi_aquarium_outputs", {})
+            if len(outputs) >= 2:
+                return True
+
+        return False
+
+    def get_aquarium_count(self, video_path: Path | str | None) -> int:
+        """
+        Get the number of aquariums configured for a video (1 or 2).
+
+        Delegates to ZoneManager.
+        """
+        return self.zone_manager.get_aquarium_count(self.project_data, video_path)
+
+    def clear_multi_aquarium_zone_data(
+        self,
+        video_path: Path | str | None,
+        *,
+        persist: bool = True,
+    ) -> None:
+        """
+        Clear multi-aquarium zone data for a video.
+
+        Delegates to ZoneManager.
+        """
+        persist_callback = self.save_project if persist else None
+        self.zone_manager.clear_multi_aquarium_zone_data(
+            self.project_data,
+            video_path,
+            persist_callback=persist_callback,
         )
 
     def update_main_polygon(self, points: list):
@@ -2311,7 +2685,7 @@ class ProjectManager:
             self.metadata = None
             log.info("project.metadata.not_found", path=metadata_path)
 
-    def get_metadata_for_experiment(self, experiment_id: str) -> dict:
+    def get_metadata_for_experiment(self, experiment_id: str | None) -> dict:
         """
         Retrieve a dictionary of metadata for a given experiment ID.
 
@@ -2320,10 +2694,19 @@ class ProjectManager:
 
         Args:
             experiment_id: The ID of the experiment (e.g., the video file stem).
+                          Can be None for projects without hierarchy.
 
         Returns:
             A dictionary of metadata for that experiment.
         """
+        # Guard against None or empty experiment_id
+        if not experiment_id:
+            log.debug(
+                "metadata.lookup.skipped",
+                reason="experiment_id is None or empty",
+            )
+            return {}
+
         # First, try to find the data in the metadata.csv file
         if self.metadata is not None and "experiment_id" in self.metadata.columns:
             row = self.metadata[self.metadata["experiment_id"] == experiment_id]

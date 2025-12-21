@@ -188,6 +188,7 @@ class ROITemplateManager:
             # Force refresh of video list indicators
             if self.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
                 self.event_bus_v2.publish(
                     Event(
                         type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,

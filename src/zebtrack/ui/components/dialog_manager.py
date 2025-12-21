@@ -709,23 +709,27 @@ class DialogManager:
 
     def show_progress_bar(self) -> None:
         """Show the progress bar frame and cancel button."""
-        if (self.gui.analysis_display_widget and
-            self.gui.analysis_display_widget.progress_frame and
-            not self.gui.analysis_display_widget.progress_frame.winfo_viewable()):
+        if (
+            self.gui.analysis_display_widget
+            and self.gui.analysis_display_widget.progress_frame
+            and not self.gui.analysis_display_widget.progress_frame.winfo_viewable()
+        ):
             # Pack progress_frame BEFORE video_container to ensure it stays visible
-            if (self.gui.analysis_display_widget.video_container and
-                hasattr(self.gui.analysis_display_widget, "video_container")):
+            if self.gui.analysis_display_widget.video_container and hasattr(
+                self.gui.analysis_display_widget, "video_container"
+            ):
                 self.gui.analysis_display_widget.progress_frame.pack(
                     before=self.gui.analysis_display_widget.video_container,
-                    pady=5, fill="x", padx=10
+                    pady=5,
+                    fill="x",
+                    padx=10,
                 )
                 # Force layout recalculation after showing progress bar
                 self.gui.root.update_idletasks()
             else:
                 self.gui.analysis_display_widget.progress_frame.pack(pady=5, fill="x", padx=10)
             self.gui.analysis_display_widget.progress_bar["value"] = 0
-        if (self.gui.analysis_display_widget and
-            self.gui.analysis_display_widget.cancel_btn):
+        if self.gui.analysis_display_widget and self.gui.analysis_display_widget.cancel_btn:
             self.gui.analysis_display_widget.cancel_btn.config(state="normal")
 
     def open_path_in_explorer(self, target_path: str) -> None:

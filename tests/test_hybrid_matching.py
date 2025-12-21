@@ -51,15 +51,15 @@ class TestCenterDistance:
 
         dets = [
             np.array([290, 290, 310, 310]),  # Far (300, 300)
-            np.array([55, 55, 75, 75]),       # Close (65, 65) - ~21px
-            np.array([140, 140, 160, 160]),   # Medium (150, 150) - ~141px
+            np.array([55, 55, 75, 75]),  # Close (65, 65) - ~21px
+            np.array([140, 140, 160, 160]),  # Medium (150, 150) - ~141px
         ]
 
         cost = matching.center_distance([track], dets, max_distance=200.0)
 
         assert cost.shape == (1, 3)
         assert cost[0, 1] < cost[0, 2]  # Close < Medium
-        assert cost[0, 0] >= 1e6        # Far is beyond max_distance (high cost)
+        assert cost[0, 0] >= 1e6  # Far is beyond max_distance (high cost)
 
 
 class TestHybridMatching:
@@ -82,7 +82,7 @@ class TestHybridMatching:
     def test_uses_distance_when_no_overlap(self):
         """When bboxes don't overlap, center distance is used."""
         # Track and detection with no overlap but close centers
-        track = np.array([40, 40, 60, 60])   # Center (50, 50)
+        track = np.array([40, 40, 60, 60])  # Center (50, 50)
         det = np.array([100, 100, 120, 120])  # Center (110, 110) - ~85px away
 
         hybrid_cost = matching.hybrid_iou_center_distance(
@@ -125,6 +125,7 @@ class TestByteTrackerHybridMode:
     def test_bytetracker_initialization_with_hybrid(self):
         """ByteTracker can be initialized with hybrid matching."""
         from types import SimpleNamespace
+
         from zebtrack.tracker.byte_tracker import BYTETracker
 
         args = SimpleNamespace(
@@ -135,10 +136,7 @@ class TestByteTrackerHybridMode:
         )
 
         tracker = BYTETracker(
-            args=args,
-            frame_rate=30,
-            use_hybrid_matching=True,
-            max_center_distance=200.0
+            args=args, frame_rate=30, use_hybrid_matching=True, max_center_distance=200.0
         )
 
         assert tracker.use_hybrid_matching is True
@@ -151,6 +149,7 @@ class TestByteTrackerHybridMode:
         every 5-10 frames (sparse processing).
         """
         from types import SimpleNamespace
+
         from zebtrack.tracker.byte_tracker import BYTETracker
 
         args = SimpleNamespace(
@@ -161,10 +160,7 @@ class TestByteTrackerHybridMode:
         )
 
         tracker = BYTETracker(
-            args=args,
-            frame_rate=30,
-            use_hybrid_matching=True,
-            max_center_distance=200.0
+            args=args, frame_rate=30, use_hybrid_matching=True, max_center_distance=200.0
         )
 
         # Frame 1: Fish at (100, 100), size 30x30

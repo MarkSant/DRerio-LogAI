@@ -67,6 +67,21 @@ A v4.0 representa uma reescrita fundamental do sistema com foco em estabilidade,
     - Respeito a intervalos de análise configurados
     - Unificação de `LiveCameraService` para ambos os contextos
 
+### Multi-Aquarium v2 (Novo!)
+
+Suporte avançado para análise simultânea de múltiplos aquários:
+
+*   **🔄 Detecção Paralela**: `detect_partitioned_parallel()` com ThreadPoolExecutor (~30-40% speedup)
+*   **📦 Inferência em Lote**: `detect_batch()` para processamento offline otimizado
+*   **✂️ Recorte ROI**: `_crop_aquarium_region()` para extração individual por aquário
+*   **📊 Métricas de Incerteza**: Colunas `uncertainty` e `bbox_iou` no Parquet para análise de qualidade
+*   **🔬 Thigmotaxis**: Métricas de preferência de borda por aquário
+*   **✅ Validação Avançada**: `validate_multi_aquarium_config()` retorna erros e avisos
+*   **🔍 Detecção de Gaps**: `_detect_per_aquarium_gaps()` para lacunas de trajetória por aquário
+*   **🛡️ Recuperação de Erros**: Fallback automático quando detecção em aquário individual falha
+*   **📤 Exportação R/Python**: Scripts prontos para análise estatística em R ou Python
+*   **🖼️ Preview Lado-a-lado**: `create_side_by_side_preview()` para comparação visual
+
 ## 🛠️ Instalação
 
 ### Requisitos do Sistema

@@ -245,7 +245,7 @@ def center_distance(atracks, btracks, max_distance: float = 200.0):
     b_centers = np.array([get_center(t) for t in btracks])
 
     # Compute Euclidean distance matrix
-    distances = cdist(a_centers, b_centers, metric='euclidean')
+    distances = cdist(a_centers, b_centers, metric="euclidean")
 
     # Normalize to [0, 1] range based on max_distance
     # Values beyond max_distance get a very high cost (will be filtered by threshold)
@@ -256,7 +256,9 @@ def center_distance(atracks, btracks, max_distance: float = 200.0):
     return cost_matrix
 
 
-def hybrid_iou_center_distance(atracks, btracks, iou_thresh: float = 0.1, max_center_dist: float = 200.0):
+def hybrid_iou_center_distance(
+    atracks, btracks, iou_thresh: float = 0.1, max_center_dist: float = 200.0
+):
     """
     Hybrid matching: Use IoU when overlap exists, fall back to center distance otherwise.
 

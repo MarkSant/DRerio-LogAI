@@ -46,6 +46,14 @@ Detector & Zone Events:
 - zone:update_arena: {polygon_points: list[list[int]]}
 - zone:auto_detect: {stabilization_frames: int}
 
+Multi-Aquarium Events:
+- zone:multi_auto_detect: {stabilization_frames: int}
+- zone:aquarium_selected: {aquarium_id: int}
+- zone:multi_detect_completed: {count: int, aquariums: list}
+- zone:aquarium_config_confirmed: {configs: list[AquariumConfig]}
+- zone:aquarium_count_confirmed: {count: int}
+- zone:aquarium_assignment_completed: {configs: list[AquariumConfig], apply_to_all: bool}
+
 Calibration Events:
 - calibration:run_live: {temp_aquarium_method: str | None}
 - calibration:copy_to_project: {}
@@ -181,6 +189,31 @@ class Events:
     ZONE_PASTE_ZONES = "zone.paste_zones"
     ZONE_DELETE_ZONES = "zone.delete_zones"
 
+    # Multi-Aquarium Events
+    # User wants to auto-detect multiple aquariums
+    ZONE_MULTI_AUTO_DETECT = "zone:multi_auto_detect"
+    # Multi-aquarium auto-detection succeeded (payload: {video_path: str, polygons: list})
+    ZONE_MULTI_AUTO_DETECT_SUCCESS = "zone:multi_auto_detect_success"
+    # Multi-aquarium auto-detection failed (payload: {video_path: str, reason: str})
+    ZONE_MULTI_AUTO_DETECT_FAILED = "zone:multi_auto_detect_failed"
+    # User selected which aquarium to work with (payload: {aquarium_id: int})
+    ZONE_AQUARIUM_SELECTED = "zone:aquarium_selected"
+    # Multi-aquarium detection completed (payload: {count: int, aquariums: list})
+    ZONE_MULTI_DETECT_COMPLETED = "zone:multi_detect_completed"
+    # User confirmed aquarium configuration
+    ZONE_AQUARIUM_CONFIG_CONFIRMED = "zone:aquarium_config_confirmed"
+    # Aquarium configuration was updated
+    # payload: {aquarium_id: int, config: dict, video_path: str}
+    ZONE_AQUARIUM_CONFIG_UPDATED = "zone:aquarium_config_updated"
+    # User confirmed number of aquariums (payload: {count: int})
+    ZONE_AQUARIUM_COUNT_CONFIRMED = "zone:aquarium_count_confirmed"
+    # Aquarium assignment completed (payload: {configs: list[AquariumConfig], apply_to_all: bool})
+    ZONE_AQUARIUM_ASSIGNMENT_COMPLETED = "zone:aquarium_assignment_completed"
+    # Request to show aquarium count dialog
+    ZONE_SHOW_AQUARIUM_COUNT_DIALOG = "zone:show_aquarium_count_dialog"
+    # Request to show aquarium assignment dialog
+    ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG = "zone:show_aquarium_assignment_dialog"
+
     # Processing Reports Widget
     PROCESSING_GENERATE_TRAJECTORIES = "processing.generate_trajectories"
     PROCESSING_EXPORT_SUMMARIES = "processing.export_summaries"
@@ -224,6 +257,7 @@ class Events:
     UI_SETUP_INTERACTIVE_POLYGON = "ui:setup_interactive_polygon"
     UI_DISPLAY_VIDEO_FRAME = "ui:display_video_frame"
     UI_UPDATE_PROCESSING_MODE = "ui:update_processing_mode"
+    UI_REQUEST_PROCESS_VIDEOS = "ui:request_process_videos"
 
     # Navigation
     UI_NAVIGATE_TO_WELCOME = "ui:navigate_to_welcome"
@@ -257,6 +291,16 @@ class Events:
     UI_REQUEST_WEIGHT_TYPE = "ui:request_weight_type"
     UI_REQUEST_WEIGHT_ACTION = "ui:request_weight_action"
     UI_OPEN_MANAGE_WEIGHTS_DIALOG = "ui:open_manage_weights_dialog"
+
+    # Multi-Aquarium UI Events
+    # Show the aquarium count selector (payload: {video_path: str | None})
+    UI_SHOW_AQUARIUM_COUNT_DIALOG = "ui:show_aquarium_count_dialog"
+    # Show the aquarium assignment dialog (payload: {groups: list, video_path: str | None})
+    UI_SHOW_AQUARIUM_ASSIGNMENT_DIALOG = "ui:show_aquarium_assignment_dialog"
+    # Update aquarium selector in ZoneControls (payload: {count: int, active: int})
+    UI_UPDATE_AQUARIUM_SELECTOR = "ui:update_aquarium_selector"
+    # Show/hide aquarium selector (payload: {visible: bool})
+    UI_SET_AQUARIUM_SELECTOR_VISIBLE = "ui:set_aquarium_selector_visible"
 
 
 __all__ = ["Events"]

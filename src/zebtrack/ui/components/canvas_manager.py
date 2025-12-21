@@ -64,7 +64,7 @@ class CanvasManager:
         but video_display is only created later when build_zone_tab() is called.
         Also handles the case where the canvas has been destroyed (e.g., project close).
         """
-        if not hasattr(self.gui, 'video_display') or not self.gui.video_display:
+        if not hasattr(self.gui, "video_display") or not self.gui.video_display:
             return None
         canvas = self.gui.video_display.canvas
         if canvas is None:
@@ -102,8 +102,9 @@ class CanvasManager:
             data: Event payload containing zone_data
         """
         if not isinstance(data, dict):
-            log.warning("canvas_manager._on_zones_updated.invalid_data_type",
-                       data_type=type(data).__name__)
+            log.warning(
+                "canvas_manager._on_zones_updated.invalid_data_type", data_type=type(data).__name__
+            )
             return
         zone_data = data.get("zone_data")
         log.debug(
@@ -119,8 +120,10 @@ class CanvasManager:
                 - polygon: np.ndarray of polygon points
         """
         if not isinstance(data, dict):
-            log.warning("canvas_manager._on_polygon_edit_requested.invalid_data_type",
-                       data_type=type(data).__name__)
+            log.warning(
+                "canvas_manager._on_polygon_edit_requested.invalid_data_type",
+                data_type=type(data).__name__,
+            )
             return
         polygon = data.get("polygon")
         if polygon is not None:
@@ -153,6 +156,58 @@ class CanvasManager:
             self.gui.zone_controls.show_interactive_buttons()
 
         log.debug("canvas_manager.setup_interactive_polygon.complete", num_points=len(polygon_list))
+
+    def on_multi_auto_detect_success(self, data: dict):
+        """Handle successful multi-aquarium detection.
+
+        Args:
+            data: Payload with "polygons" (list of lists) and "video_path".
+        """
+        polygons = data.get("polygons")
+        video_path = data.get("video_path")
+
+        if not polygons or not video_path:
+            log.warning("canvas_manager.multi_success.missing_data", data=data)
+            return
+
+        log.info("canvas_manager.multi_success.called", count=len(polygons))
+
+        # 1. Create MultiAquariumZoneData
+        from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
+
+        # Initialize with N aquariums based on detection count
+        # FIXED: MultiAquariumZoneData takes a list of aquariums, not num_aquariums
+        from zebtrack.core.detector import AquariumData
+        aquariums_list = [AquariumData(id=i, polygon=p) for i, p in enumerate(polygons)]
+        multi_data = MultiAquariumZoneData(aquariums=aquariums_list)
+
+        # Assign polygons to each aquarium's zone data
+        for i, poly in enumerate(polygons):
+            if i < len(multi_data.aquariums):
+                multi_data.aquariums[i].polygon = poly
+
+        # 2. Save via ProjectManager
+        pm = self.gui.controller.project_manager
+        pm.save_multi_aquarium_zone_data(video_path, multi_data)
+
+        # 3. Update UI
+        # Ensure we are viewing this video
+        pm.set_active_zone_video(video_path)
+
+        # If ZoneControls exist, ensure the aquarium selector is set to 2 (or N)
+        if self.gui.zone_controls:
+             # Update UI state for N aquariums
+             self.gui.zone_controls.update_aquarium_count(len(polygons))
+
+        # Redraw
+        self.redraw_zones_from_project_data(multi_data)
+        self.update_zone_listbox(multi_data)
+
+        self.gui.show_info(
+            "Sucesso",
+            f"Detectados {len(polygons)} aquários com sucesso!\n"
+            "Verifique se as marcações estão corretas."
+        )
 
     # ========== Coordinate Transformation Methods ==========
 
@@ -661,6 +716,17 @@ class CanvasManager:
             zone_data = self.gui._get_zone_data_for_active_context()
 
         controls = getattr(self.gui, "zone_controls", None)
+
+        # Handle Multi-Aquarium Data for Listbox
+        from zebtrack.core.detector import MultiAquariumZoneData
+        if isinstance(zone_data, MultiAquariumZoneData):
+            if controls:
+                active_id = controls.active_aquarium_var.get()
+                zone_data = zone_data.to_zone_data(active_id)
+            else:
+                # Fallback to first aquarium if controls not available
+                zone_data = zone_data.to_zone_data(0)
+
         if controls:
             controls.clear_zone_list()
             # Add Arena with dark teal color (matching the overlay drawing)
@@ -678,7 +744,9 @@ class CanvasManager:
                     color_hex = f"#{color_bgr[2]:02x}{color_bgr[1]:02x}{color_bgr[0]:02x}"
                     # Get color name from BGR value
                     color_name = self._get_color_name_from_bgr(color_bgr)
-                    controls.add_zone_to_list(f"roi_{i}", f"📍 {name}", "ROI", color_name, color_hex)
+                    controls.add_zone_to_list(
+                        f"roi_{i}", f"📍 {name}", "ROI", color_name, color_hex
+                    )
 
         self.update_roi_button_state()
 
@@ -687,34 +755,46 @@ class CanvasManager:
         zone_data = self.gui._get_zone_data_for_active_context()
         all_polygons = []
 
-        # Add main arena polygon if it exists
-        if zone_data.polygon:
-            # Convert to canvas coordinates
-            canvas_polygon = []
-            for point in zone_data.polygon:
-                canvas_pt = self._video_to_canvas(point[0], point[1])
-                canvas_polygon.append(canvas_pt)
+        from zebtrack.core.detector import MultiAquariumZoneData
 
-            # Only add if not editing this polygon
-            if not (exclude_current_polygon and self.current_editing_zone == "arena"):
-                all_polygons.append(canvas_polygon)
+        # Normalize to a list of (ZoneData, is_active) tuples
+        targets = []
+        if isinstance(zone_data, MultiAquariumZoneData):
+            zone_controls = getattr(self.gui, "zone_controls", None)
+            active_id = zone_controls.active_aquarium_var.get() if zone_controls else 0
+            for aq in zone_data.aquariums:
+                targets.append((aq.to_zone_data(), aq.id == active_id))
+        else:
+            targets.append((zone_data, True))
 
-        # Add all ROI polygons
-        for idx, roi_polygon in enumerate(zone_data.roi_polygons):
-            canvas_polygon = []
-            for point in roi_polygon:
-                canvas_pt = self._video_to_canvas(point[0], point[1])
-                canvas_polygon.append(canvas_pt)
+        for zd, is_active in targets:
+            # Arena
+            if zd.polygon:
+                canvas_polygon = []
+                for point in zd.polygon:
+                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_polygon.append(canvas_pt)
 
-            # Only add if not editing this specific ROI
-            skip_this_roi = (
-                exclude_current_polygon
-                and isinstance(self.current_editing_zone, tuple)
-                and self.current_editing_zone[0] == "roi"
-                and self.current_editing_zone[1] == idx
-            )
-            if not skip_this_roi:
-                all_polygons.append(canvas_polygon)
+                # Exclude if it's the one we are editing
+                if not (is_active and exclude_current_polygon and self.current_editing_zone == "arena"):
+                    all_polygons.append(canvas_polygon)
+
+            # ROIs
+            for idx, roi_polygon in enumerate(zd.roi_polygons):
+                canvas_polygon = []
+                for point in roi_polygon:
+                    canvas_pt = self._video_to_canvas(point[0], point[1])
+                    canvas_polygon.append(canvas_pt)
+
+                skip = (
+                    is_active
+                    and exclude_current_polygon
+                    and isinstance(self.current_editing_zone, tuple)
+                    and self.current_editing_zone[0] == "roi"
+                    and self.current_editing_zone[1] == idx
+                )
+                if not skip:
+                    all_polygons.append(canvas_polygon)
 
         return GeometryService.apply_snapping(
             canvas_x, canvas_y, all_polygons, threshold=snap_threshold
@@ -731,6 +811,12 @@ class CanvasManager:
 
         self.gui.drawing_state_manager.drawing_type = "arena"
         self.start_polygon_drawing()
+
+        # Show aquarium indicator if in multi-aquarium mode
+        zone_controls = self.gui.zone_controls
+        if zone_controls and zone_controls.aquarium_count_var.get() == 2:
+            active_id = zone_controls.active_aquarium_var.get()
+            self._show_aquarium_indicator(f"Desenhando: Aquário {active_id + 1} de 2")
 
     def start_roi_drawing(self):
         """Start drawing an ROI polygon."""
@@ -754,8 +840,68 @@ class CanvasManager:
 
     def save_arena(self):
         """Save the edited polygon."""
+        # Check for multi-aquarium mode first
+        zone_controls = getattr(self.gui, "zone_controls", None)
+        if (
+            self.current_editing_zone == "arena"
+            and zone_controls
+            and zone_controls.aquarium_count_var.get() == 2
+        ):
+            active_id = zone_controls.active_aquarium_var.get()
+            video_path = self.gui.controller.project_manager.get_active_zone_video()
+
+            # Get existing multi-aquarium data
+            pm = self.gui.controller.project_manager
+            multi_data = pm.get_multi_aquarium_zone_data(video_path)
+
+            if multi_data:
+                # Update specific aquarium
+                aquarium = multi_data.get_aquarium(active_id)
+                if aquarium:
+                    aquarium.polygon = self.gui.edited_polygon_points
+
+                    # Save updated multi-aquarium data
+                    self.gui.controller.project_manager.save_multi_aquarium_zone_data(
+                        video_path, multi_data
+                    )
+
+                    status_message = f"Arena do Aquário {active_id + 1} salva com sucesso."
+                    self.gui.set_status(status_message)
+
+                    # Refresh UI
+                    self.clear_interactive_polygon()
+                    self.redraw_zones_from_project_data()
+
+                    from zebtrack.ui.event_bus_v2 import Event, UIEvents
+                    if self.event_bus_v2:
+                        # Emit ZONES_UPDATED for zone listbox refresh
+                        self.event_bus_v2.publish(
+                            Event(
+                                type=UIEvents.ZONES_UPDATED,
+                                data={"zone_data": None},
+                                source="CanvasManager.save_arena.multi_aquarium",
+                            )
+                        )
+                        # Emit PROJECT_VIEWS_REFRESH to update VideoTree badges
+                        self.event_bus_v2.publish(
+                            Event(
+                                type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
+                                data={"reason": status_message, "append_summary": True},
+                                source="CanvasManager.save_arena.multi_aquarium",
+                            )
+                        )
+                        # Also emit VIDEO_TREE_REFRESH for immediate tree update
+                        self.event_bus_v2.publish(
+                            Event(
+                                type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                                data={"filter_text": None},
+                                source="CanvasManager.save_arena.multi_aquarium",
+                            )
+                        )
+                    return
+
         if self.current_editing_zone == "arena":
-            # Save main arena
+            # Save main arena (Single Aquarium)
             self.gui.event_dispatcher.publish_event(
                 Events.ZONE_SAVE_MANUAL_ARENA,
                 {"polygon_points": self.gui.edited_polygon_points},
@@ -831,6 +977,151 @@ class CanvasManager:
                 )
             )
 
+        # Check if we should prompt to add a second aquarium
+        self.gui.root.after(100, self._check_prompt_second_aquarium)
+
+    def _check_prompt_second_aquarium(self) -> None:
+        """Check if we should prompt to add a second aquarium."""
+        zone_controls = self.gui.zone_controls
+        if not zone_controls:
+            return
+
+        # Only prompt if still in single-aquarium mode
+        if zone_controls.aquarium_count_var.get() != 1:
+            return
+
+        # Only prompt if saving the first aquarium
+        if zone_controls.active_aquarium_var.get() != 0:
+            return
+
+        self._prompt_add_second_aquarium()
+
+    def _prompt_add_second_aquarium(self) -> None:
+        """Ask user if they want to add a second aquarium."""
+        from tkinter import messagebox
+
+        result = messagebox.askyesno(
+            "Adicionar Segundo Aquário",
+            "Polígono salvo com sucesso!\n\n"
+            "Este vídeo possui dois aquários?\n"
+            "Se sim, você poderá desenhar o polígono do segundo.",
+            icon="question",
+        )
+
+        if result:
+            # Convert existing zone data to multi-aquarium format
+            self._convert_to_multi_aquarium_format()
+
+            # Activate multi-aquarium mode in UI
+            self.gui.zone_controls.set_aquarium_count(2)
+            # Select aquarium 2
+            self.gui.zone_controls.active_aquarium_var.set(1)
+            self.gui.zone_controls._on_aquarium_selected()
+            # Start drawing after delay
+            self.gui.root.after(200, self._start_second_aquarium_drawing)
+
+    def _convert_to_multi_aquarium_format(self) -> None:
+        """Convert current zone data to multi-aquarium format."""
+        from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+
+        video_path = self.gui.controller.project_manager.get_active_zone_video()
+        if not video_path:
+            return
+
+        # Get current zone data with first polygon
+        zone_data = self.gui.controller.project_manager.get_zone_data(video_path)
+        if not zone_data or not zone_data.polygon:
+            return
+
+        # Create AquariumData for first aquarium
+        aquarium_0 = AquariumData(
+            id=0,
+            polygon=zone_data.polygon,
+            roi_polygons=zone_data.roi_polygons,
+            roi_names=zone_data.roi_names,
+            roi_colors=zone_data.roi_colors,
+        )
+
+        # Create empty AquariumData for second aquarium
+        aquarium_1 = AquariumData(id=1)
+
+        # Create MultiAquariumZoneData
+        multi_data = MultiAquariumZoneData(
+            aquariums=[aquarium_0, aquarium_1],
+        )
+
+        # Save multi-aquarium data via ProjectManager to ensure parquet export
+        # and validation flags are updated correctly.
+        self.gui.controller.project_manager.save_multi_aquarium_zone_data(
+            video_path,
+            multi_data,
+            persist=True,
+        )
+
+    def _start_second_aquarium_drawing(self) -> None:
+        """Start drawing the second aquarium polygon."""
+        self.gui.show_info(
+            "Informação",
+            "Desenhe o polígono do Aquário 2.\n"
+            "O polígono do Aquário 1 será mostrado como referência."
+        )
+        self.start_main_arena_drawing()
+
+    def get_other_aquarium_polygon(self) -> list[list[int]] | None:
+        """Get the polygon of the OTHER aquarium for ghost rendering.
+
+        Returns:
+            The polygon points of the other aquarium, or None if not available.
+        """
+        zone_controls = self.gui.zone_controls
+        if not zone_controls or zone_controls.aquarium_count_var.get() != 2:
+            return None
+
+        active_id = zone_controls.active_aquarium_var.get()
+        other_id = 1 - active_id  # 0 -> 1, 1 -> 0
+
+        video_path = self.gui.controller.project_manager.get_active_zone_video()
+        if not video_path:
+            return None
+
+        project_data = self.gui.controller.project_manager.project_data
+        if not project_data:
+            return None
+
+        # Try to get from multi-aquarium data structure
+        from zebtrack.core.zone_manager import ZoneManager
+
+        zone_manager = ZoneManager()
+        multi_data = zone_manager.get_multi_aquarium_zone_data(project_data, video_path)
+
+        if multi_data:
+            aquarium = multi_data.get_aquarium(other_id)
+            if aquarium and aquarium.polygon:
+                return aquarium.polygon
+
+        # Fallback: if other_id=0, try regular zone data
+        if other_id == 0:
+            zone_data = self.gui.controller.project_manager.get_zone_data(video_path)
+            if zone_data and hasattr(zone_data, "polygon") and zone_data.polygon:
+                return zone_data.polygon
+
+        return None
+
+    def _show_aquarium_indicator(self, text: str) -> None:
+        """Show indicator of which aquarium is being drawn."""
+        canvas = self._get_canvas()
+        if not canvas:
+            return
+        canvas.delete("aquarium_indicator")
+        canvas.create_text(
+            canvas.winfo_width() // 2,
+            30,
+            text=text,
+            fill="#0066CC",
+            font=("Segoe UI", 12, "bold"),
+            tags="aquarium_indicator",
+        )
+
     def discard_arena(self):
         """Discard the interactive polygon."""
         self.clear_interactive_polygon()
@@ -848,9 +1139,7 @@ class CanvasManager:
         """Clear all interactive elements."""
         canvas = self._get_canvas()
         if canvas:
-            canvas.delete(
-                "interactive_polygon", "handle", "suggested_polygon"
-            )
+            canvas.delete("interactive_polygon", "handle", "suggested_polygon")
 
         if hasattr(self.gui, "zone_controls") and self.gui.zone_controls:
             self.gui.zone_controls.hide_interactive_buttons()
@@ -865,6 +1154,17 @@ class CanvasManager:
     def update_roi_button_state(self):
         """Enable ROI button if arena exists."""
         zone_data = self.gui._get_zone_data_for_active_context()
+
+        # Handle Multi-Aquarium Data
+        from zebtrack.core.detector import MultiAquariumZoneData
+        if isinstance(zone_data, MultiAquariumZoneData):
+            zone_controls = getattr(self.gui, "zone_controls", None)
+            if zone_controls:
+                active_id = zone_controls.active_aquarium_var.get()
+                zone_data = zone_data.to_zone_data(active_id)
+            else:
+                zone_data = zone_data.to_zone_data(0)
+
         widget = getattr(self.gui, "zone_controls", None)
         if widget:
             widget.set_draw_roi_enabled(bool(zone_data and zone_data.polygon))
@@ -1204,3 +1504,272 @@ class CanvasManager:
                     source="CanvasManager.delete_zones_from_video",
                 )
             )
+
+    # -------------------------------------------------------------------------
+    # Multi-Aquarium Overlay Methods (Phase 11)
+    # -------------------------------------------------------------------------
+
+    # Distinct colors for each aquarium
+    AQUARIUM_COLORS = {
+        0: {"border": (0, 102, 204), "fill": (0, 102, 204, 51), "text": "Aquário 1"},
+        1: {"border": (0, 204, 102), "fill": (0, 204, 102, 51), "text": "Aquário 2"},
+    }
+
+    def draw_multi_aquarium_overlay(
+        self,
+        frame: np.ndarray,
+        zone_data: "MultiAquariumZoneData",
+        detections_by_aquarium: dict[int, list] | None = None,
+        show_labels: bool = True,
+        show_rois: bool = True,
+    ) -> np.ndarray:
+        """
+        Draw overlay with multiple aquariums on a video frame.
+
+        Each aquarium is drawn with a distinct border color, and optionally
+        includes labels indicating the aquarium number and experimental group.
+        Detections (bounding boxes) are drawn with the corresponding aquarium color.
+
+        Args:
+            frame: The video frame as a numpy array (BGR format from OpenCV).
+            zone_data: MultiAquariumZoneData containing aquarium configurations.
+            detections_by_aquarium: Optional dict mapping aquarium_id to list of
+                detections. Each detection is a tuple (x1, y1, x2, y2, conf, track_id, class_id).
+            show_labels: Whether to show aquarium labels (default True).
+            show_rois: Whether to show ROI polygons (default True).
+
+        Returns:
+            The frame with overlay drawn (modified in place but also returned).
+
+        Example:
+            >>> overlay_frame = canvas_manager.draw_multi_aquarium_overlay(
+            ...     frame=current_frame,
+            ...     zone_data=multi_aquarium_zone_data,
+            ...     detections_by_aquarium={0: [...], 1: [...]},
+            ... )
+        """
+        from zebtrack.core.detector import MultiAquariumZoneData
+
+        if not isinstance(zone_data, MultiAquariumZoneData):
+            log.warning(
+                "canvas_manager.draw_multi_aquarium_overlay.invalid_zone_data",
+                zone_data_type=type(zone_data).__name__,
+            )
+            return frame
+
+        overlay = frame.copy()
+
+        for aq in zone_data.aquariums:
+            colors = self.AQUARIUM_COLORS.get(aq.id, self.AQUARIUM_COLORS[0])
+            border_color = colors["border"]  # BGR tuple
+
+            # Draw aquarium polygon border
+            if aq.polygon:
+                polygon_np = np.array(aq.polygon, dtype=np.int32)
+                cv2.polylines(overlay, [polygon_np], True, border_color, 2)
+
+                # Draw label in top-left corner of aquarium
+                if show_labels and len(polygon_np) > 0:
+                    # Find top-left corner (minimum x, y)
+                    min_x = int(np.min(polygon_np[:, 0]))
+                    min_y = int(np.min(polygon_np[:, 1]))
+
+                    label = f"{colors['text']}"
+                    if aq.group:
+                        label += f" - {aq.group}"
+
+                    # Draw background rectangle for label
+                    (text_w, text_h), baseline = cv2.getTextSize(
+                        label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
+                    )
+                    cv2.rectangle(
+                        overlay,
+                        (min_x, min_y),
+                        (min_x + text_w + 10, min_y + text_h + 10),
+                        border_color,
+                        -1,  # Filled
+                    )
+                    cv2.putText(
+                        overlay,
+                        label,
+                        (min_x + 5, min_y + text_h + 5),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (255, 255, 255),  # White text
+                        2,
+                    )
+
+            # Draw ROIs for this aquarium
+            if show_rois and aq.roi_polygons:
+                for i, roi_polygon in enumerate(aq.roi_polygons):
+                    roi_np = np.array(roi_polygon, dtype=np.int32)
+                    # Use ROI color if available, otherwise use aquarium border color
+                    roi_color = aq.roi_colors[i] if i < len(aq.roi_colors) else border_color
+                    cv2.polylines(overlay, [roi_np], True, roi_color, 1)
+
+                    # Draw ROI name at centroid
+                    if i < len(aq.roi_names) and len(roi_np) > 0:
+                        centroid = np.mean(roi_np, axis=0).astype(int)
+                        cv2.putText(
+                            overlay,
+                            aq.roi_names[i],
+                            (centroid[0] - 20, centroid[1]),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.4,
+                            roi_color,
+                            1,
+                        )
+
+            # Draw detections for this aquarium
+            if detections_by_aquarium and aq.id in detections_by_aquarium:
+                for det in detections_by_aquarium[aq.id]:
+                    if len(det) >= 6:
+                        x1, y1, x2, y2, conf, track_id = det[:6]
+                        x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+
+                        # Draw bounding box
+                        cv2.rectangle(overlay, (x1, y1), (x2, y2), border_color, 2)
+
+                        # Draw track ID (local ID without offset)
+                        if track_id is not None:
+                            local_id = int(track_id) % 1000
+                            id_label = f"ID:{local_id}"
+                            cv2.putText(
+                                overlay,
+                                id_label,
+                                (x1, y1 - 5),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                0.5,
+                                border_color,
+                                2,
+                            )
+
+        return overlay
+
+    @staticmethod
+    def hex_to_bgr(hex_color: str) -> tuple[int, int, int]:
+        """Convert hex color string to BGR tuple for OpenCV.
+
+        Args:
+            hex_color: Hex color string (e.g., "#0066CC").
+
+        Returns:
+            BGR tuple (e.g., (204, 102, 0) for "#0066CC").
+        """
+        hex_color = hex_color.lstrip("#")
+        r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+        return (b, g, r)  # OpenCV uses BGR
+
+    def create_side_by_side_preview(
+        self,
+        frame: np.ndarray,
+        zone_data: "MultiAquariumZoneData",
+        detections_by_aquarium: dict[int, list] | None = None,
+        target_width: int = 1280,
+        show_labels: bool = True,
+        padding: int = 10,
+    ) -> np.ndarray:
+        """Create side-by-side preview of each aquarium cropped from the frame.
+
+        Phase 3.1: Creates a composite image showing each aquarium region
+        side by side for easier comparison during analysis review.
+
+        Args:
+            frame: Input BGR frame.
+            zone_data: MultiAquariumZoneData containing aquarium configurations.
+            detections_by_aquarium: Optional dict mapping aquarium_id to detections.
+            target_width: Target width for the composite image.
+            show_labels: Whether to show aquarium labels.
+            padding: Pixels between aquarium previews.
+
+        Returns:
+            Composite image with aquariums displayed side by side.
+
+        Example:
+            >>> preview = canvas_manager.create_side_by_side_preview(
+            ...     frame, zone_data, detections
+            ... )
+            >>> cv2.imshow("Side-by-Side", preview)
+        """
+        if not zone_data or not zone_data.aquariums:
+            return frame
+
+        num_aquariums = len(zone_data.aquariums)
+        if num_aquariums == 0:
+            return frame
+
+        # Calculate dimensions for each aquarium panel
+        panel_width = (target_width - padding * (num_aquariums + 1)) // num_aquariums
+        crops = []
+
+        for aq in zone_data.aquariums:
+            # Get bounding box of aquarium polygon
+            aq_np = np.array(aq.polygon, dtype=np.int32)
+            x, y, w, h = cv2.boundingRect(aq_np)
+
+            # Clamp to frame bounds
+            x1 = max(0, x)
+            y1 = max(0, y)
+            x2 = min(frame.shape[1], x + w)
+            y2 = min(frame.shape[0], y + h)
+
+            # Crop aquarium region
+            crop = frame[y1:y2, x1:x2].copy()
+
+            # Draw detections on crop (adjusting coordinates)
+            if detections_by_aquarium and aq.id in detections_by_aquarium:
+                border_color = self.AQUARIUM_COLORS.get(aq.id, ("#AAAAAA", f"Aq{aq.id}"))
+                border_color = self.hex_to_bgr(border_color[0])
+                for det in detections_by_aquarium[aq.id]:
+                    if len(det) >= 6:
+                        dx1, dy1, dx2, dy2, conf, track_id = det[:6]
+                        # Adjust to crop coordinates
+                        dx1, dy1 = int(dx1 - x1), int(dy1 - y1)
+                        dx2, dy2 = int(dx2 - x1), int(dy2 - y1)
+                        if dx1 >= 0 and dy1 >= 0:
+                            cv2.rectangle(crop, (dx1, dy1), (dx2, dy2), border_color, 2)
+                            if track_id is not None:
+                                local_id = int(track_id) % 1000
+                                cv2.putText(
+                                    crop, f"ID:{local_id}", (dx1, dy1 - 5),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, border_color, 2
+                                )
+
+            # Add label
+            if show_labels:
+                colors = self.AQUARIUM_COLORS.get(aq.id, ("#AAAAAA", f"Aq{aq.id}"))
+                label = colors[1]
+                if aq.group:
+                    label += f" ({aq.group})"
+                cv2.putText(
+                    crop, label, (10, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2
+                )
+                cv2.putText(
+                    crop, label, (10, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, self.hex_to_bgr(colors[0]), 1
+                )
+
+            # Resize to panel width maintaining aspect ratio
+            aspect = crop.shape[0] / crop.shape[1] if crop.shape[1] > 0 else 1
+            panel_height = int(panel_width * aspect)
+            resized = cv2.resize(crop, (panel_width, panel_height))
+            crops.append(resized)
+
+        # Find max height for uniform composite
+        max_height = max(c.shape[0] for c in crops) if crops else 100
+
+        # Create composite image
+        composite_width = target_width
+        composite = np.zeros((max_height + padding * 2, composite_width, 3), dtype=np.uint8)
+        composite[:] = (40, 40, 40)  # Dark gray background
+
+        # Place each crop
+        x_offset = padding
+        for crop in crops:
+            h, w = crop.shape[:2]
+            y_offset = padding + (max_height - h) // 2  # Center vertically
+            composite[y_offset:y_offset + h, x_offset:x_offset + w] = crop
+            x_offset += w + padding
+
+        return composite

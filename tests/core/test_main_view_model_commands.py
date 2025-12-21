@@ -232,6 +232,4 @@ class TestCreateProjectWorkflow:
         main_view_model.create_project_workflow(**wizard_data)
 
         # Should call workflow service through project_vm
-        main_view_model.project_vm.create_project_workflow.assert_called_once_with(
-            **wizard_data
-        )
+        main_view_model.project_vm.create_project_workflow.assert_called_once_with(**wizard_data)

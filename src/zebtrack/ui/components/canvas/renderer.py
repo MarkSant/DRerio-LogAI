@@ -27,7 +27,7 @@ class CanvasRenderer:
 
     def _get_canvas(self):
         """Get the canvas safely, returning None if video_display doesn't exist or is destroyed."""
-        if not hasattr(self.gui, 'video_display') or not self.gui.video_display:
+        if not hasattr(self.gui, "video_display") or not self.gui.video_display:
             return None
         canvas = self.gui.video_display.canvas
         if canvas is None:
@@ -152,7 +152,57 @@ class CanvasRenderer:
             # Try to load a frame if there's no background image
             self.manager.load_video_frame_to_canvas()
 
-        # Draw main polygon
+        # Handle Multi-Aquarium Data
+        from zebtrack.core.detector import MultiAquariumZoneData
+
+        if isinstance(zone_data, MultiAquariumZoneData):
+            for aquarium in zone_data.aquariums:
+                if aquarium.polygon and len(aquarium.polygon) >= 3:
+                    try:
+                        canvas_polygon = []
+                        for point in aquarium.polygon:
+                            canvas_point = self.manager._video_to_canvas(point[0], point[1])
+                            canvas_polygon.extend([canvas_point[0], canvas_point[1]])
+
+                        # Use different colors for different aquariums if desired, 
+                        # or stick to the standard Teal
+                        outline_color = "#008B8B" if aquarium.id == 0 else "#0066CC"
+
+                        canvas.create_polygon(
+                            canvas_polygon,
+                            fill="",
+                            outline=outline_color,
+                            width=2,
+                            tags=("main_polygon", f"aquarium_{aquarium.id}"),
+                        )
+                        
+                        # Add label for aquarium
+                        center_x = sum(canvas_polygon[0::2]) / len(aquarium.polygon)
+                        center_y = sum(canvas_polygon[1::2]) / len(aquarium.polygon)
+                        
+                        canvas.create_text(
+                            center_x, 
+                            center_y,
+                            text=f"Aquário {aquarium.id + 1}",
+                            fill=outline_color,
+                            font=("Segoe UI", 10, "bold"),
+                            tags=("main_polygon", "aquarium_label"),
+                        )
+                        
+                    except Exception as e:
+                        log.error(
+                            "gui.multi_aquarium.draw_error", 
+                            aquarium_id=aquarium.id, 
+                            error=str(e)
+                        )
+            
+            # TODO: Handle ROIs for multi-aquarium (nested structure) if needed here
+            # For now, let's assume ROIs are handled per-aquarium or flattened elsewhere
+            # But strictly speaking, we should loop through aquarium.roi_polygons too.
+            
+            return
+
+        # Draw main polygon (Single Aquarium)
         if zone_data.polygon and len(zone_data.polygon) >= 3:
             try:
                 canvas_polygon = []
@@ -248,7 +298,7 @@ class CanvasRenderer:
         """
         # Skip drawing overlays on zone canvas during active analysis
         # The analysis tab has its own display with overlays already rendered on the frame
-        if getattr(self.gui, 'analysis_active', False):
+        if getattr(self.gui, "analysis_active", False):
             return
 
         canvas = self._get_canvas()
@@ -276,15 +326,12 @@ class CanvasRenderer:
 
                 # Style configuration
                 color = "magenta" if is_single_subject else "cyan"
-                if class_id == 0: # Aquarium
+                if class_id == 0:  # Aquarium
                     color = "yellow"
 
                 # Draw bounding box
                 canvas.create_rectangle(
-                    cx1, cy1, cx2, cy2,
-                    outline=color,
-                    width=2,
-                    tags="detection_overlay"
+                    cx1, cy1, cx2, cy2, outline=color, width=2, tags="detection_overlay"
                 )
 
                 # Draw label
@@ -294,12 +341,13 @@ class CanvasRenderer:
 
                 # Text background
                 canvas.create_text(
-                    cx1, cy1 - 10,
+                    cx1,
+                    cy1 - 10,
                     text=label_text,
                     fill=color,
                     anchor="sw",
                     font=("Arial", 10, "bold"),
-                    tags="detection_overlay"
+                    tags="detection_overlay",
                 )
 
             except Exception as e:
@@ -311,9 +359,34 @@ class CanvasRenderer:
         if not canvas:
             return
 
-        canvas.delete(
-            "interactive_polygon", "handle", "edit_clamp_indicator"
-        )
+        canvas.delete("interactive_polygon", "handle", "edit_clamp_indicator", "ghost_polygon")
+
+        # Draw ghost polygon of the other aquarium (visual reference)
+        ghost_polygon = self.manager.get_other_aquarium_polygon()
+        if ghost_polygon:
+            ghost_canvas_points = []
+            for pt in ghost_polygon:
+                cx, cy = self.manager._video_to_canvas(pt[0], pt[1])
+                ghost_canvas_points.extend([cx, cy])
+
+            if len(ghost_canvas_points) >= 6:
+                canvas.create_polygon(
+                    ghost_canvas_points,
+                    fill="",
+                    outline="#888888",
+                    width=2,
+                    dash=(5, 3),
+                    tags="ghost_polygon",
+                )
+                # Label for the ghost polygon
+                canvas.create_text(
+                    ghost_canvas_points[0],
+                    ghost_canvas_points[1] - 15,
+                    text="Aquário 1 (referência)",
+                    fill="#666666",
+                    font=("Segoe UI", 9, "italic"),
+                    tags="ghost_polygon",
+                )
 
         canvas_points = []
         for point in self.gui.edited_polygon_points:
@@ -379,9 +452,7 @@ class CanvasRenderer:
                 handle, "<ButtonPress-1>", lambda e, i=i: self.gui._on_handle_press(e, i)
             )
             canvas.tag_bind(handle, "<B1-Motion>", self.gui._on_handle_drag)
-            canvas.tag_bind(
-                handle, "<ButtonRelease-1>", self.gui._on_handle_release
-            )
+            canvas.tag_bind(handle, "<ButtonRelease-1>", self.gui._on_handle_release)
 
     def redraw_polygon_in_progress(self):
         """Redraw the polygon vertices and edges after undo/redo."""

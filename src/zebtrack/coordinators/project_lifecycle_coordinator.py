@@ -81,7 +81,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         project_workflow_adapter: ProjectWorkflowAdapter,
         settings_obj: Settings,
         event_bus: EventBus | None = None,
-        detector_service: "DetectorService | None" = None,
+        detector_service: DetectorService | None = None,
     ):
         """Initialize ProjectLifecycleCoordinator with dependency injection.
 
@@ -108,7 +108,111 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self._using_project_overrides: bool = False
         self._global_model_defaults: dict[str, Any] = {}
 
+        # Zone manager reference for aquarium config updates
+        self._zone_manager: Any = None
+
         log.info("project_lifecycle_coordinator.initialized")
+
+    def register_event_handlers(self, zone_manager: Any = None) -> None:
+        """Register event handlers for project lifecycle events.
+
+        Phase 5: Added for multi-aquarium event handling.
+
+        Args:
+            zone_manager: Optional ZoneManager for aquarium config updates
+        """
+        if zone_manager:
+            self._zone_manager = zone_manager
+
+        if not self.event_bus:
+            return
+
+        # Subscribe to aquarium config update events
+        self.event_bus.subscribe(
+            Events.ZONE_AQUARIUM_CONFIG_UPDATED,
+            self._handle_aquarium_config_updated,
+        )
+
+        log.info("project_lifecycle_coordinator.register_handlers.complete")
+
+    def _handle_aquarium_config_updated(self, payload: dict) -> None:
+        """Handle aquarium configuration update event.
+
+        Phase 5: Updates aquarium configuration in zone data.
+
+        Args:
+            payload: Event payload with aquarium_id, config, and video_path.
+        """
+        if not isinstance(payload, dict):
+            return
+
+        aquarium_id = payload.get("aquarium_id")
+        config = payload.get("config")
+        video_path = payload.get("video_path")
+
+        if aquarium_id is None or not config or not video_path:
+            log.warning(
+                "aquarium_config_update.missing_data",
+                has_id=aquarium_id is not None,
+                has_config=bool(config),
+                has_video=bool(video_path),
+            )
+            return
+
+        if not self._zone_manager:
+            log.warning("aquarium_config_update.no_zone_manager")
+            return
+
+        try:
+            zone_data = self._zone_manager.get_multi_aquarium_zone_data(
+                self.project_manager.project_data, video_path
+            )
+            if not zone_data:
+                log.warning(
+                    "aquarium_config_update.no_zone_data",
+                    video_path=str(video_path),
+                )
+                return
+
+            aquarium = zone_data.get_aquarium(aquarium_id)
+            if not aquarium:
+                log.warning(
+                    "aquarium_config_update.aquarium_not_found",
+                    aquarium_id=aquarium_id,
+                )
+                return
+
+            # Update aquarium config
+            if hasattr(config, "group"):
+                aquarium.group = config.group
+            elif isinstance(config, dict):
+                aquarium.group = config.get("group", aquarium.group)
+
+            if hasattr(config, "subject_id"):
+                aquarium.subject_id = config.subject_id
+            elif isinstance(config, dict):
+                aquarium.subject_id = config.get("subject_id", aquarium.subject_id)
+
+            if hasattr(config, "day"):
+                aquarium.day = config.day
+            elif isinstance(config, dict):
+                aquarium.day = config.get("day", aquarium.day)
+
+            # Save updated zone data
+            self._zone_manager.save_multi_aquarium_zone_data(video_path, zone_data)
+
+            log.info(
+                "aquarium_config_update.success",
+                aquarium_id=aquarium_id,
+                video_path=str(video_path),
+            )
+
+        except Exception as e:
+            log.error(
+                "aquarium_config_update.failed",
+                aquarium_id=aquarium_id,
+                error=str(e),
+            )
 
     # ========================================================================
     # Group A: Project Lifecycle (create, open, close)
@@ -196,7 +300,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                     # Validate OpenVINO is actually ready for the active weight
                     # If not ready, fall back to PyTorch to avoid initialization failure
                     if use_openvino and active_weight:
-                        if hasattr(self.detector_service, 'model_service'):
+                        if hasattr(self.detector_service, "model_service"):
                             if not self.detector_service.model_service.is_openvino_ready(
                                 active_weight
                             ):
@@ -277,10 +381,12 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             setup_detector_callback=setup_detector_callback or _default_setup_detector,
             set_active_weight_callback=set_active_weight_callback or _default_set_active_weight,
             set_openvino_usage_callback=set_openvino_usage_callback or _default_set_openvino_usage,
-            update_openvino_status_callback=update_openvino_status_callback or _default_update_openvino_status,
+            update_openvino_status_callback=update_openvino_status_callback
+            or _default_update_openvino_status,
             get_active_weight_name=get_active_weight_name or _default_get_active_weight_name,
             get_use_openvino=get_use_openvino or _default_get_use_openvino,
-            apply_wizard_overrides_callback=apply_wizard_overrides_callback or _default_apply_wizard_overrides,
+            apply_wizard_overrides_callback=apply_wizard_overrides_callback
+            or _default_apply_wizard_overrides,
             view_suppress_guide_check=lambda: False,  # Default behavior
             **wizard_data,
         )
@@ -395,7 +501,8 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             setup_detector_callback=setup_detector_callback or _default_setup_detector,
             set_active_weight_callback=set_active_weight_callback or _default_set_active_weight,
             set_openvino_usage_callback=set_openvino_usage_callback or _default_set_openvino_usage,
-            update_openvino_status_callback=update_openvino_status_callback or _default_update_openvino_status,
+            update_openvino_status_callback=update_openvino_status_callback
+            or _default_update_openvino_status,
             setup_zones_callback=setup_zones_callback or self._setup_zones_from_project,
             restore_detector_callback=restore_detector_callback or _default_restore_detector,
             get_active_weight_name=get_active_weight_name or _default_get_active_weight_name,

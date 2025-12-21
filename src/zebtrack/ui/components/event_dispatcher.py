@@ -492,6 +492,10 @@ class EventDispatcher:
 
         # Zone List
         self.event_bus.subscribe(
+            Events.ZONE_AQUARIUM_SELECTED,
+            lambda d: self.gui.canvas_manager.update_zone_listbox(),
+        )
+        self.event_bus.subscribe(
             Events.ZONE_LIST_ITEM_DOUBLE_CLICK,
             lambda d: self.gui.canvas_manager.edit_selected_zone_vertices(),
         )
@@ -537,6 +541,14 @@ class EventDispatcher:
             Events.ZONE_DELETE_ZONES,
             lambda d: self.gui.canvas_manager.delete_zones_from_video(
                 d.get("video_path") if isinstance(d, dict) else None
+            ),
+        )
+
+        # Multi-Aquarium Success
+        self.event_bus.subscribe(
+            Events.ZONE_MULTI_AUTO_DETECT_SUCCESS,
+            lambda d: self.gui.canvas_manager.on_multi_auto_detect_success(
+                d if isinstance(d, dict) else {}
             ),
         )
 

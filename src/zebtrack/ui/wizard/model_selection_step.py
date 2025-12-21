@@ -464,7 +464,7 @@ class ModelSelectionStep(WizardStep):
             fg="#333333",
             justify="left",
             font=("TkDefaultFont", 9),
-            anchor="n"
+            anchor="n",
         ).grid(row=0, column=0, sticky="nsew", padx=(0, 5))
 
         # Column 2: Tracker (Track & Match)
@@ -480,7 +480,7 @@ class ModelSelectionStep(WizardStep):
             fg="#333333",
             justify="left",
             font=("TkDefaultFont", 9),
-            anchor="n"
+            anchor="n",
         ).grid(row=0, column=1, sticky="nsew", padx=(5, 0))
 
         # Footer Tip
@@ -490,9 +490,8 @@ class ModelSelectionStep(WizardStep):
             fg="#006600",
             font=("TkDefaultFont", 9, "bold"),
         ).grid(row=1, column=0, columnspan=2, pady=(8, 0), sticky="w")
-        
-        # We don't need to append these to _responsive_labels as we want them static in grid
 
+        # We don't need to append these to _responsive_labels as we want them static in grid
 
         self.aquarium_method_var.trace_add("write", self._on_aquarium_method_change)
         self.animal_method_var.trace_add("write", self._on_animal_method_change)

@@ -92,8 +92,7 @@ class SingleSubjectTracker:
         # Strategy 2: Fall back to center-distance matching
         if selected is None and self._last_center is not None:
             best_by_distance = min(
-                normalised,
-                key=lambda det: self._compute_center_distance(det[:4])
+                normalised, key=lambda det: self._compute_center_distance(det[:4])
             )
             best_distance = self._compute_center_distance(best_by_distance[:4])
             if best_distance <= self.max_center_distance:

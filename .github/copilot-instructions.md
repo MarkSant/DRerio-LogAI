@@ -31,8 +31,9 @@
 - **Processing modes**: `core/processing_mode.ProcessingMode` toggles multi vs single subject; overlay locks UI when single subject forced—check tests in `tests/test_overlay_integration.py`.
 - **Hardware**: Startup runs `utils/hardware_detection.get_hardware_summary()` and `recommend_backend()`; OpenVINO auto-enabled only if `WeightManager` reports converted XML under `openvino_model_cache/`.
 - **Logging**: Use `structlog` with `domain.action.result` keys, e.g. `logger.info("controller.load_project.success", project=...)`.
-- **Data schema**: Recorder outputs `timestamp, frame, track_id, x1, y1, x2, y2, confidence` with derived centers/cm appended; confirm schema in `tests/test_recorder.py`.
-- **Analysis**: `analysis/analysis_service.py` coordinates ROI metrics (`analysis/behavior.py`) and reporting (`analysis/reporter.py`); aggregated outputs saved under `<video>_results/` prefixed `1_`, `2_`, `3_`.
+- **Data schema**: Recorder outputs `timestamp, frame, track_id, x1, y1, x2, y2, confidence, uncertainty, bbox_iou` with derived centers/cm appended; confirm schema in `tests/test_recorder.py`. Multi-aquarium adds per-aquarium directories `<video>_aquarium_N/`.
+- **Analysis**: `analysis/analysis_service.py` coordinates ROI metrics (`analysis/behavior.py`) and reporting (`analysis/reporter.py`); aggregated outputs saved under `<video>_results/` prefixed `1_`, `2_`, `3_`. Multi-aquarium: `run_multi_aquarium_analysis()` processes each aquarium separately; `data_transformer.py` includes thigmotaxis metrics.
+- **Multi-Aquarium v2**: Parallel detection via `detect_partitioned_parallel()` with ThreadPoolExecutor (~30-40% speedup); batch inference `detect_batch()` for offline; ROI cropping `_crop_aquarium_region()`; uncertainty/IoU tracking; thigmotaxis metrics; validation with warnings; trajectory gap detection per aquarium; error recovery with fallback. Events: `ZONE_MULTI_AUTO_DETECT_SUCCESS`, `ZONE_MULTI_AUTO_DETECT_FAILED`, `ZONE_AQUARIUM_CONFIG_UPDATED`. Track ID: `aquarium_id * 1000 + local_track_id` (Aquarium 0: 0-999, Aquarium 1: 1000-1999). Export R/Python scripts via `reporter.export_r_script()`, `export_python_script()`. Handlers: `ProcessingCoordinator._handle_multi_auto_detect()`, `ProjectLifecycleCoordinator._handle_aquarium_config_updated()`.
 - **Diagnostics**: `MainViewModel.run_model_diagnostic` drives `ui/gui.py`’s `DiagnosticProgressDialog`; keep cancel callbacks responsive via `root.after`.
 - **Plugins**: Implement detectors via `plugins/base.py` and register in `plugins/__init__.py`; handle missing `track_id` gracefully for integrations.
 - **Testing** (v2.1 fixes applied): Total 2568 tests (1586 fast, 949 GUI, 35 slow). `poetry run pytest -q` for fast suite (~1586 tests), `poetry run pytest -m gui -n0` for Tk tests (~949 tests, sequential), `poetry run pytest -m slow` for slow tests (~35 tests), `poetry run pytest -m "" -n0` for all tests (~6-7 min). **CRITICAL**: All worker threads are daemon=True (prevents pytest hangs); pytest-timeout plugin configured (300s per test); pytest_sessionfinish hook forces cleanup. Minimum 70% coverage tracked in CI.
@@ -71,3 +72,28 @@ When creating or updating documentation, follow these rules:
 2. **English for technical docs** - Portuguese only in wiki/
 3. **Update INDEX.md** - When adding new docs
 4. **Archive, don't delete** - Move obsolete docs to docs/archive/
+
+## Recent Critical Fixes (Dec 2025)
+
+**1. Multi-Aquarium Data Flow:**
+*   **Zone Serialization**: `ProcessingCoordinator` now correctly detects `MultiAquariumZoneData` and serializes it using `ZoneManager.multi_aquarium_zone_data_to_dict`.
+*   **Worker Deserialization**: `ProcessingWorker` deserializes using `ZoneManager.multi_aquarium_zone_data_from_dict`.
+*   **Partitioned Processing**: The worker automatically switches to `detector.detect_partitioned_optimized()` and `recorder.write_partitioned_detection_data()` when multi-aquarium data is detected.
+
+**2. Video Validation & Persistence:**
+*   **Parquet Compatibility**: `ProjectManager.save_multi_aquarium_zone_data` now automatically exports the zones of **Aquarium 0** to a standard parquet file (`1_ProcessingArea...`). This ensures that `VideoValidationService` and `VideoClassificationService` (which rely on file scanning) correctly classify the video as "Ready" (`has_arena=True`).
+*   **Atomic Saving**: `save_project()` is now called **strictly after** updating the video entry's `parquet_files` map in `ProjectManager`. This prevents the "without_arena" regression on project reload.
+
+**3. UI & Events:**
+*   **Zone Selection**: `EventDispatcher` now subscribes to `ZONE_AQUARIUM_SELECTED` and delegates to `CanvasManager.update_zone_listbox()`.
+*   **Listbox Update**: `update_zone_listbox` handles `MultiAquariumZoneData` by resolving the *active* aquarium's data before display.
+*   **Rendering**: `CanvasRenderer` supports `MultiAquariumZoneData` natively, iterating through all aquariums to draw polygons with distinct labels.
+*   **Trajectory Generation**: Added `PROCESSING_GENERATE_TRAJECTORIES` handler in `ProcessingCoordinator` to fix the "no handlers" warning in the Reports tab.
+
+**4. Windows Taskbar Icon:**
+*   Added `AppUserModelID` setup in `__main__.py` to dissociate the app from the generic Python process icon on Windows.
+
+**Agent Instructions:**
+*   When modifying `ProjectManager` or `ZoneManager`, ensure `MultiAquariumZoneData` compatibility is maintained.
+*   Do NOT revert the explicit parquet export in `save_multi_aquarium_zone_data`—it is essential for the legacy validation scanner.
+*   Ensure `EventDispatcher` subscriptions are kept in sync with `ZoneControls` events.

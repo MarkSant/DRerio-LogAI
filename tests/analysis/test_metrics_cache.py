@@ -1,8 +1,8 @@
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 
-from zebtrack.analysis.metrics_cache import MetricsCache
 from zebtrack.analysis.analysis_service import AnalysisService
+from zebtrack.analysis.metrics_cache import MetricsCache
 
 
 def _dummy_parquet(path: Path, name: str) -> Path:
@@ -19,12 +19,19 @@ def test_metrics_cache_miss_save_hit(tmp_path):
     smoothing_window = 5
     smoothing_polyorder = 2
 
-    assert cache.get_base_metrics(parquet_path, calibration, smoothing_window, smoothing_polyorder) is None
+    assert (
+        cache.get_base_metrics(parquet_path, calibration, smoothing_window, smoothing_polyorder)
+        is None
+    )
 
     metrics = {"distance_cm": 12.3, "frames": 5}
-    cache.save_base_metrics(parquet_path, calibration, smoothing_window, smoothing_polyorder, metrics)
+    cache.save_base_metrics(
+        parquet_path, calibration, smoothing_window, smoothing_polyorder, metrics
+    )
 
-    cached = cache.get_base_metrics(parquet_path, calibration, smoothing_window, smoothing_polyorder)
+    cached = cache.get_base_metrics(
+        parquet_path, calibration, smoothing_window, smoothing_polyorder
+    )
     assert cached == metrics
 
 

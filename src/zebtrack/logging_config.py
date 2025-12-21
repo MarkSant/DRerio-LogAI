@@ -31,7 +31,7 @@ def configure_logging(log_file: str = "analysis.log"):
     This function sets up structlog to process logs with a consistent format
     for both application logs and standard library/third-party logs.
     Uses CompactConsoleRenderer for minimal spacing in output.
-    
+
     Args:
         log_file: Path to the log file. Defaults to "analysis.log".
                   Worker processes should use a different file to avoid locking issues.

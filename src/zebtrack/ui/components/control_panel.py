@@ -141,7 +141,7 @@ class ControlPanelWidget(BaseWidget):
 
     def _on_process_video_clicked(self) -> None:
         """Handle process video button click."""
-        self.event_bus.publish_event(Events.PROJECT_PROCESS_VIDEOS, {})
+        self.event_bus.publish_event(Events.UI_REQUEST_PROCESS_VIDEOS, {})
 
     def _on_preview_toggled(self) -> None:
         """Handle preview checkbox toggle."""

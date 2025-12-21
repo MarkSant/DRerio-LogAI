@@ -1,7 +1,7 @@
 # ZebTrack-AI Documentation Index
 
-**Last Updated**: December 2025
-**Version**: 3.0.0
+**Last Updated**: January 2025
+**Version**: 4.0.0
 
 ## Overview
 
@@ -89,6 +89,7 @@ docs/
 
 - **[Live Camera Unification](guides/developer/LIVE_CAMERA_UNIFICATION.md)** - v2.1 camera architecture
 - **[Wizard & Live Improvements](guides/developer/WIZARD_LIVE_IMPROVEMENTS.md)** - Phase 4-7 enhancements
+- **[Multi-Aquarium v2](decisions/ADR-001-multi-aquarium-support.md)** - Parallel detection, batch inference, ROI cropping, uncertainty tracking, thigmotaxis metrics
 
 ### Testing
 
@@ -119,6 +120,7 @@ docs/
 
 ### Architecture Decisions (ADRs)
 
+- **[ADR-001: Multi-Aquarium Support](decisions/ADR-001-multi-aquarium-support.md)**
 - **[ADR-004: Live Camera Divergence](decisions/ADR-004-live-camera-divergence.md)**
 - **[ADR-005: Model Overrides Duplication](decisions/ADR-005-model-overrides-duplication.md)**
 

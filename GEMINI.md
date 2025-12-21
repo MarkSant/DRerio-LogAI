@@ -55,6 +55,7 @@ poetry run ruff check . --fix
 - **Service Layer:** Business logic is encapsulated in services (e.g., `DetectorService`, `ArduinoManager`).
 - **Coordinator Layer (Phase 3):** Super coordinators consolidate orchestration: `ProcessingCoordinator`, `HardwareCoordinator`, `SessionCoordinator`, `ProjectLifecycleCoordinator`. See `docs/architecture/SYSTEM_INTEGRATION_MAP.md`.
 - **UIScheduler vs UICoordinator:** `core/ui_scheduler.UIScheduler` schedules Tkinter updates via `root.after()`. `ui/ui_coordinator.UICoordinator` is the EventBus mediator. Different purposes, no conflict.
+- **Multi-Aquarium v2:** Parallel detection (`detect_partitioned_parallel`), batch inference (`detect_batch`), ROI cropping, uncertainty/IoU tracking, thigmotaxis metrics, validation with warnings, trajectory gap detection, error recovery. Events: `ZONE_MULTI_AUTO_DETECT_SUCCESS`, `ZONE_MULTI_AUTO_DETECT_FAILED`, `ZONE_AQUARIUM_CONFIG_UPDATED`. Track ID: `aquarium_id * 1000 + local_track_id` (Aquarium 0: 0-999, Aquarium 1: 1000-1999).
 
 ## 5. Important Rules & Conventions
 
@@ -128,3 +129,40 @@ What was decided?
 ## Consequences
 What are the results?
 ```
+
+## 7. Recent Critical Fixes (Dec 2025)
+
+**1. Multi-Aquarium Data Flow:**
+*   **Zone Serialization**: `ProcessingCoordinator` now correctly detects `MultiAquariumZoneData` and serializes it using `ZoneManager.multi_aquarium_zone_data_to_dict`.
+*   **Worker Deserialization**: `ProcessingWorker` deserializes using `ZoneManager.multi_aquarium_zone_data_from_dict`.
+*   **Partitioned Processing**: The worker automatically switches to `detector.detect_partitioned_optimized()` and `recorder.write_partitioned_detection_data()` when multi-aquarium data is detected.
+
+**2. Video Validation & Persistence:**
+*   **Parquet Compatibility**: `ProjectManager.save_multi_aquarium_zone_data` now automatically exports the zones of **Aquarium 0** to a standard parquet file (`1_ProcessingArea...`). This ensures that `VideoValidationService` and `VideoClassificationService` (which rely on file scanning) correctly classify the video as "Ready" (`has_arena=True`).
+*   **Atomic Saving**: `save_project()` is now called **strictly after** updating the video entry's `parquet_files` map in `ProjectManager`. This prevents the "without_arena" regression on project reload.
+
+**3. UI & Events:**
+*   **Zone Selection**: `EventDispatcher` now subscribes to `ZONE_AQUARIUM_SELECTED` and delegates to `CanvasManager.update_zone_listbox()`.
+*   **Listbox Update**: `update_zone_listbox` handles `MultiAquariumZoneData` by resolving the *active* aquarium's data before display.
+*   **Rendering**: `CanvasRenderer` supports `MultiAquariumZoneData` natively, iterating through all aquariums to draw polygons with distinct labels.
+*   **Trajectory Generation**: Added `PROCESSING_GENERATE_TRAJECTORIES` handler in `ProcessingCoordinator` to fix the "no handlers" warning in the Reports tab.
+
+**4. Windows Taskbar Icon:**
+*   Added `AppUserModelID` setup in `__main__.py` to dissociate the app from the generic Python process icon on Windows.
+
+**5. Infinite Loop & Crash Fixes (Dec 2025):**
+*   **Infinite Detection Loop**: Fixed a recursive event cycle where `MainViewModel` subscribed to `ZONE_AUTO_DETECT` and called a method that re-published it. Removed the redundant subscription in `MainViewModel` (line 143), letting `ProcessingCoordinator` handle it exclusively.
+*   **Multi-Aquarium Analysis Crash**: Fixed `AttributeError: 'MultiAquariumZoneData' object has no attribute 'polygon'` in `ProcessingCoordinator.start_single_video_processing`. Added logic to detect `MultiAquariumZoneData` and correctly calculate `has_arena`/`has_rois` by checking the `aquariums` list.
+*   **Serialization Crash**: Fixed `ZoneManager.save_zone_data` blindly calling `zone_data_to_dict` (which expects single-aquarium data). Added detection to route `MultiAquariumZoneData` to `save_multi_aquarium_zone_data` automatically.
+*   **GUI Safety**: Updated `gui.py` to check for `MultiAquariumZoneData` before accessing `polygon`, and `ZoneControlBuilder` to handle `ProjectInvalidError` gracefully when clicking "Conclude" in Single Video Mode.
+
+**6. Multi-Aquarium Detector Logic Fixes (Dec 2025):**
+*   **Empty Aquarium List**: Fixed silent failure where `Detector.set_zones` was not populating `self._aquariums`, causing `detect_partitioned_optimized` to loop 0 times. Added explicit population of `self._aquariums = self.zones.aquariums` when in multi-aquarium mode.
+*   **Tracker Initialization Crash**: Fixed `KeyError: 0` by ensuring `self._byte_trackers_multi` is initialized for each aquarium ID in `set_zones`.
+*   **Tracker Arguments Error**: Fixed `TypeError` in `BYTETracker` initialization. `BYTETracker` expects a namespace object `args` (not kwargs). Updated instantiation to use `SimpleNamespace` wrapping `track_thresh`, `track_buffer`, etc.
+
+**Agent Instructions:**
+*   When modifying `ProjectManager` or `ZoneManager`, ensure `MultiAquariumZoneData` compatibility is maintained.
+*   Do NOT revert the explicit parquet export in `save_multi_aquarium_zone_data`—it is essential for the legacy validation scanner.
+*   Ensure `EventDispatcher` subscriptions are kept in sync with `ZoneControls` events.
+*   **Always check for infinite event loops** when adding new subscriptions to `MainViewModel`.

@@ -1,9 +1,9 @@
 """Video Validation Service - Sprint 12.
 
-Validates video paths and scans for available data.
+Classifies video entries into processing categories based on available data.
 
 Sprint: 12 of REFACTOR-MASTER-PLAN-2025.md
-Purpose: Extract validation/scan logic from MainViewModel to dedicated service
+Purpose: Extract classification logic from MainViewModel to dedicated service
 Related: SPRINT_10_PROCESSING_REFACTORING_ANALYSIS.md - Phase 2: Helper Extraction
 """
 
@@ -122,36 +122,81 @@ class VideoValidationService:
                 path = info.get("path")
                 if not path:
                     continue
-                
+
                 video_entry = project_manager.find_video_entry(path=path)
                 if not video_entry:
                     continue
-                
-                # Check registered parquet files in project data
+
+                # Check registered parquet files in project data (Legacy/Single Video)
                 registered_parquets = video_entry.get("parquet_files", {})
-                if not registered_parquets:
-                    continue
-                
-                # Update info if files exist
-                scan_parquets = info.setdefault("parquet_files", {})
-                
-                # Check Arena
-                arena_path = registered_parquets.get("arena")
-                if arena_path and os.path.exists(arena_path):
-                    scan_parquets["arena"] = arena_path
+
+                # Check for Multi-Aquarium Data (Via Manager API)
+                # This handles data stored in central registry OR video entry transparently
+                try:
+                    multi_zone_data = project_manager.get_multi_aquarium_zone_data(path)
+                    if multi_zone_data and multi_zone_data.aquariums:
+                        has_multi_arena = False
+                        has_multi_rois = False
+                        for aq in multi_zone_data.aquariums:
+                            if aq.polygon and len(aq.polygon) >= 3:
+                                has_multi_arena = True
+                            if aq.roi_polygons:
+                                has_multi_rois = True
+
+                        if has_multi_arena:
+                            info["has_arena"] = True
+                            info["is_multi_aquarium"] = True
+                        if has_multi_rois:
+                            info["has_rois"] = True
+                except Exception as e:
+                    # Log but continue (can fail if data structure changes)
+                    # Use lower level log to avoid noise
+                    pass
+
+                # Trajectory Data (Multi)
+                # Check direct output registry
+                multi_outputs = video_entry.get("multi_aquarium_outputs", {})
+                if multi_outputs:
+                    has_multi_traj = False
+                    for out in multi_outputs.values():
+                        if out.get("parquet_files", {}).get("trajectory"):
+                            has_multi_traj = True
+                            break
+
+                    if has_multi_traj:
+                        info["has_trajectory"] = True
+                        info["is_multi_aquarium"] = True
+
+                # Standard/Legacy Parquet Checks (augmenting multi checks)
+                if registered_parquets:
+                    # Update info if files exist
+                    scan_parquets = info.setdefault("parquet_files", {})
+
+                    # Check Arena
+                    arena_path = registered_parquets.get("arena")
+                    if arena_path and os.path.exists(arena_path):
+                        scan_parquets["arena"] = arena_path
+                        info["has_arena"] = True
+
+                    # Check ROIs
+                    rois_path = registered_parquets.get("rois")
+                    if rois_path and os.path.exists(rois_path):
+                        scan_parquets["rois"] = rois_path
+                        info["has_rois"] = True
+
+                    # Check Trajectory
+                    traj_path = registered_parquets.get("trajectory")
+                    if traj_path and os.path.exists(traj_path):
+                        scan_parquets["trajectory"] = traj_path
+                        info["has_trajectory"] = True
+
+                # Fallback: Check cached flags in video entry
+                # If we have flags in memory, respect them (they might be from a recent save)
+                if not info.get("has_arena") and video_entry.get("has_arena"):
                     info["has_arena"] = True
-                
-                # Check ROIs
-                rois_path = registered_parquets.get("rois")
-                if rois_path and os.path.exists(rois_path):
-                    scan_parquets["rois"] = rois_path
+                if not info.get("has_rois") and video_entry.get("has_rois"):
                     info["has_rois"] = True
-                
-                # Check Trajectory
-                traj_path = registered_parquets.get("trajectory")
-                if traj_path and os.path.exists(traj_path):
-                    scan_parquets["trajectory"] = traj_path
-                    info["has_trajectory"] = True
+
 
         # Create normalized path lookup
         info_by_norm: dict[str, dict] = {}

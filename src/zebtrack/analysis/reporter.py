@@ -363,7 +363,7 @@ class Reporter:
         self,
         output_path: Path | str,
         format: str = "excel",
-        expected_roi_names: list[str] | None = None
+        expected_roi_names: list[str] | None = None,
     ):
         """Export summary data to file (Excel, CSV, or Parquet).
 
@@ -383,8 +383,7 @@ class Reporter:
         data_to_export = self.tidy_data
         if expected_roi_names:
             data_to_export = self.data_transformer.standardize_roi_columns(
-                self.tidy_data,
-                expected_roi_names
+                self.tidy_data, expected_roi_names
             )
 
         self.data_transformer.validate_schema(data_to_export)
@@ -832,7 +831,7 @@ class Reporter:
         aggregated_df: pd.DataFrame,
         output_path: Path | str,
         roi_colors: dict[str, tuple[int, int, int]] | None = None,
-        detector_params: dict[str, any] | None = None
+        detector_params: dict[str, any] | None = None,
     ):
         """Export aggregated project report with comparative analysis.
 
@@ -944,3 +943,502 @@ class Reporter:
 
         file_path = f"{output_path}.docx"
         document.save(file_path)
+
+    @staticmethod
+    def export_multi_aquarium_reports(
+        results_by_aquarium: dict[int, "AnalysisResult | None"],
+        output_dirs_by_aquarium: dict[int, "Path"],
+        base_name: str,
+        aquarium_configs: list | None = None,
+        settings_obj=None,
+    ) -> dict[int, dict[str, str]]:
+        """
+        Export separate reports for each aquarium in multi-aquarium mode.
+
+        This method creates individual analysis reports for each aquarium,
+        stored in their respective output directories.
+
+        Args:
+            results_by_aquarium: Dictionary mapping aquarium_id to AnalysisResult
+                (or None if analysis failed for that aquarium).
+            output_dirs_by_aquarium: Dictionary mapping aquarium_id to output Path.
+            base_name: Base name for output files (e.g., video name without extension).
+            aquarium_configs: Optional list of AquariumConfig objects for metadata.
+            settings_obj: Optional Settings instance for Reporter configuration.
+
+        Returns:
+            Dictionary mapping aquarium_id to output paths:
+            {
+                0: {"summary_path": "/path/to/summary.xlsx", "report_path": "/path/to/report.docx"},
+                1: {"summary_path": "/path/to/summary.xlsx", "report_path": "/path/to/report.docx"},
+            }
+
+        Example:
+            >>> results = analysis_service.run_multi_aquarium_analysis(aquarium_map)
+            >>> output_dirs = {0: Path("/output/aq0"), 1: Path("/output/aq1")}
+            >>> paths = Reporter.export_multi_aquarium_reports(
+            ...     results, output_dirs, "video_001", aquarium_configs
+            ... )
+        """
+        from pathlib import Path
+
+        output_paths: dict[int, dict[str, str]] = {}
+
+        for aq_id, result in results_by_aquarium.items():
+            if result is None:
+                log.warning(
+                    "reporter.multi_aquarium.skipping_failed",
+                    aquarium_id=aq_id,
+                    reason="Analysis result is None",
+                )
+                continue
+
+            output_dir = output_dirs_by_aquarium.get(aq_id)
+            if not output_dir:
+                log.warning(
+                    "reporter.multi_aquarium.no_output_dir",
+                    aquarium_id=aq_id,
+                )
+                continue
+
+            # Ensure output directory exists
+            output_dir = Path(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Get config for this aquarium if available
+            config = None
+            if aquarium_configs:
+                config = next(
+                    (c for c in aquarium_configs if getattr(c, "aquarium_id", None) == aq_id),
+                    None,
+                )
+
+            # Build filename suffix with metadata
+            if config:
+                group = getattr(config, "group", f"aq{aq_id}")
+                subject = getattr(config, "subject_id", "")
+                suffix = f"_{group}_{subject}" if subject else f"_{group}"
+            else:
+                suffix = f"_aq{aq_id}"
+
+            output_base = f"{base_name}{suffix}"
+
+            try:
+                # Create reporter from analysis result
+                reporter = Reporter.from_analysis(result)
+
+                # Export summary data (Excel)
+                summary_path = output_dir / f"{output_base}_summary.xlsx"
+                reporter.export_summary_data(str(summary_path))
+
+                # Export individual report (Word)
+                report_path = output_dir / f"{output_base}_report.docx"
+                reporter.export_individual_report(str(report_path))
+
+                output_paths[aq_id] = {
+                    "summary_path": str(summary_path),
+                    "report_path": str(report_path),
+                }
+
+                log.info(
+                    "reporter.multi_aquarium.exported",
+                    aquarium_id=aq_id,
+                    summary_path=str(summary_path),
+                    report_path=str(report_path),
+                )
+
+            except Exception as e:
+                log.error(
+                    "reporter.multi_aquarium.export_failed",
+                    aquarium_id=aq_id,
+                    error=str(e),
+                    exc_info=True,
+                )
+
+        log.info(
+            "reporter.multi_aquarium.summary",
+            total_aquariums=len(results_by_aquarium),
+            exported=len(output_paths),
+        )
+
+        return output_paths
+
+    # =========================================================================
+    # Phase 1.3: R/Python Export Methods
+    # =========================================================================
+
+    def export_for_r(
+        self,
+        output_path: Path | str,
+        include_script: bool = True,
+    ) -> dict[str, Path]:
+        """Export data in R-friendly formats (Feather and RDS-compatible).
+
+        Creates:
+        - data.feather: Fast, efficient format readable by R's arrow::read_feather()
+        - data.csv: Universal fallback
+        - analysis_script.R: Template R script for loading and analyzing data
+
+        Args:
+            output_path: Directory to export files to.
+            include_script: If True, includes a template R script.
+
+        Returns:
+            Dictionary with paths to created files.
+        """
+        import pyarrow.feather as feather
+
+        output_dir = Path(output_path) if isinstance(output_path, str) else output_path
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        created_files: dict[str, Path] = {}
+
+        # Export as Feather (fast, efficient for R)
+        feather_path = output_dir / "data.feather"
+        feather.write_feather(
+            self.tidy_data,
+            feather_path,
+            compression="zstd",
+        )
+        created_files["feather"] = feather_path
+        log.info("reporter.export_r.feather_saved", path=str(feather_path))
+
+        # Export as CSV (universal fallback)
+        csv_path = output_dir / "data.csv"
+        self.tidy_data.to_csv(csv_path, index=False)
+        created_files["csv"] = csv_path
+
+        if include_script:
+            script_path = output_dir / "analysis_script.R"
+            r_script = self._generate_r_script_template()
+            script_path.write_text(r_script, encoding="utf-8")
+            created_files["script"] = script_path
+            log.info("reporter.export_r.script_saved", path=str(script_path))
+
+        log.info(
+            "reporter.export_r.complete",
+            output_dir=str(output_dir),
+            files=list(created_files.keys()),
+        )
+
+        return created_files
+
+    def export_for_python(
+        self,
+        output_path: Path | str,
+        include_script: bool = True,
+    ) -> dict[str, Path]:
+        """Export data in Python-friendly formats.
+
+        Creates:
+        - data.parquet: Efficient columnar format for pandas/polars
+        - data.feather: Alternative fast format
+        - analysis_notebook.py: Template Python script for Jupyter/VS Code
+
+        Args:
+            output_path: Directory to export files to.
+            include_script: If True, includes a template Python script.
+
+        Returns:
+            Dictionary with paths to created files.
+        """
+        import pyarrow.feather as feather
+
+        output_dir = Path(output_path) if isinstance(output_path, str) else output_path
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        created_files: dict[str, Path] = {}
+
+        # Export as Parquet (best for Python)
+        parquet_path = output_dir / "data.parquet"
+        self.tidy_data.to_parquet(parquet_path, index=False)
+        created_files["parquet"] = parquet_path
+        log.info("reporter.export_python.parquet_saved", path=str(parquet_path))
+
+        # Export as Feather (cross-platform compatibility)
+        feather_path = output_dir / "data.feather"
+        feather.write_feather(self.tidy_data, feather_path, compression="zstd")
+        created_files["feather"] = feather_path
+
+        if include_script:
+            script_path = output_dir / "analysis_notebook.py"
+            py_script = self._generate_python_script_template()
+            script_path.write_text(py_script, encoding="utf-8")
+            created_files["script"] = script_path
+            log.info("reporter.export_python.script_saved", path=str(script_path))
+
+        log.info(
+            "reporter.export_python.complete",
+            output_dir=str(output_dir),
+            files=list(created_files.keys()),
+        )
+
+        return created_files
+
+    def _generate_r_script_template(self) -> str:
+        """Generate template R script for data analysis."""
+        return '''# ZebTrack-AI Analysis Script for R
+# Generated automatically - customize as needed
+
+# Required packages
+if (!require("arrow")) install.packages("arrow")
+if (!require("ggplot2")) install.packages("ggplot2")
+if (!require("dplyr")) install.packages("dplyr")
+
+library(arrow)
+library(ggplot2)
+library(dplyr)
+
+# Load data (Feather is fastest, CSV is universal fallback)
+data <- arrow::read_feather("data.feather")
+# Alternative: data <- read.csv("data.csv")
+
+# Preview data structure
+str(data)
+summary(data)
+
+# ============================================================
+# Basic Movement Analysis
+# ============================================================
+
+# Calculate total distance per subject
+distance_summary <- data %>%
+  group_by(subject_id) %>%
+  summarise(
+    total_distance_cm = sum(velocity_cm_s * (1/30), na.rm = TRUE),  # 30 fps
+    mean_velocity = mean(velocity_cm_s, na.rm = TRUE),
+    max_velocity = max(velocity_cm_s, na.rm = TRUE),
+    time_in_center_pct = mean(in_center_roi, na.rm = TRUE) * 100
+  )
+
+print(distance_summary)
+
+# ============================================================
+# Trajectory Plot
+# ============================================================
+
+ggplot(data, aes(x = x_cm, y = y_cm, color = as.factor(subject_id))) +
+  geom_path(alpha = 0.5) +
+  labs(
+    title = "Zebrafish Trajectories",
+    x = "X Position (cm)",
+    y = "Y Position (cm)",
+    color = "Subject"
+  ) +
+  theme_minimal()
+
+# ============================================================
+# Velocity Over Time
+# ============================================================
+
+ggplot(data, aes(x = timestamp, y = velocity_cm_s)) +
+  geom_line(alpha = 0.5) +
+  geom_smooth(method = "loess", se = TRUE) +
+  labs(
+    title = "Velocity Over Time",
+    x = "Time (seconds)",
+    y = "Velocity (cm/s)"
+  ) +
+  theme_minimal()
+
+# ============================================================
+# Statistical Tests (Example)
+# ============================================================
+
+# If you have experimental groups, add group column and run tests
+# Example:
+# t.test(velocity_cm_s ~ group, data = data)
+# wilcox.test(velocity_cm_s ~ group, data = data)
+'''
+
+    def _generate_python_script_template(self) -> str:
+        """Generate template Python script for data analysis."""
+        return '''# %% [markdown]
+# # ZebTrack-AI Analysis Notebook
+# Generated automatically - customize as needed
+
+# %% [markdown]
+# ## Load Data
+
+# %%
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load data (Parquet is fastest)
+df = pd.read_parquet("data.parquet")
+# Alternative: df = pd.read_feather("data.feather")
+
+# Preview data
+print(f"Shape: {df.shape}")
+print(f"Columns: {list(df.columns)}")
+df.head()
+
+# %%
+df.describe()
+
+# %% [markdown]
+# ## Basic Movement Analysis
+
+# %%
+# Calculate summary statistics per subject
+summary = df.groupby("subject_id").agg({
+    "velocity_cm_s": ["mean", "max", "std"],
+    "x_cm": ["min", "max"],
+    "y_cm": ["min", "max"],
+}).round(2)
+
+summary.columns = ["_".join(col) for col in summary.columns]
+print(summary)
+
+# %% [markdown]
+# ## Trajectory Visualization
+
+# %%
+fig, ax = plt.subplots(figsize=(10, 8))
+
+for subject_id in df["subject_id"].unique():
+    subject_data = df[df["subject_id"] == subject_id]
+    ax.plot(
+        subject_data["x_cm"],
+        subject_data["y_cm"],
+        alpha=0.6,
+        label=f"Subject {subject_id}"
+    )
+
+ax.set_xlabel("X Position (cm)")
+ax.set_ylabel("Y Position (cm)")
+ax.set_title("Zebrafish Trajectories")
+ax.legend()
+ax.set_aspect("equal")
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ## Velocity Analysis
+
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# Velocity over time
+ax1 = axes[0]
+ax1.plot(df["timestamp"], df["velocity_cm_s"], alpha=0.3, linewidth=0.5)
+# Rolling average
+rolling = df["velocity_cm_s"].rolling(window=30, min_periods=1).mean()
+ax1.plot(df["timestamp"], rolling, color="red", linewidth=2, label="30-frame avg")
+ax1.set_xlabel("Time (s)")
+ax1.set_ylabel("Velocity (cm/s)")
+ax1.set_title("Velocity Over Time")
+ax1.legend()
+
+# Velocity distribution
+ax2 = axes[1]
+ax2.hist(df["velocity_cm_s"].dropna(), bins=50, edgecolor="black", alpha=0.7)
+ax2.axvline(df["velocity_cm_s"].mean(), color="red", linestyle="--", label="Mean")
+ax2.set_xlabel("Velocity (cm/s)")
+ax2.set_ylabel("Frequency")
+ax2.set_title("Velocity Distribution")
+ax2.legend()
+
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ## Export Results
+
+# %%
+# Save summary to CSV for further analysis
+summary.to_csv("analysis_summary.csv")
+print("Summary saved to analysis_summary.csv")
+
+# %% [markdown]
+# ## Statistical Tests (Add Your Groups)
+
+# %%
+# If you have experimental groups, uncomment and modify:
+# from scipy import stats
+#
+# group_a = df[df["group"] == "control"]["velocity_cm_s"]
+# group_b = df[df["group"] == "treatment"]["velocity_cm_s"]
+#
+# t_stat, p_value = stats.ttest_ind(group_a, group_b)
+# print(f"T-test: t={t_stat:.3f}, p={p_value:.4f}")
+'''
+
+    # =========================================================================
+    # API Aliases for Documentation Consistency
+    # =========================================================================
+
+    def export_feather(self, output_path: Path | str) -> Path:
+        """Export data as Feather format for fast R/Python loading.
+
+        Convenience alias that wraps export_for_r() to export only the Feather file.
+        Mentioned in CHANGELOG.md Phase 1 as a new export format.
+
+        Args:
+            output_path: Path to the output .feather file.
+
+        Returns:
+            Path to the created Feather file.
+
+        Example:
+            >>> reporter.export_feather("output/data.feather")
+        """
+        import pyarrow.feather as feather
+
+        output_file = Path(output_path) if isinstance(output_path, str) else output_path
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        feather.write_feather(self.tidy_data, output_file, compression="zstd")
+        log.info("reporter.export_feather.saved", path=str(output_file))
+
+        return output_file
+
+    def export_r_script(self, output_path: Path | str) -> Path:
+        """Export template R script for statistical analysis.
+
+        Convenience alias that extracts only the R script generation.
+        Mentioned in CHANGELOG.md Phase 1 as a new export format.
+
+        Args:
+            output_path: Path to the output .R file.
+
+        Returns:
+            Path to the created R script file.
+
+        Example:
+            >>> reporter.export_r_script("output/analysis.R")
+        """
+        output_file = Path(output_path) if isinstance(output_path, str) else output_path
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        r_script = self._generate_r_script_template()
+        output_file.write_text(r_script, encoding="utf-8")
+        log.info("reporter.export_r_script.saved", path=str(output_file))
+
+        return output_file
+
+    def export_python_script(self, output_path: Path | str) -> Path:
+        """Export template Python script for Jupyter/VS Code analysis.
+
+        Convenience alias that extracts only the Python script generation.
+        Mentioned in CHANGELOG.md Phase 1 as a new export format.
+
+        Args:
+            output_path: Path to the output .py file.
+
+        Returns:
+            Path to the created Python script file.
+
+        Example:
+            >>> reporter.export_python_script("output/analysis_notebook.py")
+        """
+        output_file = Path(output_path) if isinstance(output_path, str) else output_path
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        py_script = self._generate_python_script_template()
+        output_file.write_text(py_script, encoding="utf-8")
+        log.info("reporter.export_python_script.saved", path=str(output_file))
+
+        return output_file

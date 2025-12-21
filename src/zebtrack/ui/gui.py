@@ -156,7 +156,9 @@ class ApplicationGUI:
         log.info(
             "gui.init.event_dispatcher_created",
             gui_event_bus_id=id(self.event_bus) if self.event_bus else None,
-            dispatcher_event_bus_id=id(self.event_dispatcher.event_bus) if self.event_dispatcher.event_bus else None,
+            dispatcher_event_bus_id=id(self.event_dispatcher.event_bus)
+            if self.event_dispatcher.event_bus
+            else None,
             same_bus=self.event_bus is self.event_dispatcher.event_bus if self.event_bus else "N/A",
         )
 
@@ -372,7 +374,6 @@ class ApplicationGUI:
             self.update_openvino_status_display(ov_status)
         except Exception:
             log.warning("gui.post_init.controller_sync_failed", exc_info=True)
-
 
     def handle_request_weight_type(self, filepath: str) -> None:
         """Handle request to identify weight type."""
@@ -716,7 +717,7 @@ class ApplicationGUI:
             return
 
         # Safety check: video_display may not exist yet
-        if not hasattr(self, 'video_display') or not self.video_display:
+        if not hasattr(self, "video_display") or not self.video_display:
             return
 
         # Remove the old image
@@ -775,6 +776,14 @@ class ApplicationGUI:
 
         if active_video:
             try:
+                # Check for multi-aquarium data first
+                if hasattr(pm, "is_multi_aquarium_video") and pm.is_multi_aquarium_video(
+                    active_video
+                ):
+                    multi_data = pm.get_multi_aquarium_zone_data(active_video)
+                    if multi_data:
+                        return multi_data
+
                 zone_data = pm.get_zone_data(
                     video_path=active_video,
                     fallback_to_global=False,
@@ -1306,6 +1315,13 @@ class ApplicationGUI:
         self.pending_single_video_path = video_path
         self.pending_single_video_config = config
 
+        # MELHORIA: Save num_aquariums to global settings so ProcessingCoordinator can see it during auto-detection
+        if config and "num_aquariums" in config and self.settings:
+             try:
+                 self.settings.analysis_config.num_aquariums = int(config["num_aquariums"])
+             except Exception as e:
+                 log.warning("gui.setup_zone_definition.update_settings_failed", error=str(e))
+
         # Ensure zone edits persist under the selected video
         self.controller.project_manager.set_active_zone_video(video_path)
 
@@ -1398,7 +1414,14 @@ class ApplicationGUI:
 
         # 1. Get the zone data that the user drew
         zone_data = self._get_zone_data_for_active_context()
-        if not zone_data.polygon:
+
+        # Validation for Single vs Multi Aquarium
+        from zebtrack.core.detector import MultiAquariumZoneData
+        if isinstance(zone_data, MultiAquariumZoneData):
+             if not zone_data.aquariums:
+                 self.show_error("Erro", "Nenhum aquário foi definido.")
+                 return
+        elif not zone_data.polygon:
             self.show_error("Erro", "A área principal do aquário (polígono) não foi definida.")
             return
 
@@ -1550,19 +1573,22 @@ class ApplicationGUI:
         # Check if we are in single subject mode
         # If processing_mode is available, use it. Otherwise check controller.
         from zebtrack.core.processing_mode import ProcessingMode
-        is_single_subject = (processing_mode == ProcessingMode.SINGLE_SUBJECT)
+
+        is_single_subject = processing_mode == ProcessingMode.SINGLE_SUBJECT
 
         # If report didn't provide mode, fallback to current controller state
         if processing_mode is None and self.controller:
-             # Access private attribute directly if property isn't exposed or simply default to False
-             # to avoid another AttributeError.
-             # Ideally controller has a property for this.
-             try:
-                 # Check if controller has active_processing_mode property or attribute
-                 if hasattr(self.controller, "_active_processing_mode"):
-                     is_single_subject = (self.controller._active_processing_mode == ProcessingMode.SINGLE_SUBJECT)
-             except Exception:
-                 pass
+            # Access private attribute directly if property isn't exposed or simply default to False
+            # to avoid another AttributeError.
+            # Ideally controller has a property for this.
+            try:
+                # Check if controller has active_processing_mode property or attribute
+                if hasattr(self.controller, "_active_processing_mode"):
+                    is_single_subject = (
+                        self.controller._active_processing_mode == ProcessingMode.SINGLE_SUBJECT
+                    )
+            except Exception:
+                pass
 
         self.canvas_manager.renderer.update_overlay(detections, is_single_subject)
 
