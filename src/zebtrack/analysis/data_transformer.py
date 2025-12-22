@@ -455,7 +455,9 @@ class DataTransformer:
             )
 
     @staticmethod
-    def warp_trajectory_if_needed(trajectory_df: pd.DataFrame, calibration) -> pd.DataFrame:
+    def warp_trajectory_if_needed(
+        trajectory_df: pd.DataFrame, calibration, force: bool = False
+    ) -> pd.DataFrame:
         """Warp bounding boxes into the calibrated space when raw points slip through.
 
         Some runs saved detections using the original video reference instead of the
@@ -469,6 +471,7 @@ class DataTransformer:
         Args:
             trajectory_df: Trajectory DataFrame with bbox coordinates
             calibration: Calibration object with homography_matrix
+            force: If True, bypass the dimension heuristic and force warping.
 
         Returns:
             pd.DataFrame: Warped trajectory DataFrame if needed, otherwise original
@@ -498,8 +501,10 @@ class DataTransformer:
         max_x = max(_max_safe(col) for col in ("x1", "x2", "x_center_px"))
         max_y = max(_max_safe(col) for col in ("y1", "y2", "y_center_px"))
 
-        if max_x <= expected_width + tolerance and max_y <= expected_height + tolerance:
-            return trajectory_df
+        # If not forced, check dimensions
+        if not force:
+            if max_x <= expected_width + tolerance and max_y <= expected_height + tolerance:
+                return trajectory_df
 
         warped_df = trajectory_df.copy()
 

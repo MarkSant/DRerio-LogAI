@@ -219,7 +219,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **Core Data Structures** (in `core/detector.py`):
 - `AquariumData`: Holds `id`, `polygon`, `roi_mode`, `roi_data` for each aquarium
-- `MultiAquariumZoneData`: Container with `aquariums: list[AquariumData]`, `calibration`, `active_aquarium_id`
+- `MultiAquariumZoneData`: Container with `aquariums: list[AquariumData]`, `calibration`, `active_aquarium_id`, `sequential_processing`
 
 **Key Methods**:
 - `Detector.set_multi_aquarium_zones(zone_data: MultiAquariumZoneData)` - Configure multi-aquarium mode
@@ -253,6 +253,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - `ZONE_AQUARIUM_COUNT_CONFIRMED` - Count confirmed (payload: `{count: int}`)
 - `ZONE_AQUARIUM_ASSIGNMENT_COMPLETED` - Assignment done (payload: `{configs, apply_to_all}`)
 - `ZONE_SHOW_AQUARIUM_COUNT_DIALOG` / `ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG` - Dialog requests
+- `ZONE_PROCESSING_MODE_CHANGED` - Processing mode toggle (payload: `{sequential: bool}`)
 
 **Event Handlers** (Phase 5):
 - `ProcessingCoordinator._handle_multi_auto_detect()` - Handles ZONE_MULTI_AUTO_DETECT
@@ -273,6 +274,65 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 **Testing**: 250+ tests in `tests/core/test_*_multi*.py`, `tests/ui/test_*_multi*.py`, `tests/integration/test_multi_aquarium_e2e.py`, `tests/analysis/test_trajectory_validator.py`
 
 **ADR**: `docs/decisions/ADR-001-multi-aquarium-support.md`
+
+### Phase 10.1: Sequential Multi-Aquarium Processing (Dec 2025)
+**Feature**: Option to process each aquarium separately with 2 complete video passes instead of simultaneously.
+
+**Processing Modes**:
+- **Parallel (default)**: `sequential_processing=False` - Both aquariums processed in 1 video pass
+- **Sequential**: `sequential_processing=True` - Complete video for aquarium 0, then complete video for aquarium 1
+
+**Data Flow (Sequential Mode)**:
+```
+┌─ Passagem 1: Aquário 0 ─────────────────────────────────────────────┐
+│   AquariumData[0].to_zone_data() → ZoneData → detect() → aquarium_0/│
+└─────────────────────────────────────────────────────────────────────┘
+                               ↓ (automático)
+┌─ Passagem 2: Aquário 1 ─────────────────────────────────────────────┐
+│   AquariumData[1].to_zone_data() → ZoneData → detect() → aquarium_1/│
+└─────────────────────────────────────────────────────────────────────┘
+                               ↓
+┌─ Finalization ──────────────────────────────────────────────────────┐
+│   register_multi_aquarium_outputs() → generate_project_reports()    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**UI Toggle** (in `ui/components/zone_controls.py`):
+- Radio buttons: "Simultâneo (1 passagem)" vs "Sequencial (2 passagens)"
+- Only visible when multi-aquarium mode is active
+- Emits `ZONE_PROCESSING_MODE_CHANGED` event
+
+**Key Methods** (in `coordinators/processing_coordinator.py`):
+- `_start_sequential_multi_aquarium_processing()` - Initializes sequential context
+- `_process_next_aquarium_in_sequence()` - Processes next aquarium, generates reports when done
+- `_start_single_aquarium_for_sequential()` - Runs single-aquarium flow for each aquarium
+
+**Output Structure** (identical to parallel mode):
+```
+video_results/
+├── aquarium_0/
+│   ├── 3_CoordMovimento_{video}.parquet
+│   ├── 4_Relatorio_{video}_aq0.docx
+│   ├── 4_Relatorio_{video}_aq0.xlsx
+│   └── {video}_aq0_summary.parquet
+└── aquarium_1/
+    ├── 3_CoordMovimento_{video}.parquet
+    ├── 4_Relatorio_{video}_aq1.docx
+    ├── 4_Relatorio_{video}_aq1.xlsx
+    └── {video}_aq1_summary.parquet
+```
+
+**Advantages of Sequential Mode**:
+- Uses 100% resources per aquarium (no resource splitting)
+- Lower memory usage (1 ByteTracker at a time)
+- Easier debugging (1 flow at a time)
+- Reuses battle-tested single-aquarium code path
+
+**Trade-offs**:
+- 2× total processing time
+- Video read twice from disk
+
+**Serialization**: `ZoneManager.multi_aquarium_zone_data_to_dict/from_dict()` includes `sequential_processing` field
 
 ## Common Patterns
 
@@ -375,6 +435,7 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 ## Version History (Quick Reference)
 
+- **v3.1 (Dec 2025)**: Sequential Multi-Aquarium Processing - Option to process aquariums in 2 video passes with automatic reports
 - **v3.0 (Jan 2025)**: 🔴 **BREAKING** - Removed all legacy thread system code for Live cameras (~90 lines)
 - **v2.1 (Jan 2025)**: Live Camera Unification - Fixed critical bugs (camera selection, intervals, preview)
 - **v2.0 (Nov 2025)**: ⚠️ **CRITICAL PYTEST FIXES** - Resolved system-freezing test hangs, daemon threads, Tkinter cleanup hooks
@@ -402,6 +463,14 @@ logger.error("recorder.save_parquet.error", error=str(e))
 | **Historical Context** | `docs/archive/` |
 
 ## Recent Critical Fixes (Dec 2025)
+
+**0. Sequential Multi-Aquarium Processing (v3.1):**
+*   **New Feature**: Toggle in Zone Controls to process aquariums sequentially (2 passes) vs parallel (1 pass)
+*   **New Event**: `ZONE_PROCESSING_MODE_CHANGED` emitted when user changes processing mode
+*   **New Field**: `MultiAquariumZoneData.sequential_processing: bool` - persisted in project files
+*   **Key Methods**: `_start_sequential_multi_aquarium_processing()`, `_process_next_aquarium_in_sequence()`, `_start_single_aquarium_for_sequential()` in `ProcessingCoordinator`
+*   **Automatic Reports**: Word, Excel, and Parquet summary files generated for each aquarium after all complete
+*   **UI**: Radio buttons appear in ZoneControls when multi-aquarium mode is active
 
 **1. Multi-Aquarium Data Flow:**
 *   **Zone Serialization**: `ProcessingCoordinator` now correctly detects `MultiAquariumZoneData` and serializes it using `ZoneManager.multi_aquarium_zone_data_to_dict`.

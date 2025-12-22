@@ -213,6 +213,9 @@ class Events:
     ZONE_SHOW_AQUARIUM_COUNT_DIALOG = "zone:show_aquarium_count_dialog"
     # Request to show aquarium assignment dialog
     ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG = "zone:show_aquarium_assignment_dialog"
+    # User changed processing mode (parallel vs sequential)
+    # payload: {sequential: bool}
+    ZONE_PROCESSING_MODE_CHANGED = "zone:processing_mode_changed"
 
     # Processing Reports Widget
     PROCESSING_GENERATE_TRAJECTORIES = "processing.generate_trajectories"

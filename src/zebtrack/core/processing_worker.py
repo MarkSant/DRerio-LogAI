@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
 import cv2
+import numpy as np
 import structlog
 
 from zebtrack.core.detector import Detector, ZoneData
@@ -613,7 +614,59 @@ class _WorkerProcess(multiprocessing.Process):
 
         recorder = Recorder(settings_obj=self.config.settings)
 
+        # Initialize calibration
+        calibration = None
         pixel_ratio = None
+
+        # Try to get measurements from metadata (preferred) or settings
+        width_cm = float(video_metadata.get("aquarium_width_cm") or 0)
+        height_cm = float(video_metadata.get("aquarium_height_cm") or 0)
+
+        # Fallback to project settings if available
+        if (width_cm <= 0 or height_cm <= 0) and hasattr(self.config.settings, "calibration"):
+             calib = self.config.settings.calibration
+             if calib:
+                 width_cm = float(getattr(calib, "aquarium_width_cm", 0) or 0)
+                 height_cm = float(getattr(calib, "aquarium_height_cm", 0) or 0)
+
+        calibration_by_aquarium = {}
+
+        if width_cm > 0 and height_cm > 0:
+            from zebtrack.core.calibration import Calibration
+
+            if is_multi_aquarium:
+                # Create per-aquarium calibration
+                for aq in video_zone_data.aquariums:
+                    if aq.polygon and len(aq.polygon) >= 4:
+                        try:
+                            cal = Calibration(np.array(aq.polygon), width_cm, height_cm)
+                            calibration_by_aquarium[aq.id] = cal
+                            # Use first valid calibration as fallback/log
+                            if calibration is None:
+                                calibration = cal
+                                pixel_ratio = cal.pixel_per_cm_ratio
+                        except Exception as e:
+                            log.error("worker.calibration.multi.failed", aq_id=aq.id, error=str(e))
+                
+                if calibration_by_aquarium:
+                    log.info("worker.calibration.multi.created", count=len(calibration_by_aquarium))
+            else:
+                 # Determine which polygon to use for calibration
+                 poly_points = None
+                 if hasattr(video_zone_data, "polygon") and video_zone_data.polygon:
+                     poly_points = video_zone_data.polygon
+                 elif hasattr(video_zone_data, "aquariums") and video_zone_data.aquariums:
+                     # Use first aquarium's polygon for calibration if main polygon is missing
+                     if video_zone_data.aquariums[0].polygon:
+                         poly_points = video_zone_data.aquariums[0].polygon
+                 
+                 if poly_points and len(poly_points) >= 4:
+                     try:
+                         calibration = Calibration(np.array(poly_points), width_cm, height_cm)
+                         pixel_ratio = calibration.pixel_per_cm_ratio
+                         log.info("worker.calibration.created", ratio=pixel_ratio)
+                     except Exception as e:
+                         log.error("worker.calibration.failed", error=str(e))
 
         if is_multi_aquarium:
             zones_by_aq = {aq.id: aq.to_zone_data() for aq in video_zone_data.aquariums}
@@ -624,6 +677,9 @@ class _WorkerProcess(multiprocessing.Process):
                 zones_by_aquarium=zones_by_aq,
                 base_name=experiment_id,
                 write_video=False,
+                pixel_per_cm_ratio=pixel_ratio,
+                calibration=None,
+                calibration_by_aquarium=calibration_by_aquarium,
             )
         else:
             recorder.start_recording(
@@ -634,6 +690,7 @@ class _WorkerProcess(multiprocessing.Process):
                 is_video_file=True,
                 base_name=experiment_id,
                 pixel_per_cm_ratio=pixel_ratio,
+                calibration=calibration,
             )
 
         detector.reset_tracking_state()

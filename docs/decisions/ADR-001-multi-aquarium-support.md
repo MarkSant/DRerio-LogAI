@@ -199,6 +199,39 @@ class MultiAquariumZoneData:
   - `ProcessingCoordinator._handle_multi_auto_detect()`
   - `ProjectLifecycleCoordinator._handle_aquarium_config_updated()`
 
+### Phase 6: Sequential Processing (December 2025)
+**Feature**: Option to process each aquarium separately with 2 complete video passes.
+
+- **New Field**: `MultiAquariumZoneData.sequential_processing: bool`
+  - `False` (default): Parallel mode - both aquariums processed in 1 video pass
+  - `True`: Sequential mode - complete video for aquarium 0, then aquarium 1
+
+- **New Event**: `ZONE_PROCESSING_MODE_CHANGED`
+  - Payload: `{sequential: bool}`
+  - Emitted by `ZoneControls` radio button toggle
+
+- **New Methods** (in `ProcessingCoordinator`):
+  - `_start_sequential_multi_aquarium_processing()` - Initialize sequential context
+  - `_process_next_aquarium_in_sequence()` - Process next aquarium, finalize when done
+  - `_start_single_aquarium_for_sequential()` - Run single-aquarium flow for each
+
+- **UI Toggle**: Radio buttons in ZoneControls
+  - "Simultâneo (1 passagem, mais rápido)"
+  - "Sequencial (2 passagens, 1 aquário por vez)"
+
+- **Report Generation**: Automatic Word, Excel, and Parquet summary generation for each aquarium
+
+- **Serialization**: `ZoneManager.multi_aquarium_zone_data_to_dict/from_dict()` updated
+
+**Advantages**:
+- 100% resources per aquarium (no splitting)
+- Lower memory (1 ByteTracker at a time)
+- Reuses battle-tested single-aquarium code path
+
+**Trade-offs**:
+- 2× total processing time
+- Video read twice from disk
+
 ## References
 
 - [PLANO_MULTI_AQUARIUM.md](../../PLANO_MULTI_AQUARIUM.md) - Detailed implementation plan
@@ -211,3 +244,4 @@ class MultiAquariumZoneData:
 |------|---------|--------|---------|
 | 2024-12 | 1.0 | Development Team | Initial ADR |
 | 2025-01 | 2.0 | Development Team | Multi-Aquarium v2 (Phases 1-5) |
+| 2025-12 | 2.1 | Development Team | Phase 6: Sequential Processing |

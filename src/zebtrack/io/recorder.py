@@ -323,6 +323,7 @@ class Recorder:
         write_video: bool = True,
         pixel_per_cm_ratio: tuple[float, float] | None = None,
         calibration: Any = None,
+        calibration_by_aquarium: dict[int, Any] | None = None,
     ) -> bool:
         """
         Start recording for multiple aquariums with separate output folders.
@@ -347,7 +348,8 @@ class Recorder:
             fps: Frames per second (default: 30.0).
             write_video: If True, also writes video files per aquarium.
             pixel_per_cm_ratio: Optional calibration ratio (x_ratio, y_ratio).
-            calibration: Optional calibration object for coordinate transform.
+            calibration: Optional global calibration object (fallback).
+            calibration_by_aquarium: Optional dict mapping aquarium_id to Calibration.
 
         Returns:
             True if all recordings started successfully, False otherwise.
@@ -380,6 +382,15 @@ class Recorder:
             # Construct base name for sub-recorder
             aq_base_name = f"{base_name}_aquarium_{aq_id}" if base_name else f"aquarium_{aq_id}"
 
+            # Determine calibration for this aquarium
+            aq_calibration = calibration
+            aq_ratio = pixel_per_cm_ratio
+
+            if calibration_by_aquarium and aq_id in calibration_by_aquarium:
+                aq_calibration = calibration_by_aquarium[aq_id]
+                if hasattr(aq_calibration, "pixel_per_cm_ratio"):
+                    aq_ratio = aq_calibration.pixel_per_cm_ratio
+
             try:
                 success = aq_recorder.start_recording(
                     output_folder=str(aq_folder),
@@ -387,9 +398,9 @@ class Recorder:
                     frame_height=height,
                     zones=zone_data,
                     is_video_file=not write_video,
-                    pixel_per_cm_ratio=pixel_per_cm_ratio,
+                    pixel_per_cm_ratio=aq_ratio,
                     base_name=aq_base_name,
-                    calibration=calibration,
+                    calibration=aq_calibration,
                 )
 
                 if success:

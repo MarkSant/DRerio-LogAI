@@ -1,5 +1,105 @@
 # Changelog
 
+## 2025-12-21 (v3.1: Sequential Multi-Aquarium Processing)
+
+### Overview
+
+Added option to process multi-aquarium videos sequentially (2 complete video passes) instead of simultaneously (1 pass). This allows users to choose between faster parallel processing or resource-focused sequential processing.
+
+### Features Implemented
+
+#### 1. Processing Mode Toggle in Zone Controls
+
+**Modified**: `src/zebtrack/ui/components/zone_controls.py`
+
+**New UI Elements**:
+- Radio buttons for processing mode selection:
+  - "Simultâneo (1 passagem, mais rápido)" - Parallel mode (default)
+  - "Sequencial (2 passagens, 1 aquário por vez)" - Sequential mode
+- Toggle only visible when multi-aquarium mode is active
+
+**New State Variable**:
+- `sequential_processing_var: tk.BooleanVar` - Tracks selected mode
+
+#### 2. Sequential Processing Logic
+
+**Modified**: `src/zebtrack/coordinators/processing_coordinator.py`
+
+**New Methods**:
+- `_start_sequential_multi_aquarium_processing()` - Initializes sequential context
+- `_process_next_aquarium_in_sequence()` - Advances to next aquarium or generates reports
+- `_start_single_aquarium_for_sequential()` - Runs single-aquarium flow for each
+
+**Key Features**:
+- Automatic transition between aquariums (no user intervention needed)
+- Reuses battle-tested single-aquarium code path via `AquariumData.to_zone_data()`
+- Generates Word, Excel, and Parquet summary reports after all aquariums complete
+- Registers outputs using `register_multi_aquarium_outputs()` for proper project tracking
+
+#### 3. Data Model Changes
+
+**Modified**: `src/zebtrack/core/detector.py`
+
+**New Field**:
+```python
+@dataclass
+class MultiAquariumZoneData:
+    sequential_processing: bool = False  # True = 2 passes, False = 1 pass
+```
+
+#### 4. Serialization Updates
+
+**Modified**: `src/zebtrack/core/zone_manager.py`
+
+**Updated Methods**:
+- `multi_aquarium_zone_data_to_dict()` - Includes `sequential_processing` field
+- `multi_aquarium_zone_data_from_dict()` - Reads `sequential_processing` with fallback to `False`
+
+#### 5. New Event
+
+**Modified**: `src/zebtrack/ui/events.py`
+
+**New Event**:
+```python
+ZONE_PROCESSING_MODE_CHANGED = "zone:processing_mode_changed"
+# Payload: {sequential: bool}
+```
+
+**Subscribers**:
+- `EventDispatcher` → `CanvasManager.update_processing_mode()`
+
+### Output Structure
+
+Both modes produce identical output structure:
+```
+video_results/
+├── aquarium_0/
+│   ├── 3_CoordMovimento_{video}.parquet
+│   ├── 4_Relatorio_{video}_aq0.docx
+│   ├── 4_Relatorio_{video}_aq0.xlsx
+│   └── {video}_aq0_summary.parquet
+└── aquarium_1/
+    ├── 3_CoordMovimento_{video}.parquet
+    ├── 4_Relatorio_{video}_aq1.docx
+    ├── 4_Relatorio_{video}_aq1.xlsx
+    └── {video}_aq1_summary.parquet
+```
+
+### Trade-offs
+
+| Mode | Speed | Memory | Resources | Debugging |
+|------|-------|--------|-----------|-----------|
+| Parallel | 1× | Higher | Split | More complex |
+| Sequential | 2× | Lower | 100% per aquarium | Easier |
+
+### Testing
+
+- All 18 zone_manager multi-aquarium tests pass
+- All 36 multi-aquarium model tests pass
+- All 19 multi-aquarium events tests pass
+
+---
+
 ## 2025-10-21 (Phase 8: Weight Type Management and UI Improvements)
 
 ### Overview

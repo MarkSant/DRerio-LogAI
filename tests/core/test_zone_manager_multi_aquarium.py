@@ -87,6 +87,7 @@ class TestZoneManagerMultiAquariumSerialization:
             "aquariums": [],
             "video_width": 0,
             "video_height": 0,
+            "sequential_processing": False,
         }
 
     def test_multi_aquarium_zone_data_from_dict(self):

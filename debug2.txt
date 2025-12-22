@@ -1,0 +1,497 @@
+2025-12-22 11:51:51 [info ] detector.init.success [zebtrack.core.detector] plugin=OpenVINO
+2025-12-22 11:51:51 [info ] detector.class_ids.resolved [zebtrack.core.detector] animal_id=1 aquarium_id=0 plugin_classes={0: 'aqua', 1: 'zebrafish', 2: 'zup-aqua'}
+2025-12-22 11:51:51 [info ] detector_service.single_subject.configured [zebtrack.core.detector_service] enabled=False
+2025-12-22 11:51:51 [info ] detector_service.single_subject_tracker.configured [zebtrack.core.detector_service] enabled=False
+2025-12-22 11:51:51 [info ] project.detector_state.save.start [zebtrack.core.project_manager] config={'plugin_name': 'OpenVINO', 'confidence_threshold': 0.1, 'nms_threshold': 0.3, 'context': 'tracking', 'track_threshold': 0.25, 'match_threshold': 0.95}
+2025-12-22 11:51:51 [info ] project.detector_state.save.in_memory [zebtrack.core.project_manager] plugin=OpenVINO reason=single_video_workflow
+2025-12-22 11:51:51 [info ] detector_service.state.saved [zebtrack.core.detector_service] config={'plugin_name': 'OpenVINO', 'confidence_threshold': 0.1, 'nms_threshold': 0.3, 'context': 'tracking', 'track_threshold': 0.25, 'match_threshold': 0.95, 'last_updated': '2025-12-22T11:51:51.754096'}
+2025-12-22 11:51:51 [info ] detector_service.initialize.success [zebtrack.core.detector_service] method=det
+2025-12-22 11:51:51 [info ] detector_coordinator.setup_detector.success [zebtrack.coordinators.detector_coordinator] animal_method=det use_openvino=True
+2025-12-22 11:51:52 [info ] detector_service.tracking_params.updated [zebtrack.core.detector_service] match_threshold=None track_threshold=None
+2025-12-22 11:51:52 [info ] detector_service.persist.overrides_applied [zebtrack.core.detector_service] config={}
+2025-12-22 11:51:52 [info ] project.detector_state.save.start [zebtrack.core.project_manager] config={}
+2025-12-22 11:51:52 [info ] project.detector_state.save.in_memory [zebtrack.core.project_manager] plugin=None reason=single_video_workflow
+2025-12-22 11:51:52 [info ] detector_service.params.saved_to_project [zebtrack.core.detector_service] config={'last_updated': '2025-12-22T11:51:52.820048'}
+2025-12-22 11:51:52 [info ] detector_coordinator.update_detector_parameters.success [zebtrack.coordinators.detector_coordinator] params={'rule': 'bbox_intersects'} reset_overrides=False scope=global
+2025-12-22 11:51:55 [info ] controller.aquarium_detection.start [zebtrack.coordinators.processing_coordinator]
+2025-12-22 11:51:55 [info ] weights.get_path.selected [zebtrack.core.weight_manager] method=seg name=best_seg.pt path='C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\best_seg.pt' task=aquarium
+2025-12-22 11:51:56 [info ] aquarium_detector.init.success [zebtrack.core.aquarium_detector] mode=seg model_path='C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\best_seg.pt'
+2025-12-22 11:51:56 [info ] aquarium_detector.detect_multiple.start [zebtrack.core.aquarium_detector] expected_count=2 video_path='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44).mp4'
+2025-12-22 11:51:59 [info ] aquarium_detector.detect_multiple.early_exit [zebtrack.core.aquarium_detector] count=4
+2025-12-22 11:51:59 [info ] aquarium_detector.detect_multiple.yolo_success [zebtrack.core.aquarium_detector] frames_with_2=4
+2025-12-22 11:51:59 [info ] controller.aquarium_detection.multi_success [zebtrack.coordinators.processing_coordinator] count=2
+2025-12-22 11:51:59 [info ] controller.determine_processing_mode [zebtrack.coordinators.processing_coordinator] result=MULTI_TRACK use_single_subject_tracker=False
+2025-12-22 11:51:59 [info ] zone_manager.update_flags.debug [zebtrack.core.zone_manager] has_arena=True has_rois=False is_multi=True target='C:/Users/santa/OneDrive/Desktop/Gu/Zeb (44).mp4'
+2025-12-22 11:51:59 [info ] zone_manager.update_flags.debug_keys [zebtrack.core.zone_manager] batch_count=0 root_videos_keys=list/none
+2025-12-22 11:51:59 [info ] zone_manager.multi_aquarium.saved [zebtrack.core.zone_manager] aquarium_count=2 video='C:/Users/santa/OneDrive/Desktop/Gu/Zeb (44).mp4'
+2025-12-22 11:52:02 [info ] zone_manager.update_flags.debug [zebtrack.core.zone_manager] has_arena=True has_rois=False is_multi=True target='C:/Users/santa/OneDrive/Desktop/Gu/Zeb (44).mp4'
+2025-12-22 11:52:02 [info ] zone_manager.update_flags.debug_keys [zebtrack.core.zone_manager] batch_count=0 root_videos_keys=list/none
+2025-12-22 11:52:02 [info ] zone_manager.multi_aquarium.saved [zebtrack.core.zone_manager] aquarium_count=2 video='C:/Users/santa/OneDrive/Desktop/Gu/Zeb (44).mp4'
+2025-12-22 11:52:08 [info ] workflow.single_video.processing_start [zebtrack.coordinators.processing_coordinator] video='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44).mp4'
+2025-12-22 11:52:08 [info ] workflow.sequential_multi.detected [zebtrack.coordinators.processing_coordinator] aquarium_count=2 video='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44).mp4'
+2025-12-22 11:52:08 [info ] workflow.sequential_multi.start [zebtrack.coordinators.processing_coordinator] aquarium_count=2 video='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44).mp4'
+2025-12-22 11:52:08 [info ] workflow.sequential_multi.calibration_created [zebtrack.coordinators.processing_coordinator] pixel_per_cm_x=15.0 pixel_per_cm_y=15.0 target_dims=(600, 450)
+2025-12-22 11:52:08 [info ] project.batch.added [zebtrack.core.project_manager] count=1 with_arena=1 with_metadata=1 with_trajectory=0
+2025-12-22 11:52:08 [info ] workflow.sequential_multi.aquarium_start [zebtrack.coordinators.processing_coordinator] aquarium_id=0 aquarium_index=1 group= subject_id= total=2
+2025-12-22 11:52:08 [info ] controller.resolve_tracker.entry [zebtrack.coordinators.processing_coordinator] config_keys=['video_path', 'num_aquariums', 'animals_per_aquarium', 'aquarium_width_cm', 'aquarium_height_cm', 'sharp_turn_threshold_deg_s', 'freezing_velocity_threshold', 'freezing_min_duration_s', 'smoothing_window_length', 'smoothing_polyorder', 'analysis_interval_frames', 'display_interval_frames', 'aquarium_method', 'animal_method', 'use_openvino', 'use_single_subject_tracker', 'roi_choice', 'stabilization_frames'] has_config=True
+2025-12-22 11:52:08 [info ] controller.resolve_tracker.explicit [zebtrack.coordinators.processing_coordinator] source=single_video_config use_single_subject=True
+2025-12-22 11:52:08 [info ] processing_coordinator.sync_settings [zebtrack.coordinators.processing_coordinator] reason=worker_initialization_sync use_single_subject_tracker=True
+2025-12-22 11:52:08 [info ] controller.processing.intervals_single_video [zebtrack.coordinators.processing_coordinator] analysis_interval=5 animals_per_aquarium=1 config_keys=['video_path', 'num_aquariums', 'animals_per_aquarium', 'aquarium_width_cm', 'aquarium_height_cm', 'sharp_turn_threshold_deg_s', 'freezing_velocity_threshold', 'freezing_min_duration_s', 'smoothing_window_length', 'smoothing_polyorder', 'analysis_interval_frames', 'display_interval_frames', 'aquarium_method', 'animal_method', 'use_openvino', 'use_single_subject_tracker', 'roi_choice', 'stabilization_frames'] display_interval=5 use_single_subject_tracker=True
+2025-12-22 11:52:08 [info ] create_processing_context [zebtrack.coordinators.processing_coordinator] analysis_interval_frames=5 cancel_event_id=1782017738368 display_interval_frames=5 is_set=False use_single_subject=True
+2025-12-22 11:52:08 [info ] worker.zone_data_serialized [zebtrack.core.processing_worker] has_polygon=True is_multi=False polygon_points=4 polygon_sample=[[74, 145], [432, 145], [432, 378]]
+2025-12-22 11:52:09 [info ] controller.determine_processing_mode [zebtrack.coordinators.processing_coordinator] result=SINGLE_SUBJECT use_single_subject_tracker=True
+2025-12-22 11:52:09 [info ] controller.navigating_to_analysis_view [zebtrack.core.main_view_model] event_bus_id=1781854252080 event_name=ui:navigate_to_analysis_view
+2025-12-22 11:52:09 [info ] monitor_loop.started [zebtrack.core.processing_worker] cancel_event_id=1782017738368 is_set=False
+2025-12-22 11:52:09 [info ] controller.event_published [zebtrack.core.main_view_model] result=True
+2025-12-22 11:52:12 [info ] worker.process.started [zebtrack.core.processing_worker] pid=24052
+2025-12-22 11:52:12 [info ] worker.detector.initializing [zebtrack.core.processing_worker] type=yolo
+2025-12-22 11:52:12 [info ] worker.detector.sync_processing_interval [zebtrack.core.processing_worker] config_interval=10 message='Updating settings.video_processing.processing_interval from UI value' runtime_interval=5
+2025-12-22 11:52:12 [info ] ultralytics.class_names.loaded [zebtrack.plugins.ultralytics_detector] names={0: 'aqua', 1: 'zebrafish', 2: 'zup-aqua'} path='C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\best_seg.pt'
+2025-12-22 11:52:12 [info ] hardware.cuda.not_available [zebtrack.utils.hardware_detection]
+2025-12-22 11:52:12 [info ] ultralytics.half_precision.disabled [zebtrack.plugins.ultralytics_detector] cuda_available=False use_half_setting=True
+2025-12-22 11:52:12 [info ] detector.init.success [zebtrack.core.detector] plugin='YOLO (Ultralytics)'
+2025-12-22 11:52:12 [info ] detector.class_ids.resolved [zebtrack.core.detector] animal_id=1 aquarium_id=0 plugin_classes={0: 'aqua', 1: 'zebrafish', 2: 'zup-aqua'}
+2025-12-22 11:52:12 [info ] detector.single_subject_mode.changed [zebtrack.core.detector] enabled=True strategy=robust_bytetrack_single_animal
+2025-12-22 11:52:12 [info ] worker.detector.single_subject_mode_set [zebtrack.core.processing_worker] enabled=True
+2025-12-22 11:52:12 [info ] worker.zone_data_deserialized [zebtrack.core.processing_worker] has_polygon=True polygon_points=4 polygon_sample=[[74, 145], [432, 145], [432, 378]] type=single_zone
+2025-12-22 11:52:12 [info ] worker.process.video_start [zebtrack.core.processing_worker] experiment_id='Zeb (44)' index=0
+2025-12-22 11:52:12 [info ] worker.using_default_zone_data [zebtrack.core.processing_worker] is_multi=False polygon_points=4 video='Zeb (44).mp4'
+2025-12-22 11:52:12 [info ] detector.scaling.updated_and_cached [zebtrack.core.detector] height=480 width=864
+2025-12-22 11:52:12 [info ] detector.zones.set [zebtrack.core.detector] actual_dimensions=(864, 480) base_dimensions=(864, 480) has_polygon=True is_multi_aquarium=False polygon_points=4 roi_count=0 scaled_polygon_sample=[[74, 145], [432, 145], [432, 378]]
+2025-12-22 11:52:12 [info ] detector.aquarium_region_defined.set [zebtrack.core.detector] defined=True
+2025-12-22 11:52:12 [info ] worker.zones_configured_for_video [zebtrack.core.processing_worker] aquarium_region_defined=True has_aquarium=True polygon_points=4 scaled_polygon_size=8 video='Zeb (44)' video_dimensions=(864, 480)
+2025-12-22 11:52:12 [info ] worker.calibration.created [zebtrack.core.processing_worker] ratio=(15.0, 15.0)
+2025-12-22 11:52:13 [info ] recorder.save_processing_area.success [zebtrack.io.recorder] path=WindowsPath('C:/Users/santa/OneDrive/Desktop/Gu/Zeb (44)_results/aquarium_0/1_ProcessingArea_Zeb (44).parquet')
+2025-12-22 11:52:13 [info ] recorder.area_definitions.saved [zebtrack.io.recorder] path=WindowsPath('C:/Users/santa/OneDrive/Desktop/Gu/Zeb (44)_results/aquarium_0')
+2025-12-22 11:52:13 [info ] recorder.start.success [zebtrack.io.recorder] base_name='Zeb (44)' output_folder='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44)_results\\aquarium_0'
+2025-12-22 11:52:13 [info ] worker.processing_loop.started [zebtrack.core.processing_worker] video='Zeb (44)'
+2025-12-22 11:52:15 [info ] detector.predictions_before_polygon_filter [zebtrack.core.detector] count=2 has_polygon=True sample='[(74, 145, 430, 375, 0.8863509297370911, None, 0), (118, 330, 127, 338, 0.16447362303733826, None, 1)]'
+2025-12-22 11:52:15 [info ] detector.polygon_filter_decision_flags [zebtrack.core.detector] aquarium_defined=True context=tracking has_polygon=True is_multi=False polygon_size=8
+2025-12-22 11:52:15 [info ] detector.bytetrack.initializing [zebtrack.core.detector] iou_threshold=0.05 match_thresh=0.95 max_center_distance=400.0 processing_interval=5 single_animal_mode=True track_buffer=60 track_thresh=0.25 use_hybrid_matching=True
+2025-12-22 11:52:15 [info ] detector.predictions_before_polygon_filter [zebtrack.core.detector] count=2 has_polygon=True sample='[(74, 145, 430, 375, 0.8699725866317749, None, 0), (117, 330, 126, 338, 0.10604430735111237, None, 1)]'
+2025-12-22 11:59:25 [info ] worker.video.ended [zebtrack.core.processing_worker] frame=3600
+2025-12-22 11:59:25 [info ] recorder.flush.success [zebtrack.io.recorder] force=True path='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44)_results\\aquarium_1\\3_CoordMovimento_Zeb (44).parquet' rows=8
+2025-12-22 11:59:25 [info ] recorder.parquet_writer.closed [zebtrack.io.recorder] path='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44)_results\\aquarium_1\\3_CoordMovimento_Zeb (44).parquet'
+2025-12-22 11:59:25 [info ] recorder.save_parquet.success [zebtrack.io.recorder] path='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44)_results\\aquarium_1\\3_CoordMovimento_Zeb (44).parquet'
+2025-12-22 11:59:25 [info ] recorder.stop.success [zebtrack.io.recorder] base_name='Zeb (44)'
+2025-12-22 11:59:25 [info ] worker.process.finished [zebtrack.core.processing_worker] pid=24896
+2025-12-22 11:59:25 [info ] workflow.sequential_multi.aquarium_complete [zebtrack.coordinators.processing_coordinator] aquarium_id=1
+2025-12-22 11:59:25 [info ] project.multi_aquarium.outputs_registered [zebtrack.core.project_manager] aquarium_count=2 video='Zeb (44).mp4'
+2025-12-22 11:59:25 [info ] workflow.reports.start [zebtrack.coordinators.processing_coordinator] count=1
+2025-12-22 11:59:25 [warning ] processing_coordinator.no_project_rois_found [zebtrack.coordinators.processing_coordinator]
+2025-12-22 11:59:25 [warning ] trajectory_validator.validation_warnings [zebtrack.analysis.trajectory_validator] stats={'temporal_gaps': {'count': 662, 'max_gap_frames': 70, 'avg_gap_frames': 5.430513595166163}, 'total_frames': 663, 'unique_tracks': 1, 'frame_range': {'min': 0, 'max': 3595, 'span': 3596}, 'temporal_coverage': 0.18437152391546163} warnings=['Found 662 temporal gaps (frames missing). Max gap: 70 frames, Avg gap: 5.4 frames']
+2025-12-22 11:59:25 [warning ] analysis_service.trajectory_validation_warnings [zebtrack.analysis.analysis_service] stats={'temporal_gaps': {'count': 662, 'max_gap_frames': 70, 'avg_gap_frames': 5.430513595166163}, 'total_frames': 663, 'unique_tracks': 1, 'frame_range': {'min': 0, 'max': 3595, 'span': 3596}, 'temporal_coverage': 0.18437152391546163} warnings=['Found 662 temporal gaps (frames missing). Max gap: 70 frames, Avg gap: 5.4 frames']
+2025-12-22 11:59:26 [warning ] trajectory_validator.validation_warnings [zebtrack.analysis.trajectory_validator] stats={'temporal_gaps': {'count': 517, 'max_gap_frames': 120, 'avg_gap_frames': 6.924564796905223}, 'total_frames': 518, 'unique_tracks': 1, 'frame_range': {'min': 15, 'max': 3595, 'span': 3581}, 'temporal_coverage': 0.14465233175090758} warnings=['Found 517 temporal gaps (frames missing). Max gap: 120 frames, Avg gap: 6.9 frames']
+2025-12-22 11:59:26 [warning ] analysis_service.trajectory_validation_warnings [zebtrack.analysis.analysis_service] stats={'temporal_gaps': {'count': 517, 'max_gap_frames': 120, 'avg_gap_frames': 6.924564796905223}, 'total_frames': 518, 'unique_tracks': 1, 'frame_range': {'min': 15, 'max': 3595, 'span': 3581}, 'temporal_coverage': 0.14465233175090758} warnings=['Found 517 temporal gaps (frames missing). Max gap: 120 frames, Avg gap: 6.9 frames']
+2025-12-22 11:59:26 [info ] workflow.reports.multi_aquarium.start [zebtrack.coordinators.processing_coordinator] aquarium_count=2 video='Zeb (44)'
+2025-12-22 11:59:26 [info ] workflow.reports.multi_aquarium.calibration_params [zebtrack.coordinators.processing_coordinator] pixelcm_x=15.0 pixelcm_y=15.0 video_height_px=450
+2025-12-22 11:59:26 [warning ] trajectory_validator.validation_warnings [zebtrack.analysis.trajectory_validator] stats={'temporal_gaps': {'count': 662, 'max_gap_frames': 70, 'avg_gap_frames': 5.430513595166163}, 'arena_violations': {'count': 345, 'percentage': 52.036199095022624}, 'total_frames': 663, 'unique_tracks': 1, 'frame_range': {'min': 0, 'max': 3595, 'span': 3596}, 'temporal_coverage': 0.18437152391546163} warnings=['Found 662 temporal gaps (frames missing). Max gap: 70 frames, Avg gap: 5.4 frames', 'Found 345 frames with positions outside arena (52.0% of trajectory). This may indicate tracking errors or incorrect calibration.']
+2025-12-22 11:59:26 [warning ] analysis_service.trajectory_validation_warnings [zebtrack.analysis.analysis_service] stats={'temporal_gaps': {'count': 662, 'max_gap_frames': 70, 'avg_gap_frames': 5.430513595166163}, 'arena_violations': {'count': 345, 'percentage': 52.036199095022624}, 'total_frames': 663, 'unique_tracks': 1, 'frame_range': {'min': 0, 'max': 3595, 'span': 3596}, 'temporal_coverage': 0.18437152391546163} warnings=['Found 662 temporal gaps (frames missing). Max gap: 70 frames, Avg gap: 5.4 frames', 'Found 345 frames with positions outside arena (52.0% of trajectory). This may indicate tracking errors or incorrect calibration.']
+2025-12-22 11:59:27 [info ] reporter.plots.parallel_generation.start [zebtrack.analysis.reporter] count=5
+2025-12-22 11:59:30 [error ] reporter.individual_report.save_failed [zebtrack.analysis.reporter] error="[Errno 13] Permission denied: 'C:\\\\Users\\\\santa\\\\OneDrive\\\\Desktop\\\\Gu\\\\Zeb (44)_results\\\\aquarium_0\\\\4_Relatorio_Zeb (44)_aq0.docx'"
+╭─────────────────────────────── Traceback (most recent call last) ────────────────────────────────╮
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\analysis\reporter.py:442 in │
+│ export_individual_report_step_by_step │
+│ │
+│  439 │ │ │ ) │
+│  440 │ │ │ if doc_template is not None: │
+│  441 │ │ │ │ # DocxTemplate saves via .save() │
+│ ❱  442 │ │ │ │ doc_template.save(file_path) │
+│  443 │ │ │ else: │
+│  444 │ │ │ │ document.save(file_path) │
+│  445 │ │ │ progress_callback(1.0, _("Report saved")) │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ doc_template = <docxtpl.template.DocxTemplate object at 0x0000019E9BB8CCE0> │ │
+│ │ document = <docx.document.Document object at 0x0000019E8D3CF0B0> │ │
+│ │ e = PermissionError(13, 'Permission denied') │ │
+│ │ file_path = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ heading_text = 'Relatório de Análise - Unknown' │ │
+│ │ output_path = WindowsPath('C:/Users/santa/OneDrive/Desktop/Gu/Zeb  │ │
+│ │ (44)_results/aquarium_0/4_Relatorio_Zeb (44)_aq0.docx') │ │
+│ │ self = <zebtrack.analysis.reporter.Reporter object at 0x0000019E8D3CFFE0> │ │
+│ │ template_path = WindowsPath('C:/Users/santa/OneDrive/UNESP/Pesquisa  │ │
+│ │ Canabidiol/Codigos_Programas/ZebTrack-AI/src/zebtrack/templates/individual_… │ │
+│ │ total_steps = 10 │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\docxtpl\template.py:753 in save │
+│ │
+│ 750 │ │ if not self.is_saved and not self.is_rendered: │
+│ 751 │ │ │ self.docx = Document(self.template_file) │
+│ 752 │ │ self.pre_processing() │
+│ ❱ 753 │ │ self.docx.save(filename, *args, **kwargs) │
+│ 754 │ │ self.post_processing(filename) │
+│ 755 │ │ self.is_saved = True │
+│ 756  │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ args = () │ │
+│ │ filename = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ kwargs = {} │ │
+│ │ self = <docxtpl.template.DocxTemplate object at 0x0000019E9BB8CCE0> │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\docx\document.py:204 in save │
+│ │
+│ 201 │ │ `path_or_stream` can be either a path to a filesystem location (a string) or a │
+│ 202 │ │ file-like object. │
+│ 203 │ │ """ │
+│ ❱ 204 │ │ self._part.save(path_or_stream) │
+│ 205 │  │
+│ 206 │ @property │
+│ 207 │ def sections(self) -> Sections: │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ path_or_stream = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ self = <docx.document.Document object at 0x0000019E8D3CF0B0> │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\docx\parts\document.py:114 in │
+│ save │
+│ │
+│ 111 │ def save(self, path_or_stream: str | IO[bytes]): │
+│ 112 │ │ """Save this document to `path_or_stream`, which can be either a path to a │
+│ 113 │ │ filesystem location (a string) or a file-like object.""" │
+│ ❱ 114 │ │ self.package.save(path_or_stream) │
+│ 115 │  │
+│ 116 │ @property │
+│ 117 │ def settings(self) -> Settings: │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ path_or_stream = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ self = <docx.parts.document.DocumentPart object at 0x0000019E8D46BEF0> │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\docx\opc\package.py:166 in save │
+│ │
+│ 163 │ │ """ │
+│ 164 │ │ for part in self.parts: │
+│ 165 │ │ │ part.before_marshal() │
+│ ❱ 166 │ │ PackageWriter.write(pkg_file, self.rels, self.parts) │
+│ 167 │  │
+│ 168 │ @property │
+│ 169 │ def _core_properties_part(self) -> CorePropertiesPart: │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ part = <docx.opc.part.Part object at 0x0000019E8CC50260> │ │
+│ │ pkg_file = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ self = <docx.package.Package object at 0x0000019E8CF51340> │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\docx\opc\pkgwriter.py:34 in │
+│ write │
+│ │
+│  31 │ def write(pkg_file, pkg_rels, parts): │
+│  32 │ │ """Write a physical package (.pptx file) to `pkg_file` containing `pkg_rels` and │
+│  33 │ │ `parts` and a content types stream based on the content types of the parts.""" │
+│ ❱  34 │ │ phys_writer = PhysPkgWriter(pkg_file) │
+│  35 │ │ PackageWriter._write_content_types_stream(phys_writer, parts) │
+│  36 │ │ PackageWriter._write_pkg_rels(phys_writer, pkg_rels) │
+│  37 │ │ PackageWriter._write_parts(phys_writer, parts) │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ parts = [ │ │
+│ │ │ <docx.opc.parts.coreprops.CorePropertiesPart object at 0x0000019E8D3CD400>, │ │
+│ │ │ <docx.opc.part.Part object at 0x0000019E8D46AD50>, │ │
+│ │ │ <docx.parts.document.DocumentPart object at 0x0000019E8D46BEF0>, │ │
+│ │ │ <docx.parts.styles.StylesPart object at 0x0000019E9BB8C0E0>, │ │
+│ │ │ <docx.opc.part.Part object at 0x0000019E8D400530>, │ │
+│ │ │ <docx.parts.settings.SettingsPart object at 0x0000019E8D4002C0>, │ │
+│ │ │ <docx.opc.part.Part object at 0x0000019E8D400950>, │ │
+│ │ │ <docx.opc.part.Part object at 0x0000019E8D402720>, │ │
+│ │ │ <docx.opc.part.Part object at 0x0000019E8D4013A0>, │ │
+│ │ │ <docx.opc.part.Part object at 0x0000019E8D400B00>, │ │
+│ │ │ ... +9 │ │
+│ │ ] │ │
+│ │ pkg_file = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ pkg_rels = { │ │
+│ │ │ 'rId3': <docx.opc.rel._Relationship object at 0x0000019E9BF8F800>, │ │
+│ │ │ 'rId4': <docx.opc.rel._Relationship object at 0x0000019E8D400470>, │ │
+│ │ │ 'rId1': <docx.opc.rel._Relationship object at 0x0000019E8D402D20>, │ │
+│ │ │ 'rId2': <docx.opc.rel._Relationship object at 0x0000019E8D400D70> │ │
+│ │ } │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\docx\opc\phys_pkg.py:109 in │
+│ __init__ │
+│ │
+│ 106 │  │
+│ 107 │ def __init__(self, pkg_file): │
+│ 108 │ │ super(_ZipPkgWriter, self).__init__() │
+│ ❱ 109 │ │ self._zipf = ZipFile(pkg_file, "w", compression=ZIP_DEFLATED) │
+│ 110 │  │
+│ 111 │ def close(self): │
+│ 112 │ │ """Close the zip archive, flushing any pending physical writes and releasing any │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ pkg_file = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ self = <docx.opc.phys_pkg._ZipPkgWriter object at 0x0000019E8D473CE0> │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Program Files\Python312\Lib\zipfile\__init__.py:1336 in __init__ │
+│ │
+│ 1333 │ │ │ filemode = modeDict[mode] │
+│ 1334 │ │ │ while True: │
+│ 1335 │ │ │ │ try: │
+│ ❱ 1336 │ │ │ │ │ self.fp = io.open(file, filemode) │
+│ 1337 │ │ │ │ except OSError: │
+│ 1338 │ │ │ │ │ if filemode in modeDict: │
+│ 1339 │ │ │ │ │ │ filemode = modeDict[filemode] │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ allowZip64 = True │ │
+│ │ compression = 8 │ │
+│ │ compresslevel = None │ │
+│ │ file = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ filemode = 'wb' │ │
+│ │ metadata_encoding = None │ │
+│ │ mode = 'w' │ │
+│ │ modeDict = { │ │
+│ │ │ 'r': 'rb', │ │
+│ │ │ 'w': 'w+b', │ │
+│ │ │ 'x': 'x+b', │ │
+│ │ │ 'a': 'r+b', │ │
+│ │ │ 'r+b': 'w+b', │ │
+│ │ │ 'w+b': 'wb', │ │
+│ │ │ 'x+b': 'xb' │ │
+│ │ } │ │
+│ │ self = <zipfile.ZipFile [closed]> │ │
+│ │ strict_timestamps = True │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+PermissionError: [Errno 13] Permission denied: 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb
+(44)_results\\aquarium_0\\4_Relatorio_Zeb (44)_aq0.docx'
+
+2025-12-22 11:59:31 [info ] workflow.reports.multi_aquarium.generated [zebtrack.coordinators.processing_coordinator] aquarium_id=0 report_path='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44)_results\\aquarium_0\\4_Relatorio_Zeb (44)_aq0.docx' video='Zeb (44)'
+2025-12-22 11:59:31 [warning ] trajectory_validator.validation_warnings [zebtrack.analysis.trajectory_validator] stats={'temporal_gaps': {'count': 517, 'max_gap_frames': 120, 'avg_gap_frames': 6.924564796905223}, 'arena_violations': {'count': 440, 'percentage': 84.94208494208495}, 'total_frames': 518, 'unique_tracks': 1, 'frame_range': {'min': 15, 'max': 3595, 'span': 3581}, 'temporal_coverage': 0.14465233175090758} warnings=['Found 517 temporal gaps (frames missing). Max gap: 120 frames, Avg gap: 6.9 frames', 'Found 440 frames with positions outside arena (84.9% of trajectory). This may indicate tracking errors or incorrect calibration.']
+2025-12-22 11:59:31 [warning ] analysis_service.trajectory_validation_warnings [zebtrack.analysis.analysis_service] stats={'temporal_gaps': {'count': 517, 'max_gap_frames': 120, 'avg_gap_frames': 6.924564796905223}, 'arena_violations': {'count': 440, 'percentage': 84.94208494208495}, 'total_frames': 518, 'unique_tracks': 1, 'frame_range': {'min': 15, 'max': 3595, 'span': 3581}, 'temporal_coverage': 0.14465233175090758} warnings=['Found 517 temporal gaps (frames missing). Max gap: 120 frames, Avg gap: 6.9 frames', 'Found 440 frames with positions outside arena (84.9% of trajectory). This may indicate tracking errors or incorrect calibration.']
+2025-12-22 11:59:32 [info ] reporter.plots.parallel_generation.start [zebtrack.analysis.reporter] count=5
+2025-12-22 11:59:35 [info ] reporter.individual_report.saved [zebtrack.analysis.reporter] path='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44)_results\\aquarium_1\\4_Relatorio_Zeb (44)_aq1.docx'
+2025-12-22 11:59:35 [info ] workflow.reports.multi_aquarium.generated [zebtrack.coordinators.processing_coordinator] aquarium_id=1 report_path='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44)_results\\aquarium_1\\4_Relatorio_Zeb (44)_aq1.docx' video='Zeb (44)'
+2025-12-22 11:59:35 [info ] workflow.sequential_multi.aquarium_output_stored [zebtrack.coordinators.processing_coordinator] aquarium_id=1 results_dir='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44)_results\\aquarium_1' trajectory_exists=True
+2025-12-22 11:59:36 [info ] workflow.sequential_multi.complete [zebtrack.coordinators.processing_coordinator] total_aquariums=2
+2025-12-22 11:59:36 [info ] project.multi_aquarium.outputs_registered [zebtrack.core.project_manager] aquarium_count=2 video='Zeb (44).mp4'
+2025-12-22 11:59:36 [info ] workflow.sequential_multi.outputs_registered [zebtrack.coordinators.processing_coordinator] aquarium_count=2 video='Zeb (44).mp4'
+2025-12-22 11:59:36 [info ] workflow.reports.start [zebtrack.coordinators.processing_coordinator] count=1
+2025-12-22 11:59:36 [warning ] processing_coordinator.no_project_rois_found [zebtrack.coordinators.processing_coordinator]
+2025-12-22 11:59:36 [warning ] trajectory_validator.validation_warnings [zebtrack.analysis.trajectory_validator] stats={'temporal_gaps': {'count': 662, 'max_gap_frames': 70, 'avg_gap_frames': 5.430513595166163}, 'total_frames': 663, 'unique_tracks': 1, 'frame_range': {'min': 0, 'max': 3595, 'span': 3596}, 'temporal_coverage': 0.18437152391546163} warnings=['Found 662 temporal gaps (frames missing). Max gap: 70 frames, Avg gap: 5.4 frames']
+2025-12-22 11:59:36 [warning ] analysis_service.trajectory_validation_warnings [zebtrack.analysis.analysis_service] stats={'temporal_gaps': {'count': 662, 'max_gap_frames': 70, 'avg_gap_frames': 5.430513595166163}, 'total_frames': 663, 'unique_tracks': 1, 'frame_range': {'min': 0, 'max': 3595, 'span': 3596}, 'temporal_coverage': 0.18437152391546163} warnings=['Found 662 temporal gaps (frames missing). Max gap: 70 frames, Avg gap: 5.4 frames']
+2025-12-22 11:59:36 [warning ] trajectory_validator.validation_warnings [zebtrack.analysis.trajectory_validator] stats={'temporal_gaps': {'count': 517, 'max_gap_frames': 120, 'avg_gap_frames': 6.924564796905223}, 'total_frames': 518, 'unique_tracks': 1, 'frame_range': {'min': 15, 'max': 3595, 'span': 3581}, 'temporal_coverage': 0.14465233175090758} warnings=['Found 517 temporal gaps (frames missing). Max gap: 120 frames, Avg gap: 6.9 frames']
+2025-12-22 11:59:36 [warning ] analysis_service.trajectory_validation_warnings [zebtrack.analysis.analysis_service] stats={'temporal_gaps': {'count': 517, 'max_gap_frames': 120, 'avg_gap_frames': 6.924564796905223}, 'total_frames': 518, 'unique_tracks': 1, 'frame_range': {'min': 15, 'max': 3595, 'span': 3581}, 'temporal_coverage': 0.14465233175090758} warnings=['Found 517 temporal gaps (frames missing). Max gap: 120 frames, Avg gap: 6.9 frames']
+2025-12-22 11:59:36 [info ] workflow.reports.multi_aquarium.start [zebtrack.coordinators.processing_coordinator] aquarium_count=2 video='Zeb (44)'
+2025-12-22 11:59:36 [info ] workflow.reports.multi_aquarium.calibration_params [zebtrack.coordinators.processing_coordinator] pixelcm_x=15.0 pixelcm_y=15.0 video_height_px=450
+2025-12-22 11:59:36 [warning ] trajectory_validator.validation_warnings [zebtrack.analysis.trajectory_validator] stats={'temporal_gaps': {'count': 662, 'max_gap_frames': 70, 'avg_gap_frames': 5.430513595166163}, 'arena_violations': {'count': 345, 'percentage': 52.036199095022624}, 'total_frames': 663, 'unique_tracks': 1, 'frame_range': {'min': 0, 'max': 3595, 'span': 3596}, 'temporal_coverage': 0.18437152391546163} warnings=['Found 662 temporal gaps (frames missing). Max gap: 70 frames, Avg gap: 5.4 frames', 'Found 345 frames with positions outside arena (52.0% of trajectory). This may indicate tracking errors or incorrect calibration.']
+2025-12-22 11:59:36 [warning ] analysis_service.trajectory_validation_warnings [zebtrack.analysis.analysis_service] stats={'temporal_gaps': {'count': 662, 'max_gap_frames': 70, 'avg_gap_frames': 5.430513595166163}, 'arena_violations': {'count': 345, 'percentage': 52.036199095022624}, 'total_frames': 663, 'unique_tracks': 1, 'frame_range': {'min': 0, 'max': 3595, 'span': 3596}, 'temporal_coverage': 0.18437152391546163} warnings=['Found 662 temporal gaps (frames missing). Max gap: 70 frames, Avg gap: 5.4 frames', 'Found 345 frames with positions outside arena (52.0% of trajectory). This may indicate tracking errors or incorrect calibration.']
+2025-12-22 11:59:36 [info ] reporter.plots.parallel_generation.start [zebtrack.analysis.reporter] count=5
+2025-12-22 11:59:39 [error ] reporter.individual_report.save_failed [zebtrack.analysis.reporter] error="[Errno 13] Permission denied: 'C:\\\\Users\\\\santa\\\\OneDrive\\\\Desktop\\\\Gu\\\\Zeb (44)_results\\\\aquarium_0\\\\4_Relatorio_Zeb (44)_aq0.docx'"
+╭─────────────────────────────── Traceback (most recent call last) ────────────────────────────────╮
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\analysis\reporter.py:442 in │
+│ export_individual_report_step_by_step │
+│ │
+│  439 │ │ │ ) │
+│  440 │ │ │ if doc_template is not None: │
+│  441 │ │ │ │ # DocxTemplate saves via .save() │
+│ ❱  442 │ │ │ │ doc_template.save(file_path) │
+│  443 │ │ │ else: │
+│  444 │ │ │ │ document.save(file_path) │
+│  445 │ │ │ progress_callback(1.0, _("Report saved")) │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ doc_template = <docxtpl.template.DocxTemplate object at 0x0000019E9C70D430> │ │
+│ │ document = <docx.document.Document object at 0x0000019E9C635C40> │ │
+│ │ e = PermissionError(13, 'Permission denied') │ │
+│ │ file_path = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ heading_text = 'Relatório de Análise - Unknown' │ │
+│ │ output_path = WindowsPath('C:/Users/santa/OneDrive/Desktop/Gu/Zeb  │ │
+│ │ (44)_results/aquarium_0/4_Relatorio_Zeb (44)_aq0.docx') │ │
+│ │ self = <zebtrack.analysis.reporter.Reporter object at 0x0000019E9C6863F0> │ │
+│ │ template_path = WindowsPath('C:/Users/santa/OneDrive/UNESP/Pesquisa  │ │
+│ │ Canabidiol/Codigos_Programas/ZebTrack-AI/src/zebtrack/templates/individual_… │ │
+│ │ total_steps = 10 │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\docxtpl\template.py:753 in save │
+│ │
+│ 750 │ │ if not self.is_saved and not self.is_rendered: │
+│ 751 │ │ │ self.docx = Document(self.template_file) │
+│ 752 │ │ self.pre_processing() │
+│ ❱ 753 │ │ self.docx.save(filename, *args, **kwargs) │
+│ 754 │ │ self.post_processing(filename) │
+│ 755 │ │ self.is_saved = True │
+│ 756  │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ args = () │ │
+│ │ filename = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ kwargs = {} │ │
+│ │ self = <docxtpl.template.DocxTemplate object at 0x0000019E9C70D430> │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\docx\document.py:204 in save │
+│ │
+│ 201 │ │ `path_or_stream` can be either a path to a filesystem location (a string) or a │
+│ 202 │ │ file-like object. │
+│ 203 │ │ """ │
+│ ❱ 204 │ │ self._part.save(path_or_stream) │
+│ 205 │  │
+│ 206 │ @property │
+│ 207 │ def sections(self) -> Sections: │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ path_or_stream = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ self = <docx.document.Document object at 0x0000019E9C635C40> │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\docx\parts\document.py:114 in │
+│ save │
+│ │
+│ 111 │ def save(self, path_or_stream: str | IO[bytes]): │
+│ 112 │ │ """Save this document to `path_or_stream`, which can be either a path to a │
+│ 113 │ │ filesystem location (a string) or a file-like object.""" │
+│ ❱ 114 │ │ self.package.save(path_or_stream) │
+│ 115 │  │
+│ 116 │ @property │
+│ 117 │ def settings(self) -> Settings: │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ path_or_stream = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ self = <docx.parts.document.DocumentPart object at 0x0000019E9C772BA0> │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\docx\opc\package.py:166 in save │
+│ │
+│ 163 │ │ """ │
+│ 164 │ │ for part in self.parts: │
+│ 165 │ │ │ part.before_marshal() │
+│ ❱ 166 │ │ PackageWriter.write(pkg_file, self.rels, self.parts) │
+│ 167 │  │
+│ 168 │ @property │
+│ 169 │ def _core_properties_part(self) -> CorePropertiesPart: │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ part = <docx.opc.part.Part object at 0x0000019E9CA56870> │ │
+│ │ pkg_file = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ self = <docx.package.Package object at 0x0000019E9CA3B7A0> │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\docx\opc\pkgwriter.py:34 in │
+│ write │
+│ │
+│  31 │ def write(pkg_file, pkg_rels, parts): │
+│  32 │ │ """Write a physical package (.pptx file) to `pkg_file` containing `pkg_rels` and │
+│  33 │ │ `parts` and a content types stream based on the content types of the parts.""" │
+│ ❱  34 │ │ phys_writer = PhysPkgWriter(pkg_file) │
+│  35 │ │ PackageWriter._write_content_types_stream(phys_writer, parts) │
+│  36 │ │ PackageWriter._write_pkg_rels(phys_writer, pkg_rels) │
+│  37 │ │ PackageWriter._write_parts(phys_writer, parts) │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ parts = [ │ │
+│ │ │ <docx.opc.parts.coreprops.CorePropertiesPart object at 0x0000019E9C100230>, │ │
+│ │ │ <docx.opc.part.Part object at 0x0000019E9C772C60>, │ │
+│ │ │ <docx.parts.document.DocumentPart object at 0x0000019E9C772BA0>, │ │
+│ │ │ <docx.parts.styles.StylesPart object at 0x0000019E9C65A1B0>, │ │
+│ │ │ <docx.opc.part.Part object at 0x0000019E9C100770>, │ │
+│ │ │ <docx.parts.settings.SettingsPart object at 0x0000019E9C1000E0>, │ │
+│ │ │ <docx.opc.part.Part object at 0x0000019E9CA57B90>, │ │
+│ │ │ <docx.opc.part.Part object at 0x0000019E9CA55D30>, │ │
+│ │ │ <docx.opc.part.Part object at 0x0000019E9CA57950>, │ │
+│ │ │ <docx.opc.part.Part object at 0x0000019E9CA54E60>, │ │
+│ │ │ ... +9 │ │
+│ │ ] │ │
+│ │ pkg_file = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ pkg_rels = { │ │
+│ │ │ 'rId3': <docx.opc.rel._Relationship object at 0x0000019E9C79F800>, │ │
+│ │ │ 'rId4': <docx.opc.rel._Relationship object at 0x0000019E9CA561B0>, │ │
+│ │ │ 'rId1': <docx.opc.rel._Relationship object at 0x0000019E9CA56AE0>, │ │
+│ │ │ 'rId2': <docx.opc.rel._Relationship object at 0x0000019E9CA547A0> │ │
+│ │ } │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Users\santa\OneDrive\UNESP\Pesquisa │
+│ Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\docx\opc\phys_pkg.py:109 in │
+│ __init__ │
+│ │
+│ 106 │  │
+│ 107 │ def __init__(self, pkg_file): │
+│ 108 │ │ super(_ZipPkgWriter, self).__init__() │
+│ ❱ 109 │ │ self._zipf = ZipFile(pkg_file, "w", compression=ZIP_DEFLATED) │
+│ 110 │  │
+│ 111 │ def close(self): │
+│ 112 │ │ """Close the zip archive, flushing any pending physical writes and releasing any │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ pkg_file = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ self = <docx.opc.phys_pkg._ZipPkgWriter object at 0x0000019E9C7540E0> │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ │
+│ C:\Program Files\Python312\Lib\zipfile\__init__.py:1336 in __init__ │
+│ │
+│ 1333 │ │ │ filemode = modeDict[mode] │
+│ 1334 │ │ │ while True: │
+│ 1335 │ │ │ │ try: │
+│ ❱ 1336 │ │ │ │ │ self.fp = io.open(file, filemode) │
+│ 1337 │ │ │ │ except OSError: │
+│ 1338 │ │ │ │ │ if filemode in modeDict: │
+│ 1339 │ │ │ │ │ │ filemode = modeDict[filemode] │
+│ │
+│ ╭─────────────────────────────────────────── locals ───────────────────────────────────────────╮ │
+│ │ allowZip64 = True │ │
+│ │ compression = 8 │ │
+│ │ compresslevel = None │ │
+│ │ file = 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb  │ │
+│ │ (44)_results\\aquarium_0\\4_Relatorio_Zeb ('+12 │ │
+│ │ filemode = 'wb' │ │
+│ │ metadata_encoding = None │ │
+│ │ mode = 'w' │ │
+│ │ modeDict = { │ │
+│ │ │ 'r': 'rb', │ │
+│ │ │ 'w': 'w+b', │ │
+│ │ │ 'x': 'x+b', │ │
+│ │ │ 'a': 'r+b', │ │
+│ │ │ 'r+b': 'w+b', │ │
+│ │ │ 'w+b': 'wb', │ │
+│ │ │ 'x+b': 'xb' │ │
+│ │ } │ │
+│ │ self = <zipfile.ZipFile [closed]> │ │
+│ │ strict_timestamps = True │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────╯ │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+PermissionError: [Errno 13] Permission denied: 'C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb
+(44)_results\\aquarium_0\\4_Relatorio_Zeb (44)_aq0.docx'
+
+2025-12-22 11:59:40 [info ] workflow.reports.multi_aquarium.generated [zebtrack.coordinators.processing_coordinator] aquarium_id=0 report_path='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44)_results\\aquarium_0\\4_Relatorio_Zeb (44)_aq0.docx' video='Zeb (44)'
+2025-12-22 11:59:40 [warning ] trajectory_validator.validation_warnings [zebtrack.analysis.trajectory_validator] stats={'temporal_gaps': {'count': 517, 'max_gap_frames': 120, 'avg_gap_frames': 6.924564796905223}, 'arena_violations': {'count': 440, 'percentage': 84.94208494208495}, 'total_frames': 518, 'unique_tracks': 1, 'frame_range': {'min': 15, 'max': 3595, 'span': 3581}, 'temporal_coverage': 0.14465233175090758} warnings=['Found 517 temporal gaps (frames missing). Max gap: 120 frames, Avg gap: 6.9 frames', 'Found 440 frames with positions outside arena (84.9% of trajectory). This may indicate tracking errors or incorrect calibration.']
+2025-12-22 11:59:40 [warning ] analysis_service.trajectory_validation_warnings [zebtrack.analysis.analysis_service] stats={'temporal_gaps': {'count': 517, 'max_gap_frames': 120, 'avg_gap_frames': 6.924564796905223}, 'arena_violations': {'count': 440, 'percentage': 84.94208494208495}, 'total_frames': 518, 'unique_tracks': 1, 'frame_range': {'min': 15, 'max': 3595, 'span': 3581}, 'temporal_coverage': 0.14465233175090758} warnings=['Found 517 temporal gaps (frames missing). Max gap: 120 frames, Avg gap: 6.9 frames', 'Found 440 frames with positions outside arena (84.9% of trajectory). This may indicate tracking errors or incorrect calibration.']
+2025-12-22 11:59:40 [info ] reporter.plots.parallel_generation.start [zebtrack.analysis.reporter] count=5
+2025-12-22 11:59:43 [info ] reporter.individual_report.saved [zebtrack.analysis.reporter] path='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44)_results\\aquarium_1\\4_Relatorio_Zeb (44)_aq1.docx'
+2025-12-22 11:59:43 [info ] workflow.reports.multi_aquarium.generated [zebtrack.coordinators.processing_coordinator] aquarium_id=1 report_path='C:\\Users\\santa\\OneDrive\\Desktop\\Gu\\Zeb (44)_results\\aquarium_1\\4_Relatorio_Zeb (44)_aq1.docx' video='Zeb (44)'

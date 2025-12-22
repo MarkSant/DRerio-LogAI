@@ -309,10 +309,17 @@ class VisualizationGenerator:
         ax.set_title(f"Trajectory - {self.metadata.get('experiment_id', 'Unknown')}")
         ax.set_xlabel("Position (cm)")
         ax.set_ylabel("Position (cm)")
-        ax.set_xlim(min_x - 1, max_x + 1)
+        
+        # Add 5% margin to prevent clipping
+        width = max_x - min_x
+        height = max_y - min_y
+        margin_x = width * 0.05
+        margin_y = height * 0.05
+        
+        ax.set_xlim(min_x - margin_x, max_x + margin_x)
         # Standard Cartesian Y-axis (min at bottom, max at top)
         # Image is aligned to this: Top (Row 0) at max_y, Bottom (Row H) at 0
-        ax.set_ylim(min_y - 1, max_y + 1)
+        ax.set_ylim(min_y - margin_y, max_y + margin_y)
         ax.set_aspect("equal", adjustable="box")
         return fig
 
@@ -355,19 +362,33 @@ class VisualizationGenerator:
         ax.set_title(f"Heatmap - {self.metadata.get('experiment_id', 'Unknown')}")
         ax.set_xlabel("Position (cm)")
         ax.set_ylabel("Position (cm)")
-        ax.set_xlim(min_x - 1, max_x + 1)
-        ax.set_ylim(min_y - 1, max_y + 1)
+        
+        # Add 5% margin
+        width = max_x - min_x
+        height = max_y - min_y
+        margin_x = width * 0.05
+        margin_y = height * 0.05
+        
+        ax.set_xlim(min_x - margin_x, max_x + margin_x)
+        ax.set_ylim(min_y - margin_y, max_y + margin_y)
         ax.set_aspect("equal", adjustable="box")
         existing_artists = getattr(fig, "artists", [])
         if not any(isinstance(artist, Colorbar) for artist in existing_artists):
             fig.colorbar(im, ax=ax, label="Occupancy Density")
         return fig
 
-    def generate_roi_reference_plot(self, ax: Axes | None = None) -> Figure:
-        """Generate ROI reference map showing all defined ROIs.
+    def generate_roi_reference_plot(
+        self,
+        ax: Axes | None = None,
+        video_path: str | None = None,
+        calibration=None,
+    ) -> Figure:
+        """Generate ROI reference map showing arena and ROIs with optional video background.
 
         Args:
             ax: Matplotlib Axes to plot on (optional, creates new if None)
+            video_path: Path to video file for background frame (optional)
+            calibration: Calibration object for warping background frame (optional)
 
         Returns:
             matplotlib.figure.Figure: Generated figure
@@ -398,12 +419,73 @@ class VisualizationGenerator:
                 )
             return geometry
 
+        # ==================================================================
+        # NEW: Add video background if video_path is provided
+        # ==================================================================
+        if video_path and Path(video_path).exists():
+            cap = None
+            try:
+                cap = cv2.VideoCapture(str(video_path))
+                ret, frame = cap.read()
+                if ret:
+                    # Apply warp if calibration is available
+                    if calibration and hasattr(calibration, "warp_frame"):
+                        frame = calibration.warp_frame(frame)
+
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    frame_rgb = cv2.flip(frame_rgb, 0)  # Invert Y for Cartesian
+
+                    # Calculate extent using same logic as trajectory plot
+                    video_height_for_transform = video_height_px
+                    frame_height_px = frame.shape[0]
+                    frame_width_px = frame.shape[1]
+
+                    y_bottom = (video_height_for_transform - frame_height_px) / px_per_cm_y
+                    y_top = video_height_for_transform / px_per_cm_y
+                    frame_extent = (
+                        0.0,
+                        frame_width_px / px_per_cm_x,
+                        y_bottom,
+                        y_top,
+                    )
+                    ax.imshow(
+                        frame_rgb,
+                        extent=frame_extent,
+                        origin="lower",
+                        aspect="auto",
+                        alpha=0.4,  # Semi-transparent to highlight overlays
+                    )
+                    log.debug(
+                        "roi_reference.background_added",
+                        video_path=str(video_path),
+                        frame_shape=frame.shape,
+                        extent=frame_extent,
+                    )
+            except Exception as e:
+                log.warning(
+                    "roi_reference.background_failed",
+                    video_path=str(video_path),
+                    error=str(e),
+                )
+            finally:
+                if cap is not None and cap.isOpened():
+                    cap.release()
+
         ax.set_facecolor("lightgray")
+
+        # Arena polygon is ALWAYS drawn (even without ROIs)
         ax.add_patch(
-            patches.Polygon(arena_poly_cm.exterior.coords, fill=False, edgecolor="black", lw=2)
+            patches.Polygon(
+                arena_poly_cm.exterior.coords,
+                fill=False,
+                edgecolor="blue",
+                linewidth=2.5,
+                linestyle="-",
+                label="Arena",
+            )
         )
 
-        if self.r_analyzer:
+        if self.r_analyzer and self.r_analyzer.rois:
             for i, (roi_name, roi) in enumerate(self.r_analyzer.rois.items()):
                 roi_geom_cm = _geometry_to_cm(roi)
                 if roi_geom_cm is None or roi_geom_cm.is_empty:
@@ -453,21 +535,32 @@ class VisualizationGenerator:
                     ),
                 )
         else:
+            # No ROIs - show informative message but still display arena
             ax.text(
                 0.5,
-                0.5,
-                "No ROIs defined for this analysis.",
+                0.95,
+                "Área de processamento (sem ROIs definidas)",
                 ha="center",
-                va="center",
+                va="top",
                 transform=ax.transAxes,
+                fontsize=10,
+                style="italic",
+                bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
             )
 
         title = f"ROI Reference Map - {self.metadata.get('experiment_id', 'Unknown')}"
         ax.set_title(title)
         ax.set_xlabel("Position (cm)")
         ax.set_ylabel("Position (cm)")
-        ax.set_xlim(min_x - 1, max_x + 1)
-        ax.set_ylim(min_y - 1, max_y + 1)
+
+        # Add 5% margin
+        width = max_x - min_x
+        height = max_y - min_y
+        margin_x = width * 0.05
+        margin_y = height * 0.05
+
+        ax.set_xlim(min_x - margin_x, max_x + margin_x)
+        ax.set_ylim(min_y - margin_y, max_y + margin_y)
         ax.set_aspect("equal", adjustable="box")
         return fig
 

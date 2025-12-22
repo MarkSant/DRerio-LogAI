@@ -30,6 +30,7 @@ import pandas as pd
 import structlog
 from shapely.geometry import Polygon
 
+from zebtrack.analysis.data_transformer import DataTransformer
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
@@ -535,12 +536,19 @@ class ProcessingCoordinator(BaseCoordinator):
                     {"detections": detections, "report": processing_info},
                 )
 
+        total_videos = len(videos_to_process)
+
         def on_video_completed(index: int, total: int, experiment_id: str, success: bool):
             """Call when a single video completes tracking.
 
             Registers the trajectory output with the project manager so that
             has_trajectory flag is set and the UI displays the correct status.
             """
+            # In sequential multi-aquarium mode, we handle registration and reporting
+            # in the on_sequential_complete callback to ensure correct structure.
+            if hasattr(self, "_sequential_context") and self._sequential_context:
+                return
+
             log.info(
                 "controller.video_completed",
                 index=index,
@@ -576,10 +584,13 @@ class ProcessingCoordinator(BaseCoordinator):
             else:
                 video_name = os.path.splitext(os.path.basename(video_path))[0]
                 results_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_results")
-            trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
+            trajectory_path = os.path.join(
+                results_dir, f"3_CoordMovimento_{experiment_id}.parquet"
+            )
+            trajectory_exists = os.path.exists(trajectory_path)
 
             # Register the trajectory output with the project manager
-            if os.path.exists(trajectory_path):
+            if trajectory_exists:
                 self.project_manager.register_processing_outputs(
                     video_path=video_path,
                     results_dir=results_dir,
@@ -590,11 +601,12 @@ class ProcessingCoordinator(BaseCoordinator):
                     experiment_id=experiment_id,
                     trajectory_path=trajectory_path,
                 )
-
-                # Refresh UI to update status cards
-                # Note: We do NOT immediately generate summaries or reports here
-                # That is done in the "Group 4: Finalize" step of the batch processing loop
-                # This keeps the worker thread responsive
+            else:
+                log.warning(
+                    "controller.video_completed.trajectory_not_found",
+                    experiment_id=experiment_id,
+                    expected_path=trajectory_path,
+                )
 
             # Check for multi-aquarium outputs
             is_multi_aquarium = False
@@ -646,12 +658,26 @@ class ProcessingCoordinator(BaseCoordinator):
                     self.generate_project_reports([video_path])
                 except Exception as e:
                     log.error("controller.video_completed.report_failed", error=str(e))
-            else:
-                log.warning(
-                    "controller.video_completed.trajectory_not_found",
-                    experiment_id=experiment_id,
-                    expected_path=trajectory_path,
-                )
+            elif trajectory_exists and total_videos <= 1:
+                # SKIP automatic reporting if in the middle of a sequential multi-aquarium flow
+                # We will trigger reporting manually after ALL aquariums are done.
+                if hasattr(self, "_sequential_context") and self._sequential_context:
+                    log.info(
+                        "controller.video_completed.skip_sequential_report",
+                        experiment_id=experiment_id,
+                        reason="sequential_mode_active"
+                    )
+                    return
+
+                # Single-video flow: generate reports immediately when trajectory is ready
+                try:
+                    self.generate_project_reports([video_path])
+                except Exception as e:
+                    log.error(
+                        "controller.video_completed.report_failed_single",
+                        video=experiment_id,
+                        error=str(e),
+                    )
 
         def on_error(error: Exception, context: str):
             """Call when an error occurs."""
@@ -816,6 +842,50 @@ class ProcessingCoordinator(BaseCoordinator):
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
         log.info("workflow.single_video.processing_start", video=str(video_path))
 
+        # Check for sequential multi-aquarium processing mode
+        is_multi_aquarium = hasattr(zone_data, "aquariums")
+        use_sequential = (
+            is_multi_aquarium
+            and getattr(zone_data, "sequential_processing", False)
+        )
+
+        if use_sequential:
+            log.info(
+                "workflow.sequential_multi.detected",
+                video=str(video_path),
+                aquarium_count=len(zone_data.aquariums),
+            )
+            self._start_sequential_multi_aquarium_processing(
+                video_path, config, zone_data
+            )
+            return
+
+        # Extract calibration parameters provided in the single-video dialog
+        width_cm = None
+        height_cm = None
+        num_aquariums = 1
+        
+        if isinstance(config, dict):
+            # Extract num_aquariums
+            try:
+                num_aquariums = int(config.get("num_aquariums", 1))
+                # Update global settings
+                self.settings.analysis_config.num_aquariums = num_aquariums
+            except (TypeError, ValueError):
+                pass
+
+            try:
+                raw_width = config.get("aquarium_width_cm")
+                width_cm = float(raw_width) if raw_width not in (None, "") else None
+            except (TypeError, ValueError):
+                width_cm = None
+
+            try:
+                raw_height = config.get("aquarium_height_cm")
+                height_cm = float(raw_height) if raw_height not in (None, "") else None
+            except (TypeError, ValueError):
+                height_cm = None
+
         # Validate processing can start
         validation_result = self.validate_can_start_processing(
             check_project_loaded=False,
@@ -838,12 +908,69 @@ class ProcessingCoordinator(BaseCoordinator):
 
         self.project_manager.set_active_zone_video(video_path)
 
+        # Apply multi-aquarium configuration if needed
+        if num_aquariums > 1:
+            log.info("workflow.single_video.setup_multi_aquarium", count=num_aquariums)
+            
+            # Check if we need to initialize MultiAquariumZoneData
+            current_zones = self.project_manager.get_multi_aquarium_zone_data(video_path)
+            if not current_zones:
+                from zebtrack.core.detector import MultiAquariumZoneData, AquariumData
+                
+                # Create default aquariums
+                aquariums = [AquariumData(id=i) for i in range(num_aquariums)]
+                new_multi = MultiAquariumZoneData(aquariums=aquariums)
+                
+                # Persist (using safe save logic)
+                should_persist = bool(self.project_manager.project_path)
+                self.project_manager.save_multi_aquarium_zone_data(
+                    video_path, new_multi, persist=should_persist
+                )
+                zone_data = new_multi # Update local ref
+            
+            # Update UI controls
+            if self.view and hasattr(self.view, "zone_controls"):
+                self.view.zone_controls.update_aquarium_count(num_aquariums)
+                self.view.zone_controls.set_active_aquarium(0)
+        else:
+            # Ensure UI is in single mode
+            if self.view and hasattr(self.view, "zone_controls"):
+                self.view.zone_controls.update_aquarium_count(1)
+
+        # Persist calibration into project state for report generation (option A)
+        if width_cm and height_cm:
+            calib = self.project_manager.project_data.get("calibration") or {}
+            calib.setdefault("num_aquariums", calib.get("num_aquariums", 1))
+            calib.setdefault("animals_per_aquarium", calib.get("animals_per_aquarium", 1))
+            calib.update(
+                {
+                    "aquarium_width_cm": width_cm,
+                    "aquarium_height_cm": height_cm,
+                }
+            )
+            self.project_manager.project_data["calibration"] = calib
+
+            if self.project_manager.project_path:
+                self.project_manager.save_project()
+
+            log.info(
+                "workflow.single_video.calibration_saved",
+                width_cm=width_cm,
+                height_cm=height_cm,
+                persisted=bool(self.project_manager.project_path),
+            )
+
         # Register the single video in project_manager
         video_entry = self.project_manager.find_video_entry(path=video_path)
         if not video_entry:
             log.info("workflow.single_video.registering_video", video=str(video_path))
 
             metadata = self._extract_metadata_from_config(config)
+            if width_cm:
+                metadata.setdefault("aquarium_width_cm", width_cm)
+            if height_cm:
+                metadata.setdefault("aquarium_height_cm", height_cm)
+
             video_name = os.path.splitext(os.path.basename(str(video_path)))[0]
             # Determine arena/ROI presence based on zone data type
             has_arena = False
@@ -852,11 +979,11 @@ class ProcessingCoordinator(BaseCoordinator):
             if zone_data:
                 # Check for MultiAquariumZoneData by attribute presence or type name to avoid imports
                 if hasattr(zone_data, "aquariums"):
-                     has_arena = bool(zone_data.aquariums)
-                     has_rois = any(bool(aq.roi_polygons) for aq in zone_data.aquariums)
+                    has_arena = bool(zone_data.aquariums)
+                    has_rois = any(bool(aq.roi_polygons) for aq in zone_data.aquariums)
                 else:
-                     has_arena = bool(zone_data.polygon)
-                     has_rois = bool(zone_data.roi_polygons)
+                    has_arena = bool(zone_data.polygon)
+                    has_rois = bool(zone_data.roi_polygons)
 
             video_data = {
                 "path": str(video_path),
@@ -942,6 +1069,59 @@ class ProcessingCoordinator(BaseCoordinator):
                 )
             return
         video_to_process = scanned_files[0]
+        
+        # Inject calibration metadata so Worker can calculate pixel ratio
+        if width_cm and height_cm:
+            video_to_process["aquarium_width_cm"] = width_cm
+            video_to_process["aquarium_height_cm"] = height_cm
+
+        # =====================================================================
+        # CRITICAL FIX: For PARALLEL multi-aquarium mode, create Calibration
+        # and transform polygons to WARPED space (same logic as sequential)
+        # =====================================================================
+        if is_multi_aquarium and width_cm and height_cm:
+            first_aq = zone_data.aquariums[0] if zone_data.aquariums else None
+            if first_aq and first_aq.polygon and len(first_aq.polygon) >= 3:
+                try:
+                    from zebtrack.core.calibration import Calibration
+
+                    calibration_obj = Calibration(
+                        polygon=np.array(first_aq.polygon, dtype=np.float32),
+                        real_width_cm=float(width_cm),
+                        real_height_cm=float(height_cm),
+                    )
+
+                    # Store calibration in project_data for report generation
+                    if self.project_manager.project_data is None:
+                        self.project_manager.project_data = {}
+                    
+                    calib_data = self.project_manager.project_data.get("calibration", {})
+                    calib_data.update({
+                        "pixel_per_cm_x": calibration_obj.pixel_per_cm_ratio[0],
+                        "pixel_per_cm_y": calibration_obj.pixel_per_cm_ratio[1],
+                        "video_width_px": calibration_obj.target_dims_px[0],
+                        "video_height_px": calibration_obj.target_dims_px[1],
+                        "aquarium_width_cm": float(width_cm),
+                        "aquarium_height_cm": float(height_cm),
+                    })
+                    self.project_manager.project_data["calibration"] = calib_data
+
+                    log.info(
+                        "workflow.parallel_multi.calibration_created",
+                        pixel_per_cm_x=calibration_obj.pixel_per_cm_ratio[0],
+                        pixel_per_cm_y=calibration_obj.pixel_per_cm_ratio[1],
+                        target_dims=calibration_obj.target_dims_px,
+                    )
+
+                    # NOTE: Do NOT transform polygons in place here. 
+                    # Detector needs original coordinates. 
+                    # The Recorder/Analyzer handles the coordinate transformation.
+
+                except Exception as e:
+                    log.error(
+                        "workflow.parallel_multi.calibration_failed",
+                        error=str(e),
+                    )
 
         video_name = os.path.splitext(os.path.basename(str(video_path)))[0]
         output_dir = os.path.join(os.path.dirname(str(video_path)), f"{video_name}_results")
@@ -978,6 +1158,439 @@ class ProcessingCoordinator(BaseCoordinator):
                 "Você será notificado quando terminar. Os resultados serão salvos em:\n"
                 f"{output_dir}",
             },
+        )
+
+    # =========================================================================
+    # Sequential Multi-Aquarium Processing
+    # =========================================================================
+
+    def _start_sequential_multi_aquarium_processing(
+        self,
+        video_path: Path | str,
+        config: dict,
+        multi_zone_data,
+    ) -> None:
+        """Process each aquarium sequentially (2 video passes).
+
+        Reuses single-aquarium logic for each aquarium, processing the complete
+        video for aquarium 0, then automatically starting aquarium 1.
+
+        Args:
+            video_path: Path to the video file.
+            config: Processing configuration dictionary.
+            multi_zone_data: MultiAquariumZoneData with all aquarium configurations.
+        """
+        from zebtrack.core.detector import MultiAquariumZoneData
+
+        video_path = Path(video_path) if isinstance(video_path, str) else video_path
+
+        if not isinstance(multi_zone_data, MultiAquariumZoneData):
+            log.error("workflow.sequential_multi.invalid_zone_data")
+            return
+
+        log.info(
+            "workflow.sequential_multi.start",
+            video=str(video_path),
+            aquarium_count=len(multi_zone_data.aquariums),
+        )
+
+        # Store context for chained processing
+        self._sequential_context = {
+            "video_path": video_path,
+            "config": config,
+            "multi_zone_data": multi_zone_data,
+            "current_aquarium_index": 0,
+            "total_aquariums": len(multi_zone_data.aquariums),
+            "outputs_by_aquarium": {},  # Will store outputs for each aquarium
+        }
+
+        # =====================================================================
+        # CRITICAL FIX: Create Calibration and transform polygons to WARPED space
+        # This ensures trajectory coordinates (warped by recorder) match arena coords
+        # =====================================================================
+        calibration_obj = None
+        w = config.get("aquarium_width_cm") if config else None
+        h = config.get("aquarium_height_cm") if config else None
+
+        if w and h and multi_zone_data.aquariums:
+            # Use the first aquarium polygon to define the calibration region
+            first_aq = multi_zone_data.aquariums[0]
+            if first_aq.polygon and len(first_aq.polygon) >= 3:
+                try:
+                    from zebtrack.core.calibration import Calibration
+
+                    calibration_obj = Calibration(
+                        polygon=np.array(first_aq.polygon, dtype=np.float32),
+                        real_width_cm=float(w),
+                        real_height_cm=float(h),
+                    )
+
+                    # Store calibration in project_data for report generation
+                    if self.project_manager.project_data is None:
+                        self.project_manager.project_data = {}
+                    
+                    calib_data = self.project_manager.project_data.get("calibration", {})
+                    calib_data.update({
+                        "pixel_per_cm_x": calibration_obj.pixel_per_cm_ratio[0],
+                        "pixel_per_cm_y": calibration_obj.pixel_per_cm_ratio[1],
+                        "video_width_px": calibration_obj.target_dims_px[0],
+                        "video_height_px": calibration_obj.target_dims_px[1],
+                        "aquarium_width_cm": float(w),
+                        "aquarium_height_cm": float(h),
+                    })
+                    self.project_manager.project_data["calibration"] = calib_data
+
+                    log.info(
+                        "workflow.sequential_multi.calibration_created",
+                        pixel_per_cm_x=calibration_obj.pixel_per_cm_ratio[0],
+                        pixel_per_cm_y=calibration_obj.pixel_per_cm_ratio[1],
+                        target_dims=calibration_obj.target_dims_px,
+                    )
+
+                    # NOTE: Do NOT transform polygons in place here. 
+                    # Detector needs original coordinates. 
+                    # The Recorder/Analyzer handles the coordinate transformation.
+
+                except Exception as e:
+                    log.error(
+                        "workflow.sequential_multi.calibration_failed",
+                        error=str(e),
+                    )
+                    calibration_obj = None
+
+        # Store calibration in sequential context for later use
+        self._sequential_context["calibration"] = calibration_obj
+
+        # Initialize multi_aquarium_outputs in video entry
+        video_entry = self.project_manager.find_video_entry(path=str(video_path))
+        
+        if video_entry:
+            video_entry["multi_aquarium_mode"] = True
+            video_entry["multi_aquarium_outputs"] = {}
+            
+            # Ensure metadata has calibration from config
+            if config:
+                metadata = video_entry.get("metadata", {})
+                w = config.get("aquarium_width_cm")
+                h = config.get("aquarium_height_cm")
+                if w and h:
+                    metadata["aquarium_width_cm"] = float(w)
+                    metadata["aquarium_height_cm"] = float(h)
+                    video_entry["metadata"] = metadata
+        else:
+            # Register the single video if not already in project
+            metadata = self._extract_metadata_from_config(config)
+            if config:
+                w = config.get("aquarium_width_cm")
+                h = config.get("aquarium_height_cm")
+                if w and h:
+                    metadata["aquarium_width_cm"] = float(w)
+                    metadata["aquarium_height_cm"] = float(h)
+
+            video_name = os.path.splitext(os.path.basename(str(video_path)))[0]
+            
+            # Check for ROIs in multi-aquarium data
+            has_rois = any(bool(aq.roi_polygons) for aq in multi_zone_data.aquariums)
+
+            video_data = {
+                "path": str(video_path),
+                "experiment_id": video_name,
+                "status": "processing",
+                "has_arena": True, # We have zones
+                "has_rois": has_rois,
+                "multi_aquarium_mode": True,
+                "multi_aquarium_outputs": {},
+                "metadata": metadata
+            }
+            self.project_manager.add_video_batch([video_data], save_project=False)
+            
+            # Force UI update so video appears in the list immediately
+            self._publish_event(
+                Events.UI_REFRESH_PROJECT_VIEWS,
+                {"reason": "sequential_video_registered", "immediate": True},
+            )
+
+        # Notify user
+        aq_count = len(multi_zone_data.aquariums)
+        self._publish_event(
+            Events.UI_SHOW_INFO,
+            {
+                "title": "Processamento Sequencial",
+                "message": f"Iniciando processamento sequencial de {aq_count} aquários.\n"
+                "Cada aquário será processado separadamente.",
+            },
+        )
+
+        # Start processing the first aquarium
+        self._process_next_aquarium_in_sequence()
+
+    def _process_next_aquarium_in_sequence(self) -> None:
+        """Process the next aquarium in the sequence."""
+        if not hasattr(self, "_sequential_context") or self._sequential_context is None:
+            log.warning("workflow.sequential_multi.no_context")
+            return
+
+        ctx = self._sequential_context
+
+        if ctx["current_aquarium_index"] >= ctx["total_aquariums"]:
+            # All aquariums processed - finalize and generate reports
+            log.info(
+                "workflow.sequential_multi.complete",
+                total_aquariums=ctx["total_aquariums"],
+            )
+
+            video_path = str(ctx["video_path"])
+            outputs_by_aquarium = ctx.get("outputs_by_aquarium", {})
+
+            # Register all aquarium outputs with project manager
+            if outputs_by_aquarium:
+                self.project_manager.register_multi_aquarium_outputs(
+                    video_path=video_path,
+                    outputs_by_aquarium=outputs_by_aquarium,
+                )
+                log.info(
+                    "workflow.sequential_multi.outputs_registered",
+                    video=os.path.basename(video_path),
+                    aquarium_count=len(outputs_by_aquarium),
+                )
+
+            # Update processing state
+            self.state_manager.update_processing_state(
+                source="controller.sequential_multi.complete",
+                is_processing=False,
+            )
+
+            # Generate reports for all aquariums
+            try:
+                self._publish_event(
+                    Events.UI_SET_STATUS,
+                    {"message": "Gerando relatórios para todos os aquários..."},
+                )
+                self.generate_project_reports([video_path])
+            except Exception as e:
+                log.error(
+                    "workflow.sequential_multi.report_failed",
+                    error=str(e),
+                )
+
+            self._publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Processamento Concluído",
+                    "message": f"Todos os {ctx['total_aquariums']} aquários foram processados "
+                    "e relatórios gerados com sucesso.",
+                },
+            )
+
+            # Refresh project views
+            self._publish_event(
+                Events.UI_REFRESH_PROJECT_VIEWS,
+                {"reason": "sequential_multi_complete", "immediate": True},
+            )
+
+            self._sequential_context = None
+            return
+
+        aquarium_index = ctx["current_aquarium_index"]
+        aquarium = ctx["multi_zone_data"].aquariums[aquarium_index]
+
+        log.info(
+            "workflow.sequential_multi.aquarium_start",
+            aquarium_id=aquarium.id,
+            aquarium_index=aquarium_index + 1,
+            total=ctx["total_aquariums"],
+            group=aquarium.group,
+            subject_id=aquarium.subject_id,
+        )
+
+        # Convert to single-aquarium ZoneData
+        zone_data = aquarium.to_zone_data()
+
+        # Configure output directory for this aquarium
+        video_name = os.path.splitext(os.path.basename(str(ctx["video_path"])))[0]
+        base_output = os.path.join(
+            os.path.dirname(str(ctx["video_path"])),
+            f"{video_name}_results",
+        )
+        aquarium_output = os.path.join(base_output, f"aquarium_{aquarium.id}")
+        os.makedirs(aquarium_output, exist_ok=True)
+
+        # Notify user of current aquarium
+        self._publish_event(
+            Events.UI_SET_STATUS,
+            {
+                "message": f"Processando Aquário {aquarium_index + 1}/{ctx['total_aquariums']}...",
+            },
+        )
+
+        # Use single-aquarium flow
+        self._start_single_aquarium_for_sequential(
+            ctx["video_path"],
+            ctx["config"],
+            zone_data,
+            aquarium_output,
+            aquarium.id,
+        )
+
+    def _start_single_aquarium_for_sequential(
+        self,
+        video_path: Path,
+        config: dict,
+        zone_data,
+        output_dir: str,
+        aquarium_id: int,
+    ) -> None:
+        """Start single-aquarium processing as part of sequential flow.
+
+        Args:
+            video_path: Path to the video file.
+            config: Processing configuration dictionary.
+            zone_data: ZoneData for the single aquarium.
+            output_dir: Output directory for results.
+            aquarium_id: ID of the aquarium being processed.
+        """
+        # Update detector with single-aquarium zones
+        if self.detector:
+            cap = cv2.VideoCapture(str(video_path))
+            if not cap.isOpened():
+                self._publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {"title": "Erro", "message": f"Não foi possível abrir o vídeo: {video_path}"},
+                )
+                self._sequential_context = None
+                return
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            cap.release()
+
+            self.detector.set_zones(zone_data, width, height)
+            self.detector.set_aquarium_region_defined(bool(zone_data.polygon))
+            self.detector.reset_tracking_state()
+
+        # Prepare processing environment
+        scanned_files = ProjectManager.scan_input_paths([str(video_path)])
+        if not scanned_files:
+            log.error("workflow.sequential_multi.scan_failed", video=str(video_path))
+            self._sequential_context = None
+            return
+        video_to_process = scanned_files[0]
+        
+        # Inject results_dir so create_processing_callbacks knows where to look
+        # This fixes the "trajectory not found" warning in the default on_video_completed callback
+        video_to_process["results_dir"] = output_dir
+
+        # Inject calibration metadata so Worker can calculate pixel ratio
+        try:
+            width_cm = float(config.get("aquarium_width_cm") or 0)
+            height_cm = float(config.get("aquarium_height_cm") or 0)
+            if width_cm > 0 and height_cm > 0:
+                video_to_process["aquarium_width_cm"] = width_cm
+                video_to_process["aquarium_height_cm"] = height_cm
+        except (ValueError, TypeError):
+            pass
+
+        # Create callbacks with completion handler
+        callbacks = self.create_processing_callbacks([video_to_process])
+
+        # Get aquarium info for output registration
+        current_aquarium = self._sequential_context["multi_zone_data"].aquariums[
+            self._sequential_context["current_aquarium_index"]
+        ]
+        experiment_id = os.path.splitext(os.path.basename(str(video_path)))[0]
+
+        def on_sequential_complete(was_cancelled: bool, _output_dir: str, _summary: dict | None = None):
+            """Handle completion of single aquarium processing.
+            
+            Signature matches ProcessingCallbacks.on_completed:
+            (was_cancelled: bool, output_dir: str, summary: dict | None)
+            """
+            # Do NOT call original_complete - it would trigger single-video report generation
+            # We'll generate reports after ALL aquariums are processed
+            
+            success = not was_cancelled
+
+            if success:
+                log.info(
+                    "workflow.sequential_multi.aquarium_complete",
+                    aquarium_id=aquarium_id,
+                )
+
+                # Register aquarium outputs in context for later batch registration
+                if self._sequential_context:
+                    trajectory_path = os.path.join(
+                        output_dir, f"3_CoordMovimento_{experiment_id}.parquet"
+                    )
+
+                    # Store output info for this aquarium
+                    self._sequential_context["outputs_by_aquarium"][aquarium_id] = {
+                        "results_dir": output_dir,
+                        "parquet_files": {"trajectory": trajectory_path},
+                        "group": current_aquarium.group,
+                        "subject_id": current_aquarium.subject_id,
+                        "day": current_aquarium.day,
+                    }
+
+                    # Immediate registration for this aquarium
+                    try:
+                        # Register partial results
+                        self.project_manager.register_multi_aquarium_outputs(
+                            video_path=str(video_path),
+                            outputs_by_aquarium=self._sequential_context["outputs_by_aquarium"]
+                        )
+                    except Exception as e:
+                        log.error("workflow.sequential.registration_failed", error=str(e))
+
+                    log.info(
+                        "workflow.sequential_multi.aquarium_output_stored",
+                        aquarium_id=aquarium_id,
+                        results_dir=output_dir,
+                        trajectory_exists=os.path.exists(trajectory_path),
+                    )
+
+                    # Advance to next aquarium
+                    self._sequential_context["current_aquarium_index"] += 1
+                    # Use after() to avoid recursive call depth issues
+                    if hasattr(self, "view") and self.view and hasattr(self.view, "root"):
+                        self.view.root.after(100, self._process_next_aquarium_in_sequence)
+                    else:
+                        self._process_next_aquarium_in_sequence()
+            else:
+                error_msg = "Processamento cancelado ou falhou"
+                log.error(
+                    "workflow.sequential_multi.aquarium_failed",
+                    aquarium_id=aquarium_id,
+                    error=error_msg,
+                )
+                self._publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Erro no Processamento",
+                        "message": f"Falha ao processar aquário {aquarium_id + 1}: {error_msg}",
+                    },
+                )
+                self._sequential_context = None
+
+        callbacks.on_completed = on_sequential_complete
+
+        # Create processing context with single-aquarium zone_data
+        context = self.create_processing_context(
+            [video_to_process],
+            output_dir,
+            single_video_config=config,
+            zone_data=zone_data,  # ZoneData, not MultiAquariumZoneData
+        )
+
+        # Clear cancel event and start worker
+        self.cancel_event.clear()
+        self.processing_worker = ProcessingWorker(context, callbacks)
+        self.processing_thread = self.processing_worker.start_in_thread()
+
+        # Update processing state
+        self.state_manager.update_processing_state(
+            source="controller.sequential_multi.aquarium_start",
+            is_processing=True,
+            current_video=f"{os.path.basename(str(video_path))} (Aquário {aquarium_id + 1})",
+            processing_start_time=datetime.now(),
         )
 
     def process_pending_project_videos(
@@ -1055,7 +1668,7 @@ class ProcessingCoordinator(BaseCoordinator):
         without_arena = classification_result.without_arena
         data_changed = classification_result.data_changed
 
-        if data_changed:
+        if data_changed and self.project_manager.project_path:
             self.project_manager.save_project()
 
         # CRITICAL FIX: Recovery for MultiAquarium videos classified as 'without_arena'
@@ -1449,7 +2062,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 skipped.append(info_msg.split(":")[0] if info_msg else "(desconhecido)")
                 details.append(f"• {info_msg}")
 
-        if data_changed:
+        if data_changed and self.project_manager.project_path:
             self.project_manager.save_project()
 
         def finalize() -> None:
@@ -2338,7 +2951,45 @@ class ProcessingCoordinator(BaseCoordinator):
                     pixelcm_x = float(calib.get("pixel_per_cm_x", 1.0))
                     pixelcm_y = float(calib.get("pixel_per_cm_y", 1.0))
                     fps = float(self.settings.video_processing.fps)
-                    video_height = 720
+
+                    # Get video_height from calibration (WARPED space) or reconstruct
+                    video_height = int(calib.get("video_height_px", 0))
+
+                    # Fallback: reconstruct calibration if not stored
+                    if video_height == 0 or (pixelcm_x == 1.0 and pixelcm_y == 1.0):
+                        aq_width = metadata.get("aquarium_width_cm")
+                        aq_height = metadata.get("aquarium_height_cm")
+                        if aq_width and aq_height:
+                            try:
+                                # Simulate Calibration calculation (target_width=600)
+                                target_width = 600
+                                aspect_ratio = float(aq_height) / float(aq_width)
+                                target_height = int(target_width * aspect_ratio)
+                                pixelcm_x = target_width / float(aq_width)
+                                pixelcm_y = target_height / float(aq_height)
+                                video_height = target_height  # Use WARPED height!
+                                log.warning(
+                                    "workflow.reports.calibration_reconstructed",
+                                    video=path,
+                                    pixelcm_x=pixelcm_x,
+                                    pixelcm_y=pixelcm_y,
+                                    video_height=video_height,
+                                )
+                            except Exception as e:
+                                log.error(
+                                    "workflow.reports.calibration_fallback_failed",
+                                    error=str(e),
+                                )
+                                video_height = 720  # Last resort
+                        else:
+                            video_height = 720  # Last resort
+
+                    log.info(
+                        "workflow.reports.multi_aquarium.calibration_params",
+                        pixelcm_x=pixelcm_x,
+                        pixelcm_y=pixelcm_y,
+                        video_height_px=video_height,
+                    )
 
                     for aq_id_str, output_info in multi_outputs.items():
                         try:
@@ -2408,6 +3059,23 @@ class ProcessingCoordinator(BaseCoordinator):
                                 # Standard zone data (fallback)
                                 arena_polygon = zone_data.polygon if zone_data.polygon else []
 
+                            # Reconstruct Calibration for this specific aquarium and warp trajectory
+                            cal = None
+                            aq_width = metadata.get("aquarium_width_cm")
+                            aq_height = metadata.get("aquarium_height_cm")
+                            if arena_polygon and len(arena_polygon) >= 3 and aq_width and aq_height:
+                                try:
+                                    cal = Calibration(np.array(arena_polygon), float(aq_width), float(aq_height))
+                                    # Update params for this specific aquarium's warped space
+                                    _, video_height = cal.target_dims_px
+                                    pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
+                                    arena_polygon = cal.transform_points(arena_polygon)
+                                    
+                                    # Force warp trajectory to match calibrated space
+                                    df = DataTransformer.warp_trajectory_if_needed(df, cal, force=True)
+                                except Exception as e:
+                                    log.error("workflow.reports.multi.cal_failed", error=str(e))
+
                             # Run Analysis
                             analysis_result = self.analysis_service.run_full_analysis_as_dto(
                                 trajectory_df=df,
@@ -2425,8 +3093,9 @@ class ProcessingCoordinator(BaseCoordinator):
                                 freezing_min_duration=(
                                     self.settings.video_processing.freezing_min_duration_s
                                 ),
+                                video_path=path,
+                                calibration=cal,
                             )
-
                             reporter = Reporter.from_analysis(analysis_result)
 
                             # Export with aquarium suffix
@@ -2461,6 +3130,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 results_path = self.project_manager.resolve_results_directory(
                     experiment_id, video_path=path, metadata=metadata
                 )
+                os.makedirs(results_path, exist_ok=True)
 
                 trajectory_path = os.path.join(
                     results_path, f"3_CoordMovimento_{experiment_id}.parquet"
@@ -2488,8 +3158,45 @@ class ProcessingCoordinator(BaseCoordinator):
                 pixelcm_x = float(calib.get("pixel_per_cm_x", 1.0))
                 pixelcm_y = float(calib.get("pixel_per_cm_y", 1.0))
 
-                # Video dimensions (fallback to default if not available)
-                video_height = 720
+                # Get video_height from calibration (WARPED space) or reconstruct
+                video_height = int(calib.get("video_height_px", 0))
+
+                # Fallback: reconstruct calibration if not stored
+                if video_height == 0 or (pixelcm_x == 1.0 and pixelcm_y == 1.0):
+                    aq_width = metadata.get("aquarium_width_cm")
+                    aq_height = metadata.get("aquarium_height_cm")
+                    if aq_width and aq_height:
+                        try:
+                            # Simulate Calibration calculation (target_width=600)
+                            target_width = 600
+                            aspect_ratio = float(aq_height) / float(aq_width)
+                            target_height = int(target_width * aspect_ratio)
+                            pixelcm_x = target_width / float(aq_width)
+                            pixelcm_y = target_height / float(aq_height)
+                            video_height = target_height  # Use WARPED height!
+                            log.warning(
+                                "workflow.reports.calibration_reconstructed",
+                                video=path,
+                                pixelcm_x=pixelcm_x,
+                                pixelcm_y=pixelcm_y,
+                                video_height=video_height,
+                            )
+                        except Exception as e:
+                            log.error(
+                                "workflow.reports.calibration_fallback_failed",
+                                error=str(e),
+                            )
+                            video_height = 720  # Last resort
+                    else:
+                        video_height = 720  # Last resort
+
+                log.info(
+                    "workflow.reports.calibration_params",
+                    video=path,
+                    pixelcm_x=pixelcm_x,
+                    pixelcm_y=pixelcm_y,
+                    video_height_px=video_height,
+                )
 
                 # ROIs
                 rois = []
@@ -2534,6 +3241,7 @@ class ProcessingCoordinator(BaseCoordinator):
 
                 # Export
                 report_base = os.path.join(results_path, f"4_Relatorio_{experiment_id}")
+                os.makedirs(os.path.dirname(report_base), exist_ok=True)
                 reporter.export_individual_report(f"{report_base}.docx")
                 reporter.export_summary_data(f"{report_base}.xlsx", format="excel")
 
@@ -2581,6 +3289,13 @@ class ProcessingCoordinator(BaseCoordinator):
             for key in ["group", "group_display_name", "day", "subject"]:
                 if key in config:
                     metadata[key] = config[key]
+
+            for dim_key in ("aquarium_width_cm", "aquarium_height_cm"):
+                if dim_key in config and config.get(dim_key) not in (None, ""):
+                    try:
+                        metadata[dim_key] = float(config.get(dim_key))
+                    except (TypeError, ValueError):
+                        pass
 
         # Set defaults
         if "group" not in metadata:
@@ -2770,7 +3485,7 @@ class ProcessingCoordinator(BaseCoordinator):
                         roi_count=len(zone_data.roi_polygons),
                     )
 
-        if zones_updated:
+        if zones_updated and self.project_manager.project_path:
             self.project_manager.save_project()
 
     def _process_summary_video(
@@ -2800,6 +3515,8 @@ class ProcessingCoordinator(BaseCoordinator):
         if not isinstance(path, str) or not path:
             return "skipped", "Caminho do vídeo não definido.", None, False
 
+        experiment_id = os.path.splitext(os.path.basename(path))[0]
+
         # Check for multi-aquarium outputs first
         multi_outputs = video.get("multi_aquarium_outputs")
         if multi_outputs:
@@ -2824,11 +3541,10 @@ class ProcessingCoordinator(BaseCoordinator):
                         continue
 
                     # Get specific zone data for this aquarium
-                    if aq_id not in multi_zone_data.aquariums:
+                    aq_zone = multi_zone_data.get_aquarium(aq_id)
+                    if not aq_zone:
                         log.warning(f"Zonas ausentes para aquário {aq_id} em {experiment_id}")
                         continue
-
-                    aq_zone = multi_zone_data.aquariums[aq_id]
 
                     # Read trajectory
                     try:
@@ -2869,6 +3585,9 @@ class ProcessingCoordinator(BaseCoordinator):
                     roi_names = list(aq_zone.roi_names or [])
                     roi_colors_list = list(aq_zone.roi_colors or [])
                     rois: list[ROI] = []
+
+                    # WARP TRAJECTORY: Align original coordinates to warped arena
+                    trajectory_df = DataTransformer.warp_trajectory_if_needed(trajectory_df, cal, force=True)
 
                     for idx, roi_points in enumerate(roi_polygons):
                         warped_points = cal.transform_points(roi_points)
@@ -2932,13 +3651,14 @@ class ProcessingCoordinator(BaseCoordinator):
                 return "failed", f"{experiment_id}: erro multi-aquário {e}", None, False
 
         # Single video path (legacy/standard)
-        experiment_id = os.path.splitext(os.path.basename(path))[0]
         # ... existing logic continues below ...
         metadata_hint = dict(video.get("metadata") or {})
         results_path = self.project_manager.resolve_results_directory(
             experiment_id, video_path=path, metadata=metadata_hint
         )
         results_dir = str(results_path)
+
+        calibration_persisted = False
 
         parquet_info = video.get("parquet_files") or {}
         trajectory_path = parquet_info.get("trajectory")
@@ -3006,11 +3726,89 @@ class ProcessingCoordinator(BaseCoordinator):
                     [0, frame_height],
                 ]
 
-            calib_data = self.project_manager.project_data.get("calibration", {})
+            calib_data = self.project_manager.project_data.get("calibration", {}) or {}
             width_cm = calib_data.get("aquarium_width_cm")
             height_cm = calib_data.get("aquarium_height_cm")
-            if not width_cm or not height_cm:
-                return "skipped", f"{experiment_id}: calibração incompleta (px/cm).", None, False
+
+            try:
+                width_cm = float(width_cm) if width_cm not in (None, "") else None
+            except (TypeError, ValueError):
+                width_cm = None
+
+            try:
+                height_cm = float(height_cm) if height_cm not in (None, "") else None
+            except (TypeError, ValueError):
+                height_cm = None
+
+            if not (width_cm and height_cm):
+                fallback_meta = video.get("metadata") if isinstance(video, dict) else {}
+                fallback_width = fallback_meta.get("aquarium_width_cm") if fallback_meta else None
+                fallback_height = fallback_meta.get("aquarium_height_cm") if fallback_meta else None
+
+                try:
+                    fallback_width = (
+                        float(fallback_width)
+                        if fallback_width not in (None, "")
+                        else None
+                    )
+                    fallback_height = (
+                        float(fallback_height)
+                        if fallback_height not in (None, "")
+                        else None
+                    )
+                except (TypeError, ValueError):
+                    fallback_width = None
+                    fallback_height = None
+
+                if fallback_width and fallback_height:
+                    width_cm = fallback_width
+                    height_cm = fallback_height
+                    calib_data.setdefault("num_aquariums", calib_data.get("num_aquariums", 1))
+                    calib_data.setdefault(
+                        "animals_per_aquarium", calib_data.get("animals_per_aquarium", 1)
+                    )
+                    calib_data.update(
+                        {
+                            "aquarium_width_cm": width_cm,
+                            "aquarium_height_cm": height_cm,
+                        }
+                    )
+                    self.project_manager.project_data["calibration"] = calib_data
+                    calibration_persisted = True
+                    if self.project_manager.project_path:
+                        self.project_manager.save_project()
+
+                    self._publish_event(
+                        Events.UI_SHOW_WARNING,
+                        {
+                            "title": "Calibração aplicada",
+                            "message": (
+                                "Dimensões do aquário foram lidas da configuração deste vídeo "
+                                "porque a calibração do projeto estava vazia. Os valores foram "
+                                "salvos no projeto para os próximos relatórios."
+                            ),
+                        },
+                    )
+                    log.warning(
+                        "workflow.reports.calibration_fallback_applied",
+                        video=experiment_id,
+                        width_cm=width_cm,
+                        height_cm=height_cm,
+                    )
+                else:
+                    # Enforce calibration: fail with guidance
+                    log.error(
+                        "workflow.reports.calibration_missing",
+                        video=experiment_id,
+                        width_cm=width_cm,
+                        height_cm=height_cm,
+                    )
+                    return (
+                        "skipped",
+                        f"{experiment_id}: calibração ausente. Defina largura/altura do aquário (cm) no projeto/assistente antes de gerar relatórios.",
+                        None,
+                        calibration_persisted,
+                    )
 
             cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
             _, video_height_px = cal.target_dims_px
@@ -3074,6 +3872,6 @@ class ProcessingCoordinator(BaseCoordinator):
             video["has_complete_data"] = True
             return "completed", experiment_id, parquet_path, True
         except Exception as exc:
-            return "failed", f"{experiment_id}: erro inesperado ({exc}).", None, False
+            return "failed", f"{experiment_id}: erro inesperado ({exc}).", None, calibration_persisted
         finally:
             self.project_manager.set_active_zone_video(None)

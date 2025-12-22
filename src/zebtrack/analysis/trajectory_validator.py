@@ -96,7 +96,7 @@ class TrajectoryQualityValidator:
         # Run individual validation checks (refactored for complexity reduction)
         self._check_trajectory_length(df, warnings)
         self._check_temporal_gaps(df, warnings, stats)
-        self._check_speed_violations(df, errors, stats)
+        self._check_speed_violations(df, warnings, stats)
         self._check_track_id_stability(df, warnings, stats)
         self._check_arena_violations(df, arena_polygon, warnings, stats)
         self._check_duplicate_frames(df, errors)
@@ -151,27 +151,41 @@ class TrajectoryQualityValidator:
             }
 
     def _check_speed_violations(
-        self, df: pd.DataFrame, errors: list[str], stats: dict[str, Any]
+        self, df: pd.DataFrame, warnings: list[str], stats: dict[str, Any]
     ) -> None:
         """Check for implausible speeds (teleportation)."""
-        if "x_cm" not in df.columns or "y_cm" not in df.columns:
+        if "x_cm" not in df.columns or "y_cm" not in df.columns or "frame" not in df.columns:
             return
 
-        displacements = np.sqrt(df["x_cm"].diff() ** 2 + df["y_cm"].diff() ** 2)
-        speeds = displacements / self.frame_interval
-        implausible = speeds > self.max_plausible_speed
+        # Use timestamp if available for most accurate time delta, fallback to frame-based
+        if "timestamp" in df.columns:
+            time_deltas = df.groupby("track_id")["timestamp"].diff()
+        else:
+            time_deltas = df.groupby("track_id")["frame"].diff() * self.frame_interval
+
+        # Calculate displacement grouped by track to avoid "jumps" between different IDs
+        dx = df.groupby("track_id")["x_cm"].diff()
+        dy = df.groupby("track_id")["y_cm"].diff()
+        displacements = np.sqrt(dx**2 + dy**2)
+
+        # Speed = distance / time (handle division by zero or NaN)
+        speeds = displacements / time_deltas
+        
+        # Filter out NaN/Inf resulting from first frame or same-frame entries
+        valid_speeds = speeds.replace([np.inf, -np.inf], np.nan).dropna()
+        implausible = valid_speeds > self.max_plausible_speed
 
         if implausible.any():
-            max_speed = speeds.max()
+            max_speed = float(valid_speeds.max())
             num_implausible = int(implausible.sum())
-            errors.append(
+            warnings.append(
                 f"Found {num_implausible} frames with implausible speed. "
                 f"Max: {max_speed:.1f} cm/s, Threshold: {self.max_plausible_speed} cm/s. "
                 f"This may indicate tracking errors or calibration issues."
             )
             stats["speed_violations"] = {
                 "count": num_implausible,
-                "max_speed_cm_s": float(max_speed),
+                "max_speed_cm_s": max_speed,
                 "threshold_cm_s": self.max_plausible_speed,
             }
 

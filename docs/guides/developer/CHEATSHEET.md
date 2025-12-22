@@ -167,6 +167,53 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence
 + derived: center_x, center_y, center_x_cm, center_y_cm
 ```
 
+## 🐟 Multi-Aquarium Processing
+
+### Data Structures
+```python
+from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+
+# Per-aquarium config
+aq = AquariumData(id=0, polygon=[[0,0],[100,0],[100,100],[0,100]])
+
+# Multi-aquarium container
+multi = MultiAquariumZoneData(
+    aquariums=[aq0, aq1],
+    video_width=1280,
+    video_height=720,
+    sequential_processing=False  # True = 2 passes, False = 1 pass
+)
+```
+
+### Processing Modes
+- **Parallel** (default): `sequential_processing=False` - 1 video pass, both aquariums
+- **Sequential**: `sequential_processing=True` - 2 video passes, 1 aquarium each
+
+### Track ID Convention
+```python
+global_id = aquarium_id * 1000 + local_id
+# Aquarium 0: IDs 0-999
+# Aquarium 1: IDs 1000-1999
+```
+
+### Key Events
+```python
+Events.ZONE_PROCESSING_MODE_CHANGED  # {sequential: bool}
+Events.ZONE_AQUARIUM_SELECTED        # {aquarium_id: int}
+Events.ZONE_MULTI_DETECT_COMPLETED   # {count: int, aquariums: list}
+```
+
+### Output Structure
+```
+video_results/
+├── aquarium_0/
+│   ├── 3_CoordMovimento_{video}.parquet
+│   ├── 4_Relatorio_{video}_aq0.docx
+│   └── {video}_aq0_summary.parquet
+└── aquarium_1/
+    └── ...
+```
+
 ## 🎯 Task Shortcuts (Ctrl+Shift+B)
 
 - Run ZebTrack (default)

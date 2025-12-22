@@ -754,6 +754,7 @@ class ZoneManager:
                 "aquariums": [],
                 "video_width": 0,
                 "video_height": 0,
+                "sequential_processing": False,
             }
 
         aquariums_serialized = []
@@ -776,6 +777,7 @@ class ZoneManager:
             "aquariums": aquariums_serialized,
             "video_width": data.video_width,
             "video_height": data.video_height,
+            "sequential_processing": data.sequential_processing,
         }
 
     @staticmethod
@@ -816,6 +818,7 @@ class ZoneManager:
             aquariums=aquariums,
             video_width=data.get("video_width", 0),
             video_height=data.get("video_height", 0),
+            sequential_processing=data.get("sequential_processing", False),
         )
 
     def save_multi_aquarium_zone_data(

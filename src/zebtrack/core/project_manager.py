@@ -417,7 +417,12 @@ class ProjectManager:
                     reason="single_video_workflow",
                 )
 
-    def save_multi_aquarium_zone_data(self, video_path: str, multi_data: Any) -> None:
+    def save_multi_aquarium_zone_data(
+        self,
+        video_path: str,
+        multi_data: Any,
+        persist: bool = True,
+    ) -> None:
         """Save multi-aquarium zone data.
 
         Persists the MultiAquariumZoneData structure to project JSON.
@@ -472,8 +477,14 @@ class ProjectManager:
                 video_entry["num_aquariums"] = len(multi_data.aquariums)
 
             # 4. Save
-            if self.project_path:
+            if persist and self.project_path:
                 self.save_project()
+            elif not persist:
+                log.info(
+                    "project.save_multi.in_memory_only",
+                    video=video_path,
+                    reason="persist=False",
+                )
             else:
                 log.info(
                     "project.save_multi.in_memory_only",
@@ -2108,7 +2119,17 @@ class ProjectManager:
             return Path(self.project_path) / group_component / day_component / subject_component
 
         base_dir = Path(video_path).parent if video_path else Path.cwd()
-        return base_dir / f"{experiment_component}_results"
+
+        # Non-project workflows must align exactly with the worker/recorder naming.
+        # Use the raw experiment_id (stem) when available to avoid changing spaces/parens.
+        raw_component = None
+        if video_path:
+            raw_component = Path(video_path).stem
+        elif experiment_source:
+            raw_component = str(experiment_source)
+
+        safe_component = raw_component if raw_component else experiment_component
+        return base_dir / f"{safe_component}_results"
 
     @staticmethod
     def _sanitize_path_component(value, *, fallback: str) -> str:

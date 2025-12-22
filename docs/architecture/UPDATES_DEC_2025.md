@@ -59,3 +59,78 @@
 
 - **Legacy Pipeline Table:** The code related to the old "Pipeline" tab (`refresh_pipeline_video_table`) has been removed as it was dead code and generating warning logs.
 - **`PROJECT_CREATED` Event:** Removed the emission of this unused event to clear log warnings.
+
+---
+
+## 5. Sequential Multi-Aquarium Processing (v3.1)
+
+**Date:** Dec 21, 2025
+
+### Problem
+Multi-aquarium processing always ran in parallel mode (both aquariums processed simultaneously in 1 video pass). Some users wanted the option to process each aquarium separately for:
+- Better resource utilization per aquarium
+- Lower memory usage (only 1 ByteTracker active at a time)
+- Easier debugging (1 processing flow at a time)
+
+### Solution
+
+Implemented **Sequential Processing Mode** with toggle in Zone Controls:
+
+1. **New Data Field**: `MultiAquariumZoneData.sequential_processing: bool`
+   - `False` (default): Parallel mode - 1 video pass
+   - `True`: Sequential mode - 2 video passes
+
+2. **New Event**: `ZONE_PROCESSING_MODE_CHANGED`
+   - Payload: `{sequential: bool}`
+   - Emitted by ZoneControls radio buttons
+
+3. **New Methods** (in `ProcessingCoordinator`):
+   - `_start_sequential_multi_aquarium_processing()` - Initializes context, starts first aquarium
+   - `_process_next_aquarium_in_sequence()` - Advances to next aquarium or finalizes
+   - `_start_single_aquarium_for_sequential()` - Runs single-aquarium flow for each
+
+4. **Report Generation**: After all aquariums complete:
+   - Calls `register_multi_aquarium_outputs()` with collected outputs
+   - Calls `generate_project_reports()` to generate Word/Excel/Parquet summaries
+
+### Data Flow (Sequential Mode)
+```
+Passagem 1 ──► AquariumData[0].to_zone_data() ──► detect() ──► aquarium_0/
+                                                              ↓ (automático)
+Passagem 2 ──► AquariumData[1].to_zone_data() ──► detect() ──► aquarium_1/
+                                                              ↓
+Finalização ──► register_multi_aquarium_outputs() ──► generate_project_reports()
+```
+
+### Files Modified
+- `src/zebtrack/ui/events.py` - New event `ZONE_PROCESSING_MODE_CHANGED`
+- `src/zebtrack/core/detector.py` - New field `sequential_processing`
+- `src/zebtrack/core/zone_manager.py` - Updated serialization
+- `src/zebtrack/ui/components/zone_controls.py` - UI toggle (radio buttons)
+- `src/zebtrack/ui/components/canvas_manager.py` - `update_processing_mode()` method
+- `src/zebtrack/ui/components/event_dispatcher.py` - Event subscription
+- `src/zebtrack/coordinators/processing_coordinator.py` - Sequential processing logic
+
+### Output Structure (identical to parallel mode)
+```
+video_results/
+├── aquarium_0/
+│   ├── 3_CoordMovimento_{video}.parquet
+│   ├── 4_Relatorio_{video}_aq0.docx
+│   ├── 4_Relatorio_{video}_aq0.xlsx
+│   └── {video}_aq0_summary.parquet
+└── aquarium_1/
+    ├── 3_CoordMovimento_{video}.parquet
+    ├── 4_Relatorio_{video}_aq1.docx
+    ├── 4_Relatorio_{video}_aq1.xlsx
+    └── {video}_aq1_summary.parquet
+```
+
+### Trade-offs
+| Aspect | Parallel | Sequential |
+|--------|----------|------------|
+| Speed | 1× (faster) | 2× (slower) |
+| Memory | Higher (2 trackers) | Lower (1 tracker) |
+| Resources | Split between aquariums | 100% per aquarium |
+| Debugging | More complex | Easier |
+| Code Path | Multi-aquarium specific | Reuses single-aquarium |

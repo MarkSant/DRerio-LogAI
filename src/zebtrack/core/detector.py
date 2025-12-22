@@ -67,11 +67,20 @@ class MultiAquariumZoneData:
 
     Encapsula configurações para 2 aquários em um único vídeo,
     permitindo tracking e análise independentes.
+
+    Attributes:
+        aquariums: Lista de configurações por aquário.
+        video_width: Largura do vídeo em pixels.
+        video_height: Altura do vídeo em pixels.
+        sequential_processing: Se True, processa cada aquário separadamente
+            (2 passagens pelo vídeo). Se False (padrão), processa ambos
+            simultaneamente (1 passagem).
     """
 
     aquariums: list[AquariumData] = field(default_factory=list)
     video_width: int = 0
     video_height: int = 0
+    sequential_processing: bool = False
 
     def get_aquarium(self, aquarium_id: int) -> AquariumData | None:
         """Retorna dados do aquário pelo ID.

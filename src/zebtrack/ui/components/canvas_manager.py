@@ -750,6 +750,40 @@ class CanvasManager:
 
         self.update_roi_button_state()
 
+    def update_processing_mode(self, sequential: bool) -> None:
+        """Update the processing mode (parallel vs sequential) for multi-aquarium.
+
+        Args:
+            sequential: If True, process each aquarium separately (2 video passes).
+                       If False, process both aquariums simultaneously (1 video pass).
+        """
+        zone_data = self.gui._get_zone_data_for_active_context()
+
+        from zebtrack.core.detector import MultiAquariumZoneData
+
+        if isinstance(zone_data, MultiAquariumZoneData):
+            zone_data.sequential_processing = sequential
+            
+            # Persist change to disk so it survives for batch processing
+            video_path = self.gui.controller.project_manager.get_active_zone_video()
+            if video_path:
+                should_persist = bool(self.gui.controller.project_manager.project_path)
+                self.gui.controller.project_manager.save_multi_aquarium_zone_data(
+                    video_path, zone_data, persist=should_persist
+                )
+
+            log.info(
+                "canvas_manager.processing_mode_updated",
+                sequential=sequential,
+                mode="sequential" if sequential else "parallel",
+                persisted=bool(video_path),
+            )
+        else:
+            log.debug(
+                "canvas_manager.processing_mode_ignored",
+                reason="not_multi_aquarium",
+            )
+
     def apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
         """Apply snapping to nearby vertices or edges of existing polygons."""
         zone_data = self.gui._get_zone_data_for_active_context()
@@ -867,6 +901,22 @@ class CanvasManager:
 
                     status_message = f"Arena do Aquário {active_id + 1} salva com sucesso."
                     self.gui.set_status(status_message)
+
+                    # Auto-advance to next aquarium if available
+                    next_id = active_id + 1
+                    if next_id < zone_controls.aquarium_count_var.get():
+                        self.gui.show_info(
+                            "Próximo Aquário",
+                            f"Arena do Aquário {active_id + 1} salva.\n"
+                            f"Agora desenhe a arena do Aquário {next_id + 1}."
+                        )
+                        zone_controls.set_active_aquarium(next_id)
+                        self.start_main_arena_drawing()
+                    else:
+                        self.gui.show_info(
+                            "Concluído",
+                            "Todas as arenas foram definidas."
+                        )
 
                     # Refresh UI
                     self.clear_interactive_polygon()
@@ -988,6 +1038,11 @@ class CanvasManager:
 
         # Only prompt if still in single-aquarium mode
         if zone_controls.aquarium_count_var.get() != 1:
+            return
+
+        # Check explicit setting from configuration/project
+        # If user explicitly set num_aquariums=1, do NOT prompt
+        if self.gui.controller.settings.analysis_config.num_aquariums == 1:
             return
 
         # Only prompt if saving the first aquarium

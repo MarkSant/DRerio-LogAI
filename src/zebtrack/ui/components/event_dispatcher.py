@@ -495,6 +495,13 @@ class EventDispatcher:
             Events.ZONE_AQUARIUM_SELECTED,
             lambda d: self.gui.canvas_manager.update_zone_listbox(),
         )
+        # Processing mode change (parallel vs sequential for multi-aquarium)
+        self.event_bus.subscribe(
+            Events.ZONE_PROCESSING_MODE_CHANGED,
+            lambda d: self.gui.canvas_manager.update_processing_mode(
+                d.get("sequential", False) if isinstance(d, dict) else False
+            ),
+        )
         self.event_bus.subscribe(
             Events.ZONE_LIST_ITEM_DOUBLE_CLICK,
             lambda d: self.gui.canvas_manager.edit_selected_zone_vertices(),

@@ -269,34 +269,46 @@ class OpenVINOPlugin(DetectorPlugin):
         if match_threshold is not None and match_threshold > 0:
             self.match_threshold = match_threshold
 
-    def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int | None, int]]:
+    def detect(
+        self, frame: np.ndarray, conf_threshold: float | None = None
+    ) -> list[tuple[int, int, int, int, float, int | None, int]]:
         """Run inference using the OpenVINO model and return raw detections."""
 
-        input_tensor = self._preprocess(frame)
-        self.infer_request.infer({self.input_layer.any_name: input_tensor})
+        # Temporarily override confidence threshold if provided
+        old_conf = None
+        if conf_threshold is not None:
+            old_conf = self.conf_threshold
+            self.conf_threshold = conf_threshold
 
-        results = self.infer_request.results
-        input_shape = input_tensor.shape[2:]
+        try:
+            input_tensor = self._preprocess(frame)
+            self.infer_request.infer({self.input_layer.any_name: input_tensor})
 
-        # Optimization: Skip mask decoding for tracking (performance)
-        detections, _ = self._postprocess(results, frame.shape, input_shape, decode_masks=False)
+            results = self.infer_request.results
+            input_shape = input_tensor.shape[2:]
 
-        predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
-        for det in detections:
-            x1, y1, x2, y2, score, class_id = det[:6]
-            predictions.append(
-                (
-                    int(x1),
-                    int(y1),
-                    int(x2),
-                    int(y2),
-                    float(score),
-                    None,
-                    int(class_id),
+            # Optimization: Skip mask decoding for tracking (performance)
+            detections, _ = self._postprocess(results, frame.shape, input_shape, decode_masks=False)
+
+            predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
+            for det in detections:
+                x1, y1, x2, y2, score, class_id = det[:6]
+                predictions.append(
+                    (
+                        int(x1),
+                        int(y1),
+                        int(x2),
+                        int(y2),
+                        float(score),
+                        None,
+                        int(class_id),
+                    )
                 )
-            )
 
-        return predictions
+            return predictions
+        finally:
+            if old_conf is not None:
+                self.conf_threshold = old_conf
 
     def predict(
         self, frame: np.ndarray, conf_threshold: float | None = None

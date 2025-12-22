@@ -301,6 +301,22 @@ class CanvasRenderer:
         if getattr(self.gui, "analysis_active", False):
             return
 
+        # STRICT CHECK: Only draw if the Zone Tab is actually visible
+        # This prevents bboxes from being drawn on the hidden canvas when on other tabs
+        if (
+            self.gui.notebook 
+            and hasattr(self.gui, "zone_tab_frame") 
+            and self.gui.zone_tab_frame
+        ):
+            try:
+                current_tab = self.gui.notebook.select()
+                zone_tab_id = str(self.gui.zone_tab_frame)
+                if current_tab != zone_tab_id:
+                    return
+            except Exception:
+                # If select() fails or widgets destroyed, stop drawing
+                return
+
         canvas = self._get_canvas()
         if not canvas:
             return

@@ -74,6 +74,8 @@ class ZoneControlsWidget(BaseWidget):
         # Multi-aquarium state variables
         self.aquarium_count_var = tk.IntVar(value=1)
         self.active_aquarium_var = tk.IntVar(value=0)  # 0 = Aquarium 1, 1 = Aquarium 2
+        # False = parallel (1 pass), True = sequential (2 passes)
+        self.sequential_processing_var = tk.BooleanVar(value=False)
 
         # Widget references
         self.draw_roi_button: ttk.Button | None = None
@@ -95,6 +97,9 @@ class ZoneControlsWidget(BaseWidget):
         self.aquarium_selector_frame: ttk.LabelFrame | None = None
         self.aquarium_radio_1: ttk.Radiobutton | None = None
         self.aquarium_radio_2: ttk.Radiobutton | None = None
+        self.processing_mode_frame: ttk.Frame | None = None
+        self.parallel_radio: ttk.Radiobutton | None = None
+        self.sequential_radio: ttk.Radiobutton | None = None
 
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
@@ -223,6 +228,10 @@ class ZoneControlsWidget(BaseWidget):
         ┌─ Aquário Ativo ─────────────────────────┐
         │  ○ Aquário 1 (Esquerda)                 │
         │  ○ Aquário 2 (Direita)                  │
+        │  ────────────────────────────────────── │
+        │  Modo de Processamento:                 │
+        │  ○ Simultâneo (1 passagem)              │
+        │  ○ Sequencial (2 passagens)             │
         └─────────────────────────────────────────┘
         """
         parent = (
@@ -254,6 +263,47 @@ class ZoneControlsWidget(BaseWidget):
             command=self._on_aquarium_selected,
         )
         self.aquarium_radio_2.pack(side="left")
+
+        # Separator between aquarium selection and processing mode
+        ttk.Separator(self.aquarium_selector_frame, orient="horizontal").pack(
+            fill="x", pady=(10, 5)
+        )
+
+        # Processing mode section
+        self.processing_mode_frame = ttk.Frame(self.aquarium_selector_frame)
+        self.processing_mode_frame.pack(fill="x")
+
+        ttk.Label(
+            self.processing_mode_frame,
+            text="Modo de Processamento:",
+            font=("TkDefaultFont", 9, "bold"),
+        ).pack(anchor="w")
+
+        self.parallel_radio = ttk.Radiobutton(
+            self.processing_mode_frame,
+            text="Simultâneo (1 passagem, mais rápido)",
+            variable=self.sequential_processing_var,
+            value=False,
+            command=self._on_processing_mode_changed,
+        )
+        self.parallel_radio.pack(anchor="w", padx=(10, 0))
+
+        self.sequential_radio = ttk.Radiobutton(
+            self.processing_mode_frame,
+            text="Sequencial (2 passagens, 1 aquário por vez)",
+            variable=self.sequential_processing_var,
+            value=True,
+            command=self._on_processing_mode_changed,
+        )
+        self.sequential_radio.pack(anchor="w", padx=(10, 0))
+
+        # Help text
+        ttk.Label(
+            self.processing_mode_frame,
+            text="Sequencial: processa o vídeo completo para cada aquário separadamente",
+            font=("TkDefaultFont", 8),
+            foreground="gray",
+        ).pack(anchor="w", padx=(10, 0), pady=(2, 0))
 
     def _build_interactive_buttons(self) -> None:
         """Build the interactive editing buttons (initially hidden)."""
@@ -673,6 +723,24 @@ class ZoneControlsWidget(BaseWidget):
         self.emit_event(
             Events.ZONE_AQUARIUM_SELECTED,
             {"aquarium_id": aquarium_id},
+        )
+
+    def _on_processing_mode_changed(self) -> None:
+        """Handle processing mode change (parallel vs sequential).
+
+        Emits ZONE_PROCESSING_MODE_CHANGED event with the new mode.
+        Sequential mode processes each aquarium separately (2 video passes).
+        Parallel mode processes both aquariums simultaneously (1 video pass).
+        """
+        sequential = self.sequential_processing_var.get()
+        log.info(
+            "zone_controls.processing_mode_changed",
+            sequential=sequential,
+            mode="sequential" if sequential else "parallel",
+        )
+        self.emit_event(
+            Events.ZONE_PROCESSING_MODE_CHANGED,
+            {"sequential": sequential},
         )
 
     def _on_draw_main_polygon_clicked(self) -> None:

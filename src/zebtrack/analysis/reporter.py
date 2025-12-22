@@ -233,7 +233,9 @@ class Reporter:
         # Ensure trajectory coordinates stay aligned with calibration space
         # before running any calculations.
         if calibration is not None:
-            trajectory_df = DataTransformer.warp_trajectory_if_needed(trajectory_df, calibration)
+            trajectory_df = DataTransformer.warp_trajectory_if_needed(
+                trajectory_df, calibration, force=True
+            )
 
         if "track_id" in trajectory_df.columns:
             track_ids = pd.to_numeric(trajectory_df["track_id"], errors="coerce")
@@ -533,11 +535,13 @@ class Reporter:
         progress_callback: Callable[[float, str], None],
         total_steps: int,
     ) -> None:
-        """Append ROI reference map if available."""
-        if not self.r_analyzer:
-            return
+        """Append ROI reference map (always shown - displays arena even without ROIs)."""
         document.add_heading(_("ROI Reference Map"), level=2)
-        fig = self.viz_generator.generate_roi_reference_plot()
+        # Pass video_path and calibration for background frame
+        fig = self.viz_generator.generate_roi_reference_plot(
+            video_path=self.video_path,
+            calibration=self.calibration,
+        )
         memfile = io.BytesIO()
         fig.savefig(memfile, format="png", dpi=300, bbox_inches="tight")
         import matplotlib.pyplot as plt

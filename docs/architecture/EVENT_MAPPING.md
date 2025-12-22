@@ -152,6 +152,23 @@ It specifically addresses the "11 Component -> GUI calls" identified in the arch
 
 ---
 
+---
+
+## 10. ZONE_PROCESSING_MODE_CHANGED (New - Dec 2025)
+**Purpose**: Toggle between parallel and sequential multi-aquarium processing
+**Publishers (1)**:
+- `ZoneControls` (radio button selection)
+**Subscriber**: `EventDispatcher` -> `CanvasManager.update_processing_mode()`
+**Payload**:
+```python
+{
+    "sequential": bool  # True = 2 passes (sequential), False = 1 pass (parallel)
+}
+```
+**Priority**: MEDIUM (Multi-aquarium workflow)
+
+---
+
 ## Summary of Changes
 
 | Current Method | New Event | Callers | Status |
@@ -165,6 +182,7 @@ It specifically addresses the "11 Component -> GUI calls" identified in the arch
 | (new) `paste_zones_to_video` | `ZONE_PASTE_ZONES` | 1 | ✅ New Dec 2025 |
 | (new) `delete_zones_from_video` | `ZONE_DELETE_ZONES` | 1 | ✅ New Dec 2025 |
 | (new) `finish_current_polygon` | `ZONE_FINISH_DRAWING` | 1 | ✅ New Dec 2025 |
+| (new) `update_processing_mode` | `ZONE_PROCESSING_MODE_CHANGED` | 1 | ✅ New Dec 2025 |
 
-**Total Mapped Calls**: 15
+**Total Mapped Calls**: 16
 
