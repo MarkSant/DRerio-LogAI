@@ -97,6 +97,7 @@ docs/
 - **[Testing Tkinter Windows](testing/TESTING_TKINTER_WINDOWS.md)** - UI testing patterns
 - **[Test Fixes (Nov 2025)](testing/TEST_FIXES_NOV_2025.md)** - Critical pytest fixes
 - **[Testing Deprecation Warnings](testing/TESTING_DEPRECATION_WARNINGS.md)** - Handling warnings
+- **[Multi-Aquarium Status](testing/MULTI_AQUARIUM_STATUS.md)** - Current fixes, issues, and regression guards
 
 ### API Reference
 

@@ -1454,6 +1454,19 @@ class ProcessingCoordinator(BaseCoordinator):
                         output_dir_completed, f"3_CoordMovimento_{experiment_id}.parquet"
                     )
 
+                    frame_crop_box = None
+                    if current_aquarium.polygon:
+                        xs = [pt[0] for pt in current_aquarium.polygon]
+                        ys = [pt[1] for pt in current_aquarium.polygon]
+                        min_x, max_x = min(xs), max(xs)
+                        min_y, max_y = min(ys), max(ys)
+                        frame_crop_box = (
+                            int(min_x),
+                            int(min_y),
+                            int(max_x - min_x),
+                            int(max_y - min_y),
+                        )
+
                     # Store output info for this aquarium
                     self._sequential_context["outputs_by_aquarium"][aquarium_id] = {
                         "results_dir": output_dir_completed,
@@ -1461,6 +1474,7 @@ class ProcessingCoordinator(BaseCoordinator):
                         "group": current_aquarium.group,
                         "subject_id": current_aquarium.subject_id,
                         "day": current_aquarium.day,
+                        "frame_crop_box": frame_crop_box,
                     }
 
                     log.info(
@@ -3554,17 +3568,20 @@ class ProcessingCoordinator(BaseCoordinator):
                     aq_results_dir = output_info.get("results_dir")
                     aq_parquet_files = output_info.get("parquet_files", {})
                     trajectory_path = aq_parquet_files.get("trajectory")
+                    frame_crop_box = output_info.get("frame_crop_box")
 
                     if not trajectory_path or not os.path.exists(trajectory_path):
                         log.warning(f"Trajetória ausente para aquário {aq_id} em {experiment_id}")
                         continue
 
-                    # Get specific zone data for this aquarium
-                    if aq_id not in multi_zone_data.aquariums:
+                    # Get specific zone data for this aquarium (match by id)
+                    aq_zone = next(
+                        (aq for aq in multi_zone_data.aquariums if getattr(aq, "id", None) == aq_id),
+                        None,
+                    )
+                    if aq_zone is None:
                         log.warning(f"Zonas ausentes para aquário {aq_id} em {experiment_id}")
                         continue
-
-                    aq_zone = multi_zone_data.aquariums[aq_id]
 
                     # Read trajectory
                     try:
@@ -3639,6 +3656,7 @@ class ProcessingCoordinator(BaseCoordinator):
                         roi_colors=roi_colors,
                         video_path=path,
                         calibration=cal,
+                        frame_crop_box=frame_crop_box,
                         sharp_turn_threshold=settings_obj.video_processing.sharp_turn_threshold_deg_s,
                         freezing_threshold=settings_obj.video_processing.freezing_velocity_threshold,
                         freezing_duration=settings_obj.video_processing.freezing_min_duration_s,

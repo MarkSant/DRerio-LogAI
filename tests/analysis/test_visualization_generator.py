@@ -220,6 +220,36 @@ def test_generate_trajectory_plot_with_video_background(mock_video_capture, mock
     plt.close(fig)
 
 
+@patch("pathlib.Path.exists")
+@patch("cv2.VideoCapture")
+def test_generate_trajectory_plot_applies_frame_crop(mock_video_capture, mock_exists, generator):
+    """Ensure frame_crop_box crops the background and updates extent."""
+
+    mock_exists.return_value = True
+
+    # Mock a frame larger than the crop box
+    mock_cap = Mock()
+    mock_cap.isOpened.return_value = True
+    frame = np.zeros((120, 80, 3), dtype=np.uint8)
+    mock_cap.read.return_value = (True, frame)
+    mock_video_capture.return_value = mock_cap
+
+    # Set crop box: width=30, height=40 -> expect extent width 3cm (px_per_cm=10)
+    generator.frame_crop_box = (10, 20, 30, 40)
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    with patch.object(ax, "imshow", wraps=ax.imshow) as spy_imshow:
+        generator.generate_trajectory_plot(ax=ax, video_path="/fake/video.mp4")
+
+    assert spy_imshow.called
+    _, kwargs = spy_imshow.call_args
+    extent = kwargs.get("extent")
+    # Extent is (left, right, bottom, top) in cm
+    assert extent == (0.0, 3.0, 6.0, 10.0)
+
+    plt.close(fig)
+
+
 # ============================================================================
 # Tests for generate_heatmap
 # ============================================================================

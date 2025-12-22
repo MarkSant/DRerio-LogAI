@@ -2443,9 +2443,12 @@ class ProjectManager:
                 "group": output_info.get("group", ""),
                 "subject_id": output_info.get("subject_id", ""),
                 "day": output_info.get("day", 1),
+                # Optional: used to crop video frames for per-aquarium plots/reports.
+                # Keep it when the caller provides it (sequential multi-aquarium).
+                "frame_crop_box": output_info.get("frame_crop_box"),
             }
 
-        # Update status if both aquariums have trajectory data
+        # Update status if all aquariums have trajectory data
         all_have_trajectory = all(
             aq_output.get("parquet_files", {}).get("trajectory")
             for aq_output in video_entry["multi_aquarium_outputs"].values()
@@ -2453,6 +2456,15 @@ class ProjectManager:
         if all_have_trajectory:
             video_entry["status"] = "processed"
             video_entry["has_trajectory"] = True
+
+        # Update has_summary if any aquarium has summary files
+        any_have_summary = any(
+            aq_output.get("parquet_files", {}).get("summary")
+            or aq_output.get("parquet_files", {}).get("summary_excel")
+            for aq_output in video_entry["multi_aquarium_outputs"].values()
+        )
+        if any_have_summary:
+            video_entry["has_summary"] = True
 
         log.info(
             "project.multi_aquarium.outputs_registered",

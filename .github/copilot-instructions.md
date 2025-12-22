@@ -93,6 +93,12 @@ When creating or updating documentation, follow these rules:
 **4. Windows Taskbar Icon:**
 *   Added `AppUserModelID` setup in `__main__.py` to dissociate the app from the generic Python process icon on Windows.
 
+**5. Multi-Aquarium Reporting + Reports UI (Dec 2025):**
+*   **Reporting Accessor**: report generation must use `ProjectManager.get_multi_aquarium_zone_data()` (NOT `get_zone_data()`), otherwise Aquarium 1 can reuse Aquarium 0 crop/geometry.
+*   **Outputs Persistence (Option B)**: after generating summary/report artifacts, re-register updated `multi_aquarium_outputs` via `ProjectManager.register_multi_aquarium_outputs(...)` so `has_summary` and file paths persist.
+*   **Reports Tree Source of Truth**: do not trust hierarchy video dict to contain `multi_aquarium_outputs`; fall back to `ProjectManager.find_video_entry(video_path)`.
+*   **Key Normalization**: normalize `multi_aquarium_outputs` keys (`0` vs `"0"`) to avoid Treeview iid collisions.
+
 **Agent Instructions:**
 *   When modifying `ProjectManager` or `ZoneManager`, ensure `MultiAquariumZoneData` compatibility is maintained.
 *   Do NOT revert the explicit parquet export in `save_multi_aquarium_zone_data`—it is essential for the legacy validation scanner.

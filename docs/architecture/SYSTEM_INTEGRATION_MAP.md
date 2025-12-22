@@ -310,6 +310,12 @@ Understanding who holds what references prevents "AttributeError" and circular d
 15. **Multi-Aquarium Zone Serialization (Fixed Dec 2025):** When processing multi-aquarium videos, `ProcessingCoordinator` serializes `MultiAquariumZoneData` using `ZoneManager.multi_aquarium_zone_data_to_dict`. The `ProcessingWorker` deserializes this using `ZoneManager.multi_aquarium_zone_data_from_dict`. This ensures the worker receives the complete configuration (aquariums list) instead of just a flattened/partial `ZoneData`.
 16. **Parquet Export for Compatibility (Fixed Dec 2025):** To ensure multi-aquarium videos are correctly classified as 'Ready for Analysis' (`has_arena=True`), `ProjectManager.save_multi_aquarium_zone_data` automatically exports the zones of Aquarium 0 to a standard parquet file (`1_ProcessingArea...`). This satisfies the legacy file scanner while preserving the full multi-aquarium structure in `project_config.json`. Also, `save_project()` is called strictly *after* updating the file paths in the video entry to ensure persistence.
 
+17. **Multi-Aquarium Reporting + Reports Tree Contracts (Fixed Dec 2025):**
+    - **Reporting MUST use multi-aquarium zone accessor:** In multi-aquarium report generation, always call `ProjectManager.get_multi_aquarium_zone_data()` (not `get_zone_data()`). The single-aquarium accessor returns only Aquarium 0 for backward compatibility and will corrupt Aquarium 1 crop/overlay alignment.
+    - **Canonical metadata source for UI:** The hierarchy builder may omit `multi_aquarium_outputs`. The Reports tab tree must fall back to `ProjectManager.find_video_entry(video_path)` as the canonical source of truth.
+    - **Key normalization:** `multi_aquarium_outputs` keys may be mixed (`0` vs `"0"`). Normalize keys to numeric aquarium IDs and merge duplicates to avoid Treeview iid collisions (symptom: only one aquarium visible).
+    - **Persistence after generation (Option B):** After generating per-aquarium summaries/reports, re-register updated `multi_aquarium_outputs` via `ProjectManager.register_multi_aquarium_outputs(...)` so `has_summary` and artifact paths persist and the UI updates reliably.
+
 ---
 
 ## 7. Removed Events (Changelog)

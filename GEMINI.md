@@ -166,3 +166,10 @@ What are the results?
 *   Do NOT revert the explicit parquet export in `save_multi_aquarium_zone_data`—it is essential for the legacy validation scanner.
 *   Ensure `EventDispatcher` subscriptions are kept in sync with `ZoneControls` events.
 *   **Always check for infinite event loops** when adding new subscriptions to `MainViewModel`.
+
+**7. Multi-Aquarium Reporting + Reports UI (Dec 2025):**
+*   **Reporting Accessor**: report generation must use `ProjectManager.get_multi_aquarium_zone_data()` (NOT `get_zone_data()`), otherwise Aquarium 1 can reuse Aquarium 0 crop/geometry.
+*   **Outputs Persistence (Option B)**: after generating summary/report artifacts, re-register updated `multi_aquarium_outputs` via `ProjectManager.register_multi_aquarium_outputs(...)` so `has_summary` and file paths persist.
+*   **Reports Tree Source of Truth**: hierarchy video dict may omit `multi_aquarium_outputs`; fall back to `ProjectManager.find_video_entry(video_path)`.
+*   **Key Normalization**: normalize `multi_aquarium_outputs` keys (`0` vs `"0"`) to avoid Treeview iid collisions.
+*   **OpenCV Note**: `.png` background frames must be loaded via `cv2.imread` (avoid `cv2.VideoCapture`).

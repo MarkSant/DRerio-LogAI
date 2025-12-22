@@ -1105,6 +1105,26 @@ class ProjectViewManager:
                 except Exception as e:
                     log.error("gui.open_results_folder.failed", error=str(e))
                     self.gui.show_error("Erro", f"Não foi possível abrir a pasta: {e}")
+            return
+
+        # Handle aquarium nodes - open aquarium results folder
+        if node_type == "aquarium":
+            results_dir = metadata.get("results_dir")
+            if results_dir and os.path.exists(results_dir):
+                log.info(
+                    "gui.open_aquarium_results_folder",
+                    path=results_dir,
+                    aquarium_id=metadata.get("aquarium_id"),
+                )
+                try:
+                    if os.name == "nt":  # Windows
+                        os.startfile(results_dir)
+                    elif os.name == "posix":  # macOS, Linux
+                        subprocess.Popen(["xdg-open", results_dir])
+                except Exception as e:
+                    log.error("gui.open_aquarium_results_folder.failed", error=str(e))
+                    self.gui.show_error("Erro", f"Não foi possível abrir a pasta: {e}")
+            return
 
     def _handle_report_file_node(self, metadata: dict) -> None:
         """
@@ -1440,24 +1460,133 @@ class ProjectViewManager:
                         "results_dir": video.get("results_dir"),
                     }
 
-                    # Append artifacts (docx, xlsx files)
-                    # Use ProjectManager lookup for robustness if not in entry
-                    results_dir = video.get("results_dir")
-                    if not results_dir:
-                        pm = self.gui.controller.project_manager
-                        results_dir = pm.resolve_results_directory(
-                            experiment_id=video.get("experiment_id")
-                            or video.get("metadata", {}).get("experiment_id"),
-                            video_path=video_path,
-                            metadata=video.get("metadata"),
-                        )
-                        if isinstance(results_dir, Path):
-                            results_dir = str(results_dir)
+                    # Check for multi-aquarium mode
+                    multi_outputs = video.get("multi_aquarium_outputs")
+                    if not multi_outputs:
+                        # IMPORTANT: the hierarchy builder may return a simplified video dict
+                        # that drops custom fields (like multi_aquarium_outputs). Always fall
+                        # back to the canonical ProjectManager entry to avoid showing only
+                        # one aquarium (or none) even when both exist on disk.
+                        try:
+                            pm = self.gui.controller.project_manager
+                            canonical_entry = pm.find_video_entry(path=video_path) if pm else None
+                            if canonical_entry and isinstance(canonical_entry, dict):
+                                multi_outputs = canonical_entry.get("multi_aquarium_outputs")
+                        except Exception:
+                            pass
+                    if multi_outputs and isinstance(multi_outputs, dict) and len(multi_outputs) > 0:
+                        # Create aquarium folder nodes for each aquarium.
+                        # Normalize keys because they may be mixed (e.g., 0 and "0") depending
+                        # on persistence/serialization paths; duplicates can otherwise cause Tk iid
+                        # collisions and lead to only the last aquarium being visible.
+                        normalized_outputs: dict[int, dict] = {}
 
-                    if results_dir and os.path.exists(results_dir):
-                        self.append_processing_reports_artifacts(
-                            tree, video_node_id, results_dir, metadata_store
-                        )
+                        for raw_key, raw_output in multi_outputs.items():
+                            # Best-effort: extract numeric aquarium id from key
+                            aq_digits = "".join(ch for ch in str(raw_key) if ch.isdigit())
+                            if not aq_digits:
+                                continue
+                            try:
+                                aq_id_int = int(aq_digits)
+                            except Exception:
+                                continue
+
+                            output_info = raw_output if isinstance(raw_output, dict) else {}
+                            if aq_id_int not in normalized_outputs:
+                                normalized_outputs[aq_id_int] = dict(output_info)
+                                continue
+
+                            # Merge duplicates (prefer non-empty values / union parquet_files)
+                            existing = normalized_outputs[aq_id_int]
+                            existing_results_dir = existing.get("results_dir")
+                            new_results_dir = output_info.get("results_dir")
+                            if not existing_results_dir and new_results_dir:
+                                existing["results_dir"] = new_results_dir
+
+                            existing_pf = existing.get("parquet_files") or {}
+                            new_pf = output_info.get("parquet_files") or {}
+                            if isinstance(existing_pf, dict) and isinstance(new_pf, dict):
+                                merged_pf = dict(existing_pf)
+                                for k, v in new_pf.items():
+                                    if v and not merged_pf.get(k):
+                                        merged_pf[k] = v
+                                existing["parquet_files"] = merged_pf
+
+                            for field in ("group", "subject_id", "day", "frame_crop_box"):
+                                if existing.get(field) in (None, "") and output_info.get(field) not in (None, ""):
+                                    existing[field] = output_info.get(field)
+
+                        for aq_id, aq_output in sorted(normalized_outputs.items(), key=lambda kv: kv[0]):
+                            aq_results_dir = aq_output.get("results_dir")
+                            aq_group = aq_output.get("group", "")
+                            aq_subject = aq_output.get("subject_id", "")
+                            aq_parquet_files = aq_output.get("parquet_files", {})
+
+                            # Per-aquarium status indicators
+                            aq_has_traj = bool(aq_parquet_files.get("trajectory"))
+                            aq_has_summary = bool(
+                                aq_parquet_files.get("summary")
+                                or aq_parquet_files.get("summary_excel")
+                            )
+                            aq_col_traj = STATUS_SYMBOLS["trajectory"] if aq_has_traj else ""
+                            aq_col_summary = STATUS_SYMBOLS["summary"] if aq_has_summary else ""
+
+                            aq_label = f"Aquário {aq_id}"
+                            if aq_group:
+                                aq_label += f" - {aq_group}"
+                            if aq_subject:
+                                aq_label += f" ({aq_subject})"
+
+                            aq_node_id = f"{video_node_id}_aquarium_{aq_id}"
+
+                            tree.insert(
+                                video_node_id,
+                                "end",
+                                iid=aq_node_id,
+                                text=f"🐠 {aq_label}",
+                                values=(
+                                    "",  # Arena (inherited from video)
+                                    "",  # ROIs (inherited from video)
+                                    aq_col_traj,  # Trajectory per aquarium
+                                    aq_col_summary,  # Summary per aquarium
+                                    "",  # Status
+                                    aq_results_dir or "",
+                                ),
+                            )
+
+                            metadata_store[aq_node_id] = {
+                                "type": "aquarium",
+                                "video_path": video_path,
+                                "aquarium_id": aq_id,
+                                "results_dir": aq_results_dir,
+                                "group": aq_group,
+                                "subject_id": aq_subject,
+                            }
+
+                            # Append artifacts for this aquarium
+                            if aq_results_dir and os.path.exists(aq_results_dir):
+                                self.append_processing_reports_artifacts(
+                                    tree, aq_node_id, aq_results_dir, metadata_store
+                                )
+                    else:
+                        # Single-aquarium mode: append artifacts directly to video node
+                        # Use ProjectManager lookup for robustness if not in entry
+                        results_dir = video.get("results_dir")
+                        if not results_dir:
+                            pm = self.gui.controller.project_manager
+                            results_dir = pm.resolve_results_directory(
+                                experiment_id=video.get("experiment_id")
+                                or video.get("metadata", {}).get("experiment_id"),
+                                video_path=video_path,
+                                metadata=video.get("metadata"),
+                            )
+                            if isinstance(results_dir, Path):
+                                results_dir = str(results_dir)
+
+                        if results_dir and os.path.exists(results_dir):
+                            self.append_processing_reports_artifacts(
+                                tree, video_node_id, results_dir, metadata_store
+                            )
 
     def append_report_artifacts(
         self, tree, parent_id: str, results_dir: str, metadata_store: dict

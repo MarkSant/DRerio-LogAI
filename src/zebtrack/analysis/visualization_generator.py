@@ -218,10 +218,36 @@ class VisualizationGenerator:
         # Get video dimensions if available
         if video_path and Path(video_path).exists():
             cap = None
+            frame = None
             try:
-                cap = cv2.VideoCapture(video_path)
-                ret, frame = cap.read()
-                if ret:
+                # If a background frame image is provided (e.g., per-aquarium extracted PNG),
+                # load it directly instead of using VideoCapture.
+                suffix = str(video_path).lower()
+                if suffix.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")):
+                    frame = cv2.imread(str(video_path))
+                else:
+                    # Try backends appropriate for *video files*.
+                    # (DSHOW/MSMF are camera/capture backends and are noisy for file paths.)
+                    backends_to_try = [cv2.CAP_ANY]
+                    if hasattr(cv2, "CAP_FFMPEG"):
+                        backends_to_try = [cv2.CAP_FFMPEG, cv2.CAP_ANY]
+
+                    if frame is None:
+                        for backend in backends_to_try:
+                            cap = cv2.VideoCapture(video_path, backend)
+                            if cap.isOpened():
+                                ret, frame = cap.read()
+                                cap.release()
+                                cap = None
+                                if ret and frame is not None:
+                                    break
+                                frame = None
+                            else:
+                                if cap:
+                                    cap.release()
+                                    cap = None
+
+                if frame is not None:
                     # Apply perspective warp if calibration is available
                     if self.calibration:
                         frame = self.calibration.warp_frame(frame)
@@ -324,13 +350,13 @@ class VisualizationGenerator:
         ax.set_title(f"Trajectory - {self.metadata.get('experiment_id', 'Unknown')}")
         ax.set_xlabel("Position (cm)")
         ax.set_ylabel("Position (cm)")
-        
+
         # Add 5% margin to prevent clipping
         width = max_x - min_x
         height = max_y - min_y
         margin_x = width * 0.05
         margin_y = height * 0.05
-        
+
         ax.set_xlim(min_x - margin_x, max_x + margin_x)
         # Standard Cartesian Y-axis (min at bottom, max at top)
         # Image is aligned to this: Top (Row 0) at max_y, Bottom (Row H) at 0
@@ -377,13 +403,13 @@ class VisualizationGenerator:
         ax.set_title(f"Heatmap - {self.metadata.get('experiment_id', 'Unknown')}")
         ax.set_xlabel("Position (cm)")
         ax.set_ylabel("Position (cm)")
-        
+
         # Add 5% margin
         width = max_x - min_x
         height = max_y - min_y
         margin_x = width * 0.05
         margin_y = height * 0.05
-        
+
         ax.set_xlim(min_x - margin_x, max_x + margin_x)
         ax.set_ylim(min_y - margin_y, max_y + margin_y)
         ax.set_aspect("equal", adjustable="box")
@@ -439,10 +465,34 @@ class VisualizationGenerator:
         # ==================================================================
         if video_path and Path(video_path).exists():
             cap = None
+            frame = None
             try:
-                cap = cv2.VideoCapture(str(video_path))
-                ret, frame = cap.read()
-                if ret:
+                suffix = str(video_path).lower()
+                if suffix.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")):
+                    frame = cv2.imread(str(video_path))
+                else:
+                    # Try backends appropriate for *video files*.
+                    # (DSHOW/MSMF are camera/capture backends and are noisy for file paths.)
+                    backends_to_try = [cv2.CAP_ANY]
+                    if hasattr(cv2, "CAP_FFMPEG"):
+                        backends_to_try = [cv2.CAP_FFMPEG, cv2.CAP_ANY]
+
+                    if frame is None:
+                        for backend in backends_to_try:
+                            cap = cv2.VideoCapture(str(video_path), backend)
+                            if cap.isOpened():
+                                ret, frame = cap.read()
+                                cap.release()
+                                cap = None
+                                if ret and frame is not None:
+                                    break
+                                frame = None
+                            else:
+                                if cap:
+                                    cap.release()
+                                    cap = None
+
+                if frame is not None:
                     # Apply warp if calibration is available
                     if calibration and hasattr(calibration, "warp_frame"):
                         frame = calibration.warp_frame(frame)

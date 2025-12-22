@@ -81,6 +81,7 @@ Suporte avançado para análise simultânea de múltiplos aquários:
 *   **🛡️ Recuperação de Erros**: Fallback automático quando detecção em aquário individual falha
 *   **📤 Exportação R/Python**: Scripts prontos para análise estatística em R ou Python
 *   **🖼️ Preview Lado-a-lado**: `create_side_by_side_preview()` para comparação visual
+*   **📝 Relatórios por Aquário (Word/Excel)**: artefatos separados por `aquarium_0/`, `aquarium_1/` e exibição correta na aba de Relatórios
 
 ## 🛠️ Instalação
 

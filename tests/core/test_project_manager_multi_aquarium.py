@@ -282,6 +282,52 @@ class TestRegisterMultiAquariumOutputs:
         # Status should NOT be processed if not all have trajectory
         assert video_entry.get("has_trajectory") is not True
 
+    def test_register_outputs_sets_has_summary(self, project_setup):
+        """Test that has_summary is set when any aquarium has summary outputs."""
+        project_manager, tmp_path, video_path, _ = project_setup
+
+        outputs = {
+            0: {
+                "results_dir": str(tmp_path / "aq0"),
+                "parquet_files": {
+                    "trajectory": str(tmp_path / "t0.parquet"),
+                    "summary_excel": str(tmp_path / "summary0.xlsx"),
+                },
+            },
+            1: {
+                "results_dir": str(tmp_path / "aq1"),
+                "parquet_files": {"trajectory": str(tmp_path / "t1.parquet")},
+            },
+        }
+
+        project_manager.register_multi_aquarium_outputs(video_path, outputs)
+
+        video_entry = project_manager.find_video_entry(path=video_path)
+        assert video_entry.get("has_summary") is True
+
+    def test_register_outputs_preserves_frame_crop_box(self, project_setup):
+        """Test that optional frame_crop_box is preserved for each aquarium."""
+        project_manager, tmp_path, video_path, _ = project_setup
+
+        outputs = {
+            0: {
+                "results_dir": str(tmp_path / "aq0"),
+                "parquet_files": {"trajectory": str(tmp_path / "t0.parquet")},
+                "frame_crop_box": (10, 20, 300, 400),
+            },
+            1: {
+                "results_dir": str(tmp_path / "aq1"),
+                "parquet_files": {"trajectory": str(tmp_path / "t1.parquet")},
+                "frame_crop_box": None,
+            },
+        }
+
+        project_manager.register_multi_aquarium_outputs(video_path, outputs)
+
+        video_entry = project_manager.find_video_entry(path=video_path)
+        assert video_entry["multi_aquarium_outputs"][0].get("frame_crop_box") == (10, 20, 300, 400)
+        assert video_entry["multi_aquarium_outputs"][1].get("frame_crop_box") is None
+
 
 class TestGetMultiAquariumOutputs:
     """Tests for get_multi_aquarium_outputs method."""

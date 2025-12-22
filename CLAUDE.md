@@ -217,6 +217,27 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 ### Phase 10: Multi-Aquarium Support (Dec 2025)
 **Feature**: Enables tracking in 2 independent aquariums per video with separate ROIs and zones.
 
+### Phase 11: Multi-Aquarium Reporting + Reports Tree (Dec 2025)
+**Problems Resolved**:
+- Aquarium 1 report using Aquarium 0 cropped background
+- Aquarium 1 trajectory/heatmap misaligned
+- Reports tab showing only one aquarium
+- Summary indicator not persisting reliably after generation
+
+**Root Causes**:
+1. `get_zone_data()` returns only Aquarium 0 in multi-mode (backward compatibility)
+2. Reports tree sometimes receives simplified hierarchy entries without `multi_aquarium_outputs`
+3. `multi_aquarium_outputs` keys can be mixed (`0` vs `"0"`), causing Treeview iid collisions
+
+**Fixes / Guard Rails**:
+- Reporting: always prefer `ProjectManager.get_multi_aquarium_zone_data()` with safe fallback
+- Persistence: after summary/report generation, re-register outputs via `register_multi_aquarium_outputs(...)`
+- UI: in Reports tree, fall back to `ProjectManager.find_video_entry(video_path)` and normalize aquarium keys
+
+**Regression Tests**:
+- `tests/ui/components/test_project_view_manager_reports_tree_multi_aquarium.py`
+- `tests/analysis/test_visualization_generator_background_image.py`
+
 **Core Data Structures** (in `core/detector.py`):
 - `AquariumData`: Holds `id`, `polygon`, `roi_mode`, `roi_data` for each aquarium
 - `MultiAquariumZoneData`: Container with `aquariums: list[AquariumData]`, `calibration`, `active_aquarium_id`, `sequential_processing`
@@ -490,10 +511,19 @@ logger.error("recorder.save_parquet.error", error=str(e))
 **4. Windows Taskbar Icon:**
 *   Added `AppUserModelID` setup in `__main__.py` to dissociate the app from the generic Python process icon on Windows.
 
+**5. Multi-Aquarium Report Generation Fix (Dec 2025):**
+*   **Critical Bug Fixed**: Second aquarium Word reports were using first aquarium's cropped image and had misaligned trajectory/heatmap.
+*   **Root Cause**: `generate_project_reports()` called `get_zone_data()` instead of `get_multi_aquarium_zone_data()`. The former returns only first aquarium's polygon for backward compatibility.
+*   **Solution**: Changed `processing_coordinator.py:2998` to use `get_multi_aquarium_zone_data()` with fallback to `get_zone_data()` for single-aquarium videos.
+*   **UI Fix**: Reports tab tree now displays aquarium folders (`🐠 Aquário 0`, `🐠 Aquário 1`) with their `.docx`/`.xlsx` artifacts.
+*   **Files Modified**: `processing_coordinator.py` (line 2998), `project_view_manager.py` (lines 1443-1501, 1110-1127)
+*   **Details**: See `docs/testing/MULTI_AQUARIUM_STATUS.md`
+
 **Agent Instructions:**
 *   When modifying `ProjectManager` or `ZoneManager`, ensure `MultiAquariumZoneData` compatibility is maintained.
 *   Do NOT revert the explicit parquet export in `save_multi_aquarium_zone_data`—it is essential for the legacy validation scanner.
 *   Ensure `EventDispatcher` subscriptions are kept in sync with `ZoneControls` events.
+*   **CRITICAL**: In multi-aquarium report generation contexts, ALWAYS use `get_multi_aquarium_zone_data()` instead of `get_zone_data()`. The latter returns only the first aquarium's data for backward compatibility.
 
 ## 📋 Documentation Standards
 
