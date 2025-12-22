@@ -104,6 +104,7 @@ class VisualizationGenerator:
         video_height_px: int | None = None,
         sharp_turn_threshold: float = 90.0,
         settings_obj=None,
+        frame_crop_box: tuple[int, int, int, int] | None = None,
     ):
         """Initialize VisualizationGenerator.
 
@@ -129,6 +130,7 @@ class VisualizationGenerator:
         self._video_height_px = video_height_px
         self.sharp_turn_threshold = sharp_turn_threshold
         self.settings = settings_obj
+        self.frame_crop_box = frame_crop_box
 
     def _roi_geometry_to_cm(self, roi: ROI):
         """Convert ROI geometry from pixels to cm coordinates.
@@ -224,6 +226,17 @@ class VisualizationGenerator:
                     if self.calibration:
                         frame = self.calibration.warp_frame(frame)
 
+                    # Apply crop if aquarium-local crop box is provided
+                    if self.frame_crop_box:
+                        x, y, w, h = self.frame_crop_box
+                        x = max(0, int(x))
+                        y = max(0, int(y))
+                        w = max(1, int(w))
+                        h = max(1, int(h))
+                        x2 = min(frame.shape[1], x + w)
+                        y2 = min(frame.shape[0], y + h)
+                        frame = frame[y:y2, x:x2]
+
                     frame_height_px = frame.shape[0]
                     frame_width_px = frame.shape[1]
                     # Calculate proper extent based on pixel-to-cm conversion
@@ -256,6 +269,8 @@ class VisualizationGenerator:
                     # If frame_height_px != video_height_for_transform (e.g., video was resized),
                     # we need to account for this offset.
                     y_bottom = (video_height_for_transform - frame_height_px) / pixelcm_y
+                    if y_bottom < 0:
+                        y_bottom = 0.0
                     y_top = video_height_for_transform / pixelcm_y
 
                     frame_extent: tuple[float, float, float, float] = (
@@ -432,6 +447,16 @@ class VisualizationGenerator:
                     if calibration and hasattr(calibration, "warp_frame"):
                         frame = calibration.warp_frame(frame)
 
+                    if self.frame_crop_box:
+                        x, y, w, h = self.frame_crop_box
+                        x = max(0, int(x))
+                        y = max(0, int(y))
+                        w = max(1, int(w))
+                        h = max(1, int(h))
+                        x2 = min(frame.shape[1], x + w)
+                        y2 = min(frame.shape[0], y + h)
+                        frame = frame[y:y2, x:x2]
+
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frame_rgb = cv2.flip(frame_rgb, 0)  # Invert Y for Cartesian
 
@@ -441,6 +466,8 @@ class VisualizationGenerator:
                     frame_width_px = frame.shape[1]
 
                     y_bottom = (video_height_for_transform - frame_height_px) / px_per_cm_y
+                    if y_bottom < 0:
+                        y_bottom = 0.0
                     y_top = video_height_for_transform / px_per_cm_y
                     frame_extent = (
                         0.0,

@@ -260,6 +260,7 @@ class AnalysisService:
         video_path: str | None = None,
         calibration=None,
         sharp_turn_threshold: float = 45.0,
+        frame_crop_box: tuple[int, int, int, int] | None = None,
     ) -> AnalysisResult:
         """Run complete analysis and return results as DTO (RECOMMENDED).
 
@@ -346,6 +347,7 @@ class AnalysisService:
             freezing_duration=freezing_min_duration,
             smoothing_window_length=smoothing_window_length,
             smoothing_polyorder=smoothing_polyorder,
+            frame_crop_box=frame_crop_box,
         )
 
     def run_multi_aquarium_analysis(

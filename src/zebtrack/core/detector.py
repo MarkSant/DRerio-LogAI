@@ -545,7 +545,7 @@ class Detector:
         has_polygon = self.scaled_polygon.size > 0
 
         if len(predictions) > 0:
-            log.info(
+            log.debug(
                 "detector.predictions_before_polygon_filter",
                 count=len(predictions),
                 has_polygon=has_polygon,
@@ -553,7 +553,7 @@ class Detector:
             )
 
             # 🔍 DEBUG: Log decision flags for polygon filtering
-            log.info(
+            log.debug(
                 "detector.polygon_filter_decision_flags",
                 has_polygon=has_polygon,
                 context=self._context,

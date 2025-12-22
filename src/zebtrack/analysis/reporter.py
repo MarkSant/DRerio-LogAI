@@ -134,6 +134,7 @@ class Reporter:
         roi_colors: dict | None = None,
         video_path: str | None = None,
         calibration=None,
+        frame_crop_box: tuple[int, int, int, int] | None = None,
         # Analysis params
         sharp_turn_threshold: float = 90.0,
         freezing_threshold: float = 1.5,
@@ -226,6 +227,7 @@ class Reporter:
         self.roi_colors = roi_colors if roi_colors else {}
         self.video_path = video_path
         self.calibration = calibration
+        self.frame_crop_box = frame_crop_box
         self._pixelcm_x = pixelcm_x
         self._pixelcm_y = pixelcm_y
         self._video_height_px = video_height_px
@@ -276,6 +278,7 @@ class Reporter:
             video_height_px=self._video_height_px,
             sharp_turn_threshold=self.sharp_turn_threshold,
             settings_obj=self.settings,
+            frame_crop_box=self.frame_crop_box,
         )
 
         # Generate the tidy dataframe from the report
@@ -318,6 +321,7 @@ class Reporter:
         instance.roi_colors = analysis.roi_colors
         instance.video_path = analysis.video_path
         instance.calibration = analysis.calibration_params.calibration
+        instance.frame_crop_box = getattr(analysis, "frame_crop_box", None)
         instance._pixelcm_x = analysis.calibration_params.pixelcm_x
         instance._pixelcm_y = analysis.calibration_params.pixelcm_y
         instance._video_height_px = analysis.calibration_params.video_height_px
@@ -345,6 +349,7 @@ class Reporter:
             video_height_px=instance._video_height_px,
             sharp_turn_threshold=instance.sharp_turn_threshold,
             settings_obj=instance.settings,
+            frame_crop_box=instance.frame_crop_box,
         )
 
         # Generate tidy dataframe

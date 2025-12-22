@@ -1,5 +1,6 @@
 import logging
 import logging.handlers
+import os
 import sys
 from typing import TYPE_CHECKING
 
@@ -35,7 +36,32 @@ def configure_logging(log_file: str = "analysis.log"):
     Args:
         log_file: Path to the log file. Defaults to "analysis.log".
                   Worker processes should use a different file to avoid locking issues.
+                  Logs are cleared after every 2 executions to prevent infinite growth.
     """
+    # Logic to limit logs to 2 executions:
+    # If the file already contains 2 start markers, clear it (mode='w').
+    # Otherwise, append (mode='a').
+    mode = "a"
+    session_marker = '"event": "logging.session.start"'
+
+    if os.path.exists(log_file):
+        try:
+            with open(log_file, encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+                if content.count(session_marker) >= 2:
+                    mode = "w"
+        except Exception:
+            pass
+
+    # Synchronize worker log: if main log is reset, reset worker log too
+    if log_file == "analysis.log" and mode == "w":
+        worker_log = "analysis_worker.log"
+        if os.path.exists(worker_log):
+            try:
+                with open(worker_log, "w") as f:
+                    pass
+            except Exception:
+                pass
     # Shared processors for both structlog and stdlib logging
     shared_processors = [
         structlog.stdlib.add_log_level,
@@ -70,9 +96,9 @@ def configure_logging(log_file: str = "analysis.log"):
         processor=structlog.processors.JSONRenderer(),
     )
 
-    # File handler with rotation
+    # File handler with rotation (limited to 2 sessions via mode, plus 1 backup for safety)
     file_handler = logging.handlers.RotatingFileHandler(
-        log_file, maxBytes=5 * 1024 * 1024, backupCount=5, mode="a"
+        log_file, maxBytes=10 * 1024 * 1024, backupCount=1, mode=mode
     )
     file_handler.setFormatter(file_formatter)
 
@@ -94,6 +120,9 @@ def configure_logging(log_file: str = "analysis.log"):
 
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
+
+    # Log session start marker to track execution count
+    structlog.get_logger().info("logging.session.start")
 
 
 def configure_logging_levels(settings_obj: "Settings | None" = None):

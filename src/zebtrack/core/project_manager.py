@@ -417,12 +417,7 @@ class ProjectManager:
                     reason="single_video_workflow",
                 )
 
-    def save_multi_aquarium_zone_data(
-        self,
-        video_path: str,
-        multi_data: Any,
-        persist: bool = True,
-    ) -> None:
+    def save_multi_aquarium_zone_data(self, video_path: str, multi_data: Any) -> None:
         """Save multi-aquarium zone data.
 
         Persists the MultiAquariumZoneData structure to project JSON.
@@ -477,14 +472,8 @@ class ProjectManager:
                 video_entry["num_aquariums"] = len(multi_data.aquariums)
 
             # 4. Save
-            if persist and self.project_path:
+            if self.project_path:
                 self.save_project()
-            elif not persist:
-                log.info(
-                    "project.save_multi.in_memory_only",
-                    video=video_path,
-                    reason="persist=False",
-                )
             else:
                 log.info(
                     "project.save_multi.in_memory_only",

@@ -127,3 +127,6 @@ class AnalysisResult:
 
     smoothing_polyorder: int | None = None
     """Trajectory smoothing polynomial order."""
+
+    frame_crop_box: tuple[int, int, int, int] | None = None
+    """Optional crop box (x, y, w, h) used to generate aquarium-local frames."""
