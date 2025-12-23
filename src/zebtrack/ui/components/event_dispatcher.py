@@ -559,11 +559,41 @@ class EventDispatcher:
             ),
         )
 
+        # Multi-Aquarium Assignment Dialog (Triggered by CanvasManager)
+        self.event_bus.subscribe(
+            Events.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
+            self._on_show_aquarium_assignment_dialog,
+        )
+
         # ROI Settings
         self.event_bus.subscribe(
             Events.DETECTOR_UPDATE_PARAMETERS,
             lambda d: self.gui._on_apply_roi_settings(d if isinstance(d, dict) else {}),
         )
+
+    def _on_show_aquarium_assignment_dialog(self, data: dict) -> None:
+        """Handle ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG event.
+
+        Opens the assignment dialog and publishes completion event if confirmed.
+        """
+        if not self.gui or not isinstance(data, dict):
+            return
+
+        configs, apply_to_all = self.gui.dialog_manager.show_aquarium_assignment_dialog(
+            available_groups=data.get("available_groups", []),
+            video_path=data.get("video_path"),
+            multi_aquarium_config=data.get("multi_aquarium_config"),
+        )
+
+        if configs:
+            self.publish_event(
+                Events.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED,
+                {
+                    "video_path": data.get("video_path"),
+                    "configs": configs,
+                    "apply_to_all": apply_to_all,
+                },
+            )
 
     def schedule_event_bus_poll(self) -> None:
         """Schedule the event bus polling loop."""
@@ -614,11 +644,37 @@ class EventDispatcher:
         Returns:
             True if event was successfully published, False otherwise
         """
-        if not self.event_bus:
-            self.log.warning("event_dispatcher.publish_event.no_event_bus", event_name=event_name)
+        if not self.validate_event_payload(event_name, data or {}):
             return False
 
         return self.event_bus.publish_event(event_name, data or {})
+
+    def validate_event_payload(self, event_name: str, data: dict) -> bool:
+        """Validate the payload for specific events to ensure contract integrity.
+
+        Args:
+            event_name: Name of the event.
+            data: Payload data.
+
+        Returns:
+            True if valid, False otherwise.
+        """
+        if event_name == Events.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED:
+            if not isinstance(data.get("configs"), list):
+                self.log.error("event_validation.configs_not_list", event=event_name)
+                return False
+            if "video_path" not in data:
+                self.log.error("event_validation.missing_video_path", event=event_name)
+                return False
+        elif event_name == Events.ZONE_AQUARIUM_SELECTED:
+            if not isinstance(data.get("aquarium_id"), int):
+                self.log.error("event_validation.aquarium_id_not_int", event=event_name)
+                return False
+        elif event_name == Events.ZONE_MULTI_AUTO_DETECT_SUCCESS:
+            if not isinstance(data.get("polygons"), list):
+                self.log.error("event_validation.polygons_not_list", event=event_name)
+                return False
+        return True
 
     def handle_analyze_single_video_clicked(self) -> None:
         """Handle the 'Analyze Single Video' action.

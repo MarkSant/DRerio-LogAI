@@ -127,6 +127,10 @@ class ProjectManager:
         # Compatibility: keep roi_template_manager reference for legacy code
         self.roi_template_manager = self.asset_manager.roi_template_manager
 
+        # Cache for get_available_groups (performance optimization)
+        self._groups_cache: list[str] | None = None
+        self._groups_cache_valid: bool = False
+
     # ------------------------------------------------------------------
     # Internal helpers for zone management
     # ------------------------------------------------------------------
@@ -1555,6 +1559,7 @@ class ProjectManager:
             self._sync_multi_aquarium_flags()
 
             self.load_metadata()  # Load metadata right after loading the project
+            self.invalidate_groups_cache()  # Reset cache for new project
             log_context.info(
                 "project.load.success",
                 project_name=self.project_data.get("project_name"),
@@ -2457,7 +2462,15 @@ class ProjectManager:
         return self.project_data.get("project_name", "N/A")
 
     def get_available_groups(self) -> list[str]:
-        """Collect all unique group names used in the project."""
+        """Collect all unique group names used in the project.
+
+        Uses caching for performance with projects containing many videos.
+        Cache is invalidated when groups change (assignment, project load).
+        """
+        # Return cached result if valid
+        if self._groups_cache_valid and self._groups_cache is not None:
+            return self._groups_cache
+
         groups = set()
 
         # 1. Scan video entries
@@ -2466,21 +2479,36 @@ class ProjectManager:
             metadata = video.get("metadata", {})
 
             # Check standard metadata
-            if "group" in metadata and metadata["group"]:
-                groups.add(str(metadata["group"]))
+            if group := metadata.get("group"):
+                groups.add(str(group))
 
             # Check multi-aquarium outputs
             multi_outputs = video.get("multi_aquarium_outputs", {})
             for output in multi_outputs.values():
-                if "group" in output and output["group"]:
-                    groups.add(str(output["group"]))
+                if group := output.get("group"):
+                    groups.add(str(group))
 
         # 2. Check metadata.csv if available
         if self.metadata is not None and "group" in self.metadata.columns:
             for g in self.metadata["group"].dropna().unique():
                 groups.add(str(g))
 
-        return sorted(list(groups))
+        # Cache the result
+        self._groups_cache = sorted(list(groups))
+        self._groups_cache_valid = True
+
+        return self._groups_cache
+
+    def invalidate_groups_cache(self) -> None:
+        """Invalidate the groups cache.
+
+        Call this when:
+        - A video is added/removed
+        - Assignment is completed (new group)
+        - Project is loaded
+        """
+        self._groups_cache_valid = False
+        self._groups_cache = None
 
     def get_project_type(self):
         """Return the project type.

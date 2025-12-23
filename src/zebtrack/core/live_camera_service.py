@@ -13,6 +13,8 @@ Follows the service pattern established by RecordingService and DetectorService.
 
 from __future__ import annotations
 
+import glob
+import math
 import queue
 import threading
 import time
@@ -21,6 +23,8 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
 import cv2
+import numpy as np
+import pandas as pd
 import structlog
 
 if TYPE_CHECKING:
@@ -898,8 +902,7 @@ class LiveCameraService:
                     if frame_number < 30:
                         if self.preview_window and frame_number % 5 == 0:
                             self.preview_window.update_status_text(
-                                f"⏳ Estabilizando imagem... ({frame_number}/30)",
-                                color="orange"
+                                f"⏳ Estabilizando imagem... ({frame_number}/30)", color="orange"
                             )
                         continue
 
@@ -907,7 +910,9 @@ class LiveCameraService:
                     # Process only every 5th frame. With 10 frames max, this covers ~50 frames (1.6s @ 30fps)
                     # instead of just 10 frames (0.33s). This helps bypass initial camera auto-adjustments.
                     if frame_number % 5 != 0:
-                        self._aquarium_detection_frames += 1 # Count skipped frames towards timeout?
+                        self._aquarium_detection_frames += (
+                            1  # Count skipped frames towards timeout?
+                        )
                         # actually, user said "diminua para 10 frames".
                         # If we count skipped, we stop immediately.
                         # Let's count "analyzed" frames vs "elapsed" frames.
@@ -964,35 +969,40 @@ class LiveCameraService:
                                                 "live_camera_service.aquarium_detected",
                                                 frame=frame_number,
                                                 total_collected=len(self._detected_aquarium_bboxes),
-                                                area_ratio=f"{bbox_area/frame_area:.2f}",
+                                                area_ratio=f"{bbox_area / frame_area:.2f}",
                                             )
                                     else:
                                         log.info(
                                             "live_camera_service.aquarium_rejected_area",
                                             frame=frame_number,
-                                            area_ratio=f"{bbox_area/frame_area:.2f}",
+                                            area_ratio=f"{bbox_area / frame_area:.2f}",
                                             min_ratio=min_ratio,
-                                            bbox=(int(x1), int(y1), int(x2), int(y2))
+                                            bbox=(int(x1), int(y1), int(x2), int(y2)),
                                         )
 
                         if not detection_found_in_frame:
-                             # Limit "nothing found" logs to avoid flooding info channel
-                             if frame_number % 5 == 0:
-                                 log.info(
+                            # Limit "nothing found" logs to avoid flooding info channel
+                            if frame_number % 5 == 0:
+                                log.info(
                                     "live_camera_service.no_valid_aquarium_in_frame",
                                     frame=frame_number,
                                     num_raw_detections=len(detections),
-                                    target_class_id=target_class_id
+                                    target_class_id=target_class_id,
                                 )
-                                 # DEBUG: Save frame to inspect visibility
-                                 try:
-                                     from pathlib import Path
-                                     import cv2
-                                     debug_path = Path.home() / f"zebtrack_debug_frame_{frame_number}.jpg"
-                                     cv2.imwrite(str(debug_path), frame)
-                                     log.info("live_camera_service.debug_frame_saved", path=str(debug_path))
-                                 except Exception as e:
-                                     log.error("live_camera_service.debug_frame_save_failed", error=str(e))
+                                # DEBUG: Save frame to inspect visibility
+                                try:
+                                    debug_path = (
+                                        Path.home() / f"zebtrack_debug_frame_{frame_number}.jpg"
+                                    )
+                                    cv2.imwrite(str(debug_path), frame)
+                                    log.info(
+                                        "live_camera_service.debug_frame_saved",
+                                        path=str(debug_path),
+                                    )
+                                except Exception as e:
+                                    log.error(
+                                        "live_camera_service.debug_frame_save_failed", error=str(e)
+                                    )
 
                     self._aquarium_detection_frames += 1
 
@@ -1037,8 +1047,6 @@ class LiveCameraService:
                     target_dims = calib_data.get("target_dims_px")
 
                     if h_matrix and target_dims:
-                        import numpy as np
-
                         h_matrix = np.array(h_matrix)
                         frame = cv2.warpPerspective(frame, h_matrix, tuple(target_dims))
 
@@ -1236,7 +1244,6 @@ class LiveCameraService:
             try:
                 # Find generated trajectory parquet
                 # File is saved as: 3_CoordMovimento_{base_name}.parquet
-                import glob
 
                 # 🔍 DEBUG: List all files in output_dir
                 all_files = list(output_dir.glob("*"))
@@ -1267,8 +1274,6 @@ class LiveCameraService:
 
                 # Load trajectory data and generate reports
                 # Task 2.0c: Heavy I/O operation now runs in background thread
-                import pandas as pd
-
                 df = pd.read_parquet(trajectory_file)
 
                 # 🔍 INFO: Log DataFrame info
@@ -1445,8 +1450,6 @@ class LiveCameraService:
 
         Called after aquarium detection phase completes (30 frames or manual stop).
         """
-        import math
-
         from zebtrack.core.detector import ZoneData
 
         w = self.camera.actual_width if self.camera else 1280
@@ -1454,8 +1457,6 @@ class LiveCameraService:
 
         if self._detected_aquarium_bboxes:
             # Use median of detected bboxes to create arena
-            import numpy as np
-
             bboxes_array = np.array(self._detected_aquarium_bboxes)
             x1 = int(np.median(bboxes_array[:, 0]))
             y1 = int(np.median(bboxes_array[:, 1]))

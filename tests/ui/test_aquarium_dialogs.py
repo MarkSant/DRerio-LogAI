@@ -16,23 +16,11 @@ from zebtrack.ui.dialogs.multi_aquarium_confirm_dialog import MultiAquariumConfi
 from zebtrack.ui.wizard.models import AquariumConfig
 
 
-@pytest.fixture
-def root():
-    """Create and yield a Tk root window for testing, then destroy it."""
-    root = tk.Tk()
-    root.withdraw()  # Hide the window
-    yield root
-    try:
-        root.update()  # Process pending events before destroy
-        root.destroy()
-    except tk.TclError:
-        pass
-
-
+@pytest.mark.gui
 class TestMultiAquariumConfirmDialog:
     """Tests for MultiAquariumConfirmDialog."""
 
-    def test_dialog_creation(self, root):
+    def test_dialog_creation(self, tkinter_root):
         """Test that dialog can be created without errors."""
         callbacks = {
             "single": MagicMock(),
@@ -43,7 +31,7 @@ class TestMultiAquariumConfirmDialog:
         # Create dialog without displaying (would block)
         with patch.object(MultiAquariumConfirmDialog, "wait_window"):
             dialog = MultiAquariumConfirmDialog(
-                parent=root,
+                parent=tkinter_root,
                 on_single=callbacks["single"],
                 on_multi=callbacks["multi"],
                 on_cancel=callbacks["cancel"],
@@ -54,17 +42,17 @@ class TestMultiAquariumConfirmDialog:
         assert hasattr(dialog, "result")
         assert dialog.result is None  # No result yet
 
-    def test_dialog_has_correct_title(self, root):
+    def test_dialog_has_correct_title(self, tkinter_root):
         """Test dialog has correct title."""
         with patch.object(MultiAquariumConfirmDialog, "wait_window"):
-            dialog = MultiAquariumConfirmDialog(parent=root)
+            dialog = MultiAquariumConfirmDialog(parent=tkinter_root)
 
         assert dialog.title() == "Configuração de Aquários"
 
-    def test_get_result_returns_selection(self, root):
+    def test_get_result_returns_selection(self, tkinter_root):
         """Test get_result returns the selection."""
         with patch.object(MultiAquariumConfirmDialog, "wait_window"):
-            dialog = MultiAquariumConfirmDialog(parent=root)
+            dialog = MultiAquariumConfirmDialog(parent=tkinter_root)
 
         # Initially no result
         assert dialog.get_result() is None
@@ -73,14 +61,14 @@ class TestMultiAquariumConfirmDialog:
         dialog.result = 1
         assert dialog.get_result() == 1
 
-    def test_single_aquarium_selection(self, root):
+    def test_single_aquarium_selection(self, tkinter_root):
         """Test single aquarium callback is triggered."""
         callback = MagicMock()
 
         with patch.object(MultiAquariumConfirmDialog, "wait_window"):
             with patch.object(MultiAquariumConfirmDialog, "ok"):
                 dialog = MultiAquariumConfirmDialog(
-                    parent=root,
+                    parent=tkinter_root,
                     on_single=callback,
                 )
                 # Set selection to 1 aquarium
@@ -91,14 +79,14 @@ class TestMultiAquariumConfirmDialog:
         callback.assert_called_once()
         assert dialog.result == 1
 
-    def test_multi_aquarium_selection(self, root):
+    def test_multi_aquarium_selection(self, tkinter_root):
         """Test multi aquarium callback is triggered."""
         callback = MagicMock()
 
         with patch.object(MultiAquariumConfirmDialog, "wait_window"):
             with patch.object(MultiAquariumConfirmDialog, "ok"):
                 dialog = MultiAquariumConfirmDialog(
-                    parent=root,
+                    parent=tkinter_root,
                     on_multi=callback,
                 )
                 # Set selection to 2 aquariums
@@ -109,14 +97,14 @@ class TestMultiAquariumConfirmDialog:
         callback.assert_called_once()
         assert dialog.result == 2
 
-    def test_cancel_callback(self, root):
+    def test_cancel_callback(self, tkinter_root):
         """Test cancel callback is triggered."""
         callback = MagicMock()
 
         with patch.object(MultiAquariumConfirmDialog, "wait_window"):
             with patch.object(tk.simpledialog.Dialog, "cancel"):
                 dialog = MultiAquariumConfirmDialog(
-                    parent=root,
+                    parent=tkinter_root,
                     on_cancel=callback,
                 )
                 dialog.cancel()
@@ -124,34 +112,100 @@ class TestMultiAquariumConfirmDialog:
         callback.assert_called_once()
 
 
+@pytest.mark.gui
 class TestAquariumAssignmentDialog:
     """Tests for AquariumAssignmentDialog."""
 
-    @pytest.fixture
-    def dialog_root(self):
-        """Create a fresh root for each dialog test."""
-        root = tk.Tk()
-        root.withdraw()
-        yield root
-        try:
-            root.update()
-            root.destroy()
-        except tk.TclError:
-            pass
-
-    @pytest.mark.skip(reason="ttkbootstrap Combobox requires special handling in tests")
-    def test_dialog_creation(self, dialog_root):
+    @patch("tkinter.messagebox.showinfo")
+    def test_dialog_creation(self, mock_showinfo, tkinter_root):
         """Test that dialog can be created without errors."""
         groups = ["Controle", "Tratamento"]
 
-        with patch.object(AquariumAssignmentDialog, "wait_window"):
-            dialog = AquariumAssignmentDialog(
-                parent=dialog_root,
-                available_groups=groups,
-            )
+        with patch("ttkbootstrap.Style"):  # Mock style to avoid Tcl issues
+            with patch.object(AquariumAssignmentDialog, "wait_window"):
+                dialog = AquariumAssignmentDialog(
+                    parent=tkinter_root,
+                    available_groups=groups,
+                )
 
         assert dialog is not None
         assert dialog.available_groups == groups
+
+    @patch("tkinter.messagebox.showinfo")
+    def test_regex_auto_fill(self, mock_showinfo, tkinter_root):
+        """Test regex auto-fill logic in the dialog."""
+        from zebtrack.ui.wizard.models import MultiAquariumData
+
+        groups = ["Control"]
+        video_path = "G_Control_S_01--G_Stress_S_02.mp4"
+
+        # Configure regex
+        multi_config = MultiAquariumData(
+            enabled=True,
+            regex_pattern=r"G_(?P<group>\w+)_S_(?P<subject>\w+)",
+            regex_group_field="group",
+            regex_subject_field="subject",
+        )
+
+        with patch("ttkbootstrap.Style"):
+            with patch.object(AquariumAssignmentDialog, "wait_window"):
+                dialog = AquariumAssignmentDialog(
+                    parent=tkinter_root,
+                    available_groups=groups,
+                    video_path=video_path,
+                    multi_aquarium_config=multi_config,
+                )
+
+                # Trigger auto-fill
+                dialog._on_auto_fill_click()
+
+        # Verify results for first aquarium
+        assert dialog._group_vars[0].get() == "Control"
+        assert dialog._subject_vars[0].get() == "01"
+
+        # Verify results for second aquarium (should have extracted second match)
+        assert dialog._group_vars[1].get() == "Stress"
+        assert dialog._subject_vars[1].get() == "02"
+
+        # Verify Stress was added to combobox values for both
+        assert "Stress" in dialog._group_combos[0]["values"]
+        assert "Stress" in dialog._group_combos[1]["values"]
+
+    def test_apply_to_all_functionality(self, tkinter_root):
+        """Test that get_result returns the apply_to_all state."""
+        with patch("ttkbootstrap.Style"):
+            with patch.object(AquariumAssignmentDialog, "wait_window"):
+                dialog = AquariumAssignmentDialog(parent=tkinter_root, available_groups=["Control"])
+
+                # Check default
+                assert dialog._apply_to_all_var.get() is False
+
+                # Set to True
+                dialog._apply_to_all_var.set(True)
+
+                # Simulate confirm
+                dialog.result = dialog.get_configs()
+
+                configs, apply_to_all = dialog.get_result()
+                assert apply_to_all is True
+
+    def test_dynamic_group_addition(self, tkinter_root):
+        """Test that new groups are added to comboboxes correctly."""
+        with patch("ttkbootstrap.Style"):
+            with patch.object(AquariumAssignmentDialog, "wait_window"):
+                dialog = AquariumAssignmentDialog(parent=tkinter_root, available_groups=["Control"])
+
+                # Initially only "Control"
+                assert "Control" in dialog._group_combos[0]["values"]
+                assert "NewGroup" not in dialog._group_combos[0]["values"]
+
+                # Add group via method
+                dialog._ensure_group_in_combobox(0, "NewGroup")
+
+                # Now "NewGroup" should be there
+                assert "NewGroup" in dialog._group_combos[0]["values"]
+                # And also in the other combobox (shared logic)
+                assert "NewGroup" in dialog._group_combos[1]["values"]
 
     def test_default_group_assignment_logic(self):
         """Test default group assignment logic without creating dialog."""

@@ -1,0 +1,47 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-8.4.1, pluggy-1.6.0
+benchmark: 5.2.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI
+configfile: pytest.ini
+plugins: anyio-4.11.0, benchmark-5.2.0, cov-6.3.0, timeout-2.4.0, xdist-3.8.0
+timeout: 300.0s
+timeout method: thread
+timeout func_only: False
+collected 0 items / 1 error
+
+=== PYTEST SESSION CLEANUP ===
+
+Remaining threads at session end: 1
+  - MainThread: daemon=False, alive=True
+==============================
+
+
+=================================== ERRORS ====================================
+_____________ ERROR collecting tests/ui/test_aquarium_dialogs.py ______________
+ImportError while importing test module 'C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\tests\ui\test_aquarium_dialogs.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+C:\Program Files\Python312\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\ui\test_aquarium_dialogs.py:14: in <module>
+    from zebtrack.ui.dialogs.aquarium_assignment_dialog import AquariumAssignmentDialog
+src\zebtrack\ui\dialogs\__init__.py:14: in <module>
+    from zebtrack.ui.dialogs.live_analysis_dialog import LiveAnalysisDialog
+src\zebtrack\ui\dialogs\live_analysis_dialog.py:33: in <module>
+    from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
+src\zebtrack\ui\components\__init__.py:21: in <module>
+    from zebtrack.ui.components.dialog_manager import DialogManager
+src\zebtrack\ui\components\dialog_manager.py:16: in <module>
+    from zebtrack.ui.dialogs import (
+E   ImportError: cannot import name 'MissingMetadataDialog' from partially initialized module 'zebtrack.ui.dialogs' (most likely due to a circular import) (C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\ui\dialogs\__init__.py)
+============================== warnings summary ===============================
+tests\conftest.py:157
+  c:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\tests\conftest.py:157: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, ThreadPoolExecutor):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+ERROR tests/ui/test_aquarium_dialogs.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+========================= 1 warning, 1 error in 2.79s =========================

@@ -13,16 +13,7 @@ from typing import Any
 
 import structlog
 
-from zebtrack.ui.dialogs import (
-    CalibrationDialog,
-    CenterPeripheryDialog,
-    MissingMetadataDialog,
-    PendingVideosDialog,
-    SaveROITemplateDialog,
-    SingleVideoConfigDialog,
-    StartRecordingDialog,
-    TemplateDialog,
-)
+# Dialogs are imported locally within methods to avoid circular dependencies
 
 log = structlog.get_logger()
 
@@ -195,12 +186,14 @@ class DialogManager:
         """
         return simpledialog.askstring(title, prompt, initialvalue=initialvalue)
 
-    # =========================================================================
-    # Custom Dialogs - Calibration
-    # =========================================================================
+        # =========================================================================
+        # Custom Dialogs - Calibration
+        # =========================================================================
 
     def open_global_calibration_window(self) -> None:
         """Open the global calibration dialog."""
+        from zebtrack.ui.dialogs import CalibrationDialog
+
         with self.gui.controller.global_calibration_session():
             CalibrationDialog(self.gui.root, self.gui.controller)
 
@@ -215,6 +208,8 @@ class DialogManager:
                 "Abra um projeto antes de ajustar a calibração específica.",
             )
             return
+
+        from zebtrack.ui.dialogs import CalibrationDialog
 
         with self.gui.controller.project_calibration_session():
             CalibrationDialog(self.gui.root, self.gui.controller)
@@ -245,6 +240,8 @@ class DialogManager:
         Returns:
             Dialog result dict with user choices, or None if cancelled
         """
+        from zebtrack.ui.dialogs import SaveROITemplateDialog
+
         dialog = SaveROITemplateDialog(
             self.gui.root,
             default_name=initial_name,
@@ -424,6 +421,8 @@ class DialogManager:
         Returns:
             Dialog result with method and value, or None if cancelled
         """
+        from zebtrack.ui.dialogs import CenterPeripheryDialog
+
         dialog = CenterPeripheryDialog(self.gui.root)
         return dialog.result if dialog.result else None
 
@@ -433,6 +432,8 @@ class DialogManager:
         Returns:
             Dialog result with template type and parameters, or None if cancelled
         """
+        from zebtrack.ui.dialogs import TemplateDialog
+
         dialog = TemplateDialog(self.gui.root)
         return dialog.result if dialog.result else None
 
@@ -442,12 +443,40 @@ class DialogManager:
         Returns:
             Dialog result with video config, or None if cancelled
         """
+        from zebtrack.ui.dialogs import SingleVideoConfigDialog
+
         dialog = SingleVideoConfigDialog(
             self.gui.root,
             settings_obj=self.gui.controller.settings,
             event_bus=self.gui.event_bus,
         )
         return dialog.result if dialog.result else None
+
+    def show_aquarium_assignment_dialog(
+        self,
+        *,
+        available_groups: list[str],
+        video_path: str | None = None,
+        multi_aquarium_config: Any = None,
+        on_confirm: Any = None,
+        on_cancel: Any = None,
+    ) -> tuple[Any, bool]:
+        """Show dialog for assigning groups to aquariums.
+
+        Returns:
+            Tuple of (configs, apply_to_all) or (None, False) if cancelled.
+        """
+        from zebtrack.ui.dialogs.aquarium_assignment_dialog import AquariumAssignmentDialog
+
+        dialog = AquariumAssignmentDialog(
+            parent=self.gui.root,
+            available_groups=available_groups,
+            video_path=video_path,
+            multi_aquarium_config=multi_aquarium_config,
+            on_confirm=on_confirm,
+            on_cancel=on_cancel,
+        )
+        return dialog.get_result()
 
     # =========================================================================
     # Custom Dialogs - Project & Recording
@@ -491,6 +520,8 @@ class DialogManager:
         else:
             log.warning("dialog_manager.readiness_snapshot.no_event_bus")
 
+        from zebtrack.ui.dialogs import PendingVideosDialog
+
         dialog = PendingVideosDialog(
             self.gui.root,
             hierarchy_builder=self.gui.validation_manager.build_video_hierarchy_snapshot,
@@ -517,6 +548,8 @@ class DialogManager:
             )
             return None
 
+        from zebtrack.ui.dialogs import StartRecordingDialog
+
         dialog = StartRecordingDialog(self.gui.root, pm)
         return dialog.result
 
@@ -529,6 +562,8 @@ class DialogManager:
         Returns:
             Dialog result with metadata, or None if cancelled
         """
+        from zebtrack.ui.dialogs import MissingMetadataDialog
+
         dialog = MissingMetadataDialog(self.gui.root, experiment_id)
         return dialog.result
 
