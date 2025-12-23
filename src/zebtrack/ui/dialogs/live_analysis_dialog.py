@@ -27,8 +27,10 @@ import structlog
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
+    from zebtrack.ui.event_bus import EventBus
 
 from zebtrack.core.wizard_service import WizardService
+from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
 
 log = structlog.get_logger()
@@ -69,19 +71,28 @@ class LiveAnalysisDialog(Dialog):
             - animal_method: str
             - use_openvino: bool
             - use_single_subject_tracker: bool
+            - behavioral_analysis: dict
         or None if cancelled
     """
 
-    def __init__(self, parent, settings_obj: "Settings | None" = None):
+    def __init__(
+        self,
+        parent,
+        settings_obj: "Settings | None" = None,
+        event_bus: "EventBus | None" = None,
+    ):
         """
         Initialize live analysis dialog.
 
         Args:
             parent: Parent Tkinter widget
             settings_obj: Settings instance for defaults
+            event_bus: Optional event bus instance
         """
         self.settings = settings_obj
+        self.event_bus = event_bus
         self.result = None
+        self.behavioral_config_widget = None
 
         # UI state
         self.camera_selection_var = StringVar(value="")
@@ -89,8 +100,8 @@ class LiveAnalysisDialog(Dialog):
         self.duration_var = DoubleVar(
             value=settings_obj.live_analysis.default_duration_s if settings_obj else 300.0
         )
-        self.analysis_interval_var = IntVar(value=10)
-        self.display_interval_var = IntVar(value=10)
+        self.analysis_interval_var = IntVar(value=5)
+        self.display_interval_var = IntVar(value=5)
         self.record_video_var = BooleanVar(value=True)
         self.experiment_id_var = StringVar(value="")
 
@@ -215,7 +226,7 @@ class LiveAnalysisDialog(Dialog):
             "Tempo de Gravação/Análise\n\n"
             "Define quanto tempo a sessão ao vivo irá durar em segundos.\n"
             "• 60s = 1 minuto.\n"
-            "• 300s = 5 minutos."
+            "• 300s = 5 minutos.",
         ).grid(row=0, column=1, padx=2)
         duration_spin = Spinbox(
             duration_frame,
@@ -245,7 +256,7 @@ class LiveAnalysisDialog(Dialog):
             "Intervalo de Análise (frames)\n\n"
             "Processa 1 frame a cada N frames da câmera.\n"
             "• Valores baixos exigem um computador potente.\n"
-            "• Recomendado para Live: 1 ou 2."
+            "• Recomendado para Live: 1 ou 2.",
         ).grid(row=1, column=1, padx=2)
         analysis_spin = Spinbox(
             duration_frame,
@@ -264,7 +275,7 @@ class LiveAnalysisDialog(Dialog):
             duration_frame,
             "Intervalo de Exibição (frames)\n\n"
             "Frequência de atualização do vídeo na tela.\n"
-            "• Aumentar este valor ajuda se a interface estiver lenta."
+            "• Aumentar este valor ajuda se a interface estiver lenta.",
         ).grid(row=2, column=1, padx=2)
         display_spin = Spinbox(
             duration_frame,
@@ -295,7 +306,7 @@ class LiveAnalysisDialog(Dialog):
             options_frame,
             "Identificador do Experimento\n\n"
             "Nome usado para organizar os arquivos de saída.\n"
-            "• Se deixado em branco, o sistema gerará um nome com a data e hora."
+            "• Se deixado em branco, o sistema gerará um nome com a data e hora.",
         ).grid(row=0, column=1, padx=2)
         id_entry = ttk.Entry(options_frame, textvariable=self.experiment_id_var)
         id_entry.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
@@ -330,7 +341,7 @@ class LiveAnalysisDialog(Dialog):
             adv_frame,
             "Modelo de Segmentação ou Detecção do tanque.\n"
             "• seg: Mais lento, mas delimita melhor as bordas.\n"
-            "• det: Muito rápido."
+            "• det: Muito rápido.",
         ).grid(row=0, column=1, padx=2)
         ttk.Combobox(
             adv_frame,
@@ -342,9 +353,7 @@ class LiveAnalysisDialog(Dialog):
 
         ttk.Label(adv_frame, text="IA Peixe:").grid(row=0, column=3, padx=(15, 2), sticky="w")
         create_help_label(
-            adv_frame,
-            "Modelo para o peixe.\n"
-            "• Use 'seg' se tiver mais de um peixe por aquário."
+            adv_frame, "Modelo para o peixe.\n• Use 'seg' se tiver mais de um peixe por aquário."
         ).grid(row=0, column=4, padx=2)
         ttk.Combobox(
             adv_frame,
@@ -358,10 +367,9 @@ class LiveAnalysisDialog(Dialog):
         ttk.Label(adv_frame, text="Num. Aquários:").grid(
             row=1, column=0, padx=(5, 2), pady=5, sticky="w"
         )
-        create_help_label(
-            adv_frame,
-            "Quantidade de tanques no campo de visão (1 ou 2)."
-        ).grid(row=1, column=1, padx=2)
+        create_help_label(adv_frame, "Quantidade de tanques no campo de visão (1 ou 2).").grid(
+            row=1, column=1, padx=2
+        )
         Spinbox(adv_frame, from_=1, to=10, textvariable=self.num_aquariums_var, width=8).grid(
             row=1, column=2, padx=5, sticky="w"
         )
@@ -369,13 +377,47 @@ class LiveAnalysisDialog(Dialog):
         ttk.Label(adv_frame, text="Animais/Aquário:").grid(
             row=1, column=3, padx=(15, 2), pady=5, sticky="w"
         )
-        create_help_label(
-            adv_frame,
-            "Quantidade de peixes dentro de cada aquário."
-        ).grid(row=1, column=4, padx=2)
+        create_help_label(adv_frame, "Quantidade de peixes dentro de cada aquário.").grid(
+            row=1, column=4, padx=2
+        )
         Spinbox(
             adv_frame, from_=1, to=100, textvariable=self.animals_per_aquarium_var, width=8
         ).grid(row=1, column=5, padx=5, sticky="w")
+
+        # --- Behavioral Analysis Widget (New) ---
+        behavior_frame = ttk.LabelFrame(container, text="Análise Comportamental", padding=10)
+        behavior_frame.pack(fill="x", pady=(0, 10))
+
+        # Determine defaults
+        def_thig = 1.5
+        def_geo = 1.5
+        def_geo_zones = 3
+        def_geo_btm = 1
+        def_perspective = "lateral"
+        def_geotaxis_mode = "zones"
+
+        if self.settings and hasattr(self.settings, "behavioral_analysis"):
+            def_thig = self.settings.behavioral_analysis.default_thigmotaxis_distance_cm
+            def_geo = self.settings.behavioral_analysis.default_geotaxis_distance_cm
+            def_geo_zones = self.settings.behavioral_analysis.default_geotaxis_num_zones
+            def_geo_btm = self.settings.behavioral_analysis.default_geotaxis_bottom_zones
+            # Added in Phase 9
+            if hasattr(self.settings.behavioral_analysis, "aquarium_perspective"):
+                def_perspective = self.settings.behavioral_analysis.aquarium_perspective
+            if hasattr(self.settings.behavioral_analysis, "geotaxis_mode"):
+                def_geotaxis_mode = self.settings.behavioral_analysis.geotaxis_mode
+
+        self.behavioral_config_widget = BehavioralConfigWidget(
+            behavior_frame,
+            default_thigmotaxis_cm=def_thig,
+            default_geotaxis_cm=def_geo,
+            default_num_zones=def_geo_zones,
+            default_bottom_zones=def_geo_btm,
+            default_perspective=def_perspective,
+            default_geotaxis_mode=def_geotaxis_mode,
+            event_bus=self.event_bus,
+        )
+        self.behavioral_config_widget.pack(fill="x", expand=True)
 
         # Auto-detect on open
         self.after(100, self._detect_cameras)
@@ -560,10 +602,16 @@ class LiveAnalysisDialog(Dialog):
             if smoothing_polyorder >= smoothing_window:
                 raise ValueError("Ordem do polinômio deve ser menor que a janela")
 
+            # Validate behavioral config
+            if self.behavioral_config_widget:
+                is_valid, errors = self.behavioral_config_widget.validate()
+                if not is_valid:
+                    raise ValueError("\n".join(errors))
+
         except (ValueError, TypeError) as e:
             messagebox.showerror(
-                "Parâmetro de Suavização Inválido",
-                f"Erro nos parâmetros de suavização:\n{e}",
+                "Parâmetro Inválido",
+                f"Erro na validação:\n{e}",
                 parent=self,
             )
             return False
@@ -586,30 +634,44 @@ class LiveAnalysisDialog(Dialog):
         num_aquariums = int(self.num_aquariums_var.get())
         animals_per_aquarium = int(self.animals_per_aquarium_var.get())
 
+        behavioral_config = {}
+        if self.behavioral_config_widget:
+            behavioral_config = self.behavioral_config_widget.get_values()
+
         # Update the shared settings object to ensure consistency in other UI tabs
         if self.settings:
             try:
                 if hasattr(self.settings, "video_processing"):
                     self.settings.video_processing.processing_interval = analysis_interval
                     self.settings.video_processing.display_interval = display_interval
-                    self.settings.video_processing.sharp_turn_threshold_deg_s = float(self.sharp_turn_var.get())
-                    self.settings.video_processing.freezing_velocity_threshold = float(self.freeze_thresh_var.get())
-                    self.settings.video_processing.freezing_min_duration_s = float(self.freeze_dur_var.get())
-                
+                    self.settings.video_processing.sharp_turn_threshold_deg_s = float(
+                        self.sharp_turn_var.get()
+                    )
+                    self.settings.video_processing.freezing_velocity_threshold = float(
+                        self.freeze_thresh_var.get()
+                    )
+                    self.settings.video_processing.freezing_min_duration_s = float(
+                        self.freeze_dur_var.get()
+                    )
+
                 if hasattr(self.settings, "trajectory_smoothing"):
-                    self.settings.trajectory_smoothing.window_length = int(self.smoothing_window_var.get())
-                    self.settings.trajectory_smoothing.polyorder = int(self.smoothing_polyorder_var.get())
-                
+                    self.settings.trajectory_smoothing.window_length = int(
+                        self.smoothing_window_var.get()
+                    )
+                    self.settings.trajectory_smoothing.polyorder = int(
+                        self.smoothing_polyorder_var.get()
+                    )
+
                 if hasattr(self.settings, "model_selection"):
                     self.settings.model_selection.aquarium_method = self.aquarium_method_var.get()
                     self.settings.model_selection.animal_method = self.animal_method_var.get()
                     self.settings.model_selection.use_openvino = bool(self.use_openvino_var.get())
-                
+
                 if hasattr(self.settings, "analysis_config"):
                     self.settings.analysis_config.num_aquariums = num_aquariums
-                
+
                 if hasattr(self.settings, "tracking"):
-                    self.settings.tracking.use_single_subject_tracker = (animals_per_aquarium == 1)
+                    self.settings.tracking.use_single_subject_tracker = animals_per_aquarium == 1
 
                 log.info("live_analysis_dialog.apply.settings_updated")
             except Exception as e:
@@ -639,6 +701,7 @@ class LiveAnalysisDialog(Dialog):
             "animal_method": self.animal_method_var.get(),
             "use_openvino": bool(self.use_openvino_var.get()),
             "use_single_subject_tracker": animals_per_aquarium == 1,
+            "behavioral_analysis": behavioral_config,
         }
 
         log.info(

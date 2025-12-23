@@ -49,6 +49,9 @@ class CanvasManager:
         self.drag_start_handle = (0, 0)
         self.current_editing_zone = None
 
+        # Visualization settings
+        self.show_geotaxis_zones = False
+
         # Initialize sub-components
         self.renderer = CanvasRenderer(self)
         self.event_handler = CanvasEventHandler(self)
@@ -178,6 +181,7 @@ class CanvasManager:
         # Initialize with N aquariums based on detection count
         # FIXED: MultiAquariumZoneData takes a list of aquariums, not num_aquariums
         from zebtrack.core.detector import AquariumData
+
         aquariums_list = [AquariumData(id=i, polygon=p) for i, p in enumerate(polygons)]
         multi_data = MultiAquariumZoneData(aquariums=aquariums_list)
 
@@ -196,8 +200,8 @@ class CanvasManager:
 
         # If ZoneControls exist, ensure the aquarium selector is set to 2 (or N)
         if self.gui.zone_controls:
-             # Update UI state for N aquariums
-             self.gui.zone_controls.update_aquarium_count(len(polygons))
+            # Update UI state for N aquariums
+            self.gui.zone_controls.update_aquarium_count(len(polygons))
 
         # Redraw
         self.redraw_zones_from_project_data(multi_data)
@@ -206,7 +210,7 @@ class CanvasManager:
         self.gui.show_info(
             "Sucesso",
             f"Detectados {len(polygons)} aquários com sucesso!\n"
-            "Verifique se as marcações estão corretas."
+            "Verifique se as marcações estão corretas.",
         )
 
     # ========== Coordinate Transformation Methods ==========
@@ -719,6 +723,7 @@ class CanvasManager:
 
         # Handle Multi-Aquarium Data for Listbox
         from zebtrack.core.detector import MultiAquariumZoneData
+
         if isinstance(zone_data, MultiAquariumZoneData):
             if controls:
                 active_id = controls.active_aquarium_var.get()
@@ -763,7 +768,7 @@ class CanvasManager:
 
         if isinstance(zone_data, MultiAquariumZoneData):
             zone_data.sequential_processing = sequential
-            
+
             # Persist change to disk so it survives for batch processing
             video_path = self.gui.controller.project_manager.get_active_zone_video()
             if video_path:
@@ -810,7 +815,9 @@ class CanvasManager:
                     canvas_polygon.append(canvas_pt)
 
                 # Exclude if it's the one we are editing
-                if not (is_active and exclude_current_polygon and self.current_editing_zone == "arena"):
+                if not (
+                    is_active and exclude_current_polygon and self.current_editing_zone == "arena"
+                ):
                     all_polygons.append(canvas_polygon)
 
             # ROIs
@@ -908,21 +915,19 @@ class CanvasManager:
                         self.gui.show_info(
                             "Próximo Aquário",
                             f"Arena do Aquário {active_id + 1} salva.\n"
-                            f"Agora desenhe a arena do Aquário {next_id + 1}."
+                            f"Agora desenhe a arena do Aquário {next_id + 1}.",
                         )
                         zone_controls.set_active_aquarium(next_id)
                         self.start_main_arena_drawing()
                     else:
-                        self.gui.show_info(
-                            "Concluído",
-                            "Todas as arenas foram definidas."
-                        )
+                        self.gui.show_info("Concluído", "Todas as arenas foram definidas.")
 
                     # Refresh UI
                     self.clear_interactive_polygon()
                     self.redraw_zones_from_project_data()
 
                     from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
                     if self.event_bus_v2:
                         # Emit ZONES_UPDATED for zone listbox refresh
                         self.event_bus_v2.publish(
@@ -1118,7 +1123,7 @@ class CanvasManager:
         self.gui.show_info(
             "Informação",
             "Desenhe o polígono do Aquário 2.\n"
-            "O polígono do Aquário 1 será mostrado como referência."
+            "O polígono do Aquário 1 será mostrado como referência.",
         )
         self.start_main_arena_drawing()
 
@@ -1212,6 +1217,7 @@ class CanvasManager:
 
         # Handle Multi-Aquarium Data
         from zebtrack.core.detector import MultiAquariumZoneData
+
         if isinstance(zone_data, MultiAquariumZoneData):
             zone_controls = getattr(self.gui, "zone_controls", None)
             if zone_controls:
@@ -1786,8 +1792,13 @@ class CanvasManager:
                             if track_id is not None:
                                 local_id = int(track_id) % 1000
                                 cv2.putText(
-                                    crop, f"ID:{local_id}", (dx1, dy1 - 5),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, border_color, 2
+                                    crop,
+                                    f"ID:{local_id}",
+                                    (dx1, dy1 - 5),
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.5,
+                                    border_color,
+                                    2,
                                 )
 
             # Add label
@@ -1797,12 +1808,16 @@ class CanvasManager:
                 if aq.group:
                     label += f" ({aq.group})"
                 cv2.putText(
-                    crop, label, (10, 25),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2
+                    crop, label, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2
                 )
                 cv2.putText(
-                    crop, label, (10, 25),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, self.hex_to_bgr(colors[0]), 1
+                    crop,
+                    label,
+                    (10, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    self.hex_to_bgr(colors[0]),
+                    1,
                 )
 
             # Resize to panel width maintaining aspect ratio
@@ -1824,7 +1839,13 @@ class CanvasManager:
         for crop in crops:
             h, w = crop.shape[:2]
             y_offset = padding + (max_height - h) // 2  # Center vertically
-            composite[y_offset:y_offset + h, x_offset:x_offset + w] = crop
+            composite[y_offset : y_offset + h, x_offset : x_offset + w] = crop
             x_offset += w + padding
 
         return composite
+
+    def toggle_geotaxis_visualization(self, show: bool):
+        """Toggle visualization of geotaxis zones."""
+        self.show_geotaxis_zones = show
+        self.redraw_zones_from_project_data()
+        log.info("canvas_manager.geotaxis_viz.toggled", show=show)

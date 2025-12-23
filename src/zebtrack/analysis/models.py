@@ -136,3 +136,6 @@ class AnalysisResult:
 
     frame_crop_box: tuple[int, int, int, int] | None = None
     """Optional crop box (x, y, w, h) used to generate aquarium-local frames."""
+
+    behavioral_config: dict[str, Any] = field(default_factory=dict)
+    """Configuration for behavioral analysis (thigmotaxis, geotaxis)."""

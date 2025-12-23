@@ -578,9 +578,7 @@ class ProcessingCoordinator(BaseCoordinator):
             else:
                 video_name = os.path.splitext(os.path.basename(video_path))[0]
                 results_dir = os.path.join(os.path.dirname(video_path), f"{video_name}_results")
-            trajectory_path = os.path.join(
-                results_dir, f"3_CoordMovimento_{experiment_id}.parquet"
-            )
+            trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
             trajectory_exists = os.path.exists(trajectory_path)
 
             # Check alternate multi-aquarium locations before warning
@@ -633,9 +631,13 @@ class ProcessingCoordinator(BaseCoordinator):
 
             # Check for multi-aquarium outputs
             outputs_by_aquarium = alt_multi_outputs.copy() if alt_multi_outputs else {}
-            
+
             # Also check video_results_dir if different from results_dir (e.g. project mode with custom path)
-            if video_results_dir and video_results_dir != results_dir and os.path.exists(video_results_dir):
+            if (
+                video_results_dir
+                and video_results_dir != results_dir
+                and os.path.exists(video_results_dir)
+            ):
                 for aq_id in [0, 1]:
                     aq_subdir = os.path.join(video_results_dir, f"aquarium_{aq_id}")
                     if os.path.exists(aq_subdir):
@@ -652,12 +654,10 @@ class ProcessingCoordinator(BaseCoordinator):
                             subject = v.get("subject")
                             outputs_by_aquarium[aq_id] = {
                                 "results_dir": aq_subdir,
-                                "parquet_files": {
-                                    "trajectory": traj_file
-                                },
+                                "parquet_files": {"trajectory": traj_file},
                                 "group": group,
                                 "subject_id": subject,
-                                "day": v.get("day", 1)
+                                "day": v.get("day", 1),
                             }
 
             is_multi_aquarium = bool(outputs_by_aquarium)
@@ -668,13 +668,12 @@ class ProcessingCoordinator(BaseCoordinator):
 
             if is_multi_aquarium and outputs_by_aquarium:
                 self.project_manager.register_multi_aquarium_outputs(
-                    video_path=video_path,
-                    outputs_by_aquarium=outputs_by_aquarium
+                    video_path=video_path, outputs_by_aquarium=outputs_by_aquarium
                 )
                 log.info(
                     "controller.video_completed.multi_aquarium_registered",
                     video=experiment_id,
-                    aquariums=list(outputs_by_aquarium.keys())
+                    aquariums=list(outputs_by_aquarium.keys()),
                 )
 
                 # Sequential multi-aquarium: advance to next aquarium if context exists
@@ -874,10 +873,7 @@ class ProcessingCoordinator(BaseCoordinator):
 
         # Check for sequential multi-aquarium processing mode
         is_multi_aquarium = hasattr(zone_data, "aquariums")
-        use_sequential = (
-            is_multi_aquarium
-            and getattr(zone_data, "sequential_processing", False)
-        )
+        use_sequential = is_multi_aquarium and getattr(zone_data, "sequential_processing", False)
 
         # Extract calibration parameters provided in the single-video dialog
         width_cm = None
@@ -984,9 +980,7 @@ class ProcessingCoordinator(BaseCoordinator):
 
             self.project_manager.set_active_zone_video(video_path)
 
-            self._start_sequential_multi_aquarium_processing(
-                video_path, config, zone_data
-            )
+            self._start_sequential_multi_aquarium_processing(video_path, config, zone_data)
             return
 
         # Validate processing can start
@@ -1029,7 +1023,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 self.project_manager.save_multi_aquarium_zone_data(
                     video_path, new_multi, persist=should_persist
                 )
-                zone_data = new_multi # Update local ref
+                zone_data = new_multi  # Update local ref
 
             # Update UI controls
             if self.view and hasattr(self.view, "zone_controls"):
@@ -1057,6 +1051,12 @@ class ProcessingCoordinator(BaseCoordinator):
             analysis_interval, display_interval = self._determine_processing_intervals(config)
             self.project_manager.project_data["analysis_interval_frames"] = analysis_interval
             self.project_manager.project_data["display_interval_frames"] = display_interval
+
+            # Persist behavioral config
+            if "behavioral_analysis" in config:
+                self.project_manager.project_data["behavioral_config"] = config[
+                    "behavioral_analysis"
+                ]
 
             if self.project_manager.project_path:
                 self.project_manager.save_project()
@@ -1132,7 +1132,7 @@ class ProcessingCoordinator(BaseCoordinator):
             log.info(
                 "workflow.single_video.saving_zones",
                 video=str(video_path),
-                has_arena=should_save_zones, # Already computed
+                has_arena=should_save_zones,  # Already computed
                 roi_count=roi_count,
             )
             self.project_manager.save_zone_data(
@@ -1160,7 +1160,9 @@ class ProcessingCoordinator(BaseCoordinator):
             )
 
             # Inform detector that aquarium region is defined
-            has_aquarium = bool(zone_data and (zone_data.polygon or hasattr(zone_data, "aquariums")))
+            has_aquarium = bool(
+                zone_data and (zone_data.polygon or hasattr(zone_data, "aquariums"))
+            )
             self.detector.set_aquarium_region_defined(has_aquarium)
             log.info(
                 "controller.single_video.aquarium_status",
@@ -1444,7 +1446,9 @@ class ProcessingCoordinator(BaseCoordinator):
         ]
         experiment_id = os.path.splitext(os.path.basename(str(video_path)))[0]
 
-        def on_sequential_complete(was_cancelled: bool, output_dir_completed: str, summary: dict | None = None):
+        def on_sequential_complete(
+            was_cancelled: bool, output_dir_completed: str, summary: dict | None = None
+        ):
             """Handle completion of single aquarium processing."""
             # Do NOT call original on_completed - it would trigger single-video report generation
             # We'll generate reports after ALL aquariums are processed
@@ -1638,7 +1642,11 @@ class ProcessingCoordinator(BaseCoordinator):
                 data = self.project_manager.get_multi_aquarium_zone_data(c)
                 if data:
                     found_data = data
-                    log.info("processing_coordinator.classification.recovered", video=raw_path, match_key=c)
+                    log.info(
+                        "processing_coordinator.classification.recovered",
+                        video=raw_path,
+                        match_key=c,
+                    )
                     break
 
             if found_data:
@@ -1649,7 +1657,7 @@ class ProcessingCoordinator(BaseCoordinator):
             log.warning(
                 "debug.processing_coordinator.failure",
                 without_arena_count=len(without_arena),
-                first_without_arena=without_arena[0].get("path") if without_arena else "N/A"
+                first_without_arena=without_arena[0].get("path") if without_arena else "N/A",
             )
             self._publish_event(
                 Events.UI_SHOW_INFO,
@@ -1812,29 +1820,31 @@ class ProcessingCoordinator(BaseCoordinator):
                 )
 
                 if polygons:
-                     log.info(
+                    log.info(
                         "controller.aquarium_detection.multi_success",
                         count=len(polygons),
                     )
-                     # For multi-aquarium, we might need a different event or payload structure
-                     # Check if UI supports list of polygons in UI_SETUP_INTERACTIVE_POLYGON
-                     # If not, we might need to send them one by one or change the event.
-                     # Assuming for now we send the first one as main or adapt.
-                     # EDIT: Multi-aquarium usually uses ZONE_MULTI_AUTO_DETECT_SUCCESS.
-                     # Let's try to adapt to UI_SETUP_INTERACTIVE_POLYGON strictness or use the multi event.
+                    # For multi-aquarium, we might need a different event or payload structure
+                    # Check if UI supports list of polygons in UI_SETUP_INTERACTIVE_POLYGON
+                    # If not, we might need to send them one by one or change the event.
+                    # Assuming for now we send the first one as main or adapt.
+                    # EDIT: Multi-aquarium usually uses ZONE_MULTI_AUTO_DETECT_SUCCESS.
+                    # Let's try to adapt to UI_SETUP_INTERACTIVE_POLYGON strictness or use the multi event.
 
-                     if len(polygons) == num_aquariums:
-                          self._publish_event(
+                    if len(polygons) == num_aquariums:
+                        self._publish_event(
                             Events.ZONE_MULTI_AUTO_DETECT_SUCCESS,
                             {
                                 "video_path": str(video_path),
-                                "polygons": [p.tolist() if hasattr(p, "tolist") else p for p in polygons],
+                                "polygons": [
+                                    p.tolist() if hasattr(p, "tolist") else p for p in polygons
+                                ],
                             },
                         )
-                          # Also notify "Pronto" via status
-                     else:
-                          # Partial detection?
-                          pass
+                        # Also notify "Pronto" via status
+                    else:
+                        # Partial detection?
+                        pass
 
             else:
                 # Original Single-aquarium mode
@@ -1851,7 +1861,9 @@ class ProcessingCoordinator(BaseCoordinator):
                         "controller.aquarium_detection.success",
                         polygon_points=len(main_polygon),
                     )
-                    self._publish_event(Events.UI_SETUP_INTERACTIVE_POLYGON, {"polygon": main_polygon})
+                    self._publish_event(
+                        Events.UI_SETUP_INTERACTIVE_POLYGON, {"polygon": main_polygon}
+                    )
 
             if not polygons:
                 self._publish_event(
@@ -1916,9 +1928,7 @@ class ProcessingCoordinator(BaseCoordinator):
         try:
             # Get detection method and model
             aquarium_method = self.settings.model_selection.aquarium_method
-            model_path = self.weight_manager.get_weight_path_by_method(
-                aquarium_method, "aquarium"
-            )
+            model_path = self.weight_manager.get_weight_path_by_method(aquarium_method, "aquarium")
 
             if not model_path:
                 self._publish_event(
@@ -2653,26 +2663,32 @@ class ProcessingCoordinator(BaseCoordinator):
             if multi_outputs:
                 # Add sub-entries
                 for aq_id, out_info in multi_outputs.items():
-                    entries_to_process.append({
-                        "parquet_files": out_info.get("parquet_files", {}),
-                        "metadata": {
-                            "group": out_info.get("group"),
-                            "subject": out_info.get("subject_id"),
-                            "day": out_info.get("day"),
-                            # Use a unique experiment ID for the sub-entry
-                            "experiment_id": f"{os.path.splitext(os.path.basename(path))[0]}_aq{aq_id}",
-                            "aquarium_id": aq_id
-                        },
-                        "is_multi": True
-                    })
+                    entries_to_process.append(
+                        {
+                            "parquet_files": out_info.get("parquet_files", {}),
+                            "metadata": {
+                                "group": out_info.get("group"),
+                                "subject": out_info.get("subject_id"),
+                                "day": out_info.get("day"),
+                                # Use a unique experiment ID for the sub-entry
+                                "experiment_id": f"{os.path.splitext(os.path.basename(path))[0]}_aq{aq_id}",
+                                "aquarium_id": aq_id,
+                            },
+                            "is_multi": True,
+                        }
+                    )
             else:
                 # Add main entry
-                entries_to_process.append({
-                    "parquet_files": entry.get("parquet_files", {}),
-                    "metadata": entry.get("metadata", {}),
-                    "experiment_id": entry.get("experiment_id", os.path.splitext(os.path.basename(path))[0]),
-                    "is_multi": False
-                })
+                entries_to_process.append(
+                    {
+                        "parquet_files": entry.get("parquet_files", {}),
+                        "metadata": entry.get("metadata", {}),
+                        "experiment_id": entry.get(
+                            "experiment_id", os.path.splitext(os.path.basename(path))[0]
+                        ),
+                        "is_multi": False,
+                    }
+                )
 
             for process_entry in entries_to_process:
                 parquet_files = process_entry.get("parquet_files", {})
@@ -2691,10 +2707,12 @@ class ProcessingCoordinator(BaseCoordinator):
                             if group_val and "group_id" in df.columns:
                                 df["group_id"] = str(group_val)
                             elif group_val:
-                                df["group_id"] = str(group_val) # Create likely missing column
+                                df["group_id"] = str(group_val)  # Create likely missing column
 
                             # Update experiment_id details
-                            exp_id = process_entry.get("experiment_id") or entry_meta.get("experiment_id")
+                            exp_id = process_entry.get("experiment_id") or entry_meta.get(
+                                "experiment_id"
+                            )
                             if exp_id and "experiment_id" in df.columns:
                                 df["experiment_id"] = str(exp_id)
                             elif exp_id:
@@ -2712,9 +2730,7 @@ class ProcessingCoordinator(BaseCoordinator):
                         dfs.append(df)
                     except Exception as e:
                         log.warning(
-                            "workflow.unified_report.read_failed",
-                            file=summary_path,
-                            error=str(e)
+                            "workflow.unified_report.read_failed", file=summary_path, error=str(e)
                         )
 
         if not dfs:
@@ -2858,7 +2874,9 @@ class ProcessingCoordinator(BaseCoordinator):
             video_dim_cache[video_file] = (width, height)
             return width, height
 
-        def _compute_local_space(polygon_pts: list[list[int]] | list[tuple[int, int]], fallback_w: int, fallback_h: int) -> tuple[int, int, int, int]:
+        def _compute_local_space(
+            polygon_pts: list[list[int]] | list[tuple[int, int]], fallback_w: int, fallback_h: int
+        ) -> tuple[int, int, int, int]:
             if polygon_pts:
                 xs = [pt[0] for pt in polygon_pts]
                 ys = [pt[1] for pt in polygon_pts]
@@ -2883,7 +2901,14 @@ class ProcessingCoordinator(BaseCoordinator):
             upper_y = height_px if height_px else None
 
             # IMPROVEMENT: Drop existing CM columns to force recalculation in local space
-            cols_to_drop = ["x_cm", "y_cm", "x_center_cm", "y_center_cm", "x_cm_smoothed", "y_cm_smoothed"]
+            cols_to_drop = [
+                "x_cm",
+                "y_cm",
+                "x_center_cm",
+                "y_center_cm",
+                "x_cm_smoothed",
+                "y_cm_smoothed",
+            ]
             local_df = local_df.drop(columns=[c for c in cols_to_drop if c in local_df.columns])
 
             for col in ("x_center_px", "x1", "x2"):
@@ -2971,6 +2996,13 @@ class ProcessingCoordinator(BaseCoordinator):
                     )
 
                     project_data = getattr(self.project_manager, "project_data", {}) or {}
+
+                    # Collection params including behavioral config
+                    analysis_params = self.analysis_service.collect_analysis_parameters(
+                        project_data
+                    )
+                    behavioral_config = analysis_params.get("behavioral_config")
+
                     calib = project_data.get("calibration", {})
                     pixelcm_x = float(calib.get("pixel_per_cm_x", 1.0))
                     pixelcm_y = float(calib.get("pixel_per_cm_y", 1.0))
@@ -3006,7 +3038,9 @@ class ProcessingCoordinator(BaseCoordinator):
                             }
 
                             # Get zone data - try multi-aquarium specific first
-                            zone_data = self.project_manager.get_multi_aquarium_zone_data(video_path=path)
+                            zone_data = self.project_manager.get_multi_aquarium_zone_data(
+                                video_path=path
+                            )
                             if not zone_data:
                                 zone_data = self.project_manager.get_zone_data(video_path=path)
 
@@ -3015,7 +3049,9 @@ class ProcessingCoordinator(BaseCoordinator):
                             rois: list[ROI] = []
                             roi_colors_map: dict[str, tuple[int, int, int]] = {}
 
-                            fallback_width = getattr(zone_data, "video_width", probed_width) or probed_width
+                            fallback_width = (
+                                getattr(zone_data, "video_width", probed_width) or probed_width
+                            )
                             fallback_height = (
                                 getattr(zone_data, "video_height", probed_height) or probed_height
                             )
@@ -3032,9 +3068,7 @@ class ProcessingCoordinator(BaseCoordinator):
                                         from zebtrack.analysis.roi import ROI
 
                                         for i, poly in enumerate(aq.roi_polygons):
-                                            translated_poly = [
-                                                (px, py) for px, py in poly
-                                            ]
+                                            translated_poly = [(px, py) for px, py in poly]
                                             name = (
                                                 aq.roi_names[i]
                                                 if i < len(aq.roi_names)
@@ -3083,12 +3117,11 @@ class ProcessingCoordinator(BaseCoordinator):
                                         continue
                                     for i, poly in enumerate(aq.roi_polygons):
                                         translated_poly = [
-                                            (float(px) - offset_x, float(py) - offset_y) for px, py in poly
+                                            (float(px) - offset_x, float(py) - offset_y)
+                                            for px, py in poly
                                         ]
                                         name = (
-                                            aq.roi_names[i]
-                                            if i < len(aq.roi_names)
-                                            else f"ROI_{i}"
+                                            aq.roi_names[i] if i < len(aq.roi_names) else f"ROI_{i}"
                                         )
                                         if len(translated_poly) >= 3:
                                             rois.append(
@@ -3112,7 +3145,8 @@ class ProcessingCoordinator(BaseCoordinator):
 
                                 for i, poly in enumerate(zone_roi_polys):
                                     translated_poly = [
-                                        (float(px) - offset_x, float(py) - offset_y) for px, py in poly
+                                        (float(px) - offset_x, float(py) - offset_y)
+                                        for px, py in poly
                                     ]
                                     name = (
                                         zone_roi_names[i] if i < len(zone_roi_names) else f"ROI_{i}"
@@ -3131,8 +3165,34 @@ class ProcessingCoordinator(BaseCoordinator):
                             df = _normalize_df_to_local(df, offset_x, offset_y, local_w, local_h)
 
                             video_height_local = local_h or fallback_height or probed_height or 720
-                            pixelcm_x_local = pixelcm_x if pixelcm_x > 0 else 1.0
-                            pixelcm_y_local = pixelcm_y if pixelcm_y > 0 else 1.0
+
+                            # Fallback: calculate pixelcm from metadata if not present in project calibration
+                            width_cm_meta = aq_metadata.get("aquarium_width_cm") or calib.get(
+                                "aquarium_width_cm"
+                            )
+                            height_cm_meta = aq_metadata.get("aquarium_height_cm") or calib.get(
+                                "aquarium_height_cm"
+                            )
+
+                            if pixelcm_x <= 1.0 and width_cm_meta and local_w > 0:
+                                pixelcm_x_local = local_w / float(width_cm_meta)
+                                log.info(
+                                    "workflow.reports.calculation.fallback_pixelcm_x",
+                                    value=pixelcm_x_local,
+                                    width_cm=width_cm_meta,
+                                )
+                            else:
+                                pixelcm_x_local = pixelcm_x if pixelcm_x > 0 else 1.0
+
+                            if pixelcm_y <= 1.0 and height_cm_meta and local_h > 0:
+                                pixelcm_y_local = local_h / float(height_cm_meta)
+                                log.info(
+                                    "workflow.reports.calculation.fallback_pixelcm_y",
+                                    value=pixelcm_y_local,
+                                    height_cm=height_cm_meta,
+                                )
+                            else:
+                                pixelcm_y_local = pixelcm_y if pixelcm_y > 0 else 1.0
 
                             # Persist crop for report backgrounds
                             video_path_for_report = str(path)
@@ -3177,6 +3237,7 @@ class ProcessingCoordinator(BaseCoordinator):
                                 ),
                                 video_path=video_path_for_report,
                                 frame_crop_box=frame_crop_for_report,
+                                behavioral_config=behavioral_config,
                             )
 
                             reporter = Reporter.from_analysis(analysis_result)
@@ -3236,11 +3297,25 @@ class ProcessingCoordinator(BaseCoordinator):
                 zone_data = self.project_manager.get_zone_data(video_path=path)
                 project_data = getattr(self.project_manager, "project_data", {}) or {}
 
+                # Collection params including behavioral config
+                analysis_params = self.analysis_service.collect_analysis_parameters(project_data)
+                behavioral_config = analysis_params.get("behavioral_config")
+
                 # Calibration params
                 calib = project_data.get("calibration", {})
                 pixelcm_x = float(calib.get("pixel_per_cm_x", 1.0))
                 pixelcm_y = float(calib.get("pixel_per_cm_y", 1.0))
-                
+
+                # Fetch aquarium dimensions for fallback
+                # Use metadata from video first, then fallback to global calibration
+                video_metadata = metadata or {}
+                width_cm_meta = video_metadata.get("aquarium_width_cm") or calib.get(
+                    "aquarium_width_cm"
+                )
+                height_cm_meta = video_metadata.get("aquarium_height_cm") or calib.get(
+                    "aquarium_height_cm"
+                )
+
                 probed_w, probed_h = _probe_video_dims(str(path))
                 fallback_w = getattr(zone_data, "video_width", probed_w) or probed_w
                 fallback_h = getattr(zone_data, "video_height", probed_h) or probed_h
@@ -3248,17 +3323,22 @@ class ProcessingCoordinator(BaseCoordinator):
                 # Normalize to local aquarium space (Consistency with multi-aquarium)
                 arena_polygon_px = list(zone_data.polygon or [])
                 if not arena_polygon_px:
-                    arena_polygon_px = [[0, 0], [fallback_w, 0], [fallback_w, fallback_h], [0, fallback_h]]
-                
+                    arena_polygon_px = [
+                        [0, 0],
+                        [fallback_w, 0],
+                        [fallback_w, fallback_h],
+                        [0, fallback_h],
+                    ]
+
                 offset_x, offset_y, local_w, local_h = _compute_local_space(
                     arena_polygon_px, fallback_w, fallback_h
                 )
-                
+
                 # Translate polygons to local
                 arena_polygon_local = [
                     (float(x) - offset_x, float(y) - offset_y) for x, y in arena_polygon_px
                 ]
-                
+
                 # ROIs
                 rois = []
                 roi_colors_map = {}
@@ -3275,7 +3355,11 @@ class ProcessingCoordinator(BaseCoordinator):
                         )
                         if len(translated_poly) >= 3:
                             rois.append(
-                                ROI(name=name, geometry=Polygon(translated_poly), coordinate_space="px")
+                                ROI(
+                                    name=name,
+                                    geometry=Polygon(translated_poly),
+                                    coordinate_space="px",
+                                )
                             )
 
                         if i < len(zone_data.roi_colors):
@@ -3287,7 +3371,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 # Persist crop for report backgrounds (Standard Single Aquarium)
                 video_path_for_report = str(path)
                 frame_crop_for_report = (offset_x, offset_y, local_w, local_h)
-                
+
                 frame_image = _extract_cropped_frame(str(path), frame_crop_for_report)
                 if frame_image is not None:
                     try:
@@ -3297,20 +3381,33 @@ class ProcessingCoordinator(BaseCoordinator):
                         )
                         cv2.imwrite(background_frame_path, frame_image)
                         video_path_for_report = background_frame_path
-                        frame_crop_for_report = None # Already cropped
+                        frame_crop_for_report = None  # Already cropped
                     except Exception:
                         pass
 
                 # Calibration object for the DTO
-                cal = Calibration(np.array(arena_polygon_px), 
-                                  calib.get("aquarium_width_cm", 0), 
-                                  calib.get("aquarium_height_cm", 0))
+                cal = Calibration(
+                    np.array(arena_polygon_px),
+                    calib.get("aquarium_width_cm", 0),
+                    calib.get("aquarium_height_cm", 0),
+                )
 
                 # Run Analysis
+                # Fallback: calculate pixelcm from metadata if not present in project calibration
+                if pixelcm_x <= 1.0 and width_cm_meta and local_w > 0:
+                    pixelcm_x_final = local_w / float(width_cm_meta)
+                else:
+                    pixelcm_x_final = pixelcm_x if pixelcm_x > 0 else 1.0
+
+                if pixelcm_y <= 1.0 and height_cm_meta and local_h > 0:
+                    pixelcm_y_final = local_h / float(height_cm_meta)
+                else:
+                    pixelcm_y_final = pixelcm_y if pixelcm_y > 0 else 1.0
+
                 analysis_result = self.analysis_service.run_full_analysis_as_dto(
                     trajectory_df=df,
-                    pixelcm_x=pixelcm_x if pixelcm_x > 0 else 1.0,
-                    pixelcm_y=pixelcm_y if pixelcm_y > 0 else 1.0,
+                    pixelcm_x=pixelcm_x_final,
+                    pixelcm_y=pixelcm_y_final,
                     video_height_px=int(local_h),
                     arena_polygon_px=arena_polygon_local,
                     rois=rois,
@@ -3321,7 +3418,8 @@ class ProcessingCoordinator(BaseCoordinator):
                     freezing_min_duration=self.settings.video_processing.freezing_min_duration_s,
                     video_path=video_path_for_report,
                     frame_crop_box=frame_crop_for_report,
-                    calibration=None if video_path_for_report.endswith(".png") else cal
+                    calibration=None if video_path_for_report.endswith(".png") else cal,
+                    behavioral_config=behavioral_config,
                 )
 
                 reporter = Reporter.from_analysis(analysis_result)
@@ -3611,7 +3709,12 @@ class ProcessingCoordinator(BaseCoordinator):
                 # Load multi-aquarium zone data
                 multi_zone_data = self.project_manager.get_multi_aquarium_zone_data(path)
                 if not multi_zone_data:
-                    return "skipped", f"{experiment_id}: dados de zonas multi-aquário ausentes.", None, False
+                    return (
+                        "skipped",
+                        f"{experiment_id}: dados de zonas multi-aquário ausentes.",
+                        None,
+                        False,
+                    )
 
                 processed_count = 0
                 total_aquariums = len(multi_outputs)
@@ -3630,7 +3733,11 @@ class ProcessingCoordinator(BaseCoordinator):
 
                     # Get specific zone data for this aquarium (match by id)
                     aq_zone = next(
-                        (aq for aq in multi_zone_data.aquariums if getattr(aq, "id", None) == aq_id),
+                        (
+                            aq
+                            for aq in multi_zone_data.aquariums
+                            if getattr(aq, "id", None) == aq_id
+                        ),
                         None,
                     )
                     if aq_zone is None:
@@ -3681,7 +3788,13 @@ class ProcessingCoordinator(BaseCoordinator):
                         warped_points = cal.transform_points(roi_points)
                         roi_polygon_px = [(float(x), float(y)) for x, y in warped_points]
                         roi_name = roi_names[idx] if idx < len(roi_names) else f"ROI {idx + 1}"
-                        rois.append(ROI(name=roi_name, geometry=Polygon(roi_polygon_px), coordinate_space="px"))
+                        rois.append(
+                            ROI(
+                                name=roi_name,
+                                geometry=Polygon(roi_polygon_px),
+                                coordinate_space="px",
+                            )
+                        )
 
                     roi_colors = {
                         (roi_names[i] if i < len(roi_names) else f"ROI {i + 1}"): roi_colors_list[i]
@@ -3695,8 +3808,14 @@ class ProcessingCoordinator(BaseCoordinator):
                         "group": output_info.get("group"),
                         "subject": output_info.get("subject_id"),
                         "day": output_info.get("day"),
-                        "aquarium_id": aq_id
+                        "aquarium_id": aq_id,
                     }
+
+                    # Retrieve behavioral config (including perspective)
+                    parameters = self.analysis_service.collect_analysis_parameters(
+                        self.project_manager.project_data,
+                    )
+                    behavioral_config = parameters.get("behavioral_config", {})
 
                     reporter = Reporter(
                         trajectory_df=trajectory_df,
@@ -3717,23 +3836,40 @@ class ProcessingCoordinator(BaseCoordinator):
                         smoothing_window_length=settings_obj.trajectory_smoothing.window_length,
                         smoothing_polyorder=settings_obj.trajectory_smoothing.polyorder,
                         settings_obj=settings_obj,
+                        behavioral_config=behavioral_config,
                     )
 
                     # Save summary
                     os.makedirs(aq_results_dir, exist_ok=True)
-                    summary_path = os.path.join(aq_results_dir, f"{experiment_id}_aq{aq_id}_summary.parquet")
-                    reporter.export_summary_data(summary_path, format="parquet", expected_roi_names=expected_roi_names)
+                    summary_path = os.path.join(
+                        aq_results_dir, f"{experiment_id}_aq{aq_id}_summary.parquet"
+                    )
+                    reporter.export_summary_data(
+                        summary_path, format="parquet", expected_roi_names=expected_roi_names
+                    )
 
                     # Update output info
-                    video["multi_aquarium_outputs"][aq_id_str]["parquet_files"]["summary"] = summary_path
+                    video["multi_aquarium_outputs"][aq_id_str]["parquet_files"]["summary"] = (
+                        summary_path
+                    )
                     summary_paths.append(summary_path)
                     processed_count += 1
 
                 if processed_count > 0:
                     video["has_complete_data"] = True
-                    return "completed", f"{experiment_id} ({processed_count} aquários)", summary_paths[-1], True
+                    return (
+                        "completed",
+                        f"{experiment_id} ({processed_count} aquários)",
+                        summary_paths[-1],
+                        True,
+                    )
                 else:
-                    return "skipped", f"{experiment_id}: nenhum aquário processado com sucesso.", None, False
+                    return (
+                        "skipped",
+                        f"{experiment_id}: nenhum aquário processado com sucesso.",
+                        None,
+                        False,
+                    )
 
             except Exception as e:
                 log.error("processing.multi_summary_failed", error=str(e), exc_info=True)
@@ -3837,14 +3973,10 @@ class ProcessingCoordinator(BaseCoordinator):
 
                 try:
                     fallback_width = (
-                        float(fallback_width)
-                        if fallback_width not in (None, "")
-                        else None
+                        float(fallback_width) if fallback_width not in (None, "") else None
                     )
                     fallback_height = (
-                        float(fallback_height)
-                        if fallback_height not in (None, "")
-                        else None
+                        float(fallback_height) if fallback_height not in (None, "") else None
                     )
                 except (TypeError, ValueError):
                     fallback_width = None
@@ -3932,6 +4064,12 @@ class ProcessingCoordinator(BaseCoordinator):
                 "video_name": experiment_id,
             }
 
+            # Retrieve behavioral config (including perspective)
+            parameters = self.analysis_service.collect_analysis_parameters(
+                self.project_manager.project_data,
+            )
+            behavioral_config = parameters.get("behavioral_config", {})
+
             reporter = Reporter(
                 trajectory_df=trajectory_df,
                 metadata=metadata,
@@ -3950,6 +4088,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 smoothing_window_length=settings_obj.trajectory_smoothing.window_length,
                 smoothing_polyorder=settings_obj.trajectory_smoothing.polyorder,
                 settings_obj=settings_obj,
+                behavioral_config=behavioral_config,
             )
 
             os.makedirs(results_dir, exist_ok=True)
@@ -3962,6 +4101,11 @@ class ProcessingCoordinator(BaseCoordinator):
             video["has_complete_data"] = True
             return "completed", experiment_id, parquet_path, True
         except Exception as exc:
-            return "failed", f"{experiment_id}: erro inesperado ({exc}).", None, calibration_persisted
+            return (
+                "failed",
+                f"{experiment_id}: erro inesperado ({exc}).",
+                None,
+                calibration_persisted,
+            )
         finally:
             self.project_manager.set_active_zone_video(None)

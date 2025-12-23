@@ -92,6 +92,7 @@ class AnalysisService:
         smoothing_window_length: int | None = None,
         smoothing_polyorder: int | None = None,
         max_plausible_speed_cm_s: float = 50.0,
+        behavioral_config: dict[str, Any] | None = None,
     ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None]:
         """
         Run a complete analysis pipeline on the given trajectory data.
@@ -109,6 +110,7 @@ class AnalysisService:
             fps: Frames per second of the video.
             freezing_vel_threshold: Velocity threshold for detecting freezing.
             freezing_min_duration: Minimum duration for a freezing episode.
+            behavioral_config: Configuration for behavioral metrics (thigmotaxis, geotaxis).
 
         Returns:
             A tuple containing:
@@ -153,11 +155,12 @@ class AnalysisService:
 
         # Log warnings even if validation passed
         validation_warnings = validation_result["warnings"]
+        validation_stats = validation_result["stats"]
         if validation_warnings:
             self.log.warning(
                 "analysis_service.trajectory_validation_warnings",
                 warnings=validation_warnings,
-                stats=validation_result["stats"],
+                stats=validation_stats,
             )
 
         smoothing_cfg = self.settings.trajectory_smoothing
@@ -193,6 +196,18 @@ class AnalysisService:
             angular_velocity_smoothing_window=angular_settings.angular_velocity_smoothing_window,
         )
 
+        # Resolve behavioral config
+        if not behavioral_config and hasattr(self.settings, "behavioral_analysis"):
+            ba_cfg = self.settings.behavioral_analysis
+            behavioral_config = {
+                "thigmotaxis_distance_cm": ba_cfg.default_thigmotaxis_distance_cm,
+                "geotaxis_distance_cm": ba_cfg.default_geotaxis_distance_cm,
+                "geotaxis_num_zones": ba_cfg.default_geotaxis_num_zones,
+                "geotaxis_bottom_zones": ba_cfg.default_geotaxis_bottom_zones,
+                "aquarium_perspective": ba_cfg.aquarium_perspective,
+            }
+        behavioral_config = behavioral_config or {}
+
         # 2. Initialize the behavioral report
         report: dict[str, Any] = {
             "comportamento_geral": {
@@ -212,12 +227,49 @@ class AnalysisService:
             "validacao": {
                 "avisos": validation_warnings,
                 "estatisticas": validation_result["stats"],
-            }
+            },
         }
+
+        # Calculate Thigmotaxis (if configured)
+        thigmo_dist = behavioral_config.get("thigmotaxis_distance_cm")
+        if thigmo_dist is not None:
+            try:
+                report["comportamento_geral"]["thigmotaxis_indice"] = (
+                    b_analyzer.calculate_thigmotaxis_index(
+                        method="time_near_wall", distance_threshold=float(thigmo_dist)
+                    )
+                )
+                report["comportamento_geral"]["thigmotaxis_avg_dist"] = (
+                    b_analyzer.calculate_thigmotaxis_index(method="average_distance")
+                )
+            except Exception as e:
+                self.log.warning("analysis.thigmotaxis.failed", error=str(e))
+
+        # Calculate Geotaxis (if configured)
+        geo_dist = behavioral_config.get("geotaxis_distance_cm")
+        if geo_dist is not None:
+            try:
+                report["comportamento_geral"]["geotaxis_indice"] = (
+                    b_analyzer.calculate_geotaxis_index(
+                        method="time_near_bottom", distance_threshold=float(geo_dist)
+                    )
+                )
+                report["comportamento_geral"]["geotaxis_avg_dist"] = (
+                    b_analyzer.calculate_geotaxis_index(method="average_distance")
+                )
+                num_zones = behavioral_config.get("geotaxis_num_zones", 3)
+                bottom_zones = behavioral_config.get("geotaxis_bottom_zones", 1)
+                report["comportamento_geral"]["geotaxis_zones"] = (
+                    b_analyzer.calculate_geotaxis_index(
+                        method="zone_time", num_zones=int(num_zones), bottom_zones=int(bottom_zones)
+                    )
+                )
+            except Exception as e:
+                self.log.warning("analysis.geotaxis.failed", error=str(e))
 
         # 3. If ROIs are provided, perform ROI analysis and append to the report
         if not rois:
-            return report, b_analyzer, None
+            return report, b_analyzer, None, validation_warnings, validation_stats
 
         r_analyzer = ROIAnalyzer(
             behavior_analyzer=b_analyzer,
@@ -242,7 +294,7 @@ class AnalysisService:
         }
         report["log_eventos"] = r_analyzer.get_event_log().to_dict("records")
 
-        return report, b_analyzer, r_analyzer
+        return report, b_analyzer, r_analyzer, validation_warnings, validation_stats
 
     def run_full_analysis_as_dto(
         self,
@@ -266,6 +318,7 @@ class AnalysisService:
         calibration=None,
         sharp_turn_threshold: float = 45.0,
         frame_crop_box: tuple[int, int, int, int] | None = None,
+        behavioral_config: dict[str, Any] | None = None,
     ) -> AnalysisResult:
         """Run complete analysis and return results as DTO (RECOMMENDED).
 
@@ -312,7 +365,7 @@ class AnalysisService:
             >>> reporter = Reporter.from_analysis(result)
         """
         # Run the existing analysis method
-        report, b_analyzer, r_analyzer = self.run_full_analysis(
+        report, b_analyzer, r_analyzer, val_warnings, val_stats = self.run_full_analysis(
             trajectory_df=trajectory_df,
             pixelcm_x=pixelcm_x,
             pixelcm_y=pixelcm_y,
@@ -325,6 +378,7 @@ class AnalysisService:
             smoothing_window_length=smoothing_window_length,
             smoothing_polyorder=smoothing_polyorder,
             max_plausible_speed_cm_s=max_plausible_speed_cm_s,
+            behavioral_config=behavioral_config,
         )
 
         # Wrap in DTO
@@ -352,9 +406,10 @@ class AnalysisService:
             freezing_duration=freezing_min_duration,
             smoothing_window_length=smoothing_window_length,
             smoothing_polyorder=smoothing_polyorder,
-            validation_warnings=report.get("validacao", {}).get("avisos", []),
-            validation_stats=report.get("validacao", {}).get("estatisticas", {}),
+            validation_warnings=val_warnings,
+            validation_stats=val_stats,
             frame_crop_box=frame_crop_box,
+            behavioral_config=behavioral_config or {},
         )
 
     def run_multi_aquarium_analysis(
@@ -371,6 +426,7 @@ class AnalysisService:
         smoothing_polyorder: int | None = None,
         max_plausible_speed_cm_s: float = 50.0,
         sharp_turn_threshold: float = 45.0,
+        behavioral_config: dict[str, Any] | None = None,
     ) -> dict[int, AnalysisResult | None]:
         """
         Execute complete analysis for each aquarium in multi-aquarium mode.
@@ -393,6 +449,7 @@ class AnalysisService:
             smoothing_polyorder: Trajectory smoothing polynomial order (optional).
             max_plausible_speed_cm_s: Maximum plausible speed for validation.
             sharp_turn_threshold: Sharp turn detection threshold (deg/s).
+            behavioral_config: Behavioral analysis configuration (thigmotaxis, geotaxis).
 
         Returns:
             Dictionary mapping aquarium_id to AnalysisResult (or None if failed).
@@ -461,6 +518,7 @@ class AnalysisService:
                     smoothing_polyorder=smoothing_polyorder,
                     max_plausible_speed_cm_s=max_plausible_speed_cm_s,
                     sharp_turn_threshold=sharp_turn_threshold,
+                    behavioral_config=behavioral_config,
                 )
 
                 results[aq_id] = result
@@ -597,7 +655,18 @@ class AnalysisService:
             "freezing_min_duration": self.settings.video_processing.freezing_min_duration_s,
             "smoothing_window_length": self.settings.trajectory_smoothing.window_length,
             "smoothing_polyorder": self.settings.trajectory_smoothing.polyorder,
+            "behavioral_config": {},
         }
+
+        # Add behavioral defaults if available
+        if hasattr(self.settings, "behavioral_analysis"):
+            ba_cfg = self.settings.behavioral_analysis
+            params["behavioral_config"] = {
+                "thigmotaxis_distance_cm": ba_cfg.default_thigmotaxis_distance_cm,
+                "geotaxis_distance_cm": ba_cfg.default_geotaxis_distance_cm,
+                "geotaxis_num_zones": ba_cfg.default_geotaxis_num_zones,
+                "geotaxis_bottom_zones": ba_cfg.default_geotaxis_bottom_zones,
+            }
 
         # Override with project-specific values if available
         if project_data:
@@ -610,6 +679,16 @@ class AnalysisService:
                 params["smoothing_window_length"] = analysis_params["smoothing_window_length"]
             if "smoothing_polyorder" in analysis_params:
                 params["smoothing_polyorder"] = analysis_params["smoothing_polyorder"]
+
+            # Check for behavioral config in project root (saved by ProcessingCoordinator)
+            if "behavioral_config" in project_data:
+                params["behavioral_config"] = project_data["behavioral_config"]
+
+            # Merge behavioral config overrides
+            if "behavioral_config" in project_data:
+                params["behavioral_config"].update(project_data.get("behavioral_config", {}))
+            elif "behavioral_analysis" in project_data:  # Handle legacy/alternate key
+                params["behavioral_config"].update(project_data.get("behavioral_analysis", {}))
 
         self.log.debug(
             "analysis_service.collect_parameters",

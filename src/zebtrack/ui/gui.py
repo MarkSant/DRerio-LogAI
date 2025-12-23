@@ -1257,7 +1257,11 @@ class ApplicationGUI:
         """
         from zebtrack.ui.wizard.wizard_dialog import WizardDialog
 
-        wizard = WizardDialog(self.root, settings_obj=self.controller.settings)
+        wizard = WizardDialog(
+            self.root,
+            settings_obj=self.controller.settings,
+            event_bus=self.event_bus,
+        )
         if not wizard.result:
             return  # User cancelled
 
@@ -1317,10 +1321,10 @@ class ApplicationGUI:
 
         # MELHORIA: Save num_aquariums to global settings so ProcessingCoordinator can see it during auto-detection
         if config and "num_aquariums" in config and self.settings:
-             try:
-                 self.settings.analysis_config.num_aquariums = int(config["num_aquariums"])
-             except Exception as e:
-                 log.warning("gui.setup_zone_definition.update_settings_failed", error=str(e))
+            try:
+                self.settings.analysis_config.num_aquariums = int(config["num_aquariums"])
+            except Exception as e:
+                log.warning("gui.setup_zone_definition.update_settings_failed", error=str(e))
 
         # Ensure zone edits persist under the selected video
         self.controller.project_manager.set_active_zone_video(video_path)
@@ -1417,10 +1421,11 @@ class ApplicationGUI:
 
         # Validation for Single vs Multi Aquarium
         from zebtrack.core.detector import MultiAquariumZoneData
+
         if isinstance(zone_data, MultiAquariumZoneData):
-             if not zone_data.aquariums:
-                 self.show_error("Erro", "Nenhum aquário foi definido.")
-                 return
+            if not zone_data.aquariums:
+                self.show_error("Erro", "Nenhum aquário foi definido.")
+                return
         elif not zone_data.polygon:
             self.show_error("Erro", "A área principal do aquário (polígono) não foi definida.")
             return

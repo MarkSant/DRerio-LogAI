@@ -6,10 +6,106 @@ replacing plain dictionaries with validated models that ensure data integrity.
 """
 
 import re
+from enum import Enum
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+# =============================================================================
+# Behavioral Analysis Enums and Models
+# =============================================================================
+
+
+class AquariumPerspective(str, Enum):
+    """Perspective/view angle of the aquarium camera.
+
+    This affects which behavioral metrics can be calculated:
+    - TOP_DOWN: Camera above the aquarium looking down. Thigmotaxis available.
+    - LATERAL: Camera on the side of the aquarium. Both thigmotaxis and geotaxis available.
+    """
+
+    TOP_DOWN = "top_down"
+    LATERAL = "lateral"
+
+
+class GeotaxisMode(str, Enum):
+    """Mode for calculating geotaxis (preference for bottom of aquarium).
+
+    - DISTANCE: Use a fixed distance threshold from the bottom.
+    - ZONES: Divide the aquarium height into N equal zones.
+    """
+
+    DISTANCE = "distance"
+    ZONES = "zones"
+
+
+class BehavioralAnalysisData(BaseModel):
+    """Configuration for behavioral analysis metrics.
+
+    Controls thigmotaxis (wall preference) and geotaxis (bottom preference) parameters.
+    Geotaxis is only available for lateral perspective views.
+    """
+
+    aquarium_perspective: AquariumPerspective = Field(
+        default=AquariumPerspective.TOP_DOWN,
+        description="Camera perspective/view angle of the aquarium",
+    )
+    thigmotaxis_distance_cm: float = Field(
+        default=1.5,
+        ge=0.1,
+        le=10.0,
+        description="Distance threshold (cm) for thigmotaxis 'near wall' calculation",
+    )
+    geotaxis_enabled: bool = Field(
+        default=False,
+        description="Enable geotaxis analysis (only for lateral perspective)",
+    )
+    geotaxis_mode: GeotaxisMode = Field(
+        default=GeotaxisMode.DISTANCE,
+        description="Mode for geotaxis calculation",
+    )
+    geotaxis_distance_cm: float = Field(
+        default=1.5,
+        ge=0.1,
+        le=10.0,
+        description="Distance threshold (cm) for geotaxis 'near bottom' calculation",
+    )
+    geotaxis_num_zones: int = Field(
+        default=3,
+        ge=2,
+        le=10,
+        description="Number of vertical zones to divide the aquarium into",
+    )
+    geotaxis_bottom_zones: int = Field(
+        default=1,
+        ge=1,
+        le=2,
+        description="Number of bottom zones to consider as 'bottom' (1 or 2)",
+    )
+
+    @model_validator(mode="after")
+    def validate_geotaxis_settings(self) -> "BehavioralAnalysisData":
+        """Validate geotaxis settings based on perspective and mode."""
+        # Geotaxis requires lateral perspective
+        if self.aquarium_perspective == AquariumPerspective.TOP_DOWN:
+            # Force disable geotaxis for top-down perspective
+            object.__setattr__(self, "geotaxis_enabled", False)
+
+        # Validate zone settings
+        if self.geotaxis_enabled and self.geotaxis_mode == GeotaxisMode.ZONES:
+            if self.geotaxis_bottom_zones > self.geotaxis_num_zones:
+                raise ValueError(
+                    f"geotaxis_bottom_zones ({self.geotaxis_bottom_zones}) cannot exceed "
+                    f"geotaxis_num_zones ({self.geotaxis_num_zones})"
+                )
+
+        return self
+
+
+# =============================================================================
+# Wizard Step Models
+# =============================================================================
 
 
 class LiveConfigData(BaseModel):
@@ -225,6 +321,10 @@ class CalibrationData(BaseModel):
         default_factory=MultiAquariumData,
         description="Configurações de modo multi-aquário (2 aquários por vídeo)",
     )
+    behavioral_analysis: BehavioralAnalysisData = Field(
+        default_factory=BehavioralAnalysisData,
+        description="Behavioral analysis settings (thigmotaxis, geotaxis)",
+    )
 
 
 class ModelSelectionData(BaseModel):
@@ -423,3 +523,4 @@ ExperimentalDesign = ExperimentalDesignData
 Calibration = CalibrationData
 ModelSelection = ModelSelectionData
 FileSelection = FileSelectionData
+BehavioralAnalysis = BehavioralAnalysisData
