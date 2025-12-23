@@ -167,6 +167,9 @@ class DetectorState:
     last_update_scope: str | None = None
     conf_threshold: float | None = None
     nms_threshold: float | None = None
+    use_bytetrack: bool = True
+    max_center_distance: float | None = None
+    iou_threshold: float | None = None
 
     def copy(self) -> DetectorState:
         """Create a deep copy of detector state."""
@@ -192,6 +195,9 @@ class DetectorState:
             last_update_scope=self.last_update_scope,
             conf_threshold=self.conf_threshold,
             nms_threshold=self.nms_threshold,
+            use_bytetrack=self.use_bytetrack,
+            max_center_distance=self.max_center_distance,
+            iou_threshold=self.iou_threshold,
         )
 
 
