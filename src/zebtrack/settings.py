@@ -348,6 +348,12 @@ class VideoProcessingSettings(BaseModel):
         le=1000,
         description="Process 1 frame every N frames to optimize performance. Valid range: 1-1000.",
     )
+    display_interval: int = Field(
+        10,
+        ge=1,
+        le=1000,
+        description="Update UI preview every N frames. Valid range: 1-1000.",
+    )
     processing_offset: int = Field(
         ...,
         ge=0,
@@ -458,11 +464,21 @@ class TrackingSettings(BaseModel):
 
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
+    use_bytetrack: bool = Field(
+        True,
+        description=(
+            "When True, use the advanced ByteTrack algorithm (Kalman Filter + IoU). "
+            "When False, falls back to a simpler hybrid tracker (IoU + Distance) "
+            "optimized for single-subject scenarios. Disable only if ByteTrack fails "
+            "or for diagnostic purposes."
+        ),
+    )
+
     use_single_subject_tracker: bool = Field(
         False,
         description=(
-            "When True, prefer the lightweight single-subject tracker instead of "
-            "ByteTrack for single-animal experiments."
+            "Legacy flag: When True, prefer the lightweight single-subject tracker. "
+            "Now largely superseded by 'use_bytetrack=False'."
         ),
     )
 

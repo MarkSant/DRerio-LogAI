@@ -7,7 +7,7 @@ Purpose: Separate analysis execution from report generation via dependency inver
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
@@ -127,6 +127,12 @@ class AnalysisResult:
 
     smoothing_polyorder: int | None = None
     """Trajectory smoothing polynomial order."""
+
+    validation_warnings: list[str] = field(default_factory=list)
+    """List of warnings generated during trajectory validation."""
+
+    validation_stats: dict[str, Any] = field(default_factory=dict)
+    """Quality metrics and statistics from trajectory validation."""
 
     frame_crop_box: tuple[int, int, int, int] | None = None
     """Optional crop box (x, y, w, h) used to generate aquarium-local frames."""

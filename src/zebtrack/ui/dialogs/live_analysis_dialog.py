@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from zebtrack.settings import Settings
 
 from zebtrack.core.wizard_service import WizardService
-from zebtrack.ui.wizard.tooltip import ToolTip
+from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
 
 log = structlog.get_logger()
 
@@ -199,16 +199,24 @@ class LiveAnalysisDialog(Dialog):
         left_col.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
 
         # Duration Settings
-        duration_frame = ttk.LabelFrame(left_col, text="Duração e Intervalos", padding=10)
+        duration_frame = ttk.LabelFrame(left_col, text="Tempo e Processamento", padding=10)
         duration_frame.pack(fill="x", pady=(0, 10))
 
-        # Grid for duration/intervals
-        duration_frame.columnconfigure(1, weight=1)
+        # Grid: Label | Help | Entry
+        duration_frame.columnconfigure(1, weight=0)
+        duration_frame.columnconfigure(2, weight=1)
 
         # Duration
         ttk.Label(duration_frame, text="Duração (s):").grid(
-            row=0, column=0, padx=5, pady=2, sticky="w"
+            row=0, column=0, padx=(5, 2), pady=2, sticky="w"
         )
+        create_help_label(
+            duration_frame,
+            "Tempo de Gravação/Análise\n\n"
+            "Define quanto tempo a sessão ao vivo irá durar em segundos.\n"
+            "• 60s = 1 minuto.\n"
+            "• 300s = 5 minutos."
+        ).grid(row=0, column=1, padx=2)
         duration_spin = Spinbox(
             duration_frame,
             from_=10,
@@ -216,11 +224,11 @@ class LiveAnalysisDialog(Dialog):
             textvariable=self.duration_var,
             width=8,
         )
-        duration_spin.grid(row=0, column=1, padx=5, pady=2, sticky="w")
+        duration_spin.grid(row=0, column=2, padx=5, pady=2, sticky="w")
 
         # Quick buttons for duration
         quick_btns = ttk.Frame(duration_frame)
-        quick_btns.grid(row=0, column=2, padx=5, pady=2)
+        quick_btns.grid(row=0, column=3, padx=5, pady=2)
         ttk.Button(quick_btns, text="1m", width=4, command=lambda: self.duration_var.set(60)).pack(
             side="left", padx=1
         )
@@ -229,9 +237,16 @@ class LiveAnalysisDialog(Dialog):
         )
 
         # Analysis Interval
-        ttk.Label(duration_frame, text="Analisar a cada:").grid(
-            row=1, column=0, padx=5, pady=2, sticky="w"
+        ttk.Label(duration_frame, text="Intervalo Análise:").grid(
+            row=1, column=0, padx=(5, 2), pady=2, sticky="w"
         )
+        create_help_label(
+            duration_frame,
+            "Intervalo de Análise (frames)\n\n"
+            "Processa 1 frame a cada N frames da câmera.\n"
+            "• Valores baixos exigem um computador potente.\n"
+            "• Recomendado para Live: 1 ou 2."
+        ).grid(row=1, column=1, padx=2)
         analysis_spin = Spinbox(
             duration_frame,
             from_=1,
@@ -239,13 +254,18 @@ class LiveAnalysisDialog(Dialog):
             textvariable=self.analysis_interval_var,
             width=8,
         )
-        analysis_spin.grid(row=1, column=1, padx=5, pady=2, sticky="w")
-        ttk.Label(duration_frame, text="frames").grid(row=1, column=2, sticky="w")
+        analysis_spin.grid(row=1, column=2, padx=5, pady=2, sticky="w")
 
         # Display Interval
-        ttk.Label(duration_frame, text="Exibir a cada:").grid(
-            row=2, column=0, padx=5, pady=2, sticky="w"
+        ttk.Label(duration_frame, text="Intervalo Exibição:").grid(
+            row=2, column=0, padx=(5, 2), pady=2, sticky="w"
         )
+        create_help_label(
+            duration_frame,
+            "Intervalo de Exibição (frames)\n\n"
+            "Frequência de atualização do vídeo na tela.\n"
+            "• Aumentar este valor ajuda se a interface estiver lenta."
+        ).grid(row=2, column=1, padx=2)
         display_spin = Spinbox(
             duration_frame,
             from_=1,
@@ -253,8 +273,7 @@ class LiveAnalysisDialog(Dialog):
             textvariable=self.display_interval_var,
             width=8,
         )
-        display_spin.grid(row=2, column=1, padx=5, pady=2, sticky="w")
-        ttk.Label(duration_frame, text="frames").grid(row=2, column=2, sticky="w")
+        display_spin.grid(row=2, column=2, padx=5, pady=2, sticky="w")
 
         # Right Column: Options & ID
         right_col = ttk.Frame(config_container)
@@ -264,71 +283,99 @@ class LiveAnalysisDialog(Dialog):
         options_frame = ttk.LabelFrame(right_col, text="Opções da Sessão", padding=10)
         options_frame.pack(fill="x", pady=(0, 10))
 
-        options_frame.columnconfigure(1, weight=1)
+        # Grid: Label | Help | Entry
+        options_frame.columnconfigure(1, weight=0)
+        options_frame.columnconfigure(2, weight=1)
 
         # Experiment ID
         ttk.Label(options_frame, text="ID Experimento:").grid(
-            row=0, column=0, padx=5, pady=5, sticky="w"
+            row=0, column=0, padx=(5, 2), pady=5, sticky="w"
         )
+        create_help_label(
+            options_frame,
+            "Identificador do Experimento\n\n"
+            "Nome usado para organizar os arquivos de saída.\n"
+            "• Se deixado em branco, o sistema gerará um nome com a data e hora."
+        ).grid(row=0, column=1, padx=2)
         id_entry = ttk.Entry(options_frame, textvariable=self.experiment_id_var)
-        id_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-        ToolTip(id_entry, "Nome opcional para a pasta de resultados.")
+        id_entry.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
 
         # Checkboxes
         ttk.Checkbutton(
             options_frame,
             text="Gravar vídeo com overlay",
             variable=self.record_video_var,
-        ).grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="w")
+        ).grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky="w")
 
         # OpenVINO Option
         ttk.Checkbutton(
             options_frame,
             text="Usar aceleração OpenVINO",
             variable=self.use_openvino_var,
-        ).grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="w")
+        ).grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky="w")
 
         # --- Calibration & Detection (Bottom, simplified) ---
-        adv_frame = ttk.LabelFrame(container, text="Parâmetros Avançados", padding=10)
+        adv_frame = ttk.LabelFrame(container, text="Parâmetros Avançados de IA e Setup", padding=10)
         adv_frame.pack(fill="x", pady=(0, 10))
 
-        # Use a grid for compact layout
-        adv_frame.columnconfigure(1, weight=1)
-        adv_frame.columnconfigure(3, weight=1)
+        # Grid: Label | Help | Entry | Label | Help | Entry
+        adv_frame.columnconfigure(1, weight=0)
+        adv_frame.columnconfigure(2, weight=1)
+        adv_frame.columnconfigure(4, weight=0)
+        adv_frame.columnconfigure(5, weight=1)
 
         # Row 0: Model Methods
-        ttk.Label(adv_frame, text="Detecção Aquário:").grid(row=0, column=0, padx=5, sticky="w")
+        ttk.Label(adv_frame, text="IA Aquário:").grid(row=0, column=0, padx=(5, 2), sticky="w")
+        create_help_label(
+            adv_frame,
+            "Modelo de Segmentação ou Detecção do tanque.\n"
+            "• seg: Mais lento, mas delimita melhor as bordas.\n"
+            "• det: Muito rápido."
+        ).grid(row=0, column=1, padx=2)
         ttk.Combobox(
             adv_frame,
             textvariable=self.aquarium_method_var,
             values=["seg", "det"],
-            width=5,
+            width=8,
             state="readonly",
-        ).grid(row=0, column=1, padx=5, sticky="w")
+        ).grid(row=0, column=2, padx=5, sticky="w")
 
-        ttk.Label(adv_frame, text="Rastreamento:").grid(row=0, column=2, padx=5, sticky="w")
+        ttk.Label(adv_frame, text="IA Peixe:").grid(row=0, column=3, padx=(15, 2), sticky="w")
+        create_help_label(
+            adv_frame,
+            "Modelo para o peixe.\n"
+            "• Use 'seg' se tiver mais de um peixe por aquário."
+        ).grid(row=0, column=4, padx=2)
         ttk.Combobox(
             adv_frame,
             textvariable=self.animal_method_var,
             values=["seg", "det"],
-            width=5,
+            width=8,
             state="readonly",
-        ).grid(row=0, column=3, padx=5, sticky="w")
+        ).grid(row=0, column=5, padx=5, sticky="w")
 
         # Row 1: Physical setup
         ttk.Label(adv_frame, text="Num. Aquários:").grid(
-            row=1, column=0, padx=5, pady=5, sticky="w"
+            row=1, column=0, padx=(5, 2), pady=5, sticky="w"
         )
-        Spinbox(adv_frame, from_=1, to=10, textvariable=self.num_aquariums_var, width=5).grid(
-            row=1, column=1, padx=5, sticky="w"
+        create_help_label(
+            adv_frame,
+            "Quantidade de tanques no campo de visão (1 ou 2)."
+        ).grid(row=1, column=1, padx=2)
+        Spinbox(adv_frame, from_=1, to=10, textvariable=self.num_aquariums_var, width=8).grid(
+            row=1, column=2, padx=5, sticky="w"
         )
 
         ttk.Label(adv_frame, text="Animais/Aquário:").grid(
-            row=1, column=2, padx=5, pady=5, sticky="w"
+            row=1, column=3, padx=(15, 2), pady=5, sticky="w"
         )
+        create_help_label(
+            adv_frame,
+            "Quantidade de peixes dentro de cada aquário."
+        ).grid(row=1, column=4, padx=2)
         Spinbox(
-            adv_frame, from_=1, to=100, textvariable=self.animals_per_aquarium_var, width=5
-        ).grid(row=1, column=3, padx=5, sticky="w")
+            adv_frame, from_=1, to=100, textvariable=self.animals_per_aquarium_var, width=8
+        ).grid(row=1, column=5, padx=5, sticky="w")
 
         # Auto-detect on open
         self.after(100, self._detect_cameras)
@@ -524,7 +571,7 @@ class LiveAnalysisDialog(Dialog):
         return True
 
     def apply(self):
-        """Build result dictionary."""
+        """Build result dictionary and update settings."""
         selected = self.camera_selection_var.get().strip()
         camera_index = self.camera_index_map[selected]
 
@@ -534,16 +581,50 @@ class LiveAnalysisDialog(Dialog):
 
             experiment_id = f"camera_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
+        analysis_interval = int(self.analysis_interval_var.get())
+        display_interval = int(self.display_interval_var.get())
+        num_aquariums = int(self.num_aquariums_var.get())
+        animals_per_aquarium = int(self.animals_per_aquarium_var.get())
+
+        # Update the shared settings object to ensure consistency in other UI tabs
+        if self.settings:
+            try:
+                if hasattr(self.settings, "video_processing"):
+                    self.settings.video_processing.processing_interval = analysis_interval
+                    self.settings.video_processing.display_interval = display_interval
+                    self.settings.video_processing.sharp_turn_threshold_deg_s = float(self.sharp_turn_var.get())
+                    self.settings.video_processing.freezing_velocity_threshold = float(self.freeze_thresh_var.get())
+                    self.settings.video_processing.freezing_min_duration_s = float(self.freeze_dur_var.get())
+                
+                if hasattr(self.settings, "trajectory_smoothing"):
+                    self.settings.trajectory_smoothing.window_length = int(self.smoothing_window_var.get())
+                    self.settings.trajectory_smoothing.polyorder = int(self.smoothing_polyorder_var.get())
+                
+                if hasattr(self.settings, "model_selection"):
+                    self.settings.model_selection.aquarium_method = self.aquarium_method_var.get()
+                    self.settings.model_selection.animal_method = self.animal_method_var.get()
+                    self.settings.model_selection.use_openvino = bool(self.use_openvino_var.get())
+                
+                if hasattr(self.settings, "analysis_config"):
+                    self.settings.analysis_config.num_aquariums = num_aquariums
+                
+                if hasattr(self.settings, "tracking"):
+                    self.settings.tracking.use_single_subject_tracker = (animals_per_aquarium == 1)
+
+                log.info("live_analysis_dialog.apply.settings_updated")
+            except Exception as e:
+                log.warning("live_analysis_dialog.apply.settings_update_failed", error=str(e))
+
         self.result = {
             "camera_index": camera_index,
             "duration_s": float(self.duration_var.get()),
-            "analysis_interval_frames": int(self.analysis_interval_var.get()),
-            "display_interval_frames": int(self.display_interval_var.get()),
+            "analysis_interval_frames": analysis_interval,
+            "display_interval_frames": display_interval,
             "record_video": bool(self.record_video_var.get()),
             "experiment_id": experiment_id,
             # Calibration parameters
-            "num_aquariums": int(self.num_aquariums_var.get()),
-            "animals_per_aquarium": int(self.animals_per_aquarium_var.get()),
+            "num_aquariums": num_aquariums,
+            "animals_per_aquarium": animals_per_aquarium,
             "aquarium_width_cm": float(self.aquarium_width_var.get()),
             "aquarium_height_cm": float(self.aquarium_height_var.get()),
             # Behavior parameters
@@ -557,7 +638,7 @@ class LiveAnalysisDialog(Dialog):
             "aquarium_method": self.aquarium_method_var.get(),
             "animal_method": self.animal_method_var.get(),
             "use_openvino": bool(self.use_openvino_var.get()),
-            "use_single_subject_tracker": int(self.animals_per_aquarium_var.get()) == 1,
+            "use_single_subject_tracker": animals_per_aquarium == 1,
         }
 
         log.info(

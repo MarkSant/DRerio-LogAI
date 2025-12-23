@@ -208,6 +208,7 @@ class VisualizationGenerator:
         fig = cast(Figure, fig_obj)
         ax = ax or fig.add_subplot(111)
         ax.clear()
+        ax.set_facecolor("lightgray")
 
         traj_data = self.b_analyzer.trajectory_data
         x = traj_data["x_cm_smoothed"]
@@ -224,7 +225,8 @@ class VisualizationGenerator:
                 # load it directly instead of using VideoCapture.
                 suffix = str(video_path).lower()
                 if suffix.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")):
-                    frame = cv2.imread(str(video_path))
+                    # IMPROVEMENT: Use robust reading for Windows paths with unicode/spaces
+                    frame = cv2.imdecode(np.fromfile(str(video_path), dtype=np.uint8), cv2.IMREAD_COLOR)
                 else:
                     # Try backends appropriate for *video files*.
                     # (DSHOW/MSMF are camera/capture backends and are noisy for file paths.)
@@ -254,14 +256,14 @@ class VisualizationGenerator:
 
                     # Apply crop if aquarium-local crop box is provided
                     if self.frame_crop_box:
-                        x, y, w, h = self.frame_crop_box
-                        x = max(0, int(x))
-                        y = max(0, int(y))
-                        w = max(1, int(w))
-                        h = max(1, int(h))
-                        x2 = min(frame.shape[1], x + w)
-                        y2 = min(frame.shape[0], y + h)
-                        frame = frame[y:y2, x:x2]
+                        x_crop, y_crop, w_crop, h_crop = self.frame_crop_box
+                        x_crop = max(0, int(x_crop))
+                        y_crop = max(0, int(y_crop))
+                        w_crop = max(1, int(w_crop))
+                        h_crop = max(1, int(h_crop))
+                        x2 = min(frame.shape[1], x_crop + w_crop)
+                        y2 = min(frame.shape[0], y_crop + h_crop)
+                        frame = frame[y_crop:y2, x_crop:x2]
 
                     frame_height_px = frame.shape[0]
                     frame_width_px = frame.shape[1]
@@ -310,7 +312,7 @@ class VisualizationGenerator:
                         extent=frame_extent,
                         origin="lower",
                         aspect="auto",
-                        alpha=0.5,
+                        alpha=0.8,
                     )
             finally:
                 if cap is not None and cap.isOpened():
@@ -438,6 +440,7 @@ class VisualizationGenerator:
         fig = cast(Figure, fig_obj)
         ax = ax or fig.add_subplot(111)
         ax.clear()
+        ax.set_facecolor("lightgray")
 
         arena_poly_cm = self.b_analyzer.arena_polygon_cm
         min_x, min_y, max_x, max_y = arena_poly_cm.bounds
@@ -467,9 +470,12 @@ class VisualizationGenerator:
             cap = None
             frame = None
             try:
+                # If a background frame image is provided (e.g., per-aquarium extracted PNG),
+                # load it directly instead of using VideoCapture.
                 suffix = str(video_path).lower()
                 if suffix.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")):
-                    frame = cv2.imread(str(video_path))
+                    # IMPROVEMENT: Use robust reading for Windows paths with unicode/spaces
+                    frame = cv2.imdecode(np.fromfile(str(video_path), dtype=np.uint8), cv2.IMREAD_COLOR)
                 else:
                     # Try backends appropriate for *video files*.
                     # (DSHOW/MSMF are camera/capture backends and are noisy for file paths.)
@@ -498,14 +504,14 @@ class VisualizationGenerator:
                         frame = calibration.warp_frame(frame)
 
                     if self.frame_crop_box:
-                        x, y, w, h = self.frame_crop_box
-                        x = max(0, int(x))
-                        y = max(0, int(y))
-                        w = max(1, int(w))
-                        h = max(1, int(h))
-                        x2 = min(frame.shape[1], x + w)
-                        y2 = min(frame.shape[0], y + h)
-                        frame = frame[y:y2, x:x2]
+                        x_crop, y_crop, w_crop, h_crop = self.frame_crop_box
+                        x_crop = max(0, int(x_crop))
+                        y_crop = max(0, int(y_crop))
+                        w_crop = max(1, int(w_crop))
+                        h_crop = max(1, int(h_crop))
+                        x2 = min(frame.shape[1], x_crop + w_crop)
+                        y2 = min(frame.shape[0], y_crop + h_crop)
+                        frame = frame[y_crop:y2, x_crop:x2]
 
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frame_rgb = cv2.flip(frame_rgb, 0)  # Invert Y for Cartesian
@@ -530,7 +536,7 @@ class VisualizationGenerator:
                         extent=frame_extent,
                         origin="lower",
                         aspect="auto",
-                        alpha=0.4,  # Semi-transparent to highlight overlays
+                        alpha=0.8,  # Semi-transparent to highlight overlays
                     )
                     log.debug(
                         "roi_reference.background_added",

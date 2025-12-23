@@ -293,12 +293,16 @@ class DetectorService:
 
     def update_tracking_parameters(
         self,
-        params: dict[str, float] | None = None,
+        params: dict[str, Any] | None = None,
         *,
         conf_threshold: float | None = None,
         nms_threshold: float | None = None,
+        use_bytetrack: bool | None = None,
         track_threshold: float | None = None,
         match_threshold: float | None = None,
+        track_buffer: int | None = None,
+        max_center_distance: float | None = None,
+        iou_threshold: float | None = None,
         reset_overrides: bool = False,
         scope: Literal["global", "project"] = "global",
     ) -> bool:
@@ -309,8 +313,12 @@ class DetectorService:
             params: Dict of parameters to update
             conf_threshold: Confidence threshold override
             nms_threshold: NMS threshold override
+            use_bytetrack: ByteTrack toggle override
             track_threshold: ByteTrack track threshold override
             match_threshold: ByteTrack match threshold override
+            track_buffer: ByteTrack buffer override
+            max_center_distance: Hybrid matching distance override
+            iou_threshold: Hybrid matching IoU override
             reset_overrides: If True, reset overrides for the given scope
             scope: Whether the changes apply globally or only to the project
 
@@ -322,9 +330,9 @@ class DetectorService:
             raise ValueError(f"Unsupported calibration scope: {scope}")
 
         persist_global = scope_normalized == "global"
-        params_dict: dict[str, float] = dict(params or {})
+        params_dict: dict[str, Any] = dict(params or {})
 
-        # Normalize parameter names (accept both long and short forms)
+        # Normalize parameter names
         if "confidence_threshold" in params_dict:
             params_dict["conf_threshold"] = params_dict.pop("confidence_threshold")
 
@@ -332,38 +340,66 @@ class DetectorService:
             params_dict["conf_threshold"] = conf_threshold
         if nms_threshold is not None:
             params_dict["nms_threshold"] = nms_threshold
+        if use_bytetrack is not None:
+            params_dict["use_bytetrack"] = use_bytetrack
         if track_threshold is not None:
             params_dict["track_threshold"] = track_threshold
         if match_threshold is not None:
             params_dict["match_threshold"] = match_threshold
+        if track_buffer is not None:
+            params_dict["track_buffer"] = track_buffer
+        if max_center_distance is not None:
+            params_dict["max_center_distance"] = max_center_distance
+        if iou_threshold is not None:
+            params_dict["iou_threshold"] = iou_threshold
 
         # Validation helper
-        def _validate(param_name: str, value: float | None):
-            if value is not None and (value < 0.0 or value > 1.0):
-                raise ValueError(f"{param_name} must be between 0 and 1, got {value}")
+        def _validate_range(param_name: str, value: Any, min_val: float = 0.0, max_val: float = 1.0):
+            if value is not None:
+                try:
+                    val = float(value)
+                    if val < min_val or val > max_val:
+                        raise ValueError(f"{param_name} deve estar entre {min_val} e {max_val}, recebido {val}")
+                except (TypeError, ValueError) as e:
+                    if isinstance(e, ValueError) and "deve estar entre" in str(e):
+                        raise
+                    raise ValueError(f"{param_name} deve ser um número válido")
 
-        # Validate all parameters
-        _validate("conf_threshold", params_dict.get("conf_threshold"))
-        _validate("nms_threshold", params_dict.get("nms_threshold"))
-        _validate("track_threshold", params_dict.get("track_threshold"))
-        _validate("match_threshold", params_dict.get("match_threshold"))
+        # Validate parameters
+        _validate_range("conf_threshold", params_dict.get("conf_threshold"))
+        _validate_range("nms_threshold", params_dict.get("nms_threshold"))
+        _validate_range("track_threshold", params_dict.get("track_threshold"))
+        _validate_range("match_threshold", params_dict.get("match_threshold"))
+        _validate_range("iou_threshold", params_dict.get("iou_threshold"))
+        
+        if "track_buffer" in params_dict:
+            try:
+                if int(params_dict["track_buffer"]) < 1:
+                    raise ValueError("track_buffer deve ser pelo menos 1")
+            except (TypeError, ValueError):
+                raise ValueError("track_buffer deve ser um número inteiro")
 
         plugin = self.detector.plugin if self.detector else None
         clear_project_overrides = scope_normalized == "project" and reset_overrides
 
         if clear_project_overrides:
             self._persist_project_detector_overrides({})
-            reset_overrides = False  # Avoid resetting global defaults downstream
+            reset_overrides = False
             defaults = self._get_current_global_thresholds()
             for key, value in defaults.items():
                 params_dict.setdefault(key, value)
 
         if not plugin:
             current_defaults = self.get_detector_parameters()
-            payload: dict[str, float] = {}
+            payload: dict[str, Any] = {}
             has_change = False
 
-            for key in ["conf_threshold", "nms_threshold", "track_threshold", "match_threshold"]:
+            keys = [
+                "conf_threshold", "nms_threshold", "use_bytetrack",
+                "track_threshold", "match_threshold", "track_buffer",
+                "max_center_distance", "iou_threshold"
+            ]
+            for key in keys:
                 new_val = params_dict.get(key)
                 if new_val is not None and new_val != current_defaults.get(key):
                     payload[key] = new_val
@@ -413,8 +449,14 @@ class DetectorService:
         """Apply tracking parameters to the plugin and persist configuration."""
         conf_val = params.get("conf_threshold")
         nms_val = params.get("nms_threshold")
+        
+        # Tracking params
+        use_bt = params.get("use_bytetrack")
         track_val = params.get("track_threshold")
         match_val = params.get("match_threshold")
+        buffer_val = params.get("track_buffer")
+        dist_val = params.get("max_center_distance")
+        iou_val = params.get("iou_threshold")
 
         # Update confidence threshold
         if conf_val is not None and hasattr(plugin, "conf_threshold"):
@@ -426,25 +468,33 @@ class DetectorService:
             plugin.nms_threshold = float(nms_val)
             log.info("detector_service.nms_threshold.updated", value=nms_val)
 
-        # Update ByteTrack thresholds
-        if hasattr(plugin, "set_tracking_parameters"):
-            plugin.set_tracking_parameters(track_threshold=track_val, match_threshold=match_val)
-            log.info(
-                "detector_service.tracking_params.updated",
-                track_threshold=track_val,
-                match_threshold=match_val,
-            )
+        # Update ByteTrack toggle in settings (Detector reads from it)
+        if use_bt is not None:
+            if hasattr(self.settings, "tracking"):
+                self.settings.tracking.use_bytetrack = bool(use_bt)
+                log.info("detector_service.use_bytetrack.updated", value=use_bt)
+
+        # Update thresholds in settings (Detector reads from it)
+        if hasattr(self.settings, "bytetrack"):
+            bt = self.settings.bytetrack
+            if track_val is not None: bt.track_threshold = float(track_val)
+            if match_val is not None: bt.match_threshold = float(match_val)
+            if buffer_val is not None: bt.track_buffer = int(buffer_val)
+            if dist_val is not None: bt.max_center_distance = float(dist_val)
+            if iou_val is not None: bt.iou_threshold = float(iou_val)
+            
+            log.info("detector_service.tracking_settings.updated", count=sum(1 for v in [track_val, match_val, buffer_val, dist_val, iou_val] if v is not None))
 
         # Build detector config for persistence
-        detector_config: dict[str, float] = {}
-        if conf_val is not None:
-            detector_config["conf_threshold"] = float(conf_val)
-        if nms_val is not None:
-            detector_config["nms_threshold"] = float(nms_val)
-        if track_val is not None:
-            detector_config["track_threshold"] = float(track_val)
-        if match_val is not None:
-            detector_config["match_threshold"] = float(match_val)
+        detector_config: dict[str, Any] = {}
+        if conf_val is not None: detector_config["conf_threshold"] = float(conf_val)
+        if nms_val is not None: detector_config["nms_threshold"] = float(nms_val)
+        if use_bt is not None: detector_config["use_bytetrack"] = bool(use_bt)
+        if track_val is not None: detector_config["track_threshold"] = float(track_val)
+        if match_val is not None: detector_config["match_threshold"] = float(match_val)
+        if buffer_val is not None: detector_config["track_buffer"] = int(buffer_val)
+        if dist_val is not None: detector_config["max_center_distance"] = float(dist_val)
+        if iou_val is not None: detector_config["iou_threshold"] = float(iou_val)
 
         if persist_global:
             self._persist_global_detector_defaults(detector_config, reset=reset_overrides)
@@ -495,7 +545,7 @@ class DetectorService:
         except Exception as e:
             log.error("detector_service.single_subject.failed", error=str(e), enabled=enabled)
 
-    def get_detector_parameters(self) -> dict[str, float]:
+    def get_detector_parameters(self) -> dict[str, Any]:
         """
         Get current detector thresholds, falling back to saved or default values.
 
@@ -504,61 +554,54 @@ class DetectorService:
         Returns:
             dict: Current detector parameters
         """
-        # If detector with plugin exists, read current values from plugin
-        plugin = self.detector.plugin if self.detector else None
-        if plugin:
-            params = {
-                "conf_threshold": getattr(
-                    plugin, "conf_threshold", self.settings.yolo_model.confidence_threshold
-                ),
-                "nms_threshold": getattr(
-                    plugin, "nms_threshold", self.settings.yolo_model.nms_threshold
-                ),
-                "track_threshold": getattr(plugin, "track_threshold", DEFAULT_TRACK_THRESHOLD),
-                "match_threshold": getattr(plugin, "match_threshold", DEFAULT_MATCH_THRESHOLD),
-            }
-            return params
-
-        # No detector - fall back to settings and project data
-        track_default = DEFAULT_TRACK_THRESHOLD
-        match_default = DEFAULT_MATCH_THRESHOLD
-
-        params = {
+        params: dict[str, Any] = {
             "conf_threshold": self.settings.yolo_model.confidence_threshold,
             "nms_threshold": self.settings.yolo_model.nms_threshold,
-            "track_threshold": track_default,
-            "match_threshold": match_default,
+            "use_bytetrack": True,
+            "track_threshold": DEFAULT_TRACK_THRESHOLD,
+            "match_threshold": DEFAULT_MATCH_THRESHOLD,
+            "track_buffer": 90,
+            "max_center_distance": 400.0,
+            "iou_threshold": 0.05,
         }
 
-        # Try to get ByteTrack defaults from settings
-        try:
-            if hasattr(self.settings, "bytetrack"):
-                bt_track = getattr(self.settings.bytetrack, "track_threshold", None)
-                bt_match = getattr(self.settings.bytetrack, "match_threshold", None)
-                if bt_track is not None:
-                    params["track_threshold"] = float(bt_track)
-                if bt_match is not None:
-                    params["match_threshold"] = float(bt_match)
-        except Exception:
-            log.debug("detector_service.get_params.bytetrack_fallback", exc_info=True)
+        # Sync from settings
+        if hasattr(self.settings, "tracking"):
+            params["use_bytetrack"] = self.settings.tracking.use_bytetrack
+            
+        if hasattr(self.settings, "bytetrack"):
+            bt = self.settings.bytetrack
+            params.update({
+                "track_threshold": bt.track_threshold,
+                "match_threshold": bt.match_threshold,
+                "track_buffer": bt.track_buffer,
+                "max_center_distance": bt.max_center_distance,
+                "iou_threshold": bt.iou_threshold,
+            })
+
+        # Override from active plugin if available
+        plugin = self.detector.plugin if self.detector else None
+        if plugin:
+            params["conf_threshold"] = getattr(plugin, "conf_threshold", params["conf_threshold"])
+            params["nms_threshold"] = getattr(plugin, "nms_threshold", params["nms_threshold"])
 
         # Check for project-specific overrides
         project_data = getattr(self.project_manager, "project_data", {})
         if project_data:
             detector_state = project_data.get("detector_state", {})
-            for key in ["conf_threshold", "nms_threshold", "track_threshold", "match_threshold"]:
+            for key in params.keys():
                 val = detector_state.get(key)
                 if val is not None:
                     try:
-                        params[key] = float(val)
+                        if key == "use_bytetrack": params[key] = bool(val)
+                        elif key == "track_buffer": params[key] = int(val)
+                        else: params[key] = float(val)
                     except (TypeError, ValueError):
-                        log.warning(
-                            "detector_service.get_params.invalid_override", key=key, value=val
-                        )
+                        log.warning("detector_service.get_params.invalid_override", key=key, value=val)
 
         return params
 
-    def get_factory_detector_parameters(self) -> dict[str, float]:
+    def get_factory_detector_parameters(self) -> dict[str, Any]:
         """
         Get factory default detector thresholds without any overrides.
 
@@ -567,33 +610,15 @@ class DetectorService:
         Returns:
             dict: Factory default parameters
         """
-        try:
-            conf_default = float(self.settings.yolo_model.confidence_threshold)
-            nms_default = float(self.settings.yolo_model.nms_threshold)
-        except Exception:
-            log.warning("detector_service.factory_params.fallback", exc_info=True)
-            conf_default = 0.25
-            nms_default = 0.45
-
-        track_default = DEFAULT_TRACK_THRESHOLD
-        match_default = DEFAULT_MATCH_THRESHOLD
-
-        try:
-            if hasattr(self.settings, "bytetrack"):
-                bt_track = getattr(self.settings.bytetrack, "track_threshold", None)
-                bt_match = getattr(self.settings.bytetrack, "match_threshold", None)
-                if bt_track is not None:
-                    track_default = float(bt_track)
-                if bt_match is not None:
-                    match_default = float(bt_match)
-        except Exception:
-            log.debug("detector_service.factory_params.bytetrack_fallback", exc_info=True)
-
         return {
-            "conf_threshold": conf_default,
-            "nms_threshold": nms_default,
-            "track_threshold": track_default,
-            "match_threshold": match_default,
+            "conf_threshold": 0.25,
+            "nms_threshold": 0.45,
+            "use_bytetrack": True,
+            "track_threshold": 0.25,
+            "match_threshold": 0.80,
+            "track_buffer": 90,
+            "max_center_distance": 400.0,
+            "iou_threshold": 0.05,
         }
 
     def restore_detector_settings(self, saved_detector_config: dict) -> None:
@@ -605,58 +630,37 @@ class DetectorService:
         Args:
             saved_detector_config: Saved detector configuration from project
         """
-        if not saved_detector_config or not self.detector:
+        if not saved_detector_config:
             return
 
-        log.info(
-            "detector_service.restore_settings.start",
-            config=saved_detector_config,
-        )
+        log.info("detector_service.restore_settings.start", config=saved_detector_config)
 
-        plugin = self.detector.plugin
-        settings_changed = False
+        # Apply values to settings object first
+        if "conf_threshold" in saved_detector_config:
+            self.settings.yolo_model.confidence_threshold = float(saved_detector_config["conf_threshold"])
+        if "nms_threshold" in saved_detector_config:
+            self.settings.yolo_model.nms_threshold = float(saved_detector_config["nms_threshold"])
+        
+        if "use_bytetrack" in saved_detector_config:
+            self.settings.tracking.use_bytetrack = bool(saved_detector_config["use_bytetrack"])
+            
+        if hasattr(self.settings, "bytetrack"):
+            bt = self.settings.bytetrack
+            if "track_threshold" in saved_detector_config: bt.track_threshold = float(saved_detector_config["track_threshold"])
+            if "match_threshold" in saved_detector_config: bt.match_threshold = float(saved_detector_config["match_threshold"])
+            if "track_buffer" in saved_detector_config: bt.track_buffer = int(saved_detector_config["track_buffer"])
+            if "max_center_distance" in saved_detector_config: bt.max_center_distance = float(saved_detector_config["max_center_distance"])
+            if "iou_threshold" in saved_detector_config: bt.iou_threshold = float(saved_detector_config["iou_threshold"])
 
-        # Restore confidence threshold
-        saved_conf = saved_detector_config.get("confidence_threshold")
-        if saved_conf is not None and hasattr(plugin, "conf_threshold"):
-            try:
-                plugin.conf_threshold = float(saved_conf)
-                settings_changed = True
-                log.info("detector_service.restore.conf_threshold", value=saved_conf)
-            except (TypeError, ValueError) as e:
-                log.warning("detector_service.restore.conf_invalid", error=str(e))
+        # If detector is active, sync plugin
+        if self.detector and self.detector.plugin:
+            plugin = self.detector.plugin
+            if "conf_threshold" in saved_detector_config and hasattr(plugin, "conf_threshold"):
+                plugin.conf_threshold = float(saved_detector_config["conf_threshold"])
+            if "nms_threshold" in saved_detector_config and hasattr(plugin, "nms_threshold"):
+                plugin.nms_threshold = float(saved_detector_config["nms_threshold"])
 
-        # Restore NMS threshold
-        saved_nms = saved_detector_config.get("nms_threshold")
-        if saved_nms is not None and hasattr(plugin, "nms_threshold"):
-            try:
-                plugin.nms_threshold = float(saved_nms)
-                settings_changed = True
-                log.info("detector_service.restore.nms_threshold", value=saved_nms)
-            except (TypeError, ValueError) as e:
-                log.warning("detector_service.restore.nms_invalid", error=str(e))
-
-        # Restore ByteTrack parameters
-        saved_track = saved_detector_config.get("track_threshold")
-        saved_match = saved_detector_config.get("match_threshold")
-        if hasattr(plugin, "set_tracking_parameters"):
-            try:
-                plugin.set_tracking_parameters(
-                    track_threshold=saved_track, match_threshold=saved_match
-                )
-                settings_changed = True
-                log.info(
-                    "detector_service.restore.tracking_params",
-                    track=saved_track,
-                    match=saved_match,
-                )
-            except Exception as e:
-                log.warning("detector_service.restore.tracking_params_failed", error=str(e))
-
-        if settings_changed:
-            log.info("detector_service.restore_settings.success")
-        else:
-            log.debug("detector_service.restore_settings.no_changes")
+        log.info("detector_service.restore_settings.success")
 
     # === Private Helper Methods ===
 
@@ -673,32 +677,28 @@ class DetectorService:
         """
         detector_config = {
             "plugin_name": ("OpenVINO" if use_openvino else "YOLO (Ultralytics)"),
-            "confidence_threshold": plugin.conf_threshold,
+            "conf_threshold": plugin.conf_threshold,
             "nms_threshold": plugin.nms_threshold,
             "context": getattr(plugin, "_context", "tracking"),
         }
 
-        # Add ByteTrack parameters if available
-        if hasattr(plugin, "track_threshold"):
-            track_val = getattr(plugin, "track_threshold", None)
-            if track_val is not None:
-                detector_config["track_threshold"] = float(track_val)
-
-        if hasattr(plugin, "match_threshold"):
-            match_val = getattr(plugin, "match_threshold", None)
-            if match_val is not None:
-                detector_config["match_threshold"] = float(match_val)
-
-        # Use get_context_info if available
-        if hasattr(plugin, "get_context_info"):
-            context_info = plugin.get_context_info()
-            detector_config["context"] = context_info.get("context", "tracking")
+        # Add ByteTrack parameters from settings
+        detector_config["use_bytetrack"] = self.settings.tracking.use_bytetrack
+        if hasattr(self.settings, "bytetrack"):
+            bt = self.settings.bytetrack
+            detector_config.update({
+                "track_threshold": bt.track_threshold,
+                "match_threshold": bt.match_threshold,
+                "track_buffer": bt.track_buffer,
+                "max_center_distance": bt.max_center_distance,
+                "iou_threshold": bt.iou_threshold,
+            })
 
         return detector_config
 
     def _persist_global_detector_defaults(
         self,
-        detector_config: dict[str, float],
+        detector_config: dict[str, Any],
         *,
         reset: bool = False,
     ) -> None:
@@ -710,35 +710,37 @@ class DetectorService:
             reset: If True, reset to factory defaults
         """
         if reset:
-            # Reset to factory defaults
             factory = self.get_factory_detector_parameters()
             self.settings.yolo_model.confidence_threshold = factory["conf_threshold"]
             self.settings.yolo_model.nms_threshold = factory["nms_threshold"]
+            self.settings.tracking.use_bytetrack = factory["use_bytetrack"]
             if hasattr(self.settings, "bytetrack"):
-                self.settings.bytetrack.track_threshold = factory["track_threshold"]
-                self.settings.bytetrack.match_threshold = factory["match_threshold"]
+                bt = self.settings.bytetrack
+                bt.track_threshold = factory["track_threshold"]
+                bt.match_threshold = factory["match_threshold"]
+                bt.track_buffer = factory["track_buffer"]
+                bt.max_center_distance = factory["max_center_distance"]
+                bt.iou_threshold = factory["iou_threshold"]
             log.info("detector_service.persist.reset_to_factory")
         else:
-            # Apply overrides
-            conf_val = detector_config.get("conf_threshold")
-            nms_val = detector_config.get("nms_threshold")
-            track_val = detector_config.get("track_threshold")
-            match_val = detector_config.get("match_threshold")
-
-            if conf_val is not None:
-                self.settings.yolo_model.confidence_threshold = float(conf_val)
-            if nms_val is not None:
-                self.settings.yolo_model.nms_threshold = float(nms_val)
+            if "conf_threshold" in detector_config:
+                self.settings.yolo_model.confidence_threshold = float(detector_config["conf_threshold"])
+            if "nms_threshold" in detector_config:
+                self.settings.yolo_model.nms_threshold = float(detector_config["nms_threshold"])
+            if "use_bytetrack" in detector_config:
+                self.settings.tracking.use_bytetrack = bool(detector_config["use_bytetrack"])
 
             if hasattr(self.settings, "bytetrack"):
-                if track_val is not None:
-                    self.settings.bytetrack.track_threshold = float(track_val)
-                if match_val is not None:
-                    self.settings.bytetrack.match_threshold = float(match_val)
+                bt = self.settings.bytetrack
+                if "track_threshold" in detector_config: bt.track_threshold = float(detector_config["track_threshold"])
+                if "match_threshold" in detector_config: bt.match_threshold = float(detector_config["match_threshold"])
+                if "track_buffer" in detector_config: bt.track_buffer = int(detector_config["track_buffer"])
+                if "max_center_distance" in detector_config: bt.max_center_distance = float(detector_config["max_center_distance"])
+                if "iou_threshold" in detector_config: bt.iou_threshold = float(detector_config["iou_threshold"])
 
             log.info("detector_service.persist.overrides_applied", config=detector_config)
 
-    def _persist_project_detector_overrides(self, detector_config: dict[str, float]) -> bool:
+    def _persist_project_detector_overrides(self, detector_config: dict[str, Any]) -> bool:
         """Persist detector overrides to the active project, if available."""
         if not hasattr(self.project_manager, "save_detector_state"):
             return False
@@ -753,35 +755,23 @@ class DetectorService:
             )
             return False
 
-    def _get_current_global_thresholds(self) -> dict[str, float]:
+    def _get_current_global_thresholds(self) -> dict[str, Any]:
         """Return the thresholds currently configured in global settings."""
-        try:
-            conf = float(getattr(self.settings.yolo_model, "confidence_threshold", 0.25))
-        except Exception:
-            log.debug("detector_service.global_thresholds.conf_fallback", exc_info=True)
-            conf = 0.25
-
-        try:
-            nms = float(getattr(self.settings.yolo_model, "nms_threshold", 0.45))
-        except Exception:
-            log.debug("detector_service.global_thresholds.nms_fallback", exc_info=True)
-            nms = 0.45
-
-        track = DEFAULT_TRACK_THRESHOLD
-        match = DEFAULT_MATCH_THRESHOLD
-        try:
-            if hasattr(self.settings, "bytetrack"):
-                track = float(getattr(self.settings.bytetrack, "track_threshold", track))
-                match = float(getattr(self.settings.bytetrack, "match_threshold", match))
-        except Exception:
-            log.debug("detector_service.global_thresholds.bytetrack_fallback", exc_info=True)
-
-        return {
-            "conf_threshold": conf,
-            "nms_threshold": nms,
-            "track_threshold": track,
-            "match_threshold": match,
+        res = {
+            "conf_threshold": self.settings.yolo_model.confidence_threshold,
+            "nms_threshold": self.settings.yolo_model.nms_threshold,
+            "use_bytetrack": self.settings.tracking.use_bytetrack,
         }
+        if hasattr(self.settings, "bytetrack"):
+            bt = self.settings.bytetrack
+            res.update({
+                "track_threshold": bt.track_threshold,
+                "match_threshold": bt.match_threshold,
+                "track_buffer": bt.track_buffer,
+                "max_center_distance": bt.max_center_distance,
+                "iou_threshold": bt.iou_threshold,
+            })
+        return res
 
     def _resolve_single_subject_tracker_preference(self, project_type: str | None) -> bool | None:
         """

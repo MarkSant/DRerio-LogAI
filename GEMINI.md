@@ -172,4 +172,16 @@ What are the results?
 *   **Outputs Persistence (Option B)**: after generating summary/report artifacts, re-register updated `multi_aquarium_outputs` via `ProjectManager.register_multi_aquarium_outputs(...)` so `has_summary` and file paths persist.
 *   **Reports Tree Source of Truth**: hierarchy video dict may omit `multi_aquarium_outputs`; fall back to `ProjectManager.find_video_entry(video_path)`.
 *   **Key Normalization**: normalize `multi_aquarium_outputs` keys (`0` vs `"0"`) to avoid Treeview iid collisions.
-*   **OpenCV Note**: `.png` background frames must be loaded via `cv2.imread` (avoid `cv2.VideoCapture`).
+- Fixed regression in multi-aquarium report generation: `ProcessingCoordinator.generate_project_reports` now correctly prioritizes `get_multi_aquarium_zone_data` over `get_zone_data`, preventing the second aquarium from using the first one's data.
+- Standardized single-aquarium reports: now uses the same robust logic as multi-aquarium (cropped PNG background extraction, coordinate normalization to local aquarium space).
+- Improved image loading in `VisualizationGenerator`: switched to `cv2.imdecode` with `np.fromfile` to support Windows file paths with spaces or non-ASCII characters, resolving the "gray background" issue.
+- Enhanced `AnalysisResult` DTO and `AnalysisService`: now includes `validation_warnings` and `validation_stats` to propagate technical quality metrics to reports.
+- Added "Appendix: Trajectory Validation" to Word reports: includes a summary table with total frames, coverage, and frame range, plus detailed validation warnings.
+- Fixed coordinate misalignment in reports: `ProcessingCoordinator` now drops existing CM columns during local normalization, forcing `BehavioralAnalyzer` to recalculate positions relative to the aquarium crop origin (0,0).
+
+**8. Interval Persistence & UI Help (Dec 2025):**
+*   **New Parameter**: Added `display_interval` to `VideoProcessingSettings` in `settings.py`.
+*   **Global Sync**: Updated `SingleVideoConfigDialog` and `LiveAnalysisDialog` to sync form values with the global `Settings` object upon starting analysis.
+*   **Project Persistence**: `ProcessingCoordinator.start_single_video_processing` now persists `analysis_interval_frames` and `display_interval_frames` into `project_data` (and thus `project.json`).
+*   **Wizard Support**: `CalibrationStep` and `LiveConfigStep` now collect and persist processing intervals during project creation.
+*   **Contextual Help**: Implemented a unified help system using `create_help_label` (ⓘ icon) with detailed tooltips in `CalibrationDialog`, `ConfigEditorWidget`, and all configuration dialogs.

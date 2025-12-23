@@ -181,6 +181,7 @@ class Detector:
         self._multi_aquarium_mode: bool = False
         self._aquariums: list[AquariumData] = []
         self._byte_trackers_multi: dict[int, BYTETracker] = {}
+        self._single_subject_trackers_multi: dict[int, SingleSubjectTracker] = {}
         self._scaled_aquarium_polygons: dict[int, np.ndarray] = {}
         self._scaled_aquarium_roi_polygons: dict[int, list[np.ndarray]] = {}
 
@@ -252,39 +253,57 @@ class Detector:
             # Initialize trackers for each aquarium if not already present
             for aq in self._aquariums:
                 if aq.id not in self._byte_trackers_multi:
-                     if self.settings and hasattr(self.settings, "bytetrack"):
-                         bt = self.settings.bytetrack
-                         track_thresh = float(bt.track_threshold)
-                         track_buffer = int(bt.track_buffer)
-                         match_thresh = float(bt.match_threshold)
-                     else:
-                         # Defaults
-                         track_thresh = 0.5
-                         track_buffer = 30
-                         match_thresh = 0.8
+                    if self.settings and hasattr(self.settings, "bytetrack"):
+                        bt = self.settings.bytetrack
+                        track_thresh = float(bt.track_threshold)
+                        track_buffer = int(bt.track_buffer)
+                        match_thresh = float(bt.match_threshold)
+                        max_dist = float(getattr(bt, "max_center_distance", 400.0))
+                        iou_thresh = float(getattr(bt, "iou_threshold", 0.05))
+                    else:
+                        # Defaults matching config.yaml
+                        track_thresh = 0.25
+                        track_buffer = 150
+                        match_thresh = 0.95
+                        max_dist = 400.0
+                        iou_thresh = 0.05
 
-                     # Create Args Namespace
-                     # BYTETracker expects an object with these attributes, not kwargs
-                     tracker_args = SimpleNamespace(
-                         track_thresh=track_thresh,
-                         track_buffer=track_buffer,
-                         match_thresh=match_thresh,
-                         mot20=False
-                     )
+                    # Get processing interval for correct Kalman filter dt
+                    interval = 1
+                    fps = 30
+                    if self.settings and hasattr(self.settings, "video_processing"):
+                        interval = getattr(self.settings.video_processing, "processing_interval", 1) or 1
+                        fps = getattr(self.settings.video_processing, "fps", 30) or 30
 
-                     # Create Tracker with error handling
-                     try:
-                         self._byte_trackers_multi[aq.id] = BYTETracker(tracker_args)
-                     except Exception as e:
-                         log.error(
-                             "detector.bytetracker_init_failed",
-                             aquarium_id=aq.id,
-                             error=str(e),
-                             exc_info=True,
-                         )
-                         raise RuntimeError(
-                             f"Falha ao inicializar ByteTracker para aquário {aq.id}: {e}"
-                         ) from e
+                    # Create Args Namespace
+                    tracker_args = SimpleNamespace(
+                        track_thresh=track_thresh,
+                        track_buffer=track_buffer,
+                        match_thresh=match_thresh,
+                        mot20=False
+                    )
+
+                    # Create Tracker with all required parameters
+                    try:
+                        self._byte_trackers_multi[aq.id] = BYTETracker(
+                            args=tracker_args,
+                            frame_rate=fps,
+                            use_hybrid_matching=True,
+                            max_center_distance=max_dist,
+                            processing_interval=interval,
+                            iou_threshold=iou_thresh,
+                            single_animal_mode=True,
+                        )
+                    except Exception as e:
+                        log.error(
+                            "detector.bytetracker_init_failed",
+                            aquarium_id=aq.id,
+                            error=str(e),
+                            exc_info=True,
+                        )
+                        raise RuntimeError(
+                            f"Falha ao inicializar ByteTracker para aquário {aq.id}: {e}"
+                        ) from e
         else:
             self._aquariums = []
 
@@ -794,24 +813,31 @@ class Detector:
                 aquarium_defined=self._aquarium_region_defined,
             )
         else:
-            # Multi-subject tracking with ByteTracker
-            # NOTE: Single-subject mode is now handled INSIDE ByteTracker
-            # (via single_animal_mode param) rather than using the separate
-            # heuristic SingleSubjectTracker.
-            # This provides better stability via Kalman Filter + ID Resurrection.
+            # Tracking Mode
+            # Switch between ByteTrack and Simple SingleSubjectTracker
+            use_bytetrack = self._should_use_bytetrack()
 
             if filtered_detections:
                 confidences = [d[4] for d in filtered_detections]
-                log.debug("detector.bytetrack.input_confidences", confidences=confidences)
+                log.debug(
+                    "detector.tracking.input",
+                    confidences=confidences,
+                    strategy="bytetrack" if use_bytetrack else "simple_hybrid"
+                )
 
-            filtered_detections = self._apply_byte_tracking(filtered_detections, frame.shape)
+            if use_bytetrack:
+                filtered_detections = self._apply_byte_tracking(filtered_detections, frame.shape)
+                # BUG FIX #1: Validate track_id continuity after tracking
+                self._validate_track_continuity(filtered_detections)
+            else:
+                # Use simple hybrid tracker (IoU + Distance)
+                self._ensure_simple_tracker()
+                filtered_detections = self._apply_simple_tracking(filtered_detections)
+
             log.debug(
-                "detector.byte_tracking.applied",
+                "detector.tracking.applied",
                 num_detections=len(filtered_detections),
             )
-
-            # BUG FIX #1: Validate track_id continuity after tracking
-            self._validate_track_continuity(filtered_detections)
 
         end_time = time.perf_counter()
         log.debug(
@@ -871,7 +897,8 @@ class Detector:
         This resets:
         - Plugin tracking state
         - Single subject tracker
-        - ByteTracker instance
+        - ByteTracker instance (single and multi-aquarium)
+        - Multi-aquarium tracker dictionaries
         - Global track ID counter (so IDs start from 1 for each new video)
         """
         if hasattr(self.plugin, "reset_tracking_state"):
@@ -882,6 +909,12 @@ class Detector:
         self._single_subject_tracker.reset()
         self._byte_tracker = None
         self._byte_tracker_params = None
+
+        # Clear multi-aquarium trackers
+        self._byte_trackers_multi.clear()
+        self._single_subject_trackers_multi.clear()
+        if hasattr(self, "_multi_tracker_params"):
+            self._multi_tracker_params = None
 
         # Reset global track ID counter so new videos start with ID=1
         from zebtrack.tracker.basetrack import BaseTrack
@@ -906,6 +939,45 @@ class Detector:
         else:
             x1, y1, x2, y2, confidence, track_id, class_id = detection[:7]
         return x1, y1, x2, y2, float(confidence), track_id, int(class_id)
+
+    def _apply_simple_tracking(self, detections: list[tuple]) -> list[tuple]:
+        """Apply simple SingleSubjectTracker (IoU+Distance) to detections.
+
+        Used when ByteTrack is disabled. Assigns ID=1 to the best detection.
+        """
+        if not detections:
+            self._single_subject_tracker.reset()
+            return []
+
+        # Convert to expected format for SingleSubjectTracker if needed
+        # SingleSubjectTracker.assign takes sequence of detections and returns tracked
+        tracked = self._single_subject_tracker.assign(detections)
+
+        # If SingleSubjectTracker returned something, it's just the best match
+        # We might want to pass through other detections as untracked?
+        # Typically SingleSubjectTracker returns a list with 1 item or empty.
+
+        return tracked
+
+    def _apply_simple_tracking_multi(
+        self,
+        detections: list[tuple],
+        tracker: SingleSubjectTracker,
+    ) -> list[tuple]:
+        """Apply SingleSubjectTracker for multi-aquarium mode (one per aquarium).
+
+        Args:
+            detections: List of detection tuples.
+            tracker: The SingleSubjectTracker instance for this aquarium.
+
+        Returns:
+            List of tracked detection tuples (usually 1 item).
+        """
+        if not detections:
+            tracker.reset()
+            return []
+
+        return tracker.assign(detections)
 
     def _apply_byte_tracking(
         self, detections: list[tuple], frame_shape: tuple[int, int, int]
@@ -1232,12 +1304,29 @@ class Detector:
 
         return inter_area / union_area
 
+    def _ensure_simple_tracker(self) -> SingleSubjectTracker:
+        """Ensure SingleSubjectTracker is up to date with settings."""
+        iou_thresh = self._get_iou_threshold()
+        max_dist = self._get_max_center_distance()
+
+        # Re-initialize if params changed
+        if (self._single_subject_tracker.iou_threshold != iou_thresh or
+            self._single_subject_tracker.max_center_distance != max_dist):
+            log.info("detector.simple_tracker.updating", iou=iou_thresh, dist=max_dist)
+            self._single_subject_tracker = SingleSubjectTracker(
+                track_id=1,
+                iou_threshold=iou_thresh,
+                max_center_distance=max_dist
+            )
+        return self._single_subject_tracker
+
     def _ensure_byte_tracker(self) -> BYTETracker | None:
         track_thresh = self._get_track_threshold()
         match_thresh = self._get_match_threshold()
         track_buffer = self._get_track_buffer()
         max_center_distance = self._get_max_center_distance()
         iou_threshold = self._get_iou_threshold()
+        use_bytetrack = self._should_use_bytetrack()
 
         # Determine single_animal_mode:
         # 1. Priority: Explicit mode set via set_single_subject_mode()
@@ -1248,7 +1337,7 @@ class Detector:
                 self.settings.video_processing, "single_animal_per_aquarium", False
             )
 
-        # Include single_animal_mode in params to trigger re-init if it changes
+        # Include single_animal_mode and use_bytetrack in params to trigger re-init if it changes
         params = (
             track_thresh,
             match_thresh,
@@ -1256,9 +1345,13 @@ class Detector:
             max_center_distance,
             iou_threshold,
             single_animal_mode,
+            use_bytetrack,
         )
         if self._byte_tracker is not None and self._byte_tracker_params == params:
             return self._byte_tracker
+
+        if not use_bytetrack:
+            return None
 
         try:
             args = SimpleNamespace(
@@ -1320,11 +1413,11 @@ class Detector:
         This parameter controls how far (in pixels) a detection can be from
         the predicted track position and still be considered a match.
 
-        Default: 200 pixels (suitable for zebrafish ~30px moving at ~100px/frame)
+        Default: 400.0 pixels (~13 body lengths for 30px zebrafish) - matches config.yaml
         """
         if self.settings and hasattr(self.settings, "bytetrack"):
-            return float(getattr(self.settings.bytetrack, "max_center_distance", 200.0))
-        return 200.0
+            return float(getattr(self.settings.bytetrack, "max_center_distance", 400.0))
+        return 400.0
 
     def _get_track_threshold(self) -> float:
         value = getattr(self.plugin, "track_threshold", None)
@@ -1338,8 +1431,8 @@ class Detector:
         value = getattr(self.plugin, "match_threshold", None)
         if value is None:
             if self.settings and hasattr(self.settings, "bytetrack"):
-                return float(getattr(self.settings.bytetrack, "match_threshold", 0.80))
-            return 0.80  # Default matching config.yaml - higher = more permissive
+                return float(getattr(self.settings.bytetrack, "match_threshold", 0.95))
+            return 0.95  # Default matches config.yaml - higher = more permissive
         return float(value)
 
     def _get_track_buffer(self) -> int:
@@ -1347,12 +1440,12 @@ class Detector:
         value = getattr(self.plugin, "track_buffer", None)
         if value is None:
             if self.settings and hasattr(self.settings, "bytetrack"):
-                return int(getattr(self.settings.bytetrack, "track_buffer", 90))
-            return 90  # Default for zebrafish with sparse processing
+                return int(getattr(self.settings.bytetrack, "track_buffer", 150))
+            return 150  # Default matches config.yaml - survives ~50 detection cycles
         try:
             return int(value)
         except (TypeError, ValueError):
-            return 90
+            return 150
 
     def _get_iou_threshold(self) -> float:
         """Get IoU threshold for hybrid matching.
@@ -1414,6 +1507,12 @@ class Detector:
     # Multi-Aquarium Mode Methods
     # =========================================================================
 
+    def _should_use_bytetrack(self) -> bool:
+        """Check if ByteTrack should be used based on settings."""
+        if self.settings and hasattr(self.settings, "tracking"):
+            return self.settings.tracking.use_bytetrack
+        return True
+
     def set_multi_aquarium_zones(
         self,
         aquariums: list[AquariumData],
@@ -1422,8 +1521,9 @@ class Detector:
     ) -> None:
         """Configure zones for multiple aquariums with independent tracking.
 
-        Sets up separate ByteTracker instances for each aquarium to enable
-        independent tracking. Track IDs are offset by aquarium_id * 1000.
+        Sets up separate trackers (ByteTracker or SingleSubjectTracker) for each
+        aquarium to enable independent tracking. Track IDs are offset by
+        aquarium_id * 1000.
 
         Args:
             aquariums: List of AquariumData objects (max 2).
@@ -1460,63 +1560,85 @@ class Detector:
                     f"mínimo 3 pontos, encontrado {polygon_count}"
                 )
 
-        # Create ByteTracker and scaled polygons for each aquarium
-        # Each aquarium has exactly 1 animal, so we use single_animal_mode=True
-        # This ensures stable tracking with ID Resurrection and Immediate Activation
-        # Track IDs will be: Aquarium 0 → local 1 → global 1
-        #                    Aquarium 1 → local 1 → global 1001
+        use_bytetrack = self._should_use_bytetrack()
+
+        # Initialize trackers for each aquarium
         for aq in aquariums:
-            # Create independent ByteTracker for this aquarium
-            # ByteTracker expects a namespace-like args object
-            tracker_args = SimpleNamespace(
-                track_thresh=self._get_track_threshold(),
-                match_thresh=self._get_match_threshold(),
-                track_buffer=self._get_track_buffer(),
-                mot20=False,
-            )
-
-            # Get processing_interval from settings (critical for Kalman filter dt)
-            if self.settings and hasattr(self.settings, "video_processing"):
-                processing_interval = (
-                    getattr(self.settings.video_processing, "processing_interval", 1) or 1
+            if use_bytetrack:
+                # Create independent ByteTracker for this aquarium
+                tracker_args = SimpleNamespace(
+                    track_thresh=self._get_track_threshold(),
+                    match_thresh=self._get_match_threshold(),
+                    track_buffer=self._get_track_buffer(),
+                    mot20=False,
                 )
-            else:
-                processing_interval = 1
 
-            # Get FPS from settings or use default
-            if self.settings and hasattr(self.settings, "video_processing"):
-                frame_rate = getattr(self.settings.video_processing, "fps", 30) or 30
-            else:
-                frame_rate = 30
+                # Get processing_interval (critical for Kalman filter dt)
+                if self.settings and hasattr(self.settings, "video_processing"):
+                    processing_interval = (
+                        getattr(self.settings.video_processing, "processing_interval", 1) or 1
+                    )
+                else:
+                    processing_interval = 1
 
-            try:
-                self._byte_trackers_multi[aq.id] = BYTETracker(
-                    args=tracker_args,
-                    frame_rate=frame_rate,
-                    use_hybrid_matching=True,
-                    max_center_distance=self._get_max_center_distance(),
-                    processing_interval=processing_interval,
-                    iou_threshold=self._get_iou_threshold(),
-                    single_animal_mode=True,  # Each aquarium has exactly 1 animal
-                )
-            except Exception as e:
-                log.error(
-                    "detector.multi_aquarium.bytetracker_init_failed",
+                # Get FPS
+                if self.settings and hasattr(self.settings, "video_processing"):
+                    frame_rate = getattr(self.settings.video_processing, "fps", 30) or 30
+                else:
+                    frame_rate = 30
+
+                try:
+                    self._byte_trackers_multi[aq.id] = BYTETracker(
+                        args=tracker_args,
+                        frame_rate=frame_rate,
+                        use_hybrid_matching=True,
+                        max_center_distance=self._get_max_center_distance(),
+                        processing_interval=processing_interval,
+                        iou_threshold=self._get_iou_threshold(),
+                        single_animal_mode=True,  # Each aquarium has exactly 1 animal
+                    )
+                    # Clear simple tracker if exists
+                    if aq.id in self._single_subject_trackers_multi:
+                        del self._single_subject_trackers_multi[aq.id]
+
+                except Exception as e:
+                    log.error(
+                        "detector.multi_aquarium.bytetracker_init_failed",
+                        aquarium_id=aq.id,
+                        error=str(e),
+                        exc_info=True,
+                    )
+                    raise RuntimeError(
+                        f"Falha ao inicializar ByteTracker para aquário {aq.id}: {e}"
+                    ) from e
+
+                log.debug(
+                    "detector.multi_aquarium.tracker_created",
                     aquarium_id=aq.id,
-                    error=str(e),
-                    exc_info=True,
+                    type="ByteTracker",
+                    single_animal_mode=True,
                 )
-                raise RuntimeError(
-                    f"Falha ao inicializar ByteTracker para aquário {aq.id}: {e}"
-                ) from e
+            else:
+                # Initialize SingleSubjectTracker
+                iou_thresh = self._get_iou_threshold()
+                max_dist = self._get_max_center_distance()
 
-            log.debug(
-                "detector.multi_aquarium.tracker_created",
-                aquarium_id=aq.id,
-                single_animal_mode=True,
-                processing_interval=processing_interval,
-                frame_rate=frame_rate,
-            )
+                self._single_subject_trackers_multi[aq.id] = SingleSubjectTracker(
+                    track_id=1,
+                    iou_threshold=iou_thresh,
+                    max_center_distance=max_dist
+                )
+                # Clear ByteTracker if exists
+                if aq.id in self._byte_trackers_multi:
+                    del self._byte_trackers_multi[aq.id]
+
+                log.debug(
+                    "detector.multi_aquarium.tracker_created",
+                    aquarium_id=aq.id,
+                    type="SingleSubjectTracker",
+                    iou=iou_thresh,
+                    dist=max_dist
+                )
 
             # Scale the main polygon
             if aq.polygon:
@@ -1545,7 +1667,101 @@ class Detector:
             aquarium_count=len(aquariums),
             dimensions=(actual_width, actual_height),
             aquarium_ids=[aq.id for aq in aquariums],
+            tracker_type="ByteTrack" if use_bytetrack else "Simple"
         )
+
+    def _ensure_multi_trackers(self) -> None:
+        """Ensure multi-aquarium trackers are up to date with current settings.
+
+        This method is exception-safe: if tracker creation fails mid-loop,
+        the state remains consistent (old trackers are preserved).
+        """
+        use_bytetrack = self._should_use_bytetrack()
+
+        # We use a combined params tuple to detect changes
+        track_thresh = self._get_track_threshold()
+        match_thresh = self._get_match_threshold()
+        track_buffer = self._get_track_buffer()
+        max_dist = self._get_max_center_distance()
+        iou_thresh = self._get_iou_threshold()
+
+        params = (use_bytetrack, track_thresh, match_thresh, track_buffer, max_dist, iou_thresh)
+
+        if hasattr(self, "_multi_tracker_params") and self._multi_tracker_params == params:
+            return
+
+        log.info("detector.multi_trackers.updating", use_bytetrack=use_bytetrack)
+
+        # Clean up orphaned trackers (aquariums no longer in list)
+        current_aq_ids = {aq.id for aq in self._aquariums}
+        orphaned_byte = [k for k in self._byte_trackers_multi if k not in current_aq_ids]
+        orphaned_single = [k for k in self._single_subject_trackers_multi if k not in current_aq_ids]
+        for aq_id in orphaned_byte:
+            del self._byte_trackers_multi[aq_id]
+        for aq_id in orphaned_single:
+            del self._single_subject_trackers_multi[aq_id]
+
+        # Create new trackers in a temporary dict, then commit if all succeed
+        new_byte_trackers: dict[int, BYTETracker] = {}
+        new_single_trackers: dict[int, SingleSubjectTracker] = {}
+
+        try:
+            for aq in self._aquariums:
+                if use_bytetrack:
+                    tracker_args = SimpleNamespace(
+                        track_thresh=track_thresh,
+                        match_thresh=match_thresh,
+                        track_buffer=track_buffer,
+                        mot20=False,
+                    )
+
+                    # Contextual params
+                    interval = 1
+                    fps = 30
+                    if self.settings and hasattr(self.settings, "video_processing"):
+                        interval = getattr(self.settings.video_processing, "processing_interval", 1) or 1
+                        fps = getattr(self.settings.video_processing, "fps", 30) or 30
+
+                    new_byte_trackers[aq.id] = BYTETracker(
+                        args=tracker_args,
+                        frame_rate=fps,
+                        use_hybrid_matching=True,
+                        max_center_distance=max_dist,
+                        processing_interval=interval,
+                        iou_threshold=iou_thresh,
+                        single_animal_mode=True,
+                    )
+                else:
+                    new_single_trackers[aq.id] = SingleSubjectTracker(
+                        track_id=1,
+                        iou_threshold=iou_thresh,
+                        max_center_distance=max_dist
+                    )
+
+            # All trackers created successfully - commit the changes
+            if use_bytetrack:
+                self._byte_trackers_multi.update(new_byte_trackers)
+                for aq_id in new_byte_trackers:
+                    if aq_id in self._single_subject_trackers_multi:
+                        del self._single_subject_trackers_multi[aq_id]
+            else:
+                self._single_subject_trackers_multi.update(new_single_trackers)
+                for aq_id in new_single_trackers:
+                    if aq_id in self._byte_trackers_multi:
+                        del self._byte_trackers_multi[aq_id]
+
+            self._multi_tracker_params = params
+
+        except Exception as e:
+            # Rollback: clear partially created trackers
+            new_byte_trackers.clear()
+            new_single_trackers.clear()
+            log.error(
+                "detector.multi_trackers.creation_failed",
+                error=str(e),
+                aquariums=[aq.id for aq in self._aquariums],
+            )
+            raise
 
     def detect_partitioned(
         self,
@@ -1575,6 +1791,9 @@ class Detector:
             raise RuntimeError(
                 "Detector is not in multi-aquarium mode. Call set_multi_aquarium_zones() first."
             )
+
+        # Ensure trackers are synced with settings
+        self._ensure_multi_trackers()
 
         # Validate frame
         if frame is None or not isinstance(frame, np.ndarray):
@@ -1628,24 +1847,34 @@ class Detector:
 
         # Apply independent tracking per aquarium
         results: dict[int, list[tuple]] = {}
+        use_bytetrack = self._should_use_bytetrack()
 
         for aq_id, detections in partitioned.items():
             if detections:
-                # Safe tracker access with validation
-                tracker = self._byte_trackers_multi.get(aq_id)
-                if tracker is None:
-                    log.error(
-                        "detector.partitioned.tracker_missing",
-                        aquarium_id=aq_id,
-                        available_trackers=list(self._byte_trackers_multi.keys()),
-                    )
-                    raise RuntimeError(
-                        f"ByteTracker não inicializado para aquário {aq_id}. "
-                        f"Disponíveis: {list(self._byte_trackers_multi.keys())}. "
-                        "Chame set_multi_aquarium_zones() primeiro."
-                    )
-
-                tracked = self._apply_byte_tracking_multi(detections, tracker)
+                if use_bytetrack:
+                    # ByteTrack path
+                    tracker = self._byte_trackers_multi.get(aq_id)
+                    if tracker is None:
+                        log.error(
+                            "detector.partitioned.tracker_missing",
+                            aquarium_id=aq_id,
+                            available_trackers=list(self._byte_trackers_multi.keys()),
+                        )
+                        raise RuntimeError(
+                            f"ByteTracker não inicializado para aquário {aq_id}. "
+                            "Chame set_multi_aquarium_zones() primeiro."
+                        )
+                    tracked = self._apply_byte_tracking_multi(detections, tracker)
+                else:
+                    # Simple tracker path
+                    simple_tracker = self._single_subject_trackers_multi.get(aq_id)
+                    if simple_tracker is None:
+                        # Fallback: maybe it was never initialized?
+                        # Should have been in set_multi_aquarium_zones
+                        log.error("detector.partitioned.simple_tracker_missing", aq_id=aq_id)
+                        tracked = detections # Just passthrough
+                    else:
+                        tracked = self._apply_simple_tracking_multi(detections, simple_tracker)
 
                 # Offset track_id: aquarium_id * 1000 + local_track_id
                 # CRITICAL: local_track_id must be < 1000 to prevent ID collisions
@@ -1757,6 +1986,9 @@ class Detector:
                 "Detector is not in multi-aquarium mode. Call set_multi_aquarium_zones() first."
             )
 
+        # Ensure trackers are synced with settings
+        self._ensure_multi_trackers()
+
         # Validate frame
         if frame is None or not isinstance(frame, np.ndarray):
             raise ValueError("Frame must be a valid numpy array")
@@ -1773,6 +2005,7 @@ class Detector:
 
         # Process each aquarium with cropped regions
         results: dict[int, list[tuple]] = {}
+        use_bytetrack = self._should_use_bytetrack()
 
         for aq in self._aquariums:
             # Crop to aquarium region
@@ -1822,21 +2055,28 @@ class Detector:
 
             # Apply tracking
             if adjusted_detections:
-                # Safe tracker access with validation
-                tracker = self._byte_trackers_multi.get(aq.id)
-                if tracker is None:
-                    log.error(
-                        "detector.partitioned_optimized.tracker_missing",
-                        aquarium_id=aq.id,
-                        available_trackers=list(self._byte_trackers_multi.keys()),
-                    )
-                    raise RuntimeError(
-                        f"ByteTracker não inicializado para aquário {aq.id}. "
-                        f"Disponíveis: {list(self._byte_trackers_multi.keys())}. "
-                        "Chame set_multi_aquarium_zones() primeiro."
-                    )
-
-                tracked = self._apply_byte_tracking_multi(adjusted_detections, tracker)
+                if use_bytetrack:
+                    # ByteTrack path
+                    tracker = self._byte_trackers_multi.get(aq.id)
+                    if tracker is None:
+                        log.error(
+                            "detector.partitioned_optimized.tracker_missing",
+                            aquarium_id=aq.id,
+                            available_trackers=list(self._byte_trackers_multi.keys()),
+                        )
+                        raise RuntimeError(
+                            f"ByteTracker não inicializado para aquário {aq.id}. "
+                            "Chame set_multi_aquarium_zones() primeiro."
+                        )
+                    tracked = self._apply_byte_tracking_multi(adjusted_detections, tracker)
+                else:
+                    # Simple tracker path
+                    simple_tracker = self._single_subject_trackers_multi.get(aq.id)
+                    if simple_tracker is None:
+                        log.error("detector.partitioned_optimized.simple_tracker_missing", aq_id=aq.id)
+                        tracked = adjusted_detections
+                    else:
+                        tracked = self._apply_simple_tracking_multi(adjusted_detections, simple_tracker)
 
                 # Offset track_id
                 offset_tracked = []
@@ -1865,6 +2105,7 @@ class Detector:
             "detector.partitioned_optimized.results",
             aquarium_counts={aq_id: len(dets) for aq_id, dets in results.items()},
             cropping_enabled=use_cropping,
+            strategy="bytetrack" if use_bytetrack else "simple"
         )
 
         return results

@@ -1051,6 +1051,11 @@ class ProcessingCoordinator(BaseCoordinator):
             )
             self.project_manager.project_data["calibration"] = calib
 
+            # Persist intervals into project state as well
+            analysis_interval, display_interval = self._determine_processing_intervals(config)
+            self.project_manager.project_data["analysis_interval_frames"] = analysis_interval
+            self.project_manager.project_data["display_interval_frames"] = display_interval
+
             if self.project_manager.project_path:
                 self.project_manager.save_project()
 
@@ -2875,6 +2880,10 @@ class ProcessingCoordinator(BaseCoordinator):
             upper_x = width_px if width_px else None
             upper_y = height_px if height_px else None
 
+            # IMPROVEMENT: Drop existing CM columns to force recalculation in local space
+            cols_to_drop = ["x_cm", "y_cm", "x_center_cm", "y_center_cm", "x_cm_smoothed", "y_cm_smoothed"]
+            local_df = local_df.drop(columns=[c for c in cols_to_drop if c in local_df.columns])
+
             for col in ("x_center_px", "x1", "x2"):
                 if col in local_df.columns:
                     local_df[col] = (local_df[col] - offset_x).clip(lower=0, upper=upper_x)
@@ -2995,7 +3004,9 @@ class ProcessingCoordinator(BaseCoordinator):
                             }
 
                             # Get zone data - try multi-aquarium specific first
-                            zone_data = self.project_manager.get_zone_data(video_path=path)
+                            zone_data = self.project_manager.get_multi_aquarium_zone_data(video_path=path)
+                            if not zone_data:
+                                zone_data = self.project_manager.get_zone_data(video_path=path)
 
                             # Extract aquarium-specific polygon and ROIs
                             arena_polygon: list[list[int]] | list[tuple[int, int]] = []
@@ -3227,47 +3238,88 @@ class ProcessingCoordinator(BaseCoordinator):
                 calib = project_data.get("calibration", {})
                 pixelcm_x = float(calib.get("pixel_per_cm_x", 1.0))
                 pixelcm_y = float(calib.get("pixel_per_cm_y", 1.0))
+                
+                probed_w, probed_h = _probe_video_dims(str(path))
+                fallback_w = getattr(zone_data, "video_width", probed_w) or probed_w
+                fallback_h = getattr(zone_data, "video_height", probed_h) or probed_h
 
-                # Video dimensions (fallback to default if not available)
-                video_height = 720
-
+                # Normalize to local aquarium space (Consistency with multi-aquarium)
+                arena_polygon_px = list(zone_data.polygon or [])
+                if not arena_polygon_px:
+                    arena_polygon_px = [[0, 0], [fallback_w, 0], [fallback_w, fallback_h], [0, fallback_h]]
+                
+                offset_x, offset_y, local_w, local_h = _compute_local_space(
+                    arena_polygon_px, fallback_w, fallback_h
+                )
+                
+                # Translate polygons to local
+                arena_polygon_local = [
+                    (float(x) - offset_x, float(y) - offset_y) for x, y in arena_polygon_px
+                ]
+                
                 # ROIs
                 rois = []
                 roi_colors_map = {}
                 if zone_data:
                     from shapely.geometry import Polygon
-
                     from zebtrack.analysis.roi import ROI
 
                     for i, poly in enumerate(zone_data.roi_polygons):
+                        translated_poly = [
+                            (float(px) - offset_x, float(py) - offset_y) for px, py in poly
+                        ]
                         name = (
                             zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i}"
                         )
-                        # Fix: Convert list of points to Polygon geometry
-                        if len(poly) >= 3:
-                            roi_geometry = Polygon(poly)
+                        if len(translated_poly) >= 3:
                             rois.append(
-                                ROI(name=name, geometry=roi_geometry, coordinate_space="px")
+                                ROI(name=name, geometry=Polygon(translated_poly), coordinate_space="px")
                             )
 
                         if i < len(zone_data.roi_colors):
                             roi_colors_map[name] = zone_data.roi_colors[i]
 
+                df = _normalize_df_to_local(df, offset_x, offset_y, local_w, local_h)
                 fps = float(self.settings.video_processing.fps)
+
+                # Persist crop for report backgrounds (Standard Single Aquarium)
+                video_path_for_report = str(path)
+                frame_crop_for_report = (offset_x, offset_y, local_w, local_h)
+                
+                frame_image = _extract_cropped_frame(str(path), frame_crop_for_report)
+                if frame_image is not None:
+                    try:
+                        background_frame_path = os.path.join(
+                            results_path,
+                            f"{experiment_id}_background.png",
+                        )
+                        cv2.imwrite(background_frame_path, frame_image)
+                        video_path_for_report = background_frame_path
+                        frame_crop_for_report = None # Already cropped
+                    except Exception:
+                        pass
+
+                # Calibration object for the DTO
+                cal = Calibration(np.array(arena_polygon_px), 
+                                  calib.get("aquarium_width_cm", 0), 
+                                  calib.get("aquarium_height_cm", 0))
 
                 # Run Analysis
                 analysis_result = self.analysis_service.run_full_analysis_as_dto(
                     trajectory_df=df,
-                    pixelcm_x=pixelcm_x,
-                    pixelcm_y=pixelcm_y,
-                    video_height_px=video_height,
-                    arena_polygon_px=zone_data.polygon if zone_data else [],
+                    pixelcm_x=pixelcm_x if pixelcm_x > 0 else 1.0,
+                    pixelcm_y=pixelcm_y if pixelcm_y > 0 else 1.0,
+                    video_height_px=int(local_h),
+                    arena_polygon_px=arena_polygon_local,
                     rois=rois,
                     fps=fps,
                     metadata=metadata,
                     roi_colors=roi_colors_map,
                     freezing_vel_threshold=self.settings.video_processing.freezing_velocity_threshold,
                     freezing_min_duration=self.settings.video_processing.freezing_min_duration_s,
+                    video_path=video_path_for_report,
+                    frame_crop_box=frame_crop_for_report,
+                    calibration=None if video_path_for_report.endswith(".png") else cal
                 )
 
                 reporter = Reporter.from_analysis(analysis_result)

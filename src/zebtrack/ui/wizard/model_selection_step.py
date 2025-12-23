@@ -20,9 +20,13 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger()
 
-# Defaults for ByteTrack (will be overridden if settings provided)
+# Defaults for ByteTrack - MUST match config.yaml values
 DEFAULT_TRACK_THRESHOLD = 0.25
-DEFAULT_MATCH_THRESHOLD = 0.15
+DEFAULT_MATCH_THRESHOLD = 0.95  # Higher = more permissive for fast-moving objects
+DEFAULT_TRACK_BUFFER = 150  # Frames to keep lost tracks
+DEFAULT_MAX_CENTER_DISTANCE = 400.0  # Pixels, ~13 body lengths for 30px zebrafish
+DEFAULT_IOU_THRESHOLD = 0.05  # Low for small objects with little overlap
+
 _METHOD_OPTIONS: dict[str, str] = {
     "seg": "Segmentação (seg)",
     "det": "Detecção (det)",
@@ -59,8 +63,14 @@ class ModelSelectionStep(WizardStep):
 
         self.confidence_var = StringVar()
         self.nms_var = StringVar()
+
+        # ByteTrack Params
+        self.use_bytetrack_var = BooleanVar(value=True)
         self.track_var = StringVar()
         self.match_var = StringVar()
+        self.track_buffer_var = StringVar()
+        self.max_center_dist_var = StringVar()
+        self.iou_thresh_var = StringVar()
 
         self.template_info_var = StringVar(value="")
         self.template_info_label: Label | None = None
@@ -73,6 +83,7 @@ class ModelSelectionStep(WizardStep):
         self._content_frame: ttk.Frame | None = None
         self._left_column: ttk.Frame | None = None
         self._right_column: ttk.Frame | None = None
+        self._bytetrack_frame: ttk.LabelFrame | None = None
         self._columns_stacked = False
 
         # Validation tracking: Entry widgets and error labels
@@ -166,9 +177,13 @@ class ModelSelectionStep(WizardStep):
         # Get default thresholds from settings or use hardcoded defaults
         default_confidence = 0.25
         default_nms = 0.45
+        default_use_bytetrack = True
+
         if self.settings and hasattr(self.settings, "yolo_model"):
             default_confidence = self.settings.yolo_model.confidence_threshold
             default_nms = self.settings.yolo_model.nms_threshold
+        if self.settings and hasattr(self.settings, "tracking"):
+            default_use_bytetrack = self.settings.tracking.use_bytetrack
 
         confidence_threshold = float(
             detector_params.get("confidence_threshold", default_confidence)
@@ -178,11 +193,23 @@ class ModelSelectionStep(WizardStep):
         nms_threshold = float(detector_params.get("nms_threshold", default_nms))
         self.nms_var.set(f"{nms_threshold:.3f}")
 
+        # ByteTrack params
+        self.use_bytetrack_var.set(bool(detector_params.get("use_bytetrack", default_use_bytetrack)))
+
         track_threshold = float(detector_params.get("track_threshold", DEFAULT_TRACK_THRESHOLD))
         self.track_var.set(f"{track_threshold:.3f}")
 
         match_threshold = float(detector_params.get("match_threshold", DEFAULT_MATCH_THRESHOLD))
         self.match_var.set(f"{match_threshold:.3f}")
+
+        track_buffer = int(detector_params.get("track_buffer", DEFAULT_TRACK_BUFFER))
+        self.track_buffer_var.set(str(track_buffer))
+
+        max_center_dist = float(detector_params.get("max_center_distance", DEFAULT_MAX_CENTER_DISTANCE))
+        self.max_center_dist_var.set(f"{max_center_dist:.1f}")
+
+        iou_threshold = float(detector_params.get("iou_threshold", DEFAULT_IOU_THRESHOLD))
+        self.iou_thresh_var.set(f"{iou_threshold:.3f}")
 
     def _default_weight_for_method(self, method_key: str) -> str:
         if method_key == "seg":
@@ -301,7 +328,7 @@ class ModelSelectionStep(WizardStep):
 
         detector_frame = LabelFrame(
             left_column,
-            text="Parâmetros do Detector",
+            text="Parâmetros de Detecção (YOLO)",
             padx=15,
             pady=10,
         )
@@ -343,43 +370,111 @@ class ModelSelectionStep(WizardStep):
             ),
             param_key="nms",
         )
+
+        # ByteTrack Section
+        self._bytetrack_frame = LabelFrame(
+            left_column,
+            text="Parâmetros de Rastreamento (ByteTrack)",
+            padx=15,
+            pady=10,
+        )
+        self._bytetrack_frame.pack(fill="x", pady=(0, 15))
+
+        bytetrack_check = ttk.Checkbutton(
+            self._bytetrack_frame,
+            text="Usar ByteTrack (Recomendado)",
+            variable=self.use_bytetrack_var,
+            command=self._toggle_bytetrack_options,
+        )
+        bytetrack_check.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 5))
+        ToolTip(
+            bytetrack_check,
+            "Ativa o algoritmo ByteTrack para rastreamento robusto com Filtro de Kalman.\n"
+            "Recomendado para a maioria dos experimentos.",
+        )
+
+        self.bytetrack_hint_var = StringVar()
+        self.bytetrack_hint_label = Label(
+            self._bytetrack_frame,
+            textvariable=self.bytetrack_hint_var,
+            fg="#555555",
+            font=("TkDefaultFont", 8, "italic"),
+            justify="left",
+            wraplength=350
+        )
+        self.bytetrack_hint_label.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
+
         self._build_detector_param_row(
-            detector_frame,
-            label="ByteTrack - track (0-1):",
+            self._bytetrack_frame,
+            label="Track Threshold (0-1):",
             var=self.track_var,
             column=0,
-            row=1,
+            row=2,
             tooltip=(
-                "🛤️ Track Threshold (ByteTrack)\n\n"
-                "Confiança mínima para INICIAR nova trajetória.\n\n"
-                "• Valor ALTO (0.4-0.8): Inicia tracks só com alta confiança\n"
-                "  → Use quando: Animais aparecem/desaparecem (oclusão)\n"
-                "  → Problema: Demora para detectar novos animais\n\n"
-                "• Valor BAIXO (0.1-0.3): Inicia tracks rapidamente\n"
-                "  → Use quando: Animais sempre visíveis\n"
-                "  → Problema: IDs trocam frequentemente\n\n"
-                "💡 Padrão recomendado: 0.25"
+                "🛤️ Track Threshold\n\n"
+                "Confiança mínima para INICIAR ou MANTER uma trajetória.\n"
+                "Valores baixos ajudam a manter o rastro de animais difíceis de detectar.\n\n"
+                "💡 Padrão: 0.25"
             ),
             param_key="track",
         )
         self._build_detector_param_row(
-            detector_frame,
-            label="ByteTrack - associação (0-1):",
+            self._bytetrack_frame,
+            label="Match Threshold (0-1):",
             var=self.match_var,
             column=1,
-            row=1,
+            row=2,
             tooltip=(
-                "🔗 Match Threshold (ByteTrack)\n\n"
-                "Quão similar deve ser para associar detecção a track.\n\n"
-                "• Valor ALTO (0.4-0.9): Associação muito estrita\n"
-                "  → Use quando: Animais muito parecidos\n"
-                "  → Problema: Perda de tracks, IDs novos frequentes\n\n"
-                "• Valor BAIXO (0.0-0.3): Associação permissiva\n"
-                "  → Use quando: Animais claramente distintos\n"
-                "  → Problema: Pode trocar IDs entre animais\n\n"
-                "💡 Padrão recomendado: 0.15"
+                "🔗 Match Threshold\n\n"
+                "Tolerância para associação de caixas.\n"
+                "Valores ALTOS (perto de 1.0) são mais permissivos para movimento rápido.\n\n"
+                "💡 Padrão: 0.95 (para zebrafish rápidos)"
             ),
             param_key="match",
+        )
+
+        self._build_detector_param_row(
+            self._bytetrack_frame,
+            label="Track Buffer (frames):",
+            var=self.track_buffer_var,
+            column=0,
+            row=3,
+            tooltip=(
+                "🧠 Track Buffer\n\n"
+                "Memória do rastreador: quantos frames um animal pode 'sumir' "
+                "antes que seu ID seja esquecido.\n\n"
+                "💡 Padrão: 90 frames (~3 segundos a 30fps)"
+            ),
+            param_key="track_buffer",
+        )
+        self._build_detector_param_row(
+            self._bytetrack_frame,
+            label="Distância Máx (px):",
+            var=self.max_center_dist_var,
+            column=1,
+            row=3,
+            tooltip=(
+                "📏 Distância Máxima de Centro\n\n"
+                "Distância máxima (em pixels) que o animal pode se mover entre frames "
+                "para ser considerado o mesmo, quando a sobreposição falha.\n\n"
+                "💡 Padrão: 400.0 px"
+            ),
+            param_key="max_center_dist",
+        )
+
+        self._build_detector_param_row(
+            self._bytetrack_frame,
+            label="IoU Threshold (0-1):",
+            var=self.iou_thresh_var,
+            column=0,
+            row=4,
+            tooltip=(
+                "🔳 IoU Threshold\n\n"
+                "Sobreposição mínima para preferir 'Match por Caixa' em vez de distância.\n"
+                "Para peixes pequenos e rápidos, valores baixos são melhores.\n\n"
+                "💡 Padrão: 0.05"
+            ),
+            param_key="iou_thresh",
         )
 
         # Get current defaults for display
@@ -390,25 +485,23 @@ class ModelSelectionStep(WizardStep):
             display_nms = self.settings.yolo_model.nms_threshold
 
         defaults_label = Label(
-            detector_frame,
+            left_column,
             text=(
-                f"Padrões atuais: confiança {display_confidence:.2f}, "
-                f"NMS {display_nms:.2f}, "
-                f"track {DEFAULT_TRACK_THRESHOLD:.2f}, "
-                f"associação {DEFAULT_MATCH_THRESHOLD:.2f}."
+                f"Padrões atuais YOLO: confiança {display_confidence:.2f}, "
+                f"NMS {display_nms:.2f}."
             ),
             fg="#555555",
             wraplength=560,
             justify="left",
         )
-        defaults_label.grid(row=2, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        defaults_label.pack(fill="x", padx=15, pady=(5, 0))
         self._responsive_labels["left"].append(defaults_label)
 
         # Restore defaults button
         from tkinter import Button
 
         restore_btn = Button(
-            detector_frame,
+            left_column,
             text="🔄 Restaurar Padrões Recomendados",
             command=self._restore_default_thresholds,
             bg="#E3F2FD",
@@ -417,7 +510,7 @@ class ModelSelectionStep(WizardStep):
             relief="raised",
             cursor="hand2",
         )
-        restore_btn.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(10, 0), padx=(0, 10))
+        restore_btn.pack(fill="x", padx=15, pady=(10, 0))
         ToolTip(
             restore_btn,
             (
@@ -436,52 +529,39 @@ class ModelSelectionStep(WizardStep):
             wraplength=560,
             justify="left",
         )
-        footer.pack(fill="x", pady=(5, 0))
+        footer.pack(fill="x", pady=(5, 0), padx=15)
         self._responsive_labels["left"].append(footer)
 
         # Visual guide section
         guide_frame = LabelFrame(
             right_column,
-            text="📊 Guia Rápido: Quando Ajustar os Thresholds",
+            text="📊 Guia Rápido: Quando Ajustar",
             padx=15,
             pady=10,
         )
         guide_frame.pack(fill="both", expand=True)
 
         guide_frame.columnconfigure(0, weight=1)
-        guide_frame.columnconfigure(1, weight=1)
 
-        # Column 1: Detector (Confidence & NMS)
-        col1_text = (
-            "🔴 AUMENTAR Confiança: Se há muitos falsos positivos\n"
-            "🟢 DIMINUIR Confiança: Se animais não são detectados\n\n"
-            "🔴 AUMENTAR NMS: Se o mesmo animal é detectado 2x\n"
-            "🟢 DIMINUIR NMS: Se animais próximos são unidos"
+        guide_text = (
+            "🎯 DETECÇÃO:\n"
+            "• Confiança: ↓ se não detecta, ↑ se detecta lixo\n"
+            "• NMS: ↓ se une animais, ↑ se duplica caixas\n\n"
+            "🛤️ RASTREAMENTO (ByteTrack):\n"
+            "• Track Thresh: ↓ para manter rastro fraco\n"
+            "• Match Thresh: ↑ para aceitar movimentos bruscos\n"
+            "• Buffer: ↑ para 'lembrar' do peixe por mais tempo\n"
+            "• Distância: ↑ para peixes muito rápidos"
         )
+
         Label(
             guide_frame,
-            text=col1_text,
+            text=guide_text,
             fg="#333333",
             justify="left",
             font=("TkDefaultFont", 9),
             anchor="n",
         ).grid(row=0, column=0, sticky="nsew", padx=(0, 5))
-
-        # Column 2: Tracker (Track & Match)
-        col2_text = (
-            "🔴 AUMENTAR Track: Se IDs mudam com frequência\n"
-            "🟢 DIMINUIR Track: Se demora para detectar novos\n\n"
-            "🔴 AUMENTAR Match: Se IDs trocam entre animais\n"
-            "🟢 DIMINUIR Match: Se tracks são perdidos facilmente"
-        )
-        Label(
-            guide_frame,
-            text=col2_text,
-            fg="#333333",
-            justify="left",
-            font=("TkDefaultFont", 9),
-            anchor="n",
-        ).grid(row=0, column=1, sticky="nsew", padx=(5, 0))
 
         # Footer Tip
         Label(
@@ -489,7 +569,7 @@ class ModelSelectionStep(WizardStep):
             text="💡 Dica: Ajuste UM parâmetro por vez (±0.05) e teste!",
             fg="#006600",
             font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=1, column=0, columnspan=2, pady=(8, 0), sticky="w")
+        ).grid(row=1, column=0, pady=(8, 0), sticky="w")
 
         # We don't need to append these to _responsive_labels as we want them static in grid
 
@@ -502,9 +582,43 @@ class ModelSelectionStep(WizardStep):
 
         # Setup validation callbacks after UI is built
         self._setup_validation_callbacks()
+        self._toggle_bytetrack_options() # Init state
+
         self.bind("<Configure>", self._on_resize)
         # Trigger an initial layout recalculation once geometry settles.
         self.after(0, self._refresh_layout_mode)
+
+    def _toggle_bytetrack_options(self) -> None:
+        """Enable/Disable ByteTrack parameter inputs based on checkbox."""
+        if not self._bytetrack_frame:
+            return
+
+        enabled = self.use_bytetrack_var.get()
+        state = "normal" if enabled else "disabled"
+
+        # Iterate over entry widgets related to tracking
+        for key in ["track", "match", "track_buffer", "max_center_dist", "iou_thresh"]:
+            entry = self._threshold_entries.get(key)
+            if entry:
+                entry.configure(state=state)
+
+        if not enabled:
+            self.bytetrack_hint_var.set(
+                "ℹ️ ByteTrack desativado. O sistema usará um rastreador híbrido simplificado "
+                "que utiliza apenas 'Distância Máxima' e 'IoU Threshold' para manter o ID estável. "
+                "Ideal para 1 animal/aquário."
+            )
+            # Re-enable distance and iou for the simple tracker
+            for key in ["max_center_dist", "iou_thresh"]:
+                entry = self._threshold_entries.get(key)
+                if entry:
+                    entry.configure(state="normal")
+        else:
+            self.bytetrack_hint_var.set(
+                "💡 O ByteTrack usa Filtro de Kalman para prever posições mesmo quando o peixe "
+                "some brevemente. Ajuste os campos abaixo para maior estabilidade."
+            )
+
 
     def _build_method_row(
         self,
@@ -941,6 +1055,10 @@ class ModelSelectionStep(WizardStep):
                 "nms_threshold": float(self.nms_var.get()),
                 "track_threshold": float(self.track_var.get()),
                 "match_threshold": float(self.match_var.get()),
+                "use_bytetrack": self.use_bytetrack_var.get(),
+                "track_buffer": int(self.track_buffer_var.get()),
+                "max_center_distance": float(self.max_center_dist_var.get()),
+                "iou_threshold": float(self.iou_thresh_var.get()),
             },
             "model_selection": {
                 "aquarium_method": aquarium_method,

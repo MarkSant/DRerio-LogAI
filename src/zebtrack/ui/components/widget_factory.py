@@ -663,6 +663,9 @@ class WidgetFactory:
                 "processing_interval": self.gui._extract_setting(
                     current, ("video_processing", "processing_interval"), 10
                 ),
+                "display_interval": self.gui._extract_setting(
+                    current, ("video_processing", "display_interval"), 10
+                ),
                 "processing_offset": self.gui._extract_setting(
                     current, ("video_processing", "processing_offset"), 0
                 ),
@@ -1042,6 +1045,9 @@ class WidgetFactory:
                 "fps": self.gui._extract_setting(current, ("video_processing", "fps"), 30),
                 "processing_interval": self.gui._extract_setting(
                     current, ("video_processing", "processing_interval"), 10
+                ),
+                "display_interval": self.gui._extract_setting(
+                    current, ("video_processing", "display_interval"), 10
                 ),
                 "processing_offset": self.gui._extract_setting(
                     current, ("video_processing", "processing_offset"), 0

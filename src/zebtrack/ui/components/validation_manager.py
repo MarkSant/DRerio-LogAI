@@ -84,6 +84,7 @@ class ValidationManager:
             # Extract values (already parsed by widget)
             fps = values["video_processing"]["fps"]
             processing_interval = values["video_processing"]["processing_interval"]
+            display_interval = values["video_processing"]["display_interval"]
             processing_offset = values["video_processing"]["processing_offset"]
             flush_interval = values["recorder"]["flush_interval_seconds"]
             flush_rows = values["recorder"]["flush_row_threshold"]
@@ -95,6 +96,8 @@ class ValidationManager:
                 raise ValueError("FPS deve ser maior que 0.")
             if processing_interval <= 0:
                 raise ValueError("O intervalo de processamento deve ser maior que 0.")
+            if display_interval <= 0:
+                raise ValueError("O intervalo de exibição deve ser maior que 0.")
             if processing_offset < 0:
                 raise ValueError("O offset deve ser maior ou igual a 0.")
             if flush_interval < 0:
