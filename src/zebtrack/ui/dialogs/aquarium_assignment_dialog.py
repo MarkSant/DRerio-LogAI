@@ -14,7 +14,7 @@ from typing import Callable
 
 import structlog
 
-from zebtrack.ui.wizard.models import AquariumConfig
+from zebtrack.ui.wizard.models import AquariumConfig, MultiAquariumData
 
 log = structlog.get_logger()
 
@@ -49,6 +49,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         parent: tk.Toplevel | tk.Tk,
         available_groups: list[str],
         video_path: str | None = None,
+        multi_aquarium_config: "MultiAquariumData | None" = None,
         on_confirm: Callable[[list[AquariumConfig], bool], None] | None = None,
         on_cancel: Callable[[], None] | None = None,
     ):
@@ -58,11 +59,13 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             parent: Parent widget.
             available_groups: List of available group names.
             video_path: Path to the video being configured.
+            multi_aquarium_config: Config object with regex patterns.
             on_confirm: Callback with (configs, apply_to_all) when confirmed.
             on_cancel: Callback when cancelled.
         """
         self.available_groups = available_groups or ["Controle", "Tratamento"]
         self.video_path = video_path
+        self.multi_aquarium_config = multi_aquarium_config
         self._on_confirm = on_confirm
         self._on_cancel = on_cancel
         self.result: list[AquariumConfig] | None = None
@@ -70,6 +73,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
         # Variables for form fields
         self._group_vars: list[tk.StringVar] = []
+        self._group_combos: list[ttk.Combobox] = []  # Store comboboxes for dynamic updates
         self._subject_vars: list[tk.StringVar] = []
         self._day_vars: list[tk.IntVar] = []
         self._apply_all_var: tk.BooleanVar | None = None
@@ -99,7 +103,34 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             text="Atribua grupos e identificadores para cada aquário",
             font=("Helvetica", 11, "bold"),
         )
-        header_label.pack(pady=(0, 15))
+        header_label.pack(pady=(0, 5))
+
+        # Show current filename if available
+        if self.video_path:
+            import os
+
+            filename = os.path.basename(self.video_path)
+            ttk.Label(
+                master, text=f"Arquivo: {filename}", font=("Helvetica", 9), foreground="#666666"
+            ).pack(pady=(0, 15))
+
+        # Auto-fill button (only if config and regex available)
+        if self.multi_aquarium_config and self.multi_aquarium_config.regex_pattern:
+            auto_frame = ttk.Frame(master)
+            auto_frame.pack(fill=tk.X, pady=(0, 10))
+
+            enable_auto = True
+            if self.video_path:
+                # Pre-check if regex matches to enable/disable button visual hint?
+                # For now just always show it enabled.
+                pass
+
+            ttk.Button(
+                auto_frame,
+                text="✨ Auto-Preencher com Regex",
+                command=self._on_auto_fill_click,
+                width=25,
+            ).pack(anchor=tk.W)
 
         # Create config frames for each aquarium
         first_combo = None
@@ -119,6 +150,97 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         apply_all_check.pack(anchor=tk.W, pady=(15, 0))
 
         return first_combo  # Initial focus
+
+    def _on_auto_fill_click(self):
+        """Auto-fill fields using regex pattern from filename."""
+        if not self.video_path or not self.multi_aquarium_config:
+            return
+
+        import os
+        from tkinter import messagebox
+
+        filename = os.path.basename(self.video_path)
+        matches = self.multi_aquarium_config.extract_metadata(filename)
+
+        if not matches:
+            messagebox.showinfo(
+                "Auto-Preencher",
+                "Nenhuma correspondência encontrada com o padrão regex atual:\n"
+                f"{self.multi_aquarium_config.regex_pattern}",
+                parent=self,
+            )
+            return
+
+        log.info("aquarium_assignment.auto_fill", matches=matches)
+
+        # Logic for mapping matches to aquariums
+        # If 2 matches, assign 1 to each aquarium
+        # If 1 match, assign to both or ask? Current logic: assign to first, duplicate for second?
+        # Better: If 1 match, maybe it contains info for the whole video (like Group/Day), set both.
+
+        count = len(matches)
+
+        for i in range(2):
+            if i < count:
+                match = matches[i]
+
+                # Update vars
+                if match.get("group"):
+                    group_value = match["group"]
+                    # Dynamically add to combobox values if not present
+                    self._ensure_group_in_combobox(i, group_value)
+                    self._group_vars[i].set(group_value)
+
+                if match.get("subject"):
+                    self._subject_vars[i].set(match["subject"])
+
+                if match.get("day"):
+                    try:
+                        self._day_vars[i].set(int(match["day"]))
+                    except ValueError:
+                        pass
+            elif count == 1 and i == 1:
+                # Fallback for 2nd aquarium if only 1 match found
+                # Copy Group and Day from first match, keep Subject different or empty?
+                # Usually single match means shared metadata like Group/Day.
+                match = matches[0]
+                if match.get("group"):
+                    group_value = match["group"]
+                    self._ensure_group_in_combobox(i, group_value)
+                    self._group_vars[i].set(group_value)
+                if match.get("day"):
+                    try:
+                        self._day_vars[i].set(int(match["day"]))
+                    except ValueError:
+                        pass
+                # Don't overwrite subject of 2nd aquarium with 1st subject ID if it's specific
+
+        messagebox.showinfo(
+            "Auto-Preencher",
+            f"Preenchido com sucesso ({count} correspondências encontradas).",
+            parent=self,
+        )
+
+    def _ensure_group_in_combobox(self, index: int, group: str) -> None:
+        """Ensure a group value is available in the combobox values.
+
+        If the regex extraction returns a group not in the predefined list,
+        dynamically add it so the user can see and select it.
+        """
+        if index >= len(self._group_combos):
+            return
+
+        combo = self._group_combos[index]
+        current_values = list(combo["values"])
+
+        if group and group not in current_values:
+            current_values.append(group)
+            combo["values"] = current_values
+            log.debug(
+                "aquarium_assignment.group_added_to_combobox",
+                group=group,
+                aquarium_index=index,
+            )
 
     def _create_aquarium_frame(
         self, parent: tk.Frame, aquarium_id: int
@@ -147,8 +269,12 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             textvariable=group_var,
             values=self.available_groups,
             width=20,
-            state="readonly" if self.available_groups else "normal",
+            # Restrict to predefined groups for data integrity
+            # Note: If regex extracts a group not in the list, the StringVar can still
+            # be set programmatically, but user cannot type arbitrary values.
+            state="readonly",
         )
+        self._group_combos.append(group_combo)  # Store for dynamic updates
         group_combo.grid(row=0, column=1, sticky=tk.W, pady=3, padx=(10, 0))
 
         # Subject ID

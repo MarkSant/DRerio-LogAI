@@ -417,69 +417,8 @@ class ProjectManager:
                     reason="single_video_workflow",
                 )
 
-    def save_multi_aquarium_zone_data(self, video_path: str, multi_data: Any) -> None:
-        """Save multi-aquarium zone data.
-
-        Persists the MultiAquariumZoneData structure to project JSON.
-        CRITICAL: Also exports the first aquarium's zones to standard parquet files
-        so that legacy validation (checks for has_arena) passes.
-        """
-        video_path = str(Path(video_path))
-
-        # 1. Save to ZoneManager (memory/json)
-        # Assuming ZoneManager handles the complex structure serialization
-        # If not, we put it in the dict manually for now, but ZoneManager is preferred.
-        # Let's trust ZoneManager has support or we add it to the generic save.
-        # Actually, let's look at how generic save works.
-        # We'll rely on the fact that ZoneManager.zone_data_to_dict might handle it
-        # OR we just store it as a dict.
-
-        # We need to import MultiAquariumZoneData to verify type but safe to just duck type.
-
-        # 1. Update In-Memory Project Data
-        # We specifically create a "multi-aquarium" entry or just overwrite the standard one?
-        # The prompt implies we use standard structures but marked as multi.
-
-        # Let's inspect ZoneManager later, but for now implement the method requested.
-
-        # For now, we will serialize it to dict and save it using manual update to project_data
-        # to ensure it is stored.
-        from zebtrack.core.detector import MultiAquariumZoneData
-
-        if isinstance(multi_data, MultiAquariumZoneData):
-            # Convert to dict
-            data_dict = self.zone_manager.multi_aquarium_zone_data_to_dict(multi_data)
-
-            # Store in project_data
-            key, _ = self._resolve_zone_entry(video_path)
-            if not key:
-                key = video_path  # Should normalize but simplified
-
-            self.project_data.setdefault("zones_by_video", {})[key] = data_dict
-
-            # 2. Exports for Legacy Compatibility (Aquarium 0)
-            # We select the first aquarium to represent the "file" for validation purposes.
-            aq0 = multi_data.aquariums[0].to_zone_data()
-            self.export_zones_to_parquet(video_path, aq0)
-
-            # 3. Update Flags
-            video_entry = self.find_video_entry(path=video_path)
-            if video_entry:
-                video_entry["has_arena"] = bool(aq0.polygon)
-                video_entry["has_rois"] = bool(aq0.roi_polygons)
-                # Mark as multi-aquarium
-                video_entry["is_multi_aquarium"] = True
-                video_entry["num_aquariums"] = len(multi_data.aquariums)
-
-            # 4. Save
-            if self.project_path:
-                self.save_project()
-            else:
-                log.info(
-                    "project.save_multi.in_memory_only",
-                    video=video_path,
-                    reason="single_video_mode (no project_path)"
-                )
+    # NOTE: save_multi_aquarium_zone_data moved to line ~2580 (consolidated implementation)
+    # The method there delegates to ZoneManager and handles parquet export + flag updates.
 
     def clear_zone_data_for_video(
         self,
@@ -2517,6 +2456,32 @@ class ProjectManager:
         """
         return self.project_data.get("project_name", "N/A")
 
+    def get_available_groups(self) -> list[str]:
+        """Collect all unique group names used in the project."""
+        groups = set()
+
+        # 1. Scan video entries
+        videos = self.get_all_videos() or []
+        for video in videos:
+            metadata = video.get("metadata", {})
+
+            # Check standard metadata
+            if "group" in metadata and metadata["group"]:
+                groups.add(str(metadata["group"]))
+
+            # Check multi-aquarium outputs
+            multi_outputs = video.get("multi_aquarium_outputs", {})
+            for output in multi_outputs.values():
+                if "group" in output and output["group"]:
+                    groups.add(str(output["group"]))
+
+        # 2. Check metadata.csv if available
+        if self.metadata is not None and "group" in self.metadata.columns:
+            for g in self.metadata["group"].dropna().unique():
+                groups.add(str(g))
+
+        return sorted(list(groups))
+
     def get_project_type(self):
         """Return the project type.
 
@@ -2594,6 +2559,9 @@ class ProjectManager:
                     video_entry["has_arena"] = has_arena
                     video_entry["has_rois"] = has_rois
                     video_entry["zones_finalized"] = False
+                    # Multi-aquarium specific flags
+                    video_entry["is_multi_aquarium"] = True
+                    video_entry["num_aquariums"] = len(multi_data.aquariums)
 
                     log.info(
                         "project_manager.multi_aquarium.video_entry_updated",

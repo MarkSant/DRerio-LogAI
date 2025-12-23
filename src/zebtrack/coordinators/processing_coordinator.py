@@ -218,7 +218,23 @@ class ProcessingCoordinator(BaseCoordinator):
         self.processing_thread: Any = None
         self._is_detecting_aquarium: bool = False
 
+        # New: Batch processing state for Multi-Aquarium
+        self._auto_assign_aquariums: bool = False
+        self._last_assignment_configs: list[dict] | None = None
+
         log.info("processing_coordinator.initialized.phase3")
+
+    def reset_multi_aquarium_state(self) -> None:
+        """Reset batch assignment state when project changes.
+
+        CRITICAL: This method prevents state leakage between projects.
+        The _auto_assign_aquariums and _last_assignment_configs variables
+        must be reset when loading a new project to avoid applying
+        metadata from a previous project to the new one.
+        """
+        self._auto_assign_aquariums = False
+        self._last_assignment_configs = None
+        log.info("processing_coordinator.multi_aquarium_state.reset")
 
     # ========================================================================
     # Group A: Video Processing Workflows (VideoProcessingOrchestrator)
@@ -283,6 +299,11 @@ class ProcessingCoordinator(BaseCoordinator):
             lambda data: self._handle_multi_auto_detect(data),
         )
 
+        bus.subscribe(
+            Events.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED,
+            lambda data: self._on_aquarium_assignment_completed(data),
+        )
+
         # Unified report generation
         def _handle_report_generate(data):
             if not isinstance(data, dict):
@@ -298,7 +319,14 @@ class ProcessingCoordinator(BaseCoordinator):
 
         bus.subscribe(Events.REPORT_GENERATE, _handle_report_generate)
 
-        log.info("processing_coordinator.register_handlers.complete", count=5)
+        # Reset multi-aquarium state when a new project is loaded
+        # CRITICAL: Prevents state leakage between projects
+        bus.subscribe(
+            "PROJECT_LOADED",
+            lambda data: self.reset_multi_aquarium_state(),
+        )
+
+        log.info("processing_coordinator.register_handlers.complete", count=6)
 
     def select_eligible_videos(
         self,
@@ -1962,6 +1990,31 @@ class ProcessingCoordinator(BaseCoordinator):
                         "polygons": [p.tolist() if hasattr(p, "tolist") else p for p in polygons],
                     },
                 )
+
+                # Retrieve available groups for the dialog
+                available_groups = self.project_manager.get_available_groups() or []
+
+                # Check for "Apply to all" active state
+                if self._auto_assign_aquariums and self._last_assignment_configs:
+                    log.info("multi_auto_detect.auto_assigning", video=str(video_path))
+                    self._on_aquarium_assignment_completed(
+                        {
+                            "video_path": str(video_path),
+                            "configs": self._last_assignment_configs,
+                            "apply_to_all": True,
+                        }
+                    )
+                else:
+                    # Trigger Assignment Dialog
+                    # Note: We pass multi_aquarium_config if it was provided in the request
+                    self._publish_event(
+                        Events.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
+                        {
+                            "video_path": str(video_path),
+                            "available_groups": available_groups,
+                            "multi_aquarium_config": data.get("multi_aquarium_config"),
+                        },
+                    )
             else:
                 reason = f"Encontrados {len(polygons)} aquários, esperados {expected_count}"
                 log.warning("multi_auto_detect.count_mismatch", reason=reason)
@@ -1978,6 +2031,64 @@ class ProcessingCoordinator(BaseCoordinator):
             )
         finally:
             self._publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
+
+    def _on_aquarium_assignment_completed(self, data: dict) -> None:
+        """Handle completion of aquarium assignment (group/subject/day).
+
+        Updates the MultiAquariumZoneData with the assigned metadata.
+        """
+        if not isinstance(data, dict):
+            return
+
+        video_path = data.get("video_path")
+        configs = data.get("configs")  # List of dicts: {aquarium_id, group, subject_id, day}
+        apply_to_all = data.get("apply_to_all", False)
+
+        if not video_path or not configs:
+            return
+
+        # Update batch state
+        if apply_to_all:
+            self._auto_assign_aquariums = True
+            self._last_assignment_configs = configs
+
+        try:
+            # 1. Load existing Multi Zone Data
+            zone_data = self.project_manager.get_multi_aquarium_zone_data(video_path)
+            if not zone_data:
+                log.warning("assignment_complete.no_zone_data", video=video_path)
+                return
+
+            # 2. Update each aquarium's metadata
+            updated = False
+            for config in configs:
+                aq_id = config.get("aquarium_id")
+
+                # Find matching aquarium
+                target_aq = next((aq for aq in zone_data.aquariums if aq.id == aq_id), None)
+                if target_aq:
+                    target_aq.group = config.get("group")
+                    target_aq.subject_id = config.get("subject_id")
+                    target_aq.day = config.get("day", "1")
+                    updated = True
+
+            # 3. Save updated data
+            if updated:
+                should_persist = bool(self.project_manager.project_path)
+                self.project_manager.save_multi_aquarium_zone_data(
+                    video_path, zone_data, persist=should_persist
+                )
+                log.info(
+                    "assignment_complete.zones_updated",
+                    video=os.path.basename(video_path),
+                    apply_to_all=apply_to_all,
+                )
+
+                # 4. Refresh UI to show new groups/subjects (optional but good)
+                self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {})
+
+        except Exception as e:
+            log.error("assignment_complete.error", error=str(e), exc_info=True)
 
     def generate_parquet_summaries(
         self,

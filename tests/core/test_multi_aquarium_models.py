@@ -349,31 +349,30 @@ class TestMultiAquariumDataPydantic:
             regex_day_field="day",
         )
 
-        result = data.extract_metadata("Controle_S01_D3.mp4")
+        results = data.extract_metadata("Controle_S01_D3.mp4")
 
-        assert result["group"] == "Controle"
-        assert result["subject"] == "S01"
-        assert result["day"] == "3"
+        assert len(results) == 1
+        assert results[0]["group"] == "Controle"
+        assert results[0]["subject"] == "S01"
+        assert results[0]["day"] == "3"
 
     def test_regex_extraction_no_match(self):
         """Testa extração quando regex não faz match."""
         data = MultiAquariumData(regex_pattern=r"(?P<group>\w+)_(?P<subject>S\d+)_D(?P<day>\d+)")
 
-        result = data.extract_metadata("video_sem_padrao.mp4")
+        results = data.extract_metadata("video_sem_padrao.mp4")
 
-        assert result["group"] == ""
-        assert result["subject"] == ""
-        assert result["day"] == ""
+        # Retorna lista vazia quando não há match
+        assert results == []
 
     def test_regex_extraction_no_pattern(self):
         """Testa extração sem padrão definido."""
         data = MultiAquariumData()
 
-        result = data.extract_metadata("qualquer_arquivo.mp4")
+        results = data.extract_metadata("qualquer_arquivo.mp4")
 
-        assert result["group"] == ""
-        assert result["subject"] == ""
-        assert result["day"] == ""
+        # Retorna lista vazia quando não há padrão
+        assert results == []
 
     def test_regex_extraction_partial_match(self):
         """Testa extração com match parcial."""
@@ -384,11 +383,12 @@ class TestMultiAquariumDataPydantic:
             regex_day_field="day",
         )
 
-        result = data.extract_metadata("Tratamento_video.mp4")
+        results = data.extract_metadata("Tratamento_video.mp4")
 
-        assert result["group"] == "Tratamento"
-        assert result["subject"] == ""  # Não capturado
-        assert result["day"] == ""
+        assert len(results) == 1
+        assert results[0]["group"] == "Tratamento"
+        assert results[0]["subject"] == ""  # Não capturado
+        assert results[0]["day"] == ""
 
 
 class TestCalibrationDataWithMultiAquarium:

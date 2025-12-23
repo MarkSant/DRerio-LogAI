@@ -10,7 +10,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Literal
 
+import structlog
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+log = structlog.get_logger()
 
 # =============================================================================
 # Behavioral Analysis Enums and Models
@@ -271,31 +274,44 @@ class MultiAquariumData(BaseModel):
             )
         return self
 
-    def extract_metadata(self, filename: str) -> dict[str, str]:
+    def extract_metadata(self, filename: str) -> list[dict[str, str]]:
         """Extrai metadados do nome do arquivo usando o padrão regex.
+
+        Suporta múltiplos matches (ex: "G1_S1--G2_S2.mp4").
 
         Args:
             filename: Nome do arquivo de vídeo.
 
         Returns:
-            Dicionário com os campos extraídos (group, subject, day).
+            Lista de dicionários com os campos extraídos (group, subject, day).
+            Um dicionário por match encontrado.
         """
-        result = {"group": "", "subject": "", "day": ""}
+        results = []
 
         if not self.regex_pattern:
-            return result
+            return results
 
         try:
-            match = re.search(self.regex_pattern, filename)
-            if match:
+            # Use finditer para encontrar todas as ocorrências
+            for match in re.finditer(self.regex_pattern, filename):
                 groups = match.groupdict()
-                result["group"] = groups.get(self.regex_group_field) or ""
-                result["subject"] = groups.get(self.regex_subject_field) or ""
-                result["day"] = groups.get(self.regex_day_field) or ""
-        except re.error:
-            pass
 
-        return result
+                meta = {
+                    "group": groups.get(self.regex_group_field) or "",
+                    "subject": groups.get(self.regex_subject_field) or "",
+                    "day": groups.get(self.regex_day_field) or "",
+                }
+                results.append(meta)
+
+        except re.error as e:
+            log.warning(
+                "extract_metadata.regex_error",
+                pattern=self.regex_pattern,
+                filename=filename,
+                error=str(e),
+            )
+
+        return results
 
 
 class CalibrationData(BaseModel):
