@@ -335,6 +335,8 @@ Understanding who holds what references prevents "AttributeError" and circular d
     - **Key normalization:** `multi_aquarium_outputs` keys may be mixed (`0` vs `"0"`). Normalize keys to numeric aquarium IDs and merge duplicates to avoid Treeview iid collisions (symptom: only one aquarium visible).
     - **Persistence after generation (Option B):** After generating per-aquarium summaries/reports, re-register updated `multi_aquarium_outputs` via `ProjectManager.register_multi_aquarium_outputs(...)` so `has_summary` and artifact paths persist and the UI updates reliably.
 
+18. **Simultaneous Multi-Aquarium Completion Logic (Fixed Dec 2025):** In the single video workflow, `video_results_dir` is calculated dynamically and may not be preset in the project manager. The `on_video_completed` callback now robustly detects multi-aquarium outputs (`aquarium_0`, `aquarium_1`) by checking the filesystem, even if `video_results_dir` is None in the video entry. This ensures that `register_multi_aquarium_outputs` is called and reports are generated for simultaneous 2-aquarium analyses. The `is_multi_aquarium` flag is now initialized based on the *presence* of these output folders, not just the project configuration.
+
 ---
 
 ## 7. Removed Events (Changelog)

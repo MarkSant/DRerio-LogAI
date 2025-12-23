@@ -632,9 +632,10 @@ class ProcessingCoordinator(BaseCoordinator):
                     )
 
             # Check for multi-aquarium outputs
-            is_multi_aquarium = False
             outputs_by_aquarium = alt_multi_outputs.copy() if alt_multi_outputs else {}
-            if video_results_dir and os.path.exists(video_results_dir):
+            
+            # Also check video_results_dir if different from results_dir (e.g. project mode with custom path)
+            if video_results_dir and video_results_dir != results_dir and os.path.exists(video_results_dir):
                 for aq_id in [0, 1]:
                     aq_subdir = os.path.join(video_results_dir, f"aquarium_{aq_id}")
                     if os.path.exists(aq_subdir):
@@ -647,7 +648,6 @@ class ProcessingCoordinator(BaseCoordinator):
                         ]
                         traj_file = next((p for p in traj_candidates if os.path.exists(p)), None)
                         if traj_file:
-                            is_multi_aquarium = True
                             group = v.get("group")
                             subject = v.get("subject")
                             outputs_by_aquarium[aq_id] = {
@@ -659,6 +659,8 @@ class ProcessingCoordinator(BaseCoordinator):
                                 "subject_id": subject,
                                 "day": v.get("day", 1)
                             }
+
+            is_multi_aquarium = bool(outputs_by_aquarium)
 
             # Sequential multi-aquarium: let the dedicated completion handler drive advancement
             if hasattr(self, "_sequential_context") and self._sequential_context:

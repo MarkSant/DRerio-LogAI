@@ -185,3 +185,8 @@ What are the results?
 *   **Project Persistence**: `ProcessingCoordinator.start_single_video_processing` now persists `analysis_interval_frames` and `display_interval_frames` into `project_data` (and thus `project.json`).
 *   **Wizard Support**: `CalibrationStep` and `LiveConfigStep` now collect and persist processing intervals during project creation.
 *   **Contextual Help**: Implemented a unified help system using `create_help_label` (ⓘ icon) with detailed tooltips in `CalibrationDialog`, `ConfigEditorWidget`, and all configuration dialogs.
+
+**9. Simultaneous Multi-Aquarium Reports (Dec 2025):**
+*   **Logic Fix**: In simultaneous single-video analysis, the results directory is dynamic. `ProcessingCoordinator.on_video_completed` was incorrectly resetting `is_multi_aquarium` to `False` if `video_results_dir` was missing from the video entry.
+*   **Robust Detection**: Updated logic to detect `aquarium_0`/`aquarium_1` folders on disk and populate `outputs_by_aquarium` even without a preset `video_results_dir`.
+*   **Result**: Reports (Word/Excel/Parquet) are now correctly triggered and generated for simultaneous 2-aquarium analyses in the "New Video" workflow.

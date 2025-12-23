@@ -67,6 +67,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔴 Bug Fixes
 
+#### Simultaneous Multi-Aquarium Report Generation Fix
+- **CRITICAL**: Fixed issue where simultaneous 2-aquarium analysis in single-video mode would stop after tracking without generating Word/Excel reports.
+- `ProcessingCoordinator.on_video_completed` now robustly detects output folders (`aquarium_0`, `aquarium_1`) even when the results directory is calculated dynamically.
+- Ensures all analysis artifacts (Parquet summaries, Word reports, Excel tables) are generated for both aquariums upon completion.
+
 #### Multi-Aquarium Reporting Fix
 - **CRITICAL**: Fixed regression where Aquarium 1 would erroneously use Aquarium 0's zones and background in reports.
 - `ProcessingCoordinator` now correctly prioritizes `MultiAquariumZoneData` for per-aquarium report generation.
