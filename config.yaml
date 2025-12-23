@@ -246,6 +246,10 @@ angular_velocity:
 # Tracking Settings
 # -----------------------------------------------------------------------------
 tracking:
+  # Use the advanced ByteTrack algorithm (Kalman Filter + IoU matching)
+  # Provides high stability but higher overhead. Recommended for most cases.
+  use_bytetrack: true
+
   # Use lightweight single-subject tracker instead of ByteTrack for single-animal experiments
   # Reduces overhead when you know there's only one animal in the arena
   use_single_subject_tracker: false

@@ -66,6 +66,10 @@ A v4.0 representa uma reescrita fundamental do sistema com foco em estabilidade,
     - Seleção correta de `camera_index` em projetos live
     - Respeito a intervalos de análise configurados
     - Unificação de `LiveCameraService` para ambos os contextos
+*   **💡 Ajuda Contextual**: Novo sistema de ícones de informação (ⓘ)
+    - Tooltips detalhados para todos os parâmetros de IA e calibração
+    - Explicações claras sobre o impacto de aumentar ou diminuir valores
+    - Sincronização em tempo real entre diálogos de configuração e o `Settings` global
 
 ### Multi-Aquarium v2 (Novo!)
 

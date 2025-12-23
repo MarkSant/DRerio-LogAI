@@ -53,6 +53,9 @@ class CalibrationStep(WizardStep):
         self.animals_per_aquarium_var = IntVar(value=1)
         self.aquarium_width_var = DoubleVar(value=10.0)
         self.aquarium_height_var = DoubleVar(value=10.0)
+        # Processing intervals
+        self.analysis_interval_var = IntVar(value=10)
+        self.display_interval_var = IntVar(value=10)
         self.template_info_var = StringVar(value="")
         self.template_info_label = None
 
@@ -209,6 +212,44 @@ class CalibrationStep(WizardStep):
             ),
         )
 
+        # Advanced processing settings
+        advanced_frame = LabelFrame(self, text="⚙️ Configurações Avançadas de Processamento", padx=15, pady=10)
+        advanced_frame.pack(fill="x", pady=(0, 15))
+
+        # Analysis interval
+        analysis_row = Frame(advanced_frame)
+        analysis_row.pack(fill="x", pady=5)
+
+        Label(analysis_row, text="Intervalo de Análise (frames):", width=30, anchor="w").pack(side="left")
+        analysis_entry = Entry(analysis_row, textvariable=self.analysis_interval_var, width=10)
+        analysis_entry.pack(side="left", padx=(5, 0))
+        ToolTip(
+            analysis_entry,
+            (
+                "🎬 Intervalo de Análise\n\n"
+                "Processa 1 frame a cada N frames originais.\n\n"
+                "• N=1: Analisa todos os frames (máxima precisão, mais lento)\n"
+                "• N=10: Analisa 1 frame e pula 9 (mais rápido, ideal para vídeos longos)\n\n"
+                "💡 Dica: Use 5 ou 10 para um bom equilíbrio entre velocidade e precisão."
+            ),
+        )
+
+        # Display interval
+        display_row = Frame(advanced_frame)
+        display_row.pack(fill="x", pady=5)
+
+        Label(display_row, text="Intervalo de Exibição (frames):", width=30, anchor="w").pack(side="left")
+        display_entry = Entry(display_row, textvariable=self.display_interval_var, width=10)
+        display_entry.pack(side="left", padx=(5, 0))
+        ToolTip(
+            display_entry,
+            (
+                "🖥️ Intervalo de Exibição\n\n"
+                "Atualiza a imagem na tela a cada N frames processados.\n\n"
+                "• Valores altos (ex: 30) tornam a interface mais fluida durante o processamento em lote."
+            ),
+        )
+
         # Help text
         help_frame = LabelFrame(self, text="Sobre a Calibração", padx=15, pady=10)
         help_frame.pack(fill="x", pady=(15, 0))
@@ -266,6 +307,8 @@ class CalibrationStep(WizardStep):
             "animals_per_aquarium": self.animals_per_aquarium_var.get(),
             "aquarium_width_cm": self.aquarium_width_var.get(),
             "aquarium_height_cm": self.aquarium_height_var.get(),
+            "analysis_interval_frames": self.analysis_interval_var.get(),
+            "display_interval_frames": self.display_interval_var.get(),
         }
 
     def set_data(self, data: dict):
@@ -287,6 +330,12 @@ class CalibrationStep(WizardStep):
         if "aquarium_height_cm" in data:
             self.aquarium_height_var.set(data["aquarium_height_cm"])
 
+        if "analysis_interval_frames" in data:
+            self.analysis_interval_var.set(data["analysis_interval_frames"])
+
+        if "display_interval_frames" in data:
+            self.display_interval_var.set(data["display_interval_frames"])
+
         self._update_template_banner()
 
     def on_show(self):
@@ -304,6 +353,12 @@ class CalibrationStep(WizardStep):
 
         if "aquarium_height_cm" in self.wizard_data:
             self.aquarium_height_var.set(self.wizard_data["aquarium_height_cm"])
+
+        if "analysis_interval_frames" in self.wizard_data:
+            self.analysis_interval_var.set(self.wizard_data["analysis_interval_frames"])
+
+        if "display_interval_frames" in self.wizard_data:
+            self.display_interval_var.set(self.wizard_data["display_interval_frames"])
 
         # Auto-detect number of aquariums from video count
         video_count = self.wizard_data.get("video_count", 0)

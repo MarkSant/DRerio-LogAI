@@ -152,10 +152,11 @@ class AnalysisService:
             raise ValueError(f"Trajectory validation failed: {error_msg}")
 
         # Log warnings even if validation passed
-        if validation_result["warnings"]:
+        validation_warnings = validation_result["warnings"]
+        if validation_warnings:
             self.log.warning(
                 "analysis_service.trajectory_validation_warnings",
-                warnings=validation_result["warnings"],
+                warnings=validation_warnings,
                 stats=validation_result["stats"],
             )
 
@@ -207,6 +208,10 @@ class AnalysisService:
                 "curvas_acentuadas": b_analyzer.calculate_sharp_turns(
                     90.0
                 ),  # Assuming 90 as default
+            },
+            "validacao": {
+                "avisos": validation_warnings,
+                "estatisticas": validation_result["stats"],
             }
         }
 
@@ -347,6 +352,8 @@ class AnalysisService:
             freezing_duration=freezing_min_duration,
             smoothing_window_length=smoothing_window_length,
             smoothing_polyorder=smoothing_polyorder,
+            validation_warnings=report.get("validacao", {}).get("avisos", []),
+            validation_stats=report.get("validacao", {}).get("estatisticas", {}),
             frame_crop_box=frame_crop_box,
         )
 

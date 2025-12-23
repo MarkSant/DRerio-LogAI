@@ -16,7 +16,7 @@ class MockDetectorPlugin(DetectorPlugin):
         self.single_subject_mode = False
         self.set_mode_calls = 0
 
-    def detect(self, frame: np.ndarray):
+    def detect(self, frame: np.ndarray, conf_threshold: float | None = None):
         # Allow configuring the return value for different test cases
         return self._detect_return_value
 

@@ -324,6 +324,9 @@ class DetectorCoordinator(BaseCoordinator):
         track_threshold: float | None = None,
         match_threshold: float | None = None,
         track_buffer: int | None = None,
+        max_center_distance: float | None = None,
+        iou_threshold: float | None = None,
+        use_bytetrack: bool | None = None,
     ) -> bool:
         """
         Update ByteTrack tracking parameters.
@@ -338,21 +341,12 @@ class DetectorCoordinator(BaseCoordinator):
             track_threshold: Detection confidence threshold (0.0-1.0)
             match_threshold: IoU matching threshold (0.0-1.0)
             track_buffer: Number of frames to keep lost tracks
+            max_center_distance: Max distance for hybrid matching
+            iou_threshold: IoU threshold for hybrid matching
+            use_bytetrack: ByteTrack toggle
 
         Returns:
             bool: True if parameters were updated successfully
-
-        Raises:
-            CoordinatorValidationError: If dependencies are invalid
-            DetectorCoordinatorError: If parameter update fails
-            ValueError: If parameter values are out of valid range
-
-        Example:
-            >>> success = coordinator.update_tracking_parameters(
-            ...     track_threshold=0.3,
-            ...     match_threshold=0.2,
-            ...     track_buffer=30
-            ... )
         """
         # Validate dependencies
         if not self.validate_dependencies():
@@ -386,6 +380,9 @@ class DetectorCoordinator(BaseCoordinator):
                 track_threshold=track_threshold,
                 match_threshold=match_threshold,
                 track_buffer=track_buffer,
+                max_center_distance=max_center_distance,
+                iou_threshold=iou_threshold,
+                use_bytetrack=use_bytetrack,
             )
 
             if success:
@@ -397,6 +394,12 @@ class DetectorCoordinator(BaseCoordinator):
                     state_update["match_threshold"] = match_threshold
                 if track_buffer is not None:
                     state_update["track_buffer"] = track_buffer
+                if use_bytetrack is not None:
+                    state_update["use_bytetrack"] = use_bytetrack
+                if max_center_distance is not None:
+                    state_update["max_center_distance"] = max_center_distance
+                if iou_threshold is not None:
+                    state_update["iou_threshold"] = iou_threshold
 
                 self._update_state(StateCategory.DETECTOR, **state_update)
 
@@ -407,6 +410,9 @@ class DetectorCoordinator(BaseCoordinator):
                         "track_threshold": track_threshold,
                         "match_threshold": match_threshold,
                         "track_buffer": track_buffer,
+                        "use_bytetrack": use_bytetrack,
+                        "max_center_distance": max_center_distance,
+                        "iou_threshold": iou_threshold,
                     },
                 )
 
@@ -437,7 +443,7 @@ class DetectorCoordinator(BaseCoordinator):
 
     def update_detector_parameters(
         self,
-        params: dict[str, float],
+        params: dict[str, Any],
         *,
         reset_overrides: bool = False,
         scope: str = "global",
@@ -451,32 +457,13 @@ class DetectorCoordinator(BaseCoordinator):
         3. Updating StateManager with parameter state
         4. Publishing events for UI updates
 
-        This method provides a dict-based interface for updating detector parameters,
-        complementing the named-parameter interface of update_tracking_parameters().
-
         Args:
-            params: Dict of parameters to update (e.g., {'conf_threshold': 0.5})
+            params: Dict of parameters to update
             reset_overrides: If True, reset overrides for the given scope
             scope: Whether changes apply globally or only to project ('global' or 'project')
 
         Returns:
             bool: True if parameters were updated successfully
-
-        Raises:
-            CoordinatorValidationError: If dependencies are invalid
-            DetectorCoordinatorError: If parameter update fails
-            ValueError: If scope or parameter values are invalid
-
-        Example:
-            >>> success = coordinator.update_detector_parameters(
-            ...     params={'conf_threshold': 0.5, 'track_threshold': 0.3},
-            ...     scope='project'
-            ... )
-            >>> if success:
-            ...     print("Parameters updated successfully")
-
-        Note:
-            Sprint 7: Added to support MainViewModel delegation pattern.
         """
         # Validate dependencies
         if not self.validate_dependencies():
@@ -501,32 +488,26 @@ class DetectorCoordinator(BaseCoordinator):
                 # Update state with filtered parameters
                 state_update = {
                     "detector_parameters_updated": True,
-                    # Store scope if you want to track it in generic state, but verify model support
-                    # "last_update_scope": scope,
                 }
 
                 # Map and filter params for state update
-                # Valid keys: conf_threshold, track_threshold,
-                # match_threshold, track_buffer
                 valid_state_keys = {
                     "conf_threshold",
                     "track_threshold",
                     "match_threshold",
                     "track_buffer",
+                    "use_bytetrack",
+                    "max_center_distance",
+                    "iou_threshold",
                 }
 
                 for key, value in params.items():
-                    # Map confidence_threshold to conf_threshold
                     if key == "confidence_threshold":
                         state_update["conf_threshold"] = value
                     elif key in valid_state_keys:
                         state_update[key] = value
-                    # Ignore other keys for state update to avoid warnings
 
                 self._update_state(StateCategory.DETECTOR, **state_update)
-
-                # State update is sufficient - no need for event publication
-                # (StateManager already notifies subscribers via state change callbacks)
 
                 log.info(
                     "detector_coordinator.update_detector_parameters.success",

@@ -59,7 +59,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reduces visual flickering during polygon drawing
 - Smoother elastic line animation while moving mouse
 
+#### Improved Word Reports (Quality & Robustness)
+- **NEW**: Added "Appendix: Trajectory Validation" section to Word reports.
+- Includes technical summary table: Total Frames, Frame Range, Temporal Coverage (%), Unique Track IDs, and Gap counts.
+- Displays detailed validation warnings (teleportation, gaps, arena violations) directly in the document.
+- **UI**: Removed redundant blank pages between trajectory and heatmap figures for a more compact layout.
+
 ### 🔴 Bug Fixes
+
+#### Multi-Aquarium Reporting Fix
+- **CRITICAL**: Fixed regression where Aquarium 1 would erroneously use Aquarium 0's zones and background in reports.
+- `ProcessingCoordinator` now correctly prioritizes `MultiAquariumZoneData` for per-aquarium report generation.
+
+#### Background Image "Gray Screen" Fix (Windows)
+- **CRITICAL**: Fixed background images not displaying in reports on Windows when paths contained spaces or special characters.
+- Switched to robust `cv2.imdecode` method for reading background frames.
+- Standardized single-aquarium flow to extract cropped background PNGs, consistent with multi-aquarium logic.
+
+#### Trajectory Alignment Fix
+- **HIGH**: Fixed trajectory misalignment in cropped reports.
+- Normalization logic now drops existing CM columns to force recalculation relative to the aquarium crop origin (0,0).
+- Prevents trajectories from "floating" outside the visible aquarium area in Word reports.
 
 #### Batch Processing Video Frame Display Fix
 - **CRITICAL**: Fixed frames not displaying during batch processing

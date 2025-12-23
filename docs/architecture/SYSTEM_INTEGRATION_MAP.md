@@ -154,9 +154,12 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 - **ROI Cropping**: `Detector._crop_aquarium_region()` extracts per-aquarium frames
 - **Parallel Detection**: `Detector.detect_partitioned_parallel()` uses ThreadPoolExecutor
 - **Batch Inference**: `Detector.detect_batch()` for offline multi-frame processing
+- **Tracker Selection**: Toggle between ByteTrack (Kalman Filter) and Simple Tracker (Hybrid IoU/Dist)
+- **Advanced Tuning**: Exposed `track_buffer`, `max_center_distance`, and `iou_threshold` in UI
 - **Uncertainty Tracking**: `uncertainty` and `bbox_iou` columns in Parquet
 - **Error Recovery**: Failed aquarium detection doesn't crash others
 - **Validation**: `TrajectoryQualityValidator` checks ID bounds, gaps per aquarium
+- **Interval Persistence**: `analysis_interval_frames` and `display_interval_frames` are persisted in `project_data` during project creation and single-video analysis. The `display_interval` is now a first-class citizen in the `Settings` model.
 
 **Output Structure** (per video with multi-aquarium):
 ```
@@ -180,7 +183,20 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `ANALYSIS_STARTED` | - | (lifecycle) | (consumers) |
 | `ANALYSIS_COMPLETED` | - | (lifecycle) | (consumers) |
 
-### 3.6. Notification Events
+### 3.6. Detector & Tracking Events (Dec 2025)
+
+| Event (Domain) | Payload Keys | Publishers | Subscribers |
+|----------------|--------------|------------|-------------|
+| `TRACKING_PARAMETERS_UPDATED` | `track_threshold`, `match_threshold`, `track_buffer`, `use_bytetrack`, `max_center_distance`, `iou_threshold` | `DetectorCoordinator` | UI components, StateManager |
+
+**Notes:**
+- All payload values are optional (None if not updated)
+- `use_bytetrack: bool` - Toggles between ByteTrack and SingleSubjectTracker
+- `track_buffer: int` - Frames to keep lost tracks (default: 300)
+- `max_center_distance: float` - Max distance for hybrid matching (pixels)
+- `iou_threshold: float` - IoU threshold for hybrid matching [0, 1)
+
+### 3.7. Notification Events
 
 | Event (UIEvents) | Payload Keys | Publishers | Subscribers |
 |-----------------|--------------|------------|-------------|
@@ -312,6 +328,9 @@ Understanding who holds what references prevents "AttributeError" and circular d
 
 17. **Multi-Aquarium Reporting + Reports Tree Contracts (Fixed Dec 2025):**
     - **Reporting MUST use multi-aquarium zone accessor:** In multi-aquarium report generation, always call `ProjectManager.get_multi_aquarium_zone_data()` (not `get_zone_data()`). The single-aquarium accessor returns only Aquarium 0 for backward compatibility and will corrupt Aquarium 1 crop/overlay alignment.
+    - **Coordinate Normalization:** When generating reports for a cropped arena, existing `x_cm`/`y_cm` columns MUST be dropped before normalization. This forces `BehavioralAnalyzer` to recompute coordinates relative to the new origin (0,0), preventing trajectory misalignment.
+    - **Robust Image Loading:** Background frames (PNG) must be loaded using `cv2.imdecode` to support Windows unicode paths. `calibration` should be set to `None` when using a pre-cropped PNG background to avoid redundant warping.
+    - **Quality Appendix:** `AnalysisResult` now contains `validation_warnings` (list) and `validation_stats` (dict). These are used by `Reporter` to append a "Trajectory Validation" section with coverage, frame range, and technical warnings.
     - **Canonical metadata source for UI:** The hierarchy builder may omit `multi_aquarium_outputs`. The Reports tab tree must fall back to `ProjectManager.find_video_entry(video_path)` as the canonical source of truth.
     - **Key normalization:** `multi_aquarium_outputs` keys may be mixed (`0` vs `"0"`). Normalize keys to numeric aquarium IDs and merge duplicates to avoid Treeview iid collisions (symptom: only one aquarium visible).
     - **Persistence after generation (Option B):** After generating per-aquarium summaries/reports, re-register updated `multi_aquarium_outputs` via `ProjectManager.register_multi_aquarium_outputs(...)` so `has_summary` and artifact paths persist and the UI updates reliably.

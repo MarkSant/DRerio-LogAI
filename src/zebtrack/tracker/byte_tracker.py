@@ -183,7 +183,7 @@ class BYTETracker:
         args,
         frame_rate=30,
         use_hybrid_matching=True,
-        max_center_distance=300.0,
+        max_center_distance=400.0,  # Default matches config.yaml
         processing_interval=1,
         iou_threshold=0.05,
         single_animal_mode=False,

@@ -264,6 +264,8 @@ class Reporter:
         self.sharp_turn_threshold = sharp_turn_threshold
         self.freezing_threshold = freezing_threshold
         self.freezing_duration = freezing_duration
+        self.validation_warnings = self.report.get("validacao", {}).get("avisos", [])
+        self.validation_stats = self.report.get("validacao", {}).get("estatisticas", {})
 
         # Initialize data transformer and visualization generator
         self.data_transformer = DataTransformer()
@@ -335,6 +337,8 @@ class Reporter:
         instance.sharp_turn_threshold = analysis.sharp_turn_threshold
         instance.freezing_threshold = analysis.freezing_threshold
         instance.freezing_duration = analysis.freezing_duration
+        instance.validation_warnings = getattr(analysis, "validation_warnings", [])
+        instance.validation_stats = getattr(analysis, "validation_stats", {})
 
         # Initialize data transformer and visualization generator
         instance.data_transformer = DataTransformer()
@@ -425,7 +429,7 @@ class Reporter:
             progress_callback: Callback function (progress: float, status: str) -> None
         """
         output_path = Path(output_path) if isinstance(output_path, str) else output_path
-        total_steps = 10
+        total_steps = 11
         template_path = INDIVIDUAL_REPORT_TEMPLATE
         heading_text = _("Analysis Report - {experiment_id}").format(
             experiment_id=self.metadata.get("experiment_id", "Unknown")
@@ -533,6 +537,7 @@ class Reporter:
         self._append_roi_reference_map(document, progress_callback, total_steps)
         self._append_visualizations(document, progress_callback, total_steps)
         self._append_roi_event_log(document, progress_callback, total_steps)
+        self._append_validation_warnings(document, progress_callback, total_steps)
 
     def _append_roi_reference_map(
         self,
@@ -580,7 +585,7 @@ class Reporter:
         plot_results = self.viz_generator.generate_plots_parallel(plot_configs)
 
         # Names that should start on a new page (to keep 2 figures per page)
-        page_break_before = {_("Heatmap"), _("Cumulative Distance")}
+        page_break_before = {_("Cumulative Distance")}
 
         for i, (memfile, name) in enumerate(plot_results):
             if memfile.getbuffer().nbytes > 0:
@@ -637,6 +642,67 @@ class Reporter:
         else:
             document.add_paragraph(_("No ROI entry or exit events were recorded."))
         progress_callback(9 / total_steps, _("Event log added"))
+
+    def _append_validation_warnings(
+        self,
+        document: DocxDocument,
+        progress_callback: Callable[[float, str], None],
+        total_steps: int,
+    ) -> None:
+        """Append trajectory validation warnings and technical stats."""
+        document.add_page_break()
+        document.add_heading(_("Appendix: Trajectory Validation"), level=2)
+
+        # 1. Technical Stats Summary
+        if self.validation_stats:
+            document.add_heading(_("Quality Metrics"), level=3)
+            stats = self.validation_stats
+            
+            # Create a small table for key metrics
+            table = document.add_table(rows=0, cols=2)
+            table.style = "Table Grid"
+            
+            def add_stat_row(label, value):
+                row = table.add_row().cells
+                row[0].text = str(label)
+                row[1].text = str(value)
+
+            add_stat_row(_("Total Frames Processed"), stats.get("total_frames", "N/A"))
+            
+            if "frame_range" in stats:
+                fr = stats["frame_range"]
+                add_stat_row(_("Frame Range"), f"{fr.get('min', 0)} - {fr.get('max', 0)} ({fr.get('span', 0)} frames)")
+            
+            if "temporal_coverage" in stats:
+                coverage = stats["temporal_coverage"] * 100
+                add_stat_row(_("Temporal Coverage"), f"{coverage:.1f}%")
+            
+            if "unique_tracks" in stats:
+                add_stat_row(_("Unique Track IDs"), stats["unique_tracks"])
+
+            if "temporal_gaps" in stats:
+                gaps = stats["temporal_gaps"]
+                add_stat_row(_("Temporal Gaps"), f"{gaps.get('count', 0)} (Max: {gaps.get('max_gap_frames', 0)} frames)")
+
+            document.add_paragraph() # Spacer
+
+        # 2. Detailed Warnings
+        document.add_heading(_("Validation Details"), level=3)
+        if self.validation_warnings:
+            document.add_paragraph(
+                _(
+                    "The following issues were detected during trajectory validation. "
+                    "These may affect the precision of the calculated metrics."
+                )
+            )
+            for warning in self.validation_warnings:
+                document.add_paragraph(f"• {warning}", style="List Bullet")
+        else:
+            document.add_paragraph(
+                _("No significant issues were detected during trajectory validation.")
+            )
+
+        progress_callback(10 / total_steps, _("Validation details added"))
 
     def export_interactive_html_report(self, output_path: Path | str) -> None:
         """

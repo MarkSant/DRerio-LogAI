@@ -420,6 +420,9 @@ class TestTrackingParameters:
             track_threshold=0.3,
             match_threshold=0.2,
             track_buffer=30,
+            max_center_distance=None,
+            iou_threshold=None,
+            use_bytetrack=None,
         )
 
     def test_update_tracking_parameters_partial(

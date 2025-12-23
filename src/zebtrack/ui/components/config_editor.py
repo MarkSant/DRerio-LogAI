@@ -14,6 +14,7 @@ import structlog
 
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.event_bus import EventBus
+from zebtrack.ui.wizard.tooltip import create_help_label
 
 log = structlog.get_logger()
 
@@ -47,6 +48,7 @@ class ConfigEditorWidget(BaseWidget):
         # Initialize all StringVar instances with default values
         self.fps_var = StringVar(value="30")
         self.processing_interval_var = StringVar(value="10")
+        self.display_interval_var = StringVar(value="10")
         self.processing_offset_var = StringVar(value="0")
         self.window_length_var = StringVar(value="7")
         self.polyorder_var = StringVar(value="3")
@@ -104,165 +106,207 @@ class ConfigEditorWidget(BaseWidget):
             padding=10,
         )
         video_frame.pack(fill="x", pady=6)
+        
+        # Grid: Label | Help | Entry | Extra
         video_frame.columnconfigure(1, weight=0)
-        video_frame.columnconfigure(2, weight=1)
+        video_frame.columnconfigure(2, weight=0)
+        video_frame.columnconfigure(3, weight=1)
 
         # FPS
         ttk.Label(video_frame, text="FPS de saída (MP4):").grid(
-            row=0, column=0, sticky="w", padx=(0, 6), pady=2
+            row=0, column=0, sticky="w", padx=(0, 2), pady=2
         )
-        ttk.Entry(video_frame, textvariable=self.fps_var, width=8).grid(row=0, column=1, sticky="w")
-        ttk.Label(
+        create_help_label(
             video_frame,
-            text="Define a taxa de quadros do vídeo salvo em disco.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=0, column=2, sticky="w")
+            "FPS de Saída (Frames Per Second)\n\n"
+            "Define a velocidade de reprodução do vídeo .mp4 resultante da análise.\n"
+            "• Recomendado: O mesmo valor do vídeo original (ex: 30).\n"
+            "• Aumentar: O vídeo parecerá acelerado.\n"
+            "• Diminuir: O vídeo parecerá em câmera lenta."
+        ).grid(row=0, column=1, padx=2)
+        ttk.Entry(video_frame, textvariable=self.fps_var, width=8).grid(row=0, column=2, sticky="w", padx=5)
 
         # Processing interval
-        ttk.Label(video_frame, text="Intervalo de processamento (N):").grid(
-            row=1, column=0, sticky="w", padx=(0, 6), pady=2
+        ttk.Label(video_frame, text="Intervalo Processamento (N):").grid(
+            row=1, column=0, sticky="w", padx=(0, 2), pady=2
         )
-        ttk.Entry(video_frame, textvariable=self.processing_interval_var, width=8).grid(
-            row=1, column=1, sticky="w"
-        )
-        ttk.Label(
+        create_help_label(
             video_frame,
-            text="Processa 1 frame a cada N frames originais.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=1, column=2, sticky="w")
+            "Intervalo de Processamento (Análise)\n\n"
+            "Processa 1 frame a cada N frames originais.\n"
+            "• N=1: Processa TODOS os frames (máxima precisão, mais lento).\n"
+            "• N=10: Processa 1 frame e pula 9 (mais rápido, ideal para vídeos longos).\n"
+            "• Aumentar: Reduz drasticamente o tempo de processamento.\n"
+            "• Diminuir: Melhora a resolução temporal das métricas de velocidade."
+        ).grid(row=1, column=1, padx=2)
+        ttk.Entry(video_frame, textvariable=self.processing_interval_var, width=8).grid(
+            row=1, column=2, sticky="w", padx=5
+        )
+
+        # Display interval
+        ttk.Label(video_frame, text="Intervalo Exibição (N):").grid(
+            row=2, column=0, sticky="w", padx=(0, 2), pady=2
+        )
+        create_help_label(
+            video_frame,
+            "Intervalo de Exibição (UI)\n\n"
+            "Atualiza a imagem na tela a cada N frames processados.\n"
+            "• N=1: Exibição fluida (consome mais CPU/GPU).\n"
+            "• N=30: Atualiza a cada 30 frames (mais leve).\n"
+            "• Útil para acelerar a análise economizando recursos visuais."
+        ).grid(row=2, column=1, padx=2)
+        ttk.Entry(video_frame, textvariable=self.display_interval_var, width=8).grid(
+            row=2, column=2, sticky="w", padx=5
+        )
 
         # Processing offset
-        ttk.Label(video_frame, text="Offset inicial (frames):").grid(
-            row=2, column=0, sticky="w", padx=(0, 6), pady=2
+        ttk.Label(video_frame, text="Offset Inicial (frames):").grid(
+            row=3, column=0, sticky="w", padx=(0, 2), pady=2
         )
-        ttk.Entry(video_frame, textvariable=self.processing_offset_var, width=8).grid(
-            row=2, column=1, sticky="w"
-        )
-        ttk.Label(
+        create_help_label(
             video_frame,
-            text=(
-                "Offset inicial: Número de frames iniciais ignorados antes de começar "
-                "a análise, útil para desconsiderar período de estabilização."
-            ),
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=2, column=2, sticky="w")
+            "Offset Inicial\n\n"
+            "Número de frames iniciais a serem ignorados antes de começar o rastreamento.\n"
+            "• Use para descartar o período de estabilização da água ou a mão do experimentador saindo de cena.\n"
+            "• Ex: Em um vídeo de 30fps, um offset de 90 frames ignora os primeiros 3 segundos."
+        ).grid(row=3, column=1, padx=2)
+        ttk.Entry(video_frame, textvariable=self.processing_offset_var, width=8).grid(
+            row=3, column=2, sticky="w", padx=5
+        )
 
     def _build_trajectory_smoothing_section(self) -> None:
         """Build trajectory smoothing settings frame."""
         smoothing_frame = ttk.LabelFrame(
             self,
-            text="Suavização de Trajetória (Remove Tremidos/Ruído)",
+            text="Suavização de Trajetória (Filtro Savitzky-Golay)",
             padding=10,
         )
         smoothing_frame.pack(fill="x", pady=6)
-        smoothing_frame.columnconfigure(2, weight=1)
+        
+        # Grid: Label | Help | Entry
+        smoothing_frame.columnconfigure(1, weight=0)
+        smoothing_frame.columnconfigure(2, weight=0)
+        smoothing_frame.columnconfigure(3, weight=1)
 
         # Window Length
-        ttk.Label(smoothing_frame, text="Janela de Suavização (frames):").grid(
-            row=0, column=0, sticky="w", padx=(0, 6), pady=2
+        ttk.Label(smoothing_frame, text="Janela de Suavização:").grid(
+            row=0, column=0, sticky="w", padx=(0, 2), pady=2
         )
-        ttk.Entry(smoothing_frame, textvariable=self.window_length_var, width=8).grid(
-            row=0, column=1, sticky="w"
-        )
-        ttk.Label(
+        create_help_label(
             smoothing_frame,
-            text=(
-                "Janela de suavização: Número de frames usados para calcular a média "
-                "móvel das posições, reduzindo ruído na trajetória."
-            ),
-            font=("TkDefaultFont", 8),
-            foreground="#555",
-            wraplength=380,
-        ).grid(row=0, column=2, sticky="w")
+            "Janela de Suavização (Window Length)\n\n"
+            "Número de frames usados para suavizar a trajetória. DEVE SER ÍMPAR.\n"
+            "• Aumentar (ex: 11, 15): Remove mais ruído/tremido, mas pode 'arredondar' demais as curvas.\n"
+            "• Diminuir (ex: 3, 5): Mantém mais detalhes dos movimentos bruscos.\n"
+            "• Padrão: 7"
+        ).grid(row=0, column=1, padx=2)
+        ttk.Entry(smoothing_frame, textvariable=self.window_length_var, width=8).grid(
+            row=0, column=2, sticky="w", padx=5
+        )
 
         # Polynomial Order
         ttk.Label(smoothing_frame, text="Ordem do Polinômio:").grid(
-            row=1, column=0, sticky="w", padx=(0, 6), pady=2
+            row=1, column=0, sticky="w", padx=(0, 2), pady=2
         )
-        ttk.Entry(smoothing_frame, textvariable=self.polyorder_var, width=8).grid(
-            row=1, column=1, sticky="w"
-        )
-        ttk.Label(
+        create_help_label(
             smoothing_frame,
-            text=(
-                "Tipo de curva: 1=reta, 2=curva suave, 3=curva com dobra. "
-                "Maior = curvas mais sinuosas (bom para viradas bruscas)."
-            ),
-            font=("TkDefaultFont", 8),
-            foreground="#555",
-            wraplength=380,
-        ).grid(row=1, column=2, sticky="w")
+            "Ordem do Polinômio (Polyorder)\n\n"
+            "Complexidade da curva usada para ajustar os pontos. Deve ser MENOR que a janela.\n"
+            "• 1: Linha reta (suavização agressiva).\n"
+            "• 2: Curva simples (parábola).\n"
+            "• 3: Curva mais complexa (recomendado).\n"
+            "• Aumentar: A curva segue mais de perto os pontos originais.\n"
+            "• Padrão: 3"
+        ).grid(row=1, column=1, padx=2)
+        ttk.Entry(smoothing_frame, textvariable=self.polyorder_var, width=8).grid(
+            row=1, column=2, sticky="w", padx=5
+        )
 
         # Overall explanation
         ttk.Label(
             smoothing_frame,
             text=(
-                "ℹ️ Remove tremidos da câmera sem apagar movimentos reais. "
-                "Ajusta uma curva suave aos pontos detectados. "
-                "Restrição: janela ímpar (3, 5, 7...) e ordem < janela. "
-                "Padrão: janela=7, ordem=3."
+                "ℹ️ Este filtro remove tremidos pequenos da detecção sem perder o rastro real. "
+                "Útil para métricas de distância e velocidade mais precisas."
             ),
             font=("TkDefaultFont", 8),
             foreground="#2563eb",
             justify="left",
             wraplength=550,
-        ).grid(row=2, column=0, columnspan=3, sticky="w", padx=(0, 6), pady=(8, 0))
+        ).grid(row=2, column=0, columnspan=4, sticky="w", padx=(0, 6), pady=(8, 0))
 
     def _build_recorder_section(self) -> None:
         """Build recorder settings frame."""
         recorder_frame = ttk.LabelFrame(
             self,
-            text="Recorder (Parquet/MP4)",
+            text="Gravação de Dados (Recorder)",
             padding=10,
         )
         recorder_frame.pack(fill="x", pady=6)
-        recorder_frame.columnconfigure(2, weight=1)
+        
+        # Grid: Label | Help | Entry
+        recorder_frame.columnconfigure(1, weight=0)
+        recorder_frame.columnconfigure(2, weight=0)
+        recorder_frame.columnconfigure(3, weight=1)
 
         # Flush interval
-        ttk.Label(recorder_frame, text="Flush automático (s):").grid(
-            row=0, column=0, sticky="w", padx=(0, 6), pady=2
+        ttk.Label(recorder_frame, text="Flush Automático (s):").grid(
+            row=0, column=0, sticky="w", padx=(0, 2), pady=2
         )
-        ttk.Entry(recorder_frame, textvariable=self.flush_interval_var, width=8).grid(
-            row=0, column=1, sticky="w"
-        )
-        ttk.Label(
+        create_help_label(
             recorder_frame,
-            text="Define intervalo para descarregar buffers no Parquet.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=0, column=2, sticky="w")
+            "Intervalo de Flush (Tempo)\n\n"
+            "A cada X segundos, o sistema força a gravação dos dados da memória para o arquivo Parquet.\n"
+            "• Protege contra perda de dados se o app cair.\n"
+            "• Valores baixos (ex: 1.0) aumentam o uso de disco.\n"
+            "• Padrão: 5.0s"
+        ).grid(row=0, column=1, padx=2)
+        ttk.Entry(recorder_frame, textvariable=self.flush_interval_var, width=8).grid(
+            row=0, column=2, sticky="w", padx=5
+        )
 
         # Flush rows
-        ttk.Label(recorder_frame, text="Limite de linhas por flush:").grid(
-            row=1, column=0, sticky="w", padx=(0, 6), pady=2
+        ttk.Label(recorder_frame, text="Limite de Linhas (Flush):").grid(
+            row=1, column=0, sticky="w", padx=(0, 2), pady=2
         )
-        ttk.Entry(recorder_frame, textvariable=self.flush_rows_var, width=8).grid(
-            row=1, column=1, sticky="w"
-        )
-        ttk.Label(
+        create_help_label(
             recorder_frame,
-            text="Quando atingir este limite, os dados são gravados imediatamente.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=1, column=2, sticky="w")
+            "Limite de Linhas para Flush\n\n"
+            "Grava dados imediatamente ao atingir X linhas em memória.\n"
+            "• Padrão: 500 linhas."
+        ).grid(row=1, column=1, padx=2)
+        ttk.Entry(recorder_frame, textvariable=self.flush_rows_var, width=8).grid(
+            row=1, column=2, sticky="w", padx=5
+        )
 
     def _build_roi_section(self) -> None:
         """Build ROI parameters frame."""
         roi_frame = ttk.LabelFrame(
             self,
-            text="Parâmetros padrão de ROI",
+            text="Lógica de Inclusão em ROI (Padrão)",
             padding=10,
         )
         roi_frame.pack(fill="x", pady=6)
-        roi_frame.columnconfigure(2, weight=1)
+        
+        # Grid: Label | Help | Entry
+        roi_frame.columnconfigure(1, weight=0)
+        roi_frame.columnconfigure(2, weight=0)
+        roi_frame.columnconfigure(3, weight=1)
 
         # Inclusion rule
-        ttk.Label(roi_frame, text="Regra de inclusão:").grid(
-            row=0, column=0, sticky="w", padx=(0, 6), pady=2
+        ttk.Label(roi_frame, text="Regra de Inclusão:").grid(
+            row=0, column=0, sticky="w", padx=(0, 2), pady=2
         )
+        create_help_label(
+            roi_frame,
+            "Lógica de Inclusão em ROI\n\n"
+            "Define quando o peixe é considerado 'dentro' de uma zona.\n"
+            "• Centroide (centroid_in): Apenas se o ponto central estiver na zona.\n"
+            "• Centroide c/ Buffer: Expande a zona virtualmente para o cálculo.\n"
+            "• Intersecção BBox: Se qualquer parte da caixa do peixe tocar a zona.\n"
+            "• Sobreposição Seg: Baseado na máscara de pixels (mais preciso)."
+        ).grid(row=0, column=1, padx=2)
+        
         config_roi_combo = ttk.Combobox(
             roi_frame,
             textvariable=self.roi_inclusion_rule_var,
@@ -275,51 +319,45 @@ class ConfigEditorWidget(BaseWidget):
             state="readonly",
             width=28,
         )
-        config_roi_combo.grid(row=0, column=1, sticky="w")
+        config_roi_combo.grid(row=0, column=2, sticky="w", padx=5)
         config_roi_combo.bind("<<ComboboxSelected>>", self._on_roi_rule_changed)
         self._roi_rule_widgets.append(config_roi_combo)
-        ttk.Label(
-            roi_frame,
-            text="Selecione a lógica padrão aplicada ao carregar projetos.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=0, column=2, sticky="w")
 
         # Buffer radius
-        ttk.Label(roi_frame, text="Raio de buffer (r):").grid(
-            row=1, column=0, sticky="w", padx=(0, 6), pady=2
+        ttk.Label(roi_frame, text="Raio de Buffer (r):").grid(
+            row=1, column=0, sticky="w", padx=(0, 2), pady=2
         )
-        ttk.Entry(roi_frame, textvariable=self.roi_buffer_radius_var, width=8).grid(
-            row=1, column=1, sticky="w"
-        )
-        ttk.Label(
+        create_help_label(
             roi_frame,
-            text="Obrigatório (>0) para a opção de centróide com buffer.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=1, column=2, sticky="w")
+            "Raio de Buffer\n\n"
+            "Distância extra para expansão da ROI na regra 'Centroide c/ Buffer'.\n"
+            "• Unidade: Centímetros (se calibrado) ou Pixels."
+        ).grid(row=1, column=1, padx=2)
+        ttk.Entry(roi_frame, textvariable=self.roi_buffer_radius_var, width=8).grid(
+            row=1, column=2, sticky="w", padx=5
+        )
 
         # Overlap ratio
-        ttk.Label(roi_frame, text="Sobreposição mínima (0–1):").grid(
-            row=2, column=0, sticky="w", padx=(0, 6), pady=2
+        ttk.Label(roi_frame, text="Sobreposição Mínima:").grid(
+            row=2, column=0, sticky="w", padx=(0, 2), pady=2
         )
-        ttk.Entry(roi_frame, textvariable=self.roi_overlap_ratio_var, width=8).grid(
-            row=2, column=1, sticky="w"
-        )
-        ttk.Label(
+        create_help_label(
             roi_frame,
-            text="É aplicado às regras bbox_intersects/seg_overlap.",
-            font=("TkDefaultFont", 8),
-            wraplength=320,
-        ).grid(row=2, column=2, sticky="w")
+            "Fração de Sobreposição Mínima\n\n"
+            "Mínimo de área do peixe (0 a 1) que deve estar na zona para contar.\n"
+            "• Ex: 0.50 significa que metade do peixe deve estar dentro."
+        ).grid(row=2, column=1, padx=2)
+        ttk.Entry(roi_frame, textvariable=self.roi_overlap_ratio_var, width=8).grid(
+            row=2, column=2, sticky="w", padx=5
+        )
 
         # Hint
         ttk.Label(
             roi_frame,
-            text="Dica: use o painel de Zonas para testar combinações em tempo real.",
+            text="💡 Dica: Estas são configurações GLOBAIS. Você pode alterá-las por projeto na aba de Zonas.",
             font=("TkDefaultFont", 8),
             foreground="#555555",
-        ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(6, 0))
+        ).grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
     def _build_action_buttons(self) -> None:
         """Build action buttons frame."""
@@ -359,6 +397,7 @@ class ConfigEditorWidget(BaseWidget):
             "video_processing": {
                 "fps": int(self.fps_var.get().strip()),
                 "processing_interval": int(self.processing_interval_var.get().strip()),
+                "display_interval": int(self.display_interval_var.get().strip()),
                 "processing_offset": int(self.processing_offset_var.get().strip()),
             },
             "trajectory_smoothing": {
@@ -388,6 +427,8 @@ class ConfigEditorWidget(BaseWidget):
                 self.fps_var.set(str(vp["fps"]))
             if "processing_interval" in vp:
                 self.processing_interval_var.set(str(vp["processing_interval"]))
+            if "display_interval" in vp:
+                self.display_interval_var.set(str(vp["display_interval"]))
             if "processing_offset" in vp:
                 self.processing_offset_var.set(str(vp["processing_offset"]))
 
