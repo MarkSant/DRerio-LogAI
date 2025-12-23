@@ -221,6 +221,7 @@ class ProcessingCoordinator(BaseCoordinator):
         # New: Batch processing state for Multi-Aquarium
         self._auto_assign_aquariums: bool = False
         self._last_assignment_configs: list[dict] | None = None
+        self._assigned_videos: set[str] = set()  # Idempotency guard
 
         log.info("processing_coordinator.initialized.phase3")
 
@@ -234,6 +235,7 @@ class ProcessingCoordinator(BaseCoordinator):
         """
         self._auto_assign_aquariums = False
         self._last_assignment_configs = None
+        self._assigned_videos.clear()  # Reset idempotency tracking
         log.info("processing_coordinator.multi_aquarium_state.reset")
 
     # ========================================================================
@@ -2047,6 +2049,15 @@ class ProcessingCoordinator(BaseCoordinator):
         if not video_path or not configs:
             return
 
+        # Idempotency guard: skip if already assigned
+        video_key = str(video_path)
+        if video_key in self._assigned_videos:
+            log.debug(
+                "assignment_complete.skipped_duplicate",
+                video=os.path.basename(video_path),
+            )
+            return
+
         # Update batch state
         if apply_to_all:
             self._auto_assign_aquariums = True
@@ -2078,10 +2089,22 @@ class ProcessingCoordinator(BaseCoordinator):
                 self.project_manager.save_multi_aquarium_zone_data(
                     video_path, zone_data, persist=should_persist
                 )
+
+                # Mark as assigned (idempotency)
+                self._assigned_videos.add(video_key)
+
+                # Mark zones as finalized (all aquariums have metadata)
+                video_entry = self.project_manager.find_video_entry(path=video_path)
+                if video_entry:
+                    video_entry["zones_finalized"] = True
+                    if self.project_manager.project_path:
+                        self.project_manager.save_project()
+
                 log.info(
                     "assignment_complete.zones_updated",
                     video=os.path.basename(video_path),
                     apply_to_all=apply_to_all,
+                    zones_finalized=True,
                 )
 
                 # 4. Refresh UI to show new groups/subjects (optional but good)

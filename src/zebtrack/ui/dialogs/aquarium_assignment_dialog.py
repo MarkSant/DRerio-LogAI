@@ -180,6 +180,22 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
         count = len(matches)
 
+        # Warn user if more matches than aquariums
+        if count > 2:
+            messagebox.showwarning(
+                "Aviso",
+                f"Encontradas {count} correspondências no nome do arquivo,\n"
+                "mas apenas 2 aquários são suportados.\n\n"
+                "Usando as 2 primeiras correspondências.",
+                parent=self,
+            )
+            log.warning(
+                "aquarium_assignment.excess_matches",
+                count=count,
+                used=2,
+                filename=os.path.basename(self.video_path) if self.video_path else None,
+            )
+
         for i in range(2):
             if i < count:
                 match = matches[i]
