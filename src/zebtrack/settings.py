@@ -299,7 +299,7 @@ class ByteTrackSettings(BaseModel):
         ),
     )
     max_center_distance: float = Field(
-        1000.0,
+        200.0,
         gt=0,
         description=(
             "Maximum center-to-center distance (in pixels) for hybrid matching fallback. "
@@ -320,7 +320,7 @@ class ByteTrackSettings(BaseModel):
         ),
     )
     iou_threshold: float = Field(
-        0.05,
+        0.1,
         ge=0,
         lt=1,
         description=(
@@ -349,7 +349,7 @@ class VideoProcessingSettings(BaseModel):
         description="Process 1 frame every N frames to optimize performance. Valid range: 1-1000.",
     )
     display_interval: int = Field(
-        10,
+        5,
         ge=1,
         le=1000,
         description="Update UI preview every N frames. Valid range: 1-1000.",
@@ -678,6 +678,49 @@ class LoggingSettings(BaseModel):
         return {k: v.upper() for k, v in v.items()}
 
 
+class BehavioralAnalysisSettings(BaseModel):
+    """Default settings for behavioral analysis metrics.
+
+    These settings control the default values for thigmotaxis and geotaxis calculations.
+    Users can override these values in the wizard or analysis dialogs.
+    """
+
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    default_thigmotaxis_distance_cm: float = Field(
+        1.5,
+        ge=0.1,
+        le=10.0,
+        description="Default distance threshold (cm) for thigmotaxis 'near wall' calculation",
+    )
+    default_geotaxis_distance_cm: float = Field(
+        1.5,
+        ge=0.1,
+        le=10.0,
+        description="Default distance threshold (cm) for geotaxis 'near bottom' calculation",
+    )
+    default_geotaxis_num_zones: int = Field(
+        3,
+        ge=2,
+        le=10,
+        description="Default number of vertical zones for geotaxis zone mode",
+    )
+    default_geotaxis_bottom_zones: int = Field(
+        1,
+        ge=1,
+        le=2,
+        description="Default number of bottom zones to consider as 'bottom' (1 or 2)",
+    )
+    aquarium_perspective: Literal["top_down", "lateral"] = Field(
+        "lateral",
+        description="Default perspective of the aquarium ('top_down' or 'lateral').",
+    )
+    geotaxis_mode: Literal["distance", "zones"] = Field(
+        "zones",
+        description="Default method for geotaxis calculation ('distance' or 'zones').",
+    )
+
+
 class AnalysisConfigSettings(BaseModel):
     """Configuration for analysis parameters."""
 
@@ -744,9 +787,6 @@ class Settings(BaseModel):
         description="Settings for weight file selection by type",
     )
 
-
-
-
     # ROI inclusion rule settings
     roi_inclusion_rule: Literal[
         "centroid_in",
@@ -772,6 +812,10 @@ class Settings(BaseModel):
     analysis_config: "AnalysisConfigSettings" = Field(
         default_factory=lambda: AnalysisConfigSettings(),  # type: ignore[call-arg]
         description="Configuration for analysis parameters like number of aquariums.",
+    )
+    behavioral_analysis: BehavioralAnalysisSettings = Field(
+        default_factory=lambda: BehavioralAnalysisSettings(),  # type: ignore[call-arg]
+        description="Default settings for thigmotaxis and geotaxis behavioral metrics.",
     )
 
     # Analysis settings
@@ -1001,6 +1045,40 @@ def reload_settings(
     return load_settings(default_config_path, override_config_path)
 
 
+def save_settings(
+    settings: Settings,
+    target_path: Path | str = Path("config.local.yaml"),
+) -> None:
+    """Save the current settings to a YAML file.
+
+    This allows persisting runtime configuration changes (like detector calibration)
+    to disk so they survive application restarts. By default, saves to
+    'config.local.yaml' to avoid modifying the version-controlled 'config.yaml'.
+
+    Args:
+        settings: The Settings object to save
+        target_path: Path to the output YAML file (default: config.local.yaml)
+    """
+    target_path = Path(target_path) if isinstance(target_path, str) else target_path
+
+    # Dump model to dict using json mode for better serialization compatibility
+    config_data = settings.model_dump(mode="json")
+
+    try:
+        with open(target_path, "w", encoding="utf-8") as f:
+            yaml.dump(
+                config_data,
+                f,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+            )
+        log.info("settings.save.success", path=str(target_path))
+    except Exception as e:
+        log.error("settings.save.failed", path=str(target_path), error=str(e))
+        raise
+
+
 def export_schema(
     output_path: Path | None = None,
     indent: int = 2,
@@ -1080,6 +1158,7 @@ __all__ = sorted(
         # Utility functions
         "load_settings",
         "reload_settings",
+        "save_settings",
         "export_schema",
     ],
     key=str.casefold,

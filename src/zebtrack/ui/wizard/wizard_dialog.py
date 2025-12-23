@@ -26,6 +26,9 @@ from zebtrack.ui.wizard.import_config_step import ImportConfigStep
 from zebtrack.ui.wizard.live_config_step import LiveConfigStep
 from zebtrack.ui.wizard.model_selection_step import ModelSelectionStep
 
+if TYPE_CHECKING:
+    from zebtrack.ui.event_bus import EventBus
+
 log = structlog.get_logger()
 
 
@@ -68,13 +71,19 @@ class WizardDialog(Dialog):
         result (dict | None): Final wizard output or None if cancelled
     """
 
-    def __init__(self, parent, settings_obj: "Settings | None" = None):
+    def __init__(
+        self,
+        parent,
+        settings_obj: "Settings | None" = None,
+        event_bus: "EventBus | None" = None,
+    ):
         """
         Initialize wizard dialog.
 
         Args:
             parent: Parent Tkinter widget (usually root window)
             settings_obj: Settings instance (optional)
+            event_bus: EventBus instance (optional)
         """
         self.all_steps = {}  # All possible steps indexed by WizardStepID
         self.active_steps = []  # Steps for current project type (updated dynamically)
@@ -87,6 +96,7 @@ class WizardDialog(Dialog):
         self.result = None  # Will be set on successful completion
         self._geometry_initialized = False
         self.settings = settings_obj  # Store settings for steps
+        self.event_bus = event_bus
 
         log.info("wizard.opened")
 
@@ -130,7 +140,9 @@ class WizardDialog(Dialog):
             WizardStepID.EXPERIMENTAL_DESIGN: ExperimentalDesignStep(
                 self.steps_container, self.wizard_data
             ),
-            WizardStepID.CALIBRATION: CalibrationStep(self.steps_container, self.wizard_data),
+            WizardStepID.CALIBRATION: CalibrationStep(
+                self.steps_container, self.wizard_data, event_bus=self.event_bus
+            ),
             WizardStepID.DETECTION_VALIDATION: DetectionStep(
                 self.steps_container, self.wizard_data
             ),

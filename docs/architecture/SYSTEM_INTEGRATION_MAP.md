@@ -8,7 +8,7 @@
 
 ## 0. Phase 3 Orchestrator Consolidation Status
 
-### Completed Orchestrator Removals (7 orchestrators deleted, ~2,500+ lines removed):
+### Completed Orchestrator Removals (7 orchestrators deleted, ~2,500+ lines removed)
 
 | Orchestrator | Lines | Status | Replacement |
 |-------------|-------|--------|-------------|
@@ -20,14 +20,14 @@
 | `ProjectOrchestrator` | ~300 | ❌ DELETED | ProjectLifecycleCoordinator |
 | `RecordingSessionOrchestrator` | ~633 | ❌ DELETED | SessionCoordinator |
 
-### Slim Orchestrators (kept for UI orchestration only):
+### Slim Orchestrators (kept for UI orchestration only)
 
 | Orchestrator | Lines | Status | Notes |
 |-------------|-------|--------|-------|
 | `VideoProcessingOrchestrator` | 140 | ✅ SLIM | Only `start_project_processing_workflow` kept |
 | `UIStateController` | 543 | ✅ ACTIVE | 17 production calls, manages weight/zone UI |
 
-### Super Coordinators (Phase 3 replacements):
+### Super Coordinators (Phase 3 replacements)
 
 | Coordinator | Responsibilities |
 |-------------|-----------------|
@@ -52,6 +52,7 @@
 ### 1.2. When to Use Each System
 
 **Use `EventBus` (v1) + `Events` class for:**
+
 - Recording lifecycle (`Events.RECORDING_START`, `Events.RECORDING_STOP`)
 - Project management (`Events.PROJECT_CREATE`, `Events.PROJECT_OPEN`)
 - Video analysis (`Events.VIDEO_ANALYZE_SINGLE`, `Events.VIDEO_CANCEL_ANALYSIS`)
@@ -59,6 +60,7 @@
 - Backend → UI notifications (`Events.UI_SHOW_ERROR`, `Events.UI_SET_STATUS`)
 
 **Use `EventBusV2` + `UIEvents` enum for:**
+
 - UI component state sync (`UIEvents.ZONES_UPDATED`, `UIEvents.VIDEO_LOADED`)
 - Inter-component communication (`UIEvents.POLYGON_EDIT_REQUESTED`)
 - View refresh requests (`UIEvents.VIDEO_TREE_REFRESH_REQUESTED`)
@@ -151,6 +153,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 **Track ID Convention**: Global ID = `aquarium_id * 1000 + local_track_id`. Aquarium 0 tracks: 0-999; Aquarium 1 tracks: 1000-1999; Aquarium 2 tracks: 2000-2999.
 
 **Multi-Aquarium Detection Features (Phase 1-5)**:
+
 - **ROI Cropping**: `Detector._crop_aquarium_region()` extracts per-aquarium frames
 - **Parallel Detection**: `Detector.detect_partitioned_parallel()` uses ThreadPoolExecutor
 - **Batch Inference**: `Detector.detect_batch()` for offline multi-frame processing
@@ -162,6 +165,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 - **Interval Persistence**: `analysis_interval_frames` and `display_interval_frames` are persisted in `project_data` during project creation and single-video analysis. The `display_interval` is now a first-class citizen in the `Settings` model.
 
 **Output Structure** (per video with multi-aquarium):
+
 ```
 <video>_aquarium_1/
   1_ArenaROI_<video>.parquet
@@ -190,6 +194,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 | `TRACKING_PARAMETERS_UPDATED` | `track_threshold`, `match_threshold`, `track_buffer`, `use_bytetrack`, `max_center_distance`, `iou_threshold` | `DetectorCoordinator` | UI components, StateManager |
 
 **Notes:**
+
 - All payload values are optional (None if not updated)
 - `use_bytetrack: bool` - Toggles between ByteTrack and SingleSubjectTracker
 - `track_buffer: int` - Frames to keep lost tracks (default: 300)
@@ -214,82 +219,102 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 Understanding who holds what references prevents "AttributeError" and circular dependency issues.
 
 ### 4.1. Dependency Container (`MainViewModelDependencies`)
-*   **Root Object:** Passed to `MainViewModel` and `ApplicationBootstrapper`.
-*   **Contains:**
-    *   `event_bus`: The communication channel.
-    *   `cancel_event`: **Shared** `threading.Event` for global cancellation.
-    *   `processing_coordinator`: Handles video loops.
-    *   `hardware_coordinator`: Handles Detector/Camera.
-    *   `session_coordinator`: Handles Recording/Arduino.
-    *   `project_lifecycle_coordinator`: Handles Project CRUD.
-    *   `ui_coordinator`: Renamed to `UIScheduler` (`zebtrack.core.ui_scheduler`) to avoid collision with `zebtrack.ui.ui_coordinator` (Mediator).
+
+* **Root Object:** Passed to `MainViewModel` and `ApplicationBootstrapper`.
+- **Contains:**
+  - `event_bus`: The communication channel.
+  - `cancel_event`: **Shared** `threading.Event` for global cancellation.
+  - `processing_coordinator`: Handles video loops.
+  - `hardware_coordinator`: Handles Detector/Camera.
+  - `session_coordinator`: Handles Recording/Arduino.
+  - `project_lifecycle_coordinator`: Handles Project CRUD.
+  - `ui_coordinator`: Renamed to `UIScheduler` (`zebtrack.core.ui_scheduler`) to avoid collision with `zebtrack.ui.ui_coordinator` (Mediator).
 
 ### 4.2. ProcessingCoordinator
-*   **Owns:**
-    *   `ProcessingWorker` (The background process).
-    *   `ProcessingContext` (Config for the worker).
-*   **Accesses:**
-    *   `ProjectManager` (Read/Write project data).
-    *   `DetectorService` (To configure detectors).
-    *   `EventBus` (To publish updates).
-    *   `core.UIScheduler` (Directly calls `update_view` - Hybrid Pattern).
-*   **DOES NOT Access:**
-    *   `MainViewModel` (Strictly forbidden).
-    *   `ApplicationGUI` (Directly - uses events or `ui_coordinator` abstraction).
+
+* **Owns:**
+  - `ProcessingWorker` (The background process).
+  - `ProcessingContext` (Config for the worker).
+- **Accesses:**
+  - `ProjectManager` (Read/Write project data).
+  - `DetectorService` (To configure detectors).
+  - `EventBus` (To publish updates).
+  - `core.UIScheduler` (Directly calls `update_view` - Hybrid Pattern).
+- **DOES NOT Access:**
+  - `MainViewModel` (Strictly forbidden).
+  - `ApplicationGUI` (Directly - uses events or `ui_coordinator` abstraction).
 
 ---
 
 ## 5. Critical Control Flows (The Recipes)
 
-### 5.1. Single Video Analysis Flow
-1.  **User Action:** Clicks "Analyze" in Dialog.
-2.  **Dispatcher:** Publishes `Events.VIDEO_ANALYZE_SINGLE` with payload `{'video_path': '...', 'config': {...}}`.
-3.  **ViewModel:** `AnalysisControlViewModel.start_single_video_workflow` is triggered.
-    *   Validates config.
-    *   Sets `active_zone_video` in `ProjectManager`.
-    *   Publishes `ui:setup_zone_definition_for_single_video` to prepare UI.
-4.  **Coordinator:** `AnalysisControlViewModel.start_single_video_processing` calls `ProcessingCoordinator`.
-    *   Validates logic (is project loaded? are zones defined?).
-    *   Creates `ProcessingContext` and `ProcessingCallbacks`.
-    *   **Spawns `ProcessingWorker`** in a separate thread/process.
-    *   Sets `state_manager.is_processing = True`.
-5.  **Worker Loop:** `ProcessingWorker` reads frames.
-    *   Detects objects.
-    *   Sends `result_queue.put({'type': 'frame', 'frame': img, 'detections': [...], 'info': {...}})`.
-6.  **Feedback Loop:** `ProcessingCoordinator._monitor_loop` reads queue.
-    *   Publishes `Events.UI_DISPLAY_FRAME` (Image).
-    *   Publishes `Events.UI_UPDATE_DETECTION_OVERLAY` (Meta).
-7.  **UI Update:** `EventDispatcher` receives events -> updates `CanvasManager`.
+### 3.8. Behavioral Configuration Events (New - Dec 2025)
+
+| Event (EventBus v1) | Payload Keys | Publishers | Subscribers |
+|---------------------|--------------|------------|-------------|
+| `behavioral_config.perspective_changed` | `video_path`, `perspective` | `BehavioralConfigWidget` | (Logging/Suppressed) |
+| `behavioral_config.values_changed` | `config` (dict) | `BehavioralConfigWidget` | (Logging/Suppressed) |
+
+> **Note**: These events are currently used primarily for internal component sync or logging. They are suppressed in `EventBus` to avoid "no handlers" warnings since the `SingleVideoConfigDialog` reads the values directly from the widget.
+
+### 5.1. Single Video Analysis Flow (Enhanced Dec 2025)
+
+1. **User Action:** Clicks "Analyze" in Dialog.
+    - **Config Persistence:** Dialog defaults (`aquarium_perspective`, `geotaxis_*`) are saved to `Settings.behavioral_analysis`.
+2. **Dispatcher:** Publishes `Events.VIDEO_ANALYZE_SINGLE` with payload `{'video_path': '...', 'config': {...}}`.
+3. **ViewModel:** `AnalysisControlViewModel.start_single_video_workflow` is triggered.
+    - Validates config.
+    - Sets `active_zone_video` in `ProjectManager`.
+    - Publishes `ui:setup_zone_definition_for_single_video` to prepare UI.
+4. **Coordinator:** `AnalysisControlViewModel.start_single_video_processing` calls `ProcessingCoordinator`.
+    - **Context:** Collects `behavioral_config` from project/settings.
+    - Validates logic (is project loaded? are zones defined?).
+    - Creates `ProcessingContext` and `ProcessingCallbacks`.
+    - **Spawns `ProcessingWorker`** in a separate thread/process.
+    - Sets `state_manager.is_processing = True`.
+5. **Worker Loop:** `ProcessingWorker` reads frames.
+    - Detects objects.
+    - Sends `result_queue.put({'type': 'frame', 'frame': img, 'detections': [...], 'info': {...}})`.
+6. **Completion & Reporting:**
+    - `ProcessingCoordinator.on_video_completed` triggers.
+    - Calls `generate_project_reports`.
+    - **CRITICAL:** `behavioral_config` is explicitly passed to `AnalysisService` to ensure Perspective/Geotaxis settings are respected.
+    - `Reporter` uses `DataTransformer.rename_geotaxis_columns` to format labels (e.g., "Fundo (0-5cm)").
+7. **UI Update:** `EventDispatcher` receives events -> updates `CanvasManager`.
 
 ### 5.2. Cancellation Flow (Hardened)
-1.  **User Action:** Clicks "Cancel".
-2.  **Dispatcher:** Publishes `Events.VIDEO_CANCEL_ANALYSIS`.
-3.  **ViewModel:** `AnalysisControlViewModel` receives event.
-    *   **CRITICAL:** Calls `self.processing_coordinator.cancel_processing()`.
-4.  **Coordinator:** `ProcessingCoordinator.cancel_processing()`:
-    *   Sets `self.cancel_event.set()`.
-    *   Calls `self.processing_worker.cancel()`.
-5.  **Worker:** `ProcessingWorker` checks `command_queue` or `cancel_event`.
-    *   Breaks loop cleanly.
-    *   Sends `{'type': 'completed', 'cancelled': True}`.
-6.  **Cleanup:** `monitor_loop` receives completed message -> resets state -> Updates UI to "Ready".
+
+1. **User Action:** Clicks "Cancel".
+2. **Dispatcher:** Publishes `Events.VIDEO_CANCEL_ANALYSIS`.
+3. **ViewModel:** `AnalysisControlViewModel` receives event.
+    - **CRITICAL:** Calls `self.processing_coordinator.cancel_processing()`.
+4. **Coordinator:** `ProcessingCoordinator.cancel_processing()`:
+    - Sets `self.cancel_event.set()`.
+    - Calls `self.processing_worker.cancel()`.
+5. **Worker:** `ProcessingWorker` checks `command_queue` or `cancel_event`.
+    - Breaks loop cleanly.
+    - Sends `{'type': 'completed', 'cancelled': True}`.
+6. **Cleanup:** `monitor_loop` receives completed message -> resets state -> Updates UI to "Ready".
 
 ### 5.3. Live Camera Flow (Intentional Divergence)
 
 **Decision:** Live camera uses `LivePreviewWindow` dedicated display instead of `CanvasManager`.
 
 **Architecture:**
+
 - **Logic:** Managed by `LiveCameraCoordinator` -> `LiveCameraService`
 - **Display:** Creates and manages a dedicated `LivePreviewWindow` (Tkinter Toplevel)
 - **Updates:** Calls `self.preview_window.update_frame()` directly from the service thread (via `root.after`)
 - **Events:** Does NOT use `Events.UI_DISPLAY_FRAME`
 
 **Justification:**
+
 1. **Different Threading Model:** Live camera requires daemon threads for capture + processing, different from `ProcessingWorker`'s queue-based approach
 2. **Different Lifecycle:** Preview window is created/destroyed per camera session, not bound to main canvas
 3. **Recent Stabilization:** Unified in Phase 8 (Jan 2025) - working reliably with no user complaints
 
 **Trade-offs:**
+
 - Features built for `CanvasManager` (drawing tools) are NOT available in live preview
 - If needed, implement equivalent features directly in `LivePreviewWindow`
 
@@ -299,16 +324,16 @@ Understanding who holds what references prevents "AttributeError" and circular d
 
 ## 6. Common Pitfalls for Agents
 
-1.  **Missing Event Payloads:** Always check the **Event Registry** above. If you publish `UI_DISPLAY_FRAME` without the `frame` key, the UI will crash or show nothing.
-2.  **Direct UI Access:** Do not try to access `self.view.canvas` from a Coordinator. Use `self.event_bus.publish(Events.UI_..., data)`.
-3.  **Worker Isolation:** The `ProcessingWorker` runs in a separate process (multiprocessing). It cannot access global variables or shared objects (like `self.detector`) modified in the main thread *after* it started. Everything must be passed in `ProcessingContext`.
-4.  **Legacy vs. New:**
-    *   **Legacy:** `VideoProcessingOrchestrator`, `AnalysisOrchestrator` (Avoid modifying if possible).
-    *   **New (Phase 3):** `ProcessingCoordinator` (Preferred location for logic).
-5.  **UIScheduler (Resolved Naming Conflict):** Phase 2 renamed `zebtrack.core.ui_coordinator.UICoordinator` to `UIScheduler`.
-    *   `zebtrack.core.ui_scheduler.UIScheduler`: A scheduler/facade for `root.after`. Used by `ProcessingCoordinator`.
-    *   `zebtrack.ui.ui_coordinator.UICoordinator`: A Mediator for EventBus events. Used by `EventDispatcher`.
-    *   **Reason:** Eliminated name collision that caused type confusion and import errors.
+1. **Missing Event Payloads:** Always check the **Event Registry** above. If you publish `UI_DISPLAY_FRAME` without the `frame` key, the UI will crash or show nothing.
+2. **Direct UI Access:** Do not try to access `self.view.canvas` from a Coordinator. Use `self.event_bus.publish(Events.UI_..., data)`.
+3. **Worker Isolation:** The `ProcessingWorker` runs in a separate process (multiprocessing). It cannot access global variables or shared objects (like `self.detector`) modified in the main thread *after* it started. Everything must be passed in `ProcessingContext`.
+4. **Legacy vs. New:**
+    - **Legacy:** `VideoProcessingOrchestrator`, `AnalysisOrchestrator` (Avoid modifying if possible).
+    - **New (Phase 3):** `ProcessingCoordinator` (Preferred location for logic).
+5. **UIScheduler (Resolved Naming Conflict):** Phase 2 renamed `zebtrack.core.ui_coordinator.UICoordinator` to `UIScheduler`.
+    - `zebtrack.core.ui_scheduler.UIScheduler`: A scheduler/facade for `root.after`. Used by `ProcessingCoordinator`.
+    - `zebtrack.ui.ui_coordinator.UICoordinator`: A Mediator for EventBus events. Used by `EventDispatcher`.
+    - **Reason:** Eliminated name collision that caused type confusion and import errors.
 6. **Dual Event Bus:** Use `Events` class with `EventBus` for domain events; use `UIEvents` enum with `EventBusV2` for UI component communication. **Do NOT mix them.**
 7. **ByteTracker Kalman Filter Drift:** The ByteTracker uses a Kalman Filter that can predict track positions OUTSIDE the original polygon boundary. All tracking output MUST be re-filtered by the polygon after `_apply_byte_tracking()`. This was fixed in Dec 2025 - see `detector.py:_apply_byte_tracking()` post-filter logic.
 8. **BBox Overlay Tab Check (Updated Jan 2025):** Detection overlays are drawn ONLY by `canvas_manager.update_video_frame()` which checks the current tab. The `processing_worker` does NOT call `detector.draw_overlay()` anymore - it sends the raw frame, and `canvas_manager` decides whether to draw overlays based on `is_on_analysis_tab`. This prevents bboxes from appearing on the zone drawing tab.

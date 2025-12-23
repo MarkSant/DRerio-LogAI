@@ -1,7 +1,7 @@
 <div align="center">
   <img src="src/zebtrack/ui/assets/logo_readme.png" alt="ZebTrack-AI Logo" width="400"/>
 
-  # ZebTrack-AI
+# ZebTrack-AI
 
   **Plataforma Inteligente de Rastreamento e Análise Comportamental para *Danio rerio* (Zebrafish)**
 
@@ -24,6 +24,7 @@ O **ZebTrack-AI** é uma solução completa e de código aberto para análise au
 ### 🎯 Motivação
 
 Pesquisadores em neurociência, farmacologia e toxicologia frequentemente utilizam zebrafish como modelo animal devido à sua transparência óptica, rápido desenvolvimento e alta homologia genética com humanos (~70%). No entanto, a análise manual de vídeos comportamentais é:
+
 - **Demorada**: Horas de trabalho para analisar minutos de vídeo
 - **Subjetiva**: Variabilidade entre observadores
 - **Limitada**: Impossibilidade de rastrear múltiplos indivíduos simultaneamente
@@ -46,46 +47,52 @@ O **ZebTrack-AI** resolve esses problemas oferecendo análise automatizada, obje
 
 A v4.0 representa uma reescrita fundamental do sistema com foco em estabilidade, manutenibilidade e performance:
 
-*   **🏗️ Arquitetura Event-Driven**: Refatoração completa para eliminar acoplamento direto entre componentes
-    - Sistema de eventos com `EventBus` para comunicação assíncrona
-    - Padrão Mediator (`UICoordinator`) para orquestração da UI
-    - Eliminação de 90+ linhas de código legado de threads
-*   **🎨 Interface Otimizada**: Nova aba unificada de "Processamento e Relatórios"
-    - Redução de 50% no uso de memória durante renderização
-    - Eliminação de race conditions em atualizações de UI
-    - Preview em tempo real com `LivePreviewWindow`
-*   **⚡ Performance**: Melhorias significativas de velocidade
-    - Startup 67% mais rápido (6.0s → 2.0s) com lazy loading
-    - `RecorderFactory` para carregamento sob demanda de pandas/pyarrow
-    - Cache de hardware com TTL de 30s (5x mais rápido)
-*   **🔒 Confiabilidade**: Sistema de testes robusto
-    - 2568 testes (61% de cobertura)
-    - Testes E2E para fluxos críticos
-    - Timeout automático para prevenir travamentos (pytest-timeout)
-*   **🐛 Correções Críticas**: Resolução de bugs de câmera ao vivo
-    - Seleção correta de `camera_index` em projetos live
-    - Respeito a intervalos de análise configurados
-    - Unificação de `LiveCameraService` para ambos os contextos
-*   **💡 Ajuda Contextual**: Novo sistema de ícones de informação (ⓘ)
-    - Tooltips detalhados para todos os parâmetros de IA e calibração
-    - Explicações claras sobre o impacto de aumentar ou diminuir valores
-    - Sincronização em tempo real entre diálogos de configuração e o `Settings` global
+- **🏗️ Arquitetura Event-Driven**: Refatoração completa para eliminar acoplamento direto entre componentes
+  - Sistema de eventos com `EventBus` para comunicação assíncrona
+  - Padrão Mediator (`UICoordinator`) para orquestração da UI
+  - Eliminação de 90+ linhas de código legado de threads
+- **🎨 Interface Otimizada**: Nova aba unificada de "Processamento e Relatórios"
+  - Redução de 50% no uso de memória durante renderização
+  - Eliminação de race conditions em atualizações de UI
+  - Preview em tempo real com `LivePreviewWindow`
+- **⚡ Performance**: Melhorias significativas de velocidade
+  - Startup 67% mais rápido (6.0s → 2.0s) com lazy loading
+  - `RecorderFactory` para carregamento sob demanda de pandas/pyarrow
+  - Cache de hardware com TTL de 30s (5x mais rápido)
+- **🔒 Confiabilidade**: Sistema de testes robusto
+  - 2568 testes (61% de cobertura)
+  - Testes E2E para fluxos críticos
+  - Timeout automático para prevenir travamentos (pytest-timeout)
+- **🐛 Correções Críticas**: Resolução de bugs de câmera ao vivo
+  - Seleção correta de `camera_index` em projetos live
+  - Respeito a intervalos de análise configurados
+  - Unificação de `LiveCameraService` para ambos os contextos
+- **💡 Ajuda Contextual**: Novo sistema de ícones de informação (ⓘ)
+  - Tooltips detalhados para todos os parâmetros de IA e calibração
+  - Explicações claras sobre o impacto de aumentar ou diminuir valores
+  - Sincronização em tempo real entre diálogos de configuração e o `Settings` global
 
 ### Multi-Aquarium v2 (Novo!)
 
 Suporte avançado para análise simultânea de múltiplos aquários:
 
-*   **🔄 Detecção Paralela**: `detect_partitioned_parallel()` com ThreadPoolExecutor (~30-40% speedup)
-*   **📦 Inferência em Lote**: `detect_batch()` para processamento offline otimizado
-*   **✂️ Recorte ROI**: `_crop_aquarium_region()` para extração individual por aquário
-*   **📊 Métricas de Incerteza**: Colunas `uncertainty` e `bbox_iou` no Parquet para análise de qualidade
-*   **🔬 Thigmotaxis**: Métricas de preferência de borda por aquário
-*   **✅ Validação Avançada**: `validate_multi_aquarium_config()` retorna erros e avisos
-*   **🔍 Detecção de Gaps**: `_detect_per_aquarium_gaps()` para lacunas de trajetória por aquário
-*   **🛡️ Recuperação de Erros**: Fallback automático quando detecção em aquário individual falha
-*   **📤 Exportação R/Python**: Scripts prontos para análise estatística em R ou Python
-*   **🖼️ Preview Lado-a-lado**: `create_side_by_side_preview()` para comparação visual
-*   **📝 Relatórios por Aquário (Word/Excel)**: artefatos separados por `aquarium_0/`, `aquarium_1/` e exibição correta na aba de Relatórios
+- **🔄 Detecção Paralela**: `detect_partitioned_parallel()` com ThreadPoolExecutor (~30-40% speedup)
+- **📦 Inferência em Lote**: `detect_batch()` para processamento offline otimizado
+- **✂️ Recorte ROI**: `_crop_aquarium_region()` para extração individual por aquário
+- **📊 Métricas de Incerteza**: Colunas `uncertainty` e `bbox_iou` no Parquet para análise de qualidade
+- **🔬 Thigmotaxis**: Métricas de preferência de borda por aquário
+- **✅ Validação Avançada**: `validate_multi_aquarium_config()` retorna erros e avisos
+- **🔍 Detecção de Gaps**: `_detect_per_aquarium_gaps()` para lacunas de trajetória por aquário
+- **🛡️ Recuperação de Erros**: Fallback automático quando detecção em aquário individual falha
+- **📤 Exportação R/Python**: Scripts prontos para análise estatística em R ou Python
+- **🖼️ Preview Lado-a-lado**: `create_side_by_side_preview()` para comparação visual
+- **📝 Relatórios por Aquário (Word/Excel)**: artefatos separados por `aquarium_0/`, `aquarium_1/` e exibição correta na aba de Relatórios
+
+### Análise Comportamental Expandida
+
+- **🧠 Geotaxia (Novel Tank Test)**: Suporte nativo para perspectiva lateral com zonas verticais (Fundo/Meio/Superfície)
+- **📏 Demarcação Visual**: Linhas de zona automáticas em plots de trajetória e heatmaps para visualização clara de preferência de altura
+- **📄 Relatórios Contextuais**: Nomenclatura adaptativa de colunas baseada na perspectiva da câmera
 
 ## 🛠️ Instalação
 
@@ -101,7 +108,8 @@ Suporte avançado para análise simultânea de múltiplos aquários:
 
 ### Instalação Rápida
 
-1.  **Pré-requisitos**: Certifique-se de ter Python 3.11+ e Poetry instalados
+1. **Pré-requisitos**: Certifique-se de ter Python 3.11+ e Poetry instalados
+
     ```bash
     # Verificar versão do Python
     python --version
@@ -110,18 +118,21 @@ Suporte avançado para análise simultânea de múltiplos aquários:
     curl -sSL https://install.python-poetry.org | python3 -
     ```
 
-2.  **Clone o repositório**:
+2. **Clone o repositório**:
+
     ```bash
     git clone https://github.com/MarkSant/ZebTrack-AI.git
     cd ZebTrack-AI
     ```
 
-3.  **Instale as dependências**:
+3. **Instale as dependências**:
+
     ```bash
     poetry install
     ```
 
-4.  **(Opcional) Configure parâmetros locais**:
+4. **(Opcional) Configure parâmetros locais**:
+
     ```bash
     # Copie o template de configuração local
     cp config.yaml config.local.yaml
@@ -175,6 +186,7 @@ poetry run zebtrack report --project meu_projeto
 ### Primeira Execução
 
 Na primeira execução, o sistema irá:
+
 1. **Baixar modelos YOLO**: Os modelos de detecção (~6 MB) serão baixados automaticamente
 2. **Criar diretórios**: Estrutura de pastas para projetos, templates e cache
 3. **Exibir Wizard**: Interface guiada para criar seu primeiro projeto
@@ -250,6 +262,7 @@ poetry run zebtrack live \
 ### Métricas Comportamentais
 
 #### Métricas Espaciais
+
 - **Distância Total Percorrida**: Em pixels e centímetros (com calibração)
 - **Velocidade Média/Máxima**: Cálculo frame-a-frame com janelas temporais
 - **Ocupação de Zonas**: Tempo em centro vs. periferia (tixotropismo)
@@ -257,12 +270,14 @@ poetry run zebtrack live \
 - **Proximidade Social**: Distância média entre indivíduos
 
 #### Métricas Temporais
+
 - **Tempo de Imobilidade**: Detecção de freezing (velocidade < threshold)
 - **Tempo em Movimento**: Atividade locomotora contínua
 - **Latência de Resposta**: Tempo até primeiro movimento após estímulo
 - **Frequência de Eventos**: Entradas/saídas de zonas ou ROIs
 
 #### Métricas Avançadas
+
 - **Tortuosidade**: Razão entre distância percorrida e distância euclidiana
 - **Meandros**: Mudanças de direção (ângulos de curva)
 - **Distribuição Espacial**: Heatmaps e mapas de ocupação
@@ -288,28 +303,32 @@ poetry run zebtrack live \
 A documentação técnica está disponível na pasta `docs/`:
 
 ### Guias Essenciais
-*   📚 [**CHEATSHEET.md**](docs/guides/developer/CHEATSHEET.md) - Referência rápida de comandos e padrões
-*   🏗️ [**ARCHITECTURE.md**](docs/architecture/ARCHITECTURE.md) - Arquitetura Event-Driven e Mediator
-*   👨‍💻 [**DEVELOPER_GUIDE.md**](docs/guides/developer/DEVELOPER_GUIDE.md) - Guia completo para contribuidores
-*   🧙 [**DEVELOPER_GUIDE_WIZARD.md**](docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md) - Desenvolvimento do Wizard
-*   🧪 [**README_TESTS.md**](README_TESTS.md) - Guia completo de testes (2568 testes)
+
+* 📚 [**CHEATSHEET.md**](docs/guides/developer/CHEATSHEET.md) - Referência rápida de comandos e padrões
+- 🏗️ [**ARCHITECTURE.md**](docs/architecture/ARCHITECTURE.md) - Arquitetura Event-Driven e Mediator
+- 👨‍💻 [**DEVELOPER_GUIDE.md**](docs/guides/developer/DEVELOPER_GUIDE.md) - Guia completo para contribuidores
+- 🧙 [**DEVELOPER_GUIDE_WIZARD.md**](docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md) - Desenvolvimento do Wizard
+- 🧪 [**README_TESTS.md**](README_TESTS.md) - Guia completo de testes (2568 testes)
 
 ### Guias Técnicos
-*   🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/architecture/DEPENDENCY_INJECTION_GUIDE.md) - Padrões de DI
-*   📡 [**EVENT_BUS_GUIDE.md**](docs/architecture/EVENT_BUS_GUIDE.md) - Sistema de eventos
-*   🗺️ [**COORDINATE_SYSTEMS.md**](docs/reference/COORDINATE_SYSTEMS.md) - Sistemas de coordenadas
-*   🎯 [**STATE_MANAGEMENT_GUIDE.md**](docs/architecture/STATE_MANAGEMENT_GUIDE.md) - Gerenciamento de estado
-*   🚀 [**PERFORMANCE_TUNING.md**](docs/performance/PERFORMANCE_TUNING.md) - Otimizações
+
+* 🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/architecture/DEPENDENCY_INJECTION_GUIDE.md) - Padrões de DI
+- 📡 [**EVENT_BUS_GUIDE.md**](docs/architecture/EVENT_BUS_GUIDE.md) - Sistema de eventos
+- 🗺️ [**COORDINATE_SYSTEMS.md**](docs/reference/COORDINATE_SYSTEMS.md) - Sistemas de coordenadas
+- 🎯 [**STATE_MANAGEMENT_GUIDE.md**](docs/architecture/STATE_MANAGEMENT_GUIDE.md) - Gerenciamento de estado
+- 🚀 [**PERFORMANCE_TUNING.md**](docs/performance/PERFORMANCE_TUNING.md) - Otimizações
 
 ### Guias Operacionais
-*   📋 [**REFERENCE_GUIDE.md**](docs/reference/REFERENCE_GUIDE.md) - Guia operacional completo
-*   🔄 [**WORKFLOWS.md**](docs/guides/developer/WORKFLOWS.md) - Fluxos de trabalho detalhados
-*   🐛 [**QUICK_DEBUG_GUIDE.md**](docs/guides/developer/QUICK_DEBUG_GUIDE.md) - Solução de problemas
-*   ⚠️ [**KNOWN_ISSUES.md**](docs/reference/KNOWN_ISSUES.md) - Problemas conhecidos e soluções
-*   📝 [**CHANGELOG.md**](docs/changelog.md) - Histórico de versões
+
+* 📋 [**REFERENCE_GUIDE.md**](docs/reference/REFERENCE_GUIDE.md) - Guia operacional completo
+- 🔄 [**WORKFLOWS.md**](docs/guides/developer/WORKFLOWS.md) - Fluxos de trabalho detalhados
+- 🐛 [**QUICK_DEBUG_GUIDE.md**](docs/guides/developer/QUICK_DEBUG_GUIDE.md) - Solução de problemas
+- ⚠️ [**KNOWN_ISSUES.md**](docs/reference/KNOWN_ISSUES.md) - Problemas conhecidos e soluções
+- 📝 [**CHANGELOG.md**](docs/changelog.md) - Histórico de versões
 
 ### Documentos Históricos
-*   📦 [**archive/**](docs/archive/) - Documentação de versões anteriores
+
+* 📦 [**archive/**](docs/archive/) - Documentação de versões anteriores
 
 ## 🏗️ Estrutura do Projeto
 
@@ -403,6 +422,7 @@ User → UI Event → EventBus → Handler → StateManager → UI Update
 ```
 
 **Benefícios**:
+
 - ✅ Desacoplamento total entre componentes
 - ✅ Testabilidade (injeção de dependências)
 - ✅ Thread-safety (comunicação assíncrona)
@@ -467,24 +487,32 @@ Contribuições são muito bem-vindas! Este projeto segue práticas modernas de 
 1. **Fork** o repositório
 2. **Clone** seu fork localmente
 3. **Crie uma branch** para sua feature/fix:
+
    ```bash
    git checkout -b feature/minha-feature
    ```
+
 4. **Instale dependências de desenvolvimento**:
+
    ```bash
    poetry install --with dev
    poetry run pre-commit install
    ```
+
 5. **Faça suas alterações** seguindo os padrões do projeto
 6. **Execute os testes**:
+
    ```bash
    poetry run pytest -q
    poetry run ruff check .
    ```
+
 7. **Commit** suas mudanças com mensagens claras:
+
    ```bash
    git commit -m "feat: adiciona suporte para YOLO v12"
    ```
+
 8. **Push** para seu fork e abra um **Pull Request**
 
 ### Diretrizes de Código
@@ -532,12 +560,14 @@ https://github.com/MarkSant/ZebTrack-AI
 Este projeto está licenciado sob a **MIT License** - veja o arquivo [LICENSE](LICENSE) para detalhes.
 
 **Em resumo**, você pode:
+
 - ✅ Usar comercialmente
 - ✅ Modificar
 - ✅ Distribuir
 - ✅ Uso privado
 
 **Condições**:
+
 - 📋 Manter a licença e copyright
 - ⚠️ Sem garantias
 

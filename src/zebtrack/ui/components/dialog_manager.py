@@ -442,7 +442,11 @@ class DialogManager:
         Returns:
             Dialog result with video config, or None if cancelled
         """
-        dialog = SingleVideoConfigDialog(self.gui.root, settings_obj=self.gui.controller.settings)
+        dialog = SingleVideoConfigDialog(
+            self.gui.root,
+            settings_obj=self.gui.controller.settings,
+            event_bus=self.gui.event_bus,
+        )
         return dialog.result if dialog.result else None
 
     # =========================================================================

@@ -26,7 +26,8 @@
       "Bash(then mv tests/core/test_ui_coordinator.py tests/core/test_ui_scheduler.py)",
       "Bash(else echo \"File not found\")",
       "Bash(fi)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []

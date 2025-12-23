@@ -1,9 +1,95 @@
+camera:
+  index: 1
+  desired_width: 1280
+  desired_height: 720
+  max_reconnect_attempts: 10
+  reconnect_timeout_seconds: 60.0
+  max_frame_lag_ms: 500.0
+arduino:
+  port: COM5
+  baud_rate: 9600
 yolo_model:
+  path: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\best_seg.pt
   confidence_threshold: 0.1
   nms_threshold: 0.3
+  use_half_precision: true
+  inference_size: 640
+video_processing:
+  fps: 30
+  processing_interval: 5
+  display_interval: 5
+  processing_offset: 1
+  sharp_turn_threshold_deg_s: 90.0
+  freezing_velocity_threshold: 1.5
+  freezing_min_duration_s: 1.0
+  single_animal_per_aquarium: false
+  batch_retry_strategy: continue
+reproducibility:
+  seed: 42
+recorder:
+  flush_interval_seconds: 5.0
+  flush_row_threshold: 500
+live_analysis:
+  default_duration_s: 300.0
+  max_duration_s: 7200.0
+  auto_stop_on_limit: true
+  show_countdown: true
+  countdown_duration_s: 5
 bytetrack:
   track_threshold: 0.25
-  match_threshold: 0.95  # Very permissive for stable IDs
-  max_center_distance: 400.0  # ~10 body lengths
-  track_buffer: 150  # Keeps lost tracks longer
-  iou_threshold: 0.05  # Prefer center distance for small objects
+  match_threshold: 0.95
+  max_center_distance: 200.0
+  track_buffer: 150
+  iou_threshold: 0.1
+tracking:
+  use_bytetrack: true
+  use_single_subject_tracker: true
+detection_zones:
+  polygon: []
+  roi_polygons: []
+  roi_names: []
+  roi_colors: []
+  min_aquarium_area_ratio: 0.1
+  max_aquarium_area_ratio: 0.98
+model_selection:
+  aquarium_method: seg
+  animal_method: det
+  use_openvino: true
+weights:
+  seg_filename: best_seg.pt
+  det_filename: best_oi.pt
+roi_inclusion_rule: bbox_intersects
+roi_buffer_radius_value: 0.5
+roi_min_bbox_overlap_ratio: 0.05
+analysis_config:
+  num_aquariums: 1
+behavioral_analysis:
+  default_thigmotaxis_distance_cm: 1.5
+  default_geotaxis_distance_cm: 1.5
+  default_geotaxis_num_zones: 3
+  default_geotaxis_bottom_zones: 1
+  aquarium_perspective: lateral
+  geotaxis_mode: zones
+ui_features:
+  use_wizard_for_project_creation: true
+  enable_event_queue: false
+  suppress_roi_mismatch_warning: false
+trajectory_smoothing:
+  window_length: 7
+  polyorder: 3
+angular_velocity:
+  min_displacement_threshold_cm: 0.5
+  angle_calculation_window: 1
+  angular_velocity_smoothing_window: 3
+performance:
+  max_parallel_videos: 2
+  max_parallel_plots: 3
+  parquet_compression: snappy
+  enable_parallel_analysis: true
+logging:
+  levels:
+    zebtrack: INFO
+    zebtrack.core.detector: INFO
+    zebtrack.ui: WARNING
+    zebtrack.io: WARNING
+    zebtrack.analysis: INFO

@@ -121,6 +121,7 @@ class CanvasRenderer:
             "elastic_line",
             "drawing_aid",
             "temp_vertex",
+            "geotaxis_zone",
         ]:
             canvas.delete(tag)
 
@@ -152,7 +153,20 @@ class CanvasRenderer:
             # Try to load a frame if there's no background image
             self.manager.load_video_frame_to_canvas()
 
+        # Draw Geotaxis Zones if enabled
+        if getattr(self.manager, "show_geotaxis_zones", False):
+            # Get config from manager or settings
+            settings = getattr(self.manager.gui, "settings", None)
+            num_zones = 3
+            bottom_zones = 1
+            if settings and hasattr(settings, "behavioral_analysis"):
+                num_zones = settings.behavioral_analysis.default_geotaxis_num_zones
+                bottom_zones = settings.behavioral_analysis.default_geotaxis_bottom_zones
+
+            self.draw_geotaxis_zones(num_zones=num_zones, bottom_zones=bottom_zones)
+
         # Handle Multi-Aquarium Data
+
         from zebtrack.core.detector import MultiAquariumZoneData
 
         if isinstance(zone_data, MultiAquariumZoneData):
@@ -164,7 +178,7 @@ class CanvasRenderer:
                             canvas_point = self.manager._video_to_canvas(point[0], point[1])
                             canvas_polygon.extend([canvas_point[0], canvas_point[1]])
 
-                        # Use different colors for different aquariums if desired, 
+                        # Use different colors for different aquariums if desired,
                         # or stick to the standard Teal
                         outline_color = "#008B8B" if aquarium.id == 0 else "#0066CC"
 
@@ -175,31 +189,29 @@ class CanvasRenderer:
                             width=2,
                             tags=("main_polygon", f"aquarium_{aquarium.id}"),
                         )
-                        
+
                         # Add label for aquarium
                         center_x = sum(canvas_polygon[0::2]) / len(aquarium.polygon)
                         center_y = sum(canvas_polygon[1::2]) / len(aquarium.polygon)
-                        
+
                         canvas.create_text(
-                            center_x, 
+                            center_x,
                             center_y,
                             text=f"Aquário {aquarium.id + 1}",
                             fill=outline_color,
                             font=("Segoe UI", 10, "bold"),
                             tags=("main_polygon", "aquarium_label"),
                         )
-                        
+
                     except Exception as e:
                         log.error(
-                            "gui.multi_aquarium.draw_error", 
-                            aquarium_id=aquarium.id, 
-                            error=str(e)
+                            "gui.multi_aquarium.draw_error", aquarium_id=aquarium.id, error=str(e)
                         )
-            
+
             # TODO: Handle ROIs for multi-aquarium (nested structure) if needed here
             # For now, let's assume ROIs are handled per-aquarium or flattened elsewhere
             # But strictly speaking, we should loop through aquarium.roi_polygons too.
-            
+
             return
 
         # Draw main polygon (Single Aquarium)
@@ -303,11 +315,7 @@ class CanvasRenderer:
 
         # STRICT CHECK: Only draw if the Zone Tab is actually visible
         # This prevents bboxes from being drawn on the hidden canvas when on other tabs
-        if (
-            self.gui.notebook 
-            and hasattr(self.gui, "zone_tab_frame") 
-            and self.gui.zone_tab_frame
-        ):
+        if self.gui.notebook and hasattr(self.gui, "zone_tab_frame") and self.gui.zone_tab_frame:
             try:
                 current_tab = self.gui.notebook.select()
                 zone_tab_id = str(self.gui.zone_tab_frame)
@@ -496,4 +504,92 @@ class CanvasRenderer:
             p2 = current_points[i + 1]
             canvas.create_line(
                 p1[0], p1[1], p2[0], p2[1], fill="#008B8B", width=2, tags="drawing_aid"
+            )
+
+    def draw_geotaxis_zones(self, num_zones: int = 3, bottom_zones: int = 1):
+        """Draw horizontal lines indicating geotaxis zones."""
+        canvas = self._get_canvas()
+        if not canvas:
+            return
+
+        canvas.delete("geotaxis_zone")
+
+        # Get zone data
+        zone_data = self.gui._get_zone_data_for_active_context()
+        if not zone_data:
+            return
+
+        from zebtrack.core.detector import MultiAquariumZoneData
+
+        polygons_to_draw = []
+        if isinstance(zone_data, MultiAquariumZoneData):
+            for aq in zone_data.aquariums:
+                if aq.polygon and len(aq.polygon) >= 3:
+                    polygons_to_draw.append(aq.polygon)
+        elif zone_data.polygon and len(zone_data.polygon) >= 3:
+            polygons_to_draw.append(zone_data.polygon)
+
+        if not polygons_to_draw:
+            return
+
+        for poly in polygons_to_draw:
+            # Convert to canvas coords
+            canvas_poly = []
+            for pt in poly:
+                cp = self.manager._video_to_canvas(pt[0], pt[1])
+                canvas_poly.append(cp)
+
+            ys = [p[1] for p in canvas_poly]
+            if not ys:
+                continue
+
+            min_y, max_y = min(ys), max(ys)
+            height = max_y - min_y
+
+            if height <= 0:
+                continue
+
+            step = height / num_zones
+
+            xs = [p[0] for p in canvas_poly]
+            min_x, max_x = min(xs), max(xs)
+
+            # Draw zone text
+            canvas.create_text(
+                min_x + 5,
+                min_y + 5,
+                text="TOP",
+                anchor="nw",
+                fill="cyan",
+                font=("Arial", 8),
+                tags="geotaxis_zone",
+            )
+
+            for i in range(1, num_zones):
+                y = min_y + i * step
+                # Draw dashed line
+                canvas.create_line(
+                    min_x, y, max_x, y, fill="cyan", dash=(4, 4), width=1, tags="geotaxis_zone"
+                )
+
+            # Highlight bottom zone area (last 'bottom_zones' segments)
+            y_bottom_start = max_y - (step * bottom_zones)
+            canvas.create_rectangle(
+                min_x,
+                y_bottom_start,
+                max_x,
+                max_y,
+                fill="blue",
+                stipple="gray12",
+                outline="",
+                tags="geotaxis_zone",
+            )
+            canvas.create_text(
+                min_x + 5,
+                max_y - 5,
+                text="BOTTOM",
+                anchor="sw",
+                fill="cyan",
+                font=("Arial", 8),
+                tags="geotaxis_zone",
             )

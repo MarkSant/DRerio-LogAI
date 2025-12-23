@@ -13,16 +13,19 @@ from tkinter import (
     Label,
     LabelFrame,
     StringVar,
-)
-from tkinter import (
     font as tkfont,
 )
+from typing import TYPE_CHECKING
 
 from zebtrack.core.wizard_service import WizardService
+from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
 from zebtrack.ui.wizard.tooltip import ToolTip
+
+if TYPE_CHECKING:
+    from zebtrack.ui.event_bus import EventBus
 
 
 class CalibrationStep(WizardStep):
@@ -43,10 +46,11 @@ class CalibrationStep(WizardStep):
         }
     """
 
-    def __init__(self, parent, wizard_data: dict):
+    def __init__(self, parent, wizard_data: dict, event_bus: "EventBus | None" = None):
         """Initialize calibration step."""
         super().__init__(parent, wizard_data)
         self.step_id = WizardStepID.CALIBRATION
+        self.event_bus = event_bus
 
         # UI state
         self.num_aquariums_var = IntVar(value=1)
@@ -54,10 +58,13 @@ class CalibrationStep(WizardStep):
         self.aquarium_width_var = DoubleVar(value=10.0)
         self.aquarium_height_var = DoubleVar(value=10.0)
         # Processing intervals
-        self.analysis_interval_var = IntVar(value=10)
-        self.display_interval_var = IntVar(value=10)
+        self.analysis_interval_var = IntVar(value=5)
+        self.display_interval_var = IntVar(value=5)
         self.template_info_var = StringVar(value="")
         self.template_info_label = None
+
+        # Behavioral analysis widget reference
+        self.behavioral_config_widget: BehavioralConfigWidget | None = None
 
     def build_ui(self):
         """Build calibration UI."""
@@ -213,14 +220,18 @@ class CalibrationStep(WizardStep):
         )
 
         # Advanced processing settings
-        advanced_frame = LabelFrame(self, text="⚙️ Configurações Avançadas de Processamento", padx=15, pady=10)
+        advanced_frame = LabelFrame(
+            self, text="⚙️ Configurações Avançadas de Processamento", padx=15, pady=10
+        )
         advanced_frame.pack(fill="x", pady=(0, 15))
 
         # Analysis interval
         analysis_row = Frame(advanced_frame)
         analysis_row.pack(fill="x", pady=5)
 
-        Label(analysis_row, text="Intervalo de Análise (frames):", width=30, anchor="w").pack(side="left")
+        Label(analysis_row, text="Intervalo de Análise (frames):", width=30, anchor="w").pack(
+            side="left"
+        )
         analysis_entry = Entry(analysis_row, textvariable=self.analysis_interval_var, width=10)
         analysis_entry.pack(side="left", padx=(5, 0))
         ToolTip(
@@ -238,7 +249,9 @@ class CalibrationStep(WizardStep):
         display_row = Frame(advanced_frame)
         display_row.pack(fill="x", pady=5)
 
-        Label(display_row, text="Intervalo de Exibição (frames):", width=30, anchor="w").pack(side="left")
+        Label(display_row, text="Intervalo de Exibição (frames):", width=30, anchor="w").pack(
+            side="left"
+        )
         display_entry = Entry(display_row, textvariable=self.display_interval_var, width=10)
         display_entry.pack(side="left", padx=(5, 0))
         ToolTip(
@@ -249,6 +262,40 @@ class CalibrationStep(WizardStep):
                 "• Valores altos (ex: 30) tornam a interface mais fluida durante o processamento em lote."
             ),
         )
+
+        # Behavioral analysis configuration
+        behavioral_frame = LabelFrame(self, text="🧠 Análise Comportamental", padx=15, pady=10)
+        behavioral_frame.pack(fill="x", pady=(0, 15))
+
+        # Determine defaults from global settings
+        from zebtrack.settings import load_settings
+
+        settings = load_settings()
+
+        def_thig = settings.behavioral_analysis.default_thigmotaxis_distance_cm
+        def_geo = settings.behavioral_analysis.default_geotaxis_distance_cm
+        def_geo_zones = settings.behavioral_analysis.default_geotaxis_num_zones
+        def_geo_btm = settings.behavioral_analysis.default_geotaxis_bottom_zones
+
+        # Defaults for perspective and mode (added in Phase 9)
+        def_perspective = "lateral"
+        def_geotaxis_mode = "zones"
+        if hasattr(settings.behavioral_analysis, "aquarium_perspective"):
+            def_perspective = settings.behavioral_analysis.aquarium_perspective
+        if hasattr(settings.behavioral_analysis, "geotaxis_mode"):
+            def_geotaxis_mode = settings.behavioral_analysis.geotaxis_mode
+
+        self.behavioral_config_widget = BehavioralConfigWidget(
+            behavioral_frame,
+            default_thigmotaxis_cm=def_thig,
+            default_geotaxis_cm=def_geo,
+            default_num_zones=def_geo_zones,
+            default_bottom_zones=def_geo_btm,
+            default_perspective=def_perspective,
+            default_geotaxis_mode=def_geotaxis_mode,
+            event_bus=self.event_bus,
+        )
+        self.behavioral_config_widget.pack(fill="x", expand=True)
 
         # Help text
         help_frame = LabelFrame(self, text="Sobre a Calibração", padx=15, pady=10)
@@ -301,8 +348,9 @@ class CalibrationStep(WizardStep):
                 - animals_per_aquarium (int)
                 - aquarium_width_cm (float)
                 - aquarium_height_cm (float)
+                - behavioral_analysis (dict)
         """
-        return {
+        data = {
             "num_aquariums": self.num_aquariums_var.get(),
             "animals_per_aquarium": self.animals_per_aquarium_var.get(),
             "aquarium_width_cm": self.aquarium_width_var.get(),
@@ -310,6 +358,12 @@ class CalibrationStep(WizardStep):
             "analysis_interval_frames": self.analysis_interval_var.get(),
             "display_interval_frames": self.display_interval_var.get(),
         }
+
+        # Add behavioral analysis configuration
+        if self.behavioral_config_widget:
+            data["behavioral_analysis"] = self.behavioral_config_widget.get_values()
+
+        return data
 
     def set_data(self, data: dict):
         """
@@ -335,6 +389,10 @@ class CalibrationStep(WizardStep):
 
         if "display_interval_frames" in data:
             self.display_interval_var.set(data["display_interval_frames"])
+
+        # Restore behavioral analysis configuration
+        if "behavioral_analysis" in data and self.behavioral_config_widget:
+            self.behavioral_config_widget.set_values(data["behavioral_analysis"])
 
         self._update_template_banner()
 
@@ -367,6 +425,10 @@ class CalibrationStep(WizardStep):
             current_value = self.num_aquariums_var.get()
             if current_value == 1 and video_count > 1:
                 self.num_aquariums_var.set(video_count)
+
+        # Restore behavioral analysis configuration
+        if "behavioral_analysis" in self.wizard_data and self.behavioral_config_widget:
+            self.behavioral_config_widget.set_values(self.wizard_data["behavioral_analysis"])
 
     def _update_template_banner(self):
         banner_text = format_template_banner(self.wizard_data.get("template_metadata"))

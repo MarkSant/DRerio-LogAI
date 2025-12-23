@@ -816,7 +816,11 @@ class SessionCoordinator(BaseCoordinator):
 
             from zebtrack.ui.dialogs import LiveAnalysisDialog
 
-            dialog = LiveAnalysisDialog(self.root, settings_obj=self.settings)
+            dialog = LiveAnalysisDialog(
+                self.root,
+                settings_obj=self.settings,
+                event_bus=self.event_bus,
+            )
 
             if not dialog.result:
                 log.info("session_coordinator.live_analysis.cancelled")

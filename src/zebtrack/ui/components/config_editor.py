@@ -13,6 +13,7 @@ from typing import Any
 import structlog
 
 from zebtrack.ui.components.base import BaseWidget
+from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.wizard.tooltip import create_help_label
 
@@ -28,6 +29,7 @@ class ConfigEditorWidget(BaseWidget):
     - Trajectory smoothing (window length, polynomial order)
     - Recorder settings (flush interval, row limit)
     - ROI parameters (inclusion rule, buffer, overlap)
+    - Behavioral Analysis defaults (perspective, geotaxis)
     - Action buttons (save, reset)
 
     Events emitted:
@@ -61,6 +63,8 @@ class ConfigEditorWidget(BaseWidget):
         # ROI rule widgets list for conditional enable/disable
         self._roi_rule_widgets: list[ttk.Widget] = []
 
+        self.behavioral_config_widget: BehavioralConfigWidget | None = None
+
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
     def _build_ui(self) -> None:
@@ -70,7 +74,25 @@ class ConfigEditorWidget(BaseWidget):
         self._build_trajectory_smoothing_section()
         self._build_recorder_section()
         self._build_roi_section()
+        self._build_behavioral_analysis_section()
         self._build_action_buttons()
+
+    def _build_behavioral_analysis_section(self) -> None:
+        """Build behavioral analysis default settings."""
+        behavioral_frame = ttk.LabelFrame(
+            self,
+            text="Padrões de Análise Comportamental",
+            padding=10,
+        )
+        behavioral_frame.pack(fill="x", pady=6)
+
+        self.behavioral_config_widget = BehavioralConfigWidget(
+            behavioral_frame,
+            event_bus=self.event_bus,
+            default_perspective="lateral",
+            default_geotaxis_mode="zones",
+        )
+        self.behavioral_config_widget.pack(fill="x", expand=True)
 
     def _build_intro(self) -> None:
         """Build introduction text."""
@@ -106,7 +128,7 @@ class ConfigEditorWidget(BaseWidget):
             padding=10,
         )
         video_frame.pack(fill="x", pady=6)
-        
+
         # Grid: Label | Help | Entry | Extra
         video_frame.columnconfigure(1, weight=0)
         video_frame.columnconfigure(2, weight=0)
@@ -122,9 +144,11 @@ class ConfigEditorWidget(BaseWidget):
             "Define a velocidade de reprodução do vídeo .mp4 resultante da análise.\n"
             "• Recomendado: O mesmo valor do vídeo original (ex: 30).\n"
             "• Aumentar: O vídeo parecerá acelerado.\n"
-            "• Diminuir: O vídeo parecerá em câmera lenta."
+            "• Diminuir: O vídeo parecerá em câmera lenta.",
         ).grid(row=0, column=1, padx=2)
-        ttk.Entry(video_frame, textvariable=self.fps_var, width=8).grid(row=0, column=2, sticky="w", padx=5)
+        ttk.Entry(video_frame, textvariable=self.fps_var, width=8).grid(
+            row=0, column=2, sticky="w", padx=5
+        )
 
         # Processing interval
         ttk.Label(video_frame, text="Intervalo Processamento (N):").grid(
@@ -137,7 +161,7 @@ class ConfigEditorWidget(BaseWidget):
             "• N=1: Processa TODOS os frames (máxima precisão, mais lento).\n"
             "• N=10: Processa 1 frame e pula 9 (mais rápido, ideal para vídeos longos).\n"
             "• Aumentar: Reduz drasticamente o tempo de processamento.\n"
-            "• Diminuir: Melhora a resolução temporal das métricas de velocidade."
+            "• Diminuir: Melhora a resolução temporal das métricas de velocidade.",
         ).grid(row=1, column=1, padx=2)
         ttk.Entry(video_frame, textvariable=self.processing_interval_var, width=8).grid(
             row=1, column=2, sticky="w", padx=5
@@ -153,7 +177,7 @@ class ConfigEditorWidget(BaseWidget):
             "Atualiza a imagem na tela a cada N frames processados.\n"
             "• N=1: Exibição fluida (consome mais CPU/GPU).\n"
             "• N=30: Atualiza a cada 30 frames (mais leve).\n"
-            "• Útil para acelerar a análise economizando recursos visuais."
+            "• Útil para acelerar a análise economizando recursos visuais.",
         ).grid(row=2, column=1, padx=2)
         ttk.Entry(video_frame, textvariable=self.display_interval_var, width=8).grid(
             row=2, column=2, sticky="w", padx=5
@@ -168,7 +192,7 @@ class ConfigEditorWidget(BaseWidget):
             "Offset Inicial\n\n"
             "Número de frames iniciais a serem ignorados antes de começar o rastreamento.\n"
             "• Use para descartar o período de estabilização da água ou a mão do experimentador saindo de cena.\n"
-            "• Ex: Em um vídeo de 30fps, um offset de 90 frames ignora os primeiros 3 segundos."
+            "• Ex: Em um vídeo de 30fps, um offset de 90 frames ignora os primeiros 3 segundos.",
         ).grid(row=3, column=1, padx=2)
         ttk.Entry(video_frame, textvariable=self.processing_offset_var, width=8).grid(
             row=3, column=2, sticky="w", padx=5
@@ -182,7 +206,7 @@ class ConfigEditorWidget(BaseWidget):
             padding=10,
         )
         smoothing_frame.pack(fill="x", pady=6)
-        
+
         # Grid: Label | Help | Entry
         smoothing_frame.columnconfigure(1, weight=0)
         smoothing_frame.columnconfigure(2, weight=0)
@@ -198,7 +222,7 @@ class ConfigEditorWidget(BaseWidget):
             "Número de frames usados para suavizar a trajetória. DEVE SER ÍMPAR.\n"
             "• Aumentar (ex: 11, 15): Remove mais ruído/tremido, mas pode 'arredondar' demais as curvas.\n"
             "• Diminuir (ex: 3, 5): Mantém mais detalhes dos movimentos bruscos.\n"
-            "• Padrão: 7"
+            "• Padrão: 7",
         ).grid(row=0, column=1, padx=2)
         ttk.Entry(smoothing_frame, textvariable=self.window_length_var, width=8).grid(
             row=0, column=2, sticky="w", padx=5
@@ -216,7 +240,7 @@ class ConfigEditorWidget(BaseWidget):
             "• 2: Curva simples (parábola).\n"
             "• 3: Curva mais complexa (recomendado).\n"
             "• Aumentar: A curva segue mais de perto os pontos originais.\n"
-            "• Padrão: 3"
+            "• Padrão: 3",
         ).grid(row=1, column=1, padx=2)
         ttk.Entry(smoothing_frame, textvariable=self.polyorder_var, width=8).grid(
             row=1, column=2, sticky="w", padx=5
@@ -243,7 +267,7 @@ class ConfigEditorWidget(BaseWidget):
             padding=10,
         )
         recorder_frame.pack(fill="x", pady=6)
-        
+
         # Grid: Label | Help | Entry
         recorder_frame.columnconfigure(1, weight=0)
         recorder_frame.columnconfigure(2, weight=0)
@@ -259,7 +283,7 @@ class ConfigEditorWidget(BaseWidget):
             "A cada X segundos, o sistema força a gravação dos dados da memória para o arquivo Parquet.\n"
             "• Protege contra perda de dados se o app cair.\n"
             "• Valores baixos (ex: 1.0) aumentam o uso de disco.\n"
-            "• Padrão: 5.0s"
+            "• Padrão: 5.0s",
         ).grid(row=0, column=1, padx=2)
         ttk.Entry(recorder_frame, textvariable=self.flush_interval_var, width=8).grid(
             row=0, column=2, sticky="w", padx=5
@@ -273,7 +297,7 @@ class ConfigEditorWidget(BaseWidget):
             recorder_frame,
             "Limite de Linhas para Flush\n\n"
             "Grava dados imediatamente ao atingir X linhas em memória.\n"
-            "• Padrão: 500 linhas."
+            "• Padrão: 500 linhas.",
         ).grid(row=1, column=1, padx=2)
         ttk.Entry(recorder_frame, textvariable=self.flush_rows_var, width=8).grid(
             row=1, column=2, sticky="w", padx=5
@@ -287,7 +311,7 @@ class ConfigEditorWidget(BaseWidget):
             padding=10,
         )
         roi_frame.pack(fill="x", pady=6)
-        
+
         # Grid: Label | Help | Entry
         roi_frame.columnconfigure(1, weight=0)
         roi_frame.columnconfigure(2, weight=0)
@@ -304,9 +328,9 @@ class ConfigEditorWidget(BaseWidget):
             "• Centroide (centroid_in): Apenas se o ponto central estiver na zona.\n"
             "• Centroide c/ Buffer: Expande a zona virtualmente para o cálculo.\n"
             "• Intersecção BBox: Se qualquer parte da caixa do peixe tocar a zona.\n"
-            "• Sobreposição Seg: Baseado na máscara de pixels (mais preciso)."
+            "• Sobreposição Seg: Baseado na máscara de pixels (mais preciso).",
         ).grid(row=0, column=1, padx=2)
-        
+
         config_roi_combo = ttk.Combobox(
             roi_frame,
             textvariable=self.roi_inclusion_rule_var,
@@ -331,7 +355,7 @@ class ConfigEditorWidget(BaseWidget):
             roi_frame,
             "Raio de Buffer\n\n"
             "Distância extra para expansão da ROI na regra 'Centroide c/ Buffer'.\n"
-            "• Unidade: Centímetros (se calibrado) ou Pixels."
+            "• Unidade: Centímetros (se calibrado) ou Pixels.",
         ).grid(row=1, column=1, padx=2)
         ttk.Entry(roi_frame, textvariable=self.roi_buffer_radius_var, width=8).grid(
             row=1, column=2, sticky="w", padx=5
@@ -345,7 +369,7 @@ class ConfigEditorWidget(BaseWidget):
             roi_frame,
             "Fração de Sobreposição Mínima\n\n"
             "Mínimo de área do peixe (0 a 1) que deve estar na zona para contar.\n"
-            "• Ex: 0.50 significa que metade do peixe deve estar dentro."
+            "• Ex: 0.50 significa que metade do peixe deve estar dentro.",
         ).grid(row=2, column=1, padx=2)
         ttk.Entry(roi_frame, textvariable=self.roi_overlap_ratio_var, width=8).grid(
             row=2, column=2, sticky="w", padx=5
@@ -411,6 +435,22 @@ class ConfigEditorWidget(BaseWidget):
             "roi_inclusion_rule": self.roi_inclusion_rule_var.get(),
             "roi_buffer_radius_value": float(self.roi_buffer_radius_var.get().strip()),
             "roi_min_bbox_overlap_ratio": float(self.roi_overlap_ratio_var.get().strip()),
+            "behavioral_analysis": self._get_behavioral_values(),
+        }
+
+    def _get_behavioral_values(self) -> dict[str, Any]:
+        """Extract and map behavioral values."""
+        if not self.behavioral_config_widget:
+            return {}
+
+        widget_values = self.behavioral_config_widget.get_values()
+        return {
+            "default_thigmotaxis_distance_cm": widget_values["thigmotaxis_distance_cm"],
+            "default_geotaxis_distance_cm": widget_values["geotaxis_distance_cm"],
+            "default_geotaxis_num_zones": widget_values["geotaxis_num_zones"],
+            "default_geotaxis_bottom_zones": widget_values["geotaxis_bottom_zones"],
+            "aquarium_perspective": widget_values["aquarium_perspective"],
+            "geotaxis_mode": widget_values["geotaxis_mode"],
         }
 
     def set_values(self, values: dict[str, Any]) -> None:
@@ -448,13 +488,32 @@ class ConfigEditorWidget(BaseWidget):
             if "flush_row_threshold" in rec:
                 self.flush_rows_var.set(str(rec["flush_row_threshold"]))
 
-        # ROI parameters
-        if "roi_inclusion_rule" in values:
-            self.roi_inclusion_rule_var.set(values["roi_inclusion_rule"])
-        if "roi_buffer_radius_value" in values:
-            self.roi_buffer_radius_var.set(str(values["roi_buffer_radius_value"]))
         if "roi_min_bbox_overlap_ratio" in values:
             self.roi_overlap_ratio_var.set(str(values["roi_min_bbox_overlap_ratio"]))
+
+        # Behavioral analysis
+        if "behavioral_analysis" in values and self.behavioral_config_widget:
+            ba = values["behavioral_analysis"]
+            widget_values = {}
+            # Map settings keys -> widget keys
+            if "default_thigmotaxis_distance_cm" in ba:
+                widget_values["thigmotaxis_distance_cm"] = ba["default_thigmotaxis_distance_cm"]
+            if "default_geotaxis_distance_cm" in ba:
+                widget_values["geotaxis_distance_cm"] = ba["default_geotaxis_distance_cm"]
+            if "default_geotaxis_num_zones" in ba:
+                widget_values["geotaxis_num_zones"] = ba["default_geotaxis_num_zones"]
+            if "default_geotaxis_bottom_zones" in ba:
+                widget_values["geotaxis_bottom_zones"] = ba["default_geotaxis_bottom_zones"]
+            if "aquarium_perspective" in ba:
+                widget_values["aquarium_perspective"] = ba["aquarium_perspective"]
+            if "geotaxis_mode" in ba:
+                widget_values["geotaxis_mode"] = ba["geotaxis_mode"]
+
+            # We enable geotaxis in the editor so user can edit the values,
+            # even if it's not "enabled" by default in a specific analysis.
+            widget_values["geotaxis_enabled"] = True
+
+            self.behavioral_config_widget.set_values(widget_values)
 
     def _on_save_clicked(self) -> None:
         """Handle save button click."""

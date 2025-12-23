@@ -14,6 +14,7 @@ from zebtrack.ui.components.analysis_display import AnalysisDisplayWidget
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.components.base_component import BaseUIComponent, UIComponentError
+from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.components.canvas_manager import CanvasManager
 from zebtrack.ui.components.config_editor import ConfigEditorWidget
 from zebtrack.ui.components.control_panel import ControlPanelWidget
@@ -38,6 +39,7 @@ __all__ = [
     "ArduinoDashboardWidget",
     "BaseUIComponent",
     "BaseWidget",
+    "BehavioralConfigWidget",
     "CanvasManager",
     "ConfigEditorWidget",
     "ControlPanelWidget",

@@ -142,6 +142,7 @@ class Reporter:
         smoothing_window_length: int | None = None,
         smoothing_polyorder: int | None = None,
         settings_obj=None,
+        behavioral_config: dict | None = None,
         # Modern path: DTO-based construction
         analysis: AnalysisResult | None = None,
     ):
@@ -246,7 +247,13 @@ class Reporter:
 
         # Run the unified analysis via the service
         service = AnalysisService(settings_obj=settings_obj)
-        self.report, self.b_analyzer, self.r_analyzer = service.run_full_analysis(
+        (
+            self.report,
+            self.b_analyzer,
+            self.r_analyzer,
+            self.validation_warnings,
+            self.validation_stats,
+        ) = service.run_full_analysis(
             trajectory_df=trajectory_df,
             pixelcm_x=pixelcm_x,
             pixelcm_y=pixelcm_y,
@@ -258,6 +265,7 @@ class Reporter:
             freezing_min_duration=freezing_duration,
             smoothing_window_length=smoothing_window_length,
             smoothing_polyorder=smoothing_polyorder,
+            behavioral_config=behavioral_config,
         )
 
         # Store for plotting methods that still need them
@@ -268,7 +276,12 @@ class Reporter:
         self.validation_stats = self.report.get("validacao", {}).get("estatisticas", {})
 
         # Initialize data transformer and visualization generator
+        # Initialize data transformer and visualization generator
         self.data_transformer = DataTransformer()
+        # Ensure behavioral_config is available (legacy path fallback)
+        if not hasattr(self, "behavioral_config"):
+            self.behavioral_config = {}
+
         self.viz_generator = VisualizationGenerator(
             b_analyzer=self.b_analyzer,
             r_analyzer=self.r_analyzer,
@@ -281,6 +294,7 @@ class Reporter:
             sharp_turn_threshold=self.sharp_turn_threshold,
             settings_obj=self.settings,
             frame_crop_box=self.frame_crop_box,
+            behavioral_config=self.behavioral_config,
         )
 
         # Generate the tidy dataframe from the report
@@ -290,33 +304,18 @@ class Reporter:
             b_analyzer=self.b_analyzer,
             r_analyzer=self.r_analyzer,
             roi_colors=self.roi_colors,
+            validation_stats=self.validation_stats,
+            behavioral_config=getattr(self, "behavioral_config", {}),
         )
         self.tidy_data = self.data_transformer.standardize_tidy_dataframe(tidy_df, self.metadata)
 
     @classmethod
     def from_analysis(cls, analysis: AnalysisResult) -> "Reporter":
-        """Create Reporter from pre-computed analysis result (RECOMMENDED).
-
-        This is the modern, performant way to create Reporter instances.
-        Avoids re-running analysis and enables better testability.
-
-        Args:
-            analysis: AnalysisResult DTO with pre-computed analysis
-
-        Returns:
-            Reporter instance ready for report generation
-
-        Example:
-            >>> # In analysis workflow
-            >>> service = AnalysisService(settings_obj=settings)
-            >>> result = service.run_full_analysis_as_dto(...)
-            >>> reporter = Reporter.from_analysis(result)
-            >>> reporter.export_summary_data(output_path)
-        """
+        """Create Reporter from pre-computed instance (RECOMMENDED)."""
         instance = cls.__new__(cls)
 
         # Store settings reference
-        instance.settings = None  # Not needed when using pre-computed analysis
+        instance.settings = None
 
         # Store metadata and calibration
         instance.metadata = analysis.metadata
@@ -328,10 +327,11 @@ class Reporter:
         instance._pixelcm_y = analysis.calibration_params.pixelcm_y
         instance._video_height_px = analysis.calibration_params.video_height_px
 
-        # Store analysis results directly (no re-computation)
+        # Store analysis results directly
         instance.report = analysis.report
         instance.b_analyzer = analysis.behavioral_analyzer
         instance.r_analyzer = analysis.roi_analyzer
+        instance.behavioral_config = analysis.behavioral_config or {}
 
         # Store analysis parameters
         instance.sharp_turn_threshold = analysis.sharp_turn_threshold
@@ -339,6 +339,50 @@ class Reporter:
         instance.freezing_duration = analysis.freezing_duration
         instance.validation_warnings = getattr(analysis, "validation_warnings", [])
         instance.validation_stats = getattr(analysis, "validation_stats", {})
+
+        # Invoke common initialization logic (creates viz generator and tidy df)
+        # Note: We must verify if __init__ logic can be reused or must be duplicated.
+        # Looking at original code, Step 294 showed __init__ ending with viz_generator creation
+        # but from_analysis was separate.
+        # Actually, from_analysis calls instance.__init__? No, current impl calls __new__.
+        # So we need to call the setup logic manually.
+
+        # Initialize components (Duplicated or extracted? Let's check context)
+        # Re-using the logic block from __init__ (lines 278-302) via a helper would be better
+        # but for now we duplicate or invoke __init__ logic if it was in a method.
+        # It seems lines 278-302 logic IS part of __init__.
+        # We should probably manually trigger lines 278-302 logic here.
+
+        instance.data_transformer = DataTransformer()
+        instance.viz_generator = VisualizationGenerator(
+            b_analyzer=instance.b_analyzer,
+            r_analyzer=instance.r_analyzer,
+            metadata=instance.metadata,
+            roi_colors=instance.roi_colors,
+            calibration=instance.calibration,
+            pixelcm_x=instance._pixelcm_x,
+            pixelcm_y=instance._pixelcm_y,
+            video_height_px=instance._video_height_px,
+            sharp_turn_threshold=instance.sharp_turn_threshold,
+            settings_obj=instance.settings,
+            frame_crop_box=instance.frame_crop_box,
+            behavioral_config=instance.behavioral_config,
+        )
+
+        tidy_df = instance.data_transformer.create_tidy_dataframe(
+            report=instance.report,
+            metadata=instance.metadata,
+            b_analyzer=instance.b_analyzer,
+            r_analyzer=instance.r_analyzer,
+            roi_colors=instance.roi_colors,
+            validation_stats=instance.validation_stats,
+            behavioral_config=instance.behavioral_config,
+        )
+        instance.tidy_data = instance.data_transformer.standardize_tidy_dataframe(
+            tidy_df, instance.metadata
+        )
+
+        return instance
 
         # Initialize data transformer and visualization generator
         instance.data_transformer = DataTransformer()
@@ -363,6 +407,8 @@ class Reporter:
             b_analyzer=instance.b_analyzer,
             r_analyzer=instance.r_analyzer,
             roi_colors=instance.roi_colors,
+            validation_stats=instance.validation_stats,
+            behavioral_config=analysis.behavioral_config,
         )
         instance.tidy_data = instance.data_transformer.standardize_tidy_dataframe(
             tidy_df, instance.metadata
@@ -398,6 +444,20 @@ class Reporter:
             )
 
         self.data_transformer.validate_schema(data_to_export)
+
+        # Apply Geotaxis column renaming if applicable
+        # Requires behavioral info which might be in metadata or config
+        height_cm = float(self.metadata.get("aquarium_height_cm", 0) or 0)
+        num_zones = int(self.metadata.get("geotaxis_num_zones", 0) or 0)
+
+        # Try to fetch from behavioral config if available
+        if num_zones == 0 and hasattr(self, "behavioral_config"):
+            num_zones = int(self.behavioral_config.get("geotaxis_num_zones", 0) or 0)
+
+        if height_cm > 0 and num_zones > 0:
+            data_to_export = self.data_transformer.rename_geotaxis_columns(
+                data_to_export, height_cm, num_zones
+            )
 
         if format == "excel":
             data_to_export.to_excel(output_path, index=False, engine="openpyxl")
@@ -508,6 +568,15 @@ class Reporter:
             columns=[k for k in self.metadata.keys() if k in self.tidy_data.columns]
         )
 
+        # Apply Geotaxis column renaming for Word report
+        height_cm = float(self.metadata.get("aquarium_height_cm", 0) or 0)
+        num_zones = int(self.metadata.get("geotaxis_num_zones", 0) or 0)
+        if hasattr(self, "behavioral_config") and num_zones == 0:
+            num_zones = int(self.behavioral_config.get("geotaxis_num_zones", 0) or 0)
+
+        if height_cm > 0 and num_zones > 0:
+            df = self.data_transformer.rename_geotaxis_columns(df, height_cm, num_zones)
+
         table = document.add_table(rows=1, cols=2)
         table.style = "Table Grid"
         table.cell(0, 0).text = _("Metric")
@@ -579,6 +648,8 @@ class Reporter:
             (self.viz_generator.generate_position_vs_time_plot, _("Position vs. Time")),
             (self.viz_generator.generate_cumulative_distance_plot, _("Cumulative Distance")),
             (self.viz_generator.generate_angular_velocity_plot, _("Angular Velocity")),
+            (self.viz_generator.generate_thigmotaxis_plot, _("Thigmotaxis (Wall Distance)")),
+            (self.viz_generator.generate_geotaxis_plot, _("Geotaxis (Bottom Distance)")),
         ]
 
         log.info("reporter.plots.parallel_generation.start", count=len(plot_configs))
@@ -657,34 +728,40 @@ class Reporter:
         if self.validation_stats:
             document.add_heading(_("Quality Metrics"), level=3)
             stats = self.validation_stats
-            
+
             # Create a small table for key metrics
             table = document.add_table(rows=0, cols=2)
             table.style = "Table Grid"
-            
+
             def add_stat_row(label, value):
                 row = table.add_row().cells
                 row[0].text = str(label)
                 row[1].text = str(value)
 
             add_stat_row(_("Total Frames Processed"), stats.get("total_frames", "N/A"))
-            
+
             if "frame_range" in stats:
                 fr = stats["frame_range"]
-                add_stat_row(_("Frame Range"), f"{fr.get('min', 0)} - {fr.get('max', 0)} ({fr.get('span', 0)} frames)")
-            
+                add_stat_row(
+                    _("Frame Range"),
+                    f"{fr.get('min', 0)} - {fr.get('max', 0)} ({fr.get('span', 0)} frames)",
+                )
+
             if "temporal_coverage" in stats:
                 coverage = stats["temporal_coverage"] * 100
                 add_stat_row(_("Temporal Coverage"), f"{coverage:.1f}%")
-            
+
             if "unique_tracks" in stats:
                 add_stat_row(_("Unique Track IDs"), stats["unique_tracks"])
 
             if "temporal_gaps" in stats:
                 gaps = stats["temporal_gaps"]
-                add_stat_row(_("Temporal Gaps"), f"{gaps.get('count', 0)} (Max: {gaps.get('max_gap_frames', 0)} frames)")
+                add_stat_row(
+                    _("Temporal Gaps"),
+                    f"{gaps.get('count', 0)} (Max: {gaps.get('max_gap_frames', 0)} frames)",
+                )
 
-            document.add_paragraph() # Spacer
+            document.add_paragraph()  # Spacer
 
         # 2. Detailed Warnings
         document.add_heading(_("Validation Details"), level=3)
@@ -694,6 +771,12 @@ class Reporter:
                     "The following issues were detected during trajectory validation. "
                     "These may affect the precision of the calculated metrics."
                 )
+            )
+            document.add_paragraph(
+                "Definitions:\n"
+                "- Temporal Gaps: Frames where the fish was not detected (occlusion/error).\n"
+                "- Missing Frames: Total frames skipped if using processing_interval > 1 (expected behavior).\n"
+                "- Max Gap: The largest consecutive sequence of lost frames."
             )
             for warning in self.validation_warnings:
                 document.add_paragraph(f"• {warning}", style="List Bullet")
@@ -1252,7 +1335,7 @@ class Reporter:
 
     def _generate_r_script_template(self) -> str:
         """Generate template R script for data analysis."""
-        return '''# ZebTrack-AI Analysis Script for R
+        return """# ZebTrack-AI Analysis Script for R
 # Generated automatically - customize as needed
 
 # Required packages
@@ -1324,11 +1407,11 @@ ggplot(data, aes(x = timestamp, y = velocity_cm_s)) +
 # Example:
 # t.test(velocity_cm_s ~ group, data = data)
 # wilcox.test(velocity_cm_s ~ group, data = data)
-'''
+"""
 
     def _generate_python_script_template(self) -> str:
         """Generate template Python script for data analysis."""
-        return '''# %% [markdown]
+        return """# %% [markdown]
 # # ZebTrack-AI Analysis Notebook
 # Generated automatically - customize as needed
 
@@ -1439,7 +1522,7 @@ print("Summary saved to analysis_summary.csv")
 #
 # t_stat, p_value = stats.ttest_ind(group_a, group_b)
 # print(f"T-test: t={t_stat:.3f}, p={p_value:.4f}")
-'''
+"""
 
     # =========================================================================
     # API Aliases for Documentation Consistency

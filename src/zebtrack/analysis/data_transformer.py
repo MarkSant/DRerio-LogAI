@@ -44,9 +44,25 @@ COLUMN_MAPPING = {
     "periodos_inatividade_duracao_total_s": "inactivity_total_duration_s",
     "periodos_inatividade_percentual_registro": "inactivity_percentage_of_recording",
     "periodos_inatividade_limiar_cm_s": "inactivity_threshold_cm_s",
-    # Phase 1.4: Thigmotaxis columns
+    # Phase 1.4: Thigmotaxis columns (now configurable)
     "thigmotaxis_avg_wall_distance_cm": "thigmotaxis_avg_wall_distance_cm",
     "thigmotaxis_time_near_wall_pct": "thigmotaxis_time_near_wall_pct",
+    "thigmotaxis_distance_threshold_cm": "thigmotaxis_distance_threshold_cm",
+    # Geotaxis columns (lateral perspective only)
+    "aquarium_perspective": "aquarium_perspective",
+    "geotaxis_avg_bottom_distance_cm": "geotaxis_avg_bottom_distance_cm",
+    "geotaxis_time_near_bottom_pct": "geotaxis_time_near_bottom_pct",
+    "geotaxis_distance_threshold_cm": "geotaxis_distance_threshold_cm",
+    "geotaxis_bottom_zones_pct": "geotaxis_bottom_zones_pct",
+    # Validation/Quality metrics (from Word appendix)
+    "validation_total_frames": "validation_total_frames",
+    "validation_frame_range_min": "validation_frame_range_min",
+    "validation_frame_range_max": "validation_frame_range_max",
+    "validation_frame_range_span": "validation_frame_range_span",
+    "validation_temporal_coverage_pct": "validation_temporal_coverage_pct",
+    "validation_unique_tracks": "validation_unique_tracks",
+    "validation_temporal_gaps_count": "validation_temporal_gaps_count",
+    "validation_temporal_gaps_max_frames": "validation_temporal_gaps_max_frames",
 }
 
 # Dynamic prefix mappings for Portuguese → English translation of ROI-specific columns
@@ -163,6 +179,8 @@ class DataTransformer:
         b_analyzer: BehavioralAnalyzer,
         r_analyzer: ROIAnalyzer | None = None,
         roi_colors: dict[str, tuple[int, int, int]] | None = None,
+        validation_stats: dict[str, Any] | None = None,
+        behavioral_config: dict[str, Any] | None = None,
     ) -> pd.DataFrame:
         """Create a flat, tidy DataFrame from the structured report dictionary.
 
@@ -172,12 +190,30 @@ class DataTransformer:
             b_analyzer: BehavioralAnalyzer instance with trajectory data
             r_analyzer: ROIAnalyzer instance (optional)
             roi_colors: Dictionary mapping ROI names to RGB tuples (optional)
+            validation_stats: Trajectory validation statistics (optional)
+            behavioral_config: Behavioral analysis configuration with keys:
+                - aquarium_perspective: "top_down" or "lateral"
+                - thigmotaxis_distance_cm: Distance threshold for thigmotaxis
+                - geotaxis_enabled: Whether to calculate geotaxis
+                - geotaxis_distance_cm: Distance threshold for geotaxis
+                - geotaxis_num_zones: Number of vertical zones
+                - geotaxis_bottom_zones: Number of bottom zones (1 or 2)
 
         Returns:
             pd.DataFrame: Tidy dataframe with one row per experiment
         """
         # Start with metadata
         combined_data = {**metadata}
+
+        # Default behavioral config
+        if behavioral_config is None:
+            behavioral_config = {}
+        thigmotaxis_threshold = behavioral_config.get("thigmotaxis_distance_cm", 1.5)
+        aquarium_perspective = behavioral_config.get("aquarium_perspective", "top_down")
+        geotaxis_enabled = behavioral_config.get("geotaxis_enabled", False)
+        geotaxis_distance = behavioral_config.get("geotaxis_distance_cm", 1.5)
+        geotaxis_num_zones = behavioral_config.get("geotaxis_num_zones", 3)
+        geotaxis_bottom_zones = behavioral_config.get("geotaxis_bottom_zones", 1)
 
         # --- General Behavioral Metrics ---
         general_behavior = report.get("comportamento_geral", {})
@@ -203,20 +239,74 @@ class DataTransformer:
         )
         combined_data["periodos_inatividade_limiar_cm_s"] = inactivity.get("threshold_cm_s")
 
-        # --- Thigmotaxis Metrics (Phase 1.4) ---
-        # Calculate thigmotaxis (wall-hugging behavior) from BehavioralAnalyzer
+        # --- Thigmotaxis Metrics (now with configurable threshold) ---
         try:
             thigmotaxis_avg = b_analyzer.calculate_thigmotaxis_index(method="average_distance")
             combined_data["thigmotaxis_avg_wall_distance_cm"] = thigmotaxis_avg
-            # Time near wall with 1cm threshold (configurable in future)
+            # Use configurable threshold (default 1.5cm)
             thigmotaxis_pct = b_analyzer.calculate_thigmotaxis_index(
-                method="time_near_wall", distance_threshold=1.0
+                method="time_near_wall", distance_threshold=thigmotaxis_threshold
             )
             combined_data["thigmotaxis_time_near_wall_pct"] = thigmotaxis_pct
+            combined_data["thigmotaxis_distance_threshold_cm"] = thigmotaxis_threshold
         except (ValueError, AttributeError):
             # Thigmotaxis may not be available if arena is not defined
             combined_data["thigmotaxis_avg_wall_distance_cm"] = None
             combined_data["thigmotaxis_time_near_wall_pct"] = None
+            combined_data["thigmotaxis_distance_threshold_cm"] = thigmotaxis_threshold
+
+        # --- Aquarium Perspective ---
+        combined_data["aquarium_perspective"] = aquarium_perspective
+
+        # --- Geotaxis Metrics (lateral perspective only) ---
+        if geotaxis_enabled and aquarium_perspective == "lateral":
+            try:
+                geotaxis_avg = b_analyzer.calculate_geotaxis_index(method="average_distance")
+                combined_data["geotaxis_avg_bottom_distance_cm"] = geotaxis_avg
+                geotaxis_pct = b_analyzer.calculate_geotaxis_index(
+                    method="time_near_bottom", distance_threshold=geotaxis_distance
+                )
+                combined_data["geotaxis_time_near_bottom_pct"] = geotaxis_pct
+                combined_data["geotaxis_distance_threshold_cm"] = geotaxis_distance
+
+                # Zone-based metrics
+                zone_metrics = b_analyzer.calculate_geotaxis_index(
+                    method="zone_time",
+                    num_zones=geotaxis_num_zones,
+                    bottom_zones=geotaxis_bottom_zones,
+                )
+                if isinstance(zone_metrics, dict):
+                    for key, value in zone_metrics.items():
+                        combined_data[f"geotaxis_{key}"] = value
+            except (ValueError, AttributeError) as e:
+                log.warning("data_transformer.geotaxis.error", error=str(e))
+                combined_data["geotaxis_avg_bottom_distance_cm"] = None
+                combined_data["geotaxis_time_near_bottom_pct"] = None
+                combined_data["geotaxis_distance_threshold_cm"] = geotaxis_distance
+        else:
+            # Geotaxis not applicable (top-down perspective or disabled)
+            combined_data["geotaxis_avg_bottom_distance_cm"] = None
+            combined_data["geotaxis_time_near_bottom_pct"] = None
+            combined_data["geotaxis_distance_threshold_cm"] = None
+
+        # --- Validation/Quality Metrics ---
+        if validation_stats:
+            combined_data["validation_total_frames"] = validation_stats.get("total_frames")
+            combined_data["validation_unique_tracks"] = validation_stats.get("unique_tracks")
+
+            frame_range = validation_stats.get("frame_range", {})
+            combined_data["validation_frame_range_min"] = frame_range.get("min")
+            combined_data["validation_frame_range_max"] = frame_range.get("max")
+            combined_data["validation_frame_range_span"] = frame_range.get("span")
+
+            temporal_cov = validation_stats.get("temporal_coverage")
+            combined_data["validation_temporal_coverage_pct"] = (
+                temporal_cov * 100 if temporal_cov else None
+            )
+
+            gaps = validation_stats.get("temporal_gaps", {})
+            combined_data["validation_temporal_gaps_count"] = gaps.get("count")
+            combined_data["validation_temporal_gaps_max_frames"] = gaps.get("max_gap_frames")
 
         # --- ROI-Specific Metrics (only if ROI analysis was performed) ---
         if r_analyzer:
@@ -383,6 +473,50 @@ class DataTransformer:
                 return f"{replacement}{suffix}"
 
         return column_name
+
+    def rename_geotaxis_columns(
+        self, df: pd.DataFrame, height_cm: float, num_zones: int
+    ) -> pd.DataFrame:
+        """Rename geotaxis zone columns to descriptive names with ranges.
+
+        Args:
+            df: DataFrame containing 'geotaxis_zone_X_pct' columns
+            height_cm: Total aquarium height in cm
+            num_zones: Number of vertical zones
+
+        Returns:
+            DataFrame with renamed columns (e.g., 'Fundo (0-5cm)')
+        """
+        if height_cm is None or num_zones is None or num_zones <= 0 or height_cm <= 0:
+            return df
+
+        zone_height = height_cm / num_zones
+        rename_map = {}
+
+        # Zone 0 is Bottom, Zone (num_zones-1) is Top
+        for i in range(num_zones):
+            col_name = f"geotaxis_zone_{i}_pct"
+            if col_name not in df.columns:
+                continue
+
+            bottom_cm = i * zone_height
+            top_cm = (i + 1) * zone_height
+
+            if i == 0:
+                name = "Fundo"
+            elif i == num_zones - 1:
+                name = "Superfície"
+            else:
+                name = "Meio"
+                if num_zones > 3:
+                    name = f"Meio {i}"
+
+            new_name = f"{name} ({bottom_cm:.1f}-{top_cm:.1f}cm) [%]"
+            rename_map[col_name] = new_name
+
+        if rename_map:
+            return df.rename(columns=rename_map)
+        return df
 
     def standardize_tidy_dataframe(
         self, df: pd.DataFrame, metadata: dict[str, Any]

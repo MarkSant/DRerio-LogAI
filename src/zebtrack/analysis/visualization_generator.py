@@ -10,7 +10,7 @@ import io
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import cv2
 import matplotlib
@@ -105,6 +105,7 @@ class VisualizationGenerator:
         sharp_turn_threshold: float = 90.0,
         settings_obj=None,
         frame_crop_box: tuple[int, int, int, int] | None = None,
+        behavioral_config: dict[str, Any] | None = None,
     ):
         """Initialize VisualizationGenerator.
 
@@ -119,6 +120,7 @@ class VisualizationGenerator:
             video_height_px: Video height in pixels
             sharp_turn_threshold: Threshold for sharp turn detection (deg/s)
             settings_obj: Settings object for configuration
+            behavioral_config: Project-specific behavioral configuration (optional)
         """
         self.b_analyzer = b_analyzer
         self.r_analyzer = r_analyzer
@@ -131,6 +133,7 @@ class VisualizationGenerator:
         self.sharp_turn_threshold = sharp_turn_threshold
         self.settings = settings_obj
         self.frame_crop_box = frame_crop_box
+        self.behavioral_config = behavioral_config or {}
 
     def _roi_geometry_to_cm(self, roi: ROI):
         """Convert ROI geometry from pixels to cm coordinates.
@@ -157,6 +160,49 @@ class VisualizationGenerator:
             )
 
         return geometry
+
+    def _draw_geotaxis_zones(self, ax: Any):
+        """Draw geotaxis separation lines if configured (Lateral view only)."""
+        try:
+            # Check perspective (default lateral)
+            perspective = self.behavioral_config.get("aquarium_perspective", "lateral")
+            # If explicit "top-down", skip. If missing, assume lateral (default).
+            if str(perspective).lower() == "top-down_view":
+                return
+
+            num_zones = int(self.behavioral_config.get("geotaxis_num_zones", 3))
+            if num_zones <= 1:
+                return
+
+            arena_poly_cm = self.b_analyzer.arena_polygon_cm
+            if not arena_poly_cm or arena_poly_cm.is_empty:
+                return
+
+            min_x, min_y, max_x, max_y = arena_poly_cm.bounds
+            height_cm = max_y - min_y
+            zone_height = height_cm / num_zones
+
+            # Draw lines
+            for i in range(1, num_zones):
+                y_line = min_y + (i * zone_height)
+                ax.axhline(y_line, color="white", linestyle="--", linewidth=1.5, alpha=0.9)
+
+                # Label for the bottom zone boundary
+                if i == 1:
+                    label_x = min_x + (max_x - min_x) * 0.02
+                    ax.text(
+                        label_x,
+                        y_line + (height_cm * 0.02),
+                        f"Bottom Zone Limit ({y_line - min_y:.1f}cm)",
+                        color="white",
+                        fontsize=9,
+                        fontweight="bold",
+                        ha="left",
+                        va="bottom",
+                    )
+
+        except Exception as e:
+            log.warning("viz.geotaxis.draw_lines_failed", error=str(e))
 
     @staticmethod
     def _iter_polygon_parts(geometry) -> list[ShapelyPolygon]:
@@ -226,7 +272,9 @@ class VisualizationGenerator:
                 suffix = str(video_path).lower()
                 if suffix.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")):
                     # IMPROVEMENT: Use robust reading for Windows paths with unicode/spaces
-                    frame = cv2.imdecode(np.fromfile(str(video_path), dtype=np.uint8), cv2.IMREAD_COLOR)
+                    frame = cv2.imdecode(
+                        np.fromfile(str(video_path), dtype=np.uint8), cv2.IMREAD_COLOR
+                    )
                 else:
                     # Try backends appropriate for *video files*.
                     # (DSHOW/MSMF are camera/capture backends and are noisy for file paths.)
@@ -349,6 +397,9 @@ class VisualizationGenerator:
         # Draw trajectory - use single color for single animal
         ax.plot(x, y, color="blue", linewidth=1.5, alpha=0.7, label="Trajectory")
 
+        # Draw Geotaxis Zones (separators)
+        self._draw_geotaxis_zones(ax)
+
         ax.set_title(f"Trajectory - {self.metadata.get('experiment_id', 'Unknown')}")
         ax.set_xlabel("Position (cm)")
         ax.set_ylabel("Position (cm)")
@@ -402,6 +453,10 @@ class VisualizationGenerator:
             origin="lower",
             extent=extent,
         )
+
+        # Draw Geotaxis Zones
+        self._draw_geotaxis_zones(ax)
+
         ax.set_title(f"Heatmap - {self.metadata.get('experiment_id', 'Unknown')}")
         ax.set_xlabel("Position (cm)")
         ax.set_ylabel("Position (cm)")
@@ -475,7 +530,9 @@ class VisualizationGenerator:
                 suffix = str(video_path).lower()
                 if suffix.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")):
                     # IMPROVEMENT: Use robust reading for Windows paths with unicode/spaces
-                    frame = cv2.imdecode(np.fromfile(str(video_path), dtype=np.uint8), cv2.IMREAD_COLOR)
+                    frame = cv2.imdecode(
+                        np.fromfile(str(video_path), dtype=np.uint8), cv2.IMREAD_COLOR
+                    )
                 else:
                     # Try backends appropriate for *video files*.
                     # (DSHOW/MSMF are camera/capture backends and are noisy for file paths.)
@@ -631,6 +688,9 @@ class VisualizationGenerator:
                 bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
             )
 
+        # Draw Geotaxis Zones (separators)
+        self._draw_geotaxis_zones(ax)
+
         title = f"ROI Reference Map - {self.metadata.get('experiment_id', 'Unknown')}"
         ax.set_title(title)
         ax.set_xlabel("Position (cm)")
@@ -776,7 +836,95 @@ class VisualizationGenerator:
         ax.set_title(title)
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Cumulative Distance (cm)")
-        ax.grid(True)
+        return fig
+
+    def generate_thigmotaxis_plot(self, ax: Axes | None = None) -> Figure:
+        """Generate thigmotaxis plot (distance to wall vs time).
+
+        Args:
+            ax: Matplotlib Axes to plot on (optional, creates new if None)
+
+        Returns:
+            matplotlib.figure.Figure: Generated figure
+        """
+        fig_obj = ax.get_figure() if ax else plt.figure(figsize=(12, 6))
+        fig = cast(Figure, fig_obj)
+        ax = ax or fig.add_subplot(111)
+        ax.clear()
+
+        try:
+            thigmo_series = self.b_analyzer.get_thigmotaxis_timeseries()
+            if thigmo_series.empty:
+                ax.text(0.5, 0.5, "No thigmotaxis data.", ha="center", va="center")
+            else:
+                time_seconds = (thigmo_series.index - thigmo_series.index[0]).total_seconds()
+                ax.plot(time_seconds, thigmo_series, label="Distance to Wall", color="purple")
+
+                # Plot threshold line if configured
+                behavioral_config = getattr(self.settings, "behavioral_analysis", None)
+                if behavioral_config and hasattr(
+                    behavioral_config, "default_thigmotaxis_distance_cm"
+                ):
+                    thresh = behavioral_config.default_thigmotaxis_distance_cm
+                    ax.axhline(y=thresh, color="r", linestyle="--", label=f"Wall Zone ({thresh}cm)")
+
+                ax.set_ylabel("Distance to Wall (cm)")
+                ax.set_xlabel("Time (s)")
+                ax.legend()
+                ax.grid(True)
+        except Exception as e:
+            log.error("viz.thigmotaxis.error", error=str(e))
+            ax.text(0.5, 0.5, f"Error generating plot: {str(e)}", ha="center", va="center")
+
+        ax.set_title(f"Thigmotaxis - {self.metadata.get('experiment_id', 'Unknown')}")
+        return fig
+
+    def generate_geotaxis_plot(self, ax: Axes | None = None) -> Figure:
+        """Generate geotaxis plot (distance to bottom vs time).
+
+        Args:
+            ax: Matplotlib Axes to plot on (optional, creates new if None)
+
+        Returns:
+            matplotlib.figure.Figure: Generated figure
+        """
+        fig_obj = ax.get_figure() if ax else plt.figure(figsize=(12, 6))
+        fig = cast(Figure, fig_obj)
+        ax = ax or fig.add_subplot(111)
+        ax.clear()
+
+        try:
+            # Check if we have valid geotaxis data (requires bottom boundary)
+            geo_series = self.b_analyzer.get_geotaxis_timeseries()
+
+            # Additional check: only show if we have arena polygon (needed for bottom detection)
+            if geo_series.empty or self.b_analyzer.arena_polygon_cm.is_empty:
+                ax.text(
+                    0.5, 0.5, "No geotaxis data (Angle view required).", ha="center", va="center"
+                )
+            elif geo_series.isna().all():
+                ax.text(0.5, 0.5, "Animal detected below arena bottom.", ha="center", va="center")
+            else:
+                time_seconds = (geo_series.index - geo_series.index[0]).total_seconds()
+                ax.plot(time_seconds, geo_series, label="Distance to Bottom", color="brown")
+
+                # Plot threshold line if configured
+                behavioral_config = getattr(self.settings, "behavioral_analysis", None)
+                if behavioral_config and hasattr(behavioral_config, "default_geotaxis_distance_cm"):
+                    thresh = behavioral_config.default_geotaxis_distance_cm
+                    ax.axhline(
+                        y=thresh, color="r", linestyle="--", label=f"Bottom Zone ({thresh}cm)"
+                    )
+
+                ax.set_ylabel("Distance to Bottom (cm)")
+                ax.set_xlabel("Time (s)")
+                ax.legend()
+                ax.grid(True)
+        except Exception as e:
+            log.error("viz.geotaxis.error", error=str(e))
+            ax.text(0.5, 0.5, f"Error generating plot: {str(e)}", ha="center", va="center")
+
+        ax.set_title(f"Geotaxis - {self.metadata.get('experiment_id', 'Unknown')}")
         return fig
 
     @staticmethod
