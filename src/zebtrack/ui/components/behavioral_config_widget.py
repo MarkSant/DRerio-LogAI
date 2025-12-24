@@ -129,7 +129,7 @@ class BehavioralConfigWidget(BaseWidget):
         desc_label = ttk.Label(
             perspective_frame,
             text="Selecione como a câmera visualiza o aquário:",
-            wraplength=400,
+            wraplength=500,
         )
         desc_label.pack(fill="x", pady=(0, 5))
 
@@ -168,7 +168,7 @@ class BehavioralConfigWidget(BaseWidget):
         desc_label = ttk.Label(
             thigmotaxis_frame,
             text="Distância limite para considerar o peixe próximo às paredes do aquário:",
-            wraplength=400,
+            wraplength=500,
         )
         desc_label.pack(fill="x", pady=(0, 5))
 

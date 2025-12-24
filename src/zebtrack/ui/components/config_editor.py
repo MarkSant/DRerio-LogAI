@@ -68,19 +68,36 @@ class ConfigEditorWidget(BaseWidget):
         super().__init__(parent, event_bus=event_bus, **kwargs)
 
     def _build_ui(self) -> None:
-        """Build the configuration editor UI."""
+        """Build the configuration editor UI with 2-column layout."""
         self._build_intro()
-        self._build_video_processing_section()
-        self._build_trajectory_smoothing_section()
-        self._build_recorder_section()
-        self._build_roi_section()
-        self._build_behavioral_analysis_section()
-        self._build_action_buttons()
 
-    def _build_behavioral_analysis_section(self) -> None:
+        # Create 2-column container for better horizontal space usage
+        columns_frame = ttk.Frame(self)
+        columns_frame.pack(fill="both", expand=True, pady=(0, 10))
+        columns_frame.columnconfigure(0, weight=1)  # Left column
+        columns_frame.columnconfigure(1, weight=1)  # Right column
+
+        # LEFT COLUMN: Video Processing, Smoothing, Recorder
+        left_column = ttk.Frame(columns_frame)
+        left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+
+        self._build_video_processing_section(left_column)
+        self._build_trajectory_smoothing_section(left_column)
+        self._build_recorder_section(left_column)
+        self._build_action_buttons(left_column)  # Place buttons in left column (empty space)
+
+        # RIGHT COLUMN: ROI, Behavioral Analysis
+        right_column = ttk.Frame(columns_frame)
+        right_column.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+
+        self._build_roi_section(right_column)
+        self._build_behavioral_analysis_section(right_column)
+
+    def _build_behavioral_analysis_section(self, parent=None) -> None:
         """Build behavioral analysis default settings."""
+        container = parent if parent else self
         behavioral_frame = ttk.LabelFrame(
-            self,
+            container,
             text="Padrões de Análise Comportamental",
             padding=10,
         )
@@ -120,10 +137,11 @@ class ConfigEditorWidget(BaseWidget):
         )
         config_path_hint.pack(fill="x", pady=(0, 12))
 
-    def _build_video_processing_section(self) -> None:
+    def _build_video_processing_section(self, parent=None) -> None:
         """Build video processing settings frame."""
+        container = parent if parent else self
         video_frame = ttk.LabelFrame(
-            self,
+            container,
             text="Processamento de Vídeo",
             padding=10,
         )
@@ -198,10 +216,11 @@ class ConfigEditorWidget(BaseWidget):
             row=3, column=2, sticky="w", padx=5
         )
 
-    def _build_trajectory_smoothing_section(self) -> None:
+    def _build_trajectory_smoothing_section(self, parent=None) -> None:
         """Build trajectory smoothing settings frame."""
+        container = parent if parent else self
         smoothing_frame = ttk.LabelFrame(
-            self,
+            container,
             text="Suavização de Trajetória (Filtro Savitzky-Golay)",
             padding=10,
         )
@@ -259,10 +278,11 @@ class ConfigEditorWidget(BaseWidget):
             wraplength=550,
         ).grid(row=2, column=0, columnspan=4, sticky="w", padx=(0, 6), pady=(8, 0))
 
-    def _build_recorder_section(self) -> None:
+    def _build_recorder_section(self, parent=None) -> None:
         """Build recorder settings frame."""
+        container = parent if parent else self
         recorder_frame = ttk.LabelFrame(
-            self,
+            container,
             text="Gravação de Dados (Recorder)",
             padding=10,
         )
@@ -303,10 +323,11 @@ class ConfigEditorWidget(BaseWidget):
             row=1, column=2, sticky="w", padx=5
         )
 
-    def _build_roi_section(self) -> None:
+    def _build_roi_section(self, parent=None) -> None:
         """Build ROI parameters frame."""
+        container = parent if parent else self
         roi_frame = ttk.LabelFrame(
-            self,
+            container,
             text="Lógica de Inclusão em ROI (Padrão)",
             padding=10,
         )
@@ -383,9 +404,10 @@ class ConfigEditorWidget(BaseWidget):
             foreground="#555555",
         ).grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
-    def _build_action_buttons(self) -> None:
+    def _build_action_buttons(self, parent=None) -> None:
         """Build action buttons frame."""
-        actions_frame = ttk.Frame(self)
+        container = parent if parent else self
+        actions_frame = ttk.Frame(container)
         actions_frame.pack(fill="x", pady=(12, 0))
         ttk.Button(
             actions_frame,
@@ -400,7 +422,7 @@ class ConfigEditorWidget(BaseWidget):
 
         # Validation info
         ttk.Label(
-            self,
+            container,
             text=(
                 "As validações avançadas (offset < intervalo, polyorder < janela, "
                 "etc.) são aplicadas automaticamente ao salvar."

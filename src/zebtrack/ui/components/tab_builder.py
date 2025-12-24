@@ -53,11 +53,7 @@ class TabBuilder:
         bottom_container = ttk.Frame(self.gui.main_controls_frame)
         bottom_container.pack(fill="x", pady=(5, 10), padx=10)
 
-        # Intervalos de processamento (apenas pré-gravado) - lado esquerdo
-        if project_type == "pre-recorded":
-            self._add_interval_settings(bottom_container)
-
-        # Status de modelo - lado direito
+        # Status de modelo - lado direito (ocupa largura total agora)
         self._build_model_status_section(bottom_container)
 
         # Constrói widgets específicos de tipo de projeto
@@ -203,25 +199,6 @@ class TabBuilder:
                 Events.PROJECT_PROCESS_VIDEOS, {}
             ),
         ).pack(side="left", padx=5)
-
-    def _add_interval_settings(self, parent):
-        """Adiciona controles de configuração de intervalo."""
-        intervals_frame = ttk.LabelFrame(parent, text="Intervalos de Processamento", padding=10)
-        intervals_frame.pack(side="left", fill="both", expand=True, padx=(0, 5))
-
-        analysis_label_frame = ttk.Frame(intervals_frame)
-        analysis_label_frame.pack(fill="x", pady=2)
-        ttk.Label(analysis_label_frame, text="Intervalo de Análise (frames):").pack(side="left")
-        ttk.Entry(analysis_label_frame, textvariable=self.gui.analysis_interval_var, width=8).pack(
-            side="right"
-        )
-
-        display_label_frame = ttk.Frame(intervals_frame)
-        display_label_frame.pack(fill="x", pady=2)
-        ttk.Label(display_label_frame, text="Intervalo de Exibição (frames):").pack(side="left")
-        ttk.Entry(display_label_frame, textvariable=self.gui.display_interval_var, width=8).pack(
-            side="right"
-        )
 
     def _build_model_status_section(self, parent):
         """Constrói seção de status de modelo."""

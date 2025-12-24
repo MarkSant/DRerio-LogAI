@@ -43,7 +43,7 @@ bytetrack:
   iou_threshold: 0.1
 tracking:
   use_bytetrack: true
-  use_single_subject_tracker: false
+  use_single_subject_tracker: true
 detection_zones:
   polygon: []
   roi_polygons: []

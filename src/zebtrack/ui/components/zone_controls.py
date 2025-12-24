@@ -824,6 +824,11 @@ class ZoneControlsWidget(BaseWidget):
         self._video_context_menu.add_command(
             label="🗑️ Excluir Zonas", command=self._on_delete_zones_clicked
         )
+        self._video_context_menu.add_separator()
+        self._video_context_menu.add_command(
+            label="🔄 Reconfigurar Sujeitos",
+            command=self._on_reconfigure_subjects_clicked,
+        )
         self._context_menu_video_path = None
 
     def _get_video_path_from_item(self, item_id: str) -> str | None:
@@ -876,6 +881,60 @@ class ZoneControlsWidget(BaseWidget):
         """Handle delete zones from context menu."""
         if hasattr(self, "_context_menu_video_path") and self._context_menu_video_path:
             self.emit_event("zone.delete_zones", {"video_path": self._context_menu_video_path})
+
+    def _on_reconfigure_subjects_clicked(self) -> None:
+        """Handle reconfigure subjects from context menu.
+
+        This opens a dialog to allow users to manually edit subject assignments
+        for multi-subject videos. Emits 'video.reconfigure_subjects' event.
+        """
+        if not hasattr(self, "_context_menu_video_path") or not self._context_menu_video_path:
+            return
+
+        video_path = self._context_menu_video_path
+
+        # Get current video metadata from project manager
+        pm = getattr(self.gui.controller, "project_manager", None)
+        if not pm:
+            self.gui.show_warning("Aviso", "Gerenciador de projetos não disponível.")
+            return
+
+        video_entry = pm.find_video_entry(video_path)
+        if not video_entry:
+            self.gui.show_warning("Aviso", f"Vídeo não encontrado no projeto: {video_path}")
+            return
+
+        metadata = video_entry.get("metadata", {})
+        subject_entries = metadata.get("subject_entries", [])
+
+        if not subject_entries:
+            # Single subject - show simple edit dialog
+            from tkinter import simpledialog
+
+            current_subject = metadata.get("subject", "")
+            new_subject = simpledialog.askstring(
+                "Reconfigurar Sujeito",
+                f"ID do sujeito para {video_path.split('/')[-1].split('\\\\')[-1]}:",
+                initialvalue=current_subject or "",
+                parent=self.gui.root,
+            )
+
+            if new_subject is not None:
+                # Update metadata
+                video_entry["metadata"]["subject"] = new_subject
+                video_entry["subject"] = new_subject
+                pm.save_project()
+                self.gui.show_info("Sucesso", f"Sujeito atualizado para: {new_subject}")
+                self.emit_event("video.metadata_updated", {"video_path": video_path})
+        else:
+            # Multi-subject - emit event for external dialog
+            self.emit_event(
+                "video.reconfigure_subjects",
+                {
+                    "video_path": video_path,
+                    "current_entries": subject_entries,
+                },
+            )
 
     def _on_load_video_frame_clicked(self) -> None:
         """Handle load video frame button click."""
@@ -1137,6 +1196,13 @@ class ZoneControlsWidget(BaseWidget):
         self.aquarium_count_var.set(count)
 
         if count >= 2:
-            self.aquarium_selector_frame.pack(fill="x", pady=5, padx=5, after=self.drawing_actions_parent.winfo_children()[0] if self.drawing_actions_parent else None)
+            self.aquarium_selector_frame.pack(
+                fill="x",
+                pady=5,
+                padx=5,
+                after=self.drawing_actions_parent.winfo_children()[0]
+                if self.drawing_actions_parent
+                else None,
+            )
         else:
             self.aquarium_selector_frame.pack_forget()

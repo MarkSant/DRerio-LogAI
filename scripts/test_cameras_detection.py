@@ -52,8 +52,16 @@ def run_test():
 
         # Inicializar plugins (usaremos segmentação para mostrar tudo)
         plugin = UltralyticsDetectorPlugin(model_path=seg_model_path, settings_obj=settings)
+
         # Reduzir threshold para ver TUDO mesmo
         plugin.conf_threshold = 0.1
+
+        print(f"\nModelos carregados com sucesso.")
+        print(f"Classes que este modelo consegue detectar: {plugin.class_names}")
+        print(
+            "GARANTIA: O script está configurado para mostrar TODAS as classes "
+            "acima sem nenhum filtro."
+        )
     except Exception as e:
         print(f"Erro ao inicializar modelos: {e}")
         return

@@ -258,12 +258,18 @@ class ValidationManager:
                     status_display = self.format_status_label(status_key)
                     data_badges = self.format_data_badges(entry)
 
-                    # Generate unique video ID
-                    video_id = (
-                        f"video_{path}"
-                        if path
-                        else f"video_{group_id}_{day_id}_{len(self.gui._overview_video_index)}"
-                    )
+                    # Generate unique video ID (include subject index for multi-subject entries)
+                    is_multi_subject_entry = entry.get("is_multi_subject_entry", False)
+                    multi_subject_index = entry.get("multi_subject_index", 0)
+                    if path:
+                        if is_multi_subject_entry:
+                            video_id = f"video_{path}_sub_{multi_subject_index}"
+                        else:
+                            video_id = f"video_{path}"
+                    else:
+                        video_id = (
+                            f"video_{group_id}_{day_id}_{len(self.gui._overview_video_index)}"
+                        )
 
                     videos_list.append(
                         {
@@ -986,6 +992,8 @@ class ValidationManager:
     ) -> dict[str, dict]:
         """Build hierarchical data structure for videos grouped by group and day.
 
+        Now supports multi-subject files by expanding them into separate entries.
+
         Args:
             all_videos: List of video dictionaries
             search_text: Optional search filter
@@ -999,63 +1007,120 @@ class ValidationManager:
 
         for video in all_videos:
             metadata = video.get("metadata") or {}
-            group_id = metadata.get("group") or "Sem Grupo"
-            group_display = metadata.get("group_display_name") or group_id
-            day_id = metadata.get("day") or "Sem Dia"
-            day_display = metadata.get("day_label") or self._format_day_display(day_id)
-            subject_id = metadata.get("subject")
-            filename = os.path.basename(video.get("path", ""))
-            status_label = video.get("status", "")
 
-            searchable_values = (
-                str(group_id),
-                str(group_display),
-                str(day_id),
-                str(day_display),
-                str(subject_id) if subject_id is not None else "",
-                filename,
-                status_label,
-            )
+            # Check for multi-subject video
+            is_multi_subject = metadata.get("is_multi_subject", False)
+            subject_entries = metadata.get("subject_entries", [])
 
-            if normalized and not any(
-                normalized in str(value).lower() for value in searchable_values
-            ):
-                continue
-
-            group_data = hierarchy.setdefault(
-                group_id,
-                {"display": group_display, "days": {}},
-            )
-            days_dict = group_data["days"]
-
-            has_arena = bool(video.get("has_arena"))
-            has_rois = bool(video.get("has_rois"))
-            has_trajectory = bool(video.get("has_trajectory"))
-            has_complete = bool(video.get("has_complete_data")) or (
-                has_arena and has_rois and has_trajectory
-            )
-            has_summary = bool(video.get("has_summary")) or bool(video.get("has_summary_parquet"))
-
-            video_entry = {
-                "path": video.get("path"),
-                "metadata": metadata,
-                "day_label": day_display,
-                "has_arena": has_arena,
-                "has_rois": has_rois,
-                "has_trajectory": has_trajectory,
-                "has_complete_data": has_complete,
-                "has_summary": has_summary,
-                "filename": filename,
-                "status": status_label,
-                "subject": subject_id,
-                # Include results_dir and experiment_id for report file listing
-                "results_dir": video.get("results_dir"),
-                "experiment_id": video.get("experiment_id"),
-            }
-
-            days_dict.setdefault(day_id, []).append(video_entry)
+            if is_multi_subject and len(subject_entries) > 1:
+                # Expand multi-subject video into multiple entries
+                for idx, entry in enumerate(subject_entries):
+                    self._add_video_entry_to_hierarchy(
+                        hierarchy,
+                        video,
+                        metadata,
+                        normalized,
+                        subject_override=entry.get("subject"),
+                        group_override=entry.get("group"),
+                        day_override=entry.get("day"),
+                        is_multi_subject_entry=True,
+                        multi_subject_index=idx,
+                    )
+            else:
+                # Single subject video - normal processing
+                self._add_video_entry_to_hierarchy(
+                    hierarchy,
+                    video,
+                    metadata,
+                    normalized,
+                )
 
         return hierarchy
+
+    def _add_video_entry_to_hierarchy(
+        self,
+        hierarchy: dict[str, dict],
+        video: dict,
+        metadata: dict,
+        normalized_search: str,
+        *,
+        subject_override: str | None = None,
+        group_override: str | None = None,
+        day_override: str | None = None,
+        is_multi_subject_entry: bool = False,
+        multi_subject_index: int = 0,
+    ) -> None:
+        """Add a single video entry to the hierarchy.
+
+        Args:
+            hierarchy: The hierarchy dictionary to update
+            video: Video dictionary
+            metadata: Video metadata
+            normalized_search: Normalized search text
+            subject_override: Override subject from multi-subject expansion
+            group_override: Override group from multi-subject expansion
+            day_override: Override day from multi-subject expansion
+            is_multi_subject_entry: Whether this is from a multi-subject expansion
+            multi_subject_index: Index in multi-subject list (for display ordering)
+        """
+        group_id = group_override or metadata.get("group") or "Sem Grupo"
+        group_display = metadata.get("group_display_name") or group_id
+        day_id = day_override or metadata.get("day") or "Sem Dia"
+        day_display = metadata.get("day_label") or self._format_day_display(day_id)
+        subject_id = subject_override or metadata.get("subject")
+        filename = os.path.basename(video.get("path", ""))
+        status_label = video.get("status", "")
+
+        searchable_values = (
+            str(group_id),
+            str(group_display),
+            str(day_id),
+            str(day_display),
+            str(subject_id) if subject_id is not None else "",
+            filename,
+            status_label,
+        )
+
+        if normalized_search and not any(
+            normalized_search in str(value).lower() for value in searchable_values
+        ):
+            return
+
+        group_data = hierarchy.setdefault(
+            group_id,
+            {"display": group_display, "days": {}},
+        )
+        days_dict = group_data["days"]
+
+        has_arena = bool(video.get("has_arena"))
+        has_rois = bool(video.get("has_rois"))
+        has_trajectory = bool(video.get("has_trajectory"))
+        has_complete = bool(video.get("has_complete_data")) or (
+            has_arena and has_rois and has_trajectory
+        )
+        has_summary = bool(video.get("has_summary")) or bool(video.get("has_summary_parquet"))
+
+        video_entry = {
+            "path": video.get("path"),
+            "metadata": metadata,
+            "day_label": day_display,
+            "has_arena": has_arena,
+            "has_rois": has_rois,
+            "has_trajectory": has_trajectory,
+            "has_complete_data": has_complete,
+            "has_summary": has_summary,
+            "filename": filename,
+            "status": status_label,
+            "subject": subject_id,
+            # Include results_dir and experiment_id for report file listing
+            "results_dir": video.get("results_dir"),
+            "experiment_id": video.get("experiment_id"),
+            # Multi-subject markers
+            "is_multi_subject_entry": is_multi_subject_entry,
+            "multi_subject_index": multi_subject_index,
+        }
+
+        days_dict.setdefault(day_id, []).append(video_entry)
 
     def build_video_hierarchy_snapshot(self) -> list[dict]:
         """Build hierarchical snapshot of videos for display."""

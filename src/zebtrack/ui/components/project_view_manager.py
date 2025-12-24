@@ -1437,7 +1437,15 @@ class ProjectViewManager:
                     if not video.get("has_arena"):
                         status_label = "Sem Arena"
 
-                    video_node_id = f"{day_node_id}_video_{video_path}"
+                    # For multi-subject entries, include the index to avoid duplicate tree IDs
+                    multi_subject_index = video.get("multi_subject_index", 0)
+                    is_multi_subject_entry = video.get("is_multi_subject_entry", False)
+                    if is_multi_subject_entry:
+                        video_node_id = (
+                            f"{day_node_id}_video_{video_path}_sub_{multi_subject_index}"
+                        )
+                    else:
+                        video_node_id = f"{day_node_id}_video_{video_path}"
 
                     tree.insert(
                         day_node_id,
@@ -1513,10 +1521,14 @@ class ProjectViewManager:
                                 existing["parquet_files"] = merged_pf
 
                             for field in ("group", "subject_id", "day", "frame_crop_box"):
-                                if existing.get(field) in (None, "") and output_info.get(field) not in (None, ""):
+                                if existing.get(field) in (None, "") and output_info.get(
+                                    field
+                                ) not in (None, ""):
                                     existing[field] = output_info.get(field)
 
-                        for aq_id, aq_output in sorted(normalized_outputs.items(), key=lambda kv: kv[0]):
+                        for aq_id, aq_output in sorted(
+                            normalized_outputs.items(), key=lambda kv: kv[0]
+                        ):
                             aq_results_dir = aq_output.get("results_dir")
                             aq_group = aq_output.get("group", "")
                             aq_subject = aq_output.get("subject_id", "")

@@ -324,25 +324,26 @@ class WizardDialog(Dialog):
         usable_w = screen_w - 80
         usable_h = screen_h - 220
 
-        # FIXED SIZE STRATEGY: Wide window for 3-column horizontal layouts
-        # Target: 1150×850 (wide for 3 columns, taller to show all content)
+        # FIXED SIZE STRATEGY: Optimized for 1080p screens with taskbar/scaling
+        # Previous: 1150×850 (can overflow on 1080p with 125%+ scaling)
+        # New: 1050×780 (fits 1080p reliably, increased 30px for calibration step)
 
-        target_width = 1150
-        target_height = 850
+        target_width = 1050
+        target_height = 780
 
         # But don't exceed available space on smaller screens
         width = min(target_width, usable_w)
         height = min(target_height, usable_h)
 
         # Ensure absolute minimums for usability
-        width = max(width, 950)
-        if usable_h >= 700:
-            height = max(height, 700)
+        width = max(width, 900)
+        if usable_h >= 650:
+            height = max(height, 650)
 
-        # Set resizable bounds (75% to 120% of target)
-        min_width = max(int(target_width * 0.75), 900)
-        min_height = max(int(target_height * 0.75), 520)
-        max_width = int(target_width * 1.2)
+        # Set resizable bounds (more conservative for better compatibility)
+        min_width = max(int(target_width * 0.80), 850)
+        min_height = max(int(target_height * 0.80), 520)
+        max_width = int(target_width * 1.15)
         max_height = int(target_height * 1.1)
 
         # Center on screen with simple calculation

@@ -28,7 +28,8 @@
       "Bash(fi)",
       "Bash(cd:*)",
       "Bash(git checkout:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(wmic path Win32_VideoController get:*)"
     ],
     "deny": [],
     "ask": []

@@ -1145,6 +1145,8 @@ class ProjectWorkflowService:
     ) -> list[dict]:
         """Enrich scanned videos with experimental metadata derived from the design.
 
+        Now supports multi-subject files via `subject_mappings` from detection.
+
         Args:
             scanned_videos: Video descriptors produced by ``scan_input_paths``.
             detected_design: Detected experimental design information.
@@ -1171,6 +1173,19 @@ class ProjectWorkflowService:
         days = detected_design.get("days") or []
         subjects_per_group = detected_design.get("subjects_per_group") or {}
 
+        # NEW: Get subject_mappings from detection step
+        raw_subject_mappings = detected_design.get("subject_mappings") or {}
+
+        # Normalize paths in subject_mappings to handle Windows path differences
+        # Keys may be in different format than video paths (forward vs backward slashes)
+        subject_mappings: dict[str, list[dict]] = {}
+        for key, value in raw_subject_mappings.items():
+            # Normalize to use forward slashes and lowercase for comparison
+            normalized_key = str(Path(key).as_posix())
+            subject_mappings[normalized_key] = value
+            # Also keep original key for exact match
+            subject_mappings[key] = value
+
         group_lookup, day_lookup, subject_lookup = self._build_design_lookups(
             groups, days, subjects_per_group
         )
@@ -1189,29 +1204,97 @@ class ProjectWorkflowService:
         )
 
         enriched_videos: list[dict] = []
+        multi_subject_count = 0
+
+        # DEBUG: Log subject_mappings state
+        log.info(
+            "project_workflow_service.enrich_debug",
+            subject_mappings_keys=list(subject_mappings.keys())[:5],
+            subject_mappings_count=len(subject_mappings),
+            scanned_videos_count=len(scanned_videos),
+        )
 
         for original_video in scanned_videos:
             enriched = copy.deepcopy(original_video)
             path_str = str(enriched.get("path", ""))
             metadata: dict = copy.deepcopy(enriched.get("metadata") or {})
 
-            group_id = self._extract_group(
-                metadata,
-                enriched,
-                path_str,
-                group_pattern,
-                group_lookup,
-                group_display_names,
+            # NEW: Check if this file has multiple subjects from detection
+            # Try both original path and normalized path format
+            file_subjects = subject_mappings.get(path_str, [])
+            if not file_subjects:
+                # Try normalized path (forward slashes)
+                normalized_path = str(Path(path_str).as_posix()) if path_str else ""
+                file_subjects = subject_mappings.get(normalized_path, [])
+
+            # DEBUG: Log lookup result
+            log.info(
+                "project_workflow_service.enrich_video_debug",
+                video_path=path_str[-50:] if path_str else "",
+                file_subjects_count=len(file_subjects),
+                file_subjects=file_subjects if len(file_subjects) <= 3 else "...",
             )
-            self._extract_day(metadata, enriched, path_str, day_pattern, day_lookup)
-            self._extract_subject(
-                metadata,
-                enriched,
-                path_str,
-                subject_pattern,
-                subject_lookup,
-                group_id,
-            )
+
+            if len(file_subjects) > 1:
+                # Multi-subject file - mark it and store entries
+                enriched["is_multi_subject"] = True
+                enriched["subject_entries"] = file_subjects
+                metadata["is_multi_subject"] = True
+                metadata["subject_entries"] = file_subjects
+                multi_subject_count += 1
+
+                # Use first entry for primary metadata
+                first_entry = file_subjects[0]
+                if first_entry.get("group"):
+                    group_id = first_entry["group"]
+                    enriched["group"] = group_id
+                    metadata["group"] = group_id
+                    display_name = group_display_names.get(group_id, group_id)
+                    if display_name and display_name != group_id:
+                        enriched["group_display_name"] = display_name
+                        metadata["group_display_name"] = display_name
+
+                if first_entry.get("day"):
+                    day_val = first_entry["day"]
+                    enriched["day"] = day_val
+                    metadata["day"] = day_val
+
+                # Don't set single subject - it's multi-subject
+                enriched["subject"] = None
+                metadata.pop("subject", None)
+
+            elif len(file_subjects) == 1:
+                # Single subject from mapping
+                entry = file_subjects[0]
+                if entry.get("group"):
+                    enriched["group"] = entry["group"]
+                    metadata["group"] = entry["group"]
+                if entry.get("day"):
+                    enriched["day"] = entry["day"]
+                    metadata["day"] = entry["day"]
+                if entry.get("subject"):
+                    enriched["subject"] = entry["subject"]
+                    metadata["subject"] = entry["subject"]
+
+            else:
+                # Fallback: Use legacy extraction patterns
+                group_id = self._extract_group(
+                    metadata,
+                    enriched,
+                    path_str,
+                    group_pattern,
+                    group_lookup,
+                    group_display_names,
+                )
+                self._extract_day(metadata, enriched, path_str, day_pattern, day_lookup)
+                self._extract_subject(
+                    metadata,
+                    enriched,
+                    path_str,
+                    subject_pattern,
+                    subject_lookup,
+                    group_id,
+                )
 
             if metadata:
                 enriched["metadata"] = metadata
@@ -1224,6 +1307,7 @@ class ProjectWorkflowService:
             with_group=sum(1 for v in enriched_videos if v.get("group")),
             with_day=sum(1 for v in enriched_videos if v.get("day")),
             with_subject=sum(1 for v in enriched_videos if v.get("subject")),
+            multi_subject_files=multi_subject_count,
         )
 
         return enriched_videos

@@ -80,94 +80,116 @@ class DetectionStep(WizardStep):
         self.template_info_label = None
 
     def build_ui(self):
-        """Build detection step UI."""
-        # Title
+        """Build detection step UI - horizontal 2-column layout for better space usage."""
+        # Title (full width)
         title_font = tkfont.Font(size=14, weight="bold")
         title = Label(self, text="Detecção Automática de Design", font=title_font)
-        title.pack(pady=(0, 10))
+        title.pack(pady=(0, 5))
 
         subtitle = Label(
             self,
             text="Analisando estrutura de pastas e arquivos parquet...",
             fg="gray",
-            wraplength=500,
+            wraplength=700,
         )
-        subtitle.pack(pady=(0, 20))
+        subtitle.pack(pady=(0, 10))
 
         self.template_info_label = Label(
             self,
             textvariable=self.template_info_var,
             fg="#555555",
-            wraplength=500,
+            wraplength=700,
             justify="left",
         )
         self.template_info_label.pack_forget()
 
-        # Status message
-        status_frame = Frame(self)
-        status_frame.pack(fill="x", pady=(0, 15))
+        # HORIZONTAL 2-COLUMN LAYOUT: Results (left) + Controls (right)
+        content_frame = Frame(self)
+        content_frame.pack(fill="both", expand=True, pady=(5, 0))
+        content_frame.columnconfigure(0, weight=3, minsize=650)  # Results column (70%)
+        content_frame.columnconfigure(1, weight=1, minsize=280)  # Controls column (30%)
+        content_frame.rowconfigure(0, weight=1)
 
-        Label(status_frame, text="Status: ").pack(side="left")
-        Label(status_frame, textvariable=self.status_var, fg="blue").pack(side="left")
+        # LEFT COLUMN: Detection results
+        results_frame = LabelFrame(
+            content_frame, text="Resultados da Detecção", padx=10, pady=10
+        )
+        results_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
-        # Detection results
-        results_frame = LabelFrame(self, text="Resultados da Detecção", padx=10, pady=10)
-        results_frame.pack(fill="both", expand=True, pady=(0, 15))
-
-        # Scrollable text widget for results
+        # Scrollable text widget for results (REDUCED height from 15 to 12)
         scrollbar = create_scrollbar(results_frame)
         scrollbar.pack(side="right", fill="y")
 
         self.results_text = Text(
             results_frame,
-            height=15,
-            width=60,
+            height=12,  # Reduced from 15 to save vertical space
+            width=50,   # Reduced from 60 to fit horizontal layout
             wrap="word",
             yscrollcommand=scrollbar.set,
-            state="disabled",  # Read-only
+            state="disabled",
         )
         self.results_text.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=self.results_text.yview)
 
-        # Action buttons
-        button_frame = Frame(self)
-        button_frame.pack(pady=(0, 10))
+        # RIGHT COLUMN: Controls and status
+        right_panel = Frame(content_frame)
+        right_panel.grid(row=0, column=1, sticky="nsew")
+
+        # Status message (top of right panel)
+        status_label_frame = LabelFrame(right_panel, text="Status", padx=10, pady=10)
+        status_label_frame.pack(fill="x", pady=(0, 10))
+
+        Label(
+            status_label_frame,
+            textvariable=self.status_var,
+            fg="blue",
+            wraplength=240,
+            justify="left",
+        ).pack()
+
+        # Action buttons (vertical stack in right panel)
+        button_frame = LabelFrame(right_panel, text="Ações", padx=10, pady=10)
+        button_frame.pack(fill="x", pady=(0, 10))
 
         Button(
             button_frame,
             text="🔄 Re-analisar",
             command=self._run_detection,
-            width=15,
-        ).pack(side="left", padx=5)
+            width=22,
+        ).pack(pady=3, fill="x")
 
         self.edit_design_btn = Button(
             button_frame,
             text="✏️ Editar Design",
             command=self._edit_design,
-            width=15,
-            state="disabled",  # Enable only after detection
+            width=22,
+            state="disabled",
         )
-        self.edit_design_btn.pack(side="left", padx=5)
+        self.edit_design_btn.pack(pady=3, fill="x")
 
         Button(
             button_frame,
             text="🔧 Regex Customizado",
             command=self._configure_custom_regex,
-            width=18,
-        ).pack(side="left", padx=5)
+            width=22,
+        ).pack(pady=3, fill="x")
 
-        # Help text
+        # Help text (bottom of right panel)
+        help_frame = LabelFrame(right_panel, text="💡 Dica", padx=10, pady=10)
+        help_frame.pack(fill="both", expand=True)
+
         help_text = Label(
-            self,
+            help_frame,
             text=(
-                "💡 Dica: A detecção automática identifica grupos, dias e sujeitos "
+                "A detecção automática identifica grupos, dias e sujeitos "
                 "baseando-se na estrutura de pastas."
             ),
             fg="gray",
-            wraplength=500,
+            wraplength=240,
             justify="left",
         )
-        help_text.pack(pady=(15, 0))
+        help_text.pack()
+
         self._update_template_banner()
 
     def on_show(self):
@@ -345,6 +367,16 @@ class DetectionStep(WizardStep):
         # Convert to Path objects
         paths = [Path(p) if isinstance(p, str) else p for p in video_paths]
 
+        # DEBUG: Log custom_regex_patterns state
+        log.info(
+            "wizard.detection._detect_design.start",
+            has_custom_regex=bool(self.custom_regex_patterns),
+            custom_patterns_keys=list(self.custom_regex_patterns.keys())
+            if self.custom_regex_patterns
+            else [],
+            video_count=len(paths),
+        )
+
         # Try custom regex patterns first (if configured)
         if self.custom_regex_patterns:
             custom_result = self._pattern_custom_regex(paths, self.custom_regex_patterns)
@@ -378,13 +410,18 @@ class DetectionStep(WizardStep):
         """
         Pattern: User-defined custom regex patterns.
 
+        Supports multi-subject files like "G1_D1_S1--G1_D1_S2.mp4" by using
+        finditer to extract ALL matches per file.
+
         Args:
             paths: List of video file paths
             patterns: Dict with keys: group_pattern, day_pattern, subject_pattern
 
         Returns:
-            dict | None: Detected design or None if patterns don't match
+            dict | None: Detected design with subject_mappings, or None if patterns don't match
         """
+        from zebtrack.ui.wizard.models import MultiAquariumData
+
         group_pattern = patterns.get("group_pattern")
         day_pattern = patterns.get("day_pattern")
         subject_pattern = patterns.get("subject_pattern")
@@ -398,58 +435,136 @@ class DetectionStep(WizardStep):
         subjects_per_group = {}
         match_count = 0
 
-        for path in paths:
-            # Search in full path string
-            path_str = str(path)
+        # NEW: Build combined pattern for multi-subject extraction
+        combined_pattern = MultiAquariumData.build_combined_regex_pattern(
+            group_pattern=group_pattern,
+            day_pattern=day_pattern,
+            subject_pattern=subject_pattern,
+        )
 
-            # Extract group (required)
-            group = None
-            if group_pattern:
+        # NEW: Map file paths to their extracted subject entries
+        subject_mappings: dict[str, list[dict]] = {}
+
+        for path in paths:
+            path_str = str(path)
+            file_subjects: list[dict] = []
+
+            # Try combined pattern first (for multi-subject files)
+            if combined_pattern:
                 try:
-                    match = re.search(group_pattern, path_str)
-                    if match:
-                        # Use first capture group if available, otherwise full match
-                        group = match.group(1) if match.groups() else match.group(0)
-                        groups_found.add(group)
+                    compiled = re.compile(combined_pattern)
+                    matches = list(compiled.finditer(path_str))
+
+                    if len(matches) >= 1:
+                        for m in matches:
+                            groups_dict = m.groupdict()
+                            group_val = groups_dict.get("group", "")
+                            day_val = groups_dict.get("day", "")
+                            subject_val = groups_dict.get("subject", "")
+
+                            # Normalize values
+                            if group_val and group_val.isdigit():
+                                group_val = f"G{group_val.zfill(2)}"
+                            if day_val and day_val.isdigit():
+                                day_val = f"Day{day_val.zfill(2)}"
+                            if subject_val and subject_val.isdigit():
+                                subject_val = f"S{subject_val.zfill(2)}"
+
+                            if group_val:
+                                groups_found.add(group_val)
+                                if group_val not in subjects_per_group:
+                                    subjects_per_group[group_val] = set()
+                                if subject_val:
+                                    subjects_per_group[group_val].add(subject_val)
+
+                            if day_val:
+                                days_found.add(day_val)
+
+                            file_subjects.append(
+                                {
+                                    "group": group_val,
+                                    "day": day_val,
+                                    "subject": subject_val,
+                                }
+                            )
+
                         match_count += 1
 
-                        if group not in subjects_per_group:
-                            subjects_per_group[group] = set()
                 except re.error as e:
-                    log.error("wizard.detection.custom_regex.group_error", error=str(e))
-                    return None
+                    log.error("wizard.detection.custom_regex.combined_error", error=str(e))
 
-            # Extract day (optional)
-            if day_pattern:
-                try:
-                    match = re.search(day_pattern, path_str)
-                    if match:
-                        day = match.group(1) if match.groups() else match.group(0)
-                        # Normalize day format (add leading zeros if numeric)
-                        if day.isdigit():
-                            day = f"Day{day.zfill(2)}"
-                        days_found.add(day)
-                except re.error as e:
-                    log.error("wizard.detection.custom_regex.day_error", error=str(e))
+            # Fallback: Use individual patterns if no combined matches
+            if not file_subjects:
+                group = None
+                if group_pattern:
+                    try:
+                        match = re.search(group_pattern, path_str)
+                        if match:
+                            group = match.group(1) if match.groups() else match.group(0)
+                            groups_found.add(group)
+                            match_count += 1
+                            if group not in subjects_per_group:
+                                subjects_per_group[group] = set()
+                    except re.error as e:
+                        log.error("wizard.detection.custom_regex.group_error", error=str(e))
+                        return None
 
-            # Extract subject (optional)
-            if subject_pattern and group:
-                try:
-                    match = re.search(subject_pattern, path_str)
-                    if match:
-                        subject = match.group(1) if match.groups() else match.group(0)
-                        # Normalize subject format (add leading zeros if numeric)
-                        if subject.isdigit():
-                            subject = f"S{subject.zfill(2)}"
-                        subjects_per_group[group].add(subject)
-                except re.error as e:
-                    log.error("wizard.detection.custom_regex.subject_error", error=str(e))
+                day = None
+                if day_pattern:
+                    try:
+                        match = re.search(day_pattern, path_str)
+                        if match:
+                            day = match.group(1) if match.groups() else match.group(0)
+                            if day.isdigit():
+                                day = f"Day{day.zfill(2)}"
+                            days_found.add(day)
+                    except re.error as e:
+                        log.error("wizard.detection.custom_regex.day_error", error=str(e))
 
-        # Must have at least 2 groups to be valid
-        if len(groups_found) < 2:
+                subject = None
+                if subject_pattern and group:
+                    try:
+                        match = re.search(subject_pattern, path_str)
+                        if match:
+                            subject = match.group(1) if match.groups() else match.group(0)
+                            if subject.isdigit():
+                                subject = f"S{subject.zfill(2)}"
+                            subjects_per_group[group].add(subject)
+                    except re.error as e:
+                        log.error("wizard.detection.custom_regex.subject_error", error=str(e))
+
+                if group:
+                    file_subjects.append(
+                        {
+                            "group": group or "",
+                            "day": day or "",
+                            "subject": subject or "",
+                        }
+                    )
+
+            # Store mapping for this file
+            if file_subjects:
+                subject_mappings[path_str] = file_subjects
+
+        # Validation: Either 2+ groups OR 1 group with 2+ subjects (multi-aquarium)
+        total_subjects = sum(len(subs) for subs in subjects_per_group.values())
+
+        # DEBUG: Log captured data before validation
+        log.info(
+            "wizard.detection.custom_regex.pre_validation",
+            groups_found=list(groups_found),
+            days_found=list(days_found),
+            subjects_per_group=subjects_per_group,
+            total_subjects=total_subjects,
+            match_count=match_count,
+            subject_mappings_count=len(subject_mappings),
+        )
+
+        if len(groups_found) < 2 and total_subjects < 2:
             log.debug(
-                "wizard.detection.custom_regex.insufficient_groups",
-                count=len(groups_found),
+                "wizard.detection.custom_regex.insufficient_data",
+                groups=len(groups_found),
+                subjects=total_subjects,
             )
             return None
 
@@ -459,8 +574,18 @@ class DetectionStep(WizardStep):
         }
 
         # Calculate confidence based on match coverage
-        coverage = match_count / len(paths)
-        confidence = coverage * 0.9  # High confidence for custom patterns
+        coverage = match_count / len(paths) if paths else 0
+        confidence = coverage * 0.9
+
+        # Count multi-subject files
+        multi_subject_count = sum(1 for subs in subject_mappings.values() if len(subs) > 1)
+
+        log.info(
+            "wizard.detection.custom_regex.completed",
+            groups=len(groups_found),
+            total_subjects=total_subjects,
+            multi_subject_files=multi_subject_count,
+        )
 
         return {
             "groups": sorted(list(groups_found)),
@@ -468,6 +593,7 @@ class DetectionStep(WizardStep):
             "subjects_per_group": subjects_per_group_sorted,
             "confidence": confidence,
             "pattern_used": "custom_regex",
+            "subject_mappings": subject_mappings,  # NEW: Per-file subject mappings
         }
 
     def _pattern_groups_as_folders(self, paths: list[Path]) -> dict | None:

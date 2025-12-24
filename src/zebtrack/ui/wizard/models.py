@@ -246,6 +246,101 @@ class MultiAquariumData(BaseModel):
         description="Nome do grupo de captura para o dia do experimento",
     )
 
+    @staticmethod
+    def build_combined_regex_pattern(
+        group_pattern: str | None = None,
+        day_pattern: str | None = None,
+        subject_pattern: str | None = None,
+        *,
+        separator: str = r"(?:--|_)",
+    ) -> str:
+        """Build a combined regex pattern from individual patterns.
+
+        Combines separate group, day, and subject patterns into a single
+        pattern with named capture groups that can be used with `re.finditer`
+        to extract multiple subjects from filenames like "G1_D1_S1--G1_D1_S2".
+
+        Args:
+            group_pattern: Pattern for capturing group ID (e.g., r"G(\\d+)")
+            day_pattern: Pattern for capturing day (e.g., r"D(\\d+)")
+            subject_pattern: Pattern for capturing subject (e.g., r"S(\\d+)")
+            separator: Regex pattern for block separator (default: `--` or `_`)
+
+        Returns:
+            Combined regex pattern with named groups (?P<group>...), (?P<day>...),
+            (?P<subject>...). Returns empty string if no patterns provided.
+
+        Examples:
+            >>> MultiAquariumData.build_combined_regex_pattern(
+            ...     group_pattern=r"G(\\d+)",
+            ...     day_pattern=r"D(\\d+)",
+            ...     subject_pattern=r"S(\\d+)"
+            ... )
+            'G(?P<group>\\d+)_D(?P<day>\\d+)_S(?P<subject>\\d+)'
+        """
+        if not any([group_pattern, day_pattern, subject_pattern]):
+            return ""
+
+        def convert_to_named_group(pattern: str | None, group_name: str) -> str | None:
+            """Convert a pattern with capture group to a named group."""
+            if not pattern:
+                return None
+
+            pattern = pattern.strip()
+            if not pattern:
+                return None
+
+            # Check if pattern has a capture group - look for (...) that isn't (?:...)
+            # or already named (?P<...>)
+            has_capture = re.search(r"\((?!\?[:=!<])", pattern)
+
+            if has_capture:
+                # Replace first non-named capture group with named group
+                # Pattern: G(\d+) -> G(?P<group>\d+)
+                def replace_first_group(m):
+                    return f"(?P<{group_name}>"
+
+                # Only replace the first occurrence
+                result, count = re.subn(r"\((?!\?[:=!<])", replace_first_group, pattern, count=1)
+                return result
+            else:
+                # No capture group - wrap the whole pattern
+                # Pattern: G\d+ -> (?P<group>G\d+)
+                return f"(?P<{group_name}>{pattern})"
+
+        # Build component patterns with named groups
+        group_named = convert_to_named_group(group_pattern, "group")
+        day_named = convert_to_named_group(day_pattern, "day")
+        subject_named = convert_to_named_group(subject_pattern, "subject")
+
+        # Build the combined pattern
+        # The pattern structure depends on which components are available
+        parts = []
+
+        if group_named:
+            parts.append(group_named)
+        if day_named:
+            parts.append(day_named)
+        if subject_named:
+            parts.append(subject_named)
+
+        if not parts:
+            return ""
+
+        # Join parts with underscore (common separator within a block)
+        # This creates a pattern like: G(?P<group>\d+)_D(?P<day>\d+)_S(?P<subject>\d+)
+        combined = "_".join(parts)
+
+        log.debug(
+            "multi_aquarium.build_combined_pattern",
+            group_pattern=group_pattern,
+            day_pattern=day_pattern,
+            subject_pattern=subject_pattern,
+            result=combined,
+        )
+
+        return combined
+
     @field_validator("aquarium_configs")
     @classmethod
     def validate_configs_count(cls, v: list[AquariumConfig]) -> list[AquariumConfig]:

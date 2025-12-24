@@ -517,6 +517,10 @@ class DesignEditorDialog(Dialog):
             "group_display_names": self.group_display_names.copy(),
         }
 
+        # Preserve subject_mappings from input_design if it exists (for multi-subject files)
+        if self.input_design.get("subject_mappings"):
+            self.edited_design["subject_mappings"] = self.input_design["subject_mappings"]
+
         log.info(
             "design_editor.saved",
             groups=len(self.groups),

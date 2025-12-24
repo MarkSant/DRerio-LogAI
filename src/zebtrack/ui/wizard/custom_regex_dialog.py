@@ -101,13 +101,13 @@ class CustomRegexDialog(Dialog):
         except Exception as exc:  # pragma: no cover - defensive
             log.warning("custom_regex.geometry.resizable_failed", error=str(exc))
 
-        # Title
+        # Title (full width)
         title_font = tkfont.Font(size=10, weight="bold")
         Label(
             master,
             text="Padrões Regex Personalizados",
             font=title_font,
-        ).pack(pady=(0, 3))
+        ).pack(pady=(0, 2))
 
         subtitle = Label(
             master,
@@ -116,32 +116,42 @@ class CustomRegexDialog(Dialog):
                 "Use grupos de captura () ou nomeados (?P<nome>) para extrair os valores."
             ),
             fg="gray",
-            wraplength=500,
+            wraplength=760,
             justify="left",
             font=("TkDefaultFont", 8),
         )
-        subtitle.pack(pady=(0, 4))
+        subtitle.pack(pady=(0, 5))
 
-        tips_frame = ttk.LabelFrame(master, text="Dicas rápidas", padding=6)
-        tips_frame.pack(fill="x", padx=10, pady=(0, 6))
+        # HORIZONTAL 2-COLUMN LAYOUT
+        content_frame = Frame(master)
+        content_frame.pack(fill="both", expand=True, padx=5, pady=(0, 5))
+        content_frame.columnconfigure(0, weight=11, minsize=440)  # Left 55%
+        content_frame.columnconfigure(1, weight=9, minsize=360)   # Right 45%
+        content_frame.rowconfigure(0, weight=1)
+
+        # LEFT COLUMN: Tips + Examples + Pattern fields
+        left_panel = Frame(content_frame)
+        left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+
+        tips_frame = ttk.LabelFrame(left_panel, text="Dicas rápidas", padding=(6, 4))
+        tips_frame.pack(fill="x", pady=(0, 5))
         Label(
             tips_frame,
             text=(
                 "• Campos vazios permanecem inalterados no design.\n"
                 "• \\d captura dígitos (0-9); \\w cobre letras, números e _.\n"
-                "• Âncoras ^ (início) e $ (fim) fixam o padrão na string "
-                "completa — use com cautela.\n"
+                "• Âncoras ^ (início) e $ (fim) fixam o padrão completo.\n"
                 "• A pré-visualização calcula automaticamente após cada edição."
             ),
             justify="left",
-            wraplength=520,
+            wraplength=420,
             fg="#4a4a4a",
             font=("TkDefaultFont", 8),
         ).pack(anchor="w")
 
         # Examples section
-        examples_frame = ttk.LabelFrame(master, text="📚 Exemplos Comuns", padding=6)
-        examples_frame.pack(fill="x", padx=10, pady=(0, 6))
+        examples_frame = ttk.LabelFrame(left_panel, text="📚 Exemplos Comuns", padding=(6, 4))
+        examples_frame.pack(fill="x", pady=(0, 5))
 
         # Define common examples
         examples = [
@@ -173,17 +183,17 @@ class CustomRegexDialog(Dialog):
 
         for i, ex in enumerate(examples):
             row = Frame(examples_frame)
-            row.pack(fill="x", pady=2)
+            row.pack(fill="x", pady=1)
 
             # Description
             desc_label = Label(
                 row,
                 text=f"{ex['desc']}:",
-                width=25,
+                width=22,
                 anchor="w",
                 font=("TkDefaultFont", 8),
             )
-            desc_label.pack(side="left", padx=(0, 5))
+            desc_label.pack(side="left", padx=(0, 3))
 
             # Pattern display
             pattern_label = Label(
@@ -192,33 +202,33 @@ class CustomRegexDialog(Dialog):
                 fg="#0066cc",
                 font=("Courier", 8),
                 anchor="w",
-                width=20,
+                width=18,
             )
-            pattern_label.pack(side="left", padx=(0, 5))
+            pattern_label.pack(side="left", padx=(0, 3))
 
             # Use button
             use_btn = Button(
                 row,
                 text="Usar",
                 command=lambda p=ex["pattern"], f=ex["field"]: self._apply_example_pattern(f, p),
-                width=6,
+                width=5,
                 font=("TkDefaultFont", 8),
             )
-            use_btn.pack(side="left", padx=(0, 5))
+            use_btn.pack(side="left", padx=(0, 3))
 
             # Example filename
             ex_label = Label(
                 row,
                 text=f"Ex: {ex['example']}",
                 fg="gray",
-                font=("TkDefaultFont", 8),
+                font=("TkDefaultFont", 7),
                 anchor="w",
             )
             ex_label.pack(side="left")
 
         # Group pattern
-        group_frame = Frame(master)
-        group_frame.pack(fill="x", padx=10, pady=3)
+        group_frame = Frame(left_panel)
+        group_frame.pack(fill="x", pady=(0, 4))
 
         Label(
             group_frame,
@@ -234,14 +244,14 @@ class CustomRegexDialog(Dialog):
 
         self.group_pattern_entry = Entry(
             group_frame,
-            width=50,
+            width=42,
             textvariable=self.group_pattern_var,
         )
-        self.group_pattern_entry.pack(fill="x", pady=3)
+        self.group_pattern_entry.pack(fill="x", pady=2)
 
         # Day pattern
-        day_frame = Frame(master)
-        day_frame.pack(fill="x", padx=10, pady=3)
+        day_frame = Frame(left_panel)
+        day_frame.pack(fill="x", pady=(0, 4))
 
         Label(
             day_frame,
@@ -257,14 +267,14 @@ class CustomRegexDialog(Dialog):
 
         self.day_pattern_entry = Entry(
             day_frame,
-            width=50,
+            width=42,
             textvariable=self.day_pattern_var,
         )
-        self.day_pattern_entry.pack(fill="x", pady=3)
+        self.day_pattern_entry.pack(fill="x", pady=2)
 
         # Subject pattern
-        subject_frame = Frame(master)
-        subject_frame.pack(fill="x", padx=10, pady=3)
+        subject_frame = Frame(left_panel)
+        subject_frame.pack(fill="x", pady=(0, 0))
 
         Label(
             subject_frame,
@@ -280,14 +290,18 @@ class CustomRegexDialog(Dialog):
 
         self.subject_pattern_entry = Entry(
             subject_frame,
-            width=50,
+            width=42,
             textvariable=self.subject_pattern_var,
         )
-        self.subject_pattern_entry.pack(fill="x", pady=3)
+        self.subject_pattern_entry.pack(fill="x", pady=2)
+
+        # RIGHT COLUMN: Test + Results + Preview
+        right_panel = Frame(content_frame)
+        right_panel.grid(row=0, column=1, sticky="nsew")
 
         # Test section
-        test_frame = Frame(master)
-        test_frame.pack(fill="both", expand=True, padx=10, pady=5)
+        test_frame = Frame(right_panel)
+        test_frame.pack(fill="both", expand=True)
 
         Label(
             test_frame,
@@ -300,10 +314,10 @@ class CustomRegexDialog(Dialog):
 
         self.test_path_entry = Entry(
             test_input_frame,
-            width=40,
+            width=28,
             textvariable=self.test_path_var,
         )
-        self.test_path_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        self.test_path_entry.pack(side="left", fill="x", expand=True, padx=(0, 3))
 
         Button(
             test_input_frame,
@@ -343,7 +357,7 @@ class CustomRegexDialog(Dialog):
             fg="#666666",
             font=("TkDefaultFont", 8),
             justify="left",
-            wraplength=520,
+            wraplength=340,
         ).pack(anchor="w", pady=(0, 2))
         Label(
             test_frame,
@@ -352,9 +366,9 @@ class CustomRegexDialog(Dialog):
             font=("TkDefaultFont", 8),
         ).pack(anchor="w", pady=(0, 2))
 
-        # Live preview
-        preview_frame = Frame(master)
-        preview_frame.pack(fill="both", expand=True, padx=10, pady=(3, 5))
+        # Live preview (in right panel)
+        preview_frame = Frame(right_panel)
+        preview_frame.pack(fill="both", expand=True, pady=(5, 0))
 
         Label(
             preview_frame,
@@ -369,16 +383,16 @@ class CustomRegexDialog(Dialog):
             tree_outer,
             columns=("path", "group", "day", "subject"),
             show="headings",
-            height=4,
+            height=7,
         )
         self.preview_tree.heading("path", text="Caminho")
         self.preview_tree.heading("group", text="Grupo")
         self.preview_tree.heading("day", text="Dia")
         self.preview_tree.heading("subject", text="Sujeito")
-        self.preview_tree.column("path", width=260, anchor="w")
-        self.preview_tree.column("group", width=100, anchor="center")
-        self.preview_tree.column("day", width=80, anchor="center")
-        self.preview_tree.column("subject", width=90, anchor="center")
+        self.preview_tree.column("path", width=160, anchor="w")
+        self.preview_tree.column("group", width=70, anchor="center")
+        self.preview_tree.column("day", width=60, anchor="center")
+        self.preview_tree.column("subject", width=60, anchor="center")
         self.preview_tree.pack(side="left", fill="both", expand=True)
 
         preview_scroll = ttk.Scrollbar(
@@ -553,9 +567,11 @@ class CustomRegexDialog(Dialog):
         usable_w = screen_w - 80
         usable_h = screen_h - 160
 
-        # Target size: wide enough for columns, taller preview viewport
+        # Target size: Reduced to fit 1080p screens with taskbar/scaling
+        # Previous: 800×960 (too tall for 1080p)
+        # New: 800×780 (fits comfortably with taskbar)
         target_width = 800
-        target_height = 960
+        target_height = 780
 
         # Don't exceed available space on smaller screens
         width = min(target_width, usable_w)
@@ -563,13 +579,13 @@ class CustomRegexDialog(Dialog):
 
         # Ensure absolute minimums
         width = max(width, 700)
-        height = max(height, 640)
+        height = max(height, 580)
 
         # Set resizable bounds
         min_width = max(int(target_width * 0.85), 650)
-        min_height = min(height, max(int(target_height * 0.80), 720))
+        min_height = max(int(target_height * 0.75), 550)
         max_width = int(target_width * 1.25)
-        max_height = min(int(target_height * 1.10), max(usable_h, height))
+        max_height = min(int(target_height * 1.15), max(usable_h, height))
 
         # Center on screen, but shift UP to avoid taskbar
         x = max((screen_w - width) // 2, 0)
@@ -707,17 +723,18 @@ class CustomRegexDialog(Dialog):
 
         display_paths = self.sample_paths[:15]
         for path in display_paths:
-            results = self._match_path(path)
-            self.preview_tree.insert(
-                "",
-                "end",
-                values=(
-                    results["path"],
-                    results["group"],
-                    results["day"],
-                    results["subject"],
-                ),
-            )
+            matches = self._match_path_all(path)
+            for result in matches:
+                self.preview_tree.insert(
+                    "",
+                    "end",
+                    values=(
+                        result["path"],
+                        result["group"],
+                        result["day"],
+                        result["subject"],
+                    ),
+                )
 
         if len(self.sample_paths) > len(display_paths):
             remaining = len(self.sample_paths) - len(display_paths)
@@ -727,30 +744,98 @@ class CustomRegexDialog(Dialog):
                 values=(f"… {remaining} caminho(s) adicionais", "", "", ""),
             )
 
-    def _match_path(self, path: str) -> dict[str, str]:
+    def _match_path_all(self, path: str) -> list[dict[str, str]]:
+        """Match all occurrences of the patterns in the path.
+
+        Returns a list of dictionaries, one per match found.
+        If patterns match multiple times (e.g., G1_D1_S1--G1_D1_S2),
+        returns multiple results.
+        """
         display_path = path
         if len(path) > 65:
             display_path = f"…{path[-64:]}"
 
-        result = {"path": display_path, "group": "-", "day": "-", "subject": "-"}
+        # Collect all matches for each pattern
+        all_group_matches = []
+        all_day_matches = []
+        all_subject_matches = []
 
-        for label, key in (
-            ("group", "group"),
-            ("day", "day"),
-            ("subject", "subject"),
-        ):
+        for key, match_list in [
+            ("group", all_group_matches),
+            ("day", all_day_matches),
+            ("subject", all_subject_matches),
+        ]:
             error = self._pattern_errors.get(key)
             if error:
-                result[label] = "Erro"
+                match_list.append("Erro")
                 continue
 
             pattern = self._compiled_patterns.get(key)
             if not pattern:
+                match_list.append("-")
                 continue
 
-            match = pattern.search(path)
-            if match:
-                value = match.group(1) if match.groups() else match.group(0)
-                result[label] = value
+            # Use finditer to get ALL matches
+            matches = list(pattern.finditer(path))
+            if matches:
+                for m in matches:
+                    value = m.group(1) if m.groups() else m.group(0)
+                    match_list.append(value)
+            else:
+                match_list.append("-")
 
-        return result
+        # Determine how many rows to create (max matches across all fields)
+        max_matches = max(
+            len(all_group_matches),
+            len(all_day_matches),
+            len(all_subject_matches),
+        )
+
+        if max_matches <= 1:
+            # Single or no match - return as before
+            return [
+                {
+                    "path": display_path,
+                    "group": all_group_matches[0] if all_group_matches else "-",
+                    "day": all_day_matches[0] if all_day_matches else "-",
+                    "subject": all_subject_matches[0] if all_subject_matches else "-",
+                }
+            ]
+
+        # Multiple matches - create one row per match
+        results = []
+        for i in range(max_matches):
+            group_val = all_group_matches[i] if i < len(all_group_matches) else "-"
+            day_val = all_day_matches[i] if i < len(all_day_matches) else "-"
+            subject_val = all_subject_matches[i] if i < len(all_subject_matches) else "-"
+
+            # Add match indicator to path for clarity
+            if i == 0:
+                path_display = f"{display_path} (match {i + 1})"
+            else:
+                path_display = f"  └─ (match {i + 1})"
+
+            results.append(
+                {
+                    "path": path_display,
+                    "group": group_val,
+                    "day": day_val,
+                    "subject": subject_val,
+                }
+            )
+
+        return results
+
+    def _match_path(self, path: str) -> dict[str, str]:
+        """Legacy method - returns first match only."""
+        results = self._match_path_all(path)
+        return (
+            results[0]
+            if results
+            else {
+                "path": path[:65] if len(path) <= 65 else f"…{path[-64:]}",
+                "group": "-",
+                "day": "-",
+                "subject": "-",
+            }
+        )

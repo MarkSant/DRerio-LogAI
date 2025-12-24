@@ -67,11 +67,11 @@ class CalibrationStep(WizardStep):
         self.behavioral_config_widget: BehavioralConfigWidget | None = None
 
     def build_ui(self):
-        """Build calibration UI."""
-        # Title
+        """Build calibration UI - horizontal 2-column layout for better space usage."""
+        # Title (full width)
         title_font = tkfont.Font(size=14, weight="bold")
         title = Label(self, text="Calibração Física", font=title_font)
-        title.pack(pady=(0, 10))
+        title.pack(pady=(0, 5))
 
         subtitle = Label(
             self,
@@ -79,26 +79,39 @@ class CalibrationStep(WizardStep):
                 "Configure as dimensões físicas da arena para conversão de pixels para centímetros."
             ),
             fg="gray",
-            wraplength=500,
+            wraplength=700,
         )
-        subtitle.pack(pady=(0, 20))
+        subtitle.pack(pady=(0, 10))
 
         self.template_info_label = Label(
             self,
             textvariable=self.template_info_var,
             fg="#555555",
-            wraplength=500,
+            wraplength=700,
             justify="left",
         )
         self.template_info_label.pack_forget()
 
+        # HORIZONTAL 2-COLUMN LAYOUT: Basic config (left) + Behavioral (right)
+        content_frame = Frame(self)
+        content_frame.pack(fill="both", expand=True, pady=(5, 0))
+        content_frame.columnconfigure(0, weight=1, minsize=420)  # Left column (45%)
+        content_frame.columnconfigure(1, weight=1, minsize=580)  # Right column (55%)
+        content_frame.rowconfigure(0, weight=1)
+
+        # LEFT COLUMN: Basic configuration sections (stacked vertically)
+        left_panel = Frame(content_frame)
+        left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+
         # Video and animal configuration
-        video_frame = LabelFrame(self, text="Configuração de Vídeos e Animais", padx=15, pady=10)
-        video_frame.pack(fill="x", pady=(0, 15))
+        video_frame = LabelFrame(
+            left_panel, text="Configuração de Vídeos e Animais", padx=10, pady=8
+        )
+        video_frame.pack(fill="x", pady=(0, 8))
 
         # Number of aquariums (videos)
         aquarium_row = Frame(video_frame)
-        aquarium_row.pack(fill="x", pady=5)
+        aquarium_row.pack(fill="x", pady=3)
 
         Label(aquarium_row, text="Número de aquários (vídeos):", width=30, anchor="w").pack(
             side="left"
@@ -123,7 +136,7 @@ class CalibrationStep(WizardStep):
 
         # Animals per aquarium
         animals_row = Frame(video_frame)
-        animals_row.pack(fill="x", pady=5)
+        animals_row.pack(fill="x", pady=3)
 
         Label(animals_row, text="Animais por aquário:", width=30, anchor="w").pack(side="left")
         animals_entry = Entry(animals_row, textvariable=self.animals_per_aquarium_var, width=10)
@@ -152,12 +165,14 @@ class CalibrationStep(WizardStep):
         )
 
         # Physical dimensions
-        dimensions_frame = LabelFrame(self, text="Dimensões Físicas do Aquário", padx=15, pady=10)
-        dimensions_frame.pack(fill="x", pady=(0, 15))
+        dimensions_frame = LabelFrame(
+            left_panel, text="Dimensões Físicas do Aquário", padx=10, pady=8
+        )
+        dimensions_frame.pack(fill="x", pady=(0, 8))
 
         # Width
         width_row = Frame(dimensions_frame)
-        width_row.pack(fill="x", pady=5)
+        width_row.pack(fill="x", pady=3)
 
         Label(width_row, text="Largura (cm):", width=30, anchor="w").pack(side="left")
         width_entry = Entry(width_row, textvariable=self.aquarium_width_var, width=10)
@@ -188,7 +203,7 @@ class CalibrationStep(WizardStep):
 
         # Height
         height_row = Frame(dimensions_frame)
-        height_row.pack(fill="x", pady=5)
+        height_row.pack(fill="x", pady=3)
 
         Label(height_row, text="Altura (cm):", width=30, anchor="w").pack(side="left")
         height_entry = Entry(height_row, textvariable=self.aquarium_height_var, width=10)
@@ -220,14 +235,12 @@ class CalibrationStep(WizardStep):
         )
 
         # Advanced processing settings
-        advanced_frame = LabelFrame(
-            self, text="⚙️ Configurações Avançadas de Processamento", padx=15, pady=10
-        )
-        advanced_frame.pack(fill="x", pady=(0, 15))
+        advanced_frame = LabelFrame(left_panel, text="⚙️ Configurações Avançadas", padx=10, pady=8)
+        advanced_frame.pack(fill="x", pady=(0, 8))
 
         # Analysis interval
         analysis_row = Frame(advanced_frame)
-        analysis_row.pack(fill="x", pady=5)
+        analysis_row.pack(fill="x", pady=3)
 
         Label(analysis_row, text="Intervalo de Análise (frames):", width=30, anchor="w").pack(
             side="left"
@@ -247,7 +260,7 @@ class CalibrationStep(WizardStep):
 
         # Display interval
         display_row = Frame(advanced_frame)
-        display_row.pack(fill="x", pady=5)
+        display_row.pack(fill="x", pady=3)
 
         Label(display_row, text="Intervalo de Exibição (frames):", width=30, anchor="w").pack(
             side="left"
@@ -263,9 +276,11 @@ class CalibrationStep(WizardStep):
             ),
         )
 
-        # Behavioral analysis configuration
-        behavioral_frame = LabelFrame(self, text="🧠 Análise Comportamental", padx=15, pady=10)
-        behavioral_frame.pack(fill="x", pady=(0, 15))
+        # RIGHT COLUMN: Behavioral analysis configuration (full height)
+        behavioral_frame = LabelFrame(
+            content_frame, text="🧠 Análise Comportamental", padx=10, pady=8
+        )
+        behavioral_frame.grid(row=0, column=1, sticky="nsew")
 
         # Determine defaults from global settings
         from zebtrack.settings import load_settings

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tkinter import BooleanVar, Label, LabelFrame, PanedWindow, StringVar, ttk
+from tkinter import BooleanVar, Label, LabelFrame, StringVar, ttk
 from tkinter import font as tkfont
 from typing import TYPE_CHECKING
 
@@ -24,8 +24,8 @@ log = structlog.get_logger()
 DEFAULT_TRACK_THRESHOLD = 0.25
 DEFAULT_MATCH_THRESHOLD = 0.95  # Higher = more permissive for fast-moving objects
 DEFAULT_TRACK_BUFFER = 150  # Frames to keep lost tracks
-DEFAULT_MAX_CENTER_DISTANCE = 400.0  # Pixels, ~13 body lengths for 30px zebrafish
-DEFAULT_IOU_THRESHOLD = 0.05  # Low for small objects with little overlap
+DEFAULT_MAX_CENTER_DISTANCE = 200.0  # Pixels, ~6 body lengths for 30px zebrafish
+DEFAULT_IOU_THRESHOLD = 0.1  # Low for small objects with little overlap
 
 _METHOD_OPTIONS: dict[str, str] = {
     "seg": "Segmentação (seg)",
@@ -84,7 +84,7 @@ class ModelSelectionStep(WizardStep):
         self._left_column: ttk.Frame | None = None
         self._right_column: ttk.Frame | None = None
         self._bytetrack_frame: ttk.LabelFrame | None = None
-        self._columns_stacked = False
+        self._resize_after_id: str | None = None  # Debouncing for resize events
 
         # Validation tracking: Entry widgets and error labels
         self._threshold_entries: dict[str, ttk.Entry] = {}
@@ -194,7 +194,9 @@ class ModelSelectionStep(WizardStep):
         self.nms_var.set(f"{nms_threshold:.3f}")
 
         # ByteTrack params
-        self.use_bytetrack_var.set(bool(detector_params.get("use_bytetrack", default_use_bytetrack)))
+        self.use_bytetrack_var.set(
+            bool(detector_params.get("use_bytetrack", default_use_bytetrack))
+        )
 
         track_threshold = float(detector_params.get("track_threshold", DEFAULT_TRACK_THRESHOLD))
         self.track_var.set(f"{track_threshold:.3f}")
@@ -205,7 +207,9 @@ class ModelSelectionStep(WizardStep):
         track_buffer = int(detector_params.get("track_buffer", DEFAULT_TRACK_BUFFER))
         self.track_buffer_var.set(str(track_buffer))
 
-        max_center_dist = float(detector_params.get("max_center_distance", DEFAULT_MAX_CENTER_DISTANCE))
+        max_center_dist = float(
+            detector_params.get("max_center_distance", DEFAULT_MAX_CENTER_DISTANCE)
+        )
         self.max_center_dist_var.set(f"{max_center_dist:.1f}")
 
         iou_threshold = float(detector_params.get("iou_threshold", DEFAULT_IOU_THRESHOLD))
@@ -242,22 +246,27 @@ class ModelSelectionStep(WizardStep):
         subtitle.pack(pady=(0, 15))
         self._responsive_labels["left"].append(subtitle)
 
-        # Use PanedWindow for resizable columns
-        paned_window = PanedWindow(self, orient="horizontal", sashrelief="raised", sashwidth=4)
-        paned_window.pack(fill="both", expand=True, padx=10, pady=5)
-        self._content_frame = paned_window
+        # Use Frame with grid for responsive layout (not PanedWindow to avoid conflicts)
+        content_frame = ttk.Frame(self)
+        content_frame.pack(fill="both", expand=True, padx=10, pady=5)
+        self._content_frame = content_frame
 
-        # Left pane: Methods and Weights
-        left_column = ttk.Frame(paned_window)
+        # Configure grid columns
+        content_frame.columnconfigure(0, weight=3, minsize=420)
+        content_frame.columnconfigure(1, weight=2, minsize=300)
+        content_frame.rowconfigure(0, weight=1)
+
+        # Left column: Methods and Weights
+        left_column = ttk.Frame(content_frame)
         left_column.columnconfigure(0, weight=1)
         self._left_column = left_column
-        paned_window.add(left_column, minsize=380)
+        left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 15))
 
-        # Right pane: Quick Guide
-        right_column = ttk.Frame(paned_window)
+        # Right column: Quick Guide
+        right_column = ttk.Frame(content_frame)
         right_column.columnconfigure(0, weight=1)
         self._right_column = right_column
-        paned_window.add(right_column, minsize=280)
+        right_column.grid(row=0, column=1, sticky="nsew")
 
         self.template_info_label = Label(
             left_column,
@@ -272,10 +281,10 @@ class ModelSelectionStep(WizardStep):
         methods_frame = LabelFrame(
             left_column,
             text="Métodos e Pesos por Função",
-            padx=15,
-            pady=10,
+            padx=10,
+            pady=5,
         )
-        methods_frame.pack(fill="x", pady=(0, 15))
+        methods_frame.pack(fill="x", pady=(0, 8))
         self._methods_frame = methods_frame
 
         self._build_method_row(
@@ -309,10 +318,10 @@ class ModelSelectionStep(WizardStep):
         acceleration_frame = LabelFrame(
             left_column,
             text="Aceleração / OpenVINO",
-            padx=15,
-            pady=10,
+            padx=10,
+            pady=5,
         )
-        acceleration_frame.pack(fill="x", pady=(0, 15))
+        acceleration_frame.pack(fill="x", pady=(0, 8))
 
         openvino_check = ttk.Checkbutton(
             acceleration_frame,
@@ -329,10 +338,10 @@ class ModelSelectionStep(WizardStep):
         detector_frame = LabelFrame(
             left_column,
             text="Parâmetros de Detecção (YOLO)",
-            padx=15,
-            pady=10,
+            padx=10,
+            pady=5,
         )
-        detector_frame.pack(fill="x", pady=(0, 15))
+        detector_frame.pack(fill="x", pady=(0, 8))
 
         self._build_detector_param_row(
             detector_frame,
@@ -371,14 +380,18 @@ class ModelSelectionStep(WizardStep):
             param_key="nms",
         )
 
-        # ByteTrack Section
+        # ByteTrack Section - positioned in right column to use the guide space
         self._bytetrack_frame = LabelFrame(
-            left_column,
+            right_column,
             text="Parâmetros de Rastreamento (ByteTrack)",
-            padx=15,
-            pady=10,
+            padx=10,
+            pady=8,
         )
-        self._bytetrack_frame.pack(fill="x", pady=(0, 15))
+        self._bytetrack_frame.pack(fill="both", expand=True)
+
+        # Configure grid for better distribution in larger space
+        self._bytetrack_frame.columnconfigure(0, weight=1)
+        self._bytetrack_frame.columnconfigure(1, weight=1)
 
         bytetrack_check = ttk.Checkbutton(
             self._bytetrack_frame,
@@ -400,9 +413,9 @@ class ModelSelectionStep(WizardStep):
             fg="#555555",
             font=("TkDefaultFont", 8, "italic"),
             justify="left",
-            wraplength=350
+            wraplength=280,
         )
-        self.bytetrack_hint_label.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        self.bytetrack_hint_label.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 8))
 
         self._build_detector_param_row(
             self._bytetrack_frame,
@@ -457,7 +470,7 @@ class ModelSelectionStep(WizardStep):
                 "📏 Distância Máxima de Centro\n\n"
                 "Distância máxima (em pixels) que o animal pode se mover entre frames "
                 "para ser considerado o mesmo, quando a sobreposição falha.\n\n"
-                "💡 Padrão: 400.0 px"
+                "💡 Padrão: 200.0 px"
             ),
             param_key="max_center_dist",
         )
@@ -472,10 +485,41 @@ class ModelSelectionStep(WizardStep):
                 "🔳 IoU Threshold\n\n"
                 "Sobreposição mínima para preferir 'Match por Caixa' em vez de distância.\n"
                 "Para peixes pequenos e rápidos, valores baixos são melhores.\n\n"
-                "💡 Padrão: 0.05"
+                "💡 Padrão: 0.1"
             ),
             param_key="iou_thresh",
         )
+
+        # Quick guide tips integrated into ByteTrack frame
+        guide_separator = ttk.Separator(self._bytetrack_frame, orient="horizontal")
+        guide_separator.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(12, 8))
+
+        guide_text = (
+            "📊 Guia Rápido:\n"
+            "• Track Thresh: ↓ para manter rastro fraco\n"
+            "• Match Thresh: ↑ para aceitar movimentos bruscos\n"
+            "• Buffer: ↑ para 'lembrar' do peixe por mais tempo\n"
+            "• Distância: ↑ para peixes muito rápidos"
+        )
+
+        guide_label = Label(
+            self._bytetrack_frame,
+            text=guide_text,
+            fg="#333333",
+            justify="left",
+            font=("TkDefaultFont", 8),
+            anchor="nw",
+        )
+        guide_label.grid(row=6, column=0, columnspan=2, sticky="w", pady=(0, 5))
+
+        # Footer Tip
+        tip_label = Label(
+            self._bytetrack_frame,
+            text="💡 Dica: Ajuste UM parâmetro por vez (±0.05) e teste!",
+            fg="#006600",
+            font=("TkDefaultFont", 9, "bold"),
+        )
+        tip_label.grid(row=7, column=0, columnspan=2, pady=(5, 0), sticky="w")
 
         # Get current defaults for display
         display_confidence = 0.25
@@ -487,14 +531,13 @@ class ModelSelectionStep(WizardStep):
         defaults_label = Label(
             left_column,
             text=(
-                f"Padrões atuais YOLO: confiança {display_confidence:.2f}, "
-                f"NMS {display_nms:.2f}."
+                f"Padrões atuais YOLO: confiança {display_confidence:.2f}, NMS {display_nms:.2f}."
             ),
             fg="#555555",
             wraplength=560,
             justify="left",
         )
-        defaults_label.pack(fill="x", padx=15, pady=(5, 0))
+        defaults_label.pack(fill="x", padx=10, pady=(3, 0))
         self._responsive_labels["left"].append(defaults_label)
 
         # Restore defaults button
@@ -510,7 +553,7 @@ class ModelSelectionStep(WizardStep):
             relief="raised",
             cursor="hand2",
         )
-        restore_btn.pack(fill="x", padx=15, pady=(10, 0))
+        restore_btn.pack(fill="x", padx=10, pady=(5, 0))
         ToolTip(
             restore_btn,
             (
@@ -529,49 +572,8 @@ class ModelSelectionStep(WizardStep):
             wraplength=560,
             justify="left",
         )
-        footer.pack(fill="x", pady=(5, 0), padx=15)
+        footer.pack(fill="x", pady=(3, 0), padx=10)
         self._responsive_labels["left"].append(footer)
-
-        # Visual guide section
-        guide_frame = LabelFrame(
-            right_column,
-            text="📊 Guia Rápido: Quando Ajustar",
-            padx=15,
-            pady=10,
-        )
-        guide_frame.pack(fill="both", expand=True)
-
-        guide_frame.columnconfigure(0, weight=1)
-
-        guide_text = (
-            "🎯 DETECÇÃO:\n"
-            "• Confiança: ↓ se não detecta, ↑ se detecta lixo\n"
-            "• NMS: ↓ se une animais, ↑ se duplica caixas\n\n"
-            "🛤️ RASTREAMENTO (ByteTrack):\n"
-            "• Track Thresh: ↓ para manter rastro fraco\n"
-            "• Match Thresh: ↑ para aceitar movimentos bruscos\n"
-            "• Buffer: ↑ para 'lembrar' do peixe por mais tempo\n"
-            "• Distância: ↑ para peixes muito rápidos"
-        )
-
-        Label(
-            guide_frame,
-            text=guide_text,
-            fg="#333333",
-            justify="left",
-            font=("TkDefaultFont", 9),
-            anchor="n",
-        ).grid(row=0, column=0, sticky="nsew", padx=(0, 5))
-
-        # Footer Tip
-        Label(
-            guide_frame,
-            text="💡 Dica: Ajuste UM parâmetro por vez (±0.05) e teste!",
-            fg="#006600",
-            font=("TkDefaultFont", 9, "bold"),
-        ).grid(row=1, column=0, pady=(8, 0), sticky="w")
-
-        # We don't need to append these to _responsive_labels as we want them static in grid
 
         self.aquarium_method_var.trace_add("write", self._on_aquarium_method_change)
         self.animal_method_var.trace_add("write", self._on_animal_method_change)
@@ -582,7 +584,7 @@ class ModelSelectionStep(WizardStep):
 
         # Setup validation callbacks after UI is built
         self._setup_validation_callbacks()
-        self._toggle_bytetrack_options() # Init state
+        self._toggle_bytetrack_options()  # Init state
 
         self.bind("<Configure>", self._on_resize)
         # Trigger an initial layout recalculation once geometry settles.
@@ -618,7 +620,6 @@ class ModelSelectionStep(WizardStep):
                 "💡 O ByteTrack usa Filtro de Kalman para prever posições mesmo quando o peixe "
                 "some brevemente. Ajuste os campos abaixo para maior estabilidade."
             )
-
 
     def _build_method_row(
         self,
@@ -851,22 +852,34 @@ class ModelSelectionStep(WizardStep):
             self.animal_method_hint_var.set("")
 
     def _on_resize(self, event) -> None:
-        """Adjust wraplengths to keep text readable when the dialog resizes."""
+        """Adjust wraplengths to keep text readable when the dialog resizes.
+
+        Uses debouncing to avoid excessive reconfigurations that cause flickering.
+        """
         if event.widget is not self:
             return
 
-        total_width = max(event.width, 600)
-        should_stack = total_width < 900
-        if should_stack != self._columns_stacked:
-            self._columns_stacked = should_stack
-            self._apply_column_layout()
+        # Cancel any pending resize update to avoid flickering
+        if self._resize_after_id is not None:
+            try:
+                self.after_cancel(self._resize_after_id)
+            except Exception:
+                pass
+            self._resize_after_id = None
 
-        if should_stack:
-            left_width = max(360, total_width - 60)
-            right_width = left_width
-        else:
-            left_width = max(360, int(total_width * 0.6))
-            right_width = max(240, total_width - left_width - 80)
+        # Schedule actual resize update after a short delay (debouncing)
+        self._resize_after_id = self.after(100, self._apply_resize, event.width)
+
+    def _apply_resize(self, width: int) -> None:
+        """Apply resize changes after debouncing period."""
+        self._resize_after_id = None
+
+        total_width = max(width, 600)
+
+        # Calculate wraplengths for labels based on column widths
+        # Left column is ~60% (weight=3), right is ~40% (weight=2)
+        left_width = max(360, int(total_width * 0.6))
+        right_width = max(240, total_width - left_width - 80)
 
         for label in self._responsive_labels.get("left", []):
             if label and label.winfo_exists():
@@ -876,38 +889,14 @@ class ModelSelectionStep(WizardStep):
             if label and label.winfo_exists():
                 label.configure(wraplength=max(220, right_width - 40))
 
-    def _apply_column_layout(self) -> None:
-        """Reflow primary columns when switching between stacked and side-by-side modes."""
-        content = self._content_frame
-        left = self._left_column
-        right = self._right_column
-
-        if not content or not left or not right:
-            return
-
-        if self._columns_stacked:
-            content.columnconfigure(0, weight=1, minsize=0)
-            content.columnconfigure(1, weight=0, minsize=0)
-            content.rowconfigure(0, weight=0)
-            content.rowconfigure(1, weight=1)
-            left.grid_configure(row=0, column=0, sticky="nsew", padx=(0, 0), pady=0)
-            right.grid_configure(row=1, column=0, sticky="nsew", padx=(0, 0), pady=(15, 0))
-        else:
-            content.columnconfigure(0, weight=3, minsize=420)
-            content.columnconfigure(1, weight=2, minsize=300)
-            content.rowconfigure(0, weight=1)
-            content.rowconfigure(1, weight=0)
-            left.grid_configure(row=0, column=0, sticky="nsew", padx=(0, 15), pady=0)
-            right.grid_configure(row=0, column=1, sticky="nsew", padx=0, pady=0)
-
     def _refresh_layout_mode(self) -> None:
         """Force a layout recalculation using the current widget width."""
         try:
             width = self.winfo_width()
+            if width > 1:  # Valid width
+                self._apply_resize(width)
         except Exception:
             return
-        fake_event = type("_Evt", (), {"widget": self, "width": width})
-        self._on_resize(fake_event)
 
     # ------------------------------------------------------------------
     # Wizard lifecycle overrides

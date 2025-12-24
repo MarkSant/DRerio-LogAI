@@ -321,16 +321,26 @@ class VideoManager:
 
             video_hash = calculate_sha256(video_path)
 
-            for key in ("group", "group_display_name", "day", "subject"):
+            for key in (
+                "group",
+                "group_display_name",
+                "day",
+                "subject",
+                "is_multi_subject",
+                "subject_entries",
+            ):
                 value = video_info.get(key)
-                if value is not None and (value != "" or isinstance(value, (int, float))):
+                if value is not None and (
+                    value != "" or isinstance(value, (int, float, bool, list))
+                ):
                     metadata.setdefault(key, value)
 
-            # Remove empty values to keep JSON compact
+            # Remove empty values to keep JSON compact (but preserve bools and lists)
             metadata = {
                 key: value
                 for key, value in metadata.items()
-                if value is not None and (value != "" or isinstance(value, (int, float)))
+                if value is not None
+                and (value != "" or isinstance(value, (int, float, bool, list)))
             }
 
             video_entry = {
