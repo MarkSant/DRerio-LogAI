@@ -930,11 +930,20 @@ class TestProjectManager(unittest.TestCase):
         self.assertTrue(video_entry.get("has_trajectory"))
         self.assertTrue(video_entry.get("has_summary"))
         self.assertTrue(video_entry.get("has_complete_data"))
-        self.assertEqual(video_entry.get("results_dir"), results_dir)
-        self.assertEqual(video_entry["parquet_files"].get("trajectory"), trajectory_path)
-        self.assertEqual(video_entry["parquet_files"].get("summary"), summary_path)
-        self.assertEqual(video_entry["parquet_files"].get("summary_excel"), excel_path)
-        self.assertEqual(video_entry["parquet_files"].get("report_docx"), report_path)
+        # Paths are stored as POSIX format in project_data
+        from pathlib import Path
+
+        self.assertEqual(video_entry.get("results_dir"), Path(results_dir).as_posix())
+        self.assertEqual(
+            video_entry["parquet_files"].get("trajectory"), Path(trajectory_path).as_posix()
+        )
+        self.assertEqual(video_entry["parquet_files"].get("summary"), Path(summary_path).as_posix())
+        self.assertEqual(
+            video_entry["parquet_files"].get("summary_excel"), Path(excel_path).as_posix()
+        )
+        self.assertEqual(
+            video_entry["parquet_files"].get("report_docx"), Path(report_path).as_posix()
+        )
         pm.save_project.assert_called_once()
 
     def test_derive_processing_metadata_falls_back_to_project_entry(self):

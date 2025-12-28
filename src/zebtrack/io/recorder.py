@@ -324,11 +324,12 @@ class Recorder:
         pixel_per_cm_ratio: tuple[float, float] | None = None,
         calibration: Any = None,
         calibration_by_aquarium: dict[int, Any] | None = None,
+        output_folders_by_aquarium: dict[int, str] | None = None,
     ) -> bool:
         """
         Start recording for multiple aquariums with separate output folders.
 
-        Creates structure:
+        Creates structure (default):
             output_folder/
             ├── aquarium_0/
             │   ├── 1_ProcessingArea_*.parquet
@@ -339,8 +340,12 @@ class Recorder:
                 ├── 2_AreasOfInterest_*.parquet
                 └── 3_CoordMovimento_*.parquet
 
+        Or with output_folders_by_aquarium (project structure):
+            output_folders_by_aquarium[0]/  (e.g., Grupo_G1/Dia_D1/Sujeito_S01/)
+            output_folders_by_aquarium[1]/  (e.g., Grupo_G1/Dia_D1/Sujeito_S02/)
+
         Args:
-            output_folder: Base folder for all aquarium outputs.
+            output_folder: Base folder for all aquarium outputs (fallback).
             width: Frame width in pixels.
             height: Frame height in pixels.
             zones_by_aquarium: Dict mapping aquarium_id to ZoneData.
@@ -350,6 +355,8 @@ class Recorder:
             pixel_per_cm_ratio: Optional calibration ratio (x_ratio, y_ratio).
             calibration: Optional global calibration object (fallback).
             calibration_by_aquarium: Optional dict mapping aquarium_id to Calibration.
+            output_folders_by_aquarium: Optional dict mapping aquarium_id to output folder path.
+                If provided, uses these paths instead of creating aquarium_N subfolders.
 
         Returns:
             True if all recordings started successfully, False otherwise.
@@ -371,7 +378,16 @@ class Recorder:
         base_folder.mkdir(parents=True, exist_ok=True)
 
         for aq_id, zone_data in zones_by_aquarium.items():
-            aq_folder = base_folder / f"aquarium_{aq_id}"
+            # Use custom output folder if provided, otherwise use default aquarium_N subfolder
+            if output_folders_by_aquarium and aq_id in output_folders_by_aquarium:
+                aq_folder = Path(output_folders_by_aquarium[aq_id])
+                log.info(
+                    "recorder.multi_aquarium.using_custom_folder",
+                    aquarium_id=aq_id,
+                    folder=str(aq_folder),
+                )
+            else:
+                aq_folder = base_folder / f"aquarium_{aq_id}"
             aq_folder.mkdir(parents=True, exist_ok=True)
 
             # Create sub-recorder for this aquarium
@@ -828,8 +844,8 @@ class Recorder:
             self._parquet_writer.write_table(table)
             self.detection_data.clear()
             self._last_flush_time = time.time()
-            # 🔍 INFO: Log flush success (changed from DEBUG to INFO)
-            log.info(
+            # Log flush success (debug level - only goes to file, not terminal)
+            log.debug(
                 "recorder.flush.success",
                 rows=table.num_rows,
                 force=force,

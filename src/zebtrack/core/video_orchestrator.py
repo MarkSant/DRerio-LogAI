@@ -451,8 +451,11 @@ class VideoOrchestrator:
                 if norm_path in videos_by_norm
             ]
 
+            # Bug fix: Filter out _sub_ paths which are UI tree node IDs, not real file paths
             missing_targets = [
-                norm_path for norm_path in normalized_targets if norm_path not in videos_by_norm
+                norm_path
+                for norm_path in normalized_targets
+                if norm_path not in videos_by_norm and "_sub_" not in norm_path
             ]
             if missing_targets:
                 sample = [os.path.basename(raw_lookup[norm]) for norm in missing_targets[:5]]

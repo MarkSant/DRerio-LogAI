@@ -32,6 +32,7 @@ COLUMN_MAPPING = {
     "distancia_total_cm": "total_distance_cm",
     "velocidade_media_cm_s": "mean_speed_cm_s",
     "velocidade_mediana_cm_s": "median_speed_cm_s",
+    "velocidade_maxima_cm_s": "max_speed_cm_s",
     "desvio_padrao_velocidade_cm_s": "speed_std_dev_cm_s",
     "contagem_curvas_acentuadas": "sharp_turns_count",
     "curvas_acentuadas_por_minuto": "sharp_turns_per_minute",
@@ -209,7 +210,7 @@ class DataTransformer:
         if behavioral_config is None:
             behavioral_config = {}
         thigmotaxis_threshold = behavioral_config.get("thigmotaxis_distance_cm", 1.5)
-        aquarium_perspective = behavioral_config.get("aquarium_perspective", "top_down")
+        aquarium_perspective = behavioral_config.get("aquarium_perspective", "lateral")
         geotaxis_enabled = behavioral_config.get("geotaxis_enabled", False)
         geotaxis_distance = behavioral_config.get("geotaxis_distance_cm", 1.5)
         geotaxis_num_zones = behavioral_config.get("geotaxis_num_zones", 3)
@@ -221,6 +222,7 @@ class DataTransformer:
         velocity_stats = general_behavior.get("estatisticas_velocidade", {})
         combined_data["velocidade_media_cm_s"] = velocity_stats.get("mean")
         combined_data["velocidade_mediana_cm_s"] = velocity_stats.get("median")
+        combined_data["velocidade_maxima_cm_s"] = velocity_stats.get("max")
         combined_data["desvio_padrao_velocidade_cm_s"] = velocity_stats.get("std_dev")
 
         sharp_turns = general_behavior.get("curvas_acentuadas", {})

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
@@ -83,31 +84,9 @@ class VideoValidationService:
     ) -> VideoScanResult:
         """
         Scan and validate video paths for available data.
-
-        Sprint 12: Core scan logic extracted from MainViewModel.
-
-        Process:
-        1. Scan paths using ProjectManager.scan_input_paths()
-        2. Create normalized path lookup dictionary (info_by_norm)
-        3. Identify missing files (paths that failed to scan)
-
-        Args:
-            candidate_paths: List of video file paths to scan
-            project_manager: ProjectManager instance for scanning
-
-        Returns:
-            VideoScanResult: Structured scan results with info_by_norm, missing_files
-
-        Example:
-            >>> result = service.scan_and_validate_paths(
-            ...     candidate_paths=["/videos/test1.mp4", "/videos/test2.mp4"],
-            ...     project_manager=project_manager
-            ... )
-            >>> if result.has_missing:
-            ...     print(f"Missing: {result.missing_files}")
-            >>> for path, info in result.info_by_norm.items():
-            ...     print(f"{path}: has_arena={info.get('has_arena')}")
         """
+        from zebtrack.core.video_manager import VideoManager
+        
         log.debug(
             "video_validation_service.scan_and_validate_paths.start",
             path_count=len(candidate_paths),
@@ -116,7 +95,7 @@ class VideoValidationService:
         # Scan all candidate paths
         scanned_videos = project_manager.scan_input_paths(candidate_paths)
 
-        # Enrich scan results with project-aware paths (Fix for hierarchical project structure)
+        # Enrich scan results with project-aware paths
         if project_manager:
             for info in scanned_videos:
                 path = info.get("path")
@@ -127,11 +106,7 @@ class VideoValidationService:
                 if not video_entry:
                     continue
 
-                # Check registered parquet files in project data (Legacy/Single Video)
-                registered_parquets = video_entry.get("parquet_files", {})
-
-                # Check for Multi-Aquarium Data (Via Manager API)
-                # This handles data stored in central registry OR video entry transparently
+                # Multi-Aquarium Data Checks
                 try:
                     multi_zone_data = project_manager.get_multi_aquarium_zone_data(path)
                     if multi_zone_data and multi_zone_data.aquariums:
@@ -148,69 +123,38 @@ class VideoValidationService:
                             info["is_multi_aquarium"] = True
                         if has_multi_rois:
                             info["has_rois"] = True
-                except Exception as e:
-                    # Log but continue (can fail if data structure changes)
-                    # Use lower level log to avoid noise
+                except Exception:
                     pass
 
                 # Trajectory Data (Multi)
-                # Check direct output registry
                 multi_outputs = video_entry.get("multi_aquarium_outputs", {})
                 if multi_outputs:
-                    has_multi_traj = False
                     for out in multi_outputs.values():
                         if out.get("parquet_files", {}).get("trajectory"):
-                            has_multi_traj = True
+                            info["has_trajectory"] = True
+                            info["is_multi_aquarium"] = True
                             break
 
-                    if has_multi_traj:
-                        info["has_trajectory"] = True
-                        info["is_multi_aquarium"] = True
-
-                # Standard/Legacy Parquet Checks (augmenting multi checks)
-                if registered_parquets:
-                    # Update info if files exist
-                    scan_parquets = info.setdefault("parquet_files", {})
-
-                    # Check Arena
-                    arena_path = registered_parquets.get("arena")
-                    if arena_path and os.path.exists(arena_path):
-                        scan_parquets["arena"] = arena_path
-                        info["has_arena"] = True
-
-                    # Check ROIs
-                    rois_path = registered_parquets.get("rois")
-                    if rois_path and os.path.exists(rois_path):
-                        scan_parquets["rois"] = rois_path
-                        info["has_rois"] = True
-
-                    # Check Trajectory
-                    traj_path = registered_parquets.get("trajectory")
-                    if traj_path and os.path.exists(traj_path):
-                        scan_parquets["trajectory"] = traj_path
-                        info["has_trajectory"] = True
-
-                # Fallback: Check cached flags in video entry
-                # If we have flags in memory, respect them (they might be from a recent save)
+                # Standard Flags Fallback
                 if not info.get("has_arena") and video_entry.get("has_arena"):
                     info["has_arena"] = True
                 if not info.get("has_rois") and video_entry.get("has_rois"):
                     info["has_rois"] = True
-
 
         # Create normalized path lookup
         info_by_norm: dict[str, dict] = {}
         for info in scanned_videos:
             path = info.get("path")
             if isinstance(path, str):
-                norm_path = os.path.normpath(path)
-                info_by_norm[norm_path] = info
+                norm_path = VideoManager.normalize_path(path)
+                if norm_path:
+                    info_by_norm[norm_path] = info
 
         # Identify missing files
         missing_files: list[str] = []
         for path in candidate_paths:
-            norm_path = os.path.normpath(path)
-            if norm_path not in info_by_norm:
+            norm_path = VideoManager.normalize_path(path)
+            if not norm_path or norm_path not in info_by_norm:
                 missing_files.append(path)
 
         result = VideoScanResult(
@@ -223,7 +167,6 @@ class VideoValidationService:
             "video_validation_service.scan_and_validate_paths.complete",
             scanned=result.scan_count,
             missing=len(missing_files),
-            has_missing=result.has_missing,
         )
 
         return result

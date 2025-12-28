@@ -1115,6 +1115,10 @@ class ValidationManager:
             # Include results_dir and experiment_id for report file listing
             "results_dir": video.get("results_dir"),
             "experiment_id": video.get("experiment_id"),
+            # Multi-aquarium specific fields
+            "multi_aquarium_outputs": video.get("multi_aquarium_outputs"),
+            "is_multi_aquarium": video.get("is_multi_aquarium"),
+            "num_aquariums": video.get("num_aquariums"),
             # Multi-subject markers
             "is_multi_subject_entry": is_multi_subject_entry,
             "multi_subject_index": multi_subject_index,

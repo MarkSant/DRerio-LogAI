@@ -142,7 +142,7 @@ class VideoManager:
             has_data = has_trajectory or has_complete_data
 
             result = {
-                "path": str(video_path),
+                "path": video_path.as_posix(),
                 "has_arena": has_arena,
                 "has_rois": has_rois,
                 "has_trajectory": has_trajectory,
@@ -491,6 +491,17 @@ class VideoManager:
         )
 
     @staticmethod
+    def normalize_path(path: str | Path | None) -> str | None:
+        """Robustly normalize path for cross-platform comparison."""
+        if not path:
+            return None
+        try:
+            # Standardize to absolute POSIX lowercase path
+            return os.path.abspath(str(path)).replace("\\", "/").lower()
+        except Exception:
+            return str(path).replace("\\", "/").lower()
+
+    @staticmethod
     def find_video_entry(
         project_data: dict,
         *,
@@ -510,15 +521,12 @@ class VideoManager:
         if not project_data:
             return None
 
-        normalized_target = None
-        if path:
-            normalized_target = os.path.normcase(os.path.normpath(path))
+        normalized_target = VideoManager.normalize_path(path)
 
         for _batch, video in VideoManager.iter_project_videos(project_data):
             candidate_path = video.get("path")
             if candidate_path and normalized_target:
-                candidate_norm = os.path.normcase(os.path.normpath(candidate_path))
-                if candidate_norm == normalized_target:
+                if VideoManager.normalize_path(candidate_path) == normalized_target:
                     return video
 
             if experiment_id:

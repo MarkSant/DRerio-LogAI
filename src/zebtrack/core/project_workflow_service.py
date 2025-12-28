@@ -518,6 +518,7 @@ class ProjectWorkflowService:
             "detector_parameters": kwargs.get("detector_parameters"),
             "model_selection": kwargs.get("model_selection"),
             "use_openvino": kwargs.get("use_openvino"),
+            "custom_regex_patterns": custom_patterns,  # CRITICAL: Save for multi-aquarium
         }
         kwargs["_wizard_metadata"] = wizard_metadata
 

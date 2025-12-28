@@ -661,11 +661,16 @@ class AnalysisService:
         # Add behavioral defaults if available
         if hasattr(self.settings, "behavioral_analysis"):
             ba_cfg = self.settings.behavioral_analysis
+            # Get perspective - lateral enables geotaxis by default
+            perspective = getattr(ba_cfg, "aquarium_perspective", "lateral")
             params["behavioral_config"] = {
                 "thigmotaxis_distance_cm": ba_cfg.default_thigmotaxis_distance_cm,
                 "geotaxis_distance_cm": ba_cfg.default_geotaxis_distance_cm,
                 "geotaxis_num_zones": ba_cfg.default_geotaxis_num_zones,
                 "geotaxis_bottom_zones": ba_cfg.default_geotaxis_bottom_zones,
+                "aquarium_perspective": perspective,
+                # Enable geotaxis by default for lateral view (vertical depth analysis)
+                "geotaxis_enabled": perspective == "lateral",
             }
 
         # Override with project-specific values if available
@@ -680,15 +685,11 @@ class AnalysisService:
             if "smoothing_polyorder" in analysis_params:
                 params["smoothing_polyorder"] = analysis_params["smoothing_polyorder"]
 
-            # Check for behavioral config in project root (saved by ProcessingCoordinator)
+            # Merge behavioral config from project (preserves defaults like geotaxis_enabled)
             if "behavioral_config" in project_data:
-                params["behavioral_config"] = project_data["behavioral_config"]
-
-            # Merge behavioral config overrides
-            if "behavioral_config" in project_data:
-                params["behavioral_config"].update(project_data.get("behavioral_config", {}))
+                params["behavioral_config"].update(project_data["behavioral_config"])
             elif "behavioral_analysis" in project_data:  # Handle legacy/alternate key
-                params["behavioral_config"].update(project_data.get("behavioral_analysis", {}))
+                params["behavioral_config"].update(project_data["behavioral_analysis"])
 
         self.log.debug(
             "analysis_service.collect_parameters",

@@ -175,23 +175,56 @@ class CanvasManager:
 
         log.info("canvas_manager.multi_success.called", count=len(polygons))
 
-        # 1. Create MultiAquariumZoneData
-        from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
+        # 1. Create MultiAquariumZoneData - PRESERVE EXISTING METADATA
+        from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
 
-        # Initialize with N aquariums based on detection count
-        # FIXED: MultiAquariumZoneData takes a list of aquariums, not num_aquariums
-        from zebtrack.core.detector import AquariumData
+        pm = self.gui.controller.project_manager
 
-        aquariums_list = [AquariumData(id=i, polygon=p) for i, p in enumerate(polygons)]
+        # CRITICAL FIX: Get existing zone data to preserve metadata (group, subject_id, day)
+        existing_data = pm.get_multi_aquarium_zone_data(video_path=video_path)
+        existing_aquariums = {}
+        if existing_data and hasattr(existing_data, "aquariums"):
+            for aq in existing_data.aquariums:
+                existing_aquariums[aq.id] = aq
+            log.debug(
+                "canvas_manager.multi_success.preserving_metadata",
+                existing_count=len(existing_aquariums),
+                video_path=video_path,
+            )
+
+        # Create new aquariums, MERGING new polygons with existing metadata
+        aquariums_list = []
+        for i, p in enumerate(polygons):
+            if i in existing_aquariums:
+                # PRESERVE existing metadata, only update polygon
+                existing_aq = existing_aquariums[i]
+                new_aq = AquariumData(
+                    id=i,
+                    polygon=p,
+                    group=existing_aq.group,
+                    subject_id=existing_aq.subject_id,
+                    day=existing_aq.day,
+                    roi_mode=existing_aq.roi_mode,
+                    roi_data=existing_aq.roi_data,
+                )
+                log.debug(
+                    "canvas_manager.multi_success.metadata_preserved",
+                    aquarium_id=i,
+                    subject_id=existing_aq.subject_id,
+                    group=existing_aq.group,
+                )
+            else:
+                # New aquarium - no existing metadata
+                new_aq = AquariumData(id=i, polygon=p)
+            aquariums_list.append(new_aq)
+
         multi_data = MultiAquariumZoneData(aquariums=aquariums_list)
 
-        # Assign polygons to each aquarium's zone data
-        for i, poly in enumerate(polygons):
-            if i < len(multi_data.aquariums):
-                multi_data.aquariums[i].polygon = poly
+        # Copy sequential_processing flag from existing data if available
+        if existing_data and hasattr(existing_data, "sequential_processing"):
+            multi_data.sequential_processing = existing_data.sequential_processing
 
-        # 2. Save via ProjectManager
-        pm = self.gui.controller.project_manager
+        # 2. Save via ProjectManager (pm já foi obtido acima)
         pm.save_multi_aquarium_zone_data(video_path, multi_data)
 
         # 3. Update UI
@@ -427,6 +460,12 @@ class CanvasManager:
 
                 pil_image.thumbnail((target_w, target_h), Image.LANCZOS)
                 self.gui.analysis_display_widget.update_frame(pil_image)
+            else:
+                log.warning(
+                    "canvas_manager.update_video_frame.skipped",
+                    analysis_active=self.gui.analysis_active,
+                    has_widget=bool(self.gui.analysis_display_widget),
+                )
             # NOTE: We intentionally do NOT update the zone canvas here.
             # During analysis, the zone canvas should keep its static state.
 

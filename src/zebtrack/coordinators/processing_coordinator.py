@@ -223,6 +223,9 @@ class ProcessingCoordinator(BaseCoordinator):
         self._last_assignment_configs: list[dict] | None = None
         self._assigned_videos: set[str] = set()  # Idempotency guard
 
+        # Batch processing context - suppresses per-video dialogs during batch
+        self._batch_context: dict | None = None
+
         log.info("processing_coordinator.initialized.phase3")
 
     def reset_multi_aquarium_state(self) -> None:
@@ -237,6 +240,152 @@ class ProcessingCoordinator(BaseCoordinator):
         self._last_assignment_configs = None
         self._assigned_videos.clear()  # Reset idempotency tracking
         log.info("processing_coordinator.multi_aquarium_state.reset")
+
+    def _is_batch_processing(self) -> bool:
+        """Check if we're currently processing multiple videos in batch mode.
+
+        Returns:
+            True if batch processing is active and has more than 1 video.
+        """
+        return (
+            self._batch_context is not None
+            and self._batch_context.get("total_videos", 0) > 1
+        )
+
+    def _init_batch_context(self, total_videos: int) -> None:
+        """Initialize batch processing context.
+
+        Args:
+            total_videos: Total number of videos to process in this batch.
+        """
+        self._batch_context = {
+            "total_videos": total_videos,
+            "completed_videos": 0,
+            "successful_videos": [],
+            "failed_videos": [],
+        }
+        log.info(
+            "batch_context.initialized",
+            total_videos=total_videos,
+            suppress_dialogs=total_videos > 1,
+        )
+
+    def _update_batch_context(self, video_path: str, success: bool) -> None:
+        """Update batch context when a video completes.
+
+        Args:
+            video_path: Path of the completed video.
+            success: Whether the video was processed successfully.
+        """
+        if not self._batch_context:
+            return
+
+        self._batch_context["completed_videos"] += 1
+        if success:
+            self._batch_context["successful_videos"].append(video_path)
+        else:
+            self._batch_context["failed_videos"].append(video_path)
+
+        log.debug(
+            "batch_context.video_completed",
+            video=os.path.basename(video_path),
+            completed=self._batch_context["completed_videos"],
+            total=self._batch_context["total_videos"],
+        )
+
+    def _finalize_batch_context(self) -> dict | None:
+        """Finalize batch context and return summary.
+
+        Returns:
+            Batch summary dict or None if not in batch mode.
+        """
+        if not self._batch_context:
+            return None
+
+        summary = {
+            "total": self._batch_context["total_videos"],
+            "successful": len(self._batch_context["successful_videos"]),
+            "failed": len(self._batch_context["failed_videos"]),
+            "successful_videos": self._batch_context["successful_videos"],
+            "failed_videos": self._batch_context["failed_videos"],
+        }
+
+        log.info(
+            "batch_context.finalized",
+            total=summary["total"],
+            successful=summary["successful"],
+            failed=summary["failed"],
+        )
+
+        self._batch_context = None
+        return summary
+
+    def _on_processing_mode_changed(self, data: dict) -> None:
+        """Handle processing mode change (Parallel vs Sequential).
+
+        Args:
+            data: Event data containing:
+                - sequential (bool): True for sequential, False for parallel
+                - apply_to_all (bool): If True (default), applies to all videos
+        """
+        sequential = bool(data.get("sequential", True))  # Default to sequential
+        apply_to_all = bool(data.get("apply_to_all", True))  # Default to apply to all
+
+        if apply_to_all:
+            # Apply to ALL videos with multi-aquarium data
+            self._apply_processing_mode_to_all_videos(sequential)
+        else:
+            # Apply only to current video
+            video_path = self.project_manager.get_active_zone_video()
+            if video_path:
+                self._apply_processing_mode_to_video(video_path, sequential)
+
+    def _apply_processing_mode_to_video(self, video_path: str | Path, sequential: bool) -> bool:
+        """Apply processing mode to a single video.
+
+        Returns:
+            True if mode was changed, False otherwise.
+        """
+        multi_data = self.project_manager.get_multi_aquarium_zone_data(video_path)
+        if multi_data and multi_data.sequential_processing != sequential:
+            multi_data.sequential_processing = sequential
+            self.project_manager.save_multi_aquarium_zone_data(
+                video_path, multi_data, persist=True
+            )
+            log.info(
+                "processing_coordinator.mode_changed",
+                video=str(video_path),
+                sequential=sequential
+            )
+            return True
+        return False
+
+    def _apply_processing_mode_to_all_videos(self, sequential: bool) -> None:
+        """Apply processing mode to all videos with multi-aquarium data."""
+        project_data = self.project_manager.project_data
+        if not project_data:
+            return
+
+        videos = project_data.get("videos", [])
+        changed_count = 0
+
+        for video_entry in videos:
+            video_path = video_entry.get("path")
+            if not video_path:
+                continue
+
+            if self._apply_processing_mode_to_video(video_path, sequential):
+                changed_count += 1
+
+        if changed_count > 0:
+            log.info(
+                "processing_coordinator.mode_changed_all",
+                sequential=sequential,
+                videos_updated=changed_count,
+            )
+            # Save project once after all updates
+            if self.project_manager.project_path:
+                self.project_manager.save_project()
 
     # ========================================================================
     # Group A: Video Processing Workflows (VideoProcessingOrchestrator)
@@ -286,14 +435,27 @@ class ProcessingCoordinator(BaseCoordinator):
             ),
         )
         # Generate trajectories (from Reports tab)
-        bus.subscribe(
-            Events.PROCESSING_GENERATE_TRAJECTORIES,
-            lambda data: self.process_pending_project_videos(
-                [s.rpartition("_video_")[-1] for s in data.get("selection", ())]
-                if isinstance(data, dict) and "selection" in data
-                else None
-            ),
-        )
+        # NOTE: This event is also handled by trigger_batch_trajectory_processing callback
+        # which does proper path resolution. This handler is kept for backward compatibility
+        # but should NOT process if paths contain tree IDs (handled by callback instead).
+        def _handle_generate_trajectories(data: dict | None) -> None:
+            if not isinstance(data, dict) or "selection" not in data:
+                return
+            selection = data.get("selection", ())
+            # Skip if selection contains tree item IDs (handled by callback)
+            # The callback does proper path resolution via resolve_processing_reports_video_paths
+            if any("_sub_" in str(s) or not str(s).endswith((".mp4", ".avi", ".mov", ".mkv")) for s in selection):
+                log.debug(
+                    "processing_coordinator.generate_trajectories.skipped",
+                    reason="selection_contains_tree_ids_handled_by_callback",
+                )
+                return
+            # Only process if we have actual video paths
+            paths = [s for s in selection if isinstance(s, str) and s.endswith((".mp4", ".avi", ".mov", ".mkv"))]
+            if paths:
+                self.process_pending_project_videos(paths)
+
+        bus.subscribe(Events.PROCESSING_GENERATE_TRAJECTORIES, _handle_generate_trajectories)
 
         # Multi-aquarium auto-detection event (Phase 5)
         bus.subscribe(
@@ -304,6 +466,12 @@ class ProcessingCoordinator(BaseCoordinator):
         bus.subscribe(
             Events.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED,
             lambda data: self._on_aquarium_assignment_completed(data),
+        )
+
+        # Handle processing mode toggle (Parallel vs Sequential)
+        bus.subscribe(
+            Events.ZONE_PROCESSING_MODE_CHANGED,
+            lambda data: self._on_processing_mode_changed(data),
         )
 
         # Unified report generation
@@ -514,6 +682,9 @@ class ProcessingCoordinator(BaseCoordinator):
         if not self.view or not self.root:
             return
 
+        # Initialize batch context to track progress and suppress per-video dialogs
+        self._init_batch_context(len(videos_to_process))
+
         self.ui_coordinator.show_progress_bar(self.view)
         self.ui_coordinator.set_status(
             self.view,
@@ -613,37 +784,49 @@ class ProcessingCoordinator(BaseCoordinator):
         if not success:
             return
 
-        # Find the video entry by experiment_id
-        video_path = None
-        video_results_dir = None
-        for v in videos_to_process:
-            v_path = v.get("path", "")
-            v_exp_id = os.path.splitext(os.path.basename(v_path))[0]
-            if v_exp_id == experiment_id:
-                video_path = v_path
-                video_results_dir = v.get("results_dir")
-                break
-
-        if not video_path:
-            log.warning(
-                "controller.video_completed.video_not_found",
-                experiment_id=experiment_id,
-            )
+        # NEW: Use index directly for robustness (Phase 3 fix)
+        if 0 <= index < len(videos_to_process):
+            video_info = videos_to_process[index]
+            video_path = video_info.get("path")
+            video_results_dir = video_info.get("results_dir")
+            # Use original experiment_id (base filename) for parquet names
+            # but allow override if stored in video_info
+            v_exp_id = video_info.get("experiment_id") or os.path.splitext(os.path.basename(video_path))[0]
+        else:
+            log.warning("controller.video_completed.index_out_of_bounds", index=index)
             return
 
         # Results directory logic
         if video_results_dir:
             results_dir = video_results_dir
         else:
-            v_name = os.path.splitext(os.path.basename(video_path))[0]
-            results_dir = os.path.join(os.path.dirname(video_path), f"{v_name}_results")
+            results_dir = os.path.join(os.path.dirname(video_path), f"{v_exp_id}_results")
 
-        trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
+        trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{v_exp_id}.parquet")
+        # Check if worker used the suffixed experiment_id for the file
+        if not os.path.exists(trajectory_path):
+             trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
+        
         trajectory_exists = os.path.exists(trajectory_path)
 
         # Multi-aquarium fallback check
         alt_multi_outputs: dict[int, dict] = {}
-        if not trajectory_exists and results_dir and os.path.exists(results_dir):
+        
+        # EXPLODED TASK HANDLER: If this was an exploded sequential task, 
+        # it MUST be registered as multi-aquarium
+        aq_id_override = video_info.get("aquarium_id")
+        if aq_id_override is not None and trajectory_exists:
+            log.info("controller.video_completed.exploded_task_detected", aq_id=aq_id_override)
+            alt_multi_outputs[aq_id_override] = {
+                "results_dir": results_dir,
+                "parquet_files": {"trajectory": trajectory_path},
+                "group": video_info.get("group") or (video_info.get("metadata", {}).get("group")),
+                "subject_id": video_info.get("subject") or (video_info.get("metadata", {}).get("subject")),
+                "day": video_info.get("day", 1),
+            }
+            trajectory_exists = False  # Force multi-aquarium registration path below
+        
+        if not trajectory_exists and not alt_multi_outputs and results_dir and os.path.exists(results_dir):
             for aq_id in [0, 1]:
                 aq_subdir = os.path.join(results_dir, f"aquarium_{aq_id}")
                 if not os.path.exists(aq_subdir):
@@ -651,22 +834,23 @@ class ProcessingCoordinator(BaseCoordinator):
 
                 alt_paths = [
                     os.path.join(
+                        aq_subdir, f"3_CoordMovimento_{v_exp_id}_aquarium_{aq_id}.parquet"
+                    ),
+                    os.path.join(
                         aq_subdir, f"3_CoordMovimento_{experiment_id}_aquarium_{aq_id}.parquet"
                     ),
+                    os.path.join(aq_subdir, f"3_CoordMovimento_{v_exp_id}.parquet"),
                     os.path.join(aq_subdir, f"3_CoordMovimento_{experiment_id}.parquet"),
                 ]
                 for alt_p in alt_paths:
                     if os.path.exists(alt_p):
                         # Use video's current metadata if possible
-                        current_v = next(
-                            (x for x in videos_to_process if x.get("path") == video_path), {}
-                        )
                         alt_multi_outputs[aq_id] = {
                             "results_dir": aq_subdir,
                             "parquet_files": {"trajectory": alt_p},
-                            "group": current_v.get("group"),
-                            "subject_id": current_v.get("subject"),
-                            "day": current_v.get("day", 1),
+                            "group": video_info.get("group") or (video_info.get("metadata", {}).get("group")),
+                            "subject_id": video_info.get("subject") or (video_info.get("metadata", {}).get("subject")),
+                            "day": video_info.get("day", 1),
                         }
                         break
 
@@ -679,7 +863,7 @@ class ProcessingCoordinator(BaseCoordinator):
             trajectory_path,
             trajectory_exists,
             alt_multi_outputs,
-            experiment_id,
+            v_exp_id,
             video_results_dir,
         )
 
@@ -694,8 +878,20 @@ class ProcessingCoordinator(BaseCoordinator):
         video_results_dir,
     ):
         """Helper to register outputs after video completion."""
-        # Register single trajectory
-        if trajectory_exists:
+        # Multi-aquarium registration preparation
+        outputs_by_aquarium = alt_multi_outputs.copy() if alt_multi_outputs else {}
+        
+        # Scan for multi-aquarium outputs if not already found
+        if (
+            video_results_dir
+            and video_results_dir != results_dir
+            and os.path.exists(video_results_dir)
+        ):
+            self._scan_multi_aquarium_outputs(video_results_dir, experiment_id, outputs_by_aquarium)
+
+        # Register single trajectory ONLY if no multi-aquarium outputs found
+        # This prevents "Group G0" creation for the main video file in multi-aquarium mode
+        if trajectory_exists and not outputs_by_aquarium:
             self.project_manager.register_processing_outputs(
                 video_path=video_path,
                 results_dir=results_dir,
@@ -706,21 +902,12 @@ class ProcessingCoordinator(BaseCoordinator):
                 experiment_id=experiment_id,
                 trajectory_path=trajectory_path,
             )
-        elif not alt_multi_outputs:
+        elif not trajectory_exists and not outputs_by_aquarium:
             log.warning(
                 "controller.video_completed.trajectory_not_found",
                 experiment_id=experiment_id,
                 expected_path=trajectory_path,
             )
-
-        # Multi-aquarium registration
-        outputs_by_aquarium = alt_multi_outputs.copy() if alt_multi_outputs else {}
-        if (
-            video_results_dir
-            and video_results_dir != results_dir
-            and os.path.exists(video_results_dir)
-        ):
-            self._scan_multi_aquarium_outputs(video_results_dir, experiment_id, outputs_by_aquarium)
 
         if outputs_by_aquarium:
             self.project_manager.register_multi_aquarium_outputs(
@@ -735,27 +922,37 @@ class ProcessingCoordinator(BaseCoordinator):
             self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {})
             self._generate_completion_reports(video_path, experiment_id, True)
         elif trajectory_exists:
+            # Only generate single report if we registered single trajectory
             self._generate_completion_reports(video_path, experiment_id, False)
 
     def _scan_multi_aquarium_outputs(self, results_dir, experiment_id, outputs_by_aquarium):
         """Scan directory for multi-aquarium outputs."""
-        for aq_id in [0, 1]:
-            aq_subdir = os.path.join(results_dir, f"aquarium_{aq_id}")
-            if not os.path.exists(aq_subdir):
+        if not results_dir or not os.path.exists(results_dir):
+            return
+
+        # Scan for aquarium_X directories
+        import re
+        for item in os.listdir(results_dir):
+            item_path = os.path.join(results_dir, item)
+            if not os.path.isdir(item_path):
                 continue
-            traj_candidates = [
-                os.path.join(
-                    aq_subdir, f"3_CoordMovimento_{experiment_id}_aquarium_{aq_id}.parquet"
-                ),
-                os.path.join(aq_subdir, f"3_CoordMovimento_{experiment_id}.parquet"),
-            ]
-            traj_file = next((p for p in traj_candidates if os.path.exists(p)), None)
-            if traj_file:
-                outputs_by_aquarium[aq_id] = {
-                    "results_dir": aq_subdir,
-                    "parquet_files": {"trajectory": traj_file},
-                    "day": 1,  # Default
-                }
+                
+            match = re.match(r"^aquarium_(\d+)$", item)
+            if match:
+                aq_id = int(match.group(1))
+                traj_candidates = [
+                    os.path.join(
+                        item_path, f"3_CoordMovimento_{experiment_id}_aquarium_{aq_id}.parquet"
+                    ),
+                    os.path.join(item_path, f"3_CoordMovimento_{experiment_id}.parquet"),
+                ]
+                traj_file = next((p for p in traj_candidates if os.path.exists(p)), None)
+                if traj_file:
+                    outputs_by_aquarium[aq_id] = {
+                        "results_dir": item_path,
+                        "parquet_files": {"trajectory": traj_file},
+                        "day": 1,  # Default
+                    }
 
     def _handle_sequential_multi_aquarium(self, outputs_by_aquarium):
         """Handle advancement in sequential multi-aquarium mode."""
@@ -836,13 +1033,41 @@ class ProcessingCoordinator(BaseCoordinator):
             current_video=None,
         )
 
+        # Finalize batch context and get summary
+        batch_summary = self._finalize_batch_context()
+
         if was_cancelled:
             self.ui_coordinator.show_info(
                 self.view, "Cancelado", "A análise de vídeo foi cancelada."
             )
         elif videos_to_process:
-            msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
-            self.ui_coordinator.show_info(self.view, "Sucesso", msg)
+            # Show consolidated batch summary dialog
+            if batch_summary and batch_summary["total"] > 1:
+                # Multiple videos - show batch summary
+                success_count = batch_summary["successful"]
+                fail_count = batch_summary["failed"]
+
+                if fail_count == 0:
+                    msg = (
+                        f"Processamento em lote concluído com sucesso!\n\n"
+                        f"✓ {success_count} vídeo(s) processado(s)\n"
+                        f"Resultados salvos em:\n{output_dir}"
+                    )
+                    title = "Processamento Concluído"
+                else:
+                    msg = (
+                        f"Processamento em lote concluído.\n\n"
+                        f"✓ {success_count} vídeo(s) com sucesso\n"
+                        f"✗ {fail_count} vídeo(s) com falha\n\n"
+                        f"Resultados salvos em:\n{output_dir}"
+                    )
+                    title = "Processamento Parcial"
+
+                self.ui_coordinator.show_info(self.view, title, msg)
+            else:
+                # Single video - show simple message
+                msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
+                self.ui_coordinator.show_info(self.view, "Sucesso", msg)
 
         self.ui_coordinator.set_status(self.view, "Pronto.")
         self._publish_processing_mode(source="worker.completed", force=True)
@@ -940,6 +1165,39 @@ class ProcessingCoordinator(BaseCoordinator):
 
         # 1. Sequential Mode Handle
         is_multi_aq = hasattr(zone_data, "aquariums")
+
+        # Bug fix: Reload zone_data from project_manager to get latest sequential_processing flag
+        # and subject_id values that may have been set by the assignment dialog
+        if is_multi_aq:
+            fresh_zone_data = self.project_manager.get_multi_aquarium_zone_data(video_path)
+            if fresh_zone_data:
+                zone_data = fresh_zone_data
+                log.debug(
+                    "workflow.zone_data_reloaded",
+                    video=str(video_path),
+                    sequential_processing=getattr(zone_data, "sequential_processing", False),
+                )
+
+            # Bug fix: Validate that all aquariums have subject_id defined
+            for aq in zone_data.aquariums:
+                if not aq.subject_id:
+                    log.warning(
+                        "processing.missing_subject_id",
+                        aquarium_id=aq.id,
+                        video=str(video_path),
+                    )
+                    self._publish_event(
+                        Events.UI_SHOW_ERROR,
+                        {
+                            "title": "Configuração Incompleta",
+                            "message": (
+                                f"Aquário {aq.id} não tem sujeito definido. "
+                                "Configure os aquários antes de processar."
+                            ),
+                        },
+                    )
+                    return
+
         use_seq = is_multi_aq and getattr(zone_data, "sequential_processing", False)
 
         # 2. Extract Calibration Data
@@ -1004,6 +1262,88 @@ class ProcessingCoordinator(BaseCoordinator):
 
         return {"w": w_cm, "h": h_cm, "n": n_aq}
 
+    def _save_multi_aquarium_config_to_calibration(self, calibration_dict: dict) -> None:
+        """
+        Convert custom_regex_patterns from wizard to MultiAquariumData format and save.
+
+        This method retrieves custom_regex_patterns from wizard_metadata (if it exists),
+        converts it to the MultiAquariumData dict format expected by the assignment
+        dialog, and stores it in calibration["multi_aquarium"].
+
+        Args:
+            calibration_dict: The calibration dictionary to update (modified in-place)
+        """
+        # Get wizard_metadata from project_data
+        wizard_metadata = (
+            self.project_manager.project_data.get("_wizard_metadata", {})
+            if self.project_manager.project_data
+            else {}
+        )
+
+        if not wizard_metadata:
+            log.debug("calibration.multi_aquarium.no_wizard_metadata")
+            return
+
+        # Extract custom_regex_patterns from wizard_metadata
+        custom_patterns = wizard_metadata.get("custom_regex_patterns")
+
+        if not custom_patterns or not isinstance(custom_patterns, dict):
+            log.debug(
+                "calibration.multi_aquarium.no_custom_patterns",
+                has_patterns=bool(custom_patterns),
+                patterns_type=type(custom_patterns).__name__ if custom_patterns else "None",
+            )
+            return
+
+        # Convert custom_regex_patterns dict to MultiAquariumData dict format
+        # The wizard stores patterns as {group_pattern, day_pattern, subject_pattern}
+        # We need to convert to MultiAquariumData format with regex_pattern field
+        from zebtrack.ui.wizard.models import MultiAquariumData
+
+        try:
+            # Build combined regex pattern from individual patterns
+            combined_pattern = MultiAquariumData.build_combined_regex_pattern(
+                group_pattern=custom_patterns.get("group_pattern"),
+                day_pattern=custom_patterns.get("day_pattern"),
+                subject_pattern=custom_patterns.get("subject_pattern"),
+            )
+
+            if combined_pattern:
+                # Create MultiAquariumData dict with the combined pattern
+                # Note: enabled=False to avoid Pydantic validation error
+                # Dialog only needs regex_pattern for auto-fill functionality
+                multi_aquarium_dict = {
+                    "enabled": False,
+                    "regex_pattern": combined_pattern,
+                    "regex_group_field": "group",
+                    "regex_subject_field": "subject",
+                    "regex_day_field": "day",
+                    "aquarium_configs": [],  # Empty, will be filled by assignment dialog
+                }
+
+                # Save to calibration
+                calibration_dict["multi_aquarium"] = multi_aquarium_dict
+
+                log.info(
+                    "calibration.multi_aquarium.saved",
+                    has_regex=True,
+                    regex_pattern_preview=combined_pattern[:80],
+                )
+            else:
+                log.warning(
+                    "calibration.multi_aquarium.no_combined_pattern",
+                    group_pattern=custom_patterns.get("group_pattern"),
+                    day_pattern=custom_patterns.get("day_pattern"),
+                    subject_pattern=custom_patterns.get("subject_pattern"),
+                )
+
+        except Exception as e:
+            log.error(
+                "calibration.multi_aquarium.conversion_failed",
+                error=str(e),
+                patterns=custom_patterns,
+            )
+
     def _handle_sequential_single_video_start(self, video_path, config, zone_data, calib):
         """Handle sequential multi-aquarium start logic."""
         log.info(
@@ -1016,6 +1356,11 @@ class ProcessingCoordinator(BaseCoordinator):
             c.setdefault("num_aquariums", c.get("num_aquariums", n_aq))
             c.setdefault("animals_per_aquarium", c.get("animals_per_aquarium", 1))
             c.update({"aquarium_width_cm": w_cm, "aquarium_height_cm": h_cm})
+
+            # CRITICAL FIX: Convert custom_regex_patterns from wizard to MultiAquariumData format
+            # This enables regex auto-fill in the assignment dialog
+            self._save_multi_aquarium_config_to_calibration(c)
+
             self.project_manager.project_data["calibration"] = c
             if self.project_manager.project_path:
                 self.project_manager.save_project()
@@ -1031,7 +1376,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 meta.setdefault("aquarium_height_cm", h_cm)
 
             v_dict = {
-                "path": str(video_path),
+                "path": Path(video_path).as_posix(),
                 "experiment_id": os.path.splitext(os.path.basename(str(video_path)))[0],
                 "status": "processing",
                 "has_arena": bool(zone_data.aquariums),
@@ -1096,6 +1441,11 @@ class ProcessingCoordinator(BaseCoordinator):
             c.setdefault("num_aquariums", c.get("num_aquariums", 1))
             c.setdefault("animals_per_aquarium", c.get("animals_per_aquarium", 1))
             c.update({"aquarium_width_cm": w_cm, "aquarium_height_cm": h_cm})
+
+            # CRITICAL FIX: Convert custom_regex_patterns from wizard to MultiAquariumData format
+            # This enables regex auto-fill in the assignment dialog
+            self._save_multi_aquarium_config_to_calibration(c)
+
             self.project_manager.project_data["calibration"] = c
 
             a_int, d_int = self._determine_processing_intervals(config)
@@ -1135,7 +1485,7 @@ class ProcessingCoordinator(BaseCoordinator):
                     has_r = bool(zone_data.roi_polygons)
 
             v_dict = {
-                "path": str(video_path),
+                "path": Path(video_path).as_posix(),
                 "experiment_id": v_name,
                 "status": "processing",
                 "has_arena": has_a,
@@ -1249,16 +1599,17 @@ class ProcessingCoordinator(BaseCoordinator):
             video_entry["multi_aquarium_mode"] = True
             video_entry["multi_aquarium_outputs"] = {}
 
-        # Notify user
+        # Notify user (only if not in batch mode to avoid interrupting flow)
         aq_count = len(multi_zone_data.aquariums)
-        self._publish_event(
-            Events.UI_SHOW_INFO,
-            {
-                "title": "Processamento Sequencial",
-                "message": f"Iniciando processamento sequencial de {aq_count} aquários.\n"
-                "Cada aquário será processado separadamente.",
-            },
-        )
+        if not self._is_batch_processing():
+            self._publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Processamento Sequencial",
+                    "message": f"Iniciando processamento sequencial de {aq_count} aquários.\n"
+                    "Cada aquário será processado separadamente.",
+                },
+            )
 
         # Start processing the first aquarium
         self._process_next_aquarium_in_sequence()
@@ -1312,14 +1663,20 @@ class ProcessingCoordinator(BaseCoordinator):
                     error=str(e),
                 )
 
-            self._publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Processamento Concluído",
-                    "message": f"Todos os {ctx['total_aquariums']} aquários foram processados "
-                    "e relatórios gerados com sucesso.",
-                },
-            )
+            # Show completion dialog only if not in batch mode
+            if not self._is_batch_processing():
+                self._publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Processamento Concluído",
+                        "message": f"Todos os {ctx['total_aquariums']} aquários foram processados "
+                        "e relatórios gerados com sucesso.",
+                    },
+                )
+
+            # Update batch context with successful video
+            video_path_str = str(ctx["video_path"])
+            self._update_batch_context(video_path_str, success=True)
 
             # Refresh project views
             self._publish_event(
@@ -1345,13 +1702,29 @@ class ProcessingCoordinator(BaseCoordinator):
         # Convert to single-aquarium ZoneData
         zone_data = aquarium.to_zone_data()
 
-        # Configure output directory for this aquarium
-        video_name = os.path.splitext(os.path.basename(str(ctx["video_path"])))[0]
-        base_output = os.path.join(
-            os.path.dirname(str(ctx["video_path"])),
-            f"{video_name}_results",
+        # Resolve correct hierarchical directory for this aquarium
+        aq_config = {
+            "aquarium_id": aquarium.id,
+            "group": aquarium.group,
+            "subject_id": aquarium.subject_id,
+            "day": int(aquarium.day) if aquarium.day else 1
+        }
+        
+        aq_dirs = self.project_manager.resolve_multi_aquarium_results_directories(
+            experiment_id=os.path.splitext(os.path.basename(str(ctx["video_path"])))[0],
+            aquarium_configs=[aq_config]
         )
-        aquarium_output = os.path.join(base_output, f"aquarium_{aquarium.id}")
+        
+        aquarium_output = str(aq_dirs.get(aquarium.id))
+        if not aquarium_output:
+            # Fallback (should not happen)
+            video_name = os.path.splitext(os.path.basename(str(ctx["video_path"])))[0]
+            base_output = os.path.join(
+                os.path.dirname(str(ctx["video_path"])),
+                f"{video_name}_results",
+            )
+            aquarium_output = os.path.join(base_output, f"aquarium_{aquarium.id}")
+            
         os.makedirs(aquarium_output, exist_ok=True)
 
         # Notify user of current aquarium
@@ -1658,66 +2031,211 @@ class ProcessingCoordinator(BaseCoordinator):
         if eligible_videos is None:
             return
 
+        # CRITICAL FIX: Validate multi-aquarium metadata before processing
+        # If any video has empty subject_id, block processing and show warning
+        for video_info in eligible_videos:
+            video_path = video_info.get("path")
+            multi_data = self.project_manager.get_multi_aquarium_zone_data(video_path)
+            if multi_data:
+                missing_subjects = []
+                for aq in multi_data.aquariums:
+                    if not aq.subject_id:
+                        missing_subjects.append(f"Aquário {aq.id}")
+
+                if missing_subjects:
+                    log.error(
+                        "workflow.multi_aquarium.incomplete_metadata",
+                        video=os.path.basename(video_path),
+                        missing=missing_subjects,
+                    )
+                    self._publish_event(
+                        Events.UI_SHOW_ERROR,
+                        {
+                            "title": "Configuração Incompleta",
+                            "message": (
+                                f"O vídeo '{os.path.basename(video_path)}' tem aquários "
+                                f"sem sujeito definido:\n\n"
+                                f"{', '.join(missing_subjects)}\n\n"
+                                f"Por favor:\n"
+                                f"1. Vá para a aba 'Zones'\n"
+                                f"2. Selecione o vídeo\n"
+                                f"3. Clique em 'Auto-Detectar' novamente\n"
+                                f"4. Preencha o diálogo de atribuição que aparecerá\n"
+                                f"5. Confirme ANTES de processar"
+                            ),
+                        },
+                    )
+                    return
+
         # Load zone data for eligible videos
         self._load_zones_for_eligible_videos(eligible_videos)
+
+        # IMPLEMENTATION: Explode sequential multi-aquarium tasks
+        final_tasks = []
+        for video_info in eligible_videos:
+            zone_data_dict = video_info.get("zone_data")
+            # Check if this is a multi-aquarium task with sequential processing enabled
+            if (
+                zone_data_dict
+                and "aquariums" in zone_data_dict
+                and zone_data_dict.get("sequential_processing")
+            ):
+                try:
+                    import os as _os  # Local import to avoid scope issues
+                    from zebtrack.core.zone_manager import ZoneManager
+                    multi_data = ZoneManager.multi_aquarium_zone_data_from_dict(zone_data_dict)
+
+                    video_basename = _os.path.basename(str(video_info.get("path", "")))
+                    log.info(
+                        "workflow.project_processing.exploding_sequential_task",
+                        video=video_basename,
+                        aquarium_count=len(multi_data.aquariums)
+                    )
+
+                    # Create one task per aquarium
+                    aq_configs = []
+                    for aq in multi_data.aquariums:
+                        aq_configs.append({
+                            "aquarium_id": aq.id,
+                            "group": aq.group,
+                            "subject_id": aq.subject_id,
+                            "day": int(aq.day) if aq.day else 1
+                        })
+
+                    # Resolve correct hierarchical directories for each aquarium
+                    experiment_id = _os.path.splitext(video_basename)[0]
+                    aq_dirs = self.project_manager.resolve_multi_aquarium_results_directories(
+                        experiment_id=experiment_id,
+                        aquarium_configs=aq_configs
+                    )
+
+                    for aq in multi_data.aquariums:
+                        aq_task = video_info.copy()
+                        # Convert MultiAquariumZoneData to single ZoneData
+                        aq_zone_data = aq.to_zone_data()
+                        aq_task["zone_data"] = ZoneManager.zone_data_to_dict(aq_zone_data)
+                        # Mark as NOT multi-aquarium so worker uses single-pass logic
+                        aq_task["is_multi_aquarium"] = False
+
+                        # Update results_dir to be the correct hierarchical folder for this subject
+                        aq_results_dir = aq_dirs.get(aq.id)
+                        if aq_results_dir:
+                            aq_task["results_dir"] = str(aq_results_dir)
+                        else:
+                            # Fallback (should not happen with valid multi_data)
+                            base_results_dir = Path(video_info.get("results_dir", ""))
+                            aq_task["results_dir"] = str(base_results_dir / f"aquarium_{aq.id}")
+
+                        # Store aquarium ID for completion handling
+                        aq_task["aquarium_id"] = aq.id
+
+                        # Ensure individual task metadata reflects the aquarium's metadata
+                        aq_task["group"] = aq.group
+                        aq_task["subject"] = aq.subject_id
+                        aq_task["day"] = aq.day
+
+                        log.info(
+                            "workflow.sequential_multi.task_created",
+                            aquarium_id=aq.id,
+                            subject=aq.subject_id,
+                            day=aq.day,
+                            results_dir=aq_task["results_dir"],
+                        )
+
+                        final_tasks.append(aq_task)
+                except Exception as exc:
+                    log.exception(
+                        "workflow.project_processing.sequential_explosion_failed",
+                        video=video_info.get("path", ""),
+                        error=str(exc),
+                    )
+                    # Fall back to non-sequential mode
+                    final_tasks.append(video_info)
+            else:
+                final_tasks.append(video_info)
+        
+        eligible_videos = final_tasks
 
         self.cancel_event.clear()
 
         # Create and start processing worker
-        callbacks = self.create_processing_callbacks(eligible_videos)
-        context = self.create_processing_context(
-            eligible_videos,
-            self.project_manager.project_path,
-            single_video_config=None,
-        )
+        try:
+            callbacks = self.create_processing_callbacks(eligible_videos)
+            # Ensure project_path is a string (it may be Path object)
+            output_dir = str(self.project_manager.project_path) if self.project_manager.project_path else ""
+            context = self.create_processing_context(
+                eligible_videos,
+                output_dir,
+                single_video_config=None,
+            )
 
-        self.processing_worker = ProcessingWorker(context, callbacks)
-        self.processing_thread = self.processing_worker.start_in_thread()
+            self.processing_worker = ProcessingWorker(context, callbacks)
+            self.processing_thread = self.processing_worker.start_in_thread()
+        except Exception as exc:
+            log.exception(
+                "workflow.project_processing.worker_creation_failed",
+                error=str(exc),
+            )
+            self._publish_event(
+                Events.UI_SHOW_ERROR,
+                {
+                    "title": "Erro ao Iniciar Processamento",
+                    "message": f"Falha ao criar worker de processamento: {exc}",
+                },
+            )
+            return
 
-        # Update processing state to trigger UI navigation to analysis view
-        first_video = eligible_videos[0] if eligible_videos else {}
-        self.state_manager.update_processing_state(
-            source="controller.process_pending_project_videos",
-            is_processing=True,
-            current_video=os.path.basename(first_video.get("path", "")),
-            processing_start_time=datetime.now(),
-        )
+        try:
+            # Update processing state to trigger UI navigation to analysis view
+            first_video = eligible_videos[0] if eligible_videos else {}
+            self.state_manager.update_processing_state(
+                source="controller.process_pending_project_videos",
+                is_processing=True,
+                current_video=os.path.basename(str(first_video.get("path", ""))),
+                processing_start_time=datetime.now(),
+            )
 
-        for video_info in eligible_videos:
-            path_value = video_info.get("path")
-            if path_value:
-                self.project_manager.update_video_status(path_value, "complete")
+            for video_info in eligible_videos:
+                path_value = video_info.get("path")
+                if path_value:
+                    self.project_manager.update_video_status(path_value, "complete")
 
-        self._publish_event(
-            Events.UI_SET_STATUS,
-            {"message": f"Processando {len(eligible_videos)} vídeo(s) com dados existentes..."},
-        )
+            self._publish_event(
+                Events.UI_SET_STATUS,
+                {"message": f"Processando {len(eligible_videos)} vídeo(s) com dados existentes..."},
+            )
 
-        display_names = [
-            os.path.basename(video_info.get("path", "")) or "(arquivo desconhecido)"
-            for video_info in eligible_videos
-        ]
-        preview_lines = [f"• {name}" for name in display_names[:5]]
-        if len(display_names) > 5:
-            preview_lines.append(f"• ... (+{len(display_names) - 5} restante(s))")
+            display_names = [
+                os.path.basename(str(video_info.get("path", ""))) or "(arquivo desconhecido)"
+                for video_info in eligible_videos
+            ]
+            preview_lines = [f"• {name}" for name in display_names[:5]]
+            if len(display_names) > 5:
+                preview_lines.append(f"• ... (+{len(display_names) - 5} restante(s))")
 
-        message = (
-            f"O processamento de {len(eligible_videos)} vídeo(s) foi iniciado em segundo plano."
-        )
-        if preview_lines:
-            message += "\n\nFila:\n" + "\n".join(preview_lines)
+            message = (
+                f"O processamento de {len(eligible_videos)} vídeo(s) foi iniciado em segundo plano."
+            )
+            if preview_lines:
+                message += "\n\nFila:\n" + "\n".join(preview_lines)
 
-        self._publish_event(
-            Events.UI_SHOW_INFO, {"title": "Processamento Iniciado", "message": message}
-        )
+            self._publish_event(
+                Events.UI_SHOW_INFO, {"title": "Processamento Iniciado", "message": message}
+            )
 
-        log.info(
-            "workflow.project_processing.resume_started",
-            total=len(eligible_videos),
-            with_trajectory=len(ready_with_trajectory),
-            with_zones=len(ready_with_zones),
-            targeted=bool(video_paths),
-        )
+            log.info(
+                "workflow.project_processing.resume_started",
+                total=len(eligible_videos),
+                with_trajectory=len(ready_with_trajectory),
+                with_zones=len(ready_with_zones),
+                targeted=bool(video_paths),
+            )
+        except Exception as e:
+            log.exception("workflow.project_processing.post_worker_error", error=str(e))
+            self._publish_event(
+                Events.UI_SHOW_ERROR,
+                {"title": "Erro Pós-Inicialização", "message": f"Erro ao atualizar interface: {e}"}
+            )
 
     # ========================================================================
     # Group B: Analysis Workflows (AnalysisOrchestrator)
@@ -1791,6 +2309,35 @@ class ProcessingCoordinator(BaseCoordinator):
             # MELHORIA: Check if we expect multiple aquariums based on settings
             num_aquariums = self.settings.analysis_config.num_aquariums
 
+            # Also check project calibration as fallback
+            calibration = (
+                self.project_manager.project_data.get("calibration", {})
+                if self.project_manager.project_data
+                else {}
+            )
+            project_num_aquariums = (
+                calibration.get("num_aquariums", 1) if isinstance(calibration, dict) else 1
+            )
+
+            # Use project value if settings wasn't synced
+            if num_aquariums == 1 and project_num_aquariums > 1:
+                log.warning(
+                    "run_aquarium_detection.settings_not_synced",
+                    settings_value=num_aquariums,
+                    project_value=project_num_aquariums,
+                    message="Using project calibration value instead",
+                )
+                num_aquariums = project_num_aquariums
+                # Also sync to settings for future calls
+                self.settings.analysis_config.num_aquariums = num_aquariums
+
+            log.info(
+                "run_aquarium_detection.num_aquariums_resolved",
+                num_aquariums=num_aquariums,
+                from_settings=self.settings.analysis_config.num_aquariums,
+                from_project=project_num_aquariums,
+            )
+
             if num_aquariums > 1:
                 # Multi-aquarium mode
                 polygons = detector.detect_multiple_aquariums(
@@ -1817,6 +2364,73 @@ class ProcessingCoordinator(BaseCoordinator):
                                 ],
                             },
                         )
+
+                        # Trigger Assignment Dialog for users to assign Group/Subject/Day
+                        available_groups = self.project_manager.get_available_groups() or []
+
+                        # Check for "Apply to all" active state from previous assignments
+                        if self._auto_assign_aquariums and self._last_assignment_configs:
+                            log.info("run_aquarium_detection.auto_assigning", video=str(video_path))
+                            self._on_aquarium_assignment_completed(
+                                {
+                                    "video_path": str(video_path),
+                                    "configs": self._last_assignment_configs,
+                                    "apply_to_all": True,
+                                }
+                            )
+                        else:
+                            # Show dialog for manual assignment
+                            log.info(
+                                "run_aquarium_detection.showing_assignment_dialog",
+                                video_path=str(video_path),
+                            )
+
+                            # Get multi_aquarium_config from project calibration for regex auto-fill
+                            multi_aquarium_config = None
+                            calibration = (
+                                self.project_manager.project_data.get("calibration", {})
+                                if self.project_manager.project_data
+                                else {}
+                            )
+                            if isinstance(calibration, dict):
+                                multi_aquarium_dict = calibration.get("multi_aquarium")
+                                if multi_aquarium_dict and isinstance(multi_aquarium_dict, dict):
+                                    try:
+                                        from zebtrack.ui.wizard.models import MultiAquariumData
+                                        if multi_aquarium_dict.get("regex_pattern"):
+                                            multi_aquarium_config = MultiAquariumData(**multi_aquarium_dict)
+                                            log.info(
+                                                "run_aquarium_detection.multi_aquarium_config_loaded",
+                                                regex_pattern=multi_aquarium_config.regex_pattern[:50]
+                                            )
+                                    except Exception as e:
+                                        log.warning(
+                                            "run_aquarium_detection.multi_aquarium_config_parse_failed",
+                                            error=str(e),
+                                        )
+                            else:
+                                log.warning(
+                                    "run_aquarium_detection.no_calibration_config",
+                                    calibration_type=type(calibration).__name__,
+                                )
+
+                            print(
+                                f"[DIAGNOSTIC] Publishing ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG event"
+                            )
+                            print(f"[DIAGNOSTIC] video_path={str(video_path)}")
+                            print(
+                                f"[DIAGNOSTIC] has_multi_aquarium_config={bool(multi_aquarium_config)}"
+                            )
+
+                            self._publish_event(
+                                Events.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
+                                {
+                                    "video_path": str(video_path),
+                                    "available_groups": available_groups,
+                                    "multi_aquarium_config": multi_aquarium_config,
+                                },
+                            )
+                            print(f"[DIAGNOSTIC] Event published")
                     else:
                         # Partial detection?
                         pass
@@ -1954,14 +2568,52 @@ class ProcessingCoordinator(BaseCoordinator):
                         }
                     )
                 else:
-                    # Trigger Assignment Dialog
-                    # Note: We pass multi_aquarium_config if it was provided in the request
+                    # Fetch multi_aquarium_config from project calibration for regex auto-fill
+                    log.info(
+                        "multi_auto_detect.showing_assignment_dialog",
+                        video_path=str(video_path),
+                    )
+                    multi_aquarium_config = None
+                    calibration = (
+                        self.project_manager.project_data.get("calibration", {})
+                        if self.project_manager.project_data
+                        else {}
+                    )
+                    
+                    if isinstance(calibration, dict):
+                        multi_aquarium_dict = calibration.get("multi_aquarium")
+                        if multi_aquarium_dict and isinstance(multi_aquarium_dict, dict):
+                            try:
+                                from zebtrack.ui.wizard.models import MultiAquariumData
+                                # Ensure we only create object if regex_pattern exists
+                                if multi_aquarium_dict.get("regex_pattern"):
+                                    multi_aquarium_config = MultiAquariumData(**multi_aquarium_dict)
+                                    log.info(
+                                        "multi_auto_detect.multi_aquarium_config_loaded",
+                                        regex_pattern=multi_aquarium_config.regex_pattern[:50]
+                                    )
+                            except Exception as e:
+                                log.warning(
+                                    "multi_auto_detect.multi_aquarium_config_parse_failed",
+                                    error=str(e),
+                                )
+                        else:
+                            log.warning(
+                                "multi_auto_detect.no_multi_aquarium_in_calibration",
+                                calibration_keys=list(calibration.keys()),
+                            )
+                    else:
+                        log.warning(
+                            "multi_auto_detect.calibration_not_dict",
+                            calibration_type=type(calibration).__name__,
+                        )
+
                     self._publish_event(
                         Events.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
                         {
                             "video_path": str(video_path),
                             "available_groups": available_groups,
-                            "multi_aquarium_config": data.get("multi_aquarium_config"),
+                            "multi_aquarium_config": multi_aquarium_config,
                         },
                     )
             else:
@@ -1981,19 +2633,169 @@ class ProcessingCoordinator(BaseCoordinator):
         finally:
             self._publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
 
+    def _relocate_multi_aquarium_folders(
+        self, video_path: str | Path, zone_data: Any, old_parquet_files: dict | None = None
+    ) -> None:
+        """
+        Relocate existing folder (e.g., Sujeito_Indefinido) to correct subject folders.
+
+        This is called after aquarium assignment to move files from the initial
+        "Indefinido" folder to properly named folders based on assigned metadata.
+
+        Args:
+            video_path: Path to the video file
+            zone_data: MultiAquariumZoneData with updated aquarium metadata
+            old_parquet_files: Parquet files dict captured BEFORE save_multi_aquarium_zone_data
+                              overwrote them. This is needed to find the original Sujeito_Indefinido folder.
+        """
+        import shutil
+        from pathlib import Path
+
+        video_entry = self.project_manager.find_video_entry(path=video_path)
+        if not video_entry:
+            log.warning("relocate_folders.no_video_entry", video=str(video_path))
+            return
+
+        # CRITICAL FIX: Use old_parquet_files if provided, otherwise fallback to video_entry
+        # This is needed because save_multi_aquarium_zone_data already overwrote the paths
+        parquet_files = old_parquet_files if old_parquet_files else video_entry.get("parquet_files", {})
+        if not parquet_files:
+            log.info("relocate_folders.no_parquet_files", video=str(video_path))
+            return
+
+        # Get first parquet file to find current folder
+        first_parquet = next(iter(parquet_files.values()), None)
+        if not first_parquet:
+            return
+
+        old_folder = Path(first_parquet).parent
+        if not old_folder.exists():
+            log.warning("relocate_folders.old_folder_missing", folder=str(old_folder))
+            return
+
+        # Only relocate if folder name contains "Indefinido"
+        if "Indefinido" not in old_folder.name:
+            log.debug(
+                "relocate_folders.not_indefinido",
+                folder_name=old_folder.name,
+                hint="Folder already has a specific subject name, skipping relocation",
+            )
+            return
+
+        log.info(
+            "relocate_folders.starting",
+            old_folder=str(old_folder),
+            aquarium_count=len(zone_data.aquariums),
+        )
+
+        # Calculate new folders for each aquarium
+        aquarium_configs = []
+        for aq in zone_data.aquariums:
+            config = {
+                "aquarium_id": aq.id,
+                "group": aq.group or "Sem_Grupo",
+                "subject_id": aq.subject_id or "",
+                "day": int(aq.day) if aq.day else 1,
+            }
+            aquarium_configs.append(config)
+
+        new_folders = self.project_manager.resolve_multi_aquarium_results_directories(
+            experiment_id=Path(video_path).stem,
+            aquarium_configs=aquarium_configs,
+        )
+
+        # Move files to new folders (but only the initial parquet, not all files!)
+        # The arena parquet should be copied to BOTH aquarium folders
+        for aq_id, new_folder in new_folders.items():
+            # Copy arena parquet to each aquarium folder
+            for key, old_file_path in parquet_files.items():
+                old_file = Path(old_file_path)
+                if old_file.exists() and old_file.parent == old_folder:
+                    new_file = new_folder / old_file.name
+                    try:
+                        shutil.copy2(old_file, new_file)
+                        log.info(
+                            "relocate_folders.file_copied",
+                            file=old_file.name,
+                            aq_id=aq_id,
+                            new_folder=str(new_folder),
+                        )
+                    except Exception as e:
+                        log.error(
+                            "relocate_folders.copy_failed",
+                            file=old_file.name,
+                            error=str(e),
+                        )
+
+        # CORREÇÃO: Usar shutil.rmtree para remover pasta Sujeito_Indefinido completamente
+        # A lógica anterior só funcionava se a pasta estivesse vazia, mas podem haver
+        # outros arquivos (como _bg.png) que não são removidos individualmente
+        try:
+            if old_folder.exists() and "Indefinido" in old_folder.name:
+                shutil.rmtree(old_folder, ignore_errors=True)
+                log.info("relocate_folders.old_folder_removed", folder=str(old_folder))
+
+                # Also try to remove parent if it becomes empty (e.g., Dia_01 folder)
+                parent = old_folder.parent
+                if parent.exists() and not any(parent.iterdir()):
+                    parent.rmdir()
+                    # And group folder
+                    group_parent = parent.parent
+                    if group_parent.exists() and not any(group_parent.iterdir()):
+                        group_parent.rmdir()
+        except Exception as e:
+            log.warning("relocate_folders.cleanup_failed", folder=str(old_folder), error=str(e))
+
+        # IMPORTANT: Update video entry with new folder paths
+        # For multi-aquarium, we'll update the first aquarium's folder as primary
+        if 0 in new_folders:
+            primary_folder = new_folders[0]
+            # Update parquet file paths to point to primary aquarium folder
+            updated_parquet_files = {}
+            for key, old_file_path in video_entry.get("parquet_files", {}).items():
+                # Note: old_file_path might have been deleted, but we need its NAME
+                filename = Path(old_file_path).name
+                new_file = primary_folder / filename
+                updated_parquet_files[key] = str(new_file.as_posix())
+
+            video_entry["parquet_files"] = updated_parquet_files
+            self.project_manager.save_project()
+
+        log.info(
+            "relocate_folders.completed",
+            old_folder=str(old_folder),
+            new_folders=[str(f) for f in new_folders.values()],
+        )
+
     def _on_aquarium_assignment_completed(self, data: dict) -> None:
         """Handle completion of aquarium assignment (group/subject/day).
 
         Updates the MultiAquariumZoneData with the assigned metadata.
         """
+        log.info(
+            "assignment_complete.handler_called",
+            data_type=type(data).__name__,
+            has_configs=bool(data.get("configs")) if isinstance(data, dict) else False,
+        )
+
         if not isinstance(data, dict):
             return
 
         video_path = data.get("video_path")
-        configs = data.get("configs")  # List of dicts: {aquarium_id, group, subject_id, day}
+        configs = data.get("configs")  # List of dicts or AquariumConfig objects
         apply_to_all = data.get("apply_to_all", False)
 
+        log.info(
+            "assignment_complete.data_extracted",
+            video_path=video_path,
+            configs_count=len(configs) if configs else 0,
+            apply_to_all=apply_to_all,
+        )
+
         if not video_path or not configs:
+            log.warning(
+                "assignment_complete.missing_data", video_path=video_path, has_configs=bool(configs)
+            )
             return
 
         # Idempotency guard: skip if already assigned
@@ -2020,28 +2822,138 @@ class ProcessingCoordinator(BaseCoordinator):
             # 2. Update each aquarium's metadata
             updated = False
             for config in configs:
-                aq_id = config.get("aquarium_id")
+                # Support both dict and AquariumConfig Pydantic objects
+                if hasattr(config, "aquarium_id"):
+                    # AquariumConfig object
+                    aq_id = config.aquarium_id
+                    group = config.group
+                    subject_id = config.subject_id
+                    day = config.day if hasattr(config, "day") else "1"
+                else:
+                    # dict format
+                    aq_id = config.get("aquarium_id")
+                    group = config.get("group")
+                    subject_id = config.get("subject_id")
+                    day = config.get("day", "1")
+
+                log.debug(
+                    "assignment_complete.processing_config",
+                    aq_id=aq_id,
+                    group=group,
+                    subject_id=subject_id,
+                    day=day,
+                )
 
                 # Find matching aquarium
                 target_aq = next((aq for aq in zone_data.aquariums if aq.id == aq_id), None)
                 if target_aq:
-                    target_aq.group = config.get("group")
-                    target_aq.subject_id = config.get("subject_id")
-                    target_aq.day = config.get("day", "1")
+                    target_aq.group = group
+                    target_aq.subject_id = subject_id
+                    target_aq.day = str(day) if day else "1"
                     updated = True
+                    log.info(
+                        "assignment_complete.aquarium_updated",
+                        aq_id=aq_id,
+                        group=group,
+                        subject_id=subject_id,
+                    )
+                else:
+                    log.warning(
+                        "assignment_complete.aquarium_not_found",
+                        aq_id=aq_id,
+                        available_ids=[aq.id for aq in zone_data.aquariums],
+                    )
 
             # 3. Save updated data
             if updated:
+                # SYNC: Update main video entry metadata for multi-subject support
+                # This ensures the UI tree shows all subjects for this video
+                video_entry = self.project_manager.find_video_entry(path=video_path)
+
+                # FIX: Ensure video is registered in project batches
+                # This fixes the bug where multi-aquarium zone configuration saves
+                # zone data but doesn't add the video to batches, causing
+                # "video not in project" error when trying to process.
+                if not video_entry:
+                    log.info(
+                        "assignment_complete.registering_video",
+                        video=os.path.basename(str(video_path)),
+                        reason="video_not_in_batches_adding_now",
+                    )
+                    # Create minimal video entry
+                    from pathlib import Path
+
+                    video_dict = {
+                        "path": Path(video_path).as_posix(),
+                        "status": "pending",
+                        "has_arena": True,  # We have multi-aquarium zones
+                        "has_rois": any(
+                            bool(aq.roi_polygons) for aq in zone_data.aquariums
+                        ),
+                        "is_multi_aquarium": True,
+                        "num_aquariums": len(zone_data.aquariums),
+                        "zones_finalized": False,
+                    }
+                    self.project_manager.add_video_batch([video_dict], save_project=False)
+                    # Re-fetch the entry after adding
+                    video_entry = self.project_manager.find_video_entry(path=video_path)
+
+                    if not video_entry:
+                        log.error(
+                            "assignment_complete.video_still_not_found",
+                            video=video_path,
+                        )
+                        return
+
+                if video_entry:
+                    video_meta = video_entry.get("metadata", {})
+                    
+                    # Store individual subject entries for tree expansion
+                    subject_entries = []
+                    for aq in zone_data.aquariums:
+                        subject_entries.append({
+                            "aquarium_id": aq.id,
+                            "subject": aq.subject_id,
+                            "group": aq.group,
+                            "day": aq.day
+                        })
+                    
+                    video_meta["is_multi_subject"] = True
+                    video_meta["subject_entries"] = subject_entries
+                    
+                    # Also keep primary metadata from first aquarium for top-level labeling
+                    if zone_data.aquariums:
+                        first_aq = zone_data.aquariums[0]
+                        video_meta["group"] = first_aq.group
+                        video_meta["day"] = first_aq.day
+                        # KEEP subject as the first one to avoid 'Indefinido' fallbacks
+                        video_meta["subject"] = first_aq.subject_id
+                    
+                    video_entry["metadata"] = video_meta
+                    log.info(
+                        "assignment_complete.multi_subject_metadata_synced",
+                        video=os.path.basename(video_path),
+                        subject_count=len(subject_entries)
+                    )
+
+                # CRITICAL FIX: Capture old parquet files BEFORE save overwrites them
+                # This allows _relocate_multi_aquarium_folders to find the Sujeito_Indefinido folder
+                old_parquet_files = dict(video_entry.get("parquet_files", {})) if video_entry else {}
+
                 should_persist = bool(self.project_manager.project_path)
                 self.project_manager.save_multi_aquarium_zone_data(
                     video_path, zone_data, persist=should_persist
                 )
 
+                # 3.1. Relocate existing "Sujeito_Indefinido" folder to correct subject folders
+                # Pass old_parquet_files so we can find the original folder
+                if self.project_manager.project_path:
+                    self._relocate_multi_aquarium_folders(video_path, zone_data, old_parquet_files)
+
                 # Mark as assigned (idempotency)
                 self._assigned_videos.add(video_key)
 
-                # Mark zones as finalized (all aquariums have metadata)
-                video_entry = self.project_manager.find_video_entry(path=video_path)
+                # Mark zones as finalized
                 if video_entry:
                     video_entry["zones_finalized"] = True
                     if self.project_manager.project_path:
@@ -2102,28 +3014,32 @@ class ProcessingCoordinator(BaseCoordinator):
 
         def finalize() -> None:
             if completed:
-                self._publish_event(
-                    Events.UI_SHOW_INFO,
-                    {
-                        "title": "Sumários Gerados",
-                        "message": "Sumários parquet atualizados para "
-                        f"{len(completed)} vídeo(s).\n"
-                        + "\n".join(f"• {item}" for item in completed),
-                    },
-                )
                 status_msg = f"Σ Sumários atualizados: {len(completed)} vídeo(s)."
+                # CORREÇÃO: Suprimir diálogos em modo batch
+                if not self._is_batch_processing():
+                    self._publish_event(
+                        Events.UI_SHOW_INFO,
+                        {
+                            "title": "Sumários Gerados",
+                            "message": "Sumários parquet atualizados para "
+                            f"{len(completed)} vídeo(s).\n"
+                            + "\n".join(f"• {item}" for item in completed),
+                        },
+                    )
             else:
                 status_msg = "Nenhum sumário foi atualizado."
 
             if details:
-                self._publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Vídeos ignorados",
-                        "message": "Alguns sumários não puderam ser gerados:\n"
-                        + "\n".join(details),
-                    },
-                )
+                # CORREÇÃO: Suprimir diálogos em modo batch
+                if not self._is_batch_processing():
+                    self._publish_event(
+                        Events.UI_SHOW_WARNING,
+                        {
+                            "title": "Vídeos ignorados",
+                            "message": "Alguns sumários não puderam ser gerados:\n"
+                            + "\n".join(details),
+                        },
+                    )
 
             self._publish_event(Events.UI_SET_STATUS, {"message": status_msg})
 
@@ -2819,6 +3735,125 @@ class ProcessingCoordinator(BaseCoordinator):
             self._publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
             self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {})
 
+    def _align_and_concatenate_unified_dfs(
+        self, dfs: list
+    ) -> tuple:
+        """Align and concatenate multiple summary DataFrames with potentially different schemas.
+
+        Args:
+            dfs: List of pandas DataFrames to concatenate.
+
+        Returns:
+            Tuple of (final_df, schema_mismatch, all_columns):
+            - final_df: Concatenated DataFrame with aligned columns
+            - schema_mismatch: True if DFs had different column sets
+            - all_columns: List of all unique column names
+        """
+        import pandas as pd
+
+        if not dfs:
+            return pd.DataFrame(), False, []
+
+        if len(dfs) == 1:
+            return dfs[0], False, list(dfs[0].columns)
+
+        # Collect all unique columns
+        all_columns_set: set[str] = set()
+        for df in dfs:
+            all_columns_set.update(df.columns)
+
+        # Priority columns that should appear first (identification)
+        priority_cols = [
+            "group", "subject", "day", "experiment_id", "aquarium_id",
+            "is_multi_aquarium"
+        ]
+
+        # Separate priority columns that exist from the rest
+        priority_present = [c for c in priority_cols if c in all_columns_set]
+        other_cols = sorted(c for c in all_columns_set if c not in priority_cols)
+
+        # Final column order: priority first, then alphabetically sorted rest
+        all_columns = priority_present + other_cols
+
+        # Check for schema mismatch
+        reference_cols = set(dfs[0].columns)
+        schema_mismatch = any(set(df.columns) != reference_cols for df in dfs[1:])
+
+        # Align all DataFrames to have same columns (fill missing with NaN)
+        aligned_dfs = []
+        for df in dfs:
+            missing_cols = [c for c in all_columns if c not in df.columns]
+            if missing_cols:
+                df = df.copy()
+                for col in missing_cols:
+                    df[col] = pd.NA
+            aligned_dfs.append(df[all_columns])
+
+        final_df = pd.concat(aligned_dfs, ignore_index=True)
+        return final_df, schema_mismatch, all_columns
+
+    def _export_unified_reports(
+        self,
+        final_df,
+        unified_dir: Path,
+        roi_colors_map: dict,
+        schema_mismatch: bool,
+        all_columns: list,
+    ) -> None:
+        """Export unified reports (Excel and Word) from concatenated DataFrame.
+
+        Args:
+            final_df: Concatenated DataFrame with all summaries.
+            unified_dir: Directory to save the unified reports.
+            roi_colors_map: Dict mapping ROI names to RGB color tuples.
+            schema_mismatch: Whether there was a schema mismatch between DataFrames.
+            all_columns: List of all column names in the final DataFrame.
+        """
+        from datetime import datetime
+
+        from zebtrack.analysis.reporter import Reporter
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # 1. Export Excel
+        excel_path = unified_dir / f"unified_summary_{timestamp}.xlsx"
+        try:
+            final_df.to_excel(excel_path, index=False, engine="openpyxl")
+            log.info("workflow.unified_report.excel_exported", path=str(excel_path))
+        except Exception as e:
+            log.error("workflow.unified_report.excel_failed", error=str(e))
+
+        # 2. Export Word using Reporter.export_project_report
+        word_path = unified_dir / f"unified_report_{timestamp}"
+        try:
+            Reporter.export_project_report(
+                aggregated_df=final_df,
+                output_path=word_path,
+                roi_colors=roi_colors_map if roi_colors_map else None,
+                detector_params=None,
+            )
+            log.info("workflow.unified_report.word_exported", path=str(word_path) + ".docx")
+        except Exception as e:
+            log.error("workflow.unified_report.word_failed", error=str(e))
+
+        # 3. Log schema mismatch warning if applicable
+        if schema_mismatch:
+            log.warning(
+                "workflow.unified_report.schema_mismatch",
+                message="DataFrames had different column sets; missing values filled with NA",
+                columns=all_columns,
+            )
+
+        # 4. Show success message (only if not in batch mode)
+        if not self._is_batch_processing():
+            self._publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Relatório Unificado",
+                    "message": f"Relatório unificado gerado com sucesso em:\n{unified_dir}",
+                },
+            )
+
     def generate_project_reports(self, video_paths: list[str] | None = None) -> None:
         """Generate reports (Word, Excel, Parquet) for specified videos."""
         if not video_paths:
@@ -2828,7 +3863,7 @@ class ProcessingCoordinator(BaseCoordinator):
         self._publish_event(Events.UI_SET_STATUS, {"message": "Gerando relatórios detalhados..."})
 
         # Pre-generate summaries
-        entries = [self.project_manager.find_video_entry(p) for p in video_paths]
+        entries = [self.project_manager.find_video_entry(path=p) for p in video_paths]
         self.generate_parquet_summaries([e for e in entries if e], self.settings)
 
         count, errors = 0, []
@@ -2874,6 +3909,38 @@ class ProcessingCoordinator(BaseCoordinator):
             metadata["subject"] = "1"
 
         return metadata
+
+    def _enrich_unified_report_metadata(
+        self, df: "pd.DataFrame", entry_meta: dict, process_entry: dict
+    ) -> "pd.DataFrame":
+        """Enrich DataFrame with metadata columns for unified report.
+
+        Args:
+            df: The summary DataFrame to enrich.
+            entry_meta: Metadata extracted from the video entry.
+            process_entry: The full process entry dict containing additional info.
+
+        Returns:
+            DataFrame with metadata columns added.
+        """
+        df = df.copy()
+
+        # Always add identification columns (even if empty, for consistency)
+        # Use "N/A" as fallback so rows are identifiable
+        df["group"] = entry_meta.get("group") or "N/A"
+        df["subject"] = entry_meta.get("subject") or "N/A"
+        df["day"] = entry_meta.get("day") or "N/A"
+        df["experiment_id"] = entry_meta.get("experiment_id") or "N/A"
+
+        # Add aquarium_id for multi-aquarium entries
+        if "aquarium_id" in entry_meta:
+            df["aquarium_id"] = entry_meta["aquarium_id"]
+
+        # Mark if from multi-aquarium entry
+        if process_entry.get("is_multi"):
+            df["is_multi_aquarium"] = True
+
+        return df
 
     def _ensure_analysis_service_ready(self):
         """Ensure AnalysisService is initialized with current settings."""
@@ -2943,6 +4010,7 @@ class ProcessingCoordinator(BaseCoordinator):
         aq_metadata = {
             **entry.get("metadata", {}),
             "aquarium_id": aq_id,
+            "experiment_id": exp_id,  # CRITICAL FIX: Add experiment_id to metadata
             "group": output_info.get("group", entry.get("metadata", {}).get("group")),
             "subject": output_info.get("subject_id", entry.get("metadata", {}).get("subject")),
         }
@@ -2980,6 +4048,14 @@ class ProcessingCoordinator(BaseCoordinator):
         frame_crop = (off_x, off_y, loc_w, loc_h) if arena_polygon else None
         video_path_report = self._prepare_background_image(path, exp_id, aq_results_dir, frame_crop)
 
+        # CORREÇÃO: Para PNGs pré-cropped, frame_crop_box deve ser None
+        # porque a imagem PNG já está cropped e começa em (0, 0)
+        # Passar coordenadas absolutas causa offset incorreto no gráfico
+        if video_path_report and video_path_report.endswith(".png"):
+            frame_crop_for_viz = None
+        else:
+            frame_crop_for_viz = frame_crop
+
         analysis_result = self.analysis_service.run_full_analysis_as_dto(
             trajectory_df=df,
             pixelcm_x=px_x,
@@ -2993,7 +4069,7 @@ class ProcessingCoordinator(BaseCoordinator):
             freezing_vel_threshold=self.settings.video_processing.freezing_velocity_threshold,
             freezing_min_duration=self.settings.video_processing.freezing_min_duration_s,
             video_path=video_path_report,
-            frame_crop_box=frame_crop,
+            frame_crop_box=frame_crop_for_viz,
             behavioral_config=params.get("behavioral_config"),
         )
 
@@ -3171,20 +4247,69 @@ class ProcessingCoordinator(BaseCoordinator):
         return local_df
 
     def _extract_cropped_background_frame(self, video_file, crop_box):
-        """Extract a single cropped frame from video."""
+        """Extract a single cropped frame from video.
+
+        Args:
+            video_file: Path to video file
+            crop_box: Tuple (x, y, w, h) for cropping region
+
+        Returns:
+            Cropped numpy array, or None if crop fails or is empty
+        """
         if not crop_box:
             return None
         cap = cv2.VideoCapture(video_file)
         ret, frame = cap.read()
         cap.release()
         if not ret or frame is None:
+            log.warning(
+                "workflow.report.frame_read_failed",
+                video_file=str(video_file),
+            )
             return None
+
+        frame_h, frame_w = frame.shape[:2]
         x, y, w, h = map(int, crop_box)
+
+        # CRITICAL FIX: Validate and clamp crop_box to frame bounds
+        original_crop = (x, y, w, h)
+
+        # Clamp starting coordinates to valid range
+        x = max(0, min(x, frame_w - 1))
+        y = max(0, min(y, frame_h - 1))
+
+        # Clamp dimensions to fit within frame
+        w = min(w, frame_w - x)
+        h = min(h, frame_h - y)
+
+        if w <= 0 or h <= 0:
+            log.warning(
+                "workflow.report.crop_box_invalid",
+                original_crop=original_crop,
+                frame_size=(frame_w, frame_h),
+                reason="crop_box results in empty region after clamping",
+            )
+            return None
+
+        if (x, y, w, h) != original_crop:
+            log.info(
+                "workflow.report.crop_box_adjusted",
+                original=original_crop,
+                adjusted=(x, y, w, h),
+                frame_size=(frame_w, frame_h),
+            )
+
         return frame[y : y + h, x : x + w].copy()
 
     def _finalize_report_generation(self, count, errors):
         """Finalize report generation UI feedback."""
         self._publish_event(Events.UI_SET_STATUS, {"message": "Relatórios gerados."})
+
+        # CORREÇÃO: Suprimir diálogos individuais em modo batch
+        # Diálogo consolidado será mostrado ao final de todo o batch
+        if self._is_batch_processing():
+            return
+
         if errors:
             self._publish_event(
                 Events.UI_SHOW_WARNING,
@@ -3322,12 +4447,33 @@ class ProcessingCoordinator(BaseCoordinator):
             # Check for Multi-Aquarium Data First
             multi_data = self.project_manager.get_multi_aquarium_zone_data(video_path)
             if multi_data:
-                video_info["zone_data"] = ZoneManager.multi_aquarium_zone_data_to_dict(multi_data)
+                # Log detailed info about subject assignments for debugging
+                subject_info = []
+                for aq in multi_data.aquariums:
+                    subject_info.append(
+                        f"aq{aq.id}={aq.subject_id or 'EMPTY'}"
+                    )
                 log.info(
                     "workflow.multi_aquarium_zone_data_attached",
                     video=os.path.basename(video_path),
                     aquarium_count=len(multi_data.aquariums),
+                    subjects=", ".join(subject_info),
+                    sequential_processing=multi_data.sequential_processing,
                 )
+
+                # Warn if any aquarium has empty subject_id (will cause "Indefinido" folders)
+                for aq in multi_data.aquariums:
+                    if not aq.subject_id:
+                        log.warning(
+                            "workflow.multi_aquarium.empty_subject_id",
+                            video=os.path.basename(video_path),
+                            aquarium_id=aq.id,
+                            group=aq.group,
+                            hint="Subject was not assigned in the assignment dialog. "
+                            "Output will use 'Sujeito_Indefinido' folder.",
+                        )
+
+                video_info["zone_data"] = ZoneManager.multi_aquarium_zone_data_to_dict(multi_data)
                 continue
 
             if video_info.get("has_arena") or video_info.get("has_rois"):

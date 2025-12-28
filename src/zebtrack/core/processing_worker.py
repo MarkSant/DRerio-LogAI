@@ -16,10 +16,12 @@ from __future__ import annotations
 import multiprocessing
 import os
 import queue
+import re
 import threading
 import time
 import traceback
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 import cv2
@@ -118,6 +120,7 @@ class ProcessingWorker:
                 # Check for MultiAquariumZoneData (attribute-based)
                 if hasattr(z_data, "aquariums"):
                     from zebtrack.core.zone_manager import ZoneManager
+
                     z_dict = ZoneManager.multi_aquarium_zone_data_to_dict(z_data)
                 else:
                     # Serialize standard ZoneData object
@@ -287,6 +290,47 @@ class _WorkerProcess(multiprocessing.Process):
         self.command_queue = command_queue
         self._cancel_requested = False
 
+    @staticmethod
+    def _sanitize_component(value: str) -> str:
+        """Sanitize a path component for use in folder names."""
+        if not value:
+            return "Indefinido"
+        # Remove special characters
+        sanitized = re.sub(r"[<>:\"/\\|?*]", "_", str(value))
+        sanitized = re.sub(r"\s+", "_", sanitized)
+        sanitized = re.sub(r"_+", "_", sanitized)
+        return sanitized.strip("._") or "Indefinido"
+
+    @staticmethod
+    def _format_day(value) -> str:
+        """Format day component for folder name."""
+        if value is None:
+            return "Indefinido"
+        try:
+            day_num = int(float(str(value)))
+            return f"{day_num:02d}"
+        except (ValueError, TypeError):
+            # Try to extract digits from string (e.g. "D1" -> 1)
+            match = re.search(r'\d+', str(value))
+            if match:
+                return f"{int(match.group()):02d}"
+            return str(value)
+
+    @staticmethod
+    def _format_subject(value) -> str:
+        """Format subject component for folder name."""
+        if not value:
+            return "Indefinido"
+        try:
+            subj_num = int(float(str(value)))
+            return f"{subj_num:02d}"
+        except (ValueError, TypeError):
+            # Try to extract digits from string (e.g. "S1" -> 1)
+            match = re.search(r'\d+', str(value))
+            if match:
+                return f"{int(match.group()):02d}"
+            return str(value)
+
     def run(self):
         """Main entry point for the worker process."""
         # Configure logging for worker process (multiprocessing doesn't inherit parent config)
@@ -311,11 +355,18 @@ class _WorkerProcess(multiprocessing.Process):
                     break
 
                 video_path = video_info.get("path")
-                experiment_id = (
-                    os.path.splitext(os.path.basename(video_path))[0]
-                    if isinstance(video_path, str) and video_path
-                    else f"video_{index + 1}"
-                )
+                # Support experiment_id override (useful for sequential multi-aquarium)
+                experiment_id = video_info.get("experiment_id")
+                if not experiment_id:
+                    experiment_id = (
+                        os.path.splitext(os.path.basename(video_path))[0]
+                        if isinstance(video_path, str) and video_path
+                        else f"video_{index + 1}"
+                    )
+                
+                # Append aquarium ID if present (for exploded tasks)
+                if "aquarium_id" in video_info:
+                    experiment_id = f"{experiment_id}_aq{video_info['aquarium_id']}"
 
                 log.info(
                     "worker.process.video_start",
@@ -447,13 +498,14 @@ class _WorkerProcess(multiprocessing.Process):
             # Check for MultiAquariumZoneData (dictionary key)
             if "aquariums" in self.config.zone_data:
                 from zebtrack.core.zone_manager import ZoneManager
+
                 zd = ZoneManager.multi_aquarium_zone_data_from_dict(self.config.zone_data)
                 # DEBUG: Log deserialized multi-aquarium data
                 log.info(
                     "worker.zone_data_deserialized",
                     type="multi_aquarium",
                     aquarium_count=len(zd.aquariums),
-                    has_polygon=bool(zd.aquariums), # Consider valid if aquariums exist
+                    has_polygon=bool(zd.aquariums),  # Consider valid if aquariums exist
                 )
             else:
                 zd = ZoneData()
@@ -526,7 +578,9 @@ class _WorkerProcess(multiprocessing.Process):
                 "worker.using_default_zone_data",
                 video=os.path.basename(video_metadata.get("path", "")),
                 is_multi=hasattr(self._default_zone_data, "aquariums"),
-                polygon_points=len(self._default_zone_data.polygon) if hasattr(self._default_zone_data, "polygon") else 0,
+                polygon_points=len(self._default_zone_data.polygon)
+                if hasattr(self._default_zone_data, "polygon")
+                else 0,
             )
             return self._default_zone_data
 
@@ -559,7 +613,8 @@ class _WorkerProcess(multiprocessing.Process):
         # Use per-video zone data if available (batch processing), otherwise use default
         video_zone_data = self._get_zone_data_for_video(video_metadata)
 
-        # Force base dimensions to match video to prevent double-scaling if zones are already in native coords
+        # Force base dimensions to match video to prevent double-scaling
+        # if zones are already in native coords
         detector.base_width = width
         detector.base_height = height
 
@@ -567,16 +622,16 @@ class _WorkerProcess(multiprocessing.Process):
         is_multi_aquarium = hasattr(video_zone_data, "aquariums")
 
         if is_multi_aquarium:
-             # Multi-aquarium mode logic
-             detector.set_zones(video_zone_data, width, height)
-             has_aquarium = bool(video_zone_data.aquariums)
-             detector.set_aquarium_region_defined(has_aquarium)
+            # Multi-aquarium mode logic
+            detector.set_zones(video_zone_data, width, height)
+            has_aquarium = bool(video_zone_data.aquariums)
+            detector.set_aquarium_region_defined(has_aquarium)
         else:
-             # Single aquarium legacy logic
-             detector.set_zones(video_zone_data, width, height)
-             # Fix: Ensure detector knows aquarium is defined if we have a polygon
-             has_aquarium = bool(video_zone_data.polygon and len(video_zone_data.polygon) >= 3)
-             detector.set_aquarium_region_defined(has_aquarium)
+            # Single aquarium legacy logic
+            detector.set_zones(video_zone_data, width, height)
+            # Fix: Ensure detector knows aquarium is defined if we have a polygon
+            has_aquarium = bool(video_zone_data.polygon and len(video_zone_data.polygon) >= 3)
+            detector.set_aquarium_region_defined(has_aquarium)
 
         # DEBUG: Log zone setup results
         # DEBUG: Log zone setup results
@@ -584,7 +639,11 @@ class _WorkerProcess(multiprocessing.Process):
             "worker.zones_configured_for_video",
             video=experiment_id,
             video_dimensions=(width, height),
-            polygon_points=len(video_zone_data.aquariums[0].polygon) if is_multi_aquarium and video_zone_data.aquariums else len(video_zone_data.polygon) if hasattr(video_zone_data, "polygon") else 0,
+            polygon_points=len(video_zone_data.aquariums[0].polygon)
+            if is_multi_aquarium and video_zone_data.aquariums
+            else len(video_zone_data.polygon)
+            if hasattr(video_zone_data, "polygon")
+            else 0,
             has_aquarium=has_aquarium,
             scaled_polygon_size=detector.scaled_polygon.size
             if hasattr(detector, "scaled_polygon")
@@ -624,10 +683,10 @@ class _WorkerProcess(multiprocessing.Process):
 
         # Fallback to project settings if available
         if (width_cm <= 0 or height_cm <= 0) and hasattr(self.config.settings, "calibration"):
-             calib = self.config.settings.calibration
-             if calib:
-                 width_cm = float(getattr(calib, "aquarium_width_cm", 0) or 0)
-                 height_cm = float(getattr(calib, "aquarium_height_cm", 0) or 0)
+            calib = self.config.settings.calibration
+            if calib:
+                width_cm = float(getattr(calib, "aquarium_width_cm", 0) or 0)
+                height_cm = float(getattr(calib, "aquarium_height_cm", 0) or 0)
 
         calibration_by_aquarium = {}
 
@@ -647,29 +706,66 @@ class _WorkerProcess(multiprocessing.Process):
                                 pixel_ratio = cal.pixel_per_cm_ratio
                         except Exception as e:
                             log.error("worker.calibration.multi.failed", aq_id=aq.id, error=str(e))
-                
+
                 if calibration_by_aquarium:
                     log.info("worker.calibration.multi.created", count=len(calibration_by_aquarium))
             else:
-                 # Determine which polygon to use for calibration
-                 poly_points = None
-                 if hasattr(video_zone_data, "polygon") and video_zone_data.polygon:
-                     poly_points = video_zone_data.polygon
-                 elif hasattr(video_zone_data, "aquariums") and video_zone_data.aquariums:
-                     # Use first aquarium's polygon for calibration if main polygon is missing
-                     if video_zone_data.aquariums[0].polygon:
-                         poly_points = video_zone_data.aquariums[0].polygon
-                 
-                 if poly_points and len(poly_points) >= 4:
-                     try:
-                         calibration = Calibration(np.array(poly_points), width_cm, height_cm)
-                         pixel_ratio = calibration.pixel_per_cm_ratio
-                         log.info("worker.calibration.created", ratio=pixel_ratio)
-                     except Exception as e:
-                         log.error("worker.calibration.failed", error=str(e))
+                # Determine which polygon to use for calibration
+                poly_points = None
+                if hasattr(video_zone_data, "polygon") and video_zone_data.polygon:
+                    poly_points = video_zone_data.polygon
+                elif hasattr(video_zone_data, "aquariums") and video_zone_data.aquariums:
+                    # Use first aquarium's polygon for calibration if main polygon is missing
+                    if video_zone_data.aquariums[0].polygon:
+                        poly_points = video_zone_data.aquariums[0].polygon
+
+                if poly_points and len(poly_points) >= 4:
+                    try:
+                        calibration = Calibration(np.array(poly_points), width_cm, height_cm)
+                        pixel_ratio = calibration.pixel_per_cm_ratio
+                        log.info("worker.calibration.created", ratio=pixel_ratio)
+                    except Exception as e:
+                        log.error("worker.calibration.failed", error=str(e))
 
         if is_multi_aquarium:
             zones_by_aq = {aq.id: aq.to_zone_data() for aq in video_zone_data.aquariums}
+
+            # Calculate per-aquarium output folders using AquariumData metadata
+            # This ensures proper folder structure: Grupo_X/Dia_Y/Sujeito_Z/
+            output_folders_by_aquarium = {}
+            for aq in video_zone_data.aquariums:
+                # Extract metadata from AquariumData
+                aq_group = getattr(aq, "group", None) or "Sem_Grupo"
+                aq_subject = getattr(aq, "subject_id", None) or ""
+                aq_day = getattr(aq, "day", None) or "1"
+
+                # Format components similar to ProjectManager
+                group_component = f"Grupo_{self._sanitize_component(aq_group)}"
+                day_component = f"Dia_{self._format_day(aq_day)}"
+                subject_component = f"Sujeito_{self._format_subject(aq_subject)}"
+
+                # Build hierarchical path under the base results_dir's parent
+                # Get project root from results_dir if it follows project structure
+                base_path = Path(results_dir)
+                # Navigate up to project root (Grupo/Dia/Sujeito structure)
+                # Use base_path's ancestor that contains "Grupo_" or just use parent.parent.parent
+                project_root = base_path
+                for _ in range(3):  # Go up 3 levels (Sujeito -> Dia -> Grupo -> project)
+                    if project_root.parent.exists():
+                        project_root = project_root.parent
+
+                aq_folder = project_root / group_component / day_component / subject_component
+                output_folders_by_aquarium[aq.id] = str(aq_folder)
+
+                log.info(
+                    "worker.multi_aquarium.folder_calculated",
+                    aquarium_id=aq.id,
+                    group=aq_group,
+                    subject=aq_subject,
+                    day=aq_day,
+                    folder=str(aq_folder),
+                )
+
             recorder.start_recording_multi_aquarium(
                 output_folder=results_dir,
                 width=width,
@@ -680,7 +776,9 @@ class _WorkerProcess(multiprocessing.Process):
                 pixel_per_cm_ratio=pixel_ratio,
                 calibration=None,
                 calibration_by_aquarium=calibration_by_aquarium,
+                output_folders_by_aquarium=output_folders_by_aquarium,
             )
+
         else:
             recorder.start_recording(
                 output_folder=results_dir,
@@ -803,7 +901,7 @@ class _WorkerProcess(multiprocessing.Process):
                     # OPTIMIZATION: Fast seek without decoding for skipped frames
                     # cap.grab() is 10-20x faster than cap.read() for high-res videos
                     if frame_num % 30 == 0:
-                         log.debug("worker.frame.skipping", frame=frame_num)
+                        log.debug("worker.frame.skipping", frame=frame_num)
 
                     ret = cap.grab()
                     if not ret:

@@ -387,8 +387,8 @@ class MultiAquariumData(BaseModel):
             return results
 
         try:
-            # Use finditer para encontrar todas as ocorrências
-            for match in re.finditer(self.regex_pattern, filename):
+            # Use re.IGNORECASE to match regardless of filename casing
+            for match in re.finditer(self.regex_pattern, filename, re.IGNORECASE):
                 groups = match.groupdict()
 
                 meta = {

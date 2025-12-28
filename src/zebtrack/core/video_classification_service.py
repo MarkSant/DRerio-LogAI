@@ -139,11 +139,15 @@ class VideoClassificationService:
                 continue
 
             # Get video info from lookup
-            info = info_by_norm.get(os.path.normpath(path))
+            from zebtrack.core.video_manager import VideoManager
+            norm_path = VideoManager.normalize_path(path)
+                
+            info = info_by_norm.get(norm_path) if norm_path else None
             if not info:
                 log.warning(
                     "video_classification_service.classify_videos.no_info",
                     path=path,
+                    norm_path=norm_path
                 )
                 continue
 

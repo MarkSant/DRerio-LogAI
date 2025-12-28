@@ -302,8 +302,14 @@ class VisualizationGenerator:
                     if self.calibration:
                         frame = self.calibration.warp_frame(frame)
 
-                    # Apply crop if aquarium-local crop box is provided
-                    if self.frame_crop_box:
+                    # Track crop offset for extent calculation
+                    crop_x_offset = 0
+                    crop_y_offset = 0
+
+                    # Only apply crop if reading from VIDEO (not pre-cropped PNG)
+                    # PNG files from _prepare_background_image are already cropped
+                    is_image_file = suffix.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"))
+                    if self.frame_crop_box and not is_image_file:
                         x_crop, y_crop, w_crop, h_crop = self.frame_crop_box
                         x_crop = max(0, int(x_crop))
                         y_crop = max(0, int(y_crop))
@@ -312,6 +318,11 @@ class VisualizationGenerator:
                         x2 = min(frame.shape[1], x_crop + w_crop)
                         y2 = min(frame.shape[0], y_crop + h_crop)
                         frame = frame[y_crop:y2, x_crop:x2]
+                        # Store offsets for extent calculation
+                        crop_x_offset = x_crop
+                        crop_y_offset = y_crop
+                    # CORREÇÃO: Para PNGs pré-cropped, NÃO aplicar offset!
+                    # A PNG já começa em (0,0) - os offsets permanecem 0 (default acima)
 
                     frame_height_px = frame.shape[0]
                     frame_width_px = frame.shape[1]
@@ -336,24 +347,33 @@ class VisualizationGenerator:
                     #   x_cm = x_px / pixelcm_x
                     #   y_cm = (video_height_for_transform - y_px) / pixelcm_y
                     #
-                    # For the frame image (after vertical flip with origin="lower"):
-                    # - Frame's visual bottom (original video bottom, y_px=frame_height_px)
-                    #   maps to y_cm = (video_height_for_transform - frame_height_px) / pixelcm_y
-                    # - Frame's visual top (original video top, y_px=0)
-                    #   maps to y_cm = video_height_for_transform / pixelcm_y
+                    # When a crop is applied, the cropped frame represents a sub-region
+                    # of the original video starting at (crop_x_offset, crop_y_offset).
+                    # The extent must reflect the ORIGINAL pixel coordinates:
+                    # - Cropped (0,0) → original (crop_x_offset, crop_y_offset)
+                    # - Cropped (w,h) → original (crop_x_offset+w, crop_y_offset+h)
                     #
-                    # If frame_height_px != video_height_for_transform (e.g., video was resized),
-                    # we need to account for this offset.
-                    y_bottom = (video_height_for_transform - frame_height_px) / pixelcm_y
-                    if y_bottom < 0:
-                        y_bottom = 0.0
-                    y_top = video_height_for_transform / pixelcm_y
+                    # For X: left = crop_x_offset / pixelcm_x
+                    #        right = (crop_x_offset + frame_width_px) / pixelcm_x
+                    # For Y (with inverted axis):
+                    #   - bottom = orig y_px = crop_y_offset + frame_height_px
+                    #   - top = orig y_px = crop_y_offset
+                    x_left_cm = crop_x_offset / pixelcm_x
+                    x_right_cm = (crop_x_offset + frame_width_px) / pixelcm_x
+
+                    y_bottom_orig_px = crop_y_offset + frame_height_px
+                    y_bottom_cm = (video_height_for_transform - y_bottom_orig_px) / pixelcm_y
+                    if y_bottom_cm < 0:
+                        y_bottom_cm = 0.0
+
+                    y_top_orig_px = crop_y_offset
+                    y_top_cm = (video_height_for_transform - y_top_orig_px) / pixelcm_y
 
                     frame_extent: tuple[float, float, float, float] = (
-                        0.0,  # left (x_cm = 0 when x_px = 0)
-                        frame_width_px / pixelcm_x,  # right
-                        y_bottom,  # bottom
-                        y_top,  # top
+                        x_left_cm,  # left
+                        x_right_cm,  # right
+                        y_bottom_cm,  # bottom
+                        y_top_cm,  # top
                     )
                     ax.imshow(
                         frame_rgb,
@@ -560,7 +580,14 @@ class VisualizationGenerator:
                     if calibration and hasattr(calibration, "warp_frame"):
                         frame = calibration.warp_frame(frame)
 
-                    if self.frame_crop_box:
+                    # Track crop offset for extent calculation
+                    crop_x_offset = 0
+                    crop_y_offset = 0
+
+                    # Only apply crop if reading from VIDEO (not pre-cropped PNG)
+                    # PNG files from _prepare_background_image are already cropped
+                    is_image_file = suffix.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"))
+                    if self.frame_crop_box and not is_image_file:
                         x_crop, y_crop, w_crop, h_crop = self.frame_crop_box
                         x_crop = max(0, int(x_crop))
                         y_crop = max(0, int(y_crop))
@@ -569,24 +596,37 @@ class VisualizationGenerator:
                         x2 = min(frame.shape[1], x_crop + w_crop)
                         y2 = min(frame.shape[0], y_crop + h_crop)
                         frame = frame[y_crop:y2, x_crop:x2]
+                        # Store offsets for extent calculation
+                        crop_x_offset = x_crop
+                        crop_y_offset = y_crop
+                    # CORREÇÃO: Para PNGs pré-cropped, NÃO aplicar offset!
+                    # A PNG já começa em (0,0) - os offsets permanecem 0 (default acima)
 
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frame_rgb = cv2.flip(frame_rgb, 0)  # Invert Y for Cartesian
 
-                    # Calculate extent using same logic as trajectory plot
+                    # Calculate extent with crop offset (same logic as trajectory plot)
                     video_height_for_transform = video_height_px
                     frame_height_px = frame.shape[0]
                     frame_width_px = frame.shape[1]
 
-                    y_bottom = (video_height_for_transform - frame_height_px) / px_per_cm_y
-                    if y_bottom < 0:
-                        y_bottom = 0.0
-                    y_top = video_height_for_transform / px_per_cm_y
+                    # Account for crop offset in extent calculation
+                    x_left_cm = crop_x_offset / px_per_cm_x
+                    x_right_cm = (crop_x_offset + frame_width_px) / px_per_cm_x
+
+                    y_bottom_orig_px = crop_y_offset + frame_height_px
+                    y_bottom_cm = (video_height_for_transform - y_bottom_orig_px) / px_per_cm_y
+                    if y_bottom_cm < 0:
+                        y_bottom_cm = 0.0
+
+                    y_top_orig_px = crop_y_offset
+                    y_top_cm = (video_height_for_transform - y_top_orig_px) / px_per_cm_y
+
                     frame_extent = (
-                        0.0,
-                        frame_width_px / px_per_cm_x,
-                        y_bottom,
-                        y_top,
+                        x_left_cm,
+                        x_right_cm,
+                        y_bottom_cm,
+                        y_top_cm,
                     )
                     ax.imshow(
                         frame_rgb,

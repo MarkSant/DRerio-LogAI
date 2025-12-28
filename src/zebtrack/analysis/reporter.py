@@ -598,7 +598,8 @@ class Reporter:
             else:
                 row_cells[1].text = str(value)
 
-        document.add_page_break()
+        # NOTE: Page break removed - was causing excessive blank space in Word reports
+        # The visualizations section naturally follows the summary table
         progress_callback(2 / total_steps, _("Summary table added"))
 
         # Step 3: ROI Reference Map (optional) + Visualizations + ROI Event Log
@@ -1077,6 +1078,7 @@ class Reporter:
         metrics_for_boxplot = [
             "total_distance_cm",
             "mean_speed_cm_s",
+            "max_speed_cm_s",
             "sharp_turns_count",
             "sharp_turns_per_minute",
             "total_roi_entries",

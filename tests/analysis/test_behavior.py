@@ -293,11 +293,13 @@ class TestVelocityMetrics:
         assert "mean" in stats
         assert "median" in stats
         assert "std_dev" in stats
+        assert "max" in stats
 
         # Simple linear motion should have relatively constant velocity
         assert stats["mean"] > 0
         assert stats["median"] > 0
         assert stats["std_dev"] >= 0
+        assert stats["max"] >= stats["mean"]  # Max should be >= mean
 
     def test_velocity_stats_circular_motion(self, circular_analyzer):
         """Test velocity stats for circular motion."""

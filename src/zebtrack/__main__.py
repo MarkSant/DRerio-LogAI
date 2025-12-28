@@ -503,7 +503,17 @@ def main():
         except Exception:
             pass  # Ignore errors; avoid cascading failures
 
-        messagebox.showerror("Fatal Error", "A fatal error occurred. See analysis.log for details.")
+        try:
+            from zebtrack.logging_config import resolve_log_path
+
+            log_path = resolve_log_path("analysis.log")
+        except Exception:
+            log_path = "analysis.log"
+
+        messagebox.showerror(
+            "Fatal Error",
+            f"A fatal error occurred. See {log_path} for details.",
+        )
     finally:
         log.info("application.finished", component="main")
 

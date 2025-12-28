@@ -1247,11 +1247,9 @@ class ProjectManager:
         safe_arduino_port = arduino_port or ""
         safe_external_trigger = bool(external_trigger_mode) and safe_use_arduino
         if use_single_subject_tracker is None:
-            # Use settings if available, otherwise default to False
-            default_tracker = False
-            if self.settings and hasattr(self.settings, "tracking"):
-                default_tracker = bool(self.settings.tracking.use_single_subject_tracker)
-            tracker_pref = animals_per_aquarium == 1 or default_tracker
+            # Use single-subject tracker only when there's 1 animal per aquarium
+            # Settings default is only used as fallback when animals_per_aquarium == 1
+            tracker_pref = animals_per_aquarium == 1
         else:
             tracker_pref = bool(use_single_subject_tracker)
 
@@ -1300,6 +1298,53 @@ class ProjectManager:
         if _wizard_metadata:
             self.project_data["_wizard_metadata"] = _wizard_metadata
 
+            # CRITICAL FIX: Convert custom_regex_patterns to multi_aquarium config
+            # This enables regex auto-fill in assignment dialogs for multi-aquarium videos
+            custom_patterns = _wizard_metadata.get("custom_regex_patterns")
+            if custom_patterns and isinstance(custom_patterns, dict):
+                from zebtrack.ui.wizard.models import MultiAquariumData
+
+                try:
+                    # Build combined regex pattern from individual patterns
+                    combined_pattern = MultiAquariumData.build_combined_regex_pattern(
+                        group_pattern=custom_patterns.get("group_pattern"),
+                        day_pattern=custom_patterns.get("day_pattern"),
+                        subject_pattern=custom_patterns.get("subject_pattern"),
+                    )
+
+                    if combined_pattern:
+                        # Add multi_aquarium config to calibration
+                        # Note: enabled=False because dialog will fill aquarium_configs later
+                        # The important part is having regex_pattern for auto-fill
+                        self.project_data["calibration"]["multi_aquarium"] = {
+                            "enabled": False,
+                            "regex_pattern": combined_pattern,
+                            "regex_group_field": "group",
+                            "regex_subject_field": "subject",
+                            "regex_day_field": "day",
+                            "aquarium_configs": [],
+                        }
+
+                        log.info(
+                            "project.create.multi_aquarium_config_saved",
+                            has_regex=True,
+                            regex_pattern_preview=combined_pattern[:80],
+                        )
+                    else:
+                        log.warning(
+                            "project.create.multi_aquarium_no_combined_pattern",
+                            group_pattern=custom_patterns.get("group_pattern"),
+                            day_pattern=custom_patterns.get("day_pattern"),
+                            subject_pattern=custom_patterns.get("subject_pattern"),
+                        )
+
+                except Exception as e:
+                    log.error(
+                        "project.create.multi_aquarium_conversion_failed",
+                        error=str(e),
+                        patterns=custom_patterns,
+                    )
+
         if video_files:
             # The initial set of videos becomes the first batch
             self.add_video_batch(video_files, save_project=False)
@@ -1340,11 +1385,8 @@ class ProjectManager:
                 )
                 metadata = dict(video_info.get("metadata") or {})
 
-            # Ensure video_path is always a string (not Path object) for JSON serialization
-            if not isinstance(video_path, str):
-                video_path = str(Path(video_path).as_posix())
-            else:
-                video_path = video_path
+            # Ensure video_path is always a POSIX string for consistency
+            video_path = Path(video_path).as_posix()
 
             video_hash = calculate_sha256(video_path)
 
@@ -1696,10 +1738,11 @@ class ProjectManager:
             bool: True if video was found and updated, False otherwise.
         """
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
-        video_path_str = str(video_path)
+        # Use POSIX format for comparison since paths are stored as POSIX in project_data
+        video_path_posix = video_path.as_posix()
         for batch in self.project_data.get("batches", []):
             for video in batch.get("videos", []):
-                if video["path"] == video_path_str:
+                if video["path"] == video_path_posix:
                     video["status"] = new_status
                     log.info(
                         "video.status.update",
@@ -1989,6 +2032,29 @@ class ProjectManager:
             self.project_data, path=path, experiment_id=experiment_id
         )
 
+    @staticmethod
+    def resolve_group_name(regex_value: str, available_groups: list[str]) -> str:
+        """Resolve raw regex value to match project group names (e.g., '1' -> 'G01')."""
+        if not regex_value or not available_groups:
+            return regex_value or "Sem_Grupo"
+            
+        if regex_value in available_groups:
+            return regex_value
+
+        # Try numeric matching
+        import re
+        regex_digits = re.search(r"\d+", str(regex_value))
+        if regex_digits:
+            try:
+                val = int(regex_digits.group())
+                for group in available_groups:
+                    group_digits = re.search(r"\d+", str(group))
+                    if group_digits and int(group_digits.group()) == val:
+                        return group
+            except (ValueError, TypeError):
+                pass
+        return regex_value
+
     def derive_processing_metadata(
         self,
         experiment_id: str,
@@ -2011,6 +2077,42 @@ class ProjectManager:
                     and key not in metadata
                 ):
                     metadata[key] = value
+
+        # Fallback: Use custom regex from wizard if metadata is still empty
+        if not metadata.get("group") or not metadata.get("subject"):
+            wizard_meta = self.project_data.get("_wizard_metadata", {})
+            patterns = wizard_meta.get("custom_regex_patterns")
+            if patterns and isinstance(patterns, dict) and video_path:
+                from zebtrack.ui.wizard.models import MultiAquariumData
+                try:
+                    combined = MultiAquariumData.build_combined_regex_pattern(
+                        group_pattern=patterns.get("group_pattern"),
+                        day_pattern=patterns.get("day_pattern"),
+                        subject_pattern=patterns.get("subject_pattern"),
+                    )
+                    if combined:
+                        temp_config = MultiAquariumData(
+                            enabled=True,
+                            regex_pattern=combined,
+                            aquarium_configs=[]
+                        )
+                        filename = Path(video_path).name
+                        matches = temp_config.extract_metadata(filename)
+                        if matches:
+                            # Use first match as primary metadata for the video file
+                            match = matches[0]
+                            available_groups = self.get_available_groups()
+                            
+                            for key in ("group", "day", "subject"):
+                                val = match.get(key)
+                                if val and not metadata.get(key):
+                                    if key == "group":
+                                        metadata[key] = self.resolve_group_name(val, available_groups)
+                                    else:
+                                        metadata[key] = val
+                            log.info("project.metadata.derived_from_regex", video=filename, metadata=metadata)
+                except Exception as e:
+                    log.debug("project.metadata.regex_derivation_failed", error=str(e))
 
         metadata.setdefault("experiment_id", experiment_id)
         metadata.setdefault("video_name", experiment_id)
@@ -2177,7 +2279,7 @@ class ProjectManager:
         report_path: str | None = None,
     ) -> bool:
         """Update project metadata with freshly generated analysis artifacts."""
-        video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        video_path = Path(video_path).as_posix()
         video_entry = self.find_video_entry(path=video_path)
         if not video_entry:
             log.info(
@@ -2198,14 +2300,20 @@ class ProjectManager:
         # Update flags, parquet mapping and persist as needed using helpers
         self._update_entry_zone_flags(video_entry, video_path)
         if results_dir:
-            video_entry["results_dir"] = results_dir
+            video_entry["results_dir"] = Path(results_dir).as_posix()
+
+        # Standardize all paths to POSIX before saving
+        safe_traj = Path(trajectory_path).as_posix() if trajectory_path else None
+        safe_sum_p = Path(summary_parquet).as_posix() if summary_parquet else None
+        safe_sum_e = Path(summary_excel).as_posix() if summary_excel else None
+        safe_report = Path(report_path).as_posix() if report_path else None
 
         changed = self._update_parquet_files_and_status(
             video_entry,
-            trajectory_path=trajectory_path,
-            summary_parquet=summary_parquet,
-            summary_excel=summary_excel,
-            report_path=report_path,
+            trajectory_path=safe_traj,
+            summary_parquet=safe_sum_p,
+            summary_excel=safe_sum_e,
+            report_path=safe_report,
         )
 
         if changed:
@@ -2387,12 +2495,20 @@ class ProjectManager:
 
         # Store multi-aquarium outputs in video entry
         video_entry["multi_aquarium_mode"] = True
-        video_entry["multi_aquarium_outputs"] = {}
+        if "multi_aquarium_outputs" not in video_entry:
+            video_entry["multi_aquarium_outputs"] = {}
 
         for aq_id, output_info in outputs_by_aquarium.items():
-            video_entry["multi_aquarium_outputs"][aq_id] = {
-                "results_dir": output_info.get("results_dir", ""),
-                "parquet_files": output_info.get("parquet_files", {}),
+            # Use string keys for JSON compatibility (aquarium_id can be int)
+            aq_key = str(aq_id)
+            
+            # Standardize parquet paths to POSIX
+            pf_orig = output_info.get("parquet_files", {})
+            pf_safe = {k: Path(v).as_posix() if v else None for k, v in pf_orig.items()}
+            
+            video_entry["multi_aquarium_outputs"][aq_key] = {
+                "results_dir": Path(output_info.get("results_dir", "")).as_posix(),
+                "parquet_files": pf_safe,
                 "group": output_info.get("group", ""),
                 "subject_id": output_info.get("subject_id", ""),
                 "day": output_info.get("day", 1),
@@ -2402,7 +2518,10 @@ class ProjectManager:
             }
 
         # Update status if all aquariums have trajectory data
-        all_have_trajectory = all(
+        # Note: We should check against expected num_aquariums if available
+        expected_aq_count = video_entry.get("num_aquariums", len(video_entry["multi_aquarium_outputs"]))
+        
+        all_have_trajectory = len(video_entry["multi_aquarium_outputs"]) >= expected_aq_count and all(
             aq_output.get("parquet_files", {}).get("trajectory")
             for aq_output in video_entry["multi_aquarium_outputs"].values()
         )
@@ -2471,16 +2590,17 @@ class ProjectManager:
         return self.project_data.get("project_name", "N/A")
 
     def get_available_groups(self) -> list[str]:
-        """Collect all unique group names used in the project.
-
-        Uses caching for performance with projects containing many videos.
-        Cache is invalidated when groups change (assignment, project load).
-        """
+        """Collect all unique group names used in the project."""
         # Return cached result if valid
         if self._groups_cache_valid and self._groups_cache is not None:
             return self._groups_cache
 
         groups = set()
+
+        # 0. Include groups defined in the project (from wizard)
+        for g in self.project_data.get("groups", []):
+            if g:
+                groups.add(str(g))
 
         # 1. Scan video entries
         videos = self.get_all_videos() or []
@@ -2583,6 +2703,27 @@ class ProjectManager:
 
                 # Update video entry with new parquet files AND flags
                 video_entry = self.find_video_entry(path=video_path)
+
+                # DEFENSIVE FIX: Ensure video is in project batches
+                # This prevents "video not in project" error during processing
+                if not video_entry:
+                    log.info(
+                        "project_manager.multi_aquarium.adding_video_to_batches",
+                        video=str(video_path),
+                    )
+                    has_arena = any(aq.polygon for aq in multi_data.aquariums)
+                    has_rois = any(aq.roi_polygons for aq in multi_data.aquariums)
+                    video_dict = {
+                        "path": Path(video_path).as_posix(),
+                        "status": "pending",
+                        "has_arena": has_arena,
+                        "has_rois": has_rois,
+                        "is_multi_aquarium": True,
+                        "num_aquariums": len(multi_data.aquariums),
+                    }
+                    self.add_video_batch([video_dict], save_project=False)
+                    video_entry = self.find_video_entry(path=video_path)
+
                 if video_entry:
                     # Update parquet_files map
                     if exported:

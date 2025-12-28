@@ -45,24 +45,9 @@ class ZoneManager:
 
     @staticmethod
     def normalize_video_path(path: Path | str | None) -> str | None:
-        """Normalize a video path for consistent comparison.
-
-        Always resolves to absolute path and uses forward slashes.
-
-        Args:
-            path: Path to normalize
-
-        Returns:
-            Normalized path as string, or None if path is None
-        """
-        if not path:
-            return None
-        path = Path(path) if isinstance(path, str) else path
-        try:
-            resolved = path.resolve(strict=False)
-        except Exception:
-            resolved = path
-        return resolved.as_posix()
+        """Normalize a video path for consistent comparison."""
+        from zebtrack.core.video_manager import VideoManager
+        return VideoManager.normalize_path(path)
 
     @staticmethod
     def ensure_zone_structures(project_data: dict) -> None:
@@ -284,7 +269,12 @@ class ZoneManager:
             log.debug("zone_manager.update_flags.single_video_mode_skip", target=normalized_target)
             return
 
-        log.warning("zone_manager.update_flags.no_match_found", target=normalized_target)
+        log.warning(
+            "zone_manager.update_flags.no_match_found",
+            target=normalized_target,
+            hint="Video has zone data but is not registered in project batches. "
+            "This may cause 'video not in project' errors during processing.",
+        )
 
     def refresh_last_zone_source(
         self, project_data: dict, removed_path: Path | str | None = None
@@ -818,7 +808,7 @@ class ZoneManager:
             aquariums=aquariums,
             video_width=data.get("video_width", 0),
             video_height=data.get("video_height", 0),
-            sequential_processing=data.get("sequential_processing", False),
+            sequential_processing=data.get("sequential_processing", True),
         )
 
     def save_multi_aquarium_zone_data(

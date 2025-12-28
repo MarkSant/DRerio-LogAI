@@ -192,7 +192,7 @@ class DialogManager:
 
     def open_global_calibration_window(self) -> None:
         """Open the global calibration dialog."""
-        from zebtrack.ui.dialogs import CalibrationDialog
+        from zebtrack.ui.dialogs.calibration_dialog import CalibrationDialog
 
         with self.gui.controller.global_calibration_session():
             CalibrationDialog(self.gui.root, self.gui.controller)
@@ -209,7 +209,7 @@ class DialogManager:
             )
             return
 
-        from zebtrack.ui.dialogs import CalibrationDialog
+        from zebtrack.ui.dialogs.calibration_dialog import CalibrationDialog
 
         with self.gui.controller.project_calibration_session():
             CalibrationDialog(self.gui.root, self.gui.controller)
@@ -240,7 +240,7 @@ class DialogManager:
         Returns:
             Dialog result dict with user choices, or None if cancelled
         """
-        from zebtrack.ui.dialogs import SaveROITemplateDialog
+        from zebtrack.ui.dialogs.save_roi_template_dialog import SaveROITemplateDialog
 
         dialog = SaveROITemplateDialog(
             self.gui.root,
@@ -421,7 +421,7 @@ class DialogManager:
         Returns:
             Dialog result with method and value, or None if cancelled
         """
-        from zebtrack.ui.dialogs import CenterPeripheryDialog
+        from zebtrack.ui.dialogs.center_periphery_dialog import CenterPeripheryDialog
 
         dialog = CenterPeripheryDialog(self.gui.root)
         return dialog.result if dialog.result else None
@@ -432,7 +432,7 @@ class DialogManager:
         Returns:
             Dialog result with template type and parameters, or None if cancelled
         """
-        from zebtrack.ui.dialogs import TemplateDialog
+        from zebtrack.ui.dialogs.template_dialog import TemplateDialog
 
         dialog = TemplateDialog(self.gui.root)
         return dialog.result if dialog.result else None
@@ -443,7 +443,7 @@ class DialogManager:
         Returns:
             Dialog result with video config, or None if cancelled
         """
-        from zebtrack.ui.dialogs import SingleVideoConfigDialog
+        from zebtrack.ui.dialogs.single_video_config_dialog import SingleVideoConfigDialog
 
         dialog = SingleVideoConfigDialog(
             self.gui.root,
@@ -520,7 +520,7 @@ class DialogManager:
         else:
             log.warning("dialog_manager.readiness_snapshot.no_event_bus")
 
-        from zebtrack.ui.dialogs import PendingVideosDialog
+        from zebtrack.ui.dialogs.pending_videos_dialog import PendingVideosDialog
 
         dialog = PendingVideosDialog(
             self.gui.root,
@@ -548,7 +548,7 @@ class DialogManager:
             )
             return None
 
-        from zebtrack.ui.dialogs import StartRecordingDialog
+        from zebtrack.ui.dialogs.start_recording_dialog import StartRecordingDialog
 
         dialog = StartRecordingDialog(self.gui.root, pm)
         return dialog.result
@@ -562,7 +562,7 @@ class DialogManager:
         Returns:
             Dialog result with metadata, or None if cancelled
         """
-        from zebtrack.ui.dialogs import MissingMetadataDialog
+        from zebtrack.ui.dialogs.missing_metadata_dialog import MissingMetadataDialog
 
         dialog = MissingMetadataDialog(self.gui.root, experiment_id)
         return dialog.result
@@ -591,7 +591,7 @@ class DialogManager:
         completed_subjects = {s for (d, g, s) in completed_sessions if d == day and g == group_name}
 
         # Import here to avoid circular dependency if needed, or use existing import
-        from zebtrack.ui.dialogs import SubjectSelectionDialog
+        from zebtrack.ui.dialogs.subject_selection_dialog import SubjectSelectionDialog
 
         dialog = SubjectSelectionDialog(
             self.gui.root, day, group_name, subjects_per_group, completed_subjects
@@ -898,7 +898,7 @@ class DialogManager:
 
     def change_roi_color(self):
         """Change the color of the selected ROI."""
-        from zebtrack.ui.dialogs import ColorSelectionDialog
+        from zebtrack.ui.dialogs.color_selection_dialog import ColorSelectionDialog
 
         selected = self.gui.zone_listbox.selection()
         if not selected:

@@ -811,6 +811,12 @@ class ProjectViewManager:
             return
 
         unique_paths = list(dict.fromkeys(selections))
+        log.info(
+            "debug.batch_processing.deduplicated_paths",
+            original_count=len(selections),
+            unique_count=len(unique_paths),
+            unique_paths=unique_paths,
+        )
 
         self.gui.event_dispatcher.publish_event(
             Events.PROJECT_PROCESS_VIDEOS, {"video_paths": unique_paths}
@@ -855,8 +861,6 @@ class ProjectViewManager:
             Events.REPORT_GENERATE,
             {"videos": all_videos, "report_type": "unified"},
         )
-
-        return video_paths
 
     def _resolve_selection_from_project_overview(self) -> list[str]:
         """Resolve selected video paths from Project Overview tree."""
@@ -1416,14 +1420,13 @@ class ProjectViewManager:
                 # Iterate over videos
                 # 'videos' is already the list of video dictionaries for this day
                 for video in videos:
-                    video_path = video.get("path")  # Fixed: "path" not "video_path" usually
-                    if not video_path:
-                        video_path = video.get("video_path")  # Try fallback
+                    video_path = video.get("path")
                     if not video_path:
                         continue
 
                     video_name = os.path.basename(video_path)
-                    subject = video.get("metadata", {}).get("subject", "")
+                    # FIX: Use resolved 'subject' from entry, not from raw metadata
+                    subject = video.get("subject", "")
                     subject_label = f"Sujeito {subject}" if subject else video_name
 
                     # Build individual column values
@@ -1471,10 +1474,6 @@ class ProjectViewManager:
                     # Check for multi-aquarium mode
                     multi_outputs = video.get("multi_aquarium_outputs")
                     if not multi_outputs:
-                        # IMPORTANT: the hierarchy builder may return a simplified video dict
-                        # that drops custom fields (like multi_aquarium_outputs). Always fall
-                        # back to the canonical ProjectManager entry to avoid showing only
-                        # one aquarium (or none) even when both exist on disk.
                         try:
                             pm = self.gui.controller.project_manager
                             canonical_entry = pm.find_video_entry(path=video_path) if pm else None
@@ -1482,53 +1481,43 @@ class ProjectViewManager:
                                 multi_outputs = canonical_entry.get("multi_aquarium_outputs")
                         except Exception:
                             pass
+                    
                     if multi_outputs and isinstance(multi_outputs, dict) and len(multi_outputs) > 0:
-                        # Create aquarium folder nodes for each aquarium.
-                        # Normalize keys because they may be mixed (e.g., 0 and "0") depending
-                        # on persistence/serialization paths; duplicates can otherwise cause Tk iid
-                        # collisions and lead to only the last aquarium being visible.
+                        # Normalize keys
                         normalized_outputs: dict[int, dict] = {}
-
                         for raw_key, raw_output in multi_outputs.items():
-                            # Best-effort: extract numeric aquarium id from key
                             aq_digits = "".join(ch for ch in str(raw_key) if ch.isdigit())
-                            if not aq_digits:
-                                continue
+                            if not aq_digits: continue
                             try:
                                 aq_id_int = int(aq_digits)
-                            except Exception:
-                                continue
+                                normalized_outputs[aq_id_int] = dict(raw_output)
+                            except Exception: continue
 
-                            output_info = raw_output if isinstance(raw_output, dict) else {}
-                            if aq_id_int not in normalized_outputs:
-                                normalized_outputs[aq_id_int] = dict(output_info)
-                                continue
-
-                            # Merge duplicates (prefer non-empty values / union parquet_files)
-                            existing = normalized_outputs[aq_id_int]
-                            existing_results_dir = existing.get("results_dir")
-                            new_results_dir = output_info.get("results_dir")
-                            if not existing_results_dir and new_results_dir:
-                                existing["results_dir"] = new_results_dir
-
-                            existing_pf = existing.get("parquet_files") or {}
-                            new_pf = output_info.get("parquet_files") or {}
-                            if isinstance(existing_pf, dict) and isinstance(new_pf, dict):
-                                merged_pf = dict(existing_pf)
-                                for k, v in new_pf.items():
-                                    if v and not merged_pf.get(k):
-                                        merged_pf[k] = v
-                                existing["parquet_files"] = merged_pf
-
-                            for field in ("group", "subject_id", "day", "frame_crop_box"):
-                                if existing.get(field) in (None, "") and output_info.get(
-                                    field
-                                ) not in (None, ""):
-                                    existing[field] = output_info.get(field)
-
-                        for aq_id, aq_output in sorted(
-                            normalized_outputs.items(), key=lambda kv: kv[0]
-                        ):
+                        # If this is an expanded multi-subject row, only show the artifact node 
+                        # for the SPECIFIC aquarium this row represents (if matched)
+                        # otherwise show all (for unexpanded videos)
+                        for aq_id, aq_output in sorted(normalized_outputs.items()):
+                            # Filter if we are in an expanded row
+                            if is_multi_subject_entry:
+                                # Match aquarium_id or use index as fallback
+                                subject_entries = video.get("metadata", {}).get("subject_entries", [])
+                                if multi_subject_index < len(subject_entries):
+                                    entry = subject_entries[multi_subject_index]
+                                    row_aq_id = entry.get("aquarium_id")
+                                    # Fallback: if aquarium_id is missing but we have entries, 
+                                    # assume index 0 is aq 0, etc.
+                                    if row_aq_id is None:
+                                        row_aq_id = multi_subject_index
+                                    
+                                    # Secondary filter: check subject_id match if available
+                                    aq_subject = aq_output.get("subject_id")
+                                    row_subject = entry.get("subject")
+                                    
+                                    if row_aq_id is not None and aq_id != row_aq_id:
+                                        # If IDs don't match, maybe subjects do?
+                                        if not (aq_subject and row_subject and str(aq_subject) == str(row_subject)):
+                                            continue
+                            
                             aq_results_dir = aq_output.get("results_dir")
                             aq_group = aq_output.get("group", "")
                             aq_subject = aq_output.get("subject_id", "")
@@ -1557,10 +1546,10 @@ class ProjectViewManager:
                                 iid=aq_node_id,
                                 text=f"🐠 {aq_label}",
                                 values=(
-                                    "",  # Arena (inherited from video)
-                                    "",  # ROIs (inherited from video)
-                                    aq_col_traj,  # Trajectory per aquarium
-                                    aq_col_summary,  # Summary per aquarium
+                                    "",  # Arena
+                                    "",  # ROIs
+                                    aq_col_traj,
+                                    aq_col_summary,
                                     "",  # Status
                                     aq_results_dir or "",
                                 ),
@@ -1575,14 +1564,12 @@ class ProjectViewManager:
                                 "subject_id": aq_subject,
                             }
 
-                            # Append artifacts for this aquarium
                             if aq_results_dir and os.path.exists(aq_results_dir):
                                 self.append_processing_reports_artifacts(
                                     tree, aq_node_id, aq_results_dir, metadata_store
                                 )
                     else:
-                        # Single-aquarium mode: append artifacts directly to video node
-                        # Use ProjectManager lookup for robustness if not in entry
+                        # Single-aquarium mode
                         results_dir = video.get("results_dir")
                         if not results_dir:
                             pm = self.gui.controller.project_manager

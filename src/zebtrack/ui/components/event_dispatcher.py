@@ -576,21 +576,71 @@ class EventDispatcher:
 
         Opens the assignment dialog and publishes completion event if confirmed.
         """
+        print(f"[DIAGNOSTIC] _on_show_aquarium_assignment_dialog called")
+        print(f"[DIAGNOSTIC] data={data}")
+
         if not self.gui or not isinstance(data, dict):
+            print(f"[DIAGNOSTIC] returning early - no gui or not dict")
             return
 
+        video_path = data.get("video_path")
+        print(f"[DIAGNOSTIC] video_path={video_path}")
+
+        self.log.info(
+            "aquarium_assignment_dialog.showing",
+            video_path=video_path,
+            available_groups=data.get("available_groups", []),
+        )
+
+        print(f"[DIAGNOSTIC] calling dialog_manager.show_aquarium_assignment_dialog")
         configs, apply_to_all = self.gui.dialog_manager.show_aquarium_assignment_dialog(
             available_groups=data.get("available_groups", []),
-            video_path=data.get("video_path"),
+            video_path=video_path,
             multi_aquarium_config=data.get("multi_aquarium_config"),
+        )
+        print(f"[DIAGNOSTIC] dialog returned configs={configs}, apply_to_all={apply_to_all}")
+
+        self.log.info(
+            "aquarium_assignment_dialog.result",
+            has_configs=bool(configs),
+            apply_to_all=apply_to_all,
+            video_path=video_path,
         )
 
         if configs:
+            # Convert AquariumConfig objects to dicts for serialization
+            configs_as_dicts = []
+            for c in configs:
+                if hasattr(c, "model_dump"):
+                    # Pydantic v2
+                    configs_as_dicts.append(c.model_dump())
+                elif hasattr(c, "dict"):
+                    # Pydantic v1
+                    configs_as_dicts.append(c.dict())
+                elif isinstance(c, dict):
+                    configs_as_dicts.append(c)
+                else:
+                    # Fallback: convert attributes manually
+                    configs_as_dicts.append(
+                        {
+                            "aquarium_id": getattr(c, "aquarium_id", 0),
+                            "group": getattr(c, "group", ""),
+                            "subject_id": getattr(c, "subject_id", ""),
+                            "day": getattr(c, "day", "1"),
+                        }
+                    )
+
+            self.log.info(
+                "aquarium_assignment_dialog.publishing_completion",
+                video_path=video_path,
+                configs_count=len(configs_as_dicts),
+            )
+
             self.publish_event(
                 Events.ZONE_AQUARIUM_ASSIGNMENT_COMPLETED,
                 {
-                    "video_path": data.get("video_path"),
-                    "configs": configs,
+                    "video_path": video_path,
+                    "configs": configs_as_dicts,
                     "apply_to_all": apply_to_all,
                 },
             )

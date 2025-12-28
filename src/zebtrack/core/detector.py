@@ -72,15 +72,15 @@ class MultiAquariumZoneData:
         aquariums: Lista de configurações por aquário.
         video_width: Largura do vídeo em pixels.
         video_height: Altura do vídeo em pixels.
-        sequential_processing: Se True, processa cada aquário separadamente
-            (2 passagens pelo vídeo). Se False (padrão), processa ambos
-            simultaneamente (1 passagem).
+        sequential_processing: Se True (padrão), processa cada aquário separadamente
+            (2 passagens pelo vídeo). Se False, processa ambos simultaneamente
+            (1 passagem). Padrão alterado para True pois oferece melhor precisão.
     """
 
     aquariums: list[AquariumData] = field(default_factory=list)
     video_width: int = 0
     video_height: int = 0
-    sequential_processing: bool = False
+    sequential_processing: bool = True
 
     def get_aquarium(self, aquarium_id: int) -> AquariumData | None:
         """Retorna dados do aquário pelo ID.

@@ -231,7 +231,7 @@ class BehavioralAnalyzer(ABC):
 
         Returns:
             Dict[str, float]: A dictionary containing the mean, median,
-            and standard deviation of the velocity magnitude.
+            standard deviation, and maximum of the velocity magnitude.
         """
         velocity_df = self.calculate_velocity_timeseries()
         if "v_mag" not in velocity_df.columns:
@@ -244,6 +244,7 @@ class BehavioralAnalyzer(ABC):
             "mean": v_mag.mean(),
             "median": v_mag.median(),
             "std_dev": v_mag.std(),
+            "max": v_mag.max(),
         }
         return stats
 

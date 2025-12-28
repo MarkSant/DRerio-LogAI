@@ -964,6 +964,24 @@ class ApplicationGUI:
                 except (ValueError, TypeError):
                     pass
 
+            # Synchronize num_aquariums from project calibration to settings
+            # This ensures multi-aquarium detection mode works correctly
+            calibration = pm.project_data.get("calibration", {})
+            if isinstance(calibration, dict):
+                num_aquariums = calibration.get("num_aquariums", 1)
+                if self.settings and hasattr(self.settings, "analysis_config"):
+                    try:
+                        self.settings.analysis_config.num_aquariums = int(num_aquariums)
+                        log.info(
+                            "project.load.num_aquariums_synced",
+                            num_aquariums=num_aquariums,
+                        )
+                    except (ValueError, TypeError) as e:
+                        log.warning(
+                            "project.load.num_aquariums_sync_failed",
+                            error=str(e),
+                        )
+
         self._create_main_control_frame()
 
         project_type = pm.get_project_type()
@@ -1385,7 +1403,25 @@ class ApplicationGUI:
         # Clear any old interactive polygon before starting a new detection
         self._clear_interactive_polygon()
 
-        video_path = self.pending_single_video_path or None
+        # Get the currently active video - prioritize active_zone_video for project mode
+        video_path = None
+        if hasattr(self, "controller") and self.controller:
+            pm = self.controller.project_manager
+            video_path = pm.get_active_zone_video()
+
+        # Fallback to pending_single_video_path for single video mode
+        if not video_path:
+            video_path = getattr(self, "pending_single_video_path", None)
+
+        log.info(
+            "gui._on_auto_detect_clicked.video_resolved",
+            video_path=video_path,
+            from_active_zone_video=bool(
+                self.controller.project_manager.get_active_zone_video()
+                if hasattr(self, "controller")
+                else False
+            ),
+        )
 
         self.event_dispatcher.publish_event(
             Events.ZONE_AUTO_DETECT,

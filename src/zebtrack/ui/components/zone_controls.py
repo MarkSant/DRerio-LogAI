@@ -74,8 +74,10 @@ class ZoneControlsWidget(BaseWidget):
         # Multi-aquarium state variables
         self.aquarium_count_var = tk.IntVar(value=1)
         self.active_aquarium_var = tk.IntVar(value=0)  # 0 = Aquarium 1, 1 = Aquarium 2
-        # False = parallel (1 pass), True = sequential (2 passes)
-        self.sequential_processing_var = tk.BooleanVar(value=False)
+        # False = parallel (1 pass), True = sequential (2 passes) - default True for better accuracy
+        self.sequential_processing_var = tk.BooleanVar(value=True)
+        # Apply processing mode to all videos (default True)
+        self.apply_to_all_var = tk.BooleanVar(value=True)
 
         # Widget references
         self.draw_roi_button: ttk.Button | None = None
@@ -296,6 +298,14 @@ class ZoneControlsWidget(BaseWidget):
             command=self._on_processing_mode_changed,
         )
         self.sequential_radio.pack(anchor="w", padx=(10, 0))
+
+        # Apply to all checkbox
+        self.apply_to_all_checkbox = ttk.Checkbutton(
+            self.processing_mode_frame,
+            text="Aplicar a todos os vídeos",
+            variable=self.apply_to_all_var,
+        )
+        self.apply_to_all_checkbox.pack(anchor="w", padx=(10, 0), pady=(5, 0))
 
         # Help text
         ttk.Label(
@@ -731,16 +741,20 @@ class ZoneControlsWidget(BaseWidget):
         Emits ZONE_PROCESSING_MODE_CHANGED event with the new mode.
         Sequential mode processes each aquarium separately (2 video passes).
         Parallel mode processes both aquariums simultaneously (1 video pass).
+
+        If "apply_to_all" is checked, the mode is applied to all videos in the project.
         """
         sequential = self.sequential_processing_var.get()
+        apply_to_all = self.apply_to_all_var.get()
         log.info(
             "zone_controls.processing_mode_changed",
             sequential=sequential,
+            apply_to_all=apply_to_all,
             mode="sequential" if sequential else "parallel",
         )
         self.emit_event(
             Events.ZONE_PROCESSING_MODE_CHANGED,
-            {"sequential": sequential},
+            {"sequential": sequential, "apply_to_all": apply_to_all},
         )
 
     def _on_draw_main_polygon_clicked(self) -> None:
