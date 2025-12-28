@@ -120,5 +120,59 @@ sequenceDiagram
     *   `components/`: Managers especializados.
     *   `builders/`: Factories de construção de UI.
 
+## 6. Atualizações Recentes (Dezembro 2025)
+
+### 6.1. Sequential Multi-Aquarium Processing (v3.1)
+
+O sistema agora suporta processamento sequencial de múltiplos aquários:
+
+- **Modo Paralelo (padrão):** Ambos aquários processados em 1 passagem de vídeo
+- **Modo Sequencial:** Cada aquário processado separadamente (2 passagens)
+
+**Novo Evento:** `ZONE_PROCESSING_MODE_CHANGED` com payload `{sequential: bool}`
+
+**Novos Métodos em ProcessingCoordinator:**
+- `_start_sequential_multi_aquarium_processing()`
+- `_process_next_aquarium_in_sequence()`
+- `_start_single_aquarium_for_sequential()`
+
+### 6.2. Unified Reports & Analysis (v3.2)
+
+Melhorias no sistema de relatórios unificados:
+
+- **Max Speed Metric:** Nova métrica `max_speed_cm_s` em estatísticas de velocidade
+- **Geotaxis Naming:** Zonas exibidas com nomes 1-indexados (Zona 1, Zona 2)
+- **Column Formatting:** `DISPLAY_COLUMN_MAPPING` para nomes formatados com unidades
+- **Subject Identification:** Colunas de identificação sempre presentes em relatórios unificados
+- **Batch Dialog Suppression:** Diálogos individuais suprimidos durante processamento em lote
+
+**Correção Crítica:** `Reporter.behavioral_config` agora é armazenado corretamente no construtor legado, garantindo que dados de geotaxis apareçam nos relatórios.
+
+### 6.3. Estrutura de Saída Multi-Aquário
+
+```
+video_results/
+├── aquarium_0/
+│   ├── 3_CoordMovimento_{video}.parquet
+│   ├── 4_Relatorio_{video}_aq0.docx
+│   └── {video}_aq0_summary.parquet
+└── aquarium_1/
+    ├── 3_CoordMovimento_{video}.parquet
+    ├── 4_Relatorio_{video}_aq1.docx
+    └── {video}_aq1_summary.parquet
+```
+
+## 7. Histórico de Versões
+
+| Versão | Data | Principais Mudanças |
+|--------|------|---------------------|
+| v4.0 | Nov 2025 | Arquitetura Event-Driven, UICoordinator Mediator |
+| v3.1 | Dez 21, 2025 | Sequential Multi-Aquarium Processing |
+| v3.2 | Dez 28, 2025 | Unified Reports, Max Speed, Geotaxis Naming Fix |
+
 ---
 **Verificação Científica:** Esta arquitetura garante que o fluxo de dados (ex: detecção -> resultado) seja determinístico e auditável, essencial para a reprodutibilidade científica dos experimentos comportamentais.
+
+**Documentação Relacionada:**
+- `SYSTEM_INTEGRATION_MAP.md` - Contratos de eventos e payloads
+- `UPDATES_DEC_2025.md` - Detalhes das atualizações de dezembro 2025

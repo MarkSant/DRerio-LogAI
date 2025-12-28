@@ -66,6 +66,41 @@ COLUMN_MAPPING = {
     "validation_temporal_gaps_max_frames": "validation_temporal_gaps_max_frames",
 }
 
+# Display mappings for User-Friendly names in Excel/Word
+DISPLAY_COLUMN_MAPPING = {
+    "total_distance_cm": "Total Distance (cm)",
+    "mean_speed_cm_s": "Mean Speed (cm/s)",
+    "median_speed_cm_s": "Median Speed (cm/s)",
+    "max_speed_cm_s": "Max Speed (cm/s)",
+    "speed_std_dev_cm_s": "Speed Std Dev (cm/s)",
+    "sharp_turns_count": "Sharp Turns (count)",
+    "sharp_turns_per_minute": "Sharp Turns (per min)",
+    "total_roi_entries": "Total ROI Entries",
+    "analysis_timestamp": "Analysis Date",
+    "speed_burst_count": "Speed Bursts (count)",
+    "speed_burst_total_duration_s": "Speed Bursts Duration (s)",
+    "speed_burst_threshold_cm_s": "Speed Burst Threshold (cm/s)",
+    "inactivity_count": "Inactivity Periods (count)",
+    "inactivity_total_duration_s": "Inactivity Duration (s)",
+    "inactivity_percentage_of_recording": "Inactivity (% of time)",
+    "inactivity_threshold_cm_s": "Inactivity Threshold (cm/s)",
+    "thigmotaxis_avg_wall_distance_cm": "Thigmotaxis Avg Dist (cm)",
+    "thigmotaxis_time_near_wall_pct": "Thigmotaxis Near Wall (%)",
+    "thigmotaxis_distance_threshold_cm": "Thigmotaxis Threshold (cm)",
+    "geotaxis_avg_bottom_distance_cm": "Geotaxis Avg Bottom Dist (cm)",
+    "geotaxis_time_near_bottom_pct": "Geotaxis Near Bottom (%)",
+    "geotaxis_distance_threshold_cm": "Geotaxis Threshold (cm)",
+    "geotaxis_bottom_zones_pct": "Geotaxis Bottom Zones (%)",
+    "validation_total_frames": "Val: Total Frames",
+    "validation_unique_tracks": "Val: Unique Tracks",
+    "validation_temporal_coverage_pct": "Val: Coverage (%)",
+    "group_id": "Group",
+    "experiment_id": "Experiment ID",
+    "aquarium_id": "Aquarium",
+    "subject": "Subject",
+    "day": "Day",
+}
+
 # Dynamic prefix mappings for Portuguese → English translation of ROI-specific columns
 DYNAMIC_PREFIX_MAPPINGS = (
     ("tempo_no_", "time_in_"),
@@ -520,9 +555,106 @@ class DataTransformer:
             return df.rename(columns=rename_map)
         return df
 
-    def standardize_tidy_dataframe(
-        self, df: pd.DataFrame, metadata: dict[str, Any]
+    def prepare_for_display(
+        self,
+        df: pd.DataFrame,
+        height_cm: float | None = None,
+        num_zones: int | None = None,
     ) -> pd.DataFrame:
+        """Prepare DataFrame for human-readable display (Excel/Word).
+
+        Applies column renaming to user-friendly format and processes Geotaxis zone names.
+
+        Args:
+            df: Standardized tidy dataframe (internal keys)
+            height_cm: Optional aquarium height for Geotaxis ranges
+            num_zones: Optional number of Geotaxis zones
+
+        Returns:
+            pd.DataFrame: DataFrame with formatted column names
+        """
+        display_df = df.copy()
+
+        # 1. Apply Geotaxis Renaming if dimensions available
+        if height_cm is not None and num_zones is not None and height_cm > 0 and num_zones > 0:
+            display_df = self.rename_geotaxis_columns(display_df, height_cm, num_zones)
+        else:
+            # Fallback for generic Geotaxis renaming (e.g. in Unified Report if dims vary)
+            # Find any geotaxis_zone_X_pct columns and rename generically
+            # Use 1-indexed zone numbers for user display (Zone 0 internal -> Zone 1 display)
+            rename_geo = {}
+            for col in display_df.columns:
+                if col.startswith("geotaxis_zone_") and col.endswith("_pct"):
+                    try:
+                        # Extract index
+                        parts = col.split("_")
+                        idx = int(parts[2])
+                        # Zone 0 = bottom, display as "Zona 1 (Fundo)"
+                        if idx == 0:
+                            rename_geo[col] = "Geotaxis Zona 1 - Fundo (%)"
+                        else:
+                            rename_geo[col] = f"Geotaxis Zona {idx + 1} (%)"
+                    except (IndexError, ValueError):
+                        pass
+            if rename_geo:
+                display_df = display_df.rename(columns=rename_geo)
+
+        # 2. General Column Mapping
+        rename_map = {}
+        for col in display_df.columns:
+            # Check explicit mapping first
+            if col in DISPLAY_COLUMN_MAPPING:
+                rename_map[col] = DISPLAY_COLUMN_MAPPING[col]
+            else:
+                # Handle Dynamic ROI columns (e.g., time_in_ROI1 -> Time In ROI1 (s))
+                # Identify prefix matches from DYNAMIC_PREFIX_MAPPINGS logic
+                # But DYNAMIC_PREFIX_MAPPINGS maps PT->EN. Here we need EN->Display.
+                # We can implement a simple heuristic or a new mapping for EN->Display.
+                translated = self._translate_english_to_display(col)
+                if translated != col:
+                    rename_map[col] = translated
+
+        if rename_map:
+            display_df = display_df.rename(columns=rename_map)
+
+        return display_df
+
+    def _translate_english_to_display(self, col_name: str) -> str:
+        """Heuristic to translate internal English column to Display English."""
+        # ROI specific heuristics matches
+        if col_name.startswith("time_in_") and "_s" in col_name:
+            # time_in_ROI1_s -> Time in ROI1 (s)
+            roi = col_name.replace("time_in_", "").replace("_s", "")
+            return f"Time in {roi} (s)"
+        if col_name.startswith("time_percentage_in_"):
+            roi = col_name.replace("time_percentage_in_", "")
+            return f"Time in {roi} (%)"
+        if col_name.startswith("entries_in_"):
+            roi = col_name.replace("entries_in_", "")
+            return f"Entries in {roi}"
+        if col_name.startswith("distance_in_") and "_cm" in col_name:
+            roi = col_name.replace("distance_in_", "").replace("_cm", "")
+            return f"Distance in {roi} (cm)"
+        if col_name.startswith("mean_speed_in_") and "_cm_s" in col_name:
+            roi = col_name.replace("mean_speed_in_", "").replace("_cm_s", "")
+            return f"Mean Speed in {roi} (cm/s)"
+        if col_name.startswith("latencia_para_") or col_name.startswith("latency_to_"):
+            # Handle potential mixed cases or just EN
+            roi = col_name.replace("latency_to_", "").replace("_s", "")
+            return f"Latency to {roi} (s)"
+
+        if col_name.startswith("geotaxis_zone_") and "_pct" in col_name:
+            # Extract index
+            try:
+                parts = col_name.split("_")
+                idx = int(parts[2])
+                return f"Geotaxis Zone {idx + 1} (%)"
+            except (IndexError, ValueError):
+                pass
+
+        return col_name
+
+    def standardize_tidy_dataframe(self, df: pd.DataFrame, metadata: dict) -> pd.DataFrame:
         """Standardize tidy dataframe with English column names and validated schema.
 
         Args:

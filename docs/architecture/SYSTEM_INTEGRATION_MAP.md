@@ -1,7 +1,7 @@
 # ZebTrack-AI System Integration Map
 
 **Status:** Living Document
-**Last Updated:** Dec 10, 2025
+**Last Updated:** Dec 28, 2025 (v3.2)
 **Purpose:** This document serves as the "source of truth" for AI Agents regarding system integration, event payloads, and control flows. It defines the strict contracts between the decoupled components of the Phase 3/4 Architecture.
 
 ---
@@ -361,6 +361,14 @@ Understanding who holds what references prevents "AttributeError" and circular d
     - **Persistence after generation (Option B):** After generating per-aquarium summaries/reports, re-register updated `multi_aquarium_outputs` via `ProjectManager.register_multi_aquarium_outputs(...)` so `has_summary` and artifact paths persist and the UI updates reliably.
 
 18. **Simultaneous Multi-Aquarium Completion Logic (Fixed Dec 2025):** In the single video workflow, `video_results_dir` is calculated dynamically and may not be preset in the project manager. The `on_video_completed` callback now robustly detects multi-aquarium outputs (`aquarium_0`, `aquarium_1`) by checking the filesystem, even if `video_results_dir` is None in the video entry. This ensures that `register_multi_aquarium_outputs` is called and reports are generated for simultaneous 2-aquarium analyses. The `is_multi_aquarium` flag is now initialized based on the *presence* of these output folders, not just the project configuration.
+
+19. **Unified Report & Analysis Contracts (Fixed Dec 28, 2025 - v3.2):**
+    - **Reporter behavioral_config Storage:** The `Reporter` legacy constructor MUST store `self.behavioral_config = behavioral_config if behavioral_config else {}` BEFORE creating `tidy_data`. Previously, the conditional `if not hasattr(self, "behavioral_config")` always triggered because the parameter was never stored, causing geotaxis data to be empty.
+    - **Unified Report Metadata Enrichment:** `_enrich_unified_report_metadata()` MUST always add identification columns (group, subject, day, experiment_id) even when values are empty (use "N/A" fallback). This ensures every row in unified reports is identifiable.
+    - **Unified Report Column Ordering:** `_align_and_concatenate_unified_dfs()` MUST place priority columns first: `["group", "subject", "day", "experiment_id", "aquarium_id", "is_multi_aquarium"]`. Other columns follow alphabetically.
+    - **Word Report Column Display:** Summary tables MUST use `DISPLAY_COLUMN_MAPPING` for metric names (e.g., "Max Speed (cm/s)" not "Max Speed Cm S"). Fall back to `.title()` only for unmapped columns.
+    - **Geotaxis Zone Naming:** Zone columns MUST display 1-indexed names for users ("Zona 1 - Fundo" for zone_0). Fallback logic in `reporter.py` and `data_transformer.py` handles cases where height_cm/num_zones metadata is unavailable.
+    - **Batch Processing Dialogs:** `_finalize_report_generation()` MUST check `_is_batch_processing()` before showing dialogs. Individual dialogs are suppressed during batch; only a consolidated dialog appears at batch end.
 
 ---
 

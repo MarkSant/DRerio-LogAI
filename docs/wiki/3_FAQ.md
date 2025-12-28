@@ -91,3 +91,46 @@ Project-wide exports created from the **Relatórios** tab are saved wherever you
 ## Q: How do I report a bug or request a feature?
 
 Open an issue on GitHub describing your environment (OS, Python version, GPU), attach logs (`logs/` folder if present) and, if possible, include the wizard summary exported as JSON. Contributions and pull requests are welcome — read `CONTRIBUTING.md` for guidelines.
+
+---
+
+## Q: What are the velocity metrics in reports? (v3.2+)
+
+**A:** Reports now include enhanced velocity statistics:
+
+| Metric | Description |
+| --- | --- |
+| **Mean Speed (cm/s)** | Average swimming velocity |
+| **Max Speed (cm/s)** | Maximum instantaneous velocity |
+| **Median Speed (cm/s)** | Median velocity (robust to outliers) |
+| **Std Speed (cm/s)** | Standard deviation of velocity |
+
+Max Speed was added in v3.2 to help identify burst swimming behavior.
+
+---
+
+## Q: What are Geotaxis metrics? How do zone names work?
+
+**A:** Geotaxis analysis measures vertical position preference in lateral-view aquariums:
+
+- **Geotaxis Zona 1 - Fundo (%)** - Time in bottom zone (zone 0 internally)
+- **Geotaxis Zona 2 (%)** - Time in middle zone
+- **Geotaxis Zona 3 (%)** - Time in top zone (if 3 zones configured)
+
+Zone names are 1-indexed for user display (Zona 1, 2, 3...) but stored as 0-indexed internally (zone_0, zone_1, zone_2...).
+
+**Configuration**: Set `geotaxis_num_zones` in behavioral analysis settings (default: 3).
+
+---
+
+## Q: My unified report is missing geotaxis data or subject identification. What happened?
+
+**A:** This was fixed in v3.2 (Dec 2025). If you're seeing empty cells:
+
+1. **Update to v3.2+** - Earlier versions had a bug where `behavioral_config` wasn't properly passed during summary generation.
+2. **Re-process summaries** - Go to Reports tab and regenerate the unified report.
+
+Unified reports now include:
+- Subject columns (group, subject, day, experiment_id) appearing first
+- All geotaxis zone percentages properly populated
+- Proper column names with units

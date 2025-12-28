@@ -42,3 +42,35 @@ Behavioral filters still rely on the following configurable thresholds exposed i
 - `sharp_turn_threshold_deg_s`
 
 These parameters combine with the smoothing setup to control downstream metrics such as freezing episodes, sharp turns, and speed bursts.
+
+## Velocity Statistics
+
+`BehavioralAnalyzer.get_velocity_stats()` computes the following metrics from the smoothed trajectory:
+
+| Metric | Column Name | Description |
+| --- | --- | --- |
+| **Mean Speed** | `mean_speed_cm_s` | Average velocity magnitude over the recording |
+| **Median Speed** | `median_speed_cm_s` | Median velocity, robust to outliers |
+| **Max Speed** | `max_speed_cm_s` | Maximum instantaneous velocity (added v3.2) |
+| **Std Dev** | `std_speed_cm_s` | Standard deviation of velocity |
+
+All velocity values are calculated from smoothed coordinates using frame-to-frame displacement divided by the inter-frame time interval (1/fps). The velocity magnitude is computed as `sqrt(vx² + vy²)`.
+
+## Geotaxis Metrics
+
+For lateral-view aquariums (`aquarium_perspective: lateral`), geotaxis analysis measures vertical position preference:
+
+| Metric | Column Name | Description |
+| --- | --- | --- |
+| **Avg Bottom Distance** | `geotaxis_avg_bottom_distance_cm` | Mean distance from tank bottom |
+| **Time Near Bottom** | `geotaxis_time_near_bottom_pct` | % of time within threshold of bottom |
+| **Zone Percentages** | `geotaxis_zone_N_pct` | % of time in each vertical zone (N=0 is bottom) |
+| **Bottom Zones** | `geotaxis_bottom_zones_pct` | Combined % in bottom zone(s) |
+
+Zone names in reports display as 1-indexed: "Zona 1 - Fundo" (Zone 0), "Zona 2" (Zone 1), etc.
+
+**Configuration** (in `behavioral_config` or project settings):
+- `geotaxis_enabled`: Enable/disable geotaxis calculation
+- `geotaxis_distance_cm`: Threshold for "near bottom" classification
+- `geotaxis_num_zones`: Number of vertical zones (default: 3)
+- `geotaxis_bottom_zones`: How many bottom zones to aggregate (default: 1)

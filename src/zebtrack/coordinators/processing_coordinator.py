@@ -247,10 +247,7 @@ class ProcessingCoordinator(BaseCoordinator):
         Returns:
             True if batch processing is active and has more than 1 video.
         """
-        return (
-            self._batch_context is not None
-            and self._batch_context.get("total_videos", 0) > 1
-        )
+        return self._batch_context is not None and self._batch_context.get("total_videos", 0) > 1
 
     def _init_batch_context(self, total_videos: int) -> None:
         """Initialize batch processing context.
@@ -349,13 +346,9 @@ class ProcessingCoordinator(BaseCoordinator):
         multi_data = self.project_manager.get_multi_aquarium_zone_data(video_path)
         if multi_data and multi_data.sequential_processing != sequential:
             multi_data.sequential_processing = sequential
-            self.project_manager.save_multi_aquarium_zone_data(
-                video_path, multi_data, persist=True
-            )
+            self.project_manager.save_multi_aquarium_zone_data(video_path, multi_data, persist=True)
             log.info(
-                "processing_coordinator.mode_changed",
-                video=str(video_path),
-                sequential=sequential
+                "processing_coordinator.mode_changed", video=str(video_path), sequential=sequential
             )
             return True
         return False
@@ -434,6 +427,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 data.get("video_paths") if isinstance(data, dict) else None
             ),
         )
+
         # Generate trajectories (from Reports tab)
         # NOTE: This event is also handled by trigger_batch_trajectory_processing callback
         # which does proper path resolution. This handler is kept for backward compatibility
@@ -444,14 +438,21 @@ class ProcessingCoordinator(BaseCoordinator):
             selection = data.get("selection", ())
             # Skip if selection contains tree item IDs (handled by callback)
             # The callback does proper path resolution via resolve_processing_reports_video_paths
-            if any("_sub_" in str(s) or not str(s).endswith((".mp4", ".avi", ".mov", ".mkv")) for s in selection):
+            if any(
+                "_sub_" in str(s) or not str(s).endswith((".mp4", ".avi", ".mov", ".mkv"))
+                for s in selection
+            ):
                 log.debug(
                     "processing_coordinator.generate_trajectories.skipped",
                     reason="selection_contains_tree_ids_handled_by_callback",
                 )
                 return
             # Only process if we have actual video paths
-            paths = [s for s in selection if isinstance(s, str) and s.endswith((".mp4", ".avi", ".mov", ".mkv"))]
+            paths = [
+                s
+                for s in selection
+                if isinstance(s, str) and s.endswith((".mp4", ".avi", ".mov", ".mkv"))
+            ]
             if paths:
                 self.process_pending_project_videos(paths)
 
@@ -791,7 +792,9 @@ class ProcessingCoordinator(BaseCoordinator):
             video_results_dir = video_info.get("results_dir")
             # Use original experiment_id (base filename) for parquet names
             # but allow override if stored in video_info
-            v_exp_id = video_info.get("experiment_id") or os.path.splitext(os.path.basename(video_path))[0]
+            v_exp_id = (
+                video_info.get("experiment_id") or os.path.splitext(os.path.basename(video_path))[0]
+            )
         else:
             log.warning("controller.video_completed.index_out_of_bounds", index=index)
             return
@@ -805,14 +808,14 @@ class ProcessingCoordinator(BaseCoordinator):
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{v_exp_id}.parquet")
         # Check if worker used the suffixed experiment_id for the file
         if not os.path.exists(trajectory_path):
-             trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
-        
+            trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{experiment_id}.parquet")
+
         trajectory_exists = os.path.exists(trajectory_path)
 
         # Multi-aquarium fallback check
         alt_multi_outputs: dict[int, dict] = {}
-        
-        # EXPLODED TASK HANDLER: If this was an exploded sequential task, 
+
+        # EXPLODED TASK HANDLER: If this was an exploded sequential task,
         # it MUST be registered as multi-aquarium
         aq_id_override = video_info.get("aquarium_id")
         if aq_id_override is not None and trajectory_exists:
@@ -821,12 +824,18 @@ class ProcessingCoordinator(BaseCoordinator):
                 "results_dir": results_dir,
                 "parquet_files": {"trajectory": trajectory_path},
                 "group": video_info.get("group") or (video_info.get("metadata", {}).get("group")),
-                "subject_id": video_info.get("subject") or (video_info.get("metadata", {}).get("subject")),
+                "subject_id": video_info.get("subject")
+                or (video_info.get("metadata", {}).get("subject")),
                 "day": video_info.get("day", 1),
             }
             trajectory_exists = False  # Force multi-aquarium registration path below
-        
-        if not trajectory_exists and not alt_multi_outputs and results_dir and os.path.exists(results_dir):
+
+        if (
+            not trajectory_exists
+            and not alt_multi_outputs
+            and results_dir
+            and os.path.exists(results_dir)
+        ):
             for aq_id in [0, 1]:
                 aq_subdir = os.path.join(results_dir, f"aquarium_{aq_id}")
                 if not os.path.exists(aq_subdir):
@@ -848,8 +857,10 @@ class ProcessingCoordinator(BaseCoordinator):
                         alt_multi_outputs[aq_id] = {
                             "results_dir": aq_subdir,
                             "parquet_files": {"trajectory": alt_p},
-                            "group": video_info.get("group") or (video_info.get("metadata", {}).get("group")),
-                            "subject_id": video_info.get("subject") or (video_info.get("metadata", {}).get("subject")),
+                            "group": video_info.get("group")
+                            or (video_info.get("metadata", {}).get("group")),
+                            "subject_id": video_info.get("subject")
+                            or (video_info.get("metadata", {}).get("subject")),
                             "day": video_info.get("day", 1),
                         }
                         break
@@ -880,7 +891,7 @@ class ProcessingCoordinator(BaseCoordinator):
         """Helper to register outputs after video completion."""
         # Multi-aquarium registration preparation
         outputs_by_aquarium = alt_multi_outputs.copy() if alt_multi_outputs else {}
-        
+
         # Scan for multi-aquarium outputs if not already found
         if (
             video_results_dir
@@ -932,11 +943,12 @@ class ProcessingCoordinator(BaseCoordinator):
 
         # Scan for aquarium_X directories
         import re
+
         for item in os.listdir(results_dir):
             item_path = os.path.join(results_dir, item)
             if not os.path.isdir(item_path):
                 continue
-                
+
             match = re.match(r"^aquarium_(\d+)$", item)
             if match:
                 aq_id = int(match.group(1))
@@ -1707,14 +1719,14 @@ class ProcessingCoordinator(BaseCoordinator):
             "aquarium_id": aquarium.id,
             "group": aquarium.group,
             "subject_id": aquarium.subject_id,
-            "day": int(aquarium.day) if aquarium.day else 1
+            "day": int(aquarium.day) if aquarium.day else 1,
         }
-        
+
         aq_dirs = self.project_manager.resolve_multi_aquarium_results_directories(
             experiment_id=os.path.splitext(os.path.basename(str(ctx["video_path"])))[0],
-            aquarium_configs=[aq_config]
+            aquarium_configs=[aq_config],
         )
-        
+
         aquarium_output = str(aq_dirs.get(aquarium.id))
         if not aquarium_output:
             # Fallback (should not happen)
@@ -1724,7 +1736,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 f"{video_name}_results",
             )
             aquarium_output = os.path.join(base_output, f"aquarium_{aquarium.id}")
-            
+
         os.makedirs(aquarium_output, exist_ok=True)
 
         # Notify user of current aquarium
@@ -2083,30 +2095,32 @@ class ProcessingCoordinator(BaseCoordinator):
                 try:
                     import os as _os  # Local import to avoid scope issues
                     from zebtrack.core.zone_manager import ZoneManager
+
                     multi_data = ZoneManager.multi_aquarium_zone_data_from_dict(zone_data_dict)
 
                     video_basename = _os.path.basename(str(video_info.get("path", "")))
                     log.info(
                         "workflow.project_processing.exploding_sequential_task",
                         video=video_basename,
-                        aquarium_count=len(multi_data.aquariums)
+                        aquarium_count=len(multi_data.aquariums),
                     )
 
                     # Create one task per aquarium
                     aq_configs = []
                     for aq in multi_data.aquariums:
-                        aq_configs.append({
-                            "aquarium_id": aq.id,
-                            "group": aq.group,
-                            "subject_id": aq.subject_id,
-                            "day": int(aq.day) if aq.day else 1
-                        })
+                        aq_configs.append(
+                            {
+                                "aquarium_id": aq.id,
+                                "group": aq.group,
+                                "subject_id": aq.subject_id,
+                                "day": int(aq.day) if aq.day else 1,
+                            }
+                        )
 
                     # Resolve correct hierarchical directories for each aquarium
                     experiment_id = _os.path.splitext(video_basename)[0]
                     aq_dirs = self.project_manager.resolve_multi_aquarium_results_directories(
-                        experiment_id=experiment_id,
-                        aquarium_configs=aq_configs
+                        experiment_id=experiment_id, aquarium_configs=aq_configs
                     )
 
                     for aq in multi_data.aquariums:
@@ -2153,7 +2167,7 @@ class ProcessingCoordinator(BaseCoordinator):
                     final_tasks.append(video_info)
             else:
                 final_tasks.append(video_info)
-        
+
         eligible_videos = final_tasks
 
         self.cancel_event.clear()
@@ -2162,7 +2176,9 @@ class ProcessingCoordinator(BaseCoordinator):
         try:
             callbacks = self.create_processing_callbacks(eligible_videos)
             # Ensure project_path is a string (it may be Path object)
-            output_dir = str(self.project_manager.project_path) if self.project_manager.project_path else ""
+            output_dir = (
+                str(self.project_manager.project_path) if self.project_manager.project_path else ""
+            )
             context = self.create_processing_context(
                 eligible_videos,
                 output_dir,
@@ -2234,7 +2250,7 @@ class ProcessingCoordinator(BaseCoordinator):
             log.exception("workflow.project_processing.post_worker_error", error=str(e))
             self._publish_event(
                 Events.UI_SHOW_ERROR,
-                {"title": "Erro Pós-Inicialização", "message": f"Erro ao atualizar interface: {e}"}
+                {"title": "Erro Pós-Inicialização", "message": f"Erro ao atualizar interface: {e}"},
             )
 
     # ========================================================================
@@ -2397,11 +2413,16 @@ class ProcessingCoordinator(BaseCoordinator):
                                 if multi_aquarium_dict and isinstance(multi_aquarium_dict, dict):
                                     try:
                                         from zebtrack.ui.wizard.models import MultiAquariumData
+
                                         if multi_aquarium_dict.get("regex_pattern"):
-                                            multi_aquarium_config = MultiAquariumData(**multi_aquarium_dict)
+                                            multi_aquarium_config = MultiAquariumData(
+                                                **multi_aquarium_dict
+                                            )
                                             log.info(
                                                 "run_aquarium_detection.multi_aquarium_config_loaded",
-                                                regex_pattern=multi_aquarium_config.regex_pattern[:50]
+                                                regex_pattern=multi_aquarium_config.regex_pattern[
+                                                    :50
+                                                ],
                                             )
                                     except Exception as e:
                                         log.warning(
@@ -2579,18 +2600,19 @@ class ProcessingCoordinator(BaseCoordinator):
                         if self.project_manager.project_data
                         else {}
                     )
-                    
+
                     if isinstance(calibration, dict):
                         multi_aquarium_dict = calibration.get("multi_aquarium")
                         if multi_aquarium_dict and isinstance(multi_aquarium_dict, dict):
                             try:
                                 from zebtrack.ui.wizard.models import MultiAquariumData
+
                                 # Ensure we only create object if regex_pattern exists
                                 if multi_aquarium_dict.get("regex_pattern"):
                                     multi_aquarium_config = MultiAquariumData(**multi_aquarium_dict)
                                     log.info(
                                         "multi_auto_detect.multi_aquarium_config_loaded",
-                                        regex_pattern=multi_aquarium_config.regex_pattern[:50]
+                                        regex_pattern=multi_aquarium_config.regex_pattern[:50],
                                     )
                             except Exception as e:
                                 log.warning(
@@ -2658,7 +2680,9 @@ class ProcessingCoordinator(BaseCoordinator):
 
         # CRITICAL FIX: Use old_parquet_files if provided, otherwise fallback to video_entry
         # This is needed because save_multi_aquarium_zone_data already overwrote the paths
-        parquet_files = old_parquet_files if old_parquet_files else video_entry.get("parquet_files", {})
+        parquet_files = (
+            old_parquet_files if old_parquet_files else video_entry.get("parquet_files", {})
+        )
         if not parquet_files:
             log.info("relocate_folders.no_parquet_files", video=str(video_path))
             return
@@ -2887,9 +2911,7 @@ class ProcessingCoordinator(BaseCoordinator):
                         "path": Path(video_path).as_posix(),
                         "status": "pending",
                         "has_arena": True,  # We have multi-aquarium zones
-                        "has_rois": any(
-                            bool(aq.roi_polygons) for aq in zone_data.aquariums
-                        ),
+                        "has_rois": any(bool(aq.roi_polygons) for aq in zone_data.aquariums),
                         "is_multi_aquarium": True,
                         "num_aquariums": len(zone_data.aquariums),
                         "zones_finalized": False,
@@ -2907,20 +2929,22 @@ class ProcessingCoordinator(BaseCoordinator):
 
                 if video_entry:
                     video_meta = video_entry.get("metadata", {})
-                    
+
                     # Store individual subject entries for tree expansion
                     subject_entries = []
                     for aq in zone_data.aquariums:
-                        subject_entries.append({
-                            "aquarium_id": aq.id,
-                            "subject": aq.subject_id,
-                            "group": aq.group,
-                            "day": aq.day
-                        })
-                    
+                        subject_entries.append(
+                            {
+                                "aquarium_id": aq.id,
+                                "subject": aq.subject_id,
+                                "group": aq.group,
+                                "day": aq.day,
+                            }
+                        )
+
                     video_meta["is_multi_subject"] = True
                     video_meta["subject_entries"] = subject_entries
-                    
+
                     # Also keep primary metadata from first aquarium for top-level labeling
                     if zone_data.aquariums:
                         first_aq = zone_data.aquariums[0]
@@ -2928,17 +2952,19 @@ class ProcessingCoordinator(BaseCoordinator):
                         video_meta["day"] = first_aq.day
                         # KEEP subject as the first one to avoid 'Indefinido' fallbacks
                         video_meta["subject"] = first_aq.subject_id
-                    
+
                     video_entry["metadata"] = video_meta
                     log.info(
                         "assignment_complete.multi_subject_metadata_synced",
                         video=os.path.basename(video_path),
-                        subject_count=len(subject_entries)
+                        subject_count=len(subject_entries),
                     )
 
                 # CRITICAL FIX: Capture old parquet files BEFORE save overwrites them
                 # This allows _relocate_multi_aquarium_folders to find the Sujeito_Indefinido folder
-                old_parquet_files = dict(video_entry.get("parquet_files", {})) if video_entry else {}
+                old_parquet_files = (
+                    dict(video_entry.get("parquet_files", {})) if video_entry else {}
+                )
 
                 should_persist = bool(self.project_manager.project_path)
                 self.project_manager.save_multi_aquarium_zone_data(
@@ -3735,9 +3761,7 @@ class ProcessingCoordinator(BaseCoordinator):
             self._publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
             self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {})
 
-    def _align_and_concatenate_unified_dfs(
-        self, dfs: list
-    ) -> tuple:
+    def _align_and_concatenate_unified_dfs(self, dfs: list) -> tuple:
         """Align and concatenate multiple summary DataFrames with potentially different schemas.
 
         Args:
@@ -3764,8 +3788,12 @@ class ProcessingCoordinator(BaseCoordinator):
 
         # Priority columns that should appear first (identification)
         priority_cols = [
-            "group", "subject", "day", "experiment_id", "aquarium_id",
-            "is_multi_aquarium"
+            "group",
+            "subject",
+            "day",
+            "experiment_id",
+            "aquarium_id",
+            "is_multi_aquarium",
         ]
 
         # Separate priority columns that exist from the rest
@@ -3818,7 +3846,11 @@ class ProcessingCoordinator(BaseCoordinator):
         # 1. Export Excel
         excel_path = unified_dir / f"unified_summary_{timestamp}.xlsx"
         try:
-            final_df.to_excel(excel_path, index=False, engine="openpyxl")
+            # Apply display formatting for Excel
+            from zebtrack.analysis.data_transformer import DataTransformer
+
+            display_df = DataTransformer().prepare_for_display(final_df)
+            display_df.to_excel(excel_path, index=False, engine="openpyxl")
             log.info("workflow.unified_report.excel_exported", path=str(excel_path))
         except Exception as e:
             log.error("workflow.unified_report.excel_failed", error=str(e))
@@ -4450,9 +4482,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 # Log detailed info about subject assignments for debugging
                 subject_info = []
                 for aq in multi_data.aquariums:
-                    subject_info.append(
-                        f"aq{aq.id}={aq.subject_id or 'EMPTY'}"
-                    )
+                    subject_info.append(f"aq{aq.id}={aq.subject_id or 'EMPTY'}")
                 log.info(
                     "workflow.multi_aquarium_zone_data_attached",
                     video=os.path.basename(video_path),
@@ -4615,6 +4645,24 @@ class ProcessingCoordinator(BaseCoordinator):
             self.project_manager.project_data
         ).get("behavioral_config", {})
 
+        # Ensure we use the settings object passed to this method for behavioral parameters
+        if hasattr(settings, "behavioral_analysis"):
+            ba_cfg = settings.behavioral_analysis
+            # Update with current settings
+            behavioral_config.update(
+                {
+                    "thigmotaxis_distance_cm": ba_cfg.default_thigmotaxis_distance_cm,
+                    "geotaxis_distance_cm": ba_cfg.default_geotaxis_distance_cm,
+                    "geotaxis_num_zones": ba_cfg.default_geotaxis_num_zones,
+                    "geotaxis_bottom_zones": ba_cfg.default_geotaxis_bottom_zones,
+                    "aquarium_perspective": getattr(ba_cfg, "aquarium_perspective", "lateral"),
+                }
+            )
+            # Re-evaluate geotaxis_enabled
+            behavioral_config["geotaxis_enabled"] = (
+                behavioral_config.get("aquarium_perspective") == "lateral"
+            )
+
         reporter = Reporter(
             trajectory_df=df,
             metadata=aq_meta,
@@ -4676,6 +4724,24 @@ class ProcessingCoordinator(BaseCoordinator):
             behavioral_config = self.analysis_service.collect_analysis_parameters(
                 self.project_manager.project_data
             ).get("behavioral_config", {})
+
+            # Ensure we use the settings object passed to this method for behavioral parameters
+            if hasattr(settings, "behavioral_analysis"):
+                ba_cfg = settings.behavioral_analysis
+                # Update with current settings
+                behavioral_config.update(
+                    {
+                        "thigmotaxis_distance_cm": ba_cfg.default_thigmotaxis_distance_cm,
+                        "geotaxis_distance_cm": ba_cfg.default_geotaxis_distance_cm,
+                        "geotaxis_num_zones": ba_cfg.default_geotaxis_num_zones,
+                        "geotaxis_bottom_zones": ba_cfg.default_geotaxis_bottom_zones,
+                        "aquarium_perspective": getattr(ba_cfg, "aquarium_perspective", "lateral"),
+                    }
+                )
+                # Re-evaluate geotaxis_enabled
+                behavioral_config["geotaxis_enabled"] = (
+                    behavioral_config.get("aquarium_perspective") == "lateral"
+                )
 
             reporter = Reporter(
                 trajectory_df=df,

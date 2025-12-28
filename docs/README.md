@@ -53,40 +53,44 @@ See [migration/README.md](migration/README.md) for more information.
 
 Existing documentation in this directory:
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture overview
-- **[REFERENCE_GUIDE.md](REFERENCE_GUIDE.md)** - Developer reference
-- **[DEPENDENCY_INJECTION_GUIDE.md](DEPENDENCY_INJECTION_GUIDE.md)** - DI patterns
-- **[STATE_MANAGEMENT_GUIDE.md](STATE_MANAGEMENT_GUIDE.md)** - State management
-- **[SERVICE_LAYER_PATTERNS.md](SERVICE_LAYER_PATTERNS.md)** - Service patterns
-- **[BEHAVIORAL_METRICS.md](BEHAVIORAL_METRICS.md)** - Metrics documentation
-- **[COORDINATE_SYSTEMS.md](COORDINATE_SYSTEMS.md)** - Coordinate systems
-- **[DEVELOPER_GUIDE_WIZARD.md](DEVELOPER_GUIDE_WIZARD.md)** - Wizard development
-- **[ERROR_HANDLING.md](ERROR_HANDLING.md)** - Error handling patterns
-- **[PERFORMANCE_TUNING.md](PERFORMANCE_TUNING.md)** - Performance guide
-- **[TESTING_TKINTER_WINDOWS.md](TESTING_TKINTER_WINDOWS.md)** - UI testing
-- **[WIDGETS.md](WIDGETS.md)** - Widget documentation
-- **[WORKFLOWS.md](WORKFLOWS.md)** - Development workflows
+- **[ARCHITECTURE.md](architecture/ARCHITECTURE.md)** - System architecture overview
+- **[UPDATES_DEC_2025.md](architecture/UPDATES_DEC_2025.md)** - December 2025 updates (v3.1, v3.2)
+- **[REFERENCE_GUIDE.md](reference/REFERENCE_GUIDE.md)** - Developer reference (v3.2)
+- **[DEPENDENCY_INJECTION_GUIDE.md](architecture/DEPENDENCY_INJECTION_GUIDE.md)** - DI patterns
+- **[STATE_MANAGEMENT_GUIDE.md](architecture/STATE_MANAGEMENT_GUIDE.md)** - State management
+- **[SERVICE_LAYER_PATTERNS.md](architecture/SERVICE_LAYER_PATTERNS.md)** - Service patterns
+- **[BEHAVIORAL_METRICS.md](reference/BEHAVIORAL_METRICS.md)** - Metrics documentation (v3.2)
+- **[COORDINATE_SYSTEMS.md](reference/COORDINATE_SYSTEMS.md)** - Coordinate systems
+- **[DEVELOPER_GUIDE_WIZARD.md](guides/developer/DEVELOPER_GUIDE_WIZARD.md)** - Wizard development
+- **[ERROR_HANDLING.md](guides/developer/ERROR_HANDLING.md)** - Error handling patterns
+- **[PERFORMANCE_TUNING.md](performance/PERFORMANCE_TUNING.md)** - Performance guide
+- **[TESTING_TKINTER_WINDOWS.md](testing/TESTING_TKINTER_WINDOWS.md)** - UI testing
+- **[WIDGETS.md](reference/WIDGETS.md)** - Widget documentation
+- **[WORKFLOWS.md](guides/developer/WORKFLOWS.md)** - Development workflows
+- **[SYSTEM_INTEGRATION_MAP.md](architecture/SYSTEM_INTEGRATION_MAP.md)** - Event contracts & integration (v3.2)
 
 ---
 
 ## Quick Links
 
 ### For Developers
-- 🏗️ [Architecture Overview](ARCHITECTURE.md)
-- 🔧 [Developer Reference](REFERENCE_GUIDE.md)
-- 🧪 [Testing Guide](TESTING_TKINTER_WINDOWS.md)
-- 📊 [Performance Tuning](PERFORMANCE_TUNING.md)
+- 🏗️ [Architecture Overview](architecture/ARCHITECTURE.md)
+- 🔧 [Developer Reference](reference/REFERENCE_GUIDE.md)
+- 🗺️ [System Integration Map](architecture/SYSTEM_INTEGRATION_MAP.md) (v3.2)
+- 🧪 [Testing Guide](testing/TESTING_TKINTER_WINDOWS.md)
+- 📊 [Performance Tuning](performance/PERFORMANCE_TUNING.md)
 
 ### For Users
 - 📚 [API Documentation](api/build/html/index.html) (after building)
 - 🔄 [Migration Guides](migration/)
-- 📝 [Known Issues](KNOWN_ISSUES.md)
+- 📝 [Known Issues](reference/KNOWN_ISSUES.md)
+- 📖 [Wiki (Portuguese)](wiki/)
 
 ### For Contributors
-- 🔄 [Workflows](WORKFLOWS.md)
-- 🎨 [Widgets](WIDGETS.md)
-- 🧩 [Service Patterns](SERVICE_LAYER_PATTERNS.md)
-- ⚠️ [Error Handling](ERROR_HANDLING.md)
+- 🔄 [Workflows](guides/developer/WORKFLOWS.md)
+- 🎨 [Widgets](reference/WIDGETS.md)
+- 🧩 [Service Patterns](architecture/SERVICE_LAYER_PATTERNS.md)
+- ⚠️ [Error Handling](guides/developer/ERROR_HANDLING.md)
 
 ---
 

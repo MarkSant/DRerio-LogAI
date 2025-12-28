@@ -134,3 +134,76 @@ video_results/
 | Resources | Split between aquariums | 100% per aquarium |
 | Debugging | More complex | Easier |
 | Code Path | Multi-aquarium specific | Reuses single-aquarium |
+
+---
+
+## 6. Unified Reports & Analysis Improvements (v3.2)
+
+**Date:** Dec 28, 2025
+
+### New Metric: Max Speed
+
+Added `max_speed_cm_s` to velocity statistics for identifying burst swimming behavior.
+
+**Files Modified:**
+- `src/zebtrack/analysis/behavior.py` - Added `"max": v_mag.max()` to `get_velocity_stats()`
+- `src/zebtrack/analysis/data_transformer.py` - Added mapping in `COLUMN_MAPPING` and `DISPLAY_COLUMN_MAPPING`
+- `src/zebtrack/analysis/reporter.py` - Added to boxplot metrics list
+
+### Critical Bug Fix: Geotaxis Data in Unified Reports
+
+**Problem:** Geotaxis zone percentages were empty in unified Excel reports.
+
+**Root Cause:** In the `Reporter` legacy constructor path, the `behavioral_config` parameter was passed to `run_full_analysis()` but never stored as `self.behavioral_config`. The subsequent check `if not hasattr(self, "behavioral_config")` always triggered, setting it to an empty dict `{}`. This caused `geotaxis_enabled` to default to `False`.
+
+**Solution:** Changed `reporter.py:280-282`:
+```python
+# Before (bug):
+if not hasattr(self, "behavioral_config"):
+    self.behavioral_config = {}
+
+# After (fix):
+self.behavioral_config = behavioral_config if behavioral_config else {}
+```
+
+### Improved Column Naming in Word Reports
+
+Word report summary tables now use `DISPLAY_COLUMN_MAPPING` for proper formatting:
+- `max_speed_cm_s` → "Max Speed (cm/s)" (not "Max Speed Cm S")
+- All metrics display with proper units
+
+**File Modified:** `src/zebtrack/analysis/reporter.py:604-609`
+
+### Geotaxis Zone Naming (1-Indexed)
+
+Geotaxis zones now display with user-friendly 1-indexed names:
+- `geotaxis_zone_0_pct` → "Geotaxis Zona 1 - Fundo (%)"
+- `geotaxis_zone_1_pct` → "Geotaxis Zona 2 (%)"
+
+**Files Modified:**
+- `src/zebtrack/analysis/reporter.py:581-597` - Fallback in Word report
+- `src/zebtrack/analysis/data_transformer.py:584-599` - Fallback in `prepare_for_display()`
+
+### Subject Identification in Unified Reports
+
+Unified reports now always include identification columns with priority ordering:
+
+**Files Modified:** `src/zebtrack/coordinators/processing_coordinator.py`
+- `_enrich_unified_report_metadata()` - Always adds group/subject/day/experiment_id with "N/A" fallback
+- `_align_and_concatenate_unified_dfs()` - Priority columns appear first
+
+### Batch Mode Dialog Suppression
+
+Individual dialogs no longer appear between videos during batch processing.
+
+**File Modified:** `src/zebtrack/coordinators/processing_coordinator.py`
+- Added `_is_batch_processing()` check in `_finalize_report_generation()`
+
+### Files Summary
+
+| File | Changes |
+|------|---------|
+| `analysis/behavior.py` | Added max speed calculation |
+| `analysis/data_transformer.py` | Column mappings, geotaxis naming fallback |
+| `analysis/reporter.py` | Column display, geotaxis fallback, behavioral_config fix |
+| `coordinators/processing_coordinator.py` | Unified report metadata, column ordering, dialog suppression |

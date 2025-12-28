@@ -456,6 +456,7 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 ## Version History (Quick Reference)
 
+- **v3.2 (Dec 28, 2025)**: Unified Report Fixes + Max Speed Metric - Geotaxis data in unified reports, column naming, subject identification
 - **v3.1 (Dec 2025)**: Sequential Multi-Aquarium Processing - Option to process aquariums in 2 video passes with automatic reports
 - **v3.0 (Jan 2025)**: 🔴 **BREAKING** - Removed all legacy thread system code for Live cameras (~90 lines)
 - **v2.1 (Jan 2025)**: Live Camera Unification - Fixed critical bugs (camera selection, intervals, preview)
@@ -484,6 +485,34 @@ logger.error("recorder.save_parquet.error", error=str(e))
 | **Historical Context** | `docs/archive/` |
 
 ## Recent Critical Fixes (Dec 2025)
+
+**6. Unified Report & Analysis Improvements (v3.2 - Dec 28, 2025):**
+
+*   **Max Speed Metric**: Added `max_speed_cm_s` to behavioral analysis
+    - Calculated in `behavior.py:get_velocity_stats()` alongside mean, median, std_dev
+    - Mapped in `data_transformer.py:COLUMN_MAPPING` and `DISPLAY_COLUMN_MAPPING`
+    - Included in summary parquets, Excel, Word reports, and comparative boxplots
+
+*   **Geotaxis Data in Unified Reports**: Fixed critical bug where geotaxis was always empty
+    - **Root Cause**: `Reporter` legacy constructor didn't store `behavioral_config` before checking `hasattr()`
+    - **Fix**: `reporter.py:280-282` now explicitly stores `self.behavioral_config = behavioral_config or {}`
+    - **Impact**: Geotaxis zone percentages now appear correctly in unified Excel/Word reports
+
+*   **Column Naming in Word Reports**: Proper formatting with units
+    - Word summary table now uses `DISPLAY_COLUMN_MAPPING` (not generic `.title()`)
+    - "max_speed_cm_s" → "Max Speed (cm/s)" instead of "Max Speed Cm S"
+
+*   **Geotaxis Zone Naming**: 1-indexed user-friendly names
+    - "geotaxis_zone_0_pct" → "Geotaxis Zona 1 - Fundo (%)"
+    - Fallback logic in `reporter.py:581-597` and `data_transformer.py:584-599`
+
+*   **Subject Identification in Unified Reports**:
+    - `_enrich_unified_report_metadata()` always adds group/subject/day/experiment_id (with "N/A" fallback)
+    - Priority columns appear first: group, subject, day, experiment_id, aquarium_id
+
+*   **Batch Processing Dialog Suppression**:
+    - `_finalize_report_generation()` checks `_is_batch_processing()` before showing dialogs
+    - Individual dialogs suppressed; consolidated dialog at batch end
 
 **0. Sequential Multi-Aquarium Processing (v3.1):**
 *   **New Feature**: Toggle in Zone Controls to process aquariums sequentially (2 passes) vs parallel (1 pass)

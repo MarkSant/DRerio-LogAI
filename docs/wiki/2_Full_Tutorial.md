@@ -74,6 +74,27 @@ This tutorial walks through the complete ZebTrack-AI workflow: creating a projec
    - Word (`.docx`) document with plots, ROI maps, and an event appendix (enter/exit log).
 4. Each processed video also receives a `<video>_results/` folder containing raw Parquets (`1_`, `2_`, `3_`), diagnostic MP4 (optional), and Excel/Word outputs.
 
+### Report Metrics (v3.2+)
+
+Reports now include enhanced velocity and geotaxis metrics:
+
+| Metric | Description |
+| --- | --- |
+| **Mean Speed (cm/s)** | Average swimming velocity |
+| **Max Speed (cm/s)** | Maximum instantaneous velocity |
+| **Median Speed (cm/s)** | Median velocity (robust to outliers) |
+| **Geotaxis Zona 1 - Fundo (%)** | Time spent in bottom zone |
+| **Geotaxis Zona 2 (%)** | Time spent in middle zone |
+
+> 📝 **Note**: Column names in Word reports now display with proper units (e.g., "Max Speed (cm/s)" instead of "Max Speed Cm S").
+
+### Unified Reports (v3.2+)
+
+The unified report now includes:
+- **Subject identification columns**: group, subject, day, experiment_id appear first
+- **Geotaxis data**: Zone percentages now correctly appear (previously could be empty)
+- **Consistent formatting**: All metrics use proper display names with units
+
 ---
 
 ## Step 6 · Tips and QA

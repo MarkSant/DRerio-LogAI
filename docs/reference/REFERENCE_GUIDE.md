@@ -1,6 +1,9 @@
 <!-- markdownlint-disable-file -->
 # Guia de Referência Operacional do ZebTrack-AI
 
+**Última Atualização:** Dezembro 2025 (v3.2)
+**Atualizações Recentes:** Max Speed metric, Geotaxis naming fix, Sequential Multi-Aquarium, Unified Reports improvements
+
 Este guia consolida o conhecimento funcional do ZebTrack-AI para equipes de laboratório, mantenedores de software e auditores científicos. Aqui você encontra o fluxo completo de trabalho, tabelas de variáveis utilizadas nos relatórios, definições matemáticas, integrações com hardware (Arduino) e tutoriais passo a passo.
 
 > **Escopo**: documento complementar ao `README.md`, `docs/ARCHITECTURE.md`, `docs/PROJECT_WORKFLOW.md` e `docs/COORDINATE_SYSTEMS.md`. Sempre que novos comportamentos forem adicionados, atualize este guia junto com os testes automatizados.
@@ -178,6 +181,7 @@ Todas as coordenadas gravadas já estão no **espaço warped** (vide `docs/COORD
 |----------|-----------|-----------|-------|
 | `distancia_total_cm` | $d_\text{total} = \sum_{i=1}^{n-1} \sqrt{\Delta x_i^2 + \Delta y_i^2}$ | Distância percorrida ao longo da trajetória suavizada. | `ConcreteBehavioralAnalyzer.calculate_total_distance()` |
 | `velocidade_media_cm_s` | $\bar v = \frac{1}{n} \sum_{i=1}^{n} v_i$ | Média da magnitude de velocidade $v_i = \sqrt{v_{x,i}^2 + v_{y,i}^2}$. | `ConcreteBehavioralAnalyzer.get_velocity_stats()` |
+| `velocidade_maxima_cm_s` | $v_\text{max} = \max\{v_i\}$ | Velocidade máxima instantânea (v3.2+). Útil para identificar comportamento de burst swimming. | Idem |
 | `velocidade_mediana_cm_s` | Mediana de $\{v_i\}$ | Medida robusta contra outliers de velocidade. | Idem |
 | `desvio_padrao_velocidade_cm_s` | $\sigma = \sqrt{\frac{1}{n-1}\sum (v_i - \bar v)^2}$ | Variabilidade da velocidade. | Idem |
 | `contagem_curvas_acentuadas` | Contagem de $|\omega_i| > \theta$ | Número de frames onde a velocidade angular $\omega_i$ excede o limiar ($\theta = 90^\circ/s$). | `ConcreteBehavioralAnalyzer.calculate_sharp_turns()` |
@@ -227,6 +231,50 @@ Todas as coordenadas gravadas já estão no **espaço warped** (vide `docs/COORD
 | `inter_visit_latencies` | Diferenças $t_{\text{entrada}} - t_{\text{última saída}}$ | Latências entre visitas consecutivas às ROIs. | `ROIAnalyzer.get_inter_visit_latencies()` |
 | `analyze_center_vs_periphery` | ROI sintética via `buffer` ou `scale`. | Gera métricas separadas para centro/periferia da arena. | `ROIAnalyzer.analyze_center_vs_periphery()` |
 | `social_time_seconds` / `%` | Tempo em que animais compartilham um cluster dinâmico (grafo de proximidade). | Requer `networkx`; usa raio em cm convertido para px. | `ROIAnalyzer.analyze_social_proximity()` |
+
+### 5.4 Métricas de Geotaxis (v3.2+)
+
+Para aquários em vista lateral, o sistema calcula a preferência vertical do animal:
+
+| Variável | Descrição | Fonte |
+|----------|-----------|-------|
+| `geotaxis_zona_1_fundo_pct` | Percentual de tempo na zona inferior (0 até altura_zona_1) | `ConcreteBehavioralAnalyzer.calculate_geotaxis()` |
+| `geotaxis_zona_2_pct` | Percentual de tempo na zona média | Idem |
+| `geotaxis_zona_N_pct` | Percentual de tempo na zona superior (N = número total de zonas) | Idem |
+
+**Configuração:**
+- `geotaxis_num_zones`: Número de divisões horizontais (padrão: 3)
+- `aquarium_perspective`: Define a orientação (`top_down` ou `lateral`)
+
+**Nomenclatura em relatórios:**
+- Internamente: `geotaxis_zone_0_pct`, `geotaxis_zone_1_pct`...
+- Exibição: "Geotaxis Zona 1 - Fundo (%)", "Geotaxis Zona 2 (%)"...
+
+### 5.5 Multi-Aquarium Processing (v3.1+)
+
+O sistema suporta processamento de múltiplos aquários por vídeo:
+
+| Modo | Descrição | Passagens de Vídeo |
+|------|-----------|-------------------|
+| **Paralelo** (padrão) | Ambos aquários processados simultaneamente | 1 |
+| **Sequencial** | Cada aquário processado separadamente | 2 |
+
+**Track ID Convention:**
+- `Global ID = aquarium_id * 1000 + local_track_id`
+- Aquário 0: IDs 0-999
+- Aquário 1: IDs 1000-1999
+- Aquário 2: IDs 2000-2999
+
+**Estrutura de saída:**
+```
+video_results/
+├── aquarium_0/
+│   ├── 3_CoordMovimento_{video}.parquet
+│   ├── 4_Relatorio_{video}_aq0.docx
+│   └── {video}_aq0_summary.parquet
+└── aquarium_1/
+    └── (mesma estrutura)
+```
 
 ---
 
@@ -344,6 +392,10 @@ Todas as coordenadas gravadas já estão no **espaço warped** (vide `docs/COORD
 | **Como suprimir avisos de ROIs diferentes em relatórios unificados?** | Defina `ui_features.suppress_roi_mismatch_warning: true` em `config.local.yaml` se você entende as implicações de mesclar dados de vídeos com ROIs diferentes. |
 | **O que significa `has_data` na seleção de vídeos?** | Indica que já existe `3_CoordMovimento_<video>.parquet` e permite decidir entre reaproveitar ou reprocessar. |
 | **Como adicionar novos detectores?** | Implemente `DetectorPlugin` em `plugins/`, registre em `plugins/__init__.py` e forneça `process_frame()` + `draw_overlay()`. |
+| **O que é Max Speed e por que foi adicionado?** (v3.2) | `velocidade_maxima_cm_s` representa a velocidade instantânea máxima, útil para identificar comportamento de burst swimming. |
+| **Por que os dados de geotaxis estão vazios no relatório unificado?** | Atualize para v3.2+. Versões anteriores tinham um bug onde `behavioral_config` não era armazenado corretamente no Reporter. |
+| **Qual a diferença entre processamento Paralelo e Sequencial multi-aquário?** | Paralelo (padrão) processa ambos aquários em 1 passagem de vídeo. Sequencial processa cada aquário separadamente em 2 passagens, usando menos memória. |
+| **Por que a zona aparece como "Zona 1" em vez de "Zone 0"?** | A partir da v3.2, zonas são exibidas com nomenclatura 1-indexada para usuários ("Zona 1 - Fundo") enquanto internamente permanecem 0-indexadas. |
 
 ---
 

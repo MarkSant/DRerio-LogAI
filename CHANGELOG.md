@@ -65,7 +65,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Displays detailed validation warnings (teleportation, gaps, arena violations) directly in the document.
 - **UI**: Removed redundant blank pages between trajectory and heatmap figures for a more compact layout.
 
+#### Max Speed Metric (Dec 28, 2025)
+- **NEW**: Added `velocidade_maxima_cm_s` / `max_speed_cm_s` metric to behavioral analysis
+- Calculated alongside mean, median, and std_dev in `BehavioralAnalyzer.get_velocity_stats()`
+- Included in summary parquets, Excel reports, and Word reports
+- Added to comparative boxplots in project-level reports
+
+#### Enhanced Column Naming in Word Reports (Dec 28, 2025)
+- **IMPROVEMENT**: Word report summary table now uses `DISPLAY_COLUMN_MAPPING` for proper metric formatting
+- "max_speed_cm_s" → "Max Speed (cm/s)" instead of generic "Max Speed Cm S"
+- All metrics with units now display correctly formatted: "(cm)", "(cm/s)", "(s)", "(count)", etc.
+
+#### Geotaxis Zone Naming Improvements (Dec 28, 2025)
+- **IMPROVEMENT**: Geotaxis zones now display with 1-indexed user-friendly names
+- "geotaxis_zone_0_pct" → "Geotaxis Zona 1 - Fundo (%)"
+- "geotaxis_zone_1_pct" → "Geotaxis Zona 2 (%)"
+- Applied in both Word reports and unified Excel reports
+- Fallback logic ensures proper naming even when height/num_zones metadata is unavailable
+
 ### 🔴 Bug Fixes
+
+#### Geotaxis Data Missing in Unified Reports Fix (Dec 28, 2025)
+- **CRITICAL**: Fixed geotaxis zone data appearing empty in unified Excel reports
+- **Root Cause**: In legacy Reporter constructor, `behavioral_config` parameter was passed to `run_full_analysis()` but never stored as `self.behavioral_config`. The fallback logic then set it to empty dict `{}`, causing `geotaxis_enabled` to always be `False`
+- **Solution**: Changed `reporter.py:280-282` to store `behavioral_config` parameter before creating tidy_data
+- **Impact**: All geotaxis zone percentages now correctly appear in unified reports
+
+#### Subject Identification in Unified Reports Fix (Dec 28, 2025)
+- **HIGH**: Fixed unified reports not identifying which subject is in each row
+- **Solution**: `_enrich_unified_report_metadata()` now always adds identification columns (group, subject, day, experiment_id) with "N/A" fallback
+- **Column Ordering**: Priority columns (group, subject, day, experiment_id, aquarium_id) now appear first in unified reports
+
+#### Batch Mode Dialog Suppression Fix (Dec 28, 2025)
+- **MEDIUM**: Fixed individual dialogs appearing between videos during batch processing
+- Added `_is_batch_processing()` check in `_finalize_report_generation()`
+- Dialogs now only appear at the end of the batch, not after each video
+
+#### NameError in Project View Manager Fix (Dec 28, 2025)
+- **LOW**: Fixed `NameError: video_paths not defined` in `project_view_manager.py:865`
+- Removed erroneous `return video_paths` line that referenced undefined variable
+
+#### Recorder Log Level Fix (Dec 28, 2025)
+- **LOW**: Changed `recorder.flush.success` log from INFO to DEBUG
+- Prevents terminal spam during analysis; message now only appears in log file
 
 #### Simultaneous Multi-Aquarium Report Generation Fix
 - **CRITICAL**: Fixed issue where simultaneous 2-aquarium analysis in single-video mode would stop after tracking without generating Word/Excel reports.

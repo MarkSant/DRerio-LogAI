@@ -20,7 +20,7 @@ from docx.shared import Inches
 from docxtpl import DocxTemplate
 
 from zebtrack.analysis.analysis_service import AnalysisService
-from zebtrack.analysis.data_transformer import DataTransformer
+from zebtrack.analysis.data_transformer import DISPLAY_COLUMN_MAPPING, DataTransformer
 from zebtrack.analysis.models import AnalysisResult
 from zebtrack.analysis.roi import ROI
 from zebtrack.analysis.visualization_generator import VisualizationGenerator
@@ -276,11 +276,10 @@ class Reporter:
         self.validation_stats = self.report.get("validacao", {}).get("estatisticas", {})
 
         # Initialize data transformer and visualization generator
-        # Initialize data transformer and visualization generator
         self.data_transformer = DataTransformer()
-        # Ensure behavioral_config is available (legacy path fallback)
-        if not hasattr(self, "behavioral_config"):
-            self.behavioral_config = {}
+        # Store behavioral_config from parameter (critical for geotaxis zone calculations)
+        # This MUST be set before create_tidy_dataframe is called
+        self.behavioral_config = behavioral_config if behavioral_config else {}
 
         self.viz_generator = VisualizationGenerator(
             b_analyzer=self.b_analyzer,
@@ -454,10 +453,12 @@ class Reporter:
         if num_zones == 0 and hasattr(self, "behavioral_config"):
             num_zones = int(self.behavioral_config.get("geotaxis_num_zones", 0) or 0)
 
-        if height_cm > 0 and num_zones > 0:
-            data_to_export = self.data_transformer.rename_geotaxis_columns(
+        if format in ("excel", "csv"):
+            # Apply display formatting (renaming + geotaxis) for human-readable formats
+            data_to_export = self.data_transformer.prepare_for_display(
                 data_to_export, height_cm, num_zones
             )
+        # For parquet, we keep internal names (do nothing)
 
         if format == "excel":
             data_to_export.to_excel(output_path, index=False, engine="openpyxl")
@@ -576,6 +577,23 @@ class Reporter:
 
         if height_cm > 0 and num_zones > 0:
             df = self.data_transformer.rename_geotaxis_columns(df, height_cm, num_zones)
+        else:
+            # Fallback: rename geotaxis columns generically if dimensions unavailable
+            # Use 1-indexed zone numbers for user display (Zone 0 internal -> Zone 1 display)
+            rename_geo = {}
+            for col in df.columns:
+                if col.startswith("geotaxis_zone_") and col.endswith("_pct"):
+                    try:
+                        idx = int(col.split("_")[2])
+                        # Zone 0 = bottom, display as "Zona 1 (Fundo)"
+                        if idx == 0:
+                            rename_geo[col] = "Geotaxis Zona 1 - Fundo (%)"
+                        else:
+                            rename_geo[col] = f"Geotaxis Zona {idx + 1} (%)"
+                    except (IndexError, ValueError):
+                        pass
+            if rename_geo:
+                df = df.rename(columns=rename_geo)
 
         table = document.add_table(rows=1, cols=2)
         table.style = "Table Grid"
@@ -584,7 +602,11 @@ class Reporter:
 
         for column_name in df.columns:
             row_cells = table.add_row().cells
-            formatted_name = column_name.replace("_", " ").title()
+            # Use DISPLAY_COLUMN_MAPPING for proper formatting (e.g., "Max Speed (cm/s)")
+            # Fall back to title case only if no mapping exists
+            formatted_name = DISPLAY_COLUMN_MAPPING.get(
+                column_name, column_name.replace("_", " ").title()
+            )
             row_cells[0].text = formatted_name
 
             value = df[column_name].iloc[0]
@@ -776,7 +798,8 @@ class Reporter:
             document.add_paragraph(
                 "Definitions:\n"
                 "- Temporal Gaps: Frames where the fish was not detected (occlusion/error).\n"
-                "- Missing Frames: Total frames skipped if using processing_interval > 1 (expected behavior).\n"
+                "- Missing Frames: Total frames skipped if using processing_interval > 1 "
+                "(expected behavior).\n"
                 "- Max Gap: The largest consecutive sequence of lost frames."
             )
             for warning in self.validation_warnings:
@@ -1038,40 +1061,88 @@ class Reporter:
             # Sort parameters for consistent display
             for param_name, param_value in sorted(detector_params.items()):
                 row_cells = table.add_row().cells
-                # Format parameter name (convert snake_case to Title Case)
-                formatted_name = param_name.replace("_", " ").title()
+                # Format parameter name (use display mapping if available, else generic title case)
+                formatted_name = DISPLAY_COLUMN_MAPPING.get(
+                    param_name, param_name.replace("_", " ").title()
+                )
                 row_cells[0].text = formatted_name
+
                 # Format value (handle booleans, numbers, strings)
                 if isinstance(param_value, bool):
                     row_cells[1].text = "Yes" if param_value else "No"
-                elif isinstance(param_value, (int, float)):
-                    row_cells[1].text = f"{param_value}"
+                elif isinstance(param_value, float):
+                    row_cells[1].text = f"{param_value:.2f}"
                 else:
                     row_cells[1].text = str(param_value)
 
             document.add_page_break()
 
         document.add_heading("Descriptive Statistics by Group", level=2)
-        if "total_distance_cm" in aggregated_df.columns:
-            desc_stats = aggregated_df.groupby("group_id")["total_distance_cm"].agg(
-                ["mean", "std", "count"]
-            )
-            document.add_paragraph("Statistics for Total Distance Traveled (cm):")
+        # Helper list of metrics to include in the report
+        metrics_of_interest = [
+            "total_distance_cm",
+            "mean_speed_cm_s",
+            "max_speed_cm_s",
+            "sharp_turns_count",
+            "total_roi_entries",
+            "geotaxis_bottom_zones_pct",  # Include general geotaxis if available
+            "thigmotaxis_time_near_wall_pct",
+        ]
+
+        # Add dynamic Geotaxis zone columns if present
+        for col in aggregated_df.columns:
+            if col.startswith("geotaxis_zone_") and col.endswith("_pct"):
+                metrics_of_interest.append(col)
+            elif (
+                "Mean Speed in" in col or "Time in" in col
+            ):  # Handle dynamic ROI columns if already renamed (unlikely in raw but checking) or raw ROI columns
+                pass
+
+        # Filter metrics that actually exist in the dataframe
+        available_metrics = [m for m in metrics_of_interest if m in aggregated_df.columns]
+
+        # Also include any numeric columns that appear to be ROI metrics or Geotaxis zones from raw data
+        # (The aggregated_df here comes from Parquet so it has raw names)
+        for col in aggregated_df.columns:
+            if col not in available_metrics:
+                if (
+                    (col.startswith("time_in_") and "_s" in col)
+                    or (col.startswith("entries_in_"))
+                    or (col.startswith("geotaxis_zone_") and "_pct" in col)
+                ):
+                    if col not in available_metrics:
+                        available_metrics.append(col)
+
+        if not available_metrics:
+            document.add_paragraph("No metrics available for descriptive statistics.")
+
+        for metric in sorted(available_metrics):
+            # Calculate stats
+            desc_stats = aggregated_df.groupby("group_id")[metric].agg(["mean", "std", "count"])
+
+            # Get display name
+            display_name = DISPLAY_COLUMN_MAPPING.get(metric)
+            if not display_name:
+                # Try dynamic mapping
+                display_name = DataTransformer()._translate_english_to_display(metric)
+
+            document.add_paragraph(f"Statistics for {display_name}:", style="Heading 3")
+
             table = document.add_table(rows=1, cols=len(desc_stats.columns) + 1)
             table.style = "Table Grid"
             hdr_cells = table.rows[0].cells
-            hdr_cells[0].text = "group_id"
+            hdr_cells[0].text = DISPLAY_COLUMN_MAPPING.get("group_id", "Group")
+
             for i, col_name in enumerate(desc_stats.columns):
-                hdr_cells[i + 1].text = col_name
+                hdr_cells[i + 1].text = col_name.capitalize()
+
             for index, row in desc_stats.iterrows():
                 row_cells = table.add_row().cells
                 row_cells[0].text = str(index)
                 for i, value in enumerate(row):
                     row_cells[i + 1].text = f"{value:.2f}"
-        else:
-            document.add_paragraph(
-                "Total distance metric not available for the aggregated dataset."
-            )
+
+            document.add_paragraph("")  # Spacing
         document.add_page_break()
         document.add_heading("Comparative Plots", level=2)
 
@@ -1086,7 +1157,8 @@ class Reporter:
 
         for metric in metrics_for_boxplot:
             if metric in aggregated_df.columns:
-                title = f"Comparison of {metric.replace('_', ' ').title()}"
+                display_name = DISPLAY_COLUMN_MAPPING.get(metric, metric.replace("_", " ").title())
+                title = f"Comparison of {display_name}"
                 boxplot_fig = VisualizationGenerator.generate_comparative_boxplot(
                     aggregated_df,
                     metric,
