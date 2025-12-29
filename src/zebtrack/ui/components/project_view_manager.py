@@ -100,6 +100,8 @@ class ProjectViewManager:
             self.gui.event_bus.subscribe(
                 "processing_reports.item_right_click", self._on_processing_reports_right_click
             )
+            # User Request 2025-12-29: Delete button for unified reports
+            self.gui.event_bus.subscribe("reports.delete_unified", self._delete_all_unified_reports)
 
         log.debug(
             "project_view_manager.event_subscriptions_setup",
@@ -1185,6 +1187,62 @@ class ProjectViewManager:
 
         self._handle_report_file_node({"file_path": str(latest_file)})
 
+    def _delete_all_unified_reports(self, data: dict = None) -> None:
+        """
+        Delete the entire unified_reports directory.
+        Subscribed to event 'reports.delete_unified'.
+        """
+        pm = self.gui.controller.project_manager
+        if not pm.project_path:
+            return
+
+        import os
+        import shutil
+        import stat
+        import time
+
+        unified_dir = os.path.join(pm.project_path, "unified_reports")
+
+        def on_rm_error(func, path, exc_info):
+            """Handler to clear read-only/locked files."""
+            try:
+                os.chmod(path, stat.S_IWRITE)
+                func(path)
+            except Exception:
+                pass
+
+        if os.path.exists(unified_dir):
+            success = False
+            last_error = None
+
+            # Retry loop (3 attempts, 0.5s delay) for transient locks
+            for _ in range(3):
+                try:
+                    shutil.rmtree(unified_dir, onerror=on_rm_error)
+                    success = True
+                    break
+                except Exception as e:
+                    last_error = e
+                    time.sleep(0.5)
+
+            if success:
+                log.info("project.delete_unified.success", path=unified_dir)
+                self.gui.show_info("Sucesso", "Todos os relatórios unificados foram apagados.")
+
+                # Force widget update to verify buttons are disabled
+                if hasattr(self.gui, "processing_reports_widget"):
+                    self.gui.processing_reports_widget._update_button_states(pm.project_path)
+            else:
+                log.warning("project.delete_unified.failed", error=str(last_error))
+
+                msg = "Não foi possível apagar a pasta.\nVerifique se algum arquivo está aberto."
+                if last_error and "OneDrive" in str(unified_dir):
+                    msg += "\n\nO OneDrive pode estar bloqueando arquivos. Tente novamente em instantes."
+
+                self.gui.show_error("Erro ao Apagar", f"{msg}\n\nErro: {last_error}")
+        else:
+            self.gui.show_info("Aviso", "Não havia relatórios unificados para apagar.")
+
     def on_processing_reports_generate_partial(self) -> None:
         """Handle partial report generation from the unified tab."""
         from zebtrack.ui.events import Events
@@ -1481,43 +1539,51 @@ class ProjectViewManager:
                                 multi_outputs = canonical_entry.get("multi_aquarium_outputs")
                         except Exception:
                             pass
-                    
+
                     if multi_outputs and isinstance(multi_outputs, dict) and len(multi_outputs) > 0:
                         # Normalize keys
                         normalized_outputs: dict[int, dict] = {}
                         for raw_key, raw_output in multi_outputs.items():
                             aq_digits = "".join(ch for ch in str(raw_key) if ch.isdigit())
-                            if not aq_digits: continue
+                            if not aq_digits:
+                                continue
                             try:
                                 aq_id_int = int(aq_digits)
                                 normalized_outputs[aq_id_int] = dict(raw_output)
-                            except Exception: continue
+                            except Exception:
+                                continue
 
-                        # If this is an expanded multi-subject row, only show the artifact node 
+                        # If this is an expanded multi-subject row, only show the artifact node
                         # for the SPECIFIC aquarium this row represents (if matched)
                         # otherwise show all (for unexpanded videos)
                         for aq_id, aq_output in sorted(normalized_outputs.items()):
                             # Filter if we are in an expanded row
                             if is_multi_subject_entry:
                                 # Match aquarium_id or use index as fallback
-                                subject_entries = video.get("metadata", {}).get("subject_entries", [])
+                                subject_entries = video.get("metadata", {}).get(
+                                    "subject_entries", []
+                                )
                                 if multi_subject_index < len(subject_entries):
                                     entry = subject_entries[multi_subject_index]
                                     row_aq_id = entry.get("aquarium_id")
-                                    # Fallback: if aquarium_id is missing but we have entries, 
+                                    # Fallback: if aquarium_id is missing but we have entries,
                                     # assume index 0 is aq 0, etc.
                                     if row_aq_id is None:
                                         row_aq_id = multi_subject_index
-                                    
+
                                     # Secondary filter: check subject_id match if available
                                     aq_subject = aq_output.get("subject_id")
                                     row_subject = entry.get("subject")
-                                    
+
                                     if row_aq_id is not None and aq_id != row_aq_id:
                                         # If IDs don't match, maybe subjects do?
-                                        if not (aq_subject and row_subject and str(aq_subject) == str(row_subject)):
+                                        if not (
+                                            aq_subject
+                                            and row_subject
+                                            and str(aq_subject) == str(row_subject)
+                                        ):
                                             continue
-                            
+
                             aq_results_dir = aq_output.get("results_dir")
                             aq_group = aq_output.get("group", "")
                             aq_subject = aq_output.get("subject_id", "")

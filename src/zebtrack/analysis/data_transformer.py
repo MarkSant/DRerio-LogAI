@@ -21,11 +21,9 @@ __all__ = ["DataTransformer"]
 
 log = structlog.get_logger(__name__)
 
-# Color matching threshold for RGB space (30² in RGB space, 0-255 range)
-# Note: Using Euclidean distance in RGB space is not perceptually uniform.
-# Small changes in blue are more noticeable than similar changes in green.
-# For better color matching, consider LAB or HSV color spaces in the future.
-RGB_COLOR_MATCH_THRESHOLD = 900
+# Color matching threshold for RGB space (50² in RGB space, 0-255 range)
+# Increased to catch more variations (e.g. from color pickers)
+RGB_COLOR_MATCH_THRESHOLD = 2500
 
 # Column name mappings for Portuguese → English translation
 COLUMN_MAPPING = {
@@ -161,6 +159,13 @@ def _rgb_to_color_name(rgb_tuple):
         (128, 128, 128): "Gray",
         (0, 0, 0): "Black",
         (255, 255, 255): "White",
+        # Extended colors to catch variations
+        (139, 0, 0): "Dark Red",
+        (0, 100, 0): "Dark Green",
+        (0, 0, 139): "Dark Blue",
+        (255, 215, 0): "Gold",
+        (144, 238, 144): "Light Green",
+        (173, 216, 230): "Light Blue",
     }
 
     # Find closest color

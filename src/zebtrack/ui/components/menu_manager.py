@@ -391,10 +391,19 @@ class MenuManager:
         self.gui.set_status(status_message)
 
         if self.gui.event_bus_v2:
+            # Refresh Project Views (Overview + Reports)
             self.gui.event_bus_v2.publish(
                 Event(
                     type=UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED,
                     data={"reason": status_message, "append_summary": True, "immediate": True},
+                    source="MenuManager.handle_overview_asset_removal",
+                )
+            )
+            # Refresh Video Tree (Zone Configuration)
+            self.gui.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data={},
                     source="MenuManager.handle_overview_asset_removal",
                 )
             )
@@ -417,39 +426,87 @@ class MenuManager:
             callbacks: Dictionary of callback functions
         """
         menu = Menu(self.gui.root, tearoff=0)
+        pm = self.gui.controller.project_manager
 
-        # Map column ID to asset type
-        # Columns: #0=Tree/Name, #1=Arena, #2=ROIs, #3=Trajectory, #4=Summary
+        # Asset Availability Checks
+        has_arena = pm.has_arena_data(video_path)
+        has_rois = pm.has_roi_data(video_path)
+        has_trajectory = pm.has_trajectory_data(video_path)
+        has_summary = pm.has_summary_data(video_path)
+
+        # Map column ID to asset type for "Quick Action"
         column_map = {
             "#1": "arena",
             "#2": "rois",
             "#3": "trajectory",
             "#4": "summary",
         }
-        asset_type = column_map.get(column_id)
+        clicked_asset = column_map.get(column_id)
 
-        # 1. Option to delete specific asset (if clicked on asset column)
-        if asset_type:
-            asset_labels = {
-                "arena": "Apagar Arena",
-                "rois": "Apagar ROIs",
-                "trajectory": "Apagar Trajetória",
-                "summary": "Apagar Sumário",
+        # 1. Targeted Delete (if clicked specific column and asset exists)
+        if clicked_asset:
+            exists_map = {
+                "arena": has_arena,
+                "rois": has_rois,
+                "trajectory": has_trajectory,
+                "summary": has_summary,
             }
-            label = asset_labels.get(asset_type, f"Apagar {asset_type}")
-            menu.add_command(
-                label=f"🗑️ {label}",
-                command=lambda: callbacks["delete_asset"](video_path, asset_type),
+            if exists_map.get(clicked_asset):
+                labels = {
+                    "arena": "Apagar Arena",
+                    "rois": "Apagar ROIs",
+                    "trajectory": "Apagar Trajetória",
+                    "summary": "Apagar Sumário",
+                }
+                label = labels.get(clicked_asset, f"Apagar {clicked_asset}")
+                menu.add_command(
+                    label=f"🗑️ {label} (Selecionado)",
+                    command=lambda: callbacks["delete_asset"](video_path, clicked_asset),
+                )
+                menu.add_separator()
+
+        # 2. General Delete Options (Available if asset exists)
+        delete_menu = Menu(menu, tearoff=0)
+        has_any_delete = False
+
+        if has_arena:
+            delete_menu.add_command(
+                label="🏛️ Apagar Arena",
+                command=lambda: callbacks["delete_asset"](video_path, "arena"),
             )
+            has_any_delete = True
+
+        if has_rois:
+            delete_menu.add_command(
+                label="📍 Apagar ROIs",
+                command=lambda: callbacks["delete_asset"](video_path, "rois"),
+            )
+            has_any_delete = True
+
+        if has_trajectory:
+            delete_menu.add_command(
+                label="📈 Apagar Trajetória",
+                command=lambda: callbacks["delete_asset"](video_path, "trajectory"),
+            )
+            has_any_delete = True
+
+        if has_summary:
+            delete_menu.add_command(
+                label="📝 Apagar Relatórios",
+                command=lambda: callbacks["delete_asset"](video_path, "summary"),
+            )
+            has_any_delete = True
+
+        if has_any_delete:
+            menu.add_cascade(label="🗑️ Apagar Item Específico...", menu=delete_menu)
             menu.add_separator()
 
-        # 2. Option to delete all processing data (always available)
+        # 3. Bulk Actions
         menu.add_command(
             label="🧹 Apagar Todos os Dados de Processamento",
             command=lambda: callbacks["delete_all_processing"](video_path),
         )
 
-        # 3. Option to delete video from project (always available)
         menu.add_command(
             label="❌ Remover Vídeo do Projeto",
             command=lambda: callbacks["delete_video"](video_path),

@@ -2037,12 +2037,13 @@ class ProjectManager:
         """Resolve raw regex value to match project group names (e.g., '1' -> 'G01')."""
         if not regex_value or not available_groups:
             return regex_value or "Sem_Grupo"
-            
+
         if regex_value in available_groups:
             return regex_value
 
         # Try numeric matching
         import re
+
         regex_digits = re.search(r"\d+", str(regex_value))
         if regex_digits:
             try:
@@ -2084,6 +2085,7 @@ class ProjectManager:
             patterns = wizard_meta.get("custom_regex_patterns")
             if patterns and isinstance(patterns, dict) and video_path:
                 from zebtrack.ui.wizard.models import MultiAquariumData
+
                 try:
                     combined = MultiAquariumData.build_combined_regex_pattern(
                         group_pattern=patterns.get("group_pattern"),
@@ -2092,9 +2094,7 @@ class ProjectManager:
                     )
                     if combined:
                         temp_config = MultiAquariumData(
-                            enabled=True,
-                            regex_pattern=combined,
-                            aquarium_configs=[]
+                            enabled=True, regex_pattern=combined, aquarium_configs=[]
                         )
                         filename = Path(video_path).name
                         matches = temp_config.extract_metadata(filename)
@@ -2102,15 +2102,21 @@ class ProjectManager:
                             # Use first match as primary metadata for the video file
                             match = matches[0]
                             available_groups = self.get_available_groups()
-                            
+
                             for key in ("group", "day", "subject"):
                                 val = match.get(key)
                                 if val and not metadata.get(key):
                                     if key == "group":
-                                        metadata[key] = self.resolve_group_name(val, available_groups)
+                                        metadata[key] = self.resolve_group_name(
+                                            val, available_groups
+                                        )
                                     else:
                                         metadata[key] = val
-                            log.info("project.metadata.derived_from_regex", video=filename, metadata=metadata)
+                            log.info(
+                                "project.metadata.derived_from_regex",
+                                video=filename,
+                                metadata=metadata,
+                            )
                 except Exception as e:
                     log.debug("project.metadata.regex_derivation_failed", error=str(e))
 
@@ -2501,11 +2507,11 @@ class ProjectManager:
         for aq_id, output_info in outputs_by_aquarium.items():
             # Use string keys for JSON compatibility (aquarium_id can be int)
             aq_key = str(aq_id)
-            
+
             # Standardize parquet paths to POSIX
             pf_orig = output_info.get("parquet_files", {})
             pf_safe = {k: Path(v).as_posix() if v else None for k, v in pf_orig.items()}
-            
+
             video_entry["multi_aquarium_outputs"][aq_key] = {
                 "results_dir": Path(output_info.get("results_dir", "")).as_posix(),
                 "parquet_files": pf_safe,
@@ -2519,9 +2525,13 @@ class ProjectManager:
 
         # Update status if all aquariums have trajectory data
         # Note: We should check against expected num_aquariums if available
-        expected_aq_count = video_entry.get("num_aquariums", len(video_entry["multi_aquarium_outputs"]))
-        
-        all_have_trajectory = len(video_entry["multi_aquarium_outputs"]) >= expected_aq_count and all(
+        expected_aq_count = video_entry.get(
+            "num_aquariums", len(video_entry["multi_aquarium_outputs"])
+        )
+
+        all_have_trajectory = len(
+            video_entry["multi_aquarium_outputs"]
+        ) >= expected_aq_count and all(
             aq_output.get("parquet_files", {}).get("trajectory")
             for aq_output in video_entry["multi_aquarium_outputs"].values()
         )
@@ -2853,16 +2863,20 @@ class ProjectManager:
             self.metadata = None
             log.info("project.metadata.not_found", path=metadata_path)
 
-    def get_metadata_for_experiment(self, experiment_id: str | None) -> dict:
+    def get_metadata_for_experiment(
+        self, experiment_id: str | None, video_path: str | None = None
+    ) -> dict:
         """
-        Retrieve a dictionary of metadata for a given experiment ID.
+        Retrieve a dictionary of metadata for a given experiment ID or video path.
 
-        It first checks the loaded metadata.csv file. If the experiment is not
-        found, it attempts to parse the experiment_id using a regex as a fallback.
+        Priority:
+        1. metadata.csv (if loaded)
+        2. Internal Project Data (project_config.json 'videos' hierarchy) - NEW
+        3. Regex parsing of experiment_id
 
         Args:
             experiment_id: The ID of the experiment (e.g., the video file stem).
-                          Can be None for projects without hierarchy.
+            video_path: Absolute path to the video file (optional but recommended for robust lookup).
 
         Returns:
             A dictionary of metadata for that experiment.
@@ -2875,17 +2889,62 @@ class ProjectManager:
             )
             return {}
 
-        # First, try to find the data in the metadata.csv file
+        meta = {}
+
+        # 1. Try to find the data in the metadata.csv file
         if self.metadata is not None and "experiment_id" in self.metadata.columns:
             row = self.metadata[self.metadata["experiment_id"] == experiment_id]
             if not row.empty:
-                return row.iloc[0].to_dict()
+                meta = row.iloc[0].to_dict()
+                # If we found it in CSV, we assume it's the gold standard.
+                # However, let's allow project data to fill GAPS if needed?
+                # For now, treat CSV as authoritative.
+                if meta.get("group") or meta.get("group_id"):
+                    return meta
 
-        # Fallback: Try to extract from experiment_id using regex
+        # 2. Internal Project Data Lookup (if video_path provided)
+        if video_path and self.project_data:
+            videos_map = self.project_data.get("videos", {})
+            # Normalized lookup
+            norm_path = os.path.normpath(video_path)
+
+            # Try exact match, then normalized match
+            video_info = videos_map.get(video_path) or videos_map.get(norm_path)
+
+            # Try matching by filename if full path fails (common if paths move)
+            if not video_info:
+                filename = os.path.basename(norm_path)
+                for vpath, vdata in videos_map.items():
+                    if os.path.basename(vpath) == filename:
+                        video_info = vdata
+                        break
+
+            if video_info:
+                # Extract hierarchical data
+                if "day" in video_info and "day" not in meta:
+                    meta["day"] = video_info["day"]
+
+                # Check group/group_id
+                info_group = video_info.get("group") or video_info.get("group_id")
+                if info_group and not (meta.get("group") or meta.get("group_id")):
+                    meta["group"] = info_group
+
+                # Check subject/subject_id
+                info_subj = video_info.get("subject") or video_info.get("subject_id")
+                if info_subj is not None and not (
+                    meta.get("subject") or meta.get("subject_id") is not None
+                ):
+                    meta["subject"] = info_subj
+
+                # Return if we have sufficient info now
+                if meta.get("group") or meta.get("group_id"):
+                    return meta
+
+        # 3. Fallback: Try to extract from experiment_id using regex
         log.info(
             "metadata.fallback.attempt",
             experiment_id=experiment_id,
-            reason="Not found in metadata.csv",
+            reason="Not found in metadata.csv or project structure",
         )
         pattern = re.compile(r"D(\d+)_G(.+)_S(\d+)")
         match = pattern.match(experiment_id)
@@ -2894,18 +2953,21 @@ class ProjectManager:
                 day = int(match.group(1))
                 group = match.group(2)
                 subject = int(match.group(3))
-                log.info(
-                    "metadata.fallback.success",
-                    day=day,
-                    group=group,
-                    subject=subject,
-                )
-                return {"day": day, "group": group, "subject": subject}
+
+                # Merge into existing meta (don't overwrite if present)
+                if "day" not in meta:
+                    meta["day"] = day
+                if "group" not in meta:
+                    meta["group"] = group
+                if "subject" not in meta:
+                    meta["subject"] = subject
+
+                return meta
             except (ValueError, IndexError):
                 log.warning("metadata.fallback.parse_error", experiment_id=experiment_id)
 
-        # If neither method works, return an empty dictionary
-        return {}
+        # Return whatever we gathered (could be partial or empty)
+        return meta
 
     def save_detector_state(self, detector_config: dict) -> bool:
         """

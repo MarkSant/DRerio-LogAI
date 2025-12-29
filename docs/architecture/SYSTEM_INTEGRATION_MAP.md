@@ -220,7 +220,8 @@ Understanding who holds what references prevents "AttributeError" and circular d
 
 ### 4.1. Dependency Container (`MainViewModelDependencies`)
 
-* **Root Object:** Passed to `MainViewModel` and `ApplicationBootstrapper`.
+- **Root Object:** Passed to `MainViewModel` and `ApplicationBootstrapper`.
+
 - **Contains:**
   - `event_bus`: The communication channel.
   - `cancel_event`: **Shared** `threading.Event` for global cancellation.
@@ -232,9 +233,10 @@ Understanding who holds what references prevents "AttributeError" and circular d
 
 ### 4.2. ProcessingCoordinator
 
-* **Owns:**
+- **Owns:**
   - `ProcessingWorker` (The background process).
   - `ProcessingContext` (Config for the worker).
+
 - **Accesses:**
   - `ProjectManager` (Read/Write project data).
   - `DetectorService` (To configure detectors).

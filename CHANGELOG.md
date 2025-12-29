@@ -12,31 +12,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Multi-Aquarium v2 Improvements (Phase 1-5)
 
 ##### Phase 1: Foundation Enhancements
+
 - **ROI Cropping**: `_crop_aquarium_region()` for per-aquarium frame extraction
 - **Uncertainty Metrics**: Added `uncertainty` and `bbox_iou` columns to Parquet output
 - **Export Formats**: New `export_feather()`, `export_r_script()`, `export_python_script()` in Reporter
 - **Thigmotaxis**: Added thigmotaxis metrics calculation in DataTransformer
 
 ##### Phase 2: Performance Optimizations
+
 - **Parallel Detection**: `detect_partitioned_parallel()` with ThreadPoolExecutor (~30-40% speedup)
 - **Batch Inference**: `detect_batch()` for offline multi-frame batch processing
 - **Metrics Cache**: Verified MetricsCache for analysis result caching
 
 ##### Phase 3: UI/UX Improvements
+
 - **Side-by-Side Preview**: `create_side_by_side_preview()` in CanvasManager for aquarium comparison
 - **Enhanced Validation**: `validate_multi_aquarium_config()` now returns warnings (polygon overlap, small areas)
 
 ##### Phase 4: Robustness
+
 - **Tracking Validation**: Multi-aquarium track ID validation (ID bounds, large jumps)
 - **Gap Detection**: Per-aquarium frame coverage analysis with gap statistics
 - **Error Recovery**: Graceful handling when one aquarium fails in parallel detection
 
 ##### Phase 5: Event System
+
 - **New Events**: `ZONE_MULTI_AUTO_DETECT_SUCCESS`, `ZONE_MULTI_AUTO_DETECT_FAILED`, `ZONE_AQUARIUM_CONFIG_UPDATED`
 - **Multi-Auto-Detect Handler**: `ProcessingCoordinator._handle_multi_auto_detect()`
 - **Config Update Handler**: `ProjectLifecycleCoordinator._handle_aquarium_config_updated()`
 
 #### Zone Copy/Paste/Delete Context Menu
+
 - **NEW**: Right-click context menu on video tree in Zone Configuration tab
 - Copy zones from one video and paste to others (arena + all ROIs)
 - Delete zones option to clear all zones from a video
@@ -44,110 +50,143 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Uses EventBusV2 `VIDEO_TREE_REFRESH_REQUESTED` for consistent UI updates
 
 #### Finish Drawing Button
+
 - **NEW**: Added "✓ Finalizar Desenho" button for completing polygons
 - Alternative to double-click for users who prefer button interaction
 - Visible in interactive buttons frame during polygon drawing mode
 
 #### Improved Zone Drawing Colors
+
 - **UI**: Changed zone drawing colors for better visibility on video backgrounds
 - Cyan (#00FFFF) → Dark Teal (#008B8B) for arena outlines
 - Yellow (#FFFF00) → Goldenrod (#DAA520) for interactive polygons/elastic lines
 - Better contrast and readability on light-colored videos
 
 #### Drawing Flickering Fix
+
 - **UI**: Added 16ms debounce (~60fps) to `on_canvas_motion()` in event_handler.py
 - Reduces visual flickering during polygon drawing
 - Smoother elastic line animation while moving mouse
 
 #### Improved Word Reports (Quality & Robustness)
+
 - **NEW**: Added "Appendix: Trajectory Validation" section to Word reports.
 - Includes technical summary table: Total Frames, Frame Range, Temporal Coverage (%), Unique Track IDs, and Gap counts.
 - Displays detailed validation warnings (teleportation, gaps, arena violations) directly in the document.
 - **UI**: Removed redundant blank pages between trajectory and heatmap figures for a more compact layout.
 
 #### Max Speed Metric (Dec 28, 2025)
+
 - **NEW**: Added `velocidade_maxima_cm_s` / `max_speed_cm_s` metric to behavioral analysis
 - Calculated alongside mean, median, and std_dev in `BehavioralAnalyzer.get_velocity_stats()`
 - Included in summary parquets, Excel reports, and Word reports
 - Added to comparative boxplots in project-level reports
 
 #### Enhanced Column Naming in Word Reports (Dec 28, 2025)
+
 - **IMPROVEMENT**: Word report summary table now uses `DISPLAY_COLUMN_MAPPING` for proper metric formatting
 - "max_speed_cm_s" → "Max Speed (cm/s)" instead of generic "Max Speed Cm S"
 - All metrics with units now display correctly formatted: "(cm)", "(cm/s)", "(s)", "(count)", etc.
 
 #### Geotaxis Zone Naming Improvements (Dec 28, 2025)
+
 - **IMPROVEMENT**: Geotaxis zones now display with 1-indexed user-friendly names
 - "geotaxis_zone_0_pct" → "Geotaxis Zona 1 - Fundo (%)"
 - "geotaxis_zone_1_pct" → "Geotaxis Zona 2 (%)"
 - Applied in both Word reports and unified Excel reports
 - Fallback logic ensures proper naming even when height/num_zones metadata is unavailable
 
+#### Unified Reports Management (Dec 29, 2025)
+
+- **NEW**: Added "Apagar Relatórios Unificados" button to Reports tab
+- Safely deletes the `unified_reports` folder
+- Features robust retry logic for handling OneDrive file locks and Read-Only permissions
+
 ### 🔴 Bug Fixes
 
 #### Geotaxis Data Missing in Unified Reports Fix (Dec 28, 2025)
+
 - **CRITICAL**: Fixed geotaxis zone data appearing empty in unified Excel reports
 - **Root Cause**: In legacy Reporter constructor, `behavioral_config` parameter was passed to `run_full_analysis()` but never stored as `self.behavioral_config`. The fallback logic then set it to empty dict `{}`, causing `geotaxis_enabled` to always be `False`
 - **Solution**: Changed `reporter.py:280-282` to store `behavioral_config` parameter before creating tidy_data
 - **Impact**: All geotaxis zone percentages now correctly appear in unified reports
 
 #### Subject Identification in Unified Reports Fix (Dec 28, 2025)
+
 - **HIGH**: Fixed unified reports not identifying which subject is in each row
 - **Solution**: `_enrich_unified_report_metadata()` now always adds identification columns (group, subject, day, experiment_id) with "N/A" fallback
 - **Column Ordering**: Priority columns (group, subject, day, experiment_id, aquarium_id) now appear first in unified reports
 
 #### Batch Mode Dialog Suppression Fix (Dec 28, 2025)
+
 - **MEDIUM**: Fixed individual dialogs appearing between videos during batch processing
 - Added `_is_batch_processing()` check in `_finalize_report_generation()`
 - Dialogs now only appear at the end of the batch, not after each video
 
 #### NameError in Project View Manager Fix (Dec 28, 2025)
+
 - **LOW**: Fixed `NameError: video_paths not defined` in `project_view_manager.py:865`
 - Removed erroneous `return video_paths` line that referenced undefined variable
 
 #### Recorder Log Level Fix (Dec 28, 2025)
+
 - **LOW**: Changed `recorder.flush.success` log from INFO to DEBUG
 - Prevents terminal spam during analysis; message now only appears in log file
 
 #### Simultaneous Multi-Aquarium Report Generation Fix
+
 - **CRITICAL**: Fixed issue where simultaneous 2-aquarium analysis in single-video mode would stop after tracking without generating Word/Excel reports.
 - `ProcessingCoordinator.on_video_completed` now robustly detects output folders (`aquarium_0`, `aquarium_1`) even when the results directory is calculated dynamically.
 - Ensures all analysis artifacts (Parquet summaries, Word reports, Excel tables) are generated for both aquariums upon completion.
 
 #### Multi-Aquarium Reporting Fix
+
 - **CRITICAL**: Fixed regression where Aquarium 1 would erroneously use Aquarium 0's zones and background in reports.
 - `ProcessingCoordinator` now correctly prioritizes `MultiAquariumZoneData` for per-aquarium report generation.
 
 #### Background Image "Gray Screen" Fix (Windows)
+
 - **CRITICAL**: Fixed background images not displaying in reports on Windows when paths contained spaces or special characters.
 - Switched to robust `cv2.imdecode` method for reading background frames.
 - Standardized single-aquarium flow to extract cropped background PNGs, consistent with multi-aquarium logic.
 
 #### Trajectory Alignment Fix
+
 - **HIGH**: Fixed trajectory misalignment in cropped reports.
 - Normalization logic now drops existing CM columns to force recalculation relative to the aquarium crop origin (0,0).
 - Prevents trajectories from "floating" outside the visible aquarium area in Word reports.
 
 #### Batch Processing Video Frame Display Fix
+
 - **CRITICAL**: Fixed frames not displaying during batch processing
 - Added missing `update_processing_state(is_processing=True)` call in `process_pending_project_videos()`
 - This triggers `UI_NAVIGATE_TO_ANALYSIS_VIEW` event to set `analysis_active = True`
 - Frames now correctly display in the Analysis tab during batch video processing
 
 #### Batch Processing Per-Video Zone Data Fix
+
 - **CRITICAL**: Fixed zones/ROIs not being loaded for each video in batch processing
 - Modified `_load_zones_for_eligible_videos()` to serialize zone data into each `video_info` dict
 - Added `_get_zone_data_for_video()` method in ProcessingWorker for per-video zone lookup
 - Worker now uses video-specific zones instead of global default zones
 - Zones and ROIs now display correctly during batch processing with proper tracking
 
+#### Unified Report Metadata & Duplicates Fix (Dec 29, 2025)
+
+- **CRITICAL**: Fixed duplicate "Group" columns (group vs group_id) and stale "Experiment ID" in unified reports
+- `ProcessingCoordinator` now enforces authoritative metadata from current project structure (Day/Group/Subject), overriding old parquet headers
+- **Color Format**: ROI colors in Excel now appear as "Red", "Blue" (names) instead of raw RGB tuples
+- **Column Cleanup**: Explicitly drops redundant `group` column in favor of standard `group_id`
+
 #### Batch Processing Results Directory Fix
+
 - **CRITICAL**: Fixed results (parquet, reports) saving to wrong directory in batch processing
 - Worker now creates per-video results directory: `{video_name}_results/` next to each video
 - Trajectory parquet, arena/ROI parquets, and reports now save in correct location
 - `_generate_summaries_impl` can now find the trajectory files correctly
 
 #### Batch Processing Task Status Display Fix
+
 - **HIGH**: Fixed Analysis tab not showing video progress (X de Y), group, day, subject info
 - Updated `ProcessingCallbacks.on_progress` signature to include `index`, `total`, `experiment_id`
 - Worker `monitor_loop` now passes all progress fields to callback
@@ -155,6 +194,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Analysis tab displays: "Vídeo X de Y — ExperimentID • Etapa"
 
 #### Batch Processing Selected Videos Fix
+
 - **HIGH**: Fixed batch processing ignoring pre-selected videos from context menu
 - Removed duplicate `PROJECT_PROCESS_VIDEOS` handler from `MainViewModel`
 - `ProcessingCoordinator` now sole handler, correctly receives `video_paths` parameter
@@ -163,6 +203,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🟠 Visualization & Report Fixes
 
 #### Trajectory Plot Coordinate System Fix
+
 - **CRITICAL**: Fixed Y-axis inversion in trajectory plots (`visualization_generator.py`)
 - Frame now vertically flipped with `cv2.flip(frame_rgb, 0)` for Cartesian alignment
 - Changed matplotlib `origin` from "upper" to "lower" for correct coordinate display
@@ -170,17 +211,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Y-coordinates now display correctly (0 at bottom, height at top)
 
 #### ROI Color Consistency Fix
+
 - **HIGH**: Fixed BGR→RGB color conversion for ROI colors in visualizations
 - `analysis_control_view_model.py` now converts BGR tuples to RGB for matplotlib
 - Colors in trajectory plots and heatmaps match actual ROI colors defined in zones
 
 #### Word Report Layout Improvements
+
 - **MEDIUM**: Increased image sizes from 3.2" to 5.5" for better readability
 - Added page breaks before "Heatmap" and "Cumulative Distance" figures
 - Ensures 2 figures per page layout with titles always adjacent to images
 - Fixed "Chart" → "Figure" translation in Portuguese reports
 
 #### Zone List Color Display Enhancement
+
 - **UI**: Zone list now displays color names in Portuguese instead of hex codes
 - Colors shown with colored text styling (Treeview tags)
 - Arena principal also shows "Ciano" with colored text
@@ -189,10 +233,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🟡 Minor Improvements
 
 #### ByteTracker Fallback Log Level
+
 - Changed ByteTracker fallback message from WARNING to DEBUG
 - Reduces log noise when simple tracker is used as expected fallback
 
 #### Summary Parquet Generation
+
 - Added summary parquet file creation in analysis workflow
 - Trajectory registration now includes results_dir and experiment_id in hierarchy
 
@@ -203,6 +249,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🔴 Critical Fixes
 
 #### Fixed Camera Thread Deadlock (Atomic Shutdown Pattern)
+
 - **CRITICAL**: Eliminated camera thread deadlocks during shutdown in `io/camera.py`
 - Implemented single ownership pattern: only `_reader_thread` calls `cap.release()` in finally block
 - `release()` method now only signals `_shutdown_requested` Event and joins thread with 3s timeout
@@ -210,6 +257,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shutdown now completes cleanly in <3 seconds with no zombie threads
 
 #### VideoProcessingService UI Decoupling
+
 - **CRITICAL**: Decoupled `VideoProcessingService` from tkinter and ApplicationGUI dependencies
 - Removed `view` and `root` parameters from constructor (10 params → 8 params)
 - Error handling now publishes `UIEvents.ERROR_OCCURRED` instead of calling `view.show_error()` directly
@@ -217,6 +265,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enables headless testing and better separation of concerns
 
 #### Graceful Shutdown (Removed Hard Exit)
+
 - **MEDIUM**: Removed `sys.exit(70)` forced termination when camera thread fails to shut down
 - Publishes `UIEvents.ERROR_OCCURRED` with fatal error message for user notification
 - Allows natural shutdown flow via `root.destroy()` instead of process kill
@@ -225,6 +274,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🟢 Performance & Optimization
 
 #### EventBus Performance Monitoring (100ms Fixed Threshold)
+
 - **HIGH**: Added performance monitoring to `event_bus_v2.py` to identify UI-blocking handlers
 - Measures handler execution time with `time.perf_counter()`
 - Logs warning when handler exceeds 100ms fixed threshold (not configurable)
@@ -232,6 +282,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Warnings include event name, handler name, elapsed time, and tech debt message
 
 #### Dynamic Frame Skip Calibration
+
 - **PERFORMANCE**: Implemented warm-up + 1 seek calibration in `video_processing_service.py`
 - Measures single seek to frame 100 during `_create_video_context()`
 - Calculates optimal skip threshold: 120 (<10ms), 80 (<50ms), or 60 (≥50ms) based on storage speed
@@ -240,6 +291,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Logged for debugging: `seek_time_ms`, `skip_threshold`
 
 #### Memory Optimization (Column Subset Copy)
+
 - **MEMORY**: Reduced memory usage during trajectory analysis by 40-60%
 - Added `REQUIRED_TRAJECTORY_COLUMNS` constant in `analysis/analysis_service.py`
 - Only copies 9 required columns instead of full DataFrame (15+ columns)
@@ -249,12 +301,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 🧪 Testing Infrastructure
 
 #### Wait Condition Helpers
+
 - **NEW**: Created `tests/utils/wait_helpers.py` with robust polling-based wait utilities
 - Eliminates flaky tests from `time.sleep()` usage
 - Provides `wait_for_condition()`, `wait_for_event()`, `wait_for_thread_exit()`, `assert_condition_met()`
 - Polling-based approach works reliably across different CPU speeds
 
 #### Nightly Stress Test Workflow
+
 - **NEW**: Created `.github/workflows/stress-tests.yml` scheduled for 2 AM UTC daily
 - Threading stress tests (10x repetition of slow tests)
 - Memory leak detection with memray profiling
@@ -263,11 +317,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Keeps `ci.yml` fast for PR feedback
 
 ### Changed
+
 - Updated `VideoContext` dataclass to include `skip_threshold` field (default 60)
 - Modified `__main__.py` Composition Root to remove view/root from VideoProcessingService instantiation
 - ApplicationGUI now subscribes to `UIEvents.ERROR_OCCURRED` in `__init__()`
 
 ### Documentation
+
 - Updated `BUGFIX_SUMMARY.md` with v2.2 architectural improvements
 - Added detailed explanations for all 8 major changes
 
@@ -276,9 +332,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.1.0] - 2025-11-XX
 
 ### 🔄 Event-Driven Architecture (v4.0 Migration - Phase 2)
+
 **Status**: IN PROGRESS (Dual Mode Compatibility)
 
 #### Added
+
 - **Event Bus V2** (`ui/event_bus_v2.py`): Foundation for Event-Driven Architecture v4.0
   - Type-safe event system with `UIEvents` enum (20+ event types)
   - Thread-safe publish/subscribe pattern with RLock
@@ -316,7 +374,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Tests dual mode compatibility, edge cases, multiple subscribers, empty/missing data, polygon shapes, and coordinate precision
 
 #### Changed
-- **GUI.__init__**: Now creates EventBusV2 instance (`self.event_bus_v2`)
+
+- **GUI.**init****: Now creates EventBusV2 instance (`self.event_bus_v2`)
 - **Dependency Injection**: Event Bus V2 injected into 6 components:
   - `DialogManager(gui, event_bus_v2)`
   - `ROITemplateManager(project_manager, gui, event_bus_v2)`
@@ -332,6 +391,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Ensures backward compatibility during migration
 
 #### Deprecated
+
 - **`GUI.update_zone_listbox()`**: Marked with `@deprecated` decorator
   - Reason: "Use Event Bus V2 instead - migrating to Event-Driven Architecture v4.0"
   - Alternative: `event_bus_v2.publish(Event(UIEvents.ZONES_UPDATED, {'zone_data': zone_data}))`
@@ -351,10 +411,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Will be removed in v4.0 final (after dual mode phase)
 
 #### Documentation
+
 - Updated `docs/EVENT_MAPPING.md` with implementation details for all 3 events
 - Updated `docs/API_STABILITY.md` with deprecation notices
 
 #### Next Steps (v4.0 Phase 2 Remaining)
+
 - ✅ ~~Migrate `update_zone_listbox()` → `UIEvents.ZONES_UPDATED`~~ (COMPLETE - 4 publishers)
 - ✅ ~~Migrate `_populate_video_selector_tree()` → `UIEvents.VIDEO_TREE_REFRESH_REQUESTED`~~ (COMPLETE - 3 publishers)
 - ✅ ~~Migrate `apply_pending_readiness_snapshot()` → `UIEvents.READINESS_SNAPSHOT_UPDATED`~~ (COMPLETE - 1 publisher)
@@ -363,11 +425,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Candidates: `_build_video_hierarchy_snapshot()`, `update_processing_stats()`, `update_social_summary()`, `update_analysis_task_status()`
 
 #### Progress
+
 - **4 of 11+** methods migrated to Event Bus V2 (**36% complete**)
 
 ## [3.0.0] - 2025-01-11
 
 ### 🔴 Breaking Changes
+
 - **REMOVED**: Legacy thread system for Live projects completely removed
   - `_live_frame_capture_loop()` method removed from GUI
   - `_live_processing_loop()` method removed from GUI
@@ -375,6 +439,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All Live camera functionality now exclusively through LiveCameraService
 
 ### 🧹 Code Cleanup
+
 - Removed ~90 lines of deprecated legacy code
 - Simplified project loading flow for Live projects
 - Cleaner separation between video processing and live camera threads
@@ -382,16 +447,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.1.0] - 2025-01-11
 
 ### 🔴 Breaking Changes
+
 - **Live Projects**: Migrated to unified LiveCameraService architecture
   - Legacy thread system (`_live_frame_capture_loop`, `_live_processing_loop`) deprecated
   - Will be removed in v3.0
 
 ### ✨ Features
+
 - Unified camera management for both analysis contexts
 - Live projects now respect `camera_index` selected in wizard
 - Intervals (analysis/display) properly respected in all workflows
 
 ### 🐛 Bug Fixes
+
 - **CRITICAL**: Fixed Live projects always opening camera 0 (now uses wizard selection)
 - **CRITICAL**: Fixed analysis intervals being ignored in single video workflow
 - **CRITICAL**: Decoupled LiveCameraService from RecordingService (eliminated tight coupling)
@@ -408,16 +476,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed FrameSourceFactory ignoring camera_index parameter
 
 ### 🚀 Performance
+
 - Reduced thread count by 50% (4 → 2 threads)
 - Reduced frame buffer memory by 50%
 - Eliminated lock contention overhead
 
 ### 📝 Deprecated
+
 - `gui._live_frame_capture_loop()` - Use LiveCameraService
 - `gui._live_processing_loop()` - Use LiveCameraService
 - Scheduled for removal: v3.0
 
 ### 🏗️ Architecture
+
 - Unified `LiveCameraService` for both contexts:
   - Context 1: Single video analysis with camera
   - Context 2: Live projects with multi-session recording
@@ -425,6 +496,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+
 - **🎯 CRITICAL: Ghost Camera Detection**: Fixed wizard detecting "phantom" cameras that report `isOpened=True` but never return frames (e.g., virtual cameras, disconnected devices)
 - **🎯 CRITICAL: Black Frame Detection**: Added detection of cameras that return completely black frames (virtual cameras with no input source)
 - **🎯 CRITICAL: Camera Detection Hang**: Fixed wizard freezing during camera detection when encountering ghost cameras by adding 2-second timeout to frame capture test
@@ -437,6 +509,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Detector Empty Polygon**: Fixed ValueError when zone data contains empty polygons in standalone analysis mode
 
 ### Changed
+
 - **🎯 Camera Detection Logic**: Wizard now validates each camera can actually capture frames before adding to list (prevents index misalignment)
 - **🎯 Camera Descriptions**: Changed from Windows device names to sequential numbering with resolution + brightness hints (e.g., "Câmera #1 [índice 1] - SD (640x480) (iluminação clara)")
 - **Live Camera Resolution**: All cameras now forced to 1280x720 regardless of native resolution for consistent performance
@@ -444,6 +517,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Camera Detection Range**: Reduced scan range from 0-9 to 0-5 for faster detection
 
 ### Removed
+
 - **Live Camera Health Check**: Removed blocking 3-frame capture test that caused program hangs with slow/ghost cameras
 
 ## [v2.1.0] - 2025-11-12

@@ -697,6 +697,45 @@ class WidgetFactory:
             ),
         }
 
+        # Behavioral Analysis Settings (Prioritize Project Data)
+        behavioral_values = {}
+        project_config_loaded = False
+
+        if self.gui.controller.project_manager.project_path:
+            project_data = self.gui.controller.project_manager.project_data
+            if project_data and "behavioral_config" in project_data:
+                bc = project_data["behavioral_config"]
+                # Map project config keys to widget keys
+                behavioral_values = {
+                    "default_thigmotaxis_distance_cm": bc.get("thigmotaxis_distance_cm"),
+                    "default_geotaxis_distance_cm": bc.get("geotaxis_distance_cm"),
+                    "default_geotaxis_num_zones": bc.get("geotaxis_num_zones"),
+                    "default_geotaxis_bottom_zones": bc.get("geotaxis_bottom_zones"),
+                    "aquarium_perspective": bc.get("aquarium_perspective"),
+                    "geotaxis_mode": bc.get("geotaxis_mode"),
+                }
+                # Filter out None values to allow fallback
+                behavioral_values = {k: v for k, v in behavioral_values.items() if v is not None}
+                project_config_loaded = True
+
+        # Fallback to Global Settings for missing values
+        if hasattr(current, "behavioral_analysis"):
+            ba = current.behavioral_analysis
+            defaults = {
+                "default_thigmotaxis_distance_cm": ba.default_thigmotaxis_distance_cm,
+                "default_geotaxis_distance_cm": ba.default_geotaxis_distance_cm,
+                "default_geotaxis_num_zones": ba.default_geotaxis_num_zones,
+                "default_geotaxis_bottom_zones": ba.default_geotaxis_bottom_zones,
+                "aquarium_perspective": ba.aquarium_perspective,
+                "geotaxis_mode": ba.geotaxis_mode,
+            }
+            # Only update keys that weren't loaded from project
+            for k, v in defaults.items():
+                if k not in behavioral_values:
+                    behavioral_values[k] = v
+
+        values["behavioral_analysis"] = behavioral_values
+
         if self.gui.config_editor_widget:
             self.gui.config_editor_widget.set_values(values)
 
@@ -767,6 +806,62 @@ class WidgetFactory:
             self.gui.show_error("Erro de Validação", str(exc))
             return
 
+        # LOGIC SPLIT: Project Open vs No Project
+        # User Request 2025-12-29: If a project is open, ONLY update that project.
+        # Do not touch global config.local.yaml to avoid "polluting" defaults.
+
+        if self.gui.controller.project_manager.project_path:
+            # --- BRANCH A: ACTIVE PROJECT OPEN ---
+            try:
+                # 1. Update Runtime Settings (Memory)
+                for field_name in validated.model_fields:
+                    setattr(
+                        self._settings,
+                        field_name,
+                        getattr(validated, field_name),
+                    )
+
+                # 2. Update Project Data Persistence
+                project_data = self.gui.controller.project_manager.project_data
+
+                # Video Processing
+                project_data["analysis_interval_frames"] = (
+                    validated.video_processing.processing_interval
+                )
+                project_data["display_interval_frames"] = (
+                    validated.video_processing.display_interval
+                )
+                project_data["video_processing"] = validated.video_processing.model_dump()
+
+                # Advanced Params
+                project_data["trajectory_smoothing"] = validated.trajectory_smoothing.model_dump()
+                project_data["behavioral_config"] = validated.behavioral_analysis.model_dump()
+
+                # ROI Rules
+                if "roi_settings" not in project_data:
+                    project_data["roi_settings"] = {}
+                project_data["roi_settings"].update(validated.roi_rules.model_dump())
+
+                # 3. Save to project_config.json
+                self.gui.controller.project_manager.save_project()
+
+                self.gui.show_info(
+                    "Configurações do Projeto Atualizadas",
+                    "As alterações foram salvas APENAS no projeto atual.\n"
+                    "O arquivo global (config.local.yaml) NÃO foi alterado.",
+                )
+
+                # Refresh UI to confirm values
+                self.reload_config_editor_values_widget()
+                return
+
+            except Exception as e:
+                self.gui.show_error(
+                    "Erro ao Salvar no Projeto", f"Falha ao atualizar configurações do projeto: {e}"
+                )
+                return
+
+        # --- BRANCH B: NO PROJECT (GLOBAL MODE) ---
         override_path = Path("config.local.yaml")
         try:
             if override_path.exists():
@@ -795,11 +890,95 @@ class WidgetFactory:
                 getattr(validated, field_name),
             )
 
+        # CRITICAL FIX: Also update the *current active project* configuration if one is loaded.
+        # Otherwise, the project's cached settings will override these global changes.
+        project_updated = False
+        if self.gui.controller.project_manager.project_path:
+            try:
+                # Update specific keys in project_data that override global settings
+                # We access project_data directly as per ProjectManager pattern
+                project_data = self.gui.controller.project_manager.project_data
+
+                # Use validated values
+                # 1. Video Processing Intervals
+                project_data["analysis_interval_frames"] = (
+                    validated.video_processing.processing_interval
+                )
+                project_data["display_interval_frames"] = (
+                    validated.video_processing.display_interval
+                )
+
+                # 2. FPS (if stored in project)
+                project_data["fps"] = validated.video_processing.fps
+
+                # 3. Behavioral Analysis Settings
+                if "behavioral_config" not in project_data:
+                    project_data["behavioral_config"] = {}
+
+                ba_settings = validated.behavioral_analysis
+                # Map Settings fields to project_data keys (matching AnalysisService expectations)
+                project_data["behavioral_config"].update(
+                    {
+                        "aquarium_perspective": ba_settings.aquarium_perspective,
+                        "thigmotaxis_distance_cm": ba_settings.default_thigmotaxis_distance_cm,
+                        "geotaxis_distance_cm": ba_settings.default_geotaxis_distance_cm,
+                        "geotaxis_num_zones": ba_settings.default_geotaxis_num_zones,
+                        "geotaxis_bottom_zones": ba_settings.default_geotaxis_bottom_zones,
+                        "geotaxis_enabled": ba_settings.aquarium_perspective == "lateral",
+                    }
+                )
+
+                # 4. Processing Offset (Video Processing)
+                project_data["analysis_offset_frames"] = (
+                    validated.video_processing.processing_offset
+                )
+
+                # 5. Trajectory Smoothing (Analysis Parameters)
+                if "analysis_parameters" not in project_data:
+                    project_data["analysis_parameters"] = {}
+
+                project_data["analysis_parameters"].update(
+                    {
+                        "smoothing_window_length": validated.trajectory_smoothing.window_length,
+                        "smoothing_polyorder": validated.trajectory_smoothing.polyorder,
+                    }
+                )
+
+                # 6. ROI Settings (Project-level overrides)
+                if "roi_settings" not in project_data:
+                    project_data["roi_settings"] = {}
+
+                project_data["roi_settings"].update(
+                    {
+                        "roi_inclusion_rule": validated.roi_inclusion_rule,
+                        "roi_buffer_radius_value": validated.roi_buffer_radius_value,
+                        "roi_min_bbox_overlap_ratio": validated.roi_min_bbox_overlap_ratio,
+                    }
+                )
+
+                # 4. Save the project to persist these changes to project_config.json
+                self.gui.controller.project_manager.save_project()
+                project_updated = True
+
+                log.info(
+                    "config.save.project_synced",
+                    project=self.gui.controller.project_manager.get_project_name(),
+                    analysis_interval=project_data["analysis_interval_frames"],
+                )
+            except Exception as e:
+                log.error("config.save.project_sync_failed", error=str(e))
+                # Don't fail the whole operation, just warn
+                self.gui.show_warning(
+                    "Aviso", f"Configuração global salva, mas erro ao atualizar projeto atual: {e}"
+                )
+
         self.reload_config_editor_values_widget()
-        self.gui.show_info(
-            "Configurações salvas",
-            "Alterações registradas em config.local.yaml e aplicadas ao aplicativo.",
-        )
+
+        msg = "Alterações registradas em config.local.yaml."
+        if project_updated:
+            msg += "\n\nO projeto atual também foi atualizado com estes valores."
+
+        self.gui.show_info("Configurações Salvas", msg)
 
     # ===========================================================================
     # CATEGORIA 5: CONSTRUTORES COMPLEXOS - Zone Control Widgets

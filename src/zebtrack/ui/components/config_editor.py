@@ -414,10 +414,11 @@ class ConfigEditorWidget(BaseWidget):
             text="Recarregar valores atuais",
             command=self._on_reset_clicked,
         ).pack(side="left")
-        ttk.Button(
+        self.btn_save = ttk.Button(
             actions_frame,
-            text="Salvar em config.local.yaml",
+            text="💾 Salvar Configurações",
             command=self._on_save_clicked,
+            style="Accent.TButton",
         ).pack(side="right")
 
         # Validation info

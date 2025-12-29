@@ -42,7 +42,7 @@ bytetrack:
   track_buffer: 150
   iou_threshold: 0.1
 tracking:
-  use_bytetrack: true
+  use_bytetrack: false
   use_single_subject_tracker: true
 detection_zones:
   polygon: []
@@ -58,8 +58,8 @@ model_selection:
 weights:
   seg_filename: best_seg.pt
   det_filename: best_oi.pt
-roi_inclusion_rule: bbox_intersects
-roi_buffer_radius_value: 0.5
+roi_inclusion_rule: centroid_in
+roi_buffer_radius_value: 0.0
 roi_min_bbox_overlap_ratio: 0.05
 analysis_config:
   num_aquariums: 1

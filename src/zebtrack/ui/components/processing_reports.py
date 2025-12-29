@@ -288,6 +288,14 @@ class ProcessingReportsWidget(BaseWidget):
         )
         self.btn_open_unified_parquet.pack(side="left", padx=5)
 
+        self.btn_delete_unified = ttk.Button(
+            toolbar_frame,
+            text="🗑️ Apagar Tudo",
+            command=self._on_delete_unified_clicked,
+            state="disabled",
+        )
+        self.btn_delete_unified.pack(side="left", padx=5)
+
     # Event handlers
 
     def _on_refresh_clicked(self) -> None:
@@ -431,6 +439,30 @@ class ProcessingReportsWidget(BaseWidget):
         """Handle Open Unified Parquet button click."""
         self._open_latest_unified_file(".parquet")
 
+    def _on_delete_unified_clicked(self) -> None:
+        """Handle Delete Unified Reports button click."""
+        log.info("processing_reports.delete_unified_clicked")
+
+        from tkinter import messagebox
+
+        confirm = messagebox.askyesno(
+            "Confirmar Exclusão",
+            "Tem certeza que deseja apagar TODOS os relatórios unificados (Parquet, Excel, Word)?\n\nEsta ação não pode ser desfeita.",
+            icon="warning",
+        )
+
+        if confirm:
+            self.emit_event("reports.delete_unified", {})
+            # Optimistically disable buttons, though actual deletion happens in controller
+            if self.btn_open_unified_word:
+                self.btn_open_unified_word.config(state="disabled")
+            if self.btn_open_unified_excel:
+                self.btn_open_unified_excel.config(state="disabled")
+            if self.btn_open_unified_parquet:
+                self.btn_open_unified_parquet.config(state="disabled")
+            if self.btn_delete_unified:
+                self.btn_delete_unified.config(state="disabled")
+
     def _open_latest_unified_file(self, extension: str) -> None:
         """Open the most recent unified report file with the given extension.
 
@@ -539,6 +571,10 @@ class ProcessingReportsWidget(BaseWidget):
                     self.btn_open_unified_parquet.config(
                         state="normal" if has_parquet else "disabled"
                     )
+                if self.btn_delete_unified:
+                    self.btn_delete_unified.config(
+                        state="normal" if has_unified_reports else "disabled"
+                    )
             else:
                 # No unified_reports directory - disable all access buttons
                 if self.btn_open_unified_word:
@@ -547,6 +583,8 @@ class ProcessingReportsWidget(BaseWidget):
                     self.btn_open_unified_excel.config(state="disabled")
                 if self.btn_open_unified_parquet:
                     self.btn_open_unified_parquet.config(state="disabled")
+                if self.btn_delete_unified:
+                    self.btn_delete_unified.config(state="disabled")
 
         # Update selection label
         if self.selection_label:

@@ -27,6 +27,7 @@ event-driven architecture with dependency injection.
 3. **Update SYSTEM_INTEGRATION_MAP.md** when modifying events, payloads, or dependencies
 4. **Check for infinite event loops** when adding subscriptions to `MainViewModel`
 5. **MultiAquariumZoneData compatibility**: Always check when modifying `ProjectManager`/`ZoneManager`
+6. **Unified Reports (v3.3)**: Use `reports.delete_unified` for cleanup; rely on `group_id`, not `group`
 
 ## Multi-Aquarium Checklist
 

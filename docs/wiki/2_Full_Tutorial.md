@@ -88,12 +88,14 @@ Reports now include enhanced velocity and geotaxis metrics:
 
 > 📝 **Note**: Column names in Word reports now display with proper units (e.g., "Max Speed (cm/s)" instead of "Max Speed Cm S").
 
-### Unified Reports (v3.2+)
+### Unified Reports Enhancements (v3.3)
 
-The unified report now includes:
-- **Subject identification columns**: group, subject, day, experiment_id appear first
-- **Geotaxis data**: Zone percentages now correctly appear (previously could be empty)
-- **Consistent formatting**: All metrics use proper display names with units
+The unified report has been robustly improved:
+
+- **Identification & Metadata**: Uses the current project structure (Day/Group/Subject) to populate columns, automatically fixing "Unknown" or stale metadata from old files.
+- **De-duplication**: Duplicate "Group" columns (e.g. `group` vs `group_id`) are automatically resolved to a single standard 'Group'.
+- **Readable Colors**: ROI Colors are displayed as human-readable names (e.g. "Red", "Dark Blue") in Excel, replacing raw RGB tuples.
+- **Report Management**: A new **"🗑️ Apagar Relatórios Unificados"** button allows you to safely clear old aggregated reports. The system now automatically handles OneDrive sync locks and read-only files during deletion.
 
 ---
 

@@ -587,6 +587,51 @@ class ProcessingCoordinator(BaseCoordinator):
 
         return eligible_videos
 
+    def _create_project_settings_snapshot(self) -> "Settings":
+        """Create a Settings object with project-specific overrides applied."""
+        # Deep copy global settings to avoid mutating shared state
+        snapshot = self.settings.model_copy(deep=True)
+        project_data = self.project_manager.project_data or {}
+
+        # 1. Video Processing Overrides
+        if "analysis_offset_frames" in project_data:
+            snapshot.video_processing.processing_offset = project_data["analysis_offset_frames"]
+
+        # 2. Trajectory Smoothing Overrides
+        analysis_params = project_data.get("analysis_parameters", {})
+        if "smoothing_window_length" in analysis_params:
+            snapshot.trajectory_smoothing.window_length = analysis_params["smoothing_window_length"]
+        if "smoothing_polyorder" in analysis_params:
+            snapshot.trajectory_smoothing.polyorder = analysis_params["smoothing_polyorder"]
+
+        # 3. ROI Settings Overrides
+        roi_settings = project_data.get("roi_settings", {})
+        if "roi_inclusion_rule" in roi_settings:
+            snapshot.roi_inclusion_rule = roi_settings["roi_inclusion_rule"]
+        if "roi_buffer_radius_value" in roi_settings:
+            snapshot.roi_buffer_radius_value = roi_settings["roi_buffer_radius_value"]
+        if "roi_min_bbox_overlap_ratio" in roi_settings:
+            snapshot.roi_min_bbox_overlap_ratio = roi_settings["roi_min_bbox_overlap_ratio"]
+
+        # 4. Behavioral Formatting
+        behavioral_config = project_data.get("behavioral_config", {})
+        if behavioral_config and hasattr(snapshot, "behavioral_analysis"):
+            ba = snapshot.behavioral_analysis
+            if "aquarium_perspective" in behavioral_config:
+                ba.aquarium_perspective = behavioral_config["aquarium_perspective"]
+            if "thigmotaxis_distance_cm" in behavioral_config:
+                ba.default_thigmotaxis_distance_cm = behavioral_config["thigmotaxis_distance_cm"]
+            if "geotaxis_distance_cm" in behavioral_config:
+                ba.default_geotaxis_distance_cm = behavioral_config["geotaxis_distance_cm"]
+            if "geotaxis_num_zones" in behavioral_config:
+                ba.default_geotaxis_num_zones = behavioral_config["geotaxis_num_zones"]
+            if "geotaxis_bottom_zones" in behavioral_config:
+                ba.default_geotaxis_bottom_zones = behavioral_config["geotaxis_bottom_zones"]
+            if "geotaxis_mode" in behavioral_config:
+                ba.geotaxis_mode = behavioral_config["geotaxis_mode"]
+
+        return snapshot
+
     def create_processing_context(
         self,
         videos_to_process: list[dict],
@@ -600,19 +645,23 @@ class ProcessingCoordinator(BaseCoordinator):
 
         Phase 3: Consolidated from VideoProcessingOrchestrator.create_processing_context
         """
+        # Create project-specific settings snapshot
+        # This ensures Worker receives correct Offset, ROI, and Behavioral settings
+        settings_snapshot = self._create_project_settings_snapshot()
+
         # SYNC: Ensure global settings reflect project/wizard preference for single animal mode
         # This is critical because ProcessingWorker reads from settings to init ByteTracker
         use_single_subject = self._resolve_single_subject_tracker_preference(single_video_config)
         if use_single_subject is not None:
-            if use_single_subject != self.settings.tracking.use_single_subject_tracker:
+            if use_single_subject != settings_snapshot.tracking.use_single_subject_tracker:
                 log.info(
                     "processing_coordinator.sync_settings",
                     use_single_subject_tracker=use_single_subject,
                     reason="worker_initialization_sync",
                 )
-                self.settings.tracking.use_single_subject_tracker = use_single_subject
+                settings_snapshot.tracking.use_single_subject_tracker = use_single_subject
                 # Also sync legacy flag for compatibility
-                self.settings.video_processing.single_animal_per_aquarium = use_single_subject
+                settings_snapshot.video_processing.single_animal_per_aquarium = use_single_subject
 
         # Calculate processing intervals from config or project settings
         analysis_interval, display_interval = self._determine_processing_intervals(
@@ -631,7 +680,7 @@ class ProcessingCoordinator(BaseCoordinator):
             videos_to_process=videos_to_process,
             output_base_dir=output_base_dir,
             cancel_event=self.cancel_event,
-            settings=self.settings,
+            settings=settings_snapshot,
             single_video_config=single_video_config,
             zone_data=zone_data,
             analysis_interval_frames=analysis_interval,
@@ -639,7 +688,7 @@ class ProcessingCoordinator(BaseCoordinator):
             process_single_video_func=process_single_video_func,
             apply_project_settings_func=apply_project_settings_func,
             determine_intervals_func=self._determine_processing_intervals,
-            retry_strategy=self.settings.video_processing.batch_retry_strategy,
+            retry_strategy=settings_snapshot.video_processing.batch_retry_strategy,
         )
 
     def create_processing_callbacks(
@@ -2094,6 +2143,7 @@ class ProcessingCoordinator(BaseCoordinator):
             ):
                 try:
                     import os as _os  # Local import to avoid scope issues
+
                     from zebtrack.core.zone_manager import ZoneManager
 
                     multi_data = ZoneManager.multi_aquarium_zone_data_from_dict(zone_data_dict)
@@ -2436,9 +2486,9 @@ class ProcessingCoordinator(BaseCoordinator):
                                 )
 
                             print(
-                                f"[DIAGNOSTIC] Publishing ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG event"
+                                "[DIAGNOSTIC] Publishing ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG event"
                             )
-                            print(f"[DIAGNOSTIC] video_path={str(video_path)}")
+                            print(f"[DIAGNOSTIC] video_path={video_path!s}")
                             print(
                                 f"[DIAGNOSTIC] has_multi_aquarium_config={bool(multi_aquarium_config)}"
                             )
@@ -2451,7 +2501,7 @@ class ProcessingCoordinator(BaseCoordinator):
                                     "multi_aquarium_config": multi_aquarium_config,
                                 },
                             )
-                            print(f"[DIAGNOSTIC] Event published")
+                            print("[DIAGNOSTIC] Event published")
                     else:
                         # Partial detection?
                         pass
@@ -3704,13 +3754,20 @@ class ProcessingCoordinator(BaseCoordinator):
                     )
             else:
                 # Add main entry
+                # Standard Single Video Entry
+                exp_id = entry.get("experiment_id", os.path.splitext(os.path.basename(path))[0])
+
+                # Retrieve robust metadata (incl. project structure override)
+                # This ensures we get group/subject even if not in "metadata" subkey
+                fresh_meta = self.project_manager.get_metadata_for_experiment(
+                    exp_id, video_path=path
+                )
+
                 entries_to_process.append(
                     {
                         "parquet_files": entry.get("parquet_files", {}),
-                        "metadata": entry.get("metadata", {}),
-                        "experiment_id": entry.get(
-                            "experiment_id", os.path.splitext(os.path.basename(path))[0]
-                        ),
+                        "metadata": fresh_meta,
+                        "experiment_id": exp_id,
                         "is_multi": False,
                     }
                 )
@@ -3780,6 +3837,36 @@ class ProcessingCoordinator(BaseCoordinator):
 
         if len(dfs) == 1:
             return dfs[0], False, list(dfs[0].columns)
+
+        # Phase 4.1: Standardize columns (Portuguese -> English/Internal) before merging
+        # This prevents "schema mismatch" due to mixed language headers and ensures
+        # correct aggregation of metrics like 'distancia_total_cm' + 'total_distance_cm'
+        from zebtrack.analysis.data_transformer import DataTransformer
+
+        standardized_dfs = []
+        for df in dfs:
+            # Create rename mapping based on known translations
+            # DataTransformer.translate_column_name handles standard metrics
+            rename_map = {}
+            for col in df.columns:
+                translated = DataTransformer.translate_column_name(col)
+                if translated != col:
+                    rename_map[col] = translated
+
+            # Apply renaming if needed
+            if rename_map:
+                df = df.rename(columns=rename_map)
+
+            # CRITICAL FIX: After renaming, we might have duplicate columns
+            # (e.g., if 'distancia' became 'distance' but 'distance' already existed).
+            # We must drop duplicates to avoid "Reindexing only valid with uniquely valued Index objects"
+            if df.columns.duplicated().any():
+                df = df.loc[:, ~df.columns.duplicated()]
+
+            standardized_dfs.append(df)
+
+        # Update the list to use for concatenation
+        dfs = standardized_dfs
 
         # Collect all unique columns
         all_columns_set: set[str] = set()
@@ -3943,8 +4030,8 @@ class ProcessingCoordinator(BaseCoordinator):
         return metadata
 
     def _enrich_unified_report_metadata(
-        self, df: "pd.DataFrame", entry_meta: dict, process_entry: dict
-    ) -> "pd.DataFrame":
+        self, df: pd.DataFrame, entry_meta: dict, process_entry: dict
+    ) -> pd.DataFrame:
         """Enrich DataFrame with metadata columns for unified report.
 
         Args:
@@ -3959,10 +4046,25 @@ class ProcessingCoordinator(BaseCoordinator):
 
         # Always add identification columns (even if empty, for consistency)
         # Use "N/A" as fallback so rows are identifiable
-        df["group"] = entry_meta.get("group") or "N/A"
+
+        # Standardize on 'group_id' to match DataTransformer schema and avoid duplicates
+        g_val = entry_meta.get("group") or entry_meta.get("group_id")
+        df["group_id"] = g_val or "N/A"
+
+        # Remove 'group' if present to prevent two "Group" columns in Excel (group vs group_id)
+        if "group" in df.columns:
+            df.drop(columns=["group"], inplace=True)
+
         df["subject"] = entry_meta.get("subject") or "N/A"
         df["day"] = entry_meta.get("day") or "N/A"
-        df["experiment_id"] = entry_meta.get("experiment_id") or "N/A"
+
+        # Overwrite experiment_id with authoritative value (fixes stale IDs in parquet)
+        # Priority: Metadata > Process Entry (filename-based) > Existing DF
+        auth_exp_id = entry_meta.get("experiment_id") or process_entry.get("experiment_id")
+        if auth_exp_id:
+            df["experiment_id"] = auth_exp_id
+        elif "experiment_id" not in df.columns:
+            df["experiment_id"] = "N/A"
 
         # Add aquarium_id for multi-aquarium entries
         if "aquarium_id" in entry_meta:
@@ -4570,13 +4672,18 @@ class ProcessingCoordinator(BaseCoordinator):
         experiment_id = os.path.splitext(os.path.basename(path))[0]
         multi_outputs = video.get("multi_aquarium_outputs")
 
+        # CRITICAL: Create project-specific settings settings_snapshot
+        # This ensures that summary generation uses project overrides (ROI, Smoothing, etc.)
+        # instead of potentially stale or default global settings.
+        settings_snapshot = self._create_project_settings_snapshot()
+
         if multi_outputs:
             return self._process_multi_summary_video(
-                video, experiment_id, path, multi_outputs, settings_obj, expected_roi_names
+                video, experiment_id, path, multi_outputs, settings_snapshot, expected_roi_names
             )
 
         return self._process_standard_summary_video(
-            video, experiment_id, path, settings_obj, expected_roi_names
+            video, experiment_id, path, settings_snapshot, expected_roi_names
         )
 
     def _process_multi_summary_video(
@@ -4645,23 +4752,8 @@ class ProcessingCoordinator(BaseCoordinator):
             self.project_manager.project_data
         ).get("behavioral_config", {})
 
-        # Ensure we use the settings object passed to this method for behavioral parameters
-        if hasattr(settings, "behavioral_analysis"):
-            ba_cfg = settings.behavioral_analysis
-            # Update with current settings
-            behavioral_config.update(
-                {
-                    "thigmotaxis_distance_cm": ba_cfg.default_thigmotaxis_distance_cm,
-                    "geotaxis_distance_cm": ba_cfg.default_geotaxis_distance_cm,
-                    "geotaxis_num_zones": ba_cfg.default_geotaxis_num_zones,
-                    "geotaxis_bottom_zones": ba_cfg.default_geotaxis_bottom_zones,
-                    "aquarium_perspective": getattr(ba_cfg, "aquarium_perspective", "lateral"),
-                }
-            )
-            # Re-evaluate geotaxis_enabled
-            behavioral_config["geotaxis_enabled"] = (
-                behavioral_config.get("aquarium_perspective") == "lateral"
-            )
+        # Behavioral parameters are now correctly collected by AnalysisService
+        # which respects project overrides (synced from UI) > global defaults.
 
         reporter = Reporter(
             trajectory_df=df,
@@ -4718,30 +4810,15 @@ class ProcessingCoordinator(BaseCoordinator):
                 calib,
             )
 
-            meta = self.project_manager.get_metadata_for_experiment(exp_id) or {
+            meta = self.project_manager.get_metadata_for_experiment(exp_id, video_path=path) or {
                 "experiment_id": exp_id
             }
             behavioral_config = self.analysis_service.collect_analysis_parameters(
                 self.project_manager.project_data
             ).get("behavioral_config", {})
 
-            # Ensure we use the settings object passed to this method for behavioral parameters
-            if hasattr(settings, "behavioral_analysis"):
-                ba_cfg = settings.behavioral_analysis
-                # Update with current settings
-                behavioral_config.update(
-                    {
-                        "thigmotaxis_distance_cm": ba_cfg.default_thigmotaxis_distance_cm,
-                        "geotaxis_distance_cm": ba_cfg.default_geotaxis_distance_cm,
-                        "geotaxis_num_zones": ba_cfg.default_geotaxis_num_zones,
-                        "geotaxis_bottom_zones": ba_cfg.default_geotaxis_bottom_zones,
-                        "aquarium_perspective": getattr(ba_cfg, "aquarium_perspective", "lateral"),
-                    }
-                )
-                # Re-evaluate geotaxis_enabled
-                behavioral_config["geotaxis_enabled"] = (
-                    behavioral_config.get("aquarium_perspective") == "lateral"
-                )
+            # Behavioral parameters are now correctly collected by AnalysisService
+            # which respects project overrides (synced from UI) > global defaults.
 
             reporter = Reporter(
                 trajectory_df=df,
