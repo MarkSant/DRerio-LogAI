@@ -13,6 +13,7 @@ import structlog
 import ttkbootstrap as ttk
 from PIL import Image
 
+from zebtrack.core.zone_manager import MultiAquariumZoneData
 from zebtrack.ui.components.canvas.event_handler import CanvasEventHandler
 from zebtrack.ui.components.canvas.renderer import CanvasRenderer
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -98,6 +99,11 @@ class CanvasManager:
             events=["ZONES_UPDATED", "POLYGON_EDIT_REQUESTED"],
         )
 
+        # Subscribe to legacy UI events (Live Camera Stream)
+        if hasattr(self.gui, "event_bus") and self.gui.event_bus:
+            self.gui.event_bus.subscribe(Events.UI_UPDATE_LIVE_FRAME, self._on_live_frame_update)
+            log.debug("canvas_manager.subscribed_to_live_frame_updates")
+
     def _on_zones_updated(self, data: dict):
         """Handle ZONES_UPDATED event.
 
@@ -131,6 +137,28 @@ class CanvasManager:
         polygon = data.get("polygon")
         if polygon is not None:
             self.setup_interactive_polygon(polygon)
+
+    def _on_live_frame_update(self, data: dict):
+        """Handle UI_UPDATE_LIVE_FRAME event from LiveCameraService.
+
+        Args:
+            data: Payload with 'frame' (np.ndarray) and 'detections'.
+        """
+        log.debug(
+            "canvas_manager._on_live_frame_update.called",
+            has_data=isinstance(data, dict),
+            has_frame=isinstance(data, dict) and "frame" in data,
+        )
+
+        if not isinstance(data, dict):
+            return
+
+        frame = data.get("frame")
+        detections = data.get("detections")
+
+        if frame is not None:
+            # We are already on the main thread here via EventDispatcher polling
+            self.update_video_frame(frame, detections)
 
     def setup_interactive_polygon(self, polygon: np.ndarray | list) -> None:
         """Set up interactive polygon editing.
@@ -387,15 +415,39 @@ class CanvasManager:
             self.gui.controller.project_manager.set_active_zone_video(video_path)
             self.gui._refresh_roi_templates()
 
-            cap = cv2.VideoCapture(video_path)
-            if not cap.isOpened():
-                self.gui.show_error("Erro", "Não foi possível abrir o vídeo.")
-                return
-            ret, frame = cap.read()
-            cap.release()
-            if not ret:
-                self.gui.show_error("Erro", "Não foi possível ler um frame do vídeo.")
-                return
+            # Check if file is an image or video
+            lower_path = video_path.lower()
+            if lower_path.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tiff")):
+                # It's an image - Use robust loading for Windows paths (unicode support)
+                try:
+                    # np.fromfile handles paths with special chars better than cv2.imread on Windows
+                    file_data = np.fromfile(video_path, dtype=np.uint8)
+                    frame = cv2.imdecode(file_data, cv2.IMREAD_COLOR)
+                except Exception as e:
+                    log.error(
+                        "gui.display_roi_frame.image_load_failed", error=str(e), path=video_path
+                    )
+                    frame = None
+
+                if frame is None:
+                    # Fallback to standard imread just in case
+                    frame = cv2.imread(video_path)
+
+                if frame is None:
+                    self.gui.show_error("Erro", "Não foi possível ler a imagem.")
+                    return
+                ret = True
+            else:
+                # Assume it's a video
+                cap = cv2.VideoCapture(video_path)
+                if not cap.isOpened():
+                    self.gui.show_error("Erro", "Não foi possível abrir o vídeo.")
+                    return
+                ret, frame = cap.read()
+                cap.release()
+                if not ret:
+                    self.gui.show_error("Erro", "Não foi possível ler um frame do vídeo.")
+                    return
 
             # Logic to display on the canvas
             h, w, _ = frame.shape
@@ -417,7 +469,14 @@ class CanvasManager:
             # Also store as _raw_bg_image as mentioned in requirements
             self._raw_bg_image = self.gui._original_image
 
-            # Wait for the canvas to be properly sized after geometry update
+            # Wait for the canvas to be properly sized after geometry update, then draw
+            # Force canvas update before drawing to ensure proper sizing
+            self.gui.root.update_idletasks()
+
+            # Draw immediately to prevent black canvas warnings
+            self._draw_bg_image_to_canvas()
+
+            # Schedule another redraw after 10ms to ensure canvas is fully ready
             self.gui.root.after(10, lambda: self._draw_bg_image_to_canvas())
 
         except Exception as e:
@@ -436,6 +495,13 @@ class CanvasManager:
             frame: The video frame as a numpy array (BGR format from OpenCV).
             detections: List of detections (not used - overlays already drawn on frame).
         """
+        log.debug(
+            "canvas_manager.update_video_frame.called",
+            has_frame=frame is not None,
+            analysis_active=self.gui.analysis_active if hasattr(self.gui, "analysis_active") else None,
+            has_widget=bool(self.gui.analysis_display_widget) if hasattr(self.gui, "analysis_display_widget") else None,
+        )
+
         if frame is None:
             return
 
@@ -483,10 +549,19 @@ class CanvasManager:
             bool: True if frame was loaded successfully, False otherwise
         """
         if video_path is None:
-            # Try to use pending video or from project
-            has_pending = hasattr(self.gui, "pending_single_video_path")
-            if has_pending and self.gui.pending_single_video_path:
+            # 1. Try to use currently active zone video (e.g. just set by display_roi_video_frame)
+            active_video = self.gui.controller.project_manager.get_active_zone_video()
+            if active_video and os.path.exists(active_video):
+                video_path = active_video
+
+            # 2. Try to use pending video (e.g. from wizard)
+            elif (
+                hasattr(self.gui, "pending_single_video_path")
+                and self.gui.pending_single_video_path
+            ):
                 video_path = self.gui.pending_single_video_path
+
+            # 3. Fallback to first video in project
             elif self.gui.controller.project_manager.project_path:
                 videos = self.gui.controller.project_manager.get_all_videos()
                 if videos:
@@ -500,12 +575,39 @@ class CanvasManager:
         try:
             self.gui.controller.project_manager.set_active_zone_video(video_path)
 
-            cap = cv2.VideoCapture(video_path)
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-            ret, frame = cap.read()
-            cap.release()
+            # Check if file is an image or video
+            lower_path = video_path.lower()
+            if lower_path.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tiff")):
+                # Handle image files (e.g., live camera reference frame)
+                try:
+                    # Robust loading for Windows paths
+                    file_data = np.fromfile(video_path, dtype=np.uint8)
+                    frame = cv2.imdecode(file_data, cv2.IMREAD_COLOR)
 
-            if not ret:
+                    if frame is None:
+                        # Fallback
+                        frame = cv2.imread(video_path)
+
+                    ret = frame is not None
+                    if not ret:
+                        log.error("gui.load_frame.image_load_failed", path=video_path)
+                except Exception as e:
+                    log.error("gui.load_frame.image_exception", error=str(e), path=video_path)
+                    ret = False
+                    frame = None
+            else:
+                # Handle video files
+                cap = cv2.VideoCapture(video_path)
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+                ret, frame = cap.read()
+                cap.release()
+
+            if not ret or frame is None:
+                log.warning(
+                    "gui.load_frame.failed_to_read",
+                    path=video_path,
+                    is_image=lower_path.endswith((".png", ".jpg")),
+                )
                 return False
 
             # Convert frame and store original

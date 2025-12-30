@@ -169,6 +169,8 @@ class TestRecordingStart:
 
     def test_start_recording_publishes_event(self, recording_coordinator, mock_event_bus):
         """Should publish RECORDING_STARTED event."""
+        from zebtrack.ui.events import Events
+
         recording_coordinator.start_recording(
             output_path="/path/to/output",
             experiment_id="exp_001",
@@ -176,7 +178,7 @@ class TestRecordingStart:
 
         mock_event_bus.publish_event.assert_called_once()
         event_name, event_data = mock_event_bus.publish_event.call_args[0]
-        assert event_name == "RECORDING_STARTED"
+        assert event_name == Events.RECORDING_STARTED
         assert event_data["output_path"] == "/path/to/output"
 
     def test_start_recording_already_recording(self, recording_coordinator, mock_state_manager):

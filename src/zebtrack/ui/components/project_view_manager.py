@@ -557,6 +557,10 @@ class ProjectViewManager:
         """Format status token for tree display."""
         return status if status else "—"
 
+    def _build_day_title(self, day_value, metadata: dict | None = None) -> str:
+        """Proxy to validation_manager._build_day_title."""
+        return self.gui.validation_manager._build_day_title(day_value, metadata)
+
     @staticmethod
     def _video_sort_key(value):
         """Generate sort key for video/subject identifiers.
@@ -707,7 +711,7 @@ class ProjectViewManager:
             ):
                 # Resolve day title
                 sample_meta = videos[0].get("metadata") if videos else None
-                day_title = self.gui.validation_manager._build_day_title(day_id, sample_meta)
+                day_title = self._build_day_title(day_id, sample_meta)
                 day_node = tree.insert(group_node, "end", text=f"📅 {day_title}", open=True)
 
                 for video_entry in sorted(

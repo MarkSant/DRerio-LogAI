@@ -115,6 +115,7 @@ class Events:
 
     # Recording
     RECORDING_START = "recording:start"
+    RECORDING_STARTED = "RECORDING_STARTED"  # Internal event after recording starts
     RECORDING_STOP = "recording:stop"
     RECORDING_TOGGLE = "recording:toggle"
     RECORDING_TRIGGER = "recording:trigger"
@@ -304,6 +305,9 @@ class Events:
     UI_UPDATE_AQUARIUM_SELECTOR = "ui:update_aquarium_selector"
     # Show/hide aquarium selector (payload: {visible: bool})
     UI_SET_AQUARIUM_SELECTOR_VISIBLE = "ui:set_aquarium_selector_visible"
+
+    # Live Analysis
+    UI_UPDATE_LIVE_FRAME = "ui:update_live_frame"
 
 
 __all__ = ["Events"]

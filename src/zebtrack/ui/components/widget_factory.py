@@ -265,13 +265,15 @@ class WidgetFactory:
         self.gui.grid_container = ttk.Frame(self.gui.progress_grid_frame)
         self.gui.grid_container.pack(expand=True, fill="both")
 
-        # Add a refresh button
         refresh_button = ttk.Button(
             self.gui.progress_grid_frame,
             text="Atualizar Grade",
             command=self.render_progress_grid,
         )
         refresh_button.pack(side="bottom", pady=10)
+
+        # Trigger initial render
+        self.render_progress_grid()
 
     # ===========================================================================
     # CATEGORIA 3: HELPERS DE LAYOUT
@@ -650,6 +652,7 @@ class WidgetFactory:
         Load current settings into ConfigEditorWidget.
 
         Uses injected settings object to populate the config editor form.
+        Prioritizes project-specific values over global settings.
         """
         if self._settings is None:
             self.gui.show_error("Erro", "Settings não disponível. Não foi possível carregar.")
@@ -657,15 +660,25 @@ class WidgetFactory:
 
         current = self._settings
 
+        # Load interval frames from project if available (prioritize project over global settings)
+        project_data = self.gui.controller.project_manager.project_data
+        processing_interval = self.gui._extract_setting(
+            current, ("video_processing", "processing_interval"), 10
+        )
+        display_interval = self.gui._extract_setting(
+            current, ("video_processing", "display_interval"), 10
+        )
+
+        # Override with project-specific values if project is open
+        if self.gui.controller.project_manager.project_path and project_data:
+            processing_interval = project_data.get("analysis_interval_frames", processing_interval)
+            display_interval = project_data.get("display_interval_frames", display_interval)
+
         values = {
             "video_processing": {
                 "fps": self.gui._extract_setting(current, ("video_processing", "fps"), 30),
-                "processing_interval": self.gui._extract_setting(
-                    current, ("video_processing", "processing_interval"), 10
-                ),
-                "display_interval": self.gui._extract_setting(
-                    current, ("video_processing", "display_interval"), 10
-                ),
+                "processing_interval": processing_interval,
+                "display_interval": display_interval,
                 "processing_offset": self.gui._extract_setting(
                     current, ("video_processing", "processing_offset"), 0
                 ),
@@ -699,7 +712,6 @@ class WidgetFactory:
 
         # Behavioral Analysis Settings (Prioritize Project Data)
         behavioral_values = {}
-        project_config_loaded = False
 
         if self.gui.controller.project_manager.project_path:
             project_data = self.gui.controller.project_manager.project_data
@@ -716,7 +728,6 @@ class WidgetFactory:
                 }
                 # Filter out None values to allow fallback
                 behavioral_values = {k: v for k, v in behavioral_values.items() if v is not None}
-                project_config_loaded = True
 
         # Fallback to Global Settings for missing values
         if hasattr(current, "behavioral_analysis"):
@@ -837,10 +848,18 @@ class WidgetFactory:
                 project_data["trajectory_smoothing"] = validated.trajectory_smoothing.model_dump()
                 project_data["behavioral_config"] = validated.behavioral_analysis.model_dump()
 
-                # ROI Rules
+                # ROI Rules (stored as top-level fields, not nested)
                 if "roi_settings" not in project_data:
                     project_data["roi_settings"] = {}
-                project_data["roi_settings"].update(validated.roi_rules.model_dump())
+                project_data["roi_settings"]["roi_inclusion_rule"] = (
+                    validated.roi_inclusion_rule
+                )
+                project_data["roi_settings"]["roi_buffer_radius_value"] = (
+                    validated.roi_buffer_radius_value
+                )
+                project_data["roi_settings"]["roi_min_bbox_overlap_ratio"] = (
+                    validated.roi_min_bbox_overlap_ratio
+                )
 
                 # 3. Save to project_config.json
                 self.gui.controller.project_manager.save_project()
@@ -1132,84 +1151,97 @@ class WidgetFactory:
         """Clear and redraw the experimental progress grid based on project data."""
         from tkinter import Button
 
-        # 1. Clear existing widgets
         try:
-            if self.gui.grid_container.winfo_exists():
-                for widget in self.gui.grid_container.winfo_children():
-                    widget.destroy()
-        except tk.TclError:
-            # Container already destroyed
-            return
+            # 1. Clear existing widgets
+            try:
+                if self.gui.grid_container.winfo_exists():
+                    for widget in self.gui.grid_container.winfo_children():
+                        widget.destroy()
+            except tk.TclError:
+                # Container already destroyed
+                return
 
-        # 2. Get project data from controller/project_manager
-        pm = self.gui.controller.project_manager
-        if not pm or pm.get_project_type() != "live":
-            return
+            # 2. Get project data from controller/project_manager
+            pm = self.gui.controller.project_manager
+            if not pm or pm.get_project_type() != "live":
+                return
 
-        days = pm.project_data.get("experiment_days", 0)
-        groups = pm.project_data.get("groups", [])
-        subjects_per_group = pm.project_data.get("subjects_per_group", 0)
+            days = pm.project_data.get("experiment_days", 0)
+            groups = pm.project_data.get("groups", [])
+            subjects_per_group = pm.project_data.get("subjects_per_group", 0)
 
-        if not all([days, groups, subjects_per_group]):
-            ttk.Label(
-                self.gui.grid_container,
-                text="O design experimental não está totalmente configurado.",
-            ).pack()
-            return
+            if not all([days, groups, subjects_per_group]):
+                ttk.Label(
+                    self.gui.grid_container,
+                    text="O design experimental não está totalmente configurado.",
+                ).pack()
+                return
 
-        completed_sessions = pm.get_completed_sessions()
+            completed_sessions = pm.get_completed_sessions()
 
-        # 3. Create headers
-        ttk.Label(self.gui.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")).grid(
-            row=0, column=0, padx=5, pady=5, sticky="nsew"
-        )
-        for j, group_name in enumerate(groups):
-            ttk.Label(
-                self.gui.grid_container,
-                text=group_name,
-                font=("Helvetica", 10, "bold"),
-                anchor="center",
+            # 3. Create headers
+            ttk.Label(self.gui.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")).grid(
+                row=0, column=0, padx=5, pady=5, sticky="nsew"
+            )
+            for j, group_name in enumerate(groups):
+                ttk.Label(
+                    self.gui.grid_container,
+                    text=group_name,
+                    font=("Helvetica", 10, "bold"),
+                    anchor="center",
             ).grid(row=0, column=j + 1, padx=5, pady=5, sticky="nsew")
 
-        # 4. Create grid cells
-        for i in range(days):
-            day = i + 1
-            day_title = self.gui._build_day_title(day)
-            ttk.Label(
-                self.gui.grid_container,
-                text=day_title,
-                font=("Helvetica", 10, "bold"),
-            ).grid(row=i + 1, column=0, padx=5, pady=5, sticky="nsew")
+            # 4. Create grid cells
+            for i in range(days):
+                day = i + 1
+                day_title = self.build_day_title(day)
 
-            for j, group_name in enumerate(groups):
-                completed_count = sum(
-                    1 for (d, g, s) in completed_sessions if d == day and g == group_name
-                )
-
-                status_text = f"{completed_count}/{subjects_per_group}"
-
-                if completed_count == 0:
-                    color = "#E0E0E0"  # Grey - Pending
-                elif completed_count < subjects_per_group:
-                    color = "#FFFACD"  # LemonChiffon - In progress
-                else:
-                    color = "#90EE90"  # LightGreen - Completed
-
-                cell_btn = Button(
+                ttk.Label(
                     self.gui.grid_container,
-                    text=status_text,
-                    background=color,
-                    width=15,
-                    height=3,
-                    command=lambda d=day,
-                    g=group_name: self.gui.dialog_manager.handle_grid_cell_click(d, g),
-                )
-                cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
+                    text=day_title,
+                    font=("Helvetica", 10, "bold"),
+                ).grid(row=i + 1, column=0, padx=5, pady=5, sticky="nsew")
 
-        for col_index in range(len(groups) + 1):
-            self.gui.grid_container.columnconfigure(col_index, weight=1)
-        for row_index in range(days + 1):
-            self.gui.grid_container.rowconfigure(row_index, weight=1)
+                for j, group_name in enumerate(groups):
+                    completed_count = sum(
+                        1 for (d, g, s) in completed_sessions if d == day and g == group_name
+                    )
+
+                    status_text = f"{completed_count}/{subjects_per_group}"
+
+                    if completed_count == 0:
+                        color = "#E0E0E0"  # Grey - Pending
+                    elif completed_count < subjects_per_group:
+                        color = "#FFFACD"  # LemonChiffon - In progress
+                    else:
+                        color = "#90EE90"  # LightGreen - Completed
+
+                    cell_btn = Button(
+                        self.gui.grid_container,
+                        text=status_text,
+                        background=color,
+                        width=15,
+                        height=3,
+                        command=lambda d=day,
+                        g=group_name: self.gui.dialog_manager.handle_grid_cell_click(d, g),
+                    )
+                    cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
+
+            for col_index in range(len(groups) + 1):
+                self.gui.grid_container.columnconfigure(col_index, weight=1)
+            for row_index in range(days + 1):
+                self.gui.grid_container.rowconfigure(row_index, weight=1)
+        except Exception as e:
+            log.error("widget_factory.render_progress_grid.failed", error=str(e), exc_info=True)
+            # Add error label to container so user knows it failed but UI continues
+            try:
+                ttk.Label(
+                    self.gui.grid_container,
+                    text=f"Erro ao renderizar grade: {e}",
+                    foreground="red"
+                ).pack(pady=20)
+            except Exception:
+                pass
 
     def reload_config_editor_values(self) -> None:
         """Load current settings into ConfigEditorWidget."""

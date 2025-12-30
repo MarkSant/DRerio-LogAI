@@ -699,7 +699,7 @@ class DialogManager:
 
         descriptors = []
         if day is not None and group is not None and cobaia is not None:
-            day_display = self.gui._format_day_display(day) or day
+            day_display = self.gui.validation_manager._format_day_display(day) or day
             descriptors.append(f"Dia {day_display}, Grupo {group}, Sujeito {cobaia}")
         if port:
             descriptors.append(f"Porta {port}")

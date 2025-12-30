@@ -155,6 +155,30 @@ class VideoManager:
                 },
             }
 
+            # Check for recording metadata file
+            metadata_file = parent_dir / "_recording_metadata.json"
+            if metadata_file.exists():
+                try:
+                    import json
+
+                    with open(metadata_file, "r", encoding="utf-8") as f:
+                        recording_metadata = json.load(f)
+
+                    # Add metadata to result
+                    if recording_metadata:
+                        result["metadata"] = recording_metadata
+                        log.info(
+                            "video_manager.scan.metadata_loaded",
+                            video=video_path.name,
+                            metadata=recording_metadata,
+                        )
+                except Exception as e:
+                    log.warning(
+                        "video_manager.scan.metadata_load_failed",
+                        video=video_path.name,
+                        error=str(e),
+                    )
+
             results.append(result)
 
         return results

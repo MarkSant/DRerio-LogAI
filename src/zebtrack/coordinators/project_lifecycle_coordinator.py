@@ -623,8 +623,8 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self.logger.info("project.outputs.register.start", video=video_path)
 
         # Register through project manager
-        if hasattr(self.project_manager, "_register_outputs"):
-            self.project_manager._register_outputs(
+        if hasattr(self.project_manager, "register_processing_outputs"):
+            self.project_manager.register_processing_outputs(
                 video_path=video_path,
                 results_dir=results_dir,
                 trajectory_path=trajectory_path,

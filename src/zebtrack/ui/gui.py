@@ -1883,6 +1883,14 @@ class ApplicationGUI:
         """Create drawing buttons. Delegates to WidgetFactory."""
         self.widget_factory.create_drawing_buttons()
 
+    def _build_day_title(self, day_value, metadata: dict | None = None) -> str:
+        """Shim for validation_manager._build_day_title."""
+        return self.validation_manager._build_day_title(day_value, metadata)
+
+    def _format_day_display(self, value) -> str:
+        """Shim for validation_manager._format_day_display."""
+        return self.validation_manager._format_day_display(value)
+
     def _render_progress_grid(self):
         """Render the progress grid. Delegates to WidgetFactory."""
         self.widget_factory.render_progress_grid()

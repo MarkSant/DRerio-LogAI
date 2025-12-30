@@ -197,10 +197,12 @@ class EventBus:
         )
         if not handlers:
             # Suppress warning for high-frequency UI events or events handled locally
+            # Also suppress internal events that don't require handlers (fire-and-forget)
             if event.event_name not in (
                 "ui:display_frame",
                 "behavioral_config.perspective_changed",
                 "behavioral_config.values_changed",
+                "RECORDING_STARTED",  # Internal event - fire-and-forget
             ):
                 log.warning(
                     "event_bus.dispatch.no_handlers",

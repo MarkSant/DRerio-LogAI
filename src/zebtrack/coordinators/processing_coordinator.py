@@ -3139,7 +3139,7 @@ class ProcessingCoordinator(BaseCoordinator):
         try:
             # Validation 1: Valid points
             if not points or len(points) < 3:
-                log.error(
+                log.debug(
                     "controller.polygon.invalid_points",
                     count=len(points) if points else 0,
                 )

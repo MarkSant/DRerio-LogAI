@@ -637,6 +637,7 @@ class LiveCameraCoordinator(BaseCoordinator):
             analysis_interval_frames=analysis_interval_frames,
             display_interval_frames=display_interval_frames,
             record_video=record_video,
+            analysis_config=config,
         )
 
         # UI feedback

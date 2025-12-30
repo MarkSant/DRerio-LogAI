@@ -29,6 +29,7 @@ from zebtrack.coordinators.base import (
     CoordinatorValidationError,
 )
 from zebtrack.core.state_manager import StateCategory
+from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
     from zebtrack.core.recording_service import RecordingService
@@ -250,7 +251,7 @@ class RecordingCoordinator(BaseCoordinator):
 
             # Publish event
             self._publish_event(
-                "RECORDING_STARTED",
+                Events.RECORDING_STARTED,
                 {
                     "folder_name": folder_name,
                     "output_folder": output_folder,

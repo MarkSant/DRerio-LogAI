@@ -67,6 +67,13 @@ class ZoneControlBuilder:
 
         self._refresh_video_tree_dual_mode()
 
+        # 2. Emit zone saved event to resume pending recording (if any)
+        from zebtrack.ui.events import Events
+
+        if hasattr(self.gui, "event_bus") and self.gui.event_bus:
+            self.gui.event_bus.publish_event(Events.ZONE_SAVE_ARENA, {})
+            log.info("zone_control_builder.conclude_video.zone_saved_event_emitted")
+
         # 3. Optional: Feedback
         if hasattr(self.gui, "set_status"):
             self.gui.set_status("Edição concluída. Dados salvos e indicadores atualizados.")
@@ -337,14 +344,16 @@ class ZoneControlBuilder:
             command=self.gui._load_selected_video_frame,
         ).pack(pady=(5, 0))
 
-        legend_frame = ttk.Frame(video_selector_frame)
-        legend_frame.pack(fill="x", pady=(5, 0))
-        ttk.Label(
+        # 3.2. Legend section
+        legend_frame = ttk.Frame(controls_container)
+        legend_frame.pack(fill="x", padx=10, pady=(5, 5))
+
+        self.status_legend_label = ttk.Label(
             legend_frame,
-            text=self.gui._build_status_icon_legend(),
-            font=("TkDefaultFont", 8),
+            text=self.gui.widget_factory.build_status_icon_legend_simple(),
             foreground="gray",
-        ).pack(anchor="w")
+            font=("TkDefaultFont", 8),
+        )
 
         self._refresh_video_tree_dual_mode()
 

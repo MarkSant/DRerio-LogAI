@@ -122,8 +122,13 @@ docs/
 ### Architecture Decisions (ADRs)
 
 - **[ADR-001: Multi-Aquarium Support](decisions/ADR-001-multi-aquarium-support.md)**
+- **[ADR-003: Live Analysis Canvas Integration Fix](decisions/ADR-003-live-analysis-canvas-integration-fix.md)** ⭐ NEW
 - **[ADR-004: Live Camera Divergence](decisions/ADR-004-live-camera-divergence.md)**
 - **[ADR-005: Model Overrides Duplication](decisions/ADR-005-model-overrides-duplication.md)**
+
+### Recent Fixes & Improvements
+
+- **[Live Analysis Canvas Fix (Dec 2025)](LIVE_ANALYSIS_CANVAS_FIX.md)** ⭐ CRITICAL - Phase 3 Canvas Preto fix
 
 ---
 

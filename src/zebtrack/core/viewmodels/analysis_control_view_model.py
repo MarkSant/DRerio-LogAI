@@ -29,6 +29,7 @@ class AnalysisControlViewModel:
         self.video_processing_orchestrator = bootstrap_result.video_processing_orchestrator
         self.video_processing_service = dependencies.video_processing_service
         self.processing_coordinator = dependencies.processing_coordinator
+        self.session_coordinator = dependencies.session_coordinator
         # Phase 3A: analysis_orchestrator removed (no production calls)
         self.analysis_service = bootstrap_result.analysis_service
         self.state_manager = dependencies.state_manager
@@ -125,15 +126,35 @@ class AnalysisControlViewModel:
         legacy_worker_running = bool(self.processing_worker and self.processing_worker.is_running)
         legacy_thread_running = bool(self.processing_thread and self.processing_thread.is_alive())
 
+        # Check if there's an active live camera session
+        live_session_active = bool(
+            self.session_coordinator
+            and self.session_coordinator.live_camera_service
+            and self.session_coordinator.live_camera_service.camera is not None
+        )
+
         # If nothing is running, early return
         if not (
             coord_worker_running
             or coord_thread_running
             or legacy_worker_running
             or legacy_thread_running
+            or live_session_active
         ):
             log.info("cancel_current_analysis.no_processing_active")
             return
+
+        # Stop live camera session if active
+        if live_session_active:
+            log.info(
+                "cancel_current_analysis.stopping_live_session",
+                has_camera=self.session_coordinator.live_camera_service.camera is not None,
+            )
+            try:
+                self.session_coordinator.live_camera_service.stop_session()
+                log.info("cancel_current_analysis.live_session_stopped")
+            except Exception as e:
+                log.error("cancel_current_analysis.live_session_stop_error", error=str(e))
 
         # Set cancel event to stop processing
         log.info(

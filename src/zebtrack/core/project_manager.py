@@ -2283,10 +2283,11 @@ class ProjectManager:
         summary_parquet: str | None = None,
         summary_excel: str | None = None,
         report_path: str | None = None,
+        experiment_id: str | None = None,
     ) -> bool:
         """Update project metadata with freshly generated analysis artifacts."""
         video_path = Path(video_path).as_posix()
-        video_entry = self.find_video_entry(path=video_path)
+        video_entry = self.find_video_entry(path=video_path, experiment_id=experiment_id)
         if not video_entry:
             log.info(
                 "project.outputs.adding_missing_video",

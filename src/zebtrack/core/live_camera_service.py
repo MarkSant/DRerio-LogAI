@@ -13,6 +13,7 @@ Follows the service pattern established by RecordingService and DetectorService.
 
 from __future__ import annotations
 
+import datetime
 import glob
 import math
 import queue
@@ -185,6 +186,13 @@ class LiveCameraService:
         )
         self._session_duration_s: float = 0.0
         self._preview_window_destroyed: bool = False  # MELHORIA #2: Flag to prevent race condition
+        self._current_base_name: str = ""  # Store base name used for files
+        self._actual_fps: float = 30.0
+        self._actual_height: int = 720
+        self._actual_width: int = 1280
+
+        # Storage for analysis parameters (added for full post-analysis)
+        self._analysis_params: dict = {}
 
         # MELHORIA #5: Metrics for dropped frames
         self._dropped_frames_processing: int = 0  # Frames dropped from frame_queue
@@ -199,6 +207,7 @@ class LiveCameraService:
         ] = []  # Collect multiple detections
         self._arena_defined_event = threading.Event()  # Signal when arena is ready
         self._animals_per_aquarium: int = 1  # Default to single subject
+        self._use_external_preview: bool = False  # Track if using external UI (CanvasManager)
 
     @property
     def camera(self) -> Camera | None:
@@ -302,6 +311,8 @@ class LiveCameraService:
         record_video: bool = True,
         output_base_dir: str | None = None,
         animals_per_aquarium: int = 1,
+        analysis_config: dict | None = None,
+        use_external_preview: bool = False,
     ) -> bool:
         """
         Start a live camera analysis session.
@@ -315,6 +326,7 @@ class LiveCameraService:
             record_video: Whether to record video
             output_base_dir: Custom output directory (default: live_analysis_sessions/)
             animals_per_aquarium: Number of animals per aquarium (affects tracking mode)
+            analysis_config: Configuration for behavioral analysis (thresholds, ROIs, etc.)
 
         Returns:
             True if session started successfully, False otherwise
@@ -327,6 +339,7 @@ class LiveCameraService:
             analysis_interval=analysis_interval_frames,
             display_interval=display_interval_frames,
             animals_per_aquarium=animals_per_aquarium,
+            has_analysis_config=analysis_config is not None,
         )
 
         # Store configuration
@@ -340,9 +353,15 @@ class LiveCameraService:
         self._preview_window_destroyed = False  # MELHORIA #2: Reset flag for new session
         self._dropped_frames_processing = 0  # MELHORIA #5: Reset dropped frame counters
         self._dropped_frames_video = 0
+        self._analysis_params = analysis_config or {}
+        self._use_external_preview = use_external_preview
 
         # Create preview window FIRST (so we can show status updates)
-        if not getattr(self.controller, "_disable_live_preview_window", False):
+        # Create window when use_external_preview=True (separate window mode)
+        # Skip when use_external_preview=False (use integrated canvas in Analysis tab)
+        if use_external_preview and not getattr(
+            self.controller, "_disable_live_preview_window", False
+        ):
             log.info(
                 "live_camera_service.about_to_create_preview_window",
                 camera_index=camera_index,
@@ -356,7 +375,7 @@ class LiveCameraService:
             log.info(
                 "live_camera_service.preview_window.skip",
                 camera_index=camera_index,
-                reason="controller_requested_skip",
+                reason="using_integrated_canvas" if not use_external_preview else "explicitly_disabled",
             )
 
         # Show initialization status
@@ -385,8 +404,15 @@ class LiveCameraService:
                 messagebox.showerror("Erro na Câmera", error_msg)
             return False
 
+        # Store camera properties for later use (post-analysis)
+        if self.camera:
+            self._actual_fps = self.camera.actual_fps
+            self._actual_width = self.camera.actual_width
+            self._actual_height = self.camera.actual_height
+
         # Create output directory
-        from datetime import datetime
+        # ✅ FIX: Remove local import that conflicts with module-level datetime import
+        # Use datetime.datetime.now() to access the datetime class from the module
 
         # ✅ Allow custom output directory for projects
         if output_base_dir:
@@ -395,8 +421,9 @@ class LiveCameraService:
             output_base = Path("live_analysis_sessions")
 
         output_base.mkdir(exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         folder_name = f"{experiment_id}_{timestamp}"
+        self._current_base_name = folder_name
         output_dir = output_base / folder_name
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1147,9 +1174,40 @@ class LiveCameraService:
 
                     # Task 1.1: UI Update Thread Safety - preview_window and root exist
                     # MELHORIA #2: Check if preview window not destroyed (race condition)
-                    if self.preview_window and self.root and not self._preview_window_destroyed:
+                    if self.root and not self._preview_window_destroyed:
                         self.root.after(0, self.preview_window.update_frame, frame, detections)
-                    # Do not update if root doesn't exist (prevents crashes in headless/test mode)
+
+                # ✅ INTEGRATED CANVAS: Emit event for main UI when NOT using external preview
+                # When use_external_preview=False, frames go to integrated Analysis tab canvas
+                # CRITICAL: This must be OUTSIDE the preview_window check since we don't create
+                # preview_window when using integrated canvas!
+                if should_display and not self._use_external_preview and self.event_bus:
+                    # Emit event to update main UI canvas
+                    # We pass a copy of the frame to avoid thread safety issues
+                    from zebtrack.ui.events import Events
+
+                    log.debug(
+                        "live_camera_service.emitting_ui_update_frame",
+                        frame_number=frame_number,
+                        has_detections=len(detections) if detections else 0,
+                    )
+
+                    self.event_bus.publish_event(
+                        Events.UI_UPDATE_LIVE_FRAME,
+                        {
+                            "frame": frame,  # Numpy array
+                            "detections": detections,
+                            "fps": self._actual_fps,
+                        },
+                    )
+                elif should_display and not self._use_external_preview:
+                    log.warning(
+                        "live_camera_service.no_event_bus",
+                        frame_number=frame_number,
+                        has_event_bus=self.event_bus is not None,
+                    )
+
+                # Do not update if root doesn't exist (prevents crashes in headless/test mode)
 
                 # MELHORIA #4: Explicit frame cleanup to hint garbage collector
                 del frame
@@ -1242,52 +1300,25 @@ class LiveCameraService:
         def _run_post_analysis():
             """Background thread worker for post-processing analysis."""
             try:
+                from zebtrack.analysis.analysis_service import AnalysisService
+                from zebtrack.analysis.reporter import Reporter
+
                 # Find generated trajectory parquet
-                # File is saved as: 3_CoordMovimento_{base_name}.parquet
-
-                # 🔍 DEBUG: List all files in output_dir
-                all_files = list(output_dir.glob("*"))
-                log.info(
-                    "live_camera_service.output_files_check",
-                    output_dir=str(output_dir),
-                    all_files=[f.name for f in all_files],
-                    num_files=len(all_files),
-                )
-
                 trajectory_files = glob.glob(str(output_dir / "3_CoordMovimento_*.parquet"))
 
                 if not trajectory_files:
                     log.warning(
-                        "live_camera_service.no_trajectory_found",
-                        output_dir=str(output_dir),
-                        searched_pattern="3_CoordMovimento_*.parquet",
+                        "live_camera_service.no_trajectory_found", output_dir=str(output_dir)
                     )
-                    # Task 2.0c: Schedule UI update in main thread
                     if self.root:
-                        self.root.after(
-                            0, self._show_completion_message, output_dir, False, None, None
-                        )
+                        self.root.after(0, self._show_completion_message, output_dir, False)
                     return
 
                 trajectory_file = Path(trajectory_files[0])
-                log.info("live_camera_service.trajectory_found", file=str(trajectory_file))
-
-                # Load trajectory data and generate reports
-                # Task 2.0c: Heavy I/O operation now runs in background thread
                 df = pd.read_parquet(trajectory_file)
-
-                # 🔍 INFO: Log DataFrame info
-                log.info(
-                    "live_camera_service.trajectory_loaded",
-                    file=str(trajectory_file),
-                    num_rows=len(df),
-                    is_empty=df.empty,
-                    columns=list(df.columns) if not df.empty else [],
-                )
 
                 if df.empty:
                     log.warning("live_camera_service.empty_trajectory")
-                    # Task 2.0c: Schedule UI update in main thread
                     if self.root:
                         self.root.after(
                             0,
@@ -1299,20 +1330,146 @@ class LiveCameraService:
                         )
                     return
 
-                # Generate basic metrics summary
-                # Task 2.0c: DataFrame operations now in background thread
+                # --- NEW: FULL BEHAVIORAL ANALYSIS ---
+                log.info("live_camera_service.full_analysis.start")
+
+                # 1. Collect required parameters
+                # Use analysis_config stored during start_session if available
+                # Fallback to project_manager/settings
+                analysis_service = AnalysisService(settings_obj=self.settings)
+                params = analysis_service.collect_analysis_parameters(
+                    self.project_manager.project_data
+                )
+
+                # Update with session-specific overrides if provided
+                if self._analysis_params:
+                    # Map session keys to internal analysis keys
+                    # Dialog: freezing_velocity_threshold -> Internal: freezing_vel_threshold
+                    if "freezing_velocity_threshold" in self._analysis_params:
+                        params["freezing_vel_threshold"] = self._analysis_params[
+                            "freezing_velocity_threshold"
+                        ]
+                    if "freezing_min_duration_s" in self._analysis_params:
+                        params["freezing_min_duration"] = self._analysis_params[
+                            "freezing_min_duration_s"
+                        ]
+                    if "smoothing_window_length" in self._analysis_params:
+                        params["smoothing_window_length"] = self._analysis_params[
+                            "smoothing_window_length"
+                        ]
+                    if "smoothing_polyorder" in self._analysis_params:
+                        params["smoothing_polyorder"] = self._analysis_params["smoothing_polyorder"]
+                    if "behavioral_analysis" in self._analysis_params:
+                        params["behavioral_config"].update(
+                            self._analysis_params["behavioral_analysis"]
+                        )
+
+                # 2. Get calibration and zone data
+                calib_data = self.project_manager.project_data.get("calibration", {})
+                pixelcm_x = calib_data.get("pixelcm_x", 1.0)
+                pixelcm_y = calib_data.get("pixelcm_y", 1.0)
+                video_height = self._actual_height
+
+                # Get zones (arena and ROIs)
+                zone_data = self.project_manager.get_zone_data()
+                arena_polygon = zone_data.polygon or []
+
+                # Build ROI objects
+                from zebtrack.analysis.roi import ROI
+
+                rois = []
+                roi_colors = {}
+                if zone_data.roi_polygons:
+                    for i, poly in enumerate(zone_data.roi_polygons):
+                        name = (
+                            zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i}"
+                        )
+                        color = (
+                            zone_data.roi_colors[i]
+                            if i < len(zone_data.roi_colors)
+                            else (255, 0, 0)
+                        )
+                        rois.append(ROI(name=name, polygon=poly))
+                        roi_colors[name] = color
+
+                # 3. Run full analysis
+                fps = self._actual_fps
+                video_filename = f"{self._current_base_name}.mp4"
+                video_path = output_dir / video_filename
+
+                metadata = {
+                    "experiment_id": self._experiment_id,
+                    "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "camera_index": self._analysis_params.get("camera_index", "N/A"),
+                    "num_aquariums": 1,
+                    "animals_per_aquarium": self._animals_per_aquarium,
+                }
+
+                # Add extra metadata if provided in analysis_params
+                if self._analysis_params:
+                    for key in ["group", "day", "subject_id"]:
+                        if key in self._analysis_params:
+                            metadata[key] = self._analysis_params[key]
+
+                analysis_result = analysis_service.run_full_analysis_as_dto(
+                    trajectory_df=df,
+                    pixelcm_x=pixelcm_x,
+                    pixelcm_y=pixelcm_y,
+                    video_height_px=video_height,
+                    arena_polygon_px=arena_polygon,
+                    rois=rois,
+                    fps=fps,
+                    metadata=metadata,
+                    roi_colors=roi_colors,
+                    freezing_vel_threshold=params["freezing_vel_threshold"],
+                    freezing_min_duration=params["freezing_min_duration"],
+                    smoothing_window_length=params["smoothing_window_length"],
+                    smoothing_polyorder=params["smoothing_polyorder"],
+                    behavioral_config=params["behavioral_config"],
+                    video_path=str(video_path),
+                )
+
+                # 4. Generate Reports
+                reporter = Reporter.from_analysis(analysis_result)
+
+                # Save Excel summary
+                excel_path = output_dir / f"4_RelatorioSumario_{self._experiment_id}.xlsx"
+                reporter.export_summary_data(str(excel_path), format="excel")
+
+                # Save Word report
+                word_path = output_dir / f"5_RelatorioIndividual_{self._experiment_id}.docx"
+                reporter.export_individual_report(str(word_path))
+
+                log.info(
+                    "live_camera_service.reports_generated",
+                    excel=str(excel_path),
+                    word=str(word_path),
+                )
+
+                # 5. Register outputs in project if active
+                if self.project_manager.project_path:
+                    self.project_manager.register_processing_outputs(
+                        video_path=str(video_path),
+                        results_dir=str(output_dir),
+                        trajectory_path=str(trajectory_file),
+                        summary_excel=str(excel_path),
+                        report_path=str(word_path),
+                        experiment_id=self._experiment_id,
+                    )
+
+                    # Refresh project views to show the new results
+                    if self.event_bus:
+                        from zebtrack.ui.events import Events
+
+                        self.event_bus.publish_event(
+                            Events.UI_REFRESH_PROJECT_VIEWS, {"reason": "Live analysis complete"}
+                        )
+
+                # --- FINALIZE ---
                 total_frames = df["frame"].nunique()
                 total_detections = len(df)
                 unique_tracks = df["track_id"].nunique() if "track_id" in df.columns else 0
 
-                log.info(
-                    "live_camera_service.analysis_complete",
-                    total_frames=total_frames,
-                    total_detections=total_detections,
-                    unique_tracks=unique_tracks,
-                )
-
-                # Task 2.0c: Schedule success message in main thread
                 if self.root:
                     stats = {
                         "frames": total_frames,
@@ -1322,12 +1479,7 @@ class LiveCameraService:
                     self.root.after(0, self._show_completion_message, output_dir, True, stats, None)
 
             except Exception as e:
-                log.error(
-                    "live_camera_service.post_analysis_error",
-                    error=str(e),
-                    exc_info=True,
-                )
-                # Task 2.0c: Schedule error message in main thread
+                log.error("live_camera_service.post_analysis_error", error=str(e), exc_info=True)
                 if self.root:
                     self.root.after(
                         0, self._show_completion_message, output_dir, False, None, "error"
@@ -1452,8 +1604,8 @@ class LiveCameraService:
         """
         from zebtrack.core.detector import ZoneData
 
-        w = self.camera.actual_width if self.camera else 1280
-        h = self.camera.actual_height if self.camera else 720
+        w = self._actual_width
+        h = self._actual_height
 
         if self._detected_aquarium_bboxes:
             # Use median of detected bboxes to create arena
@@ -1500,7 +1652,42 @@ class LiveCameraService:
 
         # Save and apply zone
         zone_data = ZoneData(polygon=arena_polygon)
-        self.project_manager.save_zone_data(zone_data, video_path=None, persist=False)
+
+        # Calculate pixel-to-cm ratio if dimensions provided
+        if self._analysis_params:
+            width_cm = self._analysis_params.get("aquarium_width_cm", 0)
+            height_cm = self._analysis_params.get("aquarium_height_cm", 0)
+
+            if width_cm > 0 and height_cm > 0:
+                # Get arena bounding box dimensions in pixels
+                pts = np.array(arena_polygon)
+                min_x, min_y = np.min(pts, axis=0)
+                max_x, max_y = np.max(pts, axis=0)
+                width_px = max_x - min_x
+                height_px = max_y - min_y
+
+                if width_px > 0 and height_px > 0:
+                    pixelcm_x = width_px / width_cm
+                    pixelcm_y = height_px / height_cm
+
+                    # Store in project calibration data
+                    calib = self.project_manager.project_data.setdefault("calibration", {})
+                    calib["pixelcm_x"] = pixelcm_x
+                    calib["pixelcm_y"] = pixelcm_y
+                    calib["aquarium_width_cm"] = width_cm
+                    calib["aquarium_height_cm"] = height_cm
+
+                    log.info(
+                        "live_camera_service.calibration_calculated",
+                        pixelcm_x=f"{pixelcm_x:.2f}",
+                        pixelcm_y=f"{pixelcm_y:.2f}",
+                        width_cm=width_cm,
+                        height_cm=height_cm,
+                    )
+
+        # Persist if project exists so future sessions can reuse the arena
+        should_persist = bool(self.project_manager.project_path)
+        self.project_manager.save_zone_data(zone_data, video_path=None, persist=should_persist)
 
         if self.camera:
             self.detector_service.configure_zones(

@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import datetime
 import os
-import tempfile
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -148,6 +147,8 @@ class SessionCoordinator(BaseCoordinator):
         self._pending_external_trigger: dict | None = None
         self._active_live_session_id: str | None = None
         self.camera: Camera | None = None
+        self._pending_zone_confirmation = False
+        self._pending_recording_context = None
 
         log.info(
             "session_coordinator.initialized",
@@ -155,6 +156,9 @@ class SessionCoordinator(BaseCoordinator):
             has_live_camera_service=live_camera_service is not None,
             has_arduino=arduino_manager is not None,
         )
+
+        if self.event_bus:
+            self._setup_event_listeners()
 
     def validate_dependencies(self) -> bool:
         """Validate that required dependencies are present.
@@ -208,6 +212,7 @@ class SessionCoordinator(BaseCoordinator):
         output_path: str | Path | None = None,
         experiment_id: str | None = None,
         duration: int | float | None = None,
+        zones_validated: bool = False,
     ) -> bool:
         """Start a recording session (live mode) with zone validation.
 
@@ -242,13 +247,10 @@ class SessionCoordinator(BaseCoordinator):
         # Clear any pending external trigger
         self._clear_external_trigger_wait()
 
-        # Ensure zones are defined before recording
-        if not self._ensure_zones_before_recording():
-            return False
-
-        # Build context from legacy parameters if needed
-        if context is None and day is not None:
+        # Build context from legacy parameters if needed (BEFORE zone validation)
+        if context is None and (day is not None or output_path is None):
             # Legacy code path from RecordingSessionOrchestrator
+            # OR called from UI without any parameters - need to ask user
             if not all((day, group, cobaia)):
                 if not self.view:
                     raise SessionCoordinatorError(
@@ -284,18 +286,37 @@ class SessionCoordinator(BaseCoordinator):
                 "arduino_port": (project_data.get("arduino_port") or "").strip(),
             }
 
-            # Inject camera dimensions into context
-            camera_width = getattr(self.view.camera, "actual_width", None) if self.view else None
-            camera_height = getattr(self.view.camera, "actual_height", None) if self.view else None
+            # Inject camera dimensions AND index into context (if camera available)
+            camera_width = None
+            camera_height = None
+            camera_index = getattr(self.settings.camera, "index", 0)  # Default from settings
+
+            if self.camera and hasattr(self.camera, "is_open") and self.camera.is_open:
+                camera_width = getattr(self.camera, "actual_width", None)
+                camera_height = getattr(self.camera, "actual_height", None)
+                # Prefer camera's actual index if available
+                if hasattr(self.camera, "index"):
+                    camera_index = self.camera.index
+
             context["camera_width"] = camera_width
             context["camera_height"] = camera_height
+            context["camera_width"] = camera_width
+            context["camera_height"] = camera_height
+
+            # Use project camera index if available, otherwise fallback to detected/settings
+            project_camera_index = project_data.get("camera_index") if project_data else None
+            if project_camera_index is not None:
+                context["camera_index"] = int(project_camera_index)
+            else:
+                context["camera_index"] = camera_index
 
             # Handle external trigger (may wait for signal)
             if self._handle_external_trigger(context, arduino_enabled):
                 return False  # Waiting for trigger
 
         elif context is None:
-            # New code path from RecordingCoordinator
+            # Special code path: explicit output_path provided programmatically
+            # (not from UI button click)
             if output_path is None:
                 raise ValueError("output_path is required when context is not provided")
             if experiment_id is None:
@@ -309,11 +330,54 @@ class SessionCoordinator(BaseCoordinator):
                 "duration": duration,
             }
 
+        # Save context for potential zone confirmation workflow
+        self._pending_recording_context = context
+        self._pending_recording_project_data = (
+            project_data or self.project_manager.project_data or {}
+        )
+        self._pending_recording_trigger_source = trigger_source
+
+        # Ensure zones are defined before recording
+        if not zones_validated and not self._ensure_zones_before_recording():
+            # Check if we're waiting for zone confirmation
+            if hasattr(self, "_pending_zone_confirmation") and self._pending_zone_confirmation:
+                # Don't clear context - will be resumed later
+                log.info("session_coordinator.recording.waiting_for_zones")
+                return False
+            else:
+                # User cancelled or error - clear context
+                self._clear_pending_recording_context()
+                return False
+
+        # Increment session count after successful zone validation
+        self._increment_session_count()
+
         # Delegate to RecordingService
-        project_data = project_data or self.project_manager.project_data or {}
-        self._schedule_recording(context, project_data, trigger_source=trigger_source)
+        self._schedule_recording(
+            context, self._pending_recording_project_data, trigger_source=trigger_source
+        )
+
+        # Clear context after successful start
+        self._clear_pending_recording_context()
+
+        # FIX: Navigate to Analysis View to show recording progress
+        if self.event_bus:
+            self.event_bus.publish_event(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW, {})
+            self.event_bus.publish_event(
+                Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
+                {"status": "recording", "message": "Iniciando gravação..."},
+            )
 
         return True
+
+    def _clear_pending_recording_context(self):
+        """Clear pending recording context."""
+        if hasattr(self, "_pending_recording_context"):
+            del self._pending_recording_context
+        if hasattr(self, "_pending_recording_project_data"):
+            del self._pending_recording_project_data
+        if hasattr(self, "_pending_recording_trigger_source"):
+            del self._pending_recording_trigger_source
 
     def stop_recording(self) -> bool:
         """Stop the current recording session.
@@ -508,13 +572,79 @@ class SessionCoordinator(BaseCoordinator):
         *,
         trigger_source: str,
     ) -> None:
-        """Schedule a recording session via RecordingService.
+        """Schedule a recording session via RecordingService OR LiveCameraService.
 
         Args:
             context: Recording context
             project_data: Project configuration
             trigger_source: Source of trigger (manual/external)
         """
+        # Check if this should be a Live Analysis session (Smart Recording)
+        if context.get("is_live_analysis"):
+            log.info("session_coordinator.schedule.dispatching_to_live_camera")
+
+            # Extract parameters for LiveCameraService
+            camera_index = context.get("camera_index", 0)
+            # Duration: use context duration (if set) or project default
+            duration_s = context.get("duration")
+            if duration_s is None:
+                duration_s = float(project_data.get("recording_duration_s", 300))
+
+            # Experiment ID
+            experiment_id = context.get("experiment_id")
+            if not experiment_id:
+                # Construct from folder name components
+                experiment_id = f"{context.get('day', 'D')}_{context.get('group', 'G')}_{context.get('cobaia', 'S')}"
+
+            # Output directory (LiveCameraService expects base dir or full path?)
+            # It expects specific structure usually, but let's pass the project path or output base
+            # If we pass output_base_dir, it creates subfolders.
+            # But we already defined 'output_folder' in context.
+            # Let's see if we can force it.
+            # LiveCameraService logic: if output_base_dir provided, self.output_dir = output_base_dir
+            output_folder = context.get("output_folder")
+
+            # Other settings
+            analysis_interval = int(project_data.get("analysis_interval_frames", 1))
+
+            # Delegate to LiveCameraService
+            success = self.live_camera_service.start_session(
+                camera_index=camera_index,
+                duration_s=duration_s,
+                experiment_id=experiment_id,
+                analysis_interval_frames=analysis_interval,
+                display_interval_frames=1,  # Default
+                record_video=True,
+                output_base_dir=output_folder,  # Will use this as root for session
+                # Consider adding animals_per_aquarium if available in context
+                animals_per_aquarium=1,
+                use_external_preview=False,  # Use integrated canvas in Analysis tab
+            )
+
+            if success:
+                # Update state to RECORDING
+                self._update_state(
+                    StateCategory.RECORDING,
+                    is_recording=True,
+                    output_path=output_folder,
+                    experiment_id=experiment_id,
+                    duration=duration_s,
+                )
+                # Publish event
+                self._publish_event(
+                    Events.RECORDING_STARTED,
+                    {
+                        "folder_name": context.get("folder_name"),
+                        "output_folder": output_folder,
+                        "trigger_source": trigger_source,
+                        "mode": "live_analysis",
+                    },
+                )
+
+            return
+
+        # --- FALLBACK TO DUMB RECORDING (RecordingService) ---
+
         # Update state optimistically
         effective_output = context.get("output_folder")
         effective_experiment = context.get("experiment_id") or context.get("folder_name")
@@ -539,7 +669,7 @@ class SessionCoordinator(BaseCoordinator):
 
         # Publish event
         self._publish_event(
-            "RECORDING_STARTED",
+            Events.RECORDING_STARTED,
             {
                 "folder_name": context.get("folder_name"),
                 "output_folder": context.get("output_folder"),
@@ -641,6 +771,7 @@ class SessionCoordinator(BaseCoordinator):
                 display_interval_frames=display_interval_frames,
                 record_video=record_video,
                 output_base_dir=output_base_dir,
+                use_external_preview=False,  # Use integrated canvas in Analysis tab
             )
 
             if not success:
@@ -930,6 +1061,7 @@ class SessionCoordinator(BaseCoordinator):
         )
 
         # Delegate to LiveCameraService
+        # ✅ FIX: Use integrated canvas preview (no external window)
         success = self.live_camera_service.start_session(
             camera_index=camera_index,
             duration_s=duration_s,
@@ -938,6 +1070,7 @@ class SessionCoordinator(BaseCoordinator):
             display_interval_frames=display_interval_frames,
             record_video=record_video,
             animals_per_aquarium=animals_per_aquarium,
+            use_external_preview=False,  # Use canvas in Analysis tab
         )
 
         # UI feedback
@@ -1020,6 +1153,7 @@ class SessionCoordinator(BaseCoordinator):
             analysis_interval_frames=analysis_interval_frames,
             display_interval_frames=display_interval_frames,
             record_video=True,  # Projects always record
+            use_external_preview=False,  # Use integrated canvas in Analysis tab
         )
 
         return success
@@ -1028,177 +1162,158 @@ class SessionCoordinator(BaseCoordinator):
     # GROUP E: LIVE CALIBRATION (RecordingSessionOrchestrator)
     # =============================================================================
 
-    def run_live_calibration(self, temp_aquarium_method: str | None = None):
-        """Record a short clip from the live camera and runs aquarium detection.
-
-        Args:
-            temp_aquarium_method: Temporary override for aquarium detection method
-                ('det' or 'seg'). If None, uses global self.settings.
-        """
-        log.info("session_coordinator.live_calibration.start")
-
-        if not self.view or not self.view.camera or not self.view.camera.is_opened():
-            if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {"title": "Erro", "message": "A câmera não está disponível ou aberta."},
-                )
-            return
-
-        temp_video_path = None
-
-        try:
-            # 1. Create a temporary file for the calibration video
-            temp_video_file = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-            temp_video_path = temp_video_file.name
-            temp_video_file.close()
-
-            # 2. Record a short clip
-            w, h = self.view.camera.actual_width, self.view.camera.actual_height
-            fps = self.settings.video_processing.fps
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (w, h))
-
-            if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SET_STATUS,
-                    {"message": "Calibrando... Gravando um pequeno clipe."},
-                )
-
-            start_time = time.time()
-            while time.time() - start_time < 5:  # Record for 5 seconds
-                ret, frame = self.view.camera.get_frame()
-                if not ret:
-                    break
-                writer.write(frame)
-            writer.release()
-
-            if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SET_STATUS,
-                    {"message": "Calibração: Analisando o clipe..."},
-                )
-
-            # 3. Run detection on the clip
-            aquarium_method = temp_aquarium_method or self.settings.model_selection.aquarium_method
-            model_path = self.weight_manager.get_weight_path_by_method(aquarium_method, "aquarium")
-
-            if not model_path:
-                if self.event_bus:
-                    self.event_bus.publish_event(
-                        Events.UI_SHOW_ERROR,
-                        {
-                            "title": "Erro",
-                            "message": f"Não foi possível encontrar um modelo {aquarium_method} "
-                            "para detecção do aquário.",
-                        },
-                    )
-                return
-
-            detector = AquariumDetector(model_path=model_path, mode=aquarium_method)
-            polygons = detector.detect_aquariums(temp_video_path)
-
-            if not polygons:
-                if self.event_bus:
-                    self.event_bus.publish_event(
-                        Events.UI_SHOW_WARNING,
-                        {
-                            "title": "Detecção Falhou",
-                            "message": (
-                                "Nenhum aquário foi detectado. "
-                                "Por favor, desenhe a área manualmente."
-                            ),
-                        },
-                    )
-                return
-
-            main_polygon = polygons[0]
-            if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SETUP_INTERACTIVE_POLYGON, {"polygon": main_polygon}
-                )
-
-        except Exception as e:
-            log.error("session_coordinator.live_calibration.error", exc_info=True)
-            if self.event_bus:
-                self.event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {"title": "Erro na Calibração", "message": f"Ocorreu um erro: {e}"},
-                )
-        finally:
-            # 4. Clean up the temporary file
-            if temp_video_path and os.path.exists(temp_video_path):
-                os.remove(temp_video_path)
-
-            if self.event_bus:
-                self.event_bus.publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
-
     # =============================================================================
     # GROUP F: HELPER METHODS (Private)
     # =============================================================================
 
     def _ensure_zones_before_recording(self) -> bool:
-        """Ensure project zones are defined (live or non-live) before starting recording.
+        """Ensure project zones are defined before starting recording.
+
+        New implementation uses ZoneCalibrationDialog and ZoneReuseDialog
+        for enhanced user experience.
 
         Returns:
-            True if recording can proceed, False if it should be cancelled.
+            True if recording can proceed, False if cancelled or waiting for zones
         """
         if not self.project_manager.project_path:
             return True
 
         project_type = self.project_manager.get_project_type()
+
+        # Only apply special flow for live projects
+        if project_type != "live":
+            return self._ensure_zones_non_live()
+
+        # === LIVE PROJECT ZONE FLOW ===
+
         zone_data = self.project_manager.get_zone_data()
+        has_zones = zone_data and zone_data.polygon
 
-        if project_type == "live" and (not zone_data or not zone_data.polygon):
-            log.info("session_coordinator.recording.live_zone_validation.start")
+        # 1. If zones exist and this is not first recording, ask if want to reuse
+        if has_zones and self._has_recorded_before():
+            from zebtrack.ui.dialogs.zone_reuse_dialog import ZoneReuseDialog
 
-            if not self.view:
-                return False
+            if not self.root:
+                log.warning("session_coordinator.zones.no_root_for_reuse_dialog")
+                # Default to reusing if can't show dialog
+                return True
 
-            # For Live projects, prompt for automatic calibration
-            response = self.view.ask_ok_cancel(
-                "Calibração Necessária",
-                "Deseja fazer calibração automática do aquário?\n"
-                "(Recomendado para projetos ao vivo)",
+            dialog = ZoneReuseDialog(
+                parent=self.root,
+                zone_data=zone_data,
+                project_manager=self.project_manager,
             )
 
-            if response:
-                # Run auto-calibration
-                self.run_live_calibration()
+            result = dialog.show()
 
-                # Check if calibration was successful
-                zone_data = self.project_manager.get_zone_data()
-                if not zone_data or not zone_data.polygon:
+            if result and result.get("reuse"):
+                log.info("session_coordinator.zones.reused")
+                return True
+            # If not reusing, continue to redefinition flow
+
+        # 2. Ask user how to define zones (auto vs manual)
+        if not has_zones or (has_zones and not self._has_recorded_before()):
+            # First time or zones don't exist
+            from zebtrack.ui.dialogs.zone_calibration_dialog import ZoneCalibrationDialog
+
+            if not self.root:
+                log.error("session_coordinator.zones.no_root_for_calibration_dialog")
+                return False
+
+            calibration_dialog = ZoneCalibrationDialog(parent=self.root)
+            calibration_result = calibration_dialog.show()
+
+            if not calibration_result:
+                # User cancelled
+                log.info("session_coordinator.zones.cancelled_by_user")
+                return False
+
+            method = calibration_result.get("method")
+
+            # 3a. AUTO-DETECTION
+            if method == "auto":
+                log.info("session_coordinator.zones.attempting_auto_detection")
+
+                # IMPORTANT: Use 30 frames for camera exposure adjustment (not just aquarium detection)
+                success = self.run_live_calibration(stabilization_frames=30, show_preview=True)
+
+                if success:
+                    # Detection successful and approved
+                    # Navigate to zone tab to allow adjustments/ROIs
+                    if self.event_bus:
+                        self.event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+                        self.event_bus.publish_event(
+                            Events.UI_SHOW_INFO,
+                            {
+                                "title": "Aquário Detectado",
+                                "message": (
+                                    "Aquário detectado com sucesso!\n\n"
+                                    "Você pode ajustar os vértices ou adicionar ROIs.\n"
+                                    "Clique em 'Concluir' quando estiver pronto."
+                                ),
+                            },
+                        )
+
+                    # Wait for user confirmation
+                    return self._wait_for_zone_confirmation()
+                else:
+                    # Detection failed
                     if self.event_bus:
                         self.event_bus.publish_event(
                             Events.UI_SHOW_ERROR,
                             {
-                                "title": "Calibração Falhou",
+                                "title": "Detecção Falhou",
                                 "message": (
-                                    "Não foi possível detectar o aquário.\n"
-                                    "Por favor, desenhe manualmente."
+                                    "Não foi possível detectar o aquário automaticamente.\n\n"
+                                    "Você será levado para a aba de zonas para desenhar manualmente."
                                 ),
                             },
                         )
-                        self.event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+
+                    # Fallback to manual
+                    method = "manual"
+
+            # 3b. MANUAL DRAWING (or fallback from auto)
+            if method == "manual":
+                log.info("session_coordinator.zones.manual_mode")
+
+                # Capture reference frame
+                if not self._capture_reference_frame_for_zones():
+                    log.error("session_coordinator.zones.reference_frame_failed")
                     return False
-                else:
-                    log.info("session_coordinator.recording.live_zone_validation.success")
-            else:
-                # User declined calibration
+
+                # Navigate to zone tab
                 if self.event_bus:
+                    self.event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
+                    # Force update of zone list and canvas to ensure consistency
+                    # This fixes the "ghost zone" issue where canvas shows zone but list is empty
+                    self.event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST, {})
+                    self.event_bus.publish_event(Events.UI_REDRAW_ZONES, {})
+
                     self.event_bus.publish_event(
-                        Events.UI_SHOW_ERROR,
+                        Events.UI_SHOW_INFO,
                         {
-                            "title": "Zonas Obrigatórias",
-                            "message": "Projetos ao vivo requerem definição de zonas.\n"
-                            "Defina o polígono principal antes de gravar.",
+                            "title": "Desenhe o Aquário",
+                            "message": (
+                                "Desenhe o polígono do aquário e ROIs (se necessário).\n\n"
+                                "Clique em 'Concluir' quando estiver pronto."
+                            ),
                         },
                     )
-                return False
 
-        elif not zone_data or not zone_data.polygon:
-            # Generic validation for non-Live projects
+                # Wait for confirmation
+                return self._wait_for_zone_confirmation()
+
+        return False
+
+    def _ensure_zones_non_live(self) -> bool:
+        """Handle zone validation for non-live projects.
+
+        Extracted from original _ensure_zones_before_recording logic.
+        """
+        zone_data = self.project_manager.get_zone_data()
+
+        if not zone_data or not zone_data.polygon:
             log.warning("session_coordinator.recording.no_main_arena")
 
             if not self.view:
@@ -1218,11 +1333,13 @@ class SessionCoordinator(BaseCoordinator):
                         Events.UI_SHOW_INFO,
                         {
                             "title": "Defina a Arena Principal",
-                            "message": "Por favor:\n"
-                            "1. Use a câmera ao vivo para calibrar\n"
-                            "2. Use 'Detectar Aquário (Auto)' ou\n"
-                            "3. Desenhe manualmente o polígono principal\n"
-                            "4. Depois volte para iniciar a gravação",
+                            "message": (
+                                "Por favor:\n"
+                                "1. Use a câmera ao vivo para calibrar\n"
+                                "2. Use 'Detectar Aquário (Auto)' ou\n"
+                                "3. Desenhe manualmente o polígono principal\n"
+                                "4. Depois volte para iniciar a gravação"
+                            ),
                         },
                     )
                 return False
@@ -1249,3 +1366,471 @@ class SessionCoordinator(BaseCoordinator):
             f"has_arduino={self.arduino_manager is not None}"
             f")>"
         )
+
+    # =============================================================================
+    # NEW METHODS - Live Calibration Workflow (Phase 3.1)
+    # =============================================================================
+
+    def run_live_calibration(
+        self, stabilization_frames: int = 10, show_preview: bool = True
+    ) -> bool:
+        """Execute live aquarium calibration with auto-detection.
+
+        Args:
+            stabilization_frames: Number of frames to capture (default: 10)
+            show_preview: If True, shows preview dialog for approval
+
+        Returns:
+            True if calibration successful, False otherwise
+        """
+        import time  # For delays between camera operations
+
+        log.info("session_coordinator.live_calibration.start")
+
+        # Initialize camera if necessary
+        if not self.camera or not hasattr(self.camera, "is_open") or not self.camera.is_open:
+            try:
+                # Use camera_index from project if available (for live projects)
+                project_data = self.project_manager.project_data or {}
+                camera_index = project_data.get("camera_index")
+
+                if camera_index is not None:
+                    # Temporarily override settings to use project camera
+                    original_index = self.settings.camera.index
+                    self.settings.camera.index = camera_index
+                    self.camera = Camera(settings_obj=self.settings)
+                    self.settings.camera.index = original_index  # Restore
+                    log.info(
+                        "session_coordinator.live_calibration.camera_initialized",
+                        camera_index=camera_index,
+                        source="project",
+                    )
+                else:
+                    # Fallback to global settings
+                    self.camera = Camera(settings_obj=self.settings)
+                    log.info(
+                        "session_coordinator.live_calibration.camera_initialized",
+                        camera_index=self.settings.camera.index,
+                        source="global",
+                    )
+            except (OSError, RuntimeError) as e:
+                log.error("session_coordinator.live_calibration.camera_init_failed", error=str(e))
+                return False
+
+            # Warmup camera
+            time.sleep(1.5)
+
+        # Capture frames for stabilization
+        frames = []
+        for i in range(stabilization_frames):
+            ret, frame = self.camera.get_frame()
+            if not ret or frame is None:
+                log.warning(
+                    "session_coordinator.live_calibration.frame_capture_failed", frame_num=i
+                )
+                time.sleep(0.2)  # Wait before retry
+                continue
+            frames.append(frame)
+            time.sleep(0.1)
+
+        if len(frames) < stabilization_frames // 2:
+            log.error(
+                "session_coordinator.live_calibration.insufficient_frames", captured=len(frames)
+            )
+            return False
+
+        # Auto-detect aquarium using configured model
+
+        # Determine detection method (det/seg) from configuration
+        method = "det"  # Default fallback
+
+        # 1. Try project config
+        project_data = self.project_manager.project_data or {}
+        if "model_selection" in project_data:
+            method = project_data["model_selection"].get("aquarium_method", method)
+
+        # 2. Try global settings
+        elif self.settings and hasattr(self.settings, "model_selection"):
+            method = self.settings.model_selection.aquarium_method
+
+        log.info("session_coordinator.live_calibration.method_selected", method=method)
+
+        # Get model path for aquarium detection
+        model_path = self.weight_manager.get_weight_path_by_method(method=method, task="aquarium")
+        if not model_path:
+            log.error("session_coordinator.live_calibration.no_aquarium_model", method=method)
+            return False
+
+        detector = AquariumDetector(model_path=model_path, mode=method)
+
+        try:
+            # Process frames directly (AquariumDetector.detect_aquariums expects video_path)
+            # So we'll process frames manually here
+            good_polygons = []
+            frame_height, frame_width = frames[0].shape[:2] if frames else (0, 0)
+
+            for i, frame in enumerate(frames):
+                # Detect aquarium (class 0) with low confidence threshold
+                results = detector.model.predict(frame, verbose=False, classes=[0], conf=0.05)
+
+                if results and results[0].boxes and len(results[0].boxes) > 0:
+                    # Get the largest detection box
+                    boxes = results[0].boxes.xyxy.cpu().numpy()
+                    areas = [(x2 - x1) * (y2 - y1) for x1, y1, x2, y2 in boxes]
+                    max_idx = areas.index(max(areas)) if areas else 0
+                    x1, y1, x2, y2 = boxes[max_idx]
+
+                    # Check area ratio
+                    box_area = (x2 - x1) * (y2 - y1)
+                    frame_area = frame_width * frame_height
+                    area_ratio = box_area / frame_area if frame_area > 0 else 0
+
+                    if 0.1 <= area_ratio <= 0.98:
+                        # Convert box to polygon (rectangle corners)
+                        polygon = [
+                            [int(x1), int(y1)],
+                            [int(x2), int(y1)],
+                            [int(x2), int(y2)],
+                            [int(x1), int(y2)],
+                        ]
+                        good_polygons.append(polygon)
+
+            detected_polygons = good_polygons[:1] if good_polygons else []
+
+        except Exception as e:
+            log.error(
+                "session_coordinator.live_calibration.detection_failed", error=str(e), exc_info=True
+            )
+
+            # ✅ FIX: Release camera on exception too
+            if self.camera:
+                if hasattr(self.camera, "_stopped"):
+                    self.camera._stopped.set()
+                if hasattr(self.camera, "release"):
+                    self.camera.release()
+                self.camera = None
+                log.info("session_coordinator.live_calibration.camera_released_on_exception")
+
+            # Fallback: Save and display the last captured frame for manual drawing
+            if frames:
+                try:
+                    reference_path = os.path.join(
+                        self.project_manager.project_path, "live_camera_reference_frame.png"
+                    )
+                    cv2.imwrite(reference_path, frames[-1])
+
+                    if self.event_bus:
+                        self.event_bus.publish_event(
+                            Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": reference_path}
+                        )
+                        self.event_bus.publish_event(
+                            Events.UI_SHOW_WARNING,
+                            {
+                                "title": "Erro na Detecção",
+                                "message": (
+                                    f"Erro durante a detecção automática: {e!s}\n\n"
+                                    "A imagem capturada foi carregada para desenho manual."
+                                ),
+                            },
+                        )
+                except Exception as fallback_err:
+                    log.error(
+                        "session_coordinator.live_calibration.fallback_failed",
+                        error=str(fallback_err),
+                    )
+
+            return False
+
+        if not detected_polygons or len(detected_polygons) == 0:
+            log.warning("session_coordinator.live_calibration.no_polygon_detected")
+
+            # ✅ FIX: Release camera when no polygon detected
+            if self.camera:
+                if hasattr(self.camera, "_stopped"):
+                    self.camera._stopped.set()
+                if hasattr(self.camera, "release"):
+                    self.camera.release()
+                self.camera = None
+                log.info("session_coordinator.live_calibration.camera_released_no_polygon")
+
+            # Fallback: Save and display the last captured frame for manual drawing
+            if frames:
+                try:
+                    reference_path = os.path.join(
+                        self.project_manager.project_path, "live_camera_reference_frame.png"
+                    )
+                    cv2.imwrite(reference_path, frames[-1])
+
+                    if self.event_bus:
+                        self.event_bus.publish_event(
+                            Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": reference_path}
+                        )
+                        self.event_bus.publish_event(
+                            Events.UI_SHOW_WARNING,
+                            {
+                                "title": "Detecção Automática Falhou",
+                                "message": "Não foi possível detectar o aquário automaticamente.\n\n"
+                                "A imagem capturada foi carregada para desenho manual.\n"
+                                "Por favor, use a ferramenta 'Polígono Principal' para definir a arena.",
+                            },
+                        )
+                except Exception as e:
+                    log.error("session_coordinator.live_calibration.fallback_failed", error=str(e))
+
+            return False
+
+        polygon = detected_polygons[0]
+        log.info("session_coordinator.live_calibration.polygon_detected", vertices=len(polygon))
+
+        # Preview and approval
+        approved = False
+        if show_preview:
+            if not self.root:
+                log.warning("session_coordinator.live_calibration.no_root_for_preview")
+                # Auto-approve if no root window available
+                approved = True
+            else:
+                from zebtrack.ui.dialogs.preview_polygon_dialog import PreviewPolygonDialog
+
+                # Use last captured frame as background
+                preview_frame = frames[-1]
+
+                dialog = PreviewPolygonDialog(
+                    parent=self.root, frame=preview_frame, polygon=polygon
+                )
+
+                result = dialog.show()
+                if result:
+                    approved = result.get("approved", False)
+                    if approved:
+                        # Use polygon from dialog (in case user wants adjustments in future)
+                        polygon = result.get("polygon", polygon)
+
+                if not approved:
+                    log.info("session_coordinator.live_calibration.user_rejected")
+                    return False
+        else:
+            # No preview requested, auto-approve
+            approved = True
+
+        # Save detected zone if approved
+        if approved:
+            from zebtrack.core.zone_manager import ZoneData
+
+            zone_data = ZoneData(
+                polygon=polygon,
+                width_cm=None,
+                height_cm=None,
+                metadata={
+                    "detection_method": "auto",
+                    "stabilization_frames": stabilization_frames,
+                    "timestamp": datetime.datetime.now().isoformat(),
+                },
+            )
+
+            video_path = "live_camera"
+            self.project_manager.zone_manager.save_zone(video_path, zone_data)
+
+            # Save reference frame
+            reference_frame_path = os.path.join(
+                self.project_manager.project_path, "live_camera_reference_frame.png"
+            )
+            cv2.imwrite(reference_frame_path, frames[-1])
+
+            log.info(
+                "session_coordinator.live_calibration.success",
+                polygon_points=len(polygon),
+                reference_frame=reference_frame_path,
+            )
+
+            # ✅ FIX: Release camera so LiveCameraService can use it
+            # IMPORTANT: Must signal shutdown BEFORE release to prevent reconnection attempts
+            if self.camera:
+                if hasattr(self.camera, "_stopped"):
+                    self.camera._stopped.set()  # Stop the background thread first
+                if hasattr(self.camera, "release"):
+                    self.camera.release()
+                self.camera = None
+                log.info("session_coordinator.live_calibration.camera_released")
+
+            # CRITICAL: Allow hardware to fully release camera before LiveCameraService reopens it
+            # Without this delay, warmup fails (frames_successful=0) and exposure is incorrect
+            time.sleep(0.5)
+
+            return True
+
+        # ✅ FIX: Release camera on failure too
+        if self.camera:
+            if hasattr(self.camera, "_stopped"):
+                self.camera._stopped.set()  # Stop the background thread first
+            if hasattr(self.camera, "release"):
+                self.camera.release()
+            self.camera = None
+            log.info("session_coordinator.live_calibration.camera_released_on_failure")
+
+        return False
+
+    def _has_recorded_before(self) -> bool:
+        """Check if any recording has been made in this session."""
+        if not hasattr(self, "_session_count"):
+            self._session_count = 0
+        return self._session_count > 0
+
+    def _capture_reference_frame_for_zones(self) -> bool:
+        """Capture frame from camera for zone tab reference."""
+        log.info("session_coordinator.capture_reference_frame.start")
+
+        if not self.camera or not hasattr(self.camera, "is_open") or not self.camera.is_open:
+            try:
+                # Use camera_index from project if available (for live projects)
+                project_data = self.project_manager.project_data or {}
+                camera_index = project_data.get("camera_index")
+
+                if camera_index is not None:
+                    # Temporarily override settings to use project camera
+                    original_index = self.settings.camera.index
+                    self.settings.camera.index = camera_index
+                    self.camera = Camera(settings_obj=self.settings)
+                    self.settings.camera.index = original_index  # Restore
+                    log.info(
+                        "session_coordinator.capture_reference_frame.camera_initialized",
+                        camera_index=camera_index,
+                        source="project",
+                    )
+                else:
+                    # Fallback to global settings
+                    self.camera = Camera(settings_obj=self.settings)
+                    log.info(
+                        "session_coordinator.capture_reference_frame.camera_initialized",
+                        camera_index=self.settings.camera.index,
+                        source="global",
+                    )
+            except (OSError, RuntimeError) as e:
+                log.error(
+                    "session_coordinator.capture_reference_frame.camera_init_failed", error=str(e)
+                )
+                return False
+
+            # CRITICAL: Warm up camera by discarding first frames
+            # Webcams often need time to adjust exposure/white balance
+            # Use same logic as LiveCameraService for consistency
+            camera_index = camera_index if camera_index is not None else self.settings.camera.index
+            warmup_frames = 30 if camera_index <= 1 else 10
+
+            log.info(
+                "session_coordinator.capture_reference_frame.warmup_start",
+                camera_index=camera_index,
+                warmup_frames=warmup_frames,
+            )
+
+            successful_warmup = 0
+            for _ in range(warmup_frames):
+                ret, frame = self.camera.get_frame()
+                if ret and frame is not None:
+                    successful_warmup += 1
+                time.sleep(0.05)  # 50ms between warmup frames
+
+            log.info(
+                "session_coordinator.capture_reference_frame.warmup_complete",
+                frames_requested=warmup_frames,
+                frames_successful=successful_warmup,
+            )
+
+        # Capture the actual reference frame (after warmup)
+        frame = None
+        for attempt in range(5):
+            ret, captured = self.camera.get_frame()
+            if ret and captured is not None:
+                frame = captured
+                log.info(
+                    "session_coordinator.capture_reference_frame.captured",
+                    attempt=attempt + 1,
+                )
+                break
+            time.sleep(0.1)
+
+        if frame is None:
+            log.error("session_coordinator.capture_reference_frame.capture_failed")
+            return False
+
+        reference_path = os.path.join(
+            self.project_manager.project_path, "live_camera_reference_frame.png"
+        )
+        cv2.imwrite(reference_path, frame)
+
+        if self.event_bus:
+            self.event_bus.publish_event(
+                Events.UI_DISPLAY_VIDEO_FRAME, {"video_path": reference_path}
+            )
+
+        log.info("session_coordinator.capture_reference_frame.success", path=reference_path)
+
+        # ✅ FIX: Release camera so LiveCameraService can use it
+        # IMPORTANT: Must signal shutdown BEFORE release to prevent reconnection attempts
+        if self.camera:
+            if hasattr(self.camera, "_stopped"):
+                self.camera._stopped.set()  # Stop the background thread first
+            if hasattr(self.camera, "release"):
+                self.camera.release()
+            self.camera = None
+            log.info("session_coordinator.capture_reference_frame.camera_released")
+
+        return True
+
+    def _setup_event_listeners(self):
+        """Setup event listeners for coordination."""
+        # Listen for zone saving events to resume pending recording
+        self.event_bus.subscribe(Events.ZONE_SAVE_MANUAL_ARENA, self._on_zone_saved)
+        self.event_bus.subscribe(Events.ZONE_SET_ARENA_POLYGON, self._on_zone_saved)
+        self.event_bus.subscribe(Events.ZONE_SAVE_ARENA, self._on_zone_saved)
+
+    def _on_zone_saved(self, data: dict = None):
+        """Handle zone saved event to resume pending recording."""
+        if not self._pending_zone_confirmation:
+            return
+
+        log.info("session_coordinator.zone_saved.resuming_recording")
+
+        # Reset flag
+        self._pending_zone_confirmation = False
+
+        # Resume recording if context is available
+        if self._pending_recording_context:
+            # FIX: _pending_recording_context IS the context dict itself (not a wrapper)
+            context = self._pending_recording_context
+
+            # CRITICAL: Detect if we are in a live project workflow to enable Live Analysis dispatch
+            # If we came from run_live_calibration, we likely want Live Analysis
+            if self.project_manager.get_project_type() == "live":
+                context["is_live_analysis"] = True
+                log.info("session_coordinator.zone_saved.promoted_to_live_analysis")
+
+            # output_path is typically inside context['output_folder']
+            output_path = context.get("output_folder")
+
+            # CRITICAL: Mark as live analysis to use integrated canvas (not external window)
+            context["use_external_preview"] = False
+
+            # Use after() to ensure UI thread is free and avoid recursion
+            if self.view and hasattr(self.view, "root"):
+                self.view.root.after(
+                    500,
+                    lambda: self.start_recording(
+                        context=context, output_path=output_path, zones_validated=True
+                    ),
+                )
+            else:
+                self.start_recording(context=context, output_path=output_path, zones_validated=True)
+
+    def _wait_for_zone_confirmation(self) -> bool:
+        """Wait for user to conclude zone definition."""
+        log.info("session_coordinator.waiting_for_zone_confirmation")
+        self._pending_zone_confirmation = True
+        return False
+
+    def _increment_session_count(self):
+        """Increment the session recording counter."""
+        if not hasattr(self, "_session_count"):
+            self._session_count = 0
+        self._session_count += 1
+        log.info("session_coordinator.session_count.incremented", count=self._session_count)
