@@ -462,7 +462,7 @@ class AquariumDetector:
 
             # MELHORIA: Unified logic with LiveCameraService (frame skip + early exit)
             frame_skip = 5
-            max_frames_to_check = stabilization_frames * frame_skip # e.g. 10 * 5 = 50 frames
+            max_frames_to_check = stabilization_frames * frame_skip  # e.g. 10 * 5 = 50 frames
 
             analyzed_count = 0
 
@@ -631,7 +631,10 @@ class AquariumDetector:
 
                         # MELHORIA: Early exit if we have enough consistent data
                         if len(all_polygons) >= 4:
-                            log.info("aquarium_detector.detect_multiple.early_exit", count=len(all_polygons))
+                            log.info(
+                                "aquarium_detector.detect_multiple.early_exit",
+                                count=len(all_polygons),
+                            )
                             break
 
             # If we consistently found 2 aquariums, use those

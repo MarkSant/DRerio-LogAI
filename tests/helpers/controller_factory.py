@@ -34,6 +34,17 @@ def create_mock_settings(**overrides):
     # UI features
     mock_settings.ui_features.enable_event_queue = False
 
+    # ByteTrack settings (real values, not MagicMock)
+    mock_settings.bytetrack.track_threshold = 0.25
+    mock_settings.bytetrack.match_threshold = 0.80
+    mock_settings.bytetrack.track_buffer = 30
+    mock_settings.bytetrack.max_center_distance = 100
+    mock_settings.bytetrack.iou_threshold = 0.3
+
+    # Tracking settings
+    mock_settings.tracking.use_bytetrack = True
+    mock_settings.tracking.use_single_subject_tracker = False
+
     # Apply any overrides
     for key, value in overrides.items():
         parts = key.split(".")

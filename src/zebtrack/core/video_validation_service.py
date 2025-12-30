@@ -9,9 +9,7 @@ Related: SPRINT_10_PROCESSING_REFACTORING_ANALYSIS.md - Phase 2: Helper Extracti
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
@@ -86,7 +84,7 @@ class VideoValidationService:
         Scan and validate video paths for available data.
         """
         from zebtrack.core.video_manager import VideoManager
-        
+
         log.debug(
             "video_validation_service.scan_and_validate_paths.start",
             path_count=len(candidate_paths),

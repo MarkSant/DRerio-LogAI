@@ -142,12 +142,12 @@ def test_single_video_with_zones_shows_all_flags():
         assert entry_metadata.get("day") == "1"
         assert entry_metadata.get("subject") == "1"
 
-        # Check parquet files
+        # Check parquet files (normalize paths for cross-platform comparison)
         parquet_files = video_entry.get("parquet_files", {})
-        assert parquet_files.get("trajectory") == trajectory_path
-        assert parquet_files.get("summary") == summary_parquet
-        assert parquet_files.get("summary_excel") == summary_excel
-        assert parquet_files.get("report_docx") == report_path
+        assert Path(parquet_files.get("trajectory")) == Path(trajectory_path)
+        assert Path(parquet_files.get("summary")) == Path(summary_parquet)
+        assert Path(parquet_files.get("summary_excel")) == Path(summary_excel)
+        assert Path(parquet_files.get("report_docx")) == Path(report_path)
 
         # Verify zone data can be retrieved
         retrieved_zone_data = controller.project_manager.get_zone_data(

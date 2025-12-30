@@ -386,11 +386,11 @@ class TestAquariumDetectorExtraction:
 
     @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
     def test_extract_polygon_too_large(self, detector, sample_frame):
-        """Teste de extração quando detecção é muito grande (>95% do frame)."""
+        """Teste de extração quando detecção é muito grande (>98% do frame)."""
         # Mock de box quase do tamanho do frame
         mock_box = MagicMock()
         mock_box.conf = 0.85
-        mock_box.xyxy = [np.array([5, 5, 635, 475])]  # ~97% do frame
+        mock_box.xyxy = [np.array([1, 1, 639, 479])]  # ~99.3% do frame (excede max_area_ratio=0.98)
 
         mock_results = [MagicMock()]
         mock_results[0].boxes = [mock_box]

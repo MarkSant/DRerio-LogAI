@@ -761,8 +761,7 @@ class WizardService:
                 if n >= 3:
                     area = 0.5 * abs(
                         sum(
-                            pts[i][0] * pts[(i + 1) % n][1]
-                            - pts[(i + 1) % n][0] * pts[i][1]
+                            pts[i][0] * pts[(i + 1) % n][1] - pts[(i + 1) % n][0] * pts[i][1]
                             for i in range(n)
                         )
                     )

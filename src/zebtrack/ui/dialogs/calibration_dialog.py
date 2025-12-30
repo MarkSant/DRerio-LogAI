@@ -75,7 +75,7 @@ class CalibrationDialog(simpledialog.Dialog):
         self.track_buffer_var = StringVar(value="90")
         self.max_center_dist_var = StringVar(value="400.0")
         self.iou_threshold_var = StringVar(value="0.05")
-        
+
         self.video_path_label_var = StringVar(value="Nenhum vídeo selecionado.")
         self.diagnostic_video_path = ""
         self.model_test_var = StringVar(value="YOLO (PyTorch)")
@@ -577,7 +577,7 @@ class CalibrationDialog(simpledialog.Dialog):
     ) -> None:
         params_frame = ttk.Frame(parent, padding=5)
         params_frame.pack(fill="x", padx=10, pady=5)
-        
+
         # Configure columns: Label | Help | Entry
         params_frame.columnconfigure(1, weight=0)  # Help icon column
         params_frame.columnconfigure(2, weight=1)  # Entry column (expands)
@@ -590,11 +590,11 @@ class CalibrationDialog(simpledialog.Dialog):
                 row=row_idx, column=0, sticky="w", padx=(5, 2), pady=2
             )
             create_help_label(
-                params_frame, 
+                params_frame,
                 "Quantidade de frames do vídeo a serem processados no teste de diagnóstico.\n"
-                "Use um valor baixo (ex: 100) para testes rápidos."
+                "Use um valor baixo (ex: 100) para testes rápidos.",
             ).grid(row=row_idx, column=1, padx=2)
-            
+
             ttk.Entry(params_frame, textvariable=self.frames_to_analyze_var, width=8).grid(
                 row=row_idx, column=2, sticky="w", padx=5
             )
@@ -610,9 +610,9 @@ class CalibrationDialog(simpledialog.Dialog):
             "Probabilidade mínima (0.0 a 1.0) para considerar uma detecção válida.\n"
             "• Aumente (ex: 0.50) se houver muitos 'falsos positivos' (ruído/fantasmas).\n"
             "• Diminua (ex: 0.15) se o peixe não estiver sendo detectado em alguns frames.\n"
-            "• Padrão recomendado: 0.25"
+            "• Padrão recomendado: 0.25",
         ).grid(row=row_idx, column=1, padx=2)
-        
+
         ttk.Entry(params_frame, textvariable=self.confidence_threshold_var, width=8).grid(
             row=row_idx, column=2, sticky="w", padx=5
         )
@@ -627,15 +627,15 @@ class CalibrationDialog(simpledialog.Dialog):
             "Controla a remoção de caixas duplicadas para o mesmo objeto.\n"
             "• Valores baixos (ex: 0.4) fundem caixas sobrepostas agressivamente.\n"
             "• Valores altos (ex: 0.7) permitem mais sobreposição.\n"
-            "• Padrão recomendado: 0.50"
+            "• Padrão recomendado: 0.50",
         ).grid(row=row_idx, column=4, padx=2)
-        
+
         ttk.Entry(params_frame, textvariable=self.nms_threshold_var, width=8).grid(
             row=row_idx, column=5, sticky="w", padx=5
         )
 
         row_idx += 1
-        
+
         # ByteTrack Toggle
         bytetrack_check = ttk.Checkbutton(
             params_frame,
@@ -653,9 +653,11 @@ class CalibrationDialog(simpledialog.Dialog):
             font=("Segoe UI", 8, "italic"),
             foreground="#555555",
             wraplength=450,
-            justify="left"
+            justify="left",
         )
-        self.bytetrack_hint_label.grid(row=row_idx, column=0, columnspan=6, sticky="w", padx=10, pady=(0, 10))
+        self.bytetrack_hint_label.grid(
+            row=row_idx, column=0, columnspan=6, sticky="w", padx=10, pady=(0, 10)
+        )
         row_idx += 1
 
         # Tracking Params (Grouped)
@@ -665,12 +667,14 @@ class CalibrationDialog(simpledialog.Dialog):
         self.tracking_params_frame.columnconfigure(2, weight=1)
         self.tracking_params_frame.columnconfigure(4, weight=0)
         self.tracking_params_frame.columnconfigure(5, weight=1)
-        
+
         # --- Row 1: Track Thresh | Match Thresh ---
         t_row = 0
-        
+
         # Track Thresh
-        ttk.Label(self.tracking_params_frame, text="Track Thresh:").grid(row=t_row, column=0, sticky="w", padx=(5, 2))
+        ttk.Label(self.tracking_params_frame, text="Track Thresh:").grid(
+            row=t_row, column=0, sticky="w", padx=(5, 2)
+        )
         create_help_label(
             self.tracking_params_frame,
             "Track Threshold (Rastreamento)\n\n"
@@ -678,46 +682,58 @@ class CalibrationDialog(simpledialog.Dialog):
             "• Define quão 'certo' o detector deve estar para criar um ID novo.\n"
             "• Aumente para evitar rastros de lixo/ruído.\n"
             "• Diminua para manter o ID de peixes difíceis de detectar.\n"
-            "• Padrão recomendado: 0.25"
+            "• Padrão recomendado: 0.25",
         ).grid(row=t_row, column=1, padx=2)
-        
-        self.track_entry = ttk.Entry(self.tracking_params_frame, textvariable=self.track_threshold_var, width=8)
+
+        self.track_entry = ttk.Entry(
+            self.tracking_params_frame, textvariable=self.track_threshold_var, width=8
+        )
         self.track_entry.grid(row=t_row, column=2, sticky="w", padx=5)
-        
+
         # Match Thresh
-        ttk.Label(self.tracking_params_frame, text="Match Thresh:").grid(row=t_row, column=3, sticky="w", padx=(15, 2))
+        ttk.Label(self.tracking_params_frame, text="Match Thresh:").grid(
+            row=t_row, column=3, sticky="w", padx=(15, 2)
+        )
         create_help_label(
             self.tracking_params_frame,
             "Match Threshold\n\n"
             "Tolerância para associar uma nova detecção a um rastro existente.\n"
             "• Valores altos (ex: 0.8+) são mais permissivos (bom para movimentos rápidos).\n"
             "• Valores baixos (<0.5) são restritivos (evita troca de identidade, mas pode perder o rastro).\n"
-            "• Padrão recomendado: 0.95"
+            "• Padrão recomendado: 0.95",
         ).grid(row=t_row, column=4, padx=2)
 
-        self.match_entry = ttk.Entry(self.tracking_params_frame, textvariable=self.match_threshold_var, width=8)
+        self.match_entry = ttk.Entry(
+            self.tracking_params_frame, textvariable=self.match_threshold_var, width=8
+        )
         self.match_entry.grid(row=t_row, column=5, sticky="w", padx=5)
-        
+
         t_row += 1
-        
+
         # --- Row 2: Track Buffer | Max Dist ---
-        
+
         # Track Buffer
-        ttk.Label(self.tracking_params_frame, text="Track Buffer:").grid(row=t_row, column=0, sticky="w", padx=(5, 2), pady=5)
+        ttk.Label(self.tracking_params_frame, text="Track Buffer:").grid(
+            row=t_row, column=0, sticky="w", padx=(5, 2), pady=5
+        )
         create_help_label(
             self.tracking_params_frame,
             "Track Buffer (Memória)\n\n"
             "Quantos frames o sistema 'lembra' do peixe após ele sumir (oclusão/falha).\n"
             "• Aumente (ex: 120) se o peixe some por muito tempo.\n"
             "• Diminua para deletar rastros perdidos rapidamente.\n"
-            "• Padrão: 90 frames (~3s a 30fps)"
+            "• Padrão: 90 frames (~3s a 30fps)",
         ).grid(row=t_row, column=1, padx=2)
-        
-        self.buffer_entry = ttk.Entry(self.tracking_params_frame, textvariable=self.track_buffer_var, width=8)
+
+        self.buffer_entry = ttk.Entry(
+            self.tracking_params_frame, textvariable=self.track_buffer_var, width=8
+        )
         self.buffer_entry.grid(row=t_row, column=2, sticky="w", padx=5)
-        
+
         # Max Dist
-        ttk.Label(self.tracking_params_frame, text="Dist. Máx (px):").grid(row=t_row, column=3, sticky="w", padx=(15, 2))
+        ttk.Label(self.tracking_params_frame, text="Dist. Máx (px):").grid(
+            row=t_row, column=3, sticky="w", padx=(15, 2)
+        )
         create_help_label(
             self.tracking_params_frame,
             "Distância Máxima (pixels)\n\n"
@@ -725,28 +741,34 @@ class CalibrationDialog(simpledialog.Dialog):
             "• Impede associações impossíveis (teletransporte).\n"
             "• Aumente se o peixe é rápido ou se a taxa de frames é baixa.\n"
             "• Diminua se houver trocas de ID entre peixes distantes.\n"
-            "• Padrão: 400.0 px"
+            "• Padrão: 400.0 px",
         ).grid(row=t_row, column=4, padx=2)
 
-        self.dist_entry = ttk.Entry(self.tracking_params_frame, textvariable=self.max_center_dist_var, width=8)
+        self.dist_entry = ttk.Entry(
+            self.tracking_params_frame, textvariable=self.max_center_dist_var, width=8
+        )
         self.dist_entry.grid(row=t_row, column=5, sticky="w", padx=5)
-        
+
         t_row += 1
-        
+
         # --- Row 3: IoU Thresh ---
-        
+
         # IoU Thresh
-        ttk.Label(self.tracking_params_frame, text="IoU Thresh:").grid(row=t_row, column=0, sticky="w", padx=(5, 2))
+        ttk.Label(self.tracking_params_frame, text="IoU Thresh:").grid(
+            row=t_row, column=0, sticky="w", padx=(5, 2)
+        )
         create_help_label(
             self.tracking_params_frame,
             "IoU Threshold (Rastreamento)\n\n"
             "Sobreposição mínima (Intersection over Union) para associar caixas.\n"
             "• Padrão: 0.05 (baixa exigência).\n"
             "• Aumente (ex: 0.3) para exigir que o peixe mantenha quase a mesma posição.\n"
-            "• Diminua para permitir movimentos bruscos que mudam a área da caixa."
+            "• Diminua para permitir movimentos bruscos que mudam a área da caixa.",
         ).grid(row=t_row, column=1, padx=2)
-        
-        self.iou_entry = ttk.Entry(self.tracking_params_frame, textvariable=self.iou_threshold_var, width=8)
+
+        self.iou_entry = ttk.Entry(
+            self.tracking_params_frame, textvariable=self.iou_threshold_var, width=8
+        )
         self.iou_entry.grid(row=t_row, column=2, sticky="w", padx=5)
 
         row_idx += 1
@@ -762,10 +784,12 @@ class CalibrationDialog(simpledialog.Dialog):
                 values=["YOLO (PyTorch)", "OpenVINO", "Ambos"],
                 width=15,
             )
-            self.model_test_dropdown.grid(row=row_idx, column=1, columnspan=2, sticky="w", padx=5, pady=(15, 2))
+            self.model_test_dropdown.grid(
+                row=row_idx, column=1, columnspan=2, sticky="w", padx=5, pady=(15, 2)
+            )
         else:
             self.model_test_dropdown = None
-            
+
         self._toggle_bytetrack_options()
 
     def _toggle_bytetrack_options(self) -> None:
@@ -776,12 +800,18 @@ class CalibrationDialog(simpledialog.Dialog):
 
         enabled = self.use_bytetrack_var.get()
         state = "normal" if enabled else "disabled"
-        for widget in [self.track_entry, self.match_entry, self.buffer_entry, self.dist_entry, self.iou_entry]:
+        for widget in [
+            self.track_entry,
+            self.match_entry,
+            self.buffer_entry,
+            self.dist_entry,
+            self.iou_entry,
+        ]:
             try:
                 widget.configure(state=state)
             except Exception:
                 pass
-        
+
         if not enabled:
             self.bytetrack_hint_var.set(
                 "ℹ️ ByteTrack desativado. Usando rastreamento simples (Híbrido) "
@@ -797,7 +827,6 @@ class CalibrationDialog(simpledialog.Dialog):
             self.bytetrack_hint_var.set(
                 "💡 ByteTrack ativo (Filtro de Kalman). Recomendado para maior estabilidade."
             )
-
 
     def _prefill_detector_parameters(self) -> None:
         resolved_params, project_params = self._collect_prefill_detector_params()
@@ -894,10 +923,14 @@ class CalibrationDialog(simpledialog.Dialog):
                 if key == "track_buffer":
                     var.set(str(int(raw_value)))
                 else:
-                    var.set(f"{float(raw_value):.2f}" if isinstance(raw_value, float) else str(raw_value))
+                    var.set(
+                        f"{float(raw_value):.2f}"
+                        if isinstance(raw_value, float)
+                        else str(raw_value)
+                    )
             except (TypeError, ValueError):
                 log.warning("ui.calibration.prefill.coerce_failed", key=key, value=raw_value)
-        
+
         if "use_bytetrack" in values:
             self.use_bytetrack_var.set(bool(values["use_bytetrack"]))
             self._toggle_bytetrack_options()
@@ -919,7 +952,7 @@ class CalibrationDialog(simpledialog.Dialog):
         try:
             conf = float(self.confidence_threshold_var.get())
             nms = float(self.nms_threshold_var.get())
-            
+
             use_bytetrack = self.use_bytetrack_var.get()
             track_thresh = float(self.track_threshold_var.get())
             match_thresh = float(self.match_threshold_var.get())
@@ -946,7 +979,7 @@ class CalibrationDialog(simpledialog.Dialog):
                     f"O {label} deve estar entre 0 e 1.",
                 )
                 return
-        
+
         if track_buffer < 1:
             messagebox.showerror("Erro", "Track Buffer deve ser pelo menos 1 frame.")
             return

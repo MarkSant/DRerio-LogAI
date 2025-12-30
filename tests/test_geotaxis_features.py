@@ -1,5 +1,5 @@
 import pandas as pd
-import pytest
+
 from zebtrack.analysis.data_transformer import DataTransformer
 
 

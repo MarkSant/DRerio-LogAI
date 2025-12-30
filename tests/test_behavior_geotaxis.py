@@ -1,8 +1,8 @@
-import pytest
-import pandas as pd
 import numpy as np
-from unittest.mock import MagicMock
-from zebtrack.analysis.behavior import BehavioralAnalyzer
+import pandas as pd
+import pytest
+
+from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 
 
 @pytest.fixture
@@ -25,43 +25,18 @@ def sample_trajectory_df():
     return df
 
 
-class MockBehavioralAnalyzer(BehavioralAnalyzer):
-    """Concrete implementation for testing ABC."""
-
-    def calculate_thigmotaxis_index(self, *args, **kwargs):
-        pass
-
-    def calculate_immobility_ratio(self, *args, **kwargs):
-        pass
-
-    def calculate_mean_speed(self, *args, **kwargs):
-        pass
-
-    def calculate_total_distance(self, *args, **kwargs):
-        pass
-
-    def calculate_angular_velocity(self, *args, **kwargs):
-        pass
-
-    def detect_sharp_turns(self, *args, **kwargs):
-        pass
-
-    def detect_speed_bursts(self, *args, **kwargs):
-        pass
-
-
 @pytest.fixture
 def analyzer(sample_trajectory_df):
-    """Create a mock analyzer instance."""
-    # Scale: 10px = 1cm.
+    """Create a concrete analyzer instance."""
+    # Scale: 10px = 1cm (so pixelcm = 10.0, since x_cm = x_px / pixelcm).
     # Video height: 100px -> 10cm.
-    # Arena polygon: 100x100 box.
-    pixelcm_x = 0.1
-    pixelcm_y = 0.1
+    # Arena polygon: 100x100 box -> 10x10 cm.
+    pixelcm_x = 10.0
+    pixelcm_y = 10.0
     video_height_px = 100
     arena_polygon = [(0, 0), (100, 0), (100, 100), (0, 100)]
 
-    return MockBehavioralAnalyzer(
+    return ConcreteBehavioralAnalyzer(
         trajectory_df=sample_trajectory_df,
         pixelcm_x=pixelcm_x,
         pixelcm_y=pixelcm_y,
@@ -107,17 +82,17 @@ def test_geotaxis_zone_time(analyzer):
     # 3 zones (Top, Middle, Bottom).
     # 0-33, 33-66, 66-100.
     # Data 10-90.
-    # Zone 1 (Top): 10-33. (23 range)
-    # Zone 2 (Mid): 33-66. (33 range)
-    # Zone 3 (Bot): 66-90. (24 range)
+    # Zone 0 (Top): 10-33. (23 range)
+    # Zone 1 (Mid): 33-66. (33 range)
+    # Zone 2 (Bot): 66-90. (24 range)
     # Roughly even distribution but slightly less in top/bot due to start/end points.
 
     result = analyzer.calculate_geotaxis_index(method="zone_time", num_zones=3, bottom_zones=1)
 
+    assert "zone_0_pct" in result
     assert "zone_1_pct" in result
     assert "zone_2_pct" in result
-    assert "zone_3_pct" in result
     assert "bottom_zones_pct" in result
 
-    total = sum(result[k] for k in ["zone_1_pct", "zone_2_pct", "zone_3_pct"])
+    total = sum(result[k] for k in ["zone_0_pct", "zone_1_pct", "zone_2_pct"])
     assert total == pytest.approx(100.0, abs=1.0)

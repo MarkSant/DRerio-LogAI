@@ -245,7 +245,10 @@ def test_generate_trajectory_plot_applies_frame_crop(mock_video_capture, mock_ex
     _, kwargs = spy_imshow.call_args
     extent = kwargs.get("extent")
     # Extent is (left, right, bottom, top) in cm
-    assert extent == (0.0, 3.0, 6.0, 10.0)
+    # With crop_box=(10,20,30,40), pixelcm=10, video_height=100:
+    # x_left = 10/10 = 1.0, x_right = (10+30)/10 = 4.0
+    # y_bottom = (100-60)/10 = 4.0, y_top = (100-20)/10 = 8.0
+    assert extent == (1.0, 4.0, 4.0, 8.0)
 
     plt.close(fig)
 
@@ -323,8 +326,8 @@ def test_generate_roi_reference_plot_no_rois(behavior_analyzer, mock_settings):
 
     assert fig is not None
     ax = fig.get_axes()[0]
-    # Should show message about no ROIs
-    assert any("No ROIs" in text.get_text() for text in ax.texts)
+    # Should show message about no ROIs (in Portuguese)
+    assert any("sem ROIs" in text.get_text() for text in ax.texts)
 
     # Clean up
     plt.close(fig)

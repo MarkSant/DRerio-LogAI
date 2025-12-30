@@ -126,7 +126,7 @@ class CustomRegexDialog(Dialog):
         content_frame = Frame(master)
         content_frame.pack(fill="both", expand=True, padx=5, pady=(0, 5))
         content_frame.columnconfigure(0, weight=11, minsize=440)  # Left 55%
-        content_frame.columnconfigure(1, weight=9, minsize=360)   # Right 45%
+        content_frame.columnconfigure(1, weight=9, minsize=360)  # Right 45%
         content_frame.rowconfigure(0, weight=1)
 
         # LEFT COLUMN: Tips + Examples + Pattern fields

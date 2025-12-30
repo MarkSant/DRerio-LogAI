@@ -1,4 +1,3 @@
-import pytest
 from zebtrack.ui.wizard.models import MultiAquariumData
 
 

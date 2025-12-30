@@ -167,7 +167,7 @@ class TestDetectorServiceIntegration(unittest.TestCase):
         self.mock_pm.save_detector_state.assert_called_once()
         saved_config = self.mock_pm.save_detector_state.call_args.args[0]
         self.assertEqual(saved_config["plugin_name"], "YOLO (Ultralytics)")
-        self.assertIn("confidence_threshold", saved_config)
+        self.assertIn("conf_threshold", saved_config)
 
     def test_zone_configuration_propagation(self):
         """Test zone configuration propagates to detector plugin."""
@@ -236,12 +236,13 @@ class TestDetectorServiceIntegration(unittest.TestCase):
         # Verify success
         self.assertTrue(success)
 
-        # Verify plugin was updated
+        # Verify plugin was updated (conf/nms are in plugin, ByteTrack params are in settings)
         plugin = self.controller.detector.plugin
         self.assertAlmostEqual(plugin.conf_threshold, 0.35)
         self.assertAlmostEqual(plugin.nms_threshold, 0.55)
-        self.assertAlmostEqual(plugin.track_threshold, 0.30)
-        self.assertAlmostEqual(plugin.match_threshold, 0.20)
+        # ByteTrack params are now in settings, not plugin
+        self.assertAlmostEqual(self.mock_settings.bytetrack.track_threshold, 0.30)
+        self.assertAlmostEqual(self.mock_settings.bytetrack.match_threshold, 0.20)
 
         # Verify changes were saved to project
         self.assertEqual(
@@ -266,17 +267,18 @@ class TestDetectorServiceIntegration(unittest.TestCase):
                 detector_plugins=self.mock_detector_plugins,
             )
 
-        # Manually change plugin values
+        # Manually change plugin values (conf/nms) and settings values (ByteTrack)
         plugin = self.controller.detector.plugin
         plugin.conf_threshold = 0.42
         plugin.nms_threshold = 0.62
-        plugin.track_threshold = 0.32
-        plugin.match_threshold = 0.22
+        # ByteTrack params are in settings now
+        self.mock_settings.bytetrack.track_threshold = 0.32
+        self.mock_settings.bytetrack.match_threshold = 0.22
 
         # Get parameters through controller
         params = self.controller.get_current_detector_parameters()
 
-        # Verify we get the actual plugin values (with long-form names)
+        # Verify we get the actual values (from plugin and settings)
         self.assertAlmostEqual(params["conf_threshold"], 0.42)
         self.assertAlmostEqual(params["nms_threshold"], 0.62)
         self.assertAlmostEqual(params["track_threshold"], 0.32)

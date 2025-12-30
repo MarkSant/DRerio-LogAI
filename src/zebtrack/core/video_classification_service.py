@@ -9,7 +9,6 @@ Related: SPRINT_10_PROCESSING_REFACTORING_ANALYSIS.md - Phase 2: Helper Extracti
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -140,14 +139,15 @@ class VideoClassificationService:
 
             # Get video info from lookup
             from zebtrack.core.video_manager import VideoManager
+
             norm_path = VideoManager.normalize_path(path)
-                
+
             info = info_by_norm.get(norm_path) if norm_path else None
             if not info:
                 log.warning(
                     "video_classification_service.classify_videos.no_info",
                     path=path,
-                    norm_path=norm_path
+                    norm_path=norm_path,
                 )
                 continue
 

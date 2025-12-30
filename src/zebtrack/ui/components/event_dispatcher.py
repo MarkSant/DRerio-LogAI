@@ -576,11 +576,11 @@ class EventDispatcher:
 
         Opens the assignment dialog and publishes completion event if confirmed.
         """
-        print(f"[DIAGNOSTIC] _on_show_aquarium_assignment_dialog called")
+        print("[DIAGNOSTIC] _on_show_aquarium_assignment_dialog called")
         print(f"[DIAGNOSTIC] data={data}")
 
         if not self.gui or not isinstance(data, dict):
-            print(f"[DIAGNOSTIC] returning early - no gui or not dict")
+            print("[DIAGNOSTIC] returning early - no gui or not dict")
             return
 
         video_path = data.get("video_path")
@@ -592,7 +592,7 @@ class EventDispatcher:
             available_groups=data.get("available_groups", []),
         )
 
-        print(f"[DIAGNOSTIC] calling dialog_manager.show_aquarium_assignment_dialog")
+        print("[DIAGNOSTIC] calling dialog_manager.show_aquarium_assignment_dialog")
         configs, apply_to_all = self.gui.dialog_manager.show_aquarium_assignment_dialog(
             available_groups=data.get("available_groups", []),
             video_path=video_path,

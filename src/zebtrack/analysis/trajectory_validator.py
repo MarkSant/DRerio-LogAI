@@ -117,9 +117,7 @@ class TrajectoryQualityValidator:
             "stats": stats,
         }
 
-    def _check_trajectory_length(
-        self, df: pd.DataFrame, warnings: list[str]
-    ) -> None:
+    def _check_trajectory_length(self, df: pd.DataFrame, warnings: list[str]) -> None:
         """Check minimum trajectory length."""
         if len(df) < self.min_trajectory_frames:
             warnings.append(
@@ -170,7 +168,7 @@ class TrajectoryQualityValidator:
 
         # Speed = distance / time (handle division by zero or NaN)
         speeds = displacements / time_deltas
-        
+
         # Filter out NaN/Inf resulting from first frame or same-frame entries
         valid_speeds = speeds.replace([np.inf, -np.inf], np.nan).dropna()
         implausible = valid_speeds > self.max_plausible_speed
@@ -356,9 +354,7 @@ class TrajectoryQualityValidator:
             expected_max = expected_min + 999
 
             track_ids = group["track_id"].dropna().unique()
-            out_of_range = [
-                tid for tid in track_ids if not (expected_min <= tid <= expected_max)
-            ]
+            out_of_range = [tid for tid in track_ids if not (expected_min <= tid <= expected_max)]
 
             aquarium_stats[f"aquarium_{aq_id}"] = {
                 "track_ids": list(map(int, track_ids)),

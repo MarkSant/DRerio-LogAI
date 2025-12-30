@@ -1,15 +1,16 @@
-import cv2
-import time
 import sys
+import time
 from pathlib import Path
+
+import cv2
 
 # Add src to path to allow imports from zebtrack
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
 try:
-    from zebtrack.settings import load_settings
-    from zebtrack.plugins.ultralytics_detector import UltralyticsDetectorPlugin
     from zebtrack.core.weight_manager import WeightManager
+    from zebtrack.plugins.ultralytics_detector import UltralyticsDetectorPlugin
+    from zebtrack.settings import load_settings
 except ImportError as e:
     print(
         "Erro: Não foi possível importar os módulos do ZebTrack. "
@@ -56,7 +57,7 @@ def run_test():
         # Reduzir threshold para ver TUDO mesmo
         plugin.conf_threshold = 0.1
 
-        print(f"\nModelos carregados com sucesso.")
+        print("\nModelos carregados com sucesso.")
         print(f"Classes que este modelo consegue detectar: {plugin.class_names}")
         print(
             "GARANTIA: O script está configurado para mostrar TODAS as classes "
@@ -76,7 +77,7 @@ def run_test():
 
     # 3. Loop principal para cada câmera
     for cam_idx in cams:
-        print(f"\n" + "=" * 40)
+        print("\n" + "=" * 40)
         print(f"Iniciando teste na Câmera {cam_idx}...")
         print("=" * 40)
         cap = cv2.VideoCapture(cam_idx, cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY)
@@ -135,7 +136,7 @@ def run_test():
                     cv2.destroyAllWindows()
                     return
                 elif key == ord("n") or key == ord("N"):
-                    print(f"Pulando para próxima câmera...")
+                    print("Pulando para próxima câmera...")
                     break
 
         finally:

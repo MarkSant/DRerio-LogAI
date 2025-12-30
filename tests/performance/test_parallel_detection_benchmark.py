@@ -103,7 +103,7 @@ class TestParallelDetectionSpeedup:
 
         # Configure for multi-aquarium mode
         detector.set_multi_aquarium_zones(
-            multi_zone_data=dual_aquarium_zone_data,
+            aquariums=dual_aquarium_zone_data.aquariums,
             actual_width=1280,
             actual_height=720,
         )
@@ -143,15 +143,15 @@ class TestParallelDetectionSpeedup:
         speedup = seq_mean / par_mean if par_mean > 0 else 1.0
         improvement_pct = (1 - par_mean / seq_mean) * 100 if seq_mean > 0 else 0
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("PARALLEL DETECTION BENCHMARK RESULTS")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Iterations: {num_iterations}")
         print(f"Sequential: {seq_mean:.2f} ± {seq_std:.2f} ms")
         print(f"Parallel:   {par_mean:.2f} ± {par_std:.2f} ms")
         print(f"Speedup:    {speedup:.2f}x")
         print(f"Improvement: {improvement_pct:.1f}%")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # Assert minimum improvement threshold (15% to account for test variability)
         # Note: Real-world improvement is ~30-40% with actual GPU inference
@@ -203,9 +203,9 @@ class TestParallelDetectionSpeedup:
                 "ms_per_frame": ms_per_frame,
             }
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("BATCH INFERENCE THROUGHPUT RESULTS")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"{'Batch Size':<12} {'Elapsed (ms)':<15} {'FPS':<10} {'ms/frame':<10}")
         print("-" * 60)
         for batch_size, metrics in results.items():
@@ -213,21 +213,19 @@ class TestParallelDetectionSpeedup:
                 f"{batch_size:<12} {metrics['elapsed_ms']:<15.2f} "
                 f"{metrics['fps']:<10.1f} {metrics['ms_per_frame']:<10.2f}"
             )
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         # Assert batch processing completes successfully
-        assert all(
-            results[bs]["elapsed_ms"] > 0 for bs in batch_sizes
-        ), "Batch processing should complete successfully"
+        assert all(results[bs]["elapsed_ms"] > 0 for bs in batch_sizes), (
+            "Batch processing should complete successfully"
+        )
 
 
 class TestParallelDetectionErrorRecovery:
     """Test error recovery in parallel detection."""
 
     @pytest.mark.slow
-    def test_partial_failure_recovery(
-        self, sample_frame, dual_aquarium_zone_data
-    ):
+    def test_partial_failure_recovery(self, sample_frame, dual_aquarium_zone_data):
         """Test that one aquarium failure doesn't crash the whole detection."""
         plugin = MagicMock()
         plugin.get_name.return_value = "flaky_plugin"
@@ -251,7 +249,7 @@ class TestParallelDetectionErrorRecovery:
         )
 
         detector.set_multi_aquarium_zones(
-            multi_zone_data=dual_aquarium_zone_data,
+            aquariums=dual_aquarium_zone_data.aquariums,
             actual_width=1280,
             actual_height=720,
         )

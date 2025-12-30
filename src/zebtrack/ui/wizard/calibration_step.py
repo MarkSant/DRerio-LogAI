@@ -13,6 +13,8 @@ from tkinter import (
     Label,
     LabelFrame,
     StringVar,
+)
+from tkinter import (
     font as tkfont,
 )
 from typing import TYPE_CHECKING

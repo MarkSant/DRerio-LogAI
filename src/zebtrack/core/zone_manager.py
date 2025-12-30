@@ -47,6 +47,7 @@ class ZoneManager:
     def normalize_video_path(path: Path | str | None) -> str | None:
         """Normalize a video path for consistent comparison."""
         from zebtrack.core.video_manager import VideoManager
+
         return VideoManager.normalize_path(path)
 
     @staticmethod
@@ -217,13 +218,17 @@ class ZoneManager:
             target=normalized_target,
             has_arena=has_arena,
             has_rois=has_rois,
-            is_multi=isinstance(zone_data, MultiAquariumZoneData)
+            is_multi=isinstance(zone_data, MultiAquariumZoneData),
         )
 
         root_videos = project_data.get("videos")
-        log.info("zone_manager.update_flags.debug_keys",
-                 root_videos_keys=list(root_videos.keys()) if isinstance(root_videos, dict) else "list/none",
-                 batch_count=len(project_data.get("batches", [])))
+        log.info(
+            "zone_manager.update_flags.debug_keys",
+            root_videos_keys=list(root_videos.keys())
+            if isinstance(root_videos, dict)
+            else "list/none",
+            batch_count=len(project_data.get("batches", [])),
+        )
 
         # Strategy 1: Search in root 'videos' (Single Video Mode or Legacy)
         if root_videos:
@@ -236,7 +241,7 @@ class ZoneManager:
                 if ZoneManager.normalize_video_path(candidate_path) == normalized_target:
                     video["has_arena"] = has_arena
                     video["has_rois"] = has_rois
-                    video["zones_finalized"] = False # Re-open for edit logic
+                    video["zones_finalized"] = False  # Re-open for edit logic
                     log.info(
                         "zone_manager.update_flags.updated_root",
                         video=candidate_path,

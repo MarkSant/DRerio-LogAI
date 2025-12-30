@@ -587,7 +587,7 @@ class ProcessingCoordinator(BaseCoordinator):
 
         return eligible_videos
 
-    def _create_project_settings_snapshot(self) -> "Settings":
+    def _create_project_settings_snapshot(self) -> Settings:
         """Create a Settings object with project-specific overrides applied."""
         # Deep copy global settings to avoid mutating shared state
         snapshot = self.settings.model_copy(deep=True)
@@ -3915,7 +3915,7 @@ class ProcessingCoordinator(BaseCoordinator):
         schema_mismatch: bool,
         all_columns: list,
     ) -> None:
-        """Export unified reports (Excel and Word) from concatenated DataFrame.
+        """Export unified reports (Parquet, Excel, and Word) from concatenated DataFrame.
 
         Args:
             final_df: Concatenated DataFrame with all summaries.
@@ -3930,7 +3930,15 @@ class ProcessingCoordinator(BaseCoordinator):
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # 1. Export Excel
+        # 1. Export Parquet (raw data)
+        parquet_path = unified_dir / f"unified_summary_{timestamp}.parquet"
+        try:
+            final_df.to_parquet(parquet_path, index=False)
+            log.info("workflow.unified_report.parquet_exported", path=str(parquet_path))
+        except Exception as e:
+            log.error("workflow.unified_report.parquet_failed", error=str(e))
+
+        # 2. Export Excel
         excel_path = unified_dir / f"unified_summary_{timestamp}.xlsx"
         try:
             # Apply display formatting for Excel
@@ -3942,11 +3950,20 @@ class ProcessingCoordinator(BaseCoordinator):
         except Exception as e:
             log.error("workflow.unified_report.excel_failed", error=str(e))
 
-        # 2. Export Word using Reporter.export_project_report
+        # 3. Export Word using Reporter.export_project_report
         word_path = unified_dir / f"unified_report_{timestamp}"
         try:
+            # BUGFIX: Reporter cannot handle pandas NA values - convert to np.nan
+            # This happens when DataFrames with different schemas are merged (schema mismatch)
+            import numpy as np
+
+            word_df = final_df.copy()
+            # Replace pandas NA with numpy nan which Reporter can handle
+            for col in word_df.columns:
+                word_df[col] = word_df[col].replace({pd.NA: np.nan})
+
             Reporter.export_project_report(
-                aggregated_df=final_df,
+                aggregated_df=word_df,
                 output_path=word_path,
                 roi_colors=roi_colors_map if roi_colors_map else None,
                 detector_params=None,
@@ -3955,7 +3972,7 @@ class ProcessingCoordinator(BaseCoordinator):
         except Exception as e:
             log.error("workflow.unified_report.word_failed", error=str(e))
 
-        # 3. Log schema mismatch warning if applicable
+        # 4. Log schema mismatch warning if applicable
         if schema_mismatch:
             log.warning(
                 "workflow.unified_report.schema_mismatch",
@@ -3963,7 +3980,20 @@ class ProcessingCoordinator(BaseCoordinator):
                 columns=all_columns,
             )
 
-        # 4. Show success message (only if not in batch mode)
+            # Emit UI warning unless suppressed
+            if not self.settings.ui_features.suppress_roi_mismatch_warning:
+                self._publish_event(
+                    Events.UI_SHOW_WARNING,
+                    {
+                        "title": "ROIs Diferentes",
+                        "message": (
+                            "Os vídeos selecionados possuem ROIs diferentes.\n"
+                            "Colunas ausentes foram preenchidas com valores vazios (NA)."
+                        ),
+                    },
+                )
+
+        # 5. Show success message (only if not in batch mode)
         if not self._is_batch_processing():
             self._publish_event(
                 Events.UI_SHOW_INFO,

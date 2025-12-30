@@ -17,15 +17,29 @@ except ImportError as e:
 # This list should theoretically come from a central source of truth or be parsed from MD.
 # For now, we mirror the test expectation.
 EXPECTED_PUBLIC_API = [
-    "refresh_project_views",
-    "update_zone_listbox",
     "setup_interactive_polygon",
-    "show_external_trigger_notice",
-    "clear_external_trigger_notice",
-    "apply_pending_readiness_snapshot",
-    "update_processing_stats",
-    "update_social_summary",
-    "update_analysis_task_status",
+    "refresh_project_views",
+    "update_weights_dropdown",
+    "_on_analyze_single_video_clicked",
+    "setup_zone_definition_for_single_video",
+    "set_status",
+    "show_progress_bar",
+    "update_progress",
+    "update_idletasks",
+    "hide_progress_bar",
+    "show_error",
+    "show_warning",
+    "show_info",
+    "show_pending_videos_dialog",
+    "ask_ok_cancel",
+    "ask_string",
+    "ask_directory",
+    "ask_open_filenames",
+    "ask_save_filename",
+    "update_button_state",
+    "ask_recording_details_unified",
+    "ask_missing_metadata",
+    "publish_event",
 ]
 
 

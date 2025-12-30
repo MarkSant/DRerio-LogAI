@@ -64,12 +64,12 @@ def test_callbacks_progress_updates_ui_and_state(coordinator_with_view):
     callbacks = coordinator_with_view.create_processing_callbacks(videos)
 
     callbacks.on_progress(
-        index=0,
-        total=1,
-        experiment_id="exp1",
-        fraction=0.5,
-        message="tracking",
-        stats={"current_frame": 10, "total_frames": 20},
+        0,  # idx (positional)
+        1,  # total
+        "exp1",  # exp_id
+        0.5,  # fraction
+        "tracking",  # msg
+        {"current_frame": 10, "total_frames": 20},  # stats
     )
 
     coordinator_with_view.ui_coordinator.set_status.assert_called()

@@ -260,7 +260,7 @@ class TestModelSelectionStep:
         assert float(step.confidence_var.get()) == 0.25
         assert float(step.nms_var.get()) == 0.45
         assert float(step.track_var.get()) == 0.25
-        assert float(step.match_var.get()) == 0.15
+        assert float(step.match_var.get()) == 0.95
 
     def test_weight_dropdown_updates_on_method_change(self, mock_weight_manager):
         """Weight dropdown should update when method changes."""
@@ -334,7 +334,7 @@ class TestModelSelectionStep:
     @pytest.mark.parametrize(
         "confidence,nms,track,match,expected_valid",
         [
-            ("0.25", "0.45", "0.25", "0.15", True),  # Defaults
+            ("0.25", "0.45", "0.25", "0.95", True),  # Defaults
             ("0.001", "0.001", "0.001", "0.001", True),  # Very low but valid
             ("0.999", "0.999", "0.999", "0.999", True),  # Very high but valid
             ("0.5", "0.5", "0.5", "0.5", True),  # Mid-range

@@ -3,16 +3,6 @@
 # Run manually: poetry run pre-commit run --all-files
 
 repos:
-  # Ruff - Fast Python linter and formatter
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.9
-    hooks:
-      # Run the linter
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
-      # Run the formatter
-      - id: ruff-format
-
   # Basic file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

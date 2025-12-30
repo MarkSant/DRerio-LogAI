@@ -9,9 +9,7 @@ Related: SPRINT_10_PROCESSING_REFACTORING_ANALYSIS.md - Phase 2: Helper Extracti
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
@@ -119,6 +117,7 @@ class VideoSelectionService:
         # Build normalized path lookup
         videos_by_norm: dict[str, dict] = {}
         from zebtrack.core.video_manager import VideoManager
+
         for video in all_videos:
             path_value = video.get("path")
             if isinstance(path_value, str) and path_value:
@@ -131,7 +130,7 @@ class VideoSelectionService:
             log.debug(
                 "video_selection_service.project_keys",
                 keys=list(videos_by_norm.keys())[:5],
-                total=len(videos_by_norm)
+                total=len(videos_by_norm),
             )
             # Targeted selection mode
             return self._select_targeted(videos_by_norm, target_paths)
@@ -155,6 +154,7 @@ class VideoSelectionService:
             VideoSelectionResult: Targeted selection results
         """
         from zebtrack.core.video_manager import VideoManager
+
         # Normalize target paths
         normalized_targets: list[str] = []
         raw_lookup: dict[str, str] = {}
@@ -162,21 +162,18 @@ class VideoSelectionService:
         for raw_path in target_paths:
             if not isinstance(raw_path, str) or not raw_path:
                 continue
-            
+
             norm_path = VideoManager.normalize_path(raw_path)
             if not norm_path:
                 continue
-                
+
             normalized_targets.append(norm_path)
             raw_lookup.setdefault(norm_path, raw_path)
-            
+
             # DIAGNOSTIC: Check why candidate might not be found
             is_in = norm_path in videos_by_norm
             log.debug(
-                "video_selection_service.target_check",
-                raw=raw_path,
-                norm=norm_path,
-                found=is_in
+                "video_selection_service.target_check", raw=raw_path, norm=norm_path, found=is_in
             )
 
         # Select candidates that exist in project

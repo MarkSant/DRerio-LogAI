@@ -389,9 +389,7 @@ class CanvasEventHandler:
 
                 # Prompt for second aquarium if drawing arena in single-aquarium mode
                 if drawing_type == "arena":
-                    self.gui.root.after(
-                        100, self.manager._check_prompt_second_aquarium
-                    )
+                    self.gui.root.after(100, self.manager._check_prompt_second_aquarium)
             else:
                 self.gui.set_status("❌ Erro ao salvar zona.")
                 self.gui.show_error("Erro", "Não foi possível salvar a zona.")

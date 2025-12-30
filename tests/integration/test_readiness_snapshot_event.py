@@ -112,7 +112,7 @@ class TestReadinessSnapshotEvent:
 
         # Mock PendingVideosDialog to avoid GUI creation
         with patch(
-            "zebtrack.ui.components.dialog_manager.PendingVideosDialog"
+            "zebtrack.ui.dialogs.pending_videos_dialog.PendingVideosDialog"
         ) as mock_dialog_class:
             mock_dialog = MagicMock()
             mock_dialog.result = None
@@ -161,7 +161,7 @@ class TestReadinessSnapshotEvent:
 
         # Mock PendingVideosDialog
         with patch(
-            "zebtrack.ui.components.dialog_manager.PendingVideosDialog"
+            "zebtrack.ui.dialogs.pending_videos_dialog.PendingVideosDialog"
         ) as mock_dialog_class:
             mock_dialog = MagicMock()
             mock_dialog.result = {"selected_videos": []}

@@ -300,10 +300,12 @@ class TestDetectorService(unittest.TestCase):
 
         # Verify
         self.assertTrue(result)
+        # Plugin thresholds updated directly
         self.assertEqual(mock_plugin.conf_threshold, 0.5)
         self.assertEqual(mock_plugin.nms_threshold, 0.7)
-        self.assertEqual(mock_plugin.track_threshold, 0.3)
-        self.assertEqual(mock_plugin.match_threshold, 0.2)
+        # ByteTrack params updated in settings, not plugin
+        self.assertEqual(self.settings.bytetrack.track_threshold, 0.3)
+        self.assertEqual(self.settings.bytetrack.match_threshold, 0.2)
 
     def test_update_tracking_parameters_invalid_values(self):
         """Test update parameters validates threshold ranges."""
@@ -394,7 +396,7 @@ class TestDetectorService(unittest.TestCase):
         self.settings.yolo_model.nms_threshold = 0.45
         mock_bytetrack = MagicMock()
         mock_bytetrack.track_threshold = 0.25
-        mock_bytetrack.match_threshold = 0.15
+        mock_bytetrack.match_threshold = 0.80  # Updated to match current default
         self.settings.bytetrack = mock_bytetrack
 
         # Execute
@@ -404,7 +406,7 @@ class TestDetectorService(unittest.TestCase):
         self.assertEqual(params["conf_threshold"], 0.25)
         self.assertEqual(params["nms_threshold"], 0.45)
         self.assertEqual(params["track_threshold"], 0.25)
-        self.assertEqual(params["match_threshold"], 0.15)
+        self.assertEqual(params["match_threshold"], 0.80)  # Updated to match current default
 
     def test_restore_detector_settings_no_detector(self):
         """Test restore settings with no detector."""
@@ -420,7 +422,7 @@ class TestDetectorService(unittest.TestCase):
         self.service.detector = mock_detector
 
         config = {
-            "confidence_threshold": 0.6,
+            "conf_threshold": 0.6,  # Uses conf_threshold, not confidence_threshold
             "nms_threshold": 0.5,
             "track_threshold": 0.4,
             "match_threshold": 0.2,
@@ -429,26 +431,37 @@ class TestDetectorService(unittest.TestCase):
         # Execute
         self.service.restore_detector_settings(config)
 
-        # Verify
-        self.assertEqual(mock_plugin.conf_threshold, 0.6)
-        self.assertEqual(mock_plugin.nms_threshold, 0.5)
-        self.assertEqual(mock_plugin.track_threshold, 0.4)
-        self.assertEqual(mock_plugin.match_threshold, 0.2)
+        # Verify - plugin thresholds updated directly
+        self.assertEqual(self.settings.yolo_model.confidence_threshold, 0.6)
+        self.assertEqual(self.settings.yolo_model.nms_threshold, 0.5)
+        # ByteTrack params updated in settings, not plugin
+        self.assertEqual(self.settings.bytetrack.track_threshold, 0.4)
+        self.assertEqual(self.settings.bytetrack.match_threshold, 0.2)
 
     def test_build_detector_config(self):
         """Test build detector config."""
         mock_plugin = MockDetectorPlugin("/path/to/model.pt")
         mock_plugin.conf_threshold = 0.5
         mock_plugin.nms_threshold = 0.7
-        mock_plugin.track_threshold = 0.3
-        mock_plugin.match_threshold = 0.2
+
+        # ByteTrack parameters come from settings, not plugin
+        mock_bytetrack = MagicMock()
+        mock_bytetrack.track_threshold = 0.3
+        mock_bytetrack.match_threshold = 0.2
+        mock_bytetrack.track_buffer = 90
+        mock_bytetrack.max_center_distance = 200.0
+        mock_bytetrack.iou_threshold = 0.1
+        self.settings.bytetrack = mock_bytetrack
+        self.settings.tracking.use_bytetrack = True
 
         # Execute
         config = self.service._build_detector_config(mock_plugin, use_openvino=False)
 
         # Verify
         self.assertEqual(config["plugin_name"], "YOLO (Ultralytics)")
-        self.assertEqual(config["confidence_threshold"], 0.5)
+        self.assertEqual(
+            config["conf_threshold"], 0.5
+        )  # Uses conf_threshold, not confidence_threshold
         self.assertEqual(config["nms_threshold"], 0.7)
         self.assertEqual(config["track_threshold"], 0.3)
         self.assertEqual(config["match_threshold"], 0.2)

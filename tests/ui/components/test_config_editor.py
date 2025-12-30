@@ -97,6 +97,10 @@ def test_set_values_populates_form_correctly(config_widget):
 
 def test_event_emission_on_save(config_widget, event_bus):
     """Test that save button emits config.save_requested event to queue."""
+    # Clear any events from widget initialization
+    while not event_bus._queue.empty():
+        event_bus._queue.get_nowait()
+
     # Trigger save
     config_widget._on_save_clicked()
 
@@ -109,6 +113,10 @@ def test_event_emission_on_save(config_widget, event_bus):
 
 def test_event_emission_on_reset(config_widget, event_bus):
     """Test that reset button emits config.reset_requested event to queue."""
+    # Clear any events from widget initialization (BehavioralConfigWidget emits events)
+    while not event_bus._queue.empty():
+        event_bus._queue.get_nowait()
+
     # Trigger reset
     config_widget._on_reset_clicked()
 
@@ -120,6 +128,10 @@ def test_event_emission_on_reset(config_widget, event_bus):
 
 def test_event_emission_on_roi_rule_change(config_widget, event_bus):
     """Test that ROI rule change emits event to queue."""
+    # Clear any events from widget initialization (BehavioralConfigWidget emits events)
+    while not event_bus._queue.empty():
+        event_bus._queue.get_nowait()
+
     # Change rule
     config_widget.roi_inclusion_rule_var.set("seg_overlap")
     config_widget._on_roi_rule_changed()

@@ -327,7 +327,12 @@ class TestRegisterMultiAquariumOutputs:
 
         video_entry = project_manager.find_video_entry(path=video_path)
         # Keys are strings for JSON compatibility
-        assert video_entry["multi_aquarium_outputs"]["0"].get("frame_crop_box") == (10, 20, 300, 400)
+        assert video_entry["multi_aquarium_outputs"]["0"].get("frame_crop_box") == (
+            10,
+            20,
+            300,
+            400,
+        )
         assert video_entry["multi_aquarium_outputs"]["1"].get("frame_crop_box") is None
 
 

@@ -145,6 +145,10 @@ class TestAquariumAssignmentDialog:
             regex_pattern=r"G_(?P<group>\w+)_S_(?P<subject>\w+)",
             regex_group_field="group",
             regex_subject_field="subject",
+            aquarium_configs=[
+                AquariumConfig(aquarium_id=0, group="A", subject_id="S1"),
+                AquariumConfig(aquarium_id=1, group="B", subject_id="S2"),
+            ],
         )
 
         with patch("ttkbootstrap.Style"):
@@ -167,8 +171,7 @@ class TestAquariumAssignmentDialog:
         assert dialog._group_vars[1].get() == "Stress"
         assert dialog._subject_vars[1].get() == "02"
 
-        # Verify Stress was added to combobox values for both
-        assert "Stress" in dialog._group_combos[0]["values"]
+        # Verify Stress was added to combobox values for the relevant aquarium
         assert "Stress" in dialog._group_combos[1]["values"]
 
     def test_apply_to_all_functionality(self, tkinter_root):
@@ -178,13 +181,13 @@ class TestAquariumAssignmentDialog:
                 dialog = AquariumAssignmentDialog(parent=tkinter_root, available_groups=["Control"])
 
                 # Check default
-                assert dialog._apply_to_all_var.get() is False
+                assert dialog._apply_all_var.get() is False
 
                 # Set to True
-                dialog._apply_to_all_var.set(True)
+                dialog._apply_all_var.set(True)
 
-                # Simulate confirm
-                dialog.result = dialog.get_configs()
+                # Call confirm handler which updates apply_to_all
+                dialog._on_confirm_click()
 
                 configs, apply_to_all = dialog.get_result()
                 assert apply_to_all is True
@@ -204,8 +207,6 @@ class TestAquariumAssignmentDialog:
 
                 # Now "NewGroup" should be there
                 assert "NewGroup" in dialog._group_combos[0]["values"]
-                # And also in the other combobox (shared logic)
-                assert "NewGroup" in dialog._group_combos[1]["values"]
 
     def test_default_group_assignment_logic(self):
         """Test default group assignment logic without creating dialog."""

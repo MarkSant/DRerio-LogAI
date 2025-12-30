@@ -311,7 +311,7 @@ class _WorkerProcess(multiprocessing.Process):
             return f"{day_num:02d}"
         except (ValueError, TypeError):
             # Try to extract digits from string (e.g. "D1" -> 1)
-            match = re.search(r'\d+', str(value))
+            match = re.search(r"\d+", str(value))
             if match:
                 return f"{int(match.group()):02d}"
             return str(value)
@@ -326,7 +326,7 @@ class _WorkerProcess(multiprocessing.Process):
             return f"{subj_num:02d}"
         except (ValueError, TypeError):
             # Try to extract digits from string (e.g. "S1" -> 1)
-            match = re.search(r'\d+', str(value))
+            match = re.search(r"\d+", str(value))
             if match:
                 return f"{int(match.group()):02d}"
             return str(value)
@@ -363,7 +363,7 @@ class _WorkerProcess(multiprocessing.Process):
                         if isinstance(video_path, str) and video_path
                         else f"video_{index + 1}"
                     )
-                
+
                 # Append aquarium ID if present (for exploded tasks)
                 if "aquarium_id" in video_info:
                     experiment_id = f"{experiment_id}_aq{video_info['aquarium_id']}"

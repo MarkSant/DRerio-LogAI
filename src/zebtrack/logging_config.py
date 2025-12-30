@@ -33,6 +33,7 @@ def resolve_log_path(log_file: str) -> str:
     - Otherwise, logs are written to a fixed directory under the project root.
     - The directory can be overridden via the `ZEBTRACK_LOG_DIR` env var.
     """
+
     def _find_project_root() -> Path:
         # Prefer finding a repository/project root (pyproject.toml) relative to this file.
         here = Path(__file__).resolve()

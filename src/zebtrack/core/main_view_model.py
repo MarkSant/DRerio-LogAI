@@ -140,7 +140,6 @@ class MainViewModel:
                 ["polygon_points"],
                 "kwargs_get",
             ),
-
             Events.PROJECT_DELETE_ASSET: (
                 self.project_vm.handle_delete_project_asset,
                 [],

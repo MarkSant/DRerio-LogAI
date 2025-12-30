@@ -29,7 +29,9 @@
       "Bash(cd:*)",
       "Bash(git checkout:*)",
       "Bash(git push:*)",
-      "Bash(wmic path Win32_VideoController get:*)"
+      "Bash(wmic path Win32_VideoController get:*)",
+      "Bash(timeout 300 poetry run pytest:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

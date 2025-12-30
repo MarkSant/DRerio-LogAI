@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ '**' ]
   pull_request:
     branches: [ main ]
 
@@ -68,6 +68,14 @@ jobs:
         run: |
           poetry run ruff format --check .
 
+      - name: Check Public API Concordance
+        run: |
+          poetry run python scripts/check_public_api.py
+
+      - name: Run mypy (type check)
+        run: |
+          poetry run mypy .
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -126,7 +134,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-
 
-      - name: Run tests with coverage (v2.1: pytest-timeout configured)
+      - name: "Run tests with coverage (v2.1: pytest-timeout configured)"
         run: |
           xvfb-run --auto-servernum poetry run pytest -m "not (gui or slow)" --cov-fail-under=60 --timeout=300 --timeout-method=thread
         timeout-minutes: 10

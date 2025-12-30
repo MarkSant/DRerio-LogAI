@@ -1,0 +1,491 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-8.4.1, pluggy-1.6.0 -- C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+benchmark: 5.2.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.11.0, benchmark-5.2.0, cov-6.3.0, timeout-2.4.0, xdist-3.8.0
+timeout: 300.0s
+timeout method: thread
+timeout func_only: False
+collecting ... collected 3132 items / 2374 deselected / 758 selected
+
+tests/analysis/test_reporter.py::TestEdgeCases::test_very_large_trajectory PASSED [  0%]
+tests/analysis/test_reporter_integration.py::TestReporterLargeDatasetIntegration::test_export_large_trajectory_parquet PASSED [  0%]
+tests/core/test_di_composition_root.py::test_full_composition_root_assembly PASSED [  0%]
+tests/core/test_video_processing_service_thread_safety.py::TestResourceManagementUnderLoad::test_video_capture_cleanup_under_concurrent_failures PASSED [  0%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_zone_creation_updates_ui PASSED [  0%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_setup_interactive_polygon PASSED [  0%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_apply_pending_readiness_snapshot PASSED [  0%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_populate_video_selector_tree PASSED [  1%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_show_external_trigger_notice_removed PASSED [  1%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_clear_external_trigger_notice_removed PASSED [  1%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_update_processing_stats_removed PASSED [  1%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_update_social_summary_removed PASSED [  1%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_update_analysis_task_status_delegates PASSED [  1%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_refresh_project_views_delegates PASSED [  1%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_edit_selected_zone_vertices PASSED [  1%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_remove_selected_roi_confirm PASSED [  2%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_update_button_state PASSED [  2%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_show_progress_bar PASSED [  2%]
+tests/integration/test_gui_component_integration.py::TestGUIComponentIntegration::test_rename_selected_roi PASSED [  2%]
+tests/performance/test_parallel_detection_benchmark.py::TestParallelDetectionSpeedup::test_parallel_is_faster_than_sequential PASSED [  2%]
+tests/performance/test_parallel_detection_benchmark.py::TestParallelDetectionSpeedup::test_batch_inference_throughput PASSED [  2%]
+tests/performance/test_parallel_detection_benchmark.py::TestParallelDetectionErrorRecovery::test_partial_failure_recovery PASSED [  2%]
+tests/test_ci_configuration.py::test_slow_test_with_timeout PASSED       [  3%]
+tests/test_event_bus_migration.py::test_control_panel_publishes_events PASSED [  3%]
+tests/test_event_bus_migration.py::test_zone_controls_publishes_events PASSED [  3%]
+tests/test_io_arduino_manager.py::test_arduino_manager_reader_loop_event_dispatch PASSED [  3%]
+tests/test_io_arduino_manager.py::test_arduino_manager_reader_loop_text_message PASSED [  3%]
+tests/test_io_arduino_manager.py::test_arduino_manager_reader_loop_handles_serial_exception PASSED [  3%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_init_default_values PASSED [  3%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_init_without_settings PASSED [  3%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_camera_detection_success PASSED [  4%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_camera_detection_no_cameras PASSED [  4%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_camera_detection_exception PASSED [  4%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_manual_camera_detection_refresh PASSED [  4%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_validate_no_camera_selected PASSED [  4%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_validate_invalid_camera_index PASSED [  4%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_duration_validation_positive PASSED [  4%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_duration_validation_invalid_zero PASSED [  5%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_duration_validation_max_exceeded PASSED [  5%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_analysis_interval_validation_invalid PASSED [  5%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_display_interval_validation_invalid PASSED [  5%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_record_video_checkbox_state PASSED [  5%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_experiment_id_auto_generation PASSED [  5%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_experiment_id_custom PASSED [  5%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_ok_button_result_assembly PASSED [  5%]
+tests/test_live_analysis_ui.py::TestLiveAnalysisDialog::test_quick_duration_buttons PASSED [  6%]
+tests/test_live_analysis_ui.py::TestLivePreviewWindow::test_window_creation PASSED [  6%]
+tests/test_live_analysis_ui.py::TestLivePreviewWindow::test_frame_update_no_detections PASSED [  6%]
+tests/test_live_analysis_ui.py::TestLivePreviewWindow::test_frame_update_with_detections PASSED [  6%]
+tests/test_live_analysis_ui.py::TestLivePreviewWindow::test_fps_calculation PASSED [  6%]
+tests/test_live_analysis_ui.py::TestLivePreviewWindow::test_stats_update PASSED [  6%]
+tests/test_live_analysis_ui.py::TestLivePreviewWindow::test_manual_stop_button PASSED [  6%]
+tests/test_live_analysis_ui.py::TestLivePreviewWindow::test_auto_stop_on_duration_complete PASSED [  6%]
+tests/test_live_analysis_ui.py::TestLivePreviewWindow::test_stop_callback_invocation PASSED [  7%]
+tests/test_live_analysis_ui.py::TestLivePreviewWindow::test_window_close_event_triggers_stop PASSED [  7%]
+tests/test_live_analysis_ui.py::TestLivePreviewWindow::test_frame_update_after_stop PASSED [  7%]
+tests/test_live_analysis_ui.py::TestLivePreviewWindow::test_timer_updates PASSED [  7%]
+tests/test_live_analysis_ui.py::TestLivePreviewWindow::test_show_hide_methods PASSED [  7%]
+tests/test_live_analysis_ui.py::TestLivePreviewWindow::test_destroy_method PASSED [  7%]
+tests/test_project_manager.py::TestProjectManager::test_scan_input_paths_cache_invalidation_on_directory_change PASSED [  7%]
+tests/test_splash_screen.py::test_splash_screen_creation PASSED          [  8%]
+tests/test_splash_screen.py::test_splash_screen_no_parent PASSED         [  8%]
+tests/test_splash_screen.py::test_splash_screen_geometry PASSED          [  8%]
+tests/test_splash_screen.py::test_splash_screen_update_status PASSED     [  8%]
+tests/test_splash_screen.py::test_splash_screen_destroy PASSED           [  8%]
+tests/test_splash_screen.py::test_splash_screen_progress_bar PASSED      [  8%]
+tests/test_splash_screen.py::test_splash_screen_topmost PASSED           [  8%]
+tests/test_splash_screen.py::test_splash_screen_no_decorations PASSED    [  8%]
+tests/test_splash_screen.py::test_create_splash_factory PASSED           [  9%]
+tests/test_splash_screen.py::test_splash_screen_logo_fallback PASSED     [  9%]
+tests/test_splash_screen.py::test_splash_screen_labels_use_correct_font PASSED [  9%]
+tests/test_splash_screen.py::test_splash_screen_background_color PASSED  [  9%]
+tests/test_splash_screen.py::test_splash_screen_status_initial_value PASSED [  9%]
+tests/test_state_manager_stress.py::test_1000_concurrent_updates_no_deadlock PASSED [  9%]
+tests/test_state_manager_stress.py::test_observers_do_not_block_state_updates PASSED [  9%]
+tests/test_state_manager_stress.py::test_100_observers_registered_concurrently PASSED [ 10%]
+tests/test_state_manager_stress.py::test_subscribe_unsubscribe_race_condition PASSED [ 10%]
+tests/test_state_manager_stress.py::test_memory_leak_with_many_subscriptions PASSED [ 10%]
+tests/test_tracker_threading_stress.py::test_single_tracker_baseline PASSED [ 10%]
+tests/test_tracker_threading_stress.py::test_parallel_trackers_no_shared_state PASSED [ 10%]
+tests/test_tracker_threading_stress.py::test_rapid_tracker_creation_destruction PASSED [ 10%]
+tests/test_tracker_threading_stress.py::test_strack_multi_predict_thread_safety PASSED [ 10%]
+tests/test_tracker_threading_stress.py::test_concurrent_multi_predict_calls PASSED [ 10%]
+tests/test_tracker_threading_stress.py::test_tracker_reset_independence PASSED [ 11%]
+tests/test_wizard_experimental_design.py::test_experimental_design_step_defaults PASSED [ 11%]
+tests/test_wizard_experimental_design.py::test_experimental_design_validates_empty_group_name PASSED [ 11%]
+tests/test_wizard_experimental_design.py::test_experimental_design_validates_duplicate_names PASSED [ 11%]
+tests/test_wizard_experimental_design.py::test_experimental_design_valid_configuration PASSED [ 11%]
+tests/test_wizard_experimental_design.py::test_experimental_design_get_data_trims_names PASSED [ 11%]
+tests/test_wizard_experimental_design.py::test_experimental_design_adjusts_to_group_count PASSED [ 11%]
+tests/test_wizard_experimental_design.py::test_experimental_design_set_data_restores_state PASSED [ 12%]
+tests/test_wizard_experimental_design.py::test_experimental_design_summary_updates PASSED [ 12%]
+tests/test_wizard_experimental_design.py::test_experimental_design_preserves_existing_names_on_rebuild PASSED [ 12%]
+tests/test_wizard_experimental_design.py::test_experimental_design_validation_trims_before_checking PASSED [ 12%]
+tests/test_wizard_experimental_design.py::test_experimental_design_only_validates_active_groups PASSED [ 12%]
+tests/test_wizard_experimental_design.py::test_experimental_design_step_id_set_correctly PASSED [ 12%]
+tests/test_zone_controls_fixed_frame.py::test_zone_controls_has_fixed_button_frame PASSED [ 12%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_widget_initialization PASSED [ 12%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_widget_with_custom_track_options PASSED [ 13%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_widget_without_event_bus PASSED [ 13%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_set_status PASSED [ 13%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_set_task PASSED [ 13%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_set_metadata PASSED [ 13%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_set_metadata_without_profile PASSED [ 13%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_set_tracking_mode PASSED [ 13%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_set_profile PASSED [ 13%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_set_social_summary PASSED [ 14%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_update_track_options PASSED [ 14%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_show_progress PASSED [ 14%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_hide_progress PASSED [ 14%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_update_progress PASSED [ 14%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_update_progress_stats PASSED [ 14%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_update_progress_stats_partial PASSED [ 14%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_enable_cancel_button PASSED [ 15%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_disable_cancel_button PASSED [ 15%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_clear_video_display PASSED [ 15%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_reset_to_defaults PASSED [ 15%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_track_selection_emits_event PASSED [ 15%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_cancel_button_emits_event PASSED [ 15%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_event_emission_without_bus PASSED [ 15%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_handles_none_values_gracefully PASSED [ 15%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_handles_empty_track_list PASSED [ 16%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_progress_updates_with_invalid_values PASSED [ 16%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_multiple_show_hide_progress PASSED [ 16%]
+tests/ui/components/test_analysis_display.py::TestAnalysisDisplayWidget::test_complete_analysis_workflow PASSED [ 16%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_widget_initialization PASSED [ 16%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_widget_without_project_manager PASSED [ 16%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_widget_without_event_bus PASSED [ 16%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_append_log PASSED [ 17%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_append_log_multiple_messages PASSED [ 17%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_append_log_trimming PASSED [ 17%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_update_status_connected PASSED [ 17%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_update_status_connected_no_port PASSED [ 17%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_update_status_disconnected PASSED [ 17%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_set_last_command PASSED [ 17%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_set_last_command_with_none PASSED [ 17%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_clear_log PASSED [ 18%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_recheck_ports_emits_event PASSED [ 18%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_recheck_ports_no_ports_found PASSED [ 18%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_recheck_ports_user_cancels PASSED [ 18%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_recheck_ports_invalid_selection PASSED [ 18%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_recheck_ports_updates_project_config PASSED [ 18%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_recheck_ports_no_project_loaded PASSED [ 18%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_append_log_with_none_log_text PASSED [ 18%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_update_status_with_exceptions PASSED [ 19%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_set_last_command_with_empty_string PASSED [ 19%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_recheck_ports_exception_handling PASSED [ 19%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_append_log_thread_safe XPASS [ 19%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_complete_arduino_workflow PASSED [ 19%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_log_display_formatting PASSED [ 19%]
+tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_status_indicator_color_changes PASSED [ 19%]
+tests/ui/components/test_canvas_manager.py::TestCanvasManagerInitialization::test_initialization PASSED [ 20%]
+tests/ui/components/test_canvas_manager.py::TestCanvasManagerInitialization::test_initialization_with_real_gui PASSED [ 20%]
+tests/ui/components/test_canvas_manager.py::TestCoordinateTransformation::test_canvas_to_video_without_scaling PASSED [ 20%]
+tests/ui/components/test_canvas_manager.py::TestCoordinateTransformation::test_canvas_to_video_with_scaling PASSED [ 20%]
+tests/ui/components/test_canvas_manager.py::TestCoordinateTransformation::test_video_to_canvas_without_scaling PASSED [ 20%]
+tests/ui/components/test_canvas_manager.py::TestCoordinateTransformation::test_video_to_canvas_with_scaling PASSED [ 20%]
+tests/ui/components/test_canvas_manager.py::TestCoordinateTransformation::test_roundtrip_coordinate_conversion PASSED [ 20%]
+tests/ui/components/test_canvas_manager.py::TestCoordinateTransformation::test_point_to_segment_distance_degenerate PASSED [ 20%]
+tests/ui/components/test_canvas_manager.py::TestCoordinateTransformation::test_point_to_segment_distance_perpendicular PASSED [ 21%]
+tests/ui/components/test_canvas_manager.py::TestCoordinateTransformation::test_point_to_segment_distance_endpoint PASSED [ 21%]
+tests/ui/components/test_canvas_manager.py::TestBackgroundImageDrawing::test_draw_bg_image_to_canvas_without_image PASSED [ 21%]
+tests/ui/components/test_canvas_manager.py::TestBackgroundImageDrawing::test_draw_bg_image_to_canvas_with_image PASSED [ 21%]
+tests/ui/components/test_canvas_manager.py::TestBackgroundImageDrawing::test_draw_bg_image_to_canvas_canvas_not_ready PASSED [ 21%]
+tests/ui/components/test_canvas_manager.py::TestBackgroundImageDrawing::test_draw_bg_image_to_canvas_scaling_calculation PASSED [ 21%]
+tests/ui/components/test_canvas_manager.py::TestBackgroundImageDrawing::test_display_roi_video_frame_success PASSED [ 21%]
+tests/ui/components/test_canvas_manager.py::TestBackgroundImageDrawing::test_display_roi_video_frame_invalid_path PASSED [ 22%]
+tests/ui/components/test_canvas_manager.py::TestBackgroundImageDrawing::test_display_roi_video_frame_cannot_open PASSED [ 22%]
+tests/ui/components/test_canvas_manager.py::TestBackgroundImageDrawing::test_display_roi_video_frame_cannot_read PASSED [ 22%]
+tests/ui/components/test_canvas_manager.py::TestBackgroundImageDrawing::test_load_video_frame_to_canvas_no_path PASSED [ 22%]
+tests/ui/components/test_canvas_manager.py::TestBackgroundImageDrawing::test_load_video_frame_to_canvas_with_path PASSED [ 22%]
+tests/ui/components/test_canvas_manager.py::TestBackgroundImageDrawing::test_load_video_frame_to_canvas_read_failure PASSED [ 22%]
+tests/ui/components/test_canvas_manager.py::TestInteractivePolygonDrawing::test_draw_interactive_polygon_empty PASSED [ 22%]
+tests/ui/components/test_canvas_manager.py::TestInteractivePolygonDrawing::test_draw_interactive_polygon_with_points PASSED [ 22%]
+tests/ui/components/test_canvas_manager.py::TestInteractivePolygonDrawing::test_draw_interactive_polygon_clears_previous PASSED [ 23%]
+tests/ui/components/test_canvas_manager.py::TestInteractivePolygonDrawing::test_draw_interactive_polygon_roi_boundary_check PASSED [ 23%]
+tests/ui/components/test_canvas_manager.py::TestInteractivePolygonDrawing::test_redraw_polygon_in_progress_empty PASSED [ 23%]
+tests/ui/components/test_canvas_manager.py::TestInteractivePolygonDrawing::test_redraw_polygon_in_progress_with_points PASSED [ 23%]
+tests/ui/components/test_canvas_manager.py::TestZoneDrawing::test_draw_zones_on_frame_with_arena PASSED [ 23%]
+tests/ui/components/test_canvas_manager.py::TestZoneDrawing::test_redraw_zones_from_project_data_no_canvas PASSED [ 23%]
+tests/ui/components/test_canvas_manager.py::TestZoneDrawing::test_redraw_zones_from_project_data_no_zone_data PASSED [ 23%]
+tests/ui/components/test_canvas_manager.py::TestZoneDrawing::test_redraw_zones_from_project_data_with_arena PASSED [ 24%]
+tests/ui/components/test_canvas_manager.py::TestZoneDrawing::test_redraw_zones_from_project_data_with_rois PASSED [ 24%]
+tests/ui/components/test_canvas_manager.py::TestZoneDrawing::test_redraw_zones_from_project_data_restores_background PASSED [ 24%]
+tests/ui/components/test_dialog_manager.py::TestDialogManagerInitialization::test_initialization PASSED [ 24%]
+tests/ui/components/test_dialog_manager.py::TestDialogManagerInitialization::test_initialization_with_real_gui PASSED [ 24%]
+tests/ui/components/test_dialog_manager.py::TestMessageBoxWrappers::test_show_error PASSED [ 24%]
+tests/ui/components/test_dialog_manager.py::TestMessageBoxWrappers::test_show_warning PASSED [ 24%]
+tests/ui/components/test_dialog_manager.py::TestMessageBoxWrappers::test_show_info PASSED [ 24%]
+tests/ui/components/test_dialog_manager.py::TestMessageBoxWrappers::test_ask_ok_cancel_returns_true PASSED [ 25%]
+tests/ui/components/test_dialog_manager.py::TestMessageBoxWrappers::test_ask_ok_cancel_returns_false PASSED [ 25%]
+tests/ui/components/test_dialog_manager.py::TestMessageBoxWrappers::test_ask_yes_no_returns_true PASSED [ 25%]
+tests/ui/components/test_dialog_manager.py::TestMessageBoxWrappers::test_ask_yes_no_returns_false PASSED [ 25%]
+tests/ui/components/test_dialog_manager.py::TestMessageBoxWrappers::test_ask_yes_no_with_custom_icon PASSED [ 25%]
+tests/ui/components/test_dialog_manager.py::TestMessageBoxWrappers::test_ask_yes_no_cancel_returns_true PASSED [ 25%]
+tests/ui/components/test_dialog_manager.py::TestMessageBoxWrappers::test_ask_yes_no_cancel_returns_false PASSED [ 25%]
+tests/ui/components/test_dialog_manager.py::TestMessageBoxWrappers::test_ask_yes_no_cancel_returns_none PASSED [ 25%]
+tests/ui/components/test_dialog_manager.py::TestMessageBoxWrappers::test_ask_yes_no_cancel_with_custom_icon PASSED [ 26%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_directory_returns_path PASSED [ 26%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_directory_returns_empty_on_cancel PASSED [ 26%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_directory_with_initial_dir PASSED [ 26%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_open_filename_returns_path PASSED [ 26%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_open_filename_returns_empty_on_cancel PASSED [ 26%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_open_filename_with_initial_dir PASSED [ 26%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_open_filenames_returns_multiple_files PASSED [ 27%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_open_filenames_returns_empty_on_cancel PASSED [ 27%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_open_filenames_with_initial_dir PASSED [ 27%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_save_filename_returns_path PASSED [ 27%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_save_filename_returns_empty_on_cancel PASSED [ 27%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_string_returns_input PASSED [ 27%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_string_returns_none_on_cancel PASSED [ 27%]
+tests/ui/components/test_dialog_manager.py::TestFileDialogs::test_ask_string_with_initial_value PASSED [ 27%]
+tests/ui/components/test_dialog_manager.py::TestCalibrationDialogs::test_open_global_calibration_window FAILED [ 28%]
+tests/ui/components/test_dialog_manager.py::TestCalibrationDialogs::test_open_project_calibration_window_no_project FAILED [ 28%]
+tests/ui/components/test_dialog_manager.py::TestCalibrationDialogs::test_open_project_calibration_window_success FAILED [ 28%]
+tests/ui/components/test_dialog_manager.py::TestROITemplateDialogs::test_show_template_save_dialog_returns_result FAILED [ 28%]
+tests/ui/components/test_dialog_manager.py::TestROITemplateDialogs::test_show_template_save_dialog_returns_none_on_cancel FAILED [ 28%]
+tests/ui/components/test_dialog_manager.py::TestROITemplateDialogs::test_import_roi_template_cancelled PASSED [ 28%]
+tests/ui/components/test_dialog_manager.py::TestROITemplateDialogs::test_import_roi_template_success PASSED [ 28%]
+tests/ui/components/test_dialog_manager.py::TestROITemplateDialogs::test_import_roi_template_no_project_manager PASSED [ 29%]
+tests/ui/components/test_dialog_manager.py::TestROITemplateDialogs::test_import_and_apply_roi_template_cancelled PASSED [ 29%]
+tests/ui/components/test_dialog_manager.py::TestROITemplateDialogs::test_import_and_apply_roi_template_no_active_video PASSED [ 29%]
+tests/ui/components/test_dialog_manager.py::TestROITemplateDialogs::test_import_and_apply_roi_template_success PASSED [ 29%]
+tests/ui/components/test_dialog_manager.py::TestAnalysisDialogs::test_open_center_periphery_dialog_returns_result FAILED [ 29%]
+tests/ui/components/test_dialog_manager.py::TestAnalysisDialogs::test_open_center_periphery_dialog_returns_none_on_cancel FAILED [ 29%]
+tests/ui/components/test_dialog_manager.py::TestAnalysisDialogs::test_open_template_rois_dialog_returns_result FAILED [ 29%]
+tests/ui/components/test_dialog_manager.py::TestAnalysisDialogs::test_open_template_rois_dialog_returns_none_on_cancel FAILED [ 29%]
+tests/ui/components/test_dialog_manager.py::TestAnalysisDialogs::test_open_single_video_config_dialog_returns_result FAILED [ 30%]
+=== PYTEST SESSION CLEANUP ===
+Shutdown 1 ThreadPoolExecutor(s)
+
+Remaining threads at session end: 2
+  - MainThread: daemon=False, alive=True
+  - Thread-1276 (background_task): daemon=True, alive=True
+==============================
+
+
+
+================================== FAILURES ===================================
+_________ TestCalibrationDialogs.test_open_global_calibration_window __________
+C:\Program Files\Python312\Lib\unittest\mock.py:1393: in patched
+    with self.decoration_helper(patched,
+C:\Program Files\Python312\Lib\contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1375: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\contextlib.py:526: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1437: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'zebtrack.ui.components.dialog_manager' from 'C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\src\\zebtrack\\ui\\components\\dialog_manager.py'> does not have the attribute 'CalibrationDialog'
+___ TestCalibrationDialogs.test_open_project_calibration_window_no_project ____
+C:\Program Files\Python312\Lib\unittest\mock.py:1393: in patched
+    with self.decoration_helper(patched,
+C:\Program Files\Python312\Lib\contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1375: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\contextlib.py:526: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1437: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'zebtrack.ui.components.dialog_manager' from 'C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\src\\zebtrack\\ui\\components\\dialog_manager.py'> does not have the attribute 'CalibrationDialog'
+_____ TestCalibrationDialogs.test_open_project_calibration_window_success _____
+C:\Program Files\Python312\Lib\unittest\mock.py:1393: in patched
+    with self.decoration_helper(patched,
+C:\Program Files\Python312\Lib\contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1375: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\contextlib.py:526: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1437: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'zebtrack.ui.components.dialog_manager' from 'C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\src\\zebtrack\\ui\\components\\dialog_manager.py'> does not have the attribute 'CalibrationDialog'
+____ TestROITemplateDialogs.test_show_template_save_dialog_returns_result _____
+C:\Program Files\Python312\Lib\unittest\mock.py:1393: in patched
+    with self.decoration_helper(patched,
+C:\Program Files\Python312\Lib\contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1375: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\contextlib.py:526: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1437: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'zebtrack.ui.components.dialog_manager' from 'C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\src\\zebtrack\\ui\\components\\dialog_manager.py'> does not have the attribute 'SaveROITemplateDialog'
+_ TestROITemplateDialogs.test_show_template_save_dialog_returns_none_on_cancel _
+C:\Program Files\Python312\Lib\unittest\mock.py:1393: in patched
+    with self.decoration_helper(patched,
+C:\Program Files\Python312\Lib\contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1375: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\contextlib.py:526: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1437: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'zebtrack.ui.components.dialog_manager' from 'C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\src\\zebtrack\\ui\\components\\dialog_manager.py'> does not have the attribute 'SaveROITemplateDialog'
+____ TestAnalysisDialogs.test_open_center_periphery_dialog_returns_result _____
+C:\Program Files\Python312\Lib\unittest\mock.py:1393: in patched
+    with self.decoration_helper(patched,
+C:\Program Files\Python312\Lib\contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1375: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\contextlib.py:526: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1437: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'zebtrack.ui.components.dialog_manager' from 'C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\src\\zebtrack\\ui\\components\\dialog_manager.py'> does not have the attribute 'CenterPeripheryDialog'
+_ TestAnalysisDialogs.test_open_center_periphery_dialog_returns_none_on_cancel _
+C:\Program Files\Python312\Lib\unittest\mock.py:1393: in patched
+    with self.decoration_helper(patched,
+C:\Program Files\Python312\Lib\contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1375: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\contextlib.py:526: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1437: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'zebtrack.ui.components.dialog_manager' from 'C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\src\\zebtrack\\ui\\components\\dialog_manager.py'> does not have the attribute 'CenterPeripheryDialog'
+______ TestAnalysisDialogs.test_open_template_rois_dialog_returns_result ______
+C:\Program Files\Python312\Lib\unittest\mock.py:1393: in patched
+    with self.decoration_helper(patched,
+C:\Program Files\Python312\Lib\contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1375: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\contextlib.py:526: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1437: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'zebtrack.ui.components.dialog_manager' from 'C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\src\\zebtrack\\ui\\components\\dialog_manager.py'> does not have the attribute 'TemplateDialog'
+__ TestAnalysisDialogs.test_open_template_rois_dialog_returns_none_on_cancel __
+C:\Program Files\Python312\Lib\unittest\mock.py:1393: in patched
+    with self.decoration_helper(patched,
+C:\Program Files\Python312\Lib\contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1375: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\contextlib.py:526: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1437: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'zebtrack.ui.components.dialog_manager' from 'C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\src\\zebtrack\\ui\\components\\dialog_manager.py'> does not have the attribute 'TemplateDialog'
+___ TestAnalysisDialogs.test_open_single_video_config_dialog_returns_result ___
+C:\Program Files\Python312\Lib\unittest\mock.py:1393: in patched
+    with self.decoration_helper(patched,
+C:\Program Files\Python312\Lib\contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1375: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\contextlib.py:526: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1467: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+C:\Program Files\Python312\Lib\unittest\mock.py:1437: in get_original
+    raise AttributeError(
+E   AttributeError: <module 'zebtrack.ui.components.dialog_manager' from 'C:\\Users\\santa\\OneDrive\\UNESP\\Pesquisa Canabidiol\\Codigos_Programas\\ZebTrack-AI\\src\\zebtrack\\ui\\components\\dialog_manager.py'> does not have the attribute 'SingleVideoConfigDialog'
+============================== warnings summary ===============================
+tests/test_io_arduino_manager.py::test_arduino_manager_reader_loop_handles_serial_exception
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\.venv\Lib\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread ArduinoReader
+
+  Traceback (most recent call last):
+    File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\io\arduino_manager.py", line 200, in _reader_loop
+      raw_line = serial_conn.readline()
+                 ^^^^^^^^^^^^^^^^^^^^^^
+    File "C:\Program Files\Python312\Lib\unittest\mock.py", line 1139, in __call__
+      return self._mock_call(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "C:\Program Files\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+      return self._execute_mock_call(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "C:\Program Files\Python312\Lib\unittest\mock.py", line 1202, in _execute_mock_call
+      raise result
+  serial.serialutil.SerialException: Port closed
+
+  During handling of the above exception, another exception occurred:
+
+  Traceback (most recent call last):
+    File "C:\Program Files\Python312\Lib\threading.py", line 1075, in _bootstrap_inner
+      self.run()
+    File "C:\Program Files\Python312\Lib\threading.py", line 1012, in run
+      self._target(*self._args, **self._kwargs)
+    File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\io\arduino_manager.py", line 204, in _reader_loop
+      self.disconnect()
+    File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\io\arduino_manager.py", line 110, in disconnect
+      self._shutdown_reader_locked()
+    File "C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\io\arduino_manager.py", line 176, in _shutdown_reader_locked
+      thread.join(timeout=1.0)
+    File "C:\Program Files\Python312\Lib\threading.py", line 1146, in join
+      raise RuntimeError("cannot join current thread")
+  RuntimeError: cannot join current thread
+
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+tests\conftest.py:157
+  C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\tests\conftest.py:157: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, ThreadPoolExecutor):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=================================== XPASSES ===================================
+=========================== short test summary info ===========================
+XPASS tests/ui/components/test_arduino_dashboard.py::TestArduinoDashboardWidget::test_append_log_thread_safe - Thread safety test is flaky - after() callbacks not reliably processed in test environment. Real-world usage works correctly. Issue: Tkinter mainloop not running during tests.
+FAILED tests/ui/components/test_dialog_manager.py::TestCalibrationDialogs::test_open_global_calibration_window
+FAILED tests/ui/components/test_dialog_manager.py::TestCalibrationDialogs::test_open_project_calibration_window_no_project
+FAILED tests/ui/components/test_dialog_manager.py::TestCalibrationDialogs::test_open_project_calibration_window_success
+FAILED tests/ui/components/test_dialog_manager.py::TestROITemplateDialogs::test_show_template_save_dialog_returns_result
+FAILED tests/ui/components/test_dialog_manager.py::TestROITemplateDialogs::test_show_template_save_dialog_returns_none_on_cancel
+FAILED tests/ui/components/test_dialog_manager.py::TestAnalysisDialogs::test_open_center_periphery_dialog_returns_result
+FAILED tests/ui/components/test_dialog_manager.py::TestAnalysisDialogs::test_open_center_periphery_dialog_returns_none_on_cancel
+FAILED tests/ui/components/test_dialog_manager.py::TestAnalysisDialogs::test_open_template_rois_dialog_returns_result
+FAILED tests/ui/components/test_dialog_manager.py::TestAnalysisDialogs::test_open_template_rois_dialog_returns_none_on_cancel
+FAILED tests/ui/components/test_dialog_manager.py::TestAnalysisDialogs::test_open_single_video_config_dialog_returns_result
+!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 10 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+= 10 failed, 217 passed, 2374 deselected, 1 xpassed, 2 warnings in 61.39s (0:01:01) =

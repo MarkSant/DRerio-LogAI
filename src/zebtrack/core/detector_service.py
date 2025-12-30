@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import structlog
 
-from zebtrack.settings import save_settings
 from zebtrack.core.detector import Detector, ZoneData
+from zebtrack.settings import save_settings
 from zebtrack.utils import IntegrityError
 
 if TYPE_CHECKING:

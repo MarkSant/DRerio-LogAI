@@ -1,7 +1,10 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
+from zebtrack.settings import BehavioralAnalysisSettings, Settings
 from zebtrack.ui.dialogs.single_video_config_dialog import SingleVideoConfigDialog
-from zebtrack.config import Settings, BehavioralAnalysisSettings, GeotaxisMode, AquariumPerspective
+from zebtrack.ui.wizard.models import AquariumPerspective, GeotaxisMode
 
 
 @pytest.mark.skip(reason="Requires active GUI environment/display to import tkinter modules")

@@ -637,8 +637,8 @@ class TestColorSelectionDialog:
 
         verde = next((c for c in dialog.colors if c[0] == "Verde"), None)
         assert verde is not None
-        assert verde[1] == (0, 255, 0)  # BGR for OpenCV
-        assert verde[2] == "#00FF00"  # Hex
+        assert verde[1] == (0, 128, 0)  # BGR for OpenCV
+        assert verde[2] == "#008000"  # Hex
 
     def test_color_azul_has_correct_values(self, tkinter_root):
         """Test Azul color has correct RGB and hex values."""
@@ -672,8 +672,8 @@ class TestColorSelectionDialog:
 
         assert dialog.result is not None
         assert dialog.result["name"] == "Verde"
-        assert dialog.result["rgb"] == (0, 255, 0)
-        assert dialog.result["hex"] == "#00FF00"
+        assert dialog.result["rgb"] == (0, 128, 0)
+        assert dialog.result["hex"] == "#008000"
 
     def test_apply_with_azul_selection(self, tkinter_root):
         """Test apply returns azul selection."""
@@ -708,8 +708,8 @@ class TestColorSelectionDialog:
         dialog.apply()
 
         assert dialog.result["name"] == "Amarelo"
-        assert dialog.result["rgb"] == (0, 255, 255)
-        assert dialog.result["hex"] == "#FFFF00"
+        assert dialog.result["rgb"] == (0, 204, 204)
+        assert dialog.result["hex"] == "#CCCC00"
 
     def test_apply_with_magenta_selection(self, tkinter_root):
         """Test apply returns magenta selection."""

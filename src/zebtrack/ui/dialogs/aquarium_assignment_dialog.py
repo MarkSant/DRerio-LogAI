@@ -78,7 +78,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         self._day_vars: list[tk.IntVar] = []
         self._apply_all_var: tk.BooleanVar | None = None
 
-        print(f"[DIAGNOSTIC] AquariumAssignmentDialog.__init__ called")
+        print("[DIAGNOSTIC] AquariumAssignmentDialog.__init__ called")
         print(f"[DIAGNOSTIC] video_path={video_path}")
         print(f"[DIAGNOSTIC] has_multi_aquarium_config={bool(multi_aquarium_config)}")
         if multi_aquarium_config:
@@ -255,12 +255,12 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
         This is called automatically if a regex pattern is configured.
         """
-        print(f"[DIAGNOSTIC] _perform_auto_fill_silent called")
+        print("[DIAGNOSTIC] _perform_auto_fill_silent called")
         print(f"[DIAGNOSTIC] has_video_path={bool(self.video_path)}")
         print(f"[DIAGNOSTIC] has_multi_aquarium_config={bool(self.multi_aquarium_config)}")
 
         if not self.video_path or not self.multi_aquarium_config:
-            print(f"[DIAGNOSTIC] auto_fill SKIPPED - missing video_path or config")
+            print("[DIAGNOSTIC] auto_fill SKIPPED - missing video_path or config")
             log.debug(
                 "aquarium_assignment.auto_fill_silent.skipped",
                 has_video_path=bool(self.video_path),
@@ -339,6 +339,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
     def _resolve_group_name(self, regex_value: str) -> str:
         """Resolve regex group name using ProjectManager helper."""
         from zebtrack.core.project_manager import ProjectManager
+
         return ProjectManager.resolve_group_name(regex_value, self.available_groups)
 
     def _ensure_group_in_combobox(self, index: int, group: str) -> None:
@@ -468,7 +469,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
     def _on_confirm_click(self) -> None:
         """Handle confirmation and validate inputs."""
-        print(f"[DIAGNOSTIC] _on_confirm_click called")
+        print("[DIAGNOSTIC] _on_confirm_click called")
 
         try:
             configs = self.get_configs()
@@ -488,12 +489,12 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             )
 
             if self._on_confirm:
-                print(f"[DIAGNOSTIC] calling on_confirm callback")
+                print("[DIAGNOSTIC] calling on_confirm callback")
                 self._on_confirm(configs, self.apply_to_all)
             else:
-                print(f"[DIAGNOSTIC] no on_confirm callback provided")
+                print("[DIAGNOSTIC] no on_confirm callback provided")
 
-            print(f"[DIAGNOSTIC] calling self.ok()")
+            print("[DIAGNOSTIC] calling self.ok()")
             self.ok()
 
         except ValueError as e:
@@ -515,10 +516,10 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         if self.result is None:
             log.debug("aquarium_assignment.dialog.cancelled")
             if self._on_cancel:
-                print(f"[DIAGNOSTIC] calling on_cancel callback")
+                print("[DIAGNOSTIC] calling on_cancel callback")
                 self._on_cancel()
             else:
-                print(f"[DIAGNOSTIC] no on_cancel callback provided")
+                print("[DIAGNOSTIC] no on_cancel callback provided")
 
         super().cancel()
 

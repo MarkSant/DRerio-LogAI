@@ -97,7 +97,7 @@ class TestErrorHandling:
 
         # Should return result but with limited metrics
         assert result is not None
-        report, _analyzer, _roi_analyzer = result
+        report, _analyzer, _roi_analyzer, _warnings, _stats = result
         assert "comportamento_geral" in report
 
     def test_corrupted_parquet_file(self, analysis_service, tmp_path):

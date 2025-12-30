@@ -68,6 +68,7 @@ def mock_gui(tkinter_root, mock_validation_manager, mock_controller):
     gui.project_manager = mock_controller.project_manager
     gui.state_manager = Mock()
     gui.event_dispatcher = Mock()
+    gui.event_bus = Mock()
 
     # Canvas manager
     gui.canvas_manager = Mock()
@@ -432,7 +433,7 @@ class TestFileDialogs:
 class TestCalibrationDialogs:
     """Tests for calibration dialog methods."""
 
-    @patch("zebtrack.ui.components.dialog_manager.CalibrationDialog")
+    @patch("zebtrack.ui.dialogs.calibration_dialog.CalibrationDialog")
     def test_open_global_calibration_window(
         self, mock_calibration_dialog, dialog_manager, mock_controller
     ):
@@ -447,7 +448,7 @@ class TestCalibrationDialogs:
         mock_controller.global_calibration_session.assert_called_once()
         mock_calibration_dialog.assert_called_once_with(dialog_manager.gui.root, mock_controller)
 
-    @patch("zebtrack.ui.components.dialog_manager.CalibrationDialog")
+    @patch("zebtrack.ui.dialogs.calibration_dialog.CalibrationDialog")
     def test_open_project_calibration_window_no_project(
         self, mock_calibration_dialog, dialog_manager, mock_controller
     ):
@@ -460,7 +461,7 @@ class TestCalibrationDialogs:
         mock_warning.assert_called_once()
         mock_calibration_dialog.assert_not_called()
 
-    @patch("zebtrack.ui.components.dialog_manager.CalibrationDialog")
+    @patch("zebtrack.ui.dialogs.calibration_dialog.CalibrationDialog")
     def test_open_project_calibration_window_success(
         self, mock_calibration_dialog, dialog_manager, mock_controller, mock_gui
     ):
@@ -483,7 +484,7 @@ class TestCalibrationDialogs:
 class TestROITemplateDialogs:
     """Tests for ROI template dialog methods."""
 
-    @patch("zebtrack.ui.components.dialog_manager.SaveROITemplateDialog")
+    @patch("zebtrack.ui.dialogs.save_roi_template_dialog.SaveROITemplateDialog")
     def test_show_template_save_dialog_returns_result(self, mock_dialog_class, dialog_manager):
         """Test show_template_save_dialog returns dialog result."""
         mock_dialog = Mock()
@@ -506,7 +507,7 @@ class TestROITemplateDialogs:
             allow_project=True,
         )
 
-    @patch("zebtrack.ui.components.dialog_manager.SaveROITemplateDialog")
+    @patch("zebtrack.ui.dialogs.save_roi_template_dialog.SaveROITemplateDialog")
     def test_show_template_save_dialog_returns_none_on_cancel(
         self, mock_dialog_class, dialog_manager
     ):
@@ -632,7 +633,7 @@ class TestROITemplateDialogs:
 class TestAnalysisDialogs:
     """Tests for analysis dialog methods."""
 
-    @patch("zebtrack.ui.components.dialog_manager.CenterPeripheryDialog")
+    @patch("zebtrack.ui.dialogs.center_periphery_dialog.CenterPeripheryDialog")
     def test_open_center_periphery_dialog_returns_result(self, mock_dialog_class, dialog_manager):
         """Test open_center_periphery_dialog returns dialog result."""
         mock_dialog = Mock()
@@ -644,7 +645,7 @@ class TestAnalysisDialogs:
         assert result == {"method": "percentage", "value": 50}
         mock_dialog_class.assert_called_once_with(dialog_manager.gui.root)
 
-    @patch("zebtrack.ui.components.dialog_manager.CenterPeripheryDialog")
+    @patch("zebtrack.ui.dialogs.center_periphery_dialog.CenterPeripheryDialog")
     def test_open_center_periphery_dialog_returns_none_on_cancel(
         self, mock_dialog_class, dialog_manager
     ):
@@ -657,7 +658,7 @@ class TestAnalysisDialogs:
 
         assert result is None
 
-    @patch("zebtrack.ui.components.dialog_manager.TemplateDialog")
+    @patch("zebtrack.ui.dialogs.template_dialog.TemplateDialog")
     def test_open_template_rois_dialog_returns_result(self, mock_dialog_class, dialog_manager):
         """Test open_template_rois_dialog returns dialog result."""
         mock_dialog = Mock()
@@ -669,7 +670,7 @@ class TestAnalysisDialogs:
         assert result == {"template_type": "grid", "rows": 3, "cols": 3}
         mock_dialog_class.assert_called_once_with(dialog_manager.gui.root)
 
-    @patch("zebtrack.ui.components.dialog_manager.TemplateDialog")
+    @patch("zebtrack.ui.dialogs.template_dialog.TemplateDialog")
     def test_open_template_rois_dialog_returns_none_on_cancel(
         self, mock_dialog_class, dialog_manager
     ):
@@ -682,7 +683,7 @@ class TestAnalysisDialogs:
 
         assert result is None
 
-    @patch("zebtrack.ui.components.dialog_manager.SingleVideoConfigDialog")
+    @patch("zebtrack.ui.dialogs.single_video_config_dialog.SingleVideoConfigDialog")
     def test_open_single_video_config_dialog_returns_result(
         self, mock_dialog_class, dialog_manager, mock_controller
     ):
@@ -701,10 +702,12 @@ class TestAnalysisDialogs:
             "display_interval_frames": 15,
         }
         mock_dialog_class.assert_called_once_with(
-            dialog_manager.gui.root, settings_obj=mock_controller.settings
+            dialog_manager.gui.root,
+            settings_obj=mock_controller.settings,
+            event_bus=dialog_manager.gui.event_bus,
         )
 
-    @patch("zebtrack.ui.components.dialog_manager.SingleVideoConfigDialog")
+    @patch("zebtrack.ui.dialogs.single_video_config_dialog.SingleVideoConfigDialog")
     def test_open_single_video_config_dialog_returns_none_on_cancel(
         self, mock_dialog_class, dialog_manager
     ):
@@ -722,7 +725,7 @@ class TestAnalysisDialogs:
 class TestProjectAndRecordingDialogs:
     """Tests for project and recording dialog methods."""
 
-    @patch("zebtrack.ui.components.dialog_manager.PendingVideosDialog")
+    @patch("zebtrack.ui.dialogs.pending_videos_dialog.PendingVideosDialog")
     def test_show_pending_videos_dialog_returns_result(
         self, mock_dialog_class, dialog_manager, mock_gui, mock_event_bus
     ):
@@ -754,7 +757,7 @@ class TestProjectAndRecordingDialogs:
         )
         assert readiness_updated_call is not None
 
-    @patch("zebtrack.ui.components.dialog_manager.PendingVideosDialog")
+    @patch("zebtrack.ui.dialogs.pending_videos_dialog.PendingVideosDialog")
     def test_show_pending_videos_dialog_returns_none_on_cancel(
         self, mock_dialog_class, dialog_manager
     ):
@@ -772,7 +775,7 @@ class TestProjectAndRecordingDialogs:
 
         assert result is None
 
-    @patch("zebtrack.ui.components.dialog_manager.StartRecordingDialog")
+    @patch("zebtrack.ui.dialogs.start_recording_dialog.StartRecordingDialog")
     def test_ask_recording_details_unified_no_experiment_days(
         self, mock_dialog_class, dialog_manager, mock_controller
     ):
@@ -786,7 +789,7 @@ class TestProjectAndRecordingDialogs:
         mock_error.assert_called_once()
         mock_dialog_class.assert_not_called()
 
-    @patch("zebtrack.ui.components.dialog_manager.StartRecordingDialog")
+    @patch("zebtrack.ui.dialogs.start_recording_dialog.StartRecordingDialog")
     def test_ask_recording_details_unified_returns_result(
         self, mock_dialog_class, dialog_manager, mock_controller
     ):
@@ -802,7 +805,7 @@ class TestProjectAndRecordingDialogs:
             dialog_manager.gui.root, mock_controller.project_manager
         )
 
-    @patch("zebtrack.ui.components.dialog_manager.StartRecordingDialog")
+    @patch("zebtrack.ui.dialogs.start_recording_dialog.StartRecordingDialog")
     def test_ask_recording_details_unified_returns_none_on_cancel(
         self, mock_dialog_class, dialog_manager
     ):
@@ -815,7 +818,7 @@ class TestProjectAndRecordingDialogs:
 
         assert result is None
 
-    @patch("zebtrack.ui.components.dialog_manager.MissingMetadataDialog")
+    @patch("zebtrack.ui.dialogs.missing_metadata_dialog.MissingMetadataDialog")
     def test_ask_missing_metadata_returns_result(self, mock_dialog_class, dialog_manager):
         """Test ask_missing_metadata returns dialog result."""
         mock_dialog = Mock()
@@ -827,7 +830,7 @@ class TestProjectAndRecordingDialogs:
         assert result == {"day": 2, "group": "G2", "subject": 3}
         mock_dialog_class.assert_called_once_with(dialog_manager.gui.root, "exp_123")
 
-    @patch("zebtrack.ui.components.dialog_manager.MissingMetadataDialog")
+    @patch("zebtrack.ui.dialogs.missing_metadata_dialog.MissingMetadataDialog")
     def test_ask_missing_metadata_returns_none_on_cancel(self, mock_dialog_class, dialog_manager):
         """Test ask_missing_metadata returns None when cancelled."""
         mock_dialog = Mock()
@@ -1169,7 +1172,7 @@ class TestUtilityMethods:
 class TestEdgeCases:
     """Tests for edge cases and error handling."""
 
-    @patch("zebtrack.ui.components.dialog_manager.SaveROITemplateDialog")
+    @patch("zebtrack.ui.dialogs.save_roi_template_dialog.SaveROITemplateDialog")
     def test_show_template_save_dialog_empty_result_dict(self, mock_dialog_class, dialog_manager):
         """Test show_template_save_dialog with empty result dict returns None."""
         mock_dialog = Mock()
@@ -1293,7 +1296,7 @@ class TestEdgeCases:
         message = mock_gui.external_trigger_notice_var.set.call_args[0][0]
         assert "Porta COM5" in message
 
-    @patch("zebtrack.ui.components.dialog_manager.CalibrationDialog")
+    @patch("zebtrack.ui.dialogs.calibration_dialog.CalibrationDialog")
     def test_open_project_calibration_updates_ui_elements(
         self, mock_calibration_dialog, dialog_manager, mock_controller, mock_gui
     ):

@@ -93,7 +93,7 @@ class AnalysisService:
         smoothing_polyorder: int | None = None,
         max_plausible_speed_cm_s: float = 50.0,
         behavioral_config: dict[str, Any] | None = None,
-    ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None]:
+    ) -> tuple[dict[str, Any], ConcreteBehavioralAnalyzer, ROIAnalyzer | None, list, dict]:
         """
         Run a complete analysis pipeline on the given trajectory data.
 

@@ -111,9 +111,7 @@ class DetectionStep(WizardStep):
         content_frame.rowconfigure(0, weight=1)
 
         # LEFT COLUMN: Detection results
-        results_frame = LabelFrame(
-            content_frame, text="Resultados da Detecção", padx=10, pady=10
-        )
+        results_frame = LabelFrame(content_frame, text="Resultados da Detecção", padx=10, pady=10)
         results_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
         # Scrollable text widget for results (REDUCED height from 15 to 12)
@@ -123,7 +121,7 @@ class DetectionStep(WizardStep):
         self.results_text = Text(
             results_frame,
             height=12,  # Reduced from 15 to save vertical space
-            width=50,   # Reduced from 60 to fit horizontal layout
+            width=50,  # Reduced from 60 to fit horizontal layout
             wrap="word",
             yscrollcommand=scrollbar.set,
             state="disabled",

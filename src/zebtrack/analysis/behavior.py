@@ -684,15 +684,11 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
             y_series = df.get("y_cm", pd.Series(dtype=np.float64))
 
         if y_series.empty:
-            return pd.Series(
-                np.full(len(df), np.nan), index=df.index, name="distance_to_bottom_cm"
-            )
+            return pd.Series(np.full(len(df), np.nan), index=df.index, name="distance_to_bottom_cm")
 
         # Get the bottom boundary (minimum Y) from the arena polygon
         if self._arena_polygon_cm.is_empty:
-            return pd.Series(
-                np.full(len(df), np.nan), index=df.index, name="distance_to_bottom_cm"
-            )
+            return pd.Series(np.full(len(df), np.nan), index=df.index, name="distance_to_bottom_cm")
 
         # Extract the minimum Y coordinate as the bottom of the arena
         arena_min_y = self._arena_polygon_cm.bounds[1]  # bounds = (minx, miny, maxx, maxy)
@@ -780,8 +776,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
             return zone_percentages
 
         raise ValueError(
-            f"Unknown method: {method}. "
-            "Use 'average_distance', 'time_near_bottom', or 'zone_time'"
+            f"Unknown method: {method}. Use 'average_distance', 'time_near_bottom', or 'zone_time'"
         )
 
     def get_vertical_zone_timeseries(self, num_zones: int) -> pd.Series:
@@ -806,9 +801,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
             y_series = df.get("y_cm", pd.Series(dtype=np.float64))
 
         if y_series.empty:
-            return pd.Series(
-                np.full(len(df), np.nan), index=df.index, name="vertical_zone"
-            )
+            return pd.Series(np.full(len(df), np.nan), index=df.index, name="vertical_zone")
 
         # Get arena vertical bounds
         bounds = self._arena_polygon_cm.bounds  # (minx, miny, maxx, maxy)
@@ -817,9 +810,7 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
         arena_height = arena_max_y - arena_min_y
 
         if arena_height <= 0:
-            return pd.Series(
-                np.full(len(df), np.nan), index=df.index, name="vertical_zone"
-            )
+            return pd.Series(np.full(len(df), np.nan), index=df.index, name="vertical_zone")
 
         zone_height = arena_height / num_zones
         y_values = y_series.to_numpy()

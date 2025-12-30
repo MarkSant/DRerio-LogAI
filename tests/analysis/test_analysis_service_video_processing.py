@@ -161,8 +161,8 @@ class TestAnalysisServiceVideoProcessing:
         )
 
         assert result is not None
-        assert len(result) == 3  # (report_dict, behavior_analyzer, roi_analyzer)
-        report, _behavior_analyzer, roi_analyzer = result
+        assert len(result) == 5  # (report_dict, analyzer, roi_analyzer, warnings, stats)
+        report, _behavior_analyzer, roi_analyzer, _warnings, _stats = result
         assert "comportamento_geral" in report
         assert roi_analyzer is None  # No ROIs provided
 

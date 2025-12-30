@@ -6,8 +6,9 @@ aquariums per video would not trigger multi-aquarium detection mode when opened,
 because num_aquariums was not synchronized from project calibration to settings.
 """
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
 
 
 class TestNumAquariumsSynchronization:

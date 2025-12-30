@@ -90,17 +90,19 @@ def test_single_video_appears_in_project_overview():
         assert len(all_videos) == 1, f"Expected 1 video, got {len(all_videos)}"
 
         video_entry = all_videos[0]
-        assert video_entry["path"] == video_path
+        # Normalize paths for cross-platform comparison (Windows backslashes vs forward slashes)
+        assert Path(video_entry["path"]) == Path(video_path)
         assert video_entry["status"] in ["processing", "processed"]
         assert video_entry.get("has_trajectory") is True
         assert video_entry.get("has_summary") is True
 
         # Verify parquet_files are registered
         parquet_files = video_entry.get("parquet_files", {})
-        assert parquet_files.get("trajectory") == trajectory_path
-        assert parquet_files.get("summary") == summary_parquet
-        assert parquet_files.get("summary_excel") == summary_excel
-        assert parquet_files.get("report_docx") == report_path
+        # Normalize paths for cross-platform comparison (Windows backslashes vs forward slashes)
+        assert Path(parquet_files.get("trajectory")) == Path(trajectory_path)
+        assert Path(parquet_files.get("summary")) == Path(summary_parquet)
+        assert Path(parquet_files.get("summary_excel")) == Path(summary_excel)
+        assert Path(parquet_files.get("report_docx")) == Path(report_path)
 
         log.info(
             "test.single_video_display.success",
@@ -146,7 +148,8 @@ def test_single_video_does_not_create_project_file():
         # Verify the video is still tracked in memory
         all_videos = controller.project_manager.get_all_videos()
         assert len(all_videos) == 1
-        assert all_videos[0]["path"] == video_path
+        # Normalize paths for cross-platform comparison (Windows backslashes vs forward slashes)
+        assert Path(all_videos[0]["path"]) == Path(video_path)
 
         log.info("test.single_video_no_project_file.success")
 
@@ -200,7 +203,8 @@ def test_register_outputs_auto_adds_missing_video():
         # Verify the video was auto-added
         all_videos = controller.project_manager.get_all_videos()
         assert len(all_videos) == 1
-        assert all_videos[0]["path"] == video_path
+        # Normalize paths for cross-platform comparison (Windows backslashes vs forward slashes)
+        assert Path(all_videos[0]["path"]) == Path(video_path)
         assert all_videos[0].get("has_trajectory") is True
 
         log.info("test.register_outputs_auto_add.success")

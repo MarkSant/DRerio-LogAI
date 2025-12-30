@@ -30,10 +30,7 @@ class ArenaCompletionStrategy(PolygonCompletionStrategy):
     def complete(self, video_points: list, gui: "ApplicationGUI") -> bool:
         # Check if in multi-aquarium mode
         zone_controls = getattr(gui, "zone_controls", None)
-        is_multi_aquarium = (
-            zone_controls
-            and zone_controls.aquarium_count_var.get() == 2
-        )
+        is_multi_aquarium = zone_controls and zone_controls.aquarium_count_var.get() == 2
 
         if is_multi_aquarium:
             success = self._complete_multi_aquarium(video_points, gui, zone_controls)

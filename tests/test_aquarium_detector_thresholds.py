@@ -1,15 +1,18 @@
 """Regression tests for configurable aquarium detection thresholds."""
 
-import numpy as np
-import pytest
 from unittest.mock import MagicMock, patch
 
+import numpy as np
+import pytest
+
 from zebtrack.core.aquarium_detector import AquariumDetector
+
 
 @pytest.fixture
 def mock_frame():
     """Create a 100x100 frame."""
     return np.zeros((100, 100, 3), dtype=np.uint8)
+
 
 @pytest.fixture
 def mock_yolo_result_15_percent():
@@ -30,6 +33,7 @@ def mock_yolo_result_15_percent():
 
     return [mock_result]
 
+
 @pytest.fixture
 def mock_yolo_result_5_percent():
     """Create a mock YOLO result with 5% area."""
@@ -46,6 +50,7 @@ def mock_yolo_result_5_percent():
     mock_result.boxes = [mock_box]
     mock_result.masks = mock_masks
     return [mock_result]
+
 
 @patch("zebtrack.core.aquarium_detector.YOLO")
 def test_detect_aquariums_default_thresholds(mock_yolo, mock_frame, mock_yolo_result_15_percent):
@@ -83,9 +88,7 @@ def test_detect_aquariums_strict_threshold(mock_yolo, mock_frame, mock_yolo_resu
 
         # Set stricter min_area_ratio = 0.2
         polygons = detector.detect_aquariums(
-            "mock_video.mp4",
-            stabilization_frames=1,
-            min_area_ratio=0.2
+            "mock_video.mp4", stabilization_frames=1, min_area_ratio=0.2
         )
 
         # Should fail (return empty or default, depending on fallback, but here we expect handled empty list from filtering, then consensus fail or default)
@@ -103,7 +106,7 @@ def test_detect_aquariums_strict_threshold(mock_yolo, mock_frame, mock_yolo_resu
             poly = polygons[0]
             # Check width
             width = poly[:, 0].max() - poly[:, 0].min()
-            assert width != 15 # Should not be the 15% polygon
+            assert width != 15  # Should not be the 15% polygon
 
 
 @patch("zebtrack.core.aquarium_detector.YOLO")

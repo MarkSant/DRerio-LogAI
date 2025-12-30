@@ -216,8 +216,8 @@ def test_rgb_to_color_name_invalid_input():
 
 def test_rgb_color_match_threshold_value():
     """Test that RGB_COLOR_MATCH_THRESHOLD has expected value."""
-    assert RGB_COLOR_MATCH_THRESHOLD == 900
-    assert RGB_COLOR_MATCH_THRESHOLD == 30**2  # 30² in RGB space
+    assert RGB_COLOR_MATCH_THRESHOLD == 2500
+    assert RGB_COLOR_MATCH_THRESHOLD == 50**2  # 50² in RGB space
 
 
 # ============================================================================

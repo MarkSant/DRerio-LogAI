@@ -58,13 +58,15 @@ class MockPluginForIntegration(DetectorPlugin):
     def __init__(self, model_path: str):
         pass  # Ignored
 
-    def detect(self, frame: np.ndarray) -> list:
+    def detect(self, frame: np.ndarray, **kwargs) -> list:
+        # Accept conf_threshold and other kwargs but ignore them for this simple mock
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
             return []
         x, y, w, h = cv2.boundingRect(contours[0])
-        return [(x, y, x + w, y + h, 0.99, 1)]  # x1, y1, x2, y2, conf, id
+        # Return 6-tuple without class_id to avoid filtering issues
+        return [(x, y, x + w, y + h, 0.99, 1)]  # x1, y1, x2, y2, conf, track_id
 
     @staticmethod
     def get_name() -> str:
@@ -211,5 +213,5 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
 
     # Optional: A light check on the content of the created report
     report_df = pd.read_excel(report_output_path)
-    assert "experiment_id" in report_df.columns
-    assert report_df["experiment_id"].iloc[0] == "integration_test"
+    assert "Experiment ID" in report_df.columns
+    assert report_df["Experiment ID"].iloc[0] == "integration_test"

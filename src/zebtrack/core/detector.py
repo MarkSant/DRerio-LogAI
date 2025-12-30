@@ -272,7 +272,9 @@ class Detector:
                     interval = 1
                     fps = 30
                     if self.settings and hasattr(self.settings, "video_processing"):
-                        interval = getattr(self.settings.video_processing, "processing_interval", 1) or 1
+                        interval = (
+                            getattr(self.settings.video_processing, "processing_interval", 1) or 1
+                        )
                         fps = getattr(self.settings.video_processing, "fps", 30) or 30
 
                     # Create Args Namespace
@@ -280,7 +282,7 @@ class Detector:
                         track_thresh=track_thresh,
                         track_buffer=track_buffer,
                         match_thresh=match_thresh,
-                        mot20=False
+                        mot20=False,
                     )
 
                     # Create Tracker with all required parameters
@@ -315,17 +317,17 @@ class Detector:
             roi_count = sum(len(aq.roi_polygons) for aq in self.zones.aquariums)
             has_polygon = bool(self.zones.aquariums)
             if has_polygon:
-                 # Sample first aquarium
-                 polygon_sample = str(self.zones.aquariums[0].polygon[:3])
+                # Sample first aquarium
+                polygon_sample = str(self.zones.aquariums[0].polygon[:3])
         else:
             # Standard ZoneData
             has_polygon = bool(self.zones.polygon)
             polygon_points = len(self.zones.polygon) if self.zones.polygon else 0
             roi_count = len(self.zones.roi_polygons) if self.zones.roi_polygons else 0
             if has_polygon:
-                 # Handle list of tuples or numpy array
-                 poly_np = np.array(self.zones.polygon)
-                 polygon_sample = poly_np[:3].tolist() if poly_np.size > 0 else "empty"
+                # Handle list of tuples or numpy array
+                poly_np = np.array(self.zones.polygon)
+                polygon_sample = poly_np[:3].tolist() if poly_np.size > 0 else "empty"
 
         # DEBUG: Log zone setup with polygon details
         log.info(
@@ -336,7 +338,7 @@ class Detector:
             scaled_polygon_sample=polygon_sample,
             actual_dimensions=(actual_width, actual_height),
             base_dimensions=(self.base_width, self.base_height),
-            is_multi_aquarium=is_multi
+            is_multi_aquarium=is_multi,
         )
 
         self._zones_configured = True
@@ -389,11 +391,11 @@ class Detector:
             for aq in self.zones.aquariums:
                 base_poly = np.array(aq.polygon, dtype=np.int32)
                 if base_poly.size > 0:
-                     if actual_width == self.base_width and actual_height == self.base_height:
-                         scaled_poly = base_poly
-                     else:
-                         scaled_poly = (base_poly * [scale_x, scale_y]).astype(np.int32)
-                     self._scaled_aquarium_polygons[aq.id] = scaled_poly
+                    if actual_width == self.base_width and actual_height == self.base_height:
+                        scaled_poly = base_poly
+                    else:
+                        scaled_poly = (base_poly * [scale_x, scale_y]).astype(np.int32)
+                    self._scaled_aquarium_polygons[aq.id] = scaled_poly
 
             # For backward compatibility / safe default, set main scaled_polygon to empty
             # or to the bounding box of all aquariums if needed.
@@ -493,9 +495,7 @@ class Detector:
 
         return False
 
-    def detect(
-        self, frame: np.ndarray, project_type: str, conf_threshold: float | None = None
-    ):
+    def detect(self, frame: np.ndarray, project_type: str, conf_threshold: float | None = None):
         """Process a single frame for object detection and state tracking."""
         # Task 1.3: Frame validation to prevent crashes with invalid input
         if frame is None or not isinstance(frame, np.ndarray):
@@ -568,7 +568,7 @@ class Detector:
                 "detector.predictions_before_polygon_filter",
                 count=len(predictions),
                 has_polygon=has_polygon,
-                sample=str(predictions[:3])
+                sample=str(predictions[:3]),
             )
 
             # 🔍 DEBUG: Log decision flags for polygon filtering
@@ -578,7 +578,7 @@ class Detector:
                 context=self._context,
                 aquarium_defined=self._aquarium_region_defined,
                 polygon_size=self.scaled_polygon.size,
-                is_multi=self._multi_aquarium_mode
+                is_multi=self._multi_aquarium_mode,
             )
 
             # ✅ If no polygon defined and in diagnostic mode OR detecting aquarium,
@@ -586,8 +586,8 @@ class Detector:
             # In multi-mode, we generally enforce polygon constraints unless specifically detecting aquariums.
             should_filter = True
             if not has_polygon and not self._multi_aquarium_mode:
-                 if self._context == "diagnostic" or not self._aquarium_region_defined:
-                     should_filter = False
+                if self._context == "diagnostic" or not self._aquarium_region_defined:
+                    should_filter = False
 
             if not should_filter:
                 log.debug(
@@ -614,22 +614,21 @@ class Detector:
                     is_inside = False
 
                     if self._multi_aquarium_mode and hasattr(self, "_scaled_aquarium_polygons"):
-                         # Check against all aquarium polygons
-                         for aq_id, poly in self._scaled_aquarium_polygons.items():
-                             if self._is_inside_polygon(x1, y1, x2, y2, poly):
-                                 is_inside = True
-                                 # TODO (Phase 5): Attach aquarium ID to detection if tracking architecture supports it
-                                 break
+                        # Check against all aquarium polygons
+                        for aq_id, poly in self._scaled_aquarium_polygons.items():
+                            if self._is_inside_polygon(x1, y1, x2, y2, poly):
+                                is_inside = True
+                                # TODO (Phase 5): Attach aquarium ID to detection if tracking architecture supports it
+                                break
                     elif self.scaled_polygon.size > 0:
-                         # Check against main polygon
-                         is_inside = self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon)
+                        # Check against main polygon
+                        is_inside = self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon)
                     else:
-                         # No polygon defined but filtering required? Use default bound or skip?
-                         # If we are here, should_filter is True but no polygon exists?
-                         # This implies we should filter out EVERYTHING or logic error.
-                         # Assuming strict constraint: if filtering is on and no polygon, reject.
-                         is_inside = False
-
+                        # No polygon defined but filtering required? Use default bound or skip?
+                        # If we are here, should_filter is True but no polygon exists?
+                        # This implies we should filter out EVERYTHING or logic error.
+                        # Assuming strict constraint: if filtering is on and no polygon, reject.
+                        is_inside = False
 
                     if is_inside:
                         detections_in_polygon.append(
@@ -641,7 +640,7 @@ class Detector:
                             bbox=(x1, y1, x2, y2),
                             track_id=track_id,
                             class_id=class_id,
-                            is_multi=self._multi_aquarium_mode
+                            is_multi=self._multi_aquarium_mode,
                         )
 
                 # Log summary of polygon filtering
@@ -650,7 +649,7 @@ class Detector:
                     predictions_count=len(predictions),
                     passed_filter=len(detections_in_polygon),
                     filtered_out=len(predictions) - len(detections_in_polygon),
-                    is_multi=self._multi_aquarium_mode
+                    is_multi=self._multi_aquarium_mode,
                 )
         else:
             log.info(
@@ -822,7 +821,7 @@ class Detector:
                 log.debug(
                     "detector.tracking.input",
                     confidences=confidences,
-                    strategy="bytetrack" if use_bytetrack else "simple_hybrid"
+                    strategy="bytetrack" if use_bytetrack else "simple_hybrid",
                 )
 
             if use_bytetrack:
@@ -1310,13 +1309,13 @@ class Detector:
         max_dist = self._get_max_center_distance()
 
         # Re-initialize if params changed
-        if (self._single_subject_tracker.iou_threshold != iou_thresh or
-            self._single_subject_tracker.max_center_distance != max_dist):
+        if (
+            self._single_subject_tracker.iou_threshold != iou_thresh
+            or self._single_subject_tracker.max_center_distance != max_dist
+        ):
             log.info("detector.simple_tracker.updating", iou=iou_thresh, dist=max_dist)
             self._single_subject_tracker = SingleSubjectTracker(
-                track_id=1,
-                iou_threshold=iou_thresh,
-                max_center_distance=max_dist
+                track_id=1, iou_threshold=iou_thresh, max_center_distance=max_dist
             )
         return self._single_subject_tracker
 
@@ -1624,9 +1623,7 @@ class Detector:
                 max_dist = self._get_max_center_distance()
 
                 self._single_subject_trackers_multi[aq.id] = SingleSubjectTracker(
-                    track_id=1,
-                    iou_threshold=iou_thresh,
-                    max_center_distance=max_dist
+                    track_id=1, iou_threshold=iou_thresh, max_center_distance=max_dist
                 )
                 # Clear ByteTracker if exists
                 if aq.id in self._byte_trackers_multi:
@@ -1637,7 +1634,7 @@ class Detector:
                     aquarium_id=aq.id,
                     type="SingleSubjectTracker",
                     iou=iou_thresh,
-                    dist=max_dist
+                    dist=max_dist,
                 )
 
             # Scale the main polygon
@@ -1667,7 +1664,7 @@ class Detector:
             aquarium_count=len(aquariums),
             dimensions=(actual_width, actual_height),
             aquarium_ids=[aq.id for aq in aquariums],
-            tracker_type="ByteTrack" if use_bytetrack else "Simple"
+            tracker_type="ByteTrack" if use_bytetrack else "Simple",
         )
 
     def _ensure_multi_trackers(self) -> None:
@@ -1695,7 +1692,9 @@ class Detector:
         # Clean up orphaned trackers (aquariums no longer in list)
         current_aq_ids = {aq.id for aq in self._aquariums}
         orphaned_byte = [k for k in self._byte_trackers_multi if k not in current_aq_ids]
-        orphaned_single = [k for k in self._single_subject_trackers_multi if k not in current_aq_ids]
+        orphaned_single = [
+            k for k in self._single_subject_trackers_multi if k not in current_aq_ids
+        ]
         for aq_id in orphaned_byte:
             del self._byte_trackers_multi[aq_id]
         for aq_id in orphaned_single:
@@ -1719,7 +1718,9 @@ class Detector:
                     interval = 1
                     fps = 30
                     if self.settings and hasattr(self.settings, "video_processing"):
-                        interval = getattr(self.settings.video_processing, "processing_interval", 1) or 1
+                        interval = (
+                            getattr(self.settings.video_processing, "processing_interval", 1) or 1
+                        )
                         fps = getattr(self.settings.video_processing, "fps", 30) or 30
 
                     new_byte_trackers[aq.id] = BYTETracker(
@@ -1733,9 +1734,7 @@ class Detector:
                     )
                 else:
                     new_single_trackers[aq.id] = SingleSubjectTracker(
-                        track_id=1,
-                        iou_threshold=iou_thresh,
-                        max_center_distance=max_dist
+                        track_id=1, iou_threshold=iou_thresh, max_center_distance=max_dist
                     )
 
             # All trackers created successfully - commit the changes
@@ -1812,7 +1811,7 @@ class Detector:
         log.info(
             "detector.multi.raw_detections",
             count=len(raw_detections),
-            detections=str([str(d) for d in raw_detections[:3]])  # First 3 only
+            detections=str([str(d) for d in raw_detections[:3]]),  # First 3 only
         )
 
         # Partition detections by aquarium
@@ -1872,7 +1871,7 @@ class Detector:
                         # Fallback: maybe it was never initialized?
                         # Should have been in set_multi_aquarium_zones
                         log.error("detector.partitioned.simple_tracker_missing", aq_id=aq_id)
-                        tracked = detections # Just passthrough
+                        tracked = detections  # Just passthrough
                     else:
                         tracked = self._apply_simple_tracking_multi(detections, simple_tracker)
 
@@ -2009,9 +2008,7 @@ class Detector:
 
         for aq in self._aquariums:
             # Crop to aquarium region
-            cropped, (offset_x, offset_y, crop_w, crop_h) = self._crop_aquarium_region(
-                frame, aq.id
-            )
+            cropped, (offset_x, offset_y, crop_w, crop_h) = self._crop_aquarium_region(frame, aq.id)
 
             # Run detection on cropped region
             raw_detections = self.plugin.detect(cropped)
@@ -2021,7 +2018,7 @@ class Detector:
                 "detector.optimized.raw_crop",
                 aquarium_id=aq.id,
                 count=len(raw_detections),
-                detections=str([str(d) for d in raw_detections[:3]])
+                detections=str([str(d) for d in raw_detections[:3]]),
             )
 
             # Adjust coordinates back to original frame
@@ -2038,7 +2035,7 @@ class Detector:
 
                 # FILTER 1: Class ID Check
                 if self.animal_class_id is not None and class_id != self.animal_class_id:
-                     continue
+                    continue
 
                 # FILTER: Ensure centroid is within the aquarium polygon
                 # Cropping includes padding, so we might pick up objects just outside the zone
@@ -2046,8 +2043,8 @@ class Detector:
                 polygon = self._scaled_aquarium_polygons.get(aq.id)
 
                 if polygon is not None and polygon.size > 0:
-                     if not self._point_in_polygon(centroid, polygon):
-                         continue
+                    if not self._point_in_polygon(centroid, polygon):
+                        continue
 
                 adjusted_detections.append(
                     (x1_global, y1_global, x2_global, y2_global, conf, None, class_id)
@@ -2073,10 +2070,14 @@ class Detector:
                     # Simple tracker path
                     simple_tracker = self._single_subject_trackers_multi.get(aq.id)
                     if simple_tracker is None:
-                        log.error("detector.partitioned_optimized.simple_tracker_missing", aq_id=aq.id)
+                        log.error(
+                            "detector.partitioned_optimized.simple_tracker_missing", aq_id=aq.id
+                        )
                         tracked = adjusted_detections
                     else:
-                        tracked = self._apply_simple_tracking_multi(adjusted_detections, simple_tracker)
+                        tracked = self._apply_simple_tracking_multi(
+                            adjusted_detections, simple_tracker
+                        )
 
                 # Offset track_id
                 offset_tracked = []
@@ -2105,7 +2106,7 @@ class Detector:
             "detector.partitioned_optimized.results",
             aquarium_counts={aq_id: len(dets) for aq_id, dets in results.items()},
             cropping_enabled=use_cropping,
-            strategy="bytetrack" if use_bytetrack else "simple"
+            strategy="bytetrack" if use_bytetrack else "simple",
         )
 
         return results
@@ -2180,7 +2181,7 @@ class Detector:
 
                     # FILTER 1: Class ID Check
                     if self.animal_class_id is not None and class_id != self.animal_class_id:
-                         continue
+                        continue
 
                     # FILTER 2: Ensure centroid is within the aquarium polygon
                     centroid = ((x1_global + x2_global) / 2, (y1_global + y2_global) / 2)
@@ -2188,11 +2189,9 @@ class Detector:
                         if not self._point_in_polygon(centroid, polygon):
                             continue
 
-                    adjusted.append((
-                        x1_global, y1_global,
-                        x2_global, y2_global,
-                        conf, None, class_id
-                    ))
+                    adjusted.append(
+                        (x1_global, y1_global, x2_global, y2_global, conf, None, class_id)
+                    )
 
                 return aq_id, adjusted, None
             except Exception as e:
@@ -2207,10 +2206,7 @@ class Detector:
         # Process aquariums in parallel with error recovery
         start_time = time.perf_counter()
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(process_aquarium, aq.id): aq.id
-                for aq in self._aquariums
-            }
+            futures = {executor.submit(process_aquarium, aq.id): aq.id for aq in self._aquariums}
             for future in as_completed(futures):
                 try:
                     aq_id, detections, error_msg = future.result()
@@ -2313,7 +2309,7 @@ class Detector:
 
         # Process in batches
         for i in range(0, len(frames), batch_size):
-            batch = frames[i:i + batch_size]
+            batch = frames[i : i + batch_size]
 
             # Check if plugin supports batch inference (callable, not just MagicMock)
             if hasattr(self.plugin, "detect_batch") and callable(

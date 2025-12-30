@@ -94,9 +94,7 @@ class TestSetMultiAquariumZones:
         assert 1 in detector._byte_trackers_multi
         assert detector._byte_trackers_multi[0] is not detector._byte_trackers_multi[1]
 
-    def test_set_multi_aquarium_zones_uses_single_animal_mode(
-        self, detector, dual_aquarium_setup
-    ):
+    def test_set_multi_aquarium_zones_uses_single_animal_mode(self, detector, dual_aquarium_setup):
         """Test that ByteTrackers use single_animal_mode=True for 1 animal per aquarium.
 
         This ensures each aquarium gets stable tracking with ID Resurrection
@@ -599,8 +597,7 @@ class TestROICroppingOptimization:
 
         if cropped_0 is not None and cropped_1 is not None:
             cropped_pixels = (
-                cropped_0.shape[0] * cropped_0.shape[1]
-                + cropped_1.shape[0] * cropped_1.shape[1]
+                cropped_0.shape[0] * cropped_0.shape[1] + cropped_1.shape[0] * cropped_1.shape[1]
             )
 
             # Total cropped pixels should be less than full frame
@@ -674,8 +671,9 @@ class TestParallelDetection:
         )
 
         frame = np.zeros((720, 1280, 3), dtype=np.uint8)
-        # Return a detection in cropped coordinates
-        mock_plugin.detect.return_value = [(10, 10, 50, 50, 0.9, 1)]
+        # Return a detection in cropped coordinates (7-tuple format: x1, y1, x2, y2, conf, track_id, class_id)
+        # class_id=1 for zebrafish (matches animal_class_id)
+        mock_plugin.detect.return_value = [(10, 10, 50, 50, 0.9, None, 1)]
 
         results = detector.detect_partitioned_parallel(frame, max_workers=2)
 
@@ -751,7 +749,9 @@ class TestBatchInference:
 class TestParallelDetectionErrorRecovery:
     """Test 4.3: Error recovery in parallel detection."""
 
-    def test_parallel_continues_when_one_aquarium_fails(self, detector, dual_aquarium_setup, mock_plugin):
+    def test_parallel_continues_when_one_aquarium_fails(
+        self, detector, dual_aquarium_setup, mock_plugin
+    ):
         """Test that parallel detection continues when one aquarium fails."""
         detector.set_multi_aquarium_zones(
             aquariums=dual_aquarium_setup,
@@ -782,7 +782,9 @@ class TestParallelDetectionErrorRecovery:
         empty_count = sum(1 for v in results.values() if len(v) == 0)
         assert empty_count >= 1
 
-    def test_parallel_returns_empty_for_failed_aquariums(self, detector, dual_aquarium_setup, mock_plugin):
+    def test_parallel_returns_empty_for_failed_aquariums(
+        self, detector, dual_aquarium_setup, mock_plugin
+    ):
         """Test that failed aquariums return empty detection lists."""
         detector.set_multi_aquarium_zones(
             aquariums=dual_aquarium_setup,
@@ -828,4 +830,3 @@ class TestParallelDetectionErrorRecovery:
         # Should not crash - returns empty for invalid region
         results = detector.detect_partitioned_parallel(frame)
         assert isinstance(results, dict)
-

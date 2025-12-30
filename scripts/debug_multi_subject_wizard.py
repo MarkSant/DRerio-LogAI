@@ -10,7 +10,6 @@ Usage:
 Then run the wizard with your multi-aquarium video files and check the logs.
 """
 
-import json
 import sys
 from pathlib import Path
 
@@ -69,7 +68,9 @@ def patch_project_workflow_service():
         project_workflow_service.ProjectWorkflowService._enrich_videos_with_design_metadata
     )
 
-    def patched_enrich(self, scanned_videos, detected_design, custom_patterns=None, group_display_names=None):
+    def patched_enrich(
+        self, scanned_videos, detected_design, custom_patterns=None, group_display_names=None
+    ):
         """Patched version with enhanced logging."""
         log.warning(
             "🔍 PATCH: _enrich_videos_with_design_metadata called",
@@ -93,7 +94,9 @@ def patch_project_workflow_service():
                 },
             )
 
-        result = original_enrich(self, scanned_videos, detected_design, custom_patterns, group_display_names)
+        result = original_enrich(
+            self, scanned_videos, detected_design, custom_patterns, group_display_names
+        )
 
         # Check result
         multi_subject_videos = [

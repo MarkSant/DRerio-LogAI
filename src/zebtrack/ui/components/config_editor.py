@@ -514,6 +514,12 @@ class ConfigEditorWidget(BaseWidget):
         if "roi_min_bbox_overlap_ratio" in values:
             self.roi_overlap_ratio_var.set(str(values["roi_min_bbox_overlap_ratio"]))
 
+        if "roi_inclusion_rule" in values:
+            self.roi_inclusion_rule_var.set(str(values["roi_inclusion_rule"]))
+
+        if "roi_buffer_radius_value" in values:
+            self.roi_buffer_radius_var.set(str(values["roi_buffer_radius_value"]))
+
         # Behavioral analysis
         if "behavioral_analysis" in values and self.behavioral_config_widget:
             ba = values["behavioral_analysis"]

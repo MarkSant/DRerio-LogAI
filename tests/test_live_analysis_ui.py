@@ -64,8 +64,8 @@ class TestLiveAnalysisDialog:
                 # Verify default values from settings
                 expected_duration = test_settings.live_analysis.default_duration_s
                 assert dialog.duration_var.get() == expected_duration
-                assert dialog.analysis_interval_var.get() == 10
-                assert dialog.display_interval_var.get() == 10
+                assert dialog.analysis_interval_var.get() == 5
+                assert dialog.display_interval_var.get() == 5
                 assert dialog.record_video_var.get() is True
                 assert dialog.experiment_id_var.get() == ""
 
@@ -82,7 +82,7 @@ class TestLiveAnalysisDialog:
 
                 # Verify fallback defaults
                 assert dialog.duration_var.get() == 300.0
-                assert dialog.analysis_interval_var.get() == 10
+                assert dialog.analysis_interval_var.get() == 5
 
     def test_camera_detection_success(self, tkinter_root, test_settings):
         """Test successful camera detection."""

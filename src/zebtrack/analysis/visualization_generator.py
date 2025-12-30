@@ -308,7 +308,9 @@ class VisualizationGenerator:
 
                     # Only apply crop if reading from VIDEO (not pre-cropped PNG)
                     # PNG files from _prepare_background_image are already cropped
-                    is_image_file = suffix.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"))
+                    is_image_file = suffix.endswith(
+                        (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")
+                    )
                     if self.frame_crop_box and not is_image_file:
                         x_crop, y_crop, w_crop, h_crop = self.frame_crop_box
                         x_crop = max(0, int(x_crop))
@@ -586,7 +588,9 @@ class VisualizationGenerator:
 
                     # Only apply crop if reading from VIDEO (not pre-cropped PNG)
                     # PNG files from _prepare_background_image are already cropped
-                    is_image_file = suffix.endswith((".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"))
+                    is_image_file = suffix.endswith(
+                        (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff")
+                    )
                     if self.frame_crop_box and not is_image_file:
                         x_crop, y_crop, w_crop, h_crop = self.frame_crop_box
                         x_crop = max(0, int(x_crop))
@@ -914,7 +918,7 @@ class VisualizationGenerator:
                 ax.grid(True)
         except Exception as e:
             log.error("viz.thigmotaxis.error", error=str(e))
-            ax.text(0.5, 0.5, f"Error generating plot: {str(e)}", ha="center", va="center")
+            ax.text(0.5, 0.5, f"Error generating plot: {e!s}", ha="center", va="center")
 
         ax.set_title(f"Thigmotaxis - {self.metadata.get('experiment_id', 'Unknown')}")
         return fig
@@ -962,7 +966,7 @@ class VisualizationGenerator:
                 ax.grid(True)
         except Exception as e:
             log.error("viz.geotaxis.error", error=str(e))
-            ax.text(0.5, 0.5, f"Error generating plot: {str(e)}", ha="center", va="center")
+            ax.text(0.5, 0.5, f"Error generating plot: {e!s}", ha="center", va="center")
 
         ax.set_title(f"Geotaxis - {self.metadata.get('experiment_id', 'Unknown')}")
         return fig
