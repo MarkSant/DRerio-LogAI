@@ -12,7 +12,7 @@ Usage:
 
 import threading
 import time
-from collections.abc import Callable
+from typing import Callable
 
 
 def wait_for_condition(

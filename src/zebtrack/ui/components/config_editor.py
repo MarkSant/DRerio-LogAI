@@ -209,8 +209,7 @@ class ConfigEditorWidget(BaseWidget):
             video_frame,
             "Offset Inicial\n\n"
             "Número de frames iniciais a serem ignorados antes de começar o rastreamento.\n"
-            "• Use para descartar o período de estabilização da água ou "
-            "a mão do experimentador saindo de cena.\n"
+            "• Use para descartar o período de estabilização da água ou a mão do experimentador saindo de cena.\n"
             "• Ex: Em um vídeo de 30fps, um offset de 90 frames ignora os primeiros 3 segundos.",
         ).grid(row=3, column=1, padx=2)
         ttk.Entry(video_frame, textvariable=self.processing_offset_var, width=8).grid(
@@ -240,8 +239,7 @@ class ConfigEditorWidget(BaseWidget):
             smoothing_frame,
             "Janela de Suavização (Window Length)\n\n"
             "Número de frames usados para suavizar a trajetória. DEVE SER ÍMPAR.\n"
-            "• Aumentar (ex: 11, 15): Remove mais ruído/tremido, "
-            "mas pode 'arredondar' demais as curvas.\n"
+            "• Aumentar (ex: 11, 15): Remove mais ruído/tremido, mas pode 'arredondar' demais as curvas.\n"
             "• Diminuir (ex: 3, 5): Mantém mais detalhes dos movimentos bruscos.\n"
             "• Padrão: 7",
         ).grid(row=0, column=1, padx=2)
@@ -302,8 +300,7 @@ class ConfigEditorWidget(BaseWidget):
         create_help_label(
             recorder_frame,
             "Intervalo de Flush (Tempo)\n\n"
-            "A cada X segundos, o sistema força a gravação dos dados da memória "
-            "para o arquivo Parquet.\n"
+            "A cada X segundos, o sistema força a gravação dos dados da memória para o arquivo Parquet.\n"
             "• Protege contra perda de dados se o app cair.\n"
             "• Valores baixos (ex: 1.0) aumentam o uso de disco.\n"
             "• Padrão: 5.0s",
@@ -402,8 +399,7 @@ class ConfigEditorWidget(BaseWidget):
         # Hint
         ttk.Label(
             roi_frame,
-            text="💡 Dica: Estas são configurações GLOBAIS. "
-            "Você pode alterá-las por projeto na aba de Zonas.",
+            text="💡 Dica: Estas são configurações GLOBAIS. Você pode alterá-las por projeto na aba de Zonas.",
             font=("TkDefaultFont", 8),
             foreground="#555555",
         ).grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
@@ -480,7 +476,7 @@ class ConfigEditorWidget(BaseWidget):
             "geotaxis_mode": widget_values["geotaxis_mode"],
         }
 
-    def set_values(self, values: dict[str, Any]) -> None:  # noqa: C901
+    def set_values(self, values: dict[str, Any]) -> None:
         """
         Populate form from nested dict.
 

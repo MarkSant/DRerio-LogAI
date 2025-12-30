@@ -75,7 +75,7 @@ class VideoValidationService:
         """Initialize VideoValidationService."""
         log.info("video_validation_service.initialized")
 
-    def scan_and_validate_paths(  # noqa: C901
+    def scan_and_validate_paths(
         self,
         candidate_paths: list[str],
         project_manager: ProjectManager,

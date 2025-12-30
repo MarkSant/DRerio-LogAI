@@ -404,7 +404,7 @@ class DetectionStep(WizardStep):
 
         return best_result
 
-    def _pattern_custom_regex(self, paths: list[Path], patterns: dict) -> dict | None:  # noqa: C901
+    def _pattern_custom_regex(self, paths: list[Path], patterns: dict) -> dict | None:
         """
         Pattern: User-defined custom regex patterns.
 

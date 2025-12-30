@@ -447,8 +447,7 @@ class ProcessingReportsWidget(BaseWidget):
 
         confirm = messagebox.askyesno(
             "Confirmar Exclusão",
-            "Tem certeza que deseja apagar TODOS os relatórios unificados "
-            "(Parquet, Excel, Word)?\n\nEsta ação não pode ser desfeita.",
+            "Tem certeza que deseja apagar TODOS os relatórios unificados (Parquet, Excel, Word)?\n\nEsta ação não pode ser desfeita.",
             icon="warning",
         )
 

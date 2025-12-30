@@ -292,7 +292,7 @@ class DetectorService:
 
         return True
 
-    def update_tracking_parameters(  # noqa: C901
+    def update_tracking_parameters(
         self,
         params: dict[str, Any] | None = None,
         *,
@@ -368,7 +368,7 @@ class DetectorService:
                 except (TypeError, ValueError) as e:
                     if isinstance(e, ValueError) and "deve estar entre" in str(e):
                         raise
-                    raise ValueError(f"{param_name} deve ser um número válido") from e
+                    raise ValueError(f"{param_name} deve ser um número válido")
 
         # Validate parameters
         _validate_range("conf_threshold", params_dict.get("conf_threshold"))
@@ -381,8 +381,8 @@ class DetectorService:
             try:
                 if int(params_dict["track_buffer"]) < 1:
                     raise ValueError("track_buffer deve ser pelo menos 1")
-            except (TypeError, ValueError) as e:
-                raise ValueError("track_buffer deve ser um número inteiro") from e
+            except (TypeError, ValueError):
+                raise ValueError("track_buffer deve ser um número inteiro")
 
         plugin = self.detector.plugin if self.detector else None
         clear_project_overrides = scope_normalized == "project" and reset_overrides
@@ -447,7 +447,7 @@ class DetectorService:
             log.error("detector_service.update_params.failed", error=str(e), exc_info=True)
             return False
 
-    def _apply_tracking_params_to_plugin(  # noqa: C901
+    def _apply_tracking_params_to_plugin(
         self,
         plugin,
         params: dict,

@@ -97,7 +97,7 @@ class CanvasRenderer:
             tags="background_image",
         )
 
-    def redraw_zones(self, zone_data=None):  # noqa: C901
+    def redraw_zones(self, zone_data=None):
         """Redraw zones preserving the background."""
         log.info("gui.redraw_zones.start")
 
@@ -339,10 +339,10 @@ class CanvasRenderer:
             try:
                 # Unpack detection (support both 6 and 7 element tuples)
                 if len(det) == 6:
-                    x1, y1, x2, y2, _, track_id = det
+                    x1, y1, x2, y2, conf, track_id = det
                     class_id = 0
                 else:
-                    x1, y1, x2, y2, _, track_id, class_id = det
+                    x1, y1, x2, y2, conf, track_id, class_id = det
 
                 # Convert to canvas coordinates
                 cx1, cy1 = self.manager._video_to_canvas(x1, y1)

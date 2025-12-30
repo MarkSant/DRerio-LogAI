@@ -7,10 +7,9 @@ providing a type-safe, thread-aware event bus for UI component communication.
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any
+from typing import Any, Callable
 
 import structlog
 

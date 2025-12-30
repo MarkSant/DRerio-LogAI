@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from zebtrack.analysis.analysis_service import AnalysisService
 
@@ -41,7 +41,7 @@ class MainViewModelDependencies:
     # Core infrastructure
     root: Any  # tk.Tk
     settings_obj: Settings
-    event_bus: EventBus | None
+    event_bus: Optional[EventBus]
     state_manager: StateManager
     ui_coordinator: UIScheduler  # Renamed from UICoordinator to avoid collision
 
@@ -54,17 +54,17 @@ class MainViewModelDependencies:
     # Domain services
     detector_service: DetectorService
     video_processing_service: VideoProcessingService
-    analysis_service: AnalysisService | None = None
-    recording_service: RecordingService | None = None
-    live_camera_service: LiveCameraService | None = None
-    ui_state_controller: UIStateController | None = None
+    analysis_service: Optional[AnalysisService] = None
+    recording_service: Optional[RecordingService] = None
+    live_camera_service: Optional[LiveCameraService] = None
+    ui_state_controller: Optional[UIStateController] = None
 
     # Phase 3: Super Coordinators (NEW - replace 20 legacy coordinators)
-    project_lifecycle_coordinator: ProjectLifecycleCoordinator | None = None
-    hardware_coordinator: HardwareCoordinator | None = None
-    processing_coordinator: ProcessingCoordinator | None = None
-    session_coordinator: SessionCoordinator | None = None
-    project_workflow_adapter: ProjectWorkflowAdapter | None = None
+    project_lifecycle_coordinator: Optional[ProjectLifecycleCoordinator] = None
+    hardware_coordinator: Optional[HardwareCoordinator] = None
+    processing_coordinator: Optional[ProcessingCoordinator] = None
+    session_coordinator: Optional[SessionCoordinator] = None
+    project_workflow_adapter: Optional[ProjectWorkflowAdapter] = None
 
     # Legacy coordinators (DEPRECATED - will be removed in Phase 4)
     # Kept temporarily for backward compatibility during gradual migration

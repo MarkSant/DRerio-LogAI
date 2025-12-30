@@ -412,8 +412,9 @@ class CanvasEventHandler:
 
         if success:
             self.manager._redraw_polygon_in_progress()
-            points = self.gui.drawing_state_manager.point_count()
-            self.gui.set_status(f"Último ponto desfeito. Pontos atuais: {points}")
+            self.gui.set_status(
+                f"Último ponto desfeito. Pontos atuais: {self.gui.drawing_state_manager.point_count()}"
+            )
 
         return "break"
 

@@ -49,7 +49,7 @@ trajectory_smoothing:
                 self.assertEqual(settings.yolo_model.path, "test.pt")
                 self.assertEqual(settings.recorder.flush_interval_seconds, 3.5)
                 self.assertEqual(settings.recorder.flush_row_threshold, 250)
-                # ByteTrack defaults: track_threshold=0.1 (very low), match_threshold=0.95 (strict)
+                # ByteTrack defaults: track_threshold=0.1 (very low to catch all), match_threshold=0.95 (strict)
                 self.assertAlmostEqual(settings.bytetrack.track_threshold, 0.1)
                 self.assertAlmostEqual(settings.bytetrack.match_threshold, 0.95)
                 self.assertFalse(settings.tracking.use_single_subject_tracker)

@@ -395,14 +395,9 @@ class WidgetFactory:
         # Connect events
         if self.gui.event_bus:
             # Register handlers directly in event_bus (not just in dictionary)
-            def save_handler(data):
-                self.on_save_global_config_from_widget(data["values"])
-
-            def reset_handler(_):
-                self.on_reset_global_config_form_widget()
-
-            def roi_rule_handler(data):
-                self.update_roi_rule_ui(data["rule"])
+            save_handler = lambda data: self.on_save_global_config_from_widget(data["values"])
+            reset_handler = lambda data: self.on_reset_global_config_form_widget()
+            roi_rule_handler = lambda data: self.update_roi_rule_ui(data["rule"])
 
             # Subscribe to event_bus
             self.gui.event_bus.subscribe("config.save_requested", save_handler)
@@ -446,11 +441,10 @@ class WidgetFactory:
         # Connect widget events to GUI handlers
         if self.gui.event_bus:
             # Register handlers directly in event_bus (not just in dictionary)
-            def track_handler(_):
-                self.gui._on_track_selection_changed()
-
-            def cancel_handler(_):
-                self.gui.event_dispatcher.publish_event(Events.VIDEO_CANCEL_ANALYSIS, {})
+            track_handler = lambda data: self.gui._on_track_selection_changed()
+            cancel_handler = lambda data: self.gui.event_dispatcher.publish_event(
+                Events.VIDEO_CANCEL_ANALYSIS, {}
+            )
 
             # Subscribe to event_bus
             self.gui.event_bus.subscribe("analysis.track_selected", track_handler)
@@ -705,7 +699,7 @@ class WidgetFactory:
 
         # Behavioral Analysis Settings (Prioritize Project Data)
         behavioral_values = {}
-        # project_config_loaded = False # unused
+        project_config_loaded = False
 
         if self.gui.controller.project_manager.project_path:
             project_data = self.gui.controller.project_manager.project_data
@@ -722,7 +716,7 @@ class WidgetFactory:
                 }
                 # Filter out None values to allow fallback
                 behavioral_values = {k: v for k, v in behavioral_values.items() if v is not None}
-                # project_config_loaded = False # unused
+                project_config_loaded = True
 
         # Fallback to Global Settings for missing values
         if hasattr(current, "behavioral_analysis"):
@@ -757,7 +751,7 @@ class WidgetFactory:
             "Valores restaurados para refletir as configurações atuais.",
         )
 
-    def on_save_global_config_from_widget(self, values: dict) -> None:  # noqa: C901
+    def on_save_global_config_from_widget(self, values: dict) -> None:
         """
         Validate and save config from ConfigEditorWidget values.
 

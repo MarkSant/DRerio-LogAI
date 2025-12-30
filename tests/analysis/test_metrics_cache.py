@@ -69,7 +69,7 @@ def test_metrics_cache_clear_specific_and_all(tmp_path):
 
 
 def test_analysis_service_initializes_metrics_cache(tmp_path):
-    tmp_path / "cache"
+    cache_root = tmp_path / "cache"
     settings = SimpleNamespace()
 
     service = AnalysisService(settings_obj=settings, enable_metrics_cache=True)

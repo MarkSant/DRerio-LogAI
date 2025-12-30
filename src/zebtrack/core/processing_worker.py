@@ -20,10 +20,9 @@ import re
 import threading
 import time
 import traceback
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import cv2
 import numpy as np
@@ -585,7 +584,7 @@ class _WorkerProcess(multiprocessing.Process):
             )
             return self._default_zone_data
 
-    def _process_single_video(  # noqa: C901
+    def _process_single_video(
         self,
         index: int,
         total_videos: int,

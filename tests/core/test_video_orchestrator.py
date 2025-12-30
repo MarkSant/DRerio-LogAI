@@ -243,7 +243,7 @@ class TestVideoOrchestratorClassifyVideos(unittest.TestCase):
         }
 
         result = self.orchestrator._classify_candidate_videos(candidate_entries, info_by_norm)
-        ready_with_trajectory, ready_with_zones, arena_only, without_arena, _ = result
+        ready_with_trajectory, ready_with_zones, arena_only, without_arena, data_changed = result
 
         assert len(ready_with_trajectory) == 1
         assert len(ready_with_zones) == 0
@@ -266,9 +266,7 @@ class TestVideoOrchestratorClassifyVideos(unittest.TestCase):
         }
 
         result = self.orchestrator._classify_candidate_videos(candidate_entries, info_by_norm)
-        ready_with_trajectory, ready_with_zones, arena_only, without_arena, _ = result
-        ready_with_trajectory, ready_with_zones, arena_only, without_arena, _ = result
-        ready_with_trajectory, ready_with_zones, arena_only, without_arena, _ = result
+        ready_with_trajectory, ready_with_zones, arena_only, without_arena, data_changed = result
 
         assert len(ready_with_trajectory) == 0
         assert len(ready_with_zones) == 1
@@ -291,7 +289,7 @@ class TestVideoOrchestratorClassifyVideos(unittest.TestCase):
         }
 
         result = self.orchestrator._classify_candidate_videos(candidate_entries, info_by_norm)
-        ready_with_trajectory, ready_with_zones, arena_only, without_arena, _ = result
+        ready_with_trajectory, ready_with_zones, arena_only, without_arena, data_changed = result
 
         assert len(ready_with_trajectory) == 0
         assert len(ready_with_zones) == 0
@@ -314,7 +312,7 @@ class TestVideoOrchestratorClassifyVideos(unittest.TestCase):
         }
 
         result = self.orchestrator._classify_candidate_videos(candidate_entries, info_by_norm)
-        ready_with_trajectory, ready_with_zones, arena_only, without_arena, _ = result
+        ready_with_trajectory, ready_with_zones, arena_only, without_arena, data_changed = result
 
         assert len(ready_with_trajectory) == 0
         assert len(ready_with_zones) == 0

@@ -5,8 +5,8 @@ Extracted from WidgetFactory to separate concern of button creation.
 """
 
 import tkinter as tk
-from collections.abc import Callable
 from tkinter import ttk
+from typing import Callable
 
 
 class ButtonFactory:
