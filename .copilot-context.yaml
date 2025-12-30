@@ -15,13 +15,13 @@ settings_injection: "Constructor injection ONLY, never singleton"
 # === KEY FILE INDEX ===
 # Direct paths to critical files - use these to minimize searches
 files:
-  main_entry: "src\zebtrack\__main__.py"
-  main_viewmodel: "src\zebtrack\ui\gui.py"
-  settings: "src\zebtrack\settings.py"
-  detector_service: "src\zebtrack\core\detector_service.py"
-  project_manager: "src\zebtrack\core\project_manager.py"
-  state_manager: "src\zebtrack\core\state_manager.py"
-  recorder: "src\zebtrack\io\recorder.py"
+  main_entry: "src/zebtrack/__main__.py"
+  main_viewmodel: "src/zebtrack/ui/gui.py"
+  settings: "src/zebtrack/settings.py"
+  detector_service: "src/zebtrack/core/detector_service.py"
+  project_manager: "src/zebtrack/core/project_manager.py"
+  state_manager: "src/zebtrack/core/state_manager.py"
+  recorder: "src/zebtrack/io/recorder.py"
 
 # === DECISION TREES ===
 # Fast decision paths for common tasks - follow these instead of searching
@@ -32,167 +32,60 @@ adding_ui_feature:
   - "3. Use root.after(0, ...) for async updates"
   - "4. Add integration test in tests/test_*_integration.py"
 
-adding_processing_feature:
-  - "1. Check core/detector_service.py or plugins/"
-  - "2. Add settings_obj param to constructor"
-  - "3. Update processing_worker.py if needed"
-  - "4. Validate schema in io/recorder.py"
-
-adding_config_option:
-  - "1. Edit settings.py Pydantic model"
-  - "2. Add field to config.yaml"
-  - "3. Pass from __main__.py constructor"
-  - "4. NEVER use singleton import"
-
-debugging_ui:
-  - "1. Check structlog output (domain.action.result)"
-  - "2. Verify StateManager.update_state() calls"
-  - "3. Check root.after() scheduling"
-  - "4. Run: poetry run pytest -m gui -n0"
-
-debugging_processing:
-  - "1. Verify detector_service zone scaling"
-  - "2. Check ProcessingWorker thread state"
-  - "3. Validate Recorder output schema"
-  - "4. Run: poetry run pytest -q"
-
-# === QUICK COMMANDS ===
-# Copy-paste ready commands for common tasks
-commands:
-  run_app: "poetry run zebtrack"
-  fast_tests: "poetry run pytest -q"
-  gui_tests: "poetry run pytest -m gui -n0"
-  coverage: "poetry run pytest --cov=zebtrack --cov-report=html"
-  lint: "poetry run ruff check ."
-  format: "poetry run ruff format ."
-  precommit: "poetry run pre-commit run --all-files"
-
-# === ANTI-PATTERNS ===
-# NEVER do these - they break the architecture
-forbidden:
-  - "from zebtrack import settings  # Use constructor injection"
-  - "Direct state mutation  # Use StateManager.update_state()"
-  - "Blocking UI thread  # Use root.after() or UICoordinator"
-  - "New columns in Recorder  # Schema is fixed"
-  - "Skip zone rescaling  # Always call Detector.set_zones()"
-
-# === DATA FLOW ===
-# Follow this pipeline for processing changes
-pipeline:
-  - "VideoReader (io/video_source.py)"
-  - "→ DetectorService (core/detector_service.py)"
-  - "→ ProcessingWorker (core/processing_worker.py)"
-  - "→ Recorder (io/recorder.py) → Parquet + MP4"
-
-# === TESTING STRATEGY ===
-testing:
-  fast_feedback: "pytest -q (< 30s)"
-  gui_validation: "pytest -m gui -n0 (single thread)"
-  full_coverage: "pytest --cov=zebtrack"
-  minimum_coverage: "70%"
-  scenario_tests: "tests/test_scenarios/"
-
-# === DOCS PRIORITY ===
-# Read these docs first before making architectural changes
-critical_docs:
-  - "docs/ARCHITECTURE.md"
-  - "docs/DEPENDENCY_INJECTION_GUIDE.md"
-  - "docs/REFERENCE_GUIDE.md"
-  - ".github/copilot-instructions.md"
-
 # === FILE STATS ===
 # Auto-discovered classes and entry points
 discovered_classes:
-{
-  "composition_root": {
-    "path": "src\\zebtrack\\__main__.py",
-    "classes": [
-      "CompactConsoleRenderer"
-    ],
-    "key_methods": [
-      "__call__"
-    ]
-  },
-  "main_viewmodel": {
-    "path": "src\\zebtrack\\ui\\gui.py",
-    "classes": [
-      "_VideoPathResolverContext",
-      "ApplicationGUI",
-      "MockEvent"
-    ],
-    "key_methods": [
-      "__init__",
-      "add_video_path",
-      "add_video_node",
-      "collect_descendants",
-      "process_item",
-      "__init__",
-      "_subscribe_to_ui_events",
-      "_handle_request_weight_file",
-      "_handle_request_weight_type",
-      "_handle_request_weight_action",
-      "__init__"
-    ]
-  },
-  "settings": {
-    "path": "src\\zebtrack\\settings.py",
-    "classes": [
-      "CameraSettings",
-      "ArduinoSettings",
-      "RecorderSettings"
-    ],
-    "key_methods": []
-  },
-  "detector_service": {
-    "path": "src\\zebtrack\\core\\detector_service.py",
-    "classes": [
-      "DetectorService"
-    ],
-    "key_methods": [
-      "__init__",
-      "initialize_detector",
-      "configure_zones",
-      "update_tracking_parameters",
-      "_apply_tracking_params_to_plugin"
-    ]
-  },
-  "project_manager": {
-    "path": "src\\zebtrack\\core\\project_manager.py",
-    "classes": [
-      "ProjectInvalidError",
-      "ProjectManager"
-    ],
-    "key_methods": [
-      "__init__",
-      "__init__",
-      "_ensure_zone_structures",
-      "_normalize_video_path",
-      "_resolve_zone_entry",
-      "_deduplicate_zone_keys"
-    ]
-  },
-  "state_manager": {
-    "path": "src\\zebtrack\\core\\state_manager.py",
-    "classes": [
-      "StateCategory",
-      "StateChange",
-      "ProjectState"
-    ],
-    "key_methods": [
-      "copy"
-    ]
-  },
-  "recorder": {
-    "path": "src\\zebtrack\\io\\recorder.py",
-    "classes": [
-      "Recorder"
-    ],
-    "key_methods": [
-      "__init__",
-      "start_recording",
-      "stop_recording",
-      "write_video_frame",
-      "write_detection_data"
-    ]
-  }
-}
+  composition_root:
+    path: "src/zebtrack/__main__.py"
+    classes: []
+    key_methods: []
+  main_viewmodel:
+    path: "src/zebtrack/ui/gui.py"
+    classes:
+      - "ApplicationGUI"
+    key_methods:
+      - "__init__"
+      - "_post_init"
+      - "handle_request_weight_type"
+      - "handle_request_weight_action"
+      - "_extract_setting"
+  settings:
+    path: "src/zebtrack/settings.py"
+    classes:
+      - "Settings"
+    key_methods:
+      - "load_settings"
+      - "save_settings"
+      - "get_setting"
+  detector_service:
+    path: "src/zebtrack/core/detector_service.py"
+    classes:
+      - "DetectorService"
+    key_methods:
+      - "__init__"
+      - "load_model"
+      - "run_inference"
+      - "set_zones"
+  project_manager:
+    path: "src/zebtrack/core/project_manager.py"
+    classes:
+      - "ProjectManager"
+    key_methods:
+      - "add_video"
+      - "save_project"
+      - "load_project"
+  state_manager:
+    path: "src/zebtrack/core/state_manager.py"
+    classes:
+      - "StateManager"
+    key_methods:
+      - "update_state"
+      - "get_state"
+  recorder:
+    path: "src/zebtrack/io/recorder.py"
+    classes:
+      - "Recorder"
+    key_methods:
+      - "start"
+      - "stop"
+      - "write_frame"
