@@ -52,8 +52,9 @@ class EventVisitor(ast.NodeVisitor):
                         # It's hard to know keys from **kwargs, but we can note it
                         payload_keys.append("**kwargs")
                     else:
-                        # Treat other kwargs as payload items if the signature supports it (e.g. simple event bus)
-                        # But our EventBus takes a dict usually. Let's stick to explicit payload dicts first.
+                        # Treat other kwargs as payload items if the signature supports it
+                        # (e.g. simple event bus). But our EventBus takes a dict usually.
+                        # Let's stick to explicit payload dicts first.
                         pass
 
                 self.publishers.append(

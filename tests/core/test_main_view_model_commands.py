@@ -224,7 +224,8 @@ class TestCreateProjectWorkflow:
             "project_type": "live",
         }
 
-        # Mock project_vm create method (MainViewModel.create_project_workflow delegates to project_vm)
+        # Mock project_vm create method
+        # (MainViewModel.create_project_workflow delegates to project_vm)
         main_view_model.project_vm.create_project_workflow = Mock(
             return_value={"success": True, "animal_method": "det", "wizard_metadata": {}}
         )

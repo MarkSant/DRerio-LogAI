@@ -301,7 +301,7 @@ class MultiAquariumData(BaseModel):
                     return f"(?P<{group_name}>"
 
                 # Only replace the first occurrence
-                result, count = re.subn(r"\((?!\?[:=!<])", replace_first_group, pattern, count=1)
+                result, _ = re.subn(r"\((?!\?[:=!<])", replace_first_group, pattern, count=1)
                 return result
             else:
                 # No capture group - wrap the whole pattern

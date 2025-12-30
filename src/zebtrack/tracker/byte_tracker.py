@@ -220,11 +220,11 @@ class BYTETracker:
             self.det_thresh = 0.0  # Accept any detection as a candidate
             self.iou_threshold = 0.0  # Prefer center-distance fallback for big jumps
 
-    def update(self, output_results, img_info, img_size):
+    def update(self, output_results, img_info, img_size):  # noqa: C901
         self.frame_id += 1
         activated_starcks = []
         refind_stracks = []
-        lost_stracks = []
+        # lost_stracks = [] # unused
         removed_stracks = []
 
         # Assumes Ultralytics YOLO format (5 columns: x1, y1, x2, y2, confidence)
@@ -393,11 +393,13 @@ class BYTETracker:
             if track.state == TrackState.Tracked:
                 track.update(det, self.frame_id)
                 activated_starcks.append(track)
-                # log.debug("detector.bytetrack.match.second_pass", track_id=track.track_id, reason="matched_low_score_det")
+                # log.debug("detector.bytetrack.match.second_pass",
+                #           track_id=track.track_id, reason="matched_low_score_det")
             else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
-                # log.debug("detector.bytetrack.reactivate.second_pass", track_id=track.track_id, reason="refound_low_score_det")
+                # log.debug("detector.bytetrack.reactivate.second_pass",
+                #           track_id=track.track_id, reason="refound_low_score_det")
 
         for it in u_track:
             track = r_tracked_stracks[it]
@@ -407,7 +409,8 @@ class BYTETracker:
 
         """ Step 5: Init new stracks"""
         # Use the remaining detections from the unconfirmed association step
-        # AND the remaining low score detections from the second association step (if single animal mode)
+        # AND the remaining low score detections from the second association step
+        # (if single animal mode)
 
         # Candidates for new tracks (or resurrection)
         candidates = [detections_unconfirmed[i] for i in u_detection_rem]
@@ -429,8 +432,11 @@ class BYTETracker:
             if self.single_animal_mode:
                 # Priority 1: Try to find a Lost track to resurrect
                 if len(self.lost_stracks) > 0:
-                    # Retrieve the most recently lost track (last in list usually, or sort by end_frame)
-                    sorted_lost = sorted(self.lost_stracks, key=lambda t: t.end_frame, reverse=True)
+                    # Retrieve the most recently lost track
+                    # (last in list usually, or sort by end_frame)
+                    sorted_lost = sorted(
+                        self.lost_stracks, key=lambda t: t.end_frame, reverse=True
+                    )
                     refound_track = sorted_lost[0]
 
                     # Force resurrection with ID preservation (or force ID 1)
@@ -446,8 +452,10 @@ class BYTETracker:
                 # If we are here, it means we didn't match the tracked one in previous steps.
                 # But if single_animal_mode is True, we should only have ONE track.
                 # If tracked_stracks is not empty, we have a conflict (ghost track?).
-                # We should probably ignore this new detection or kill the old track if this one is better?
-                # For now, let's assume if we are here, the old track is effectively lost or this is a new start.
+                # We should probably ignore this new detection or kill the old track
+                # if this one is better?
+                # For now, let's assume if we are here, the old track is effectively lost
+                # or this is a new start.
 
             track.activate(self.kalman_filter, self.frame_id)
 

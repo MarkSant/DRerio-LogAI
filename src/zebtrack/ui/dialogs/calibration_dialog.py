@@ -699,7 +699,8 @@ class CalibrationDialog(simpledialog.Dialog):
             "Match Threshold\n\n"
             "Tolerância para associar uma nova detecção a um rastro existente.\n"
             "• Valores altos (ex: 0.8+) são mais permissivos (bom para movimentos rápidos).\n"
-            "• Valores baixos (<0.5) são restritivos (evita troca de identidade, mas pode perder o rastro).\n"
+            "• Valores baixos (<0.5) são restritivos (evita troca de identidade, "
+            "mas pode perder o rastro).\n"
             "• Padrão recomendado: 0.95",
         ).grid(row=t_row, column=4, padx=2)
 

@@ -84,7 +84,8 @@ class TestProcessingCoordinatorSingleVideoFix:
 
     def test_load_zones_for_eligible_videos_single_video_mode(self, coordinator):
         """
-        Test that save_project is NOT called when project_path is None in _load_zones_for_eligible_videos.
+        Test that save_project is NOT called when project_path is None in
+        _load_zones_for_eligible_videos.
         """
         # Setup Single Video Mode
         coordinator.project_manager.project_path = None
@@ -118,12 +119,13 @@ class TestProcessingCoordinatorSingleVideoFix:
 
             # Verify save_zone_data WAS called (persist=False)
             coordinator.project_manager.save_zone_data.assert_called()
-            args, kwargs = coordinator.project_manager.save_zone_data.call_args
+            _, kwargs = coordinator.project_manager.save_zone_data.call_args
             assert kwargs.get("persist") is False
 
     def test_load_zones_for_eligible_videos_project_mode(self, coordinator):
         """
-        Test that save_project IS called when project_path is set in _load_zones_for_eligible_videos.
+        Test that save_project IS called when project_path is set in
+        _load_zones_for_eligible_videos.
         """
         # Setup Project Mode
         coordinator.project_manager.project_path = "C:/fake/project"

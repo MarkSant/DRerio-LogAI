@@ -906,7 +906,7 @@ class ApplicationGUI:
         else:
             self.root.title(base_title)
 
-    def _load_project_view(self):
+    def _load_project_view(self):  # noqa: C901
         """
         Transitions from the welcome screen to the main control view.
 
@@ -1337,7 +1337,8 @@ class ApplicationGUI:
         self.pending_single_video_path = video_path
         self.pending_single_video_config = config
 
-        # MELHORIA: Save num_aquariums to global settings so ProcessingCoordinator can see it during auto-detection
+        # MELHORIA: Save num_aquariums to global settings so ProcessingCoordinator
+        # can see it during auto-detection
         if config and "num_aquariums" in config and self.settings:
             try:
                 self.settings.analysis_config.num_aquariums = int(config["num_aquariums"])

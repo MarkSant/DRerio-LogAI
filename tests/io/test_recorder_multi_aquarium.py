@@ -308,7 +308,7 @@ class TestParquetSchemaWithAquariumId:
 
         # Check Parquet file
         parquet_files = list(tmp_path.glob("*.parquet"))
-        coord_file = [f for f in parquet_files if "CoordMovimento" in f.name][0]
+        coord_file = next(f for f in parquet_files if "CoordMovimento" in f.name)
 
         table = pq.read_table(coord_file)
 

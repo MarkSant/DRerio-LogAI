@@ -501,7 +501,7 @@ class ProjectManager:
         # 2. Export ROIs
         if zone_data.roi_polygons and zone_data.roi_names:
             roi_data = []
-            for name, poly in zip(zone_data.roi_names, zone_data.roi_polygons):
+            for name, poly in zip(zone_data.roi_names, zone_data.roi_polygons, strict=False):
                 for idx, point in enumerate(poly):
                     roi_data.append(
                         {"roi_name": name, "point_index": idx, "x": point[0], "y": point[1]}
@@ -515,7 +515,7 @@ class ProjectManager:
 
         return exported
 
-    def copy_zone_parquet_files(
+    def copy_zone_parquet_files(  # noqa: C901
         self,
         source_video_path: Path | str,
         target_video_path: Path | str,
@@ -2876,7 +2876,8 @@ class ProjectManager:
 
         Args:
             experiment_id: The ID of the experiment (e.g., the video file stem).
-            video_path: Absolute path to the video file (optional but recommended for robust lookup).
+            video_path: Absolute path to the video file
+                (optional but recommended for robust lookup).
 
         Returns:
             A dictionary of metadata for that experiment.

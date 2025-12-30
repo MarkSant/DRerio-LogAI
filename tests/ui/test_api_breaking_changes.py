@@ -60,13 +60,15 @@ class TestAPIBreakingChanges:
 
             # Compare length
             assert len(current_params) == len(expected_params), (
-                f"Signature length mismatch for {method_name}: expected {len(expected_params)}, got {len(current_params)}"
+                f"Signature length mismatch for {method_name}: "
+                f"expected {len(expected_params)}, got {len(current_params)}"
             )
 
             # Compare each parameter
-            for i, (exp, curr) in enumerate(zip(expected_params, current_params)):
+            for i, (exp, curr) in enumerate(zip(expected_params, current_params, strict=False)):
                 assert exp["name"] == curr["name"], (
-                    f"Param name mismatch in {method_name} at index {i}: expected {exp['name']}, got {curr['name']}"
+                    f"Param name mismatch in {method_name} at index {i}: "
+                    f"expected {exp['name']}, got {curr['name']}"
                 )
                 assert exp["kind"] == curr["kind"], (
                     f"Param kind mismatch in {method_name} for {exp['name']}"
@@ -74,5 +76,6 @@ class TestAPIBreakingChanges:
 
                 # Check defaults
                 assert exp["default"] == curr["default"], (
-                    f"Default value changed in {method_name} for {exp['name']}: expected {exp['default']}, got {curr['default']}"
+                    f"Default value changed in {method_name} for {exp['name']}: "
+                    f"expected {exp['default']}, got {curr['default']}"
                 )

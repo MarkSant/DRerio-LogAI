@@ -30,7 +30,8 @@ import glob
 import os
 import shutil
 import threading
-from typing import TYPE_CHECKING, Any, Callable, cast
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, cast
 
 import cv2
 import structlog
