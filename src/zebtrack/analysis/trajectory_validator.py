@@ -226,7 +226,7 @@ class TrajectoryQualityValidator:
         from shapely.geometry import Point, Polygon
 
         arena_poly = Polygon(arena_polygon)
-        points = [Point(x, y) for x, y in zip(df["x_cm"], df["y_cm"], strict=False)]
+        points = [Point(x, y) for x, y in zip(df["x_cm"], df["y_cm"])]
         outside = [not arena_poly.contains(p) for p in points]
         num_outside = sum(outside)
 

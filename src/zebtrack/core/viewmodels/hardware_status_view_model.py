@@ -166,8 +166,7 @@ class HardwareStatusViewModel:
     def run_model_diagnostic(self, config: dict):
         # Phase 3C: Redirect to HardwareCoordinator (supersedes ModelDiagnosticsOrchestrator)
         if self.hardware_coordinator:
-            # Inject active weight name into config so coordinator doesn't depend on
-            # WeightManager state
+            # Inject active weight name into config so coordinator doesn't depend on WeightManager state
             config["active_weight_name"] = self.active_weight_name
             self.hardware_coordinator.run_model_diagnostic(config)
 

@@ -100,8 +100,7 @@ class AnalysisControlViewModel:
         )
 
     def start_single_video_processing(self, **kwargs):
-        # Phase 3.2: Redirect to ProcessingCoordinator
-        # (consolidated from VideoProcessingOrchestrator)
+        # Phase 3.2: Redirect to ProcessingCoordinator (consolidated from VideoProcessingOrchestrator)
         if self.processing_coordinator:
             self.processing_coordinator.start_single_video_processing(
                 video_path=kwargs.get("video_path"),
@@ -309,8 +308,7 @@ class AnalysisControlViewModel:
                 df = self.analysis_service.load_trajectory_dataframe(parquet_path)
 
                 # Run Analysis via DTO
-                # Note: We assume 30 FPS if not available, or retrieve from video metadata
-                # if possible.
+                # Note: We assume 30 FPS if not available, or retrieve from video metadata if possible.
                 # Ideally, FPS should be stored in parquet metadata or project entry.
                 fps = entry.get("fps", 30.0)
 

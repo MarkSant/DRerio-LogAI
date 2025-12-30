@@ -69,8 +69,7 @@ class TestZoneControlBuilder:
         mock_gui._create_zone_summary_cards_section.assert_called_once()
 
         # Verify major sections created (by checking LabelFrame creation)
-        # We expect LabelFrames for: Drawing Actions, Single Analysis, Templates,
-        # Video Selector, Zone List, Inclusion Rule
+        # We expect LabelFrames for: Drawing Actions, Single Analysis, Templates, Video Selector, Zone List, Inclusion Rule
         assert mock_ttk.LabelFrame.call_count >= 6
 
         # Verify variables initialized

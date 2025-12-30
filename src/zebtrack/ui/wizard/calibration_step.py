@@ -274,8 +274,7 @@ class CalibrationStep(WizardStep):
             (
                 "🖥️ Intervalo de Exibição\n\n"
                 "Atualiza a imagem na tela a cada N frames processados.\n\n"
-                "• Valores altos (ex: 30) tornam a interface mais fluida "
-                "durante o processamento em lote."
+                "• Valores altos (ex: 30) tornam a interface mais fluida durante o processamento em lote."
             ),
         )
 

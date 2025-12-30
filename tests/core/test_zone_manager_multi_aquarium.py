@@ -160,7 +160,7 @@ class TestZoneManagerMultiAquariumSerialization:
         assert deserialized.video_height == sample_multi_aquarium_data.video_height
 
         for i, (orig, restored) in enumerate(
-            zip(sample_multi_aquarium_data.aquariums, deserialized.aquariums, strict=False)
+            zip(sample_multi_aquarium_data.aquariums, deserialized.aquariums)
         ):
             assert restored.id == orig.id
             assert restored.polygon == orig.polygon

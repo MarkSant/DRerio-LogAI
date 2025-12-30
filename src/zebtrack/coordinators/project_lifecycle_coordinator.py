@@ -13,10 +13,9 @@ CRITICAL: No dependency on MainViewModel. All dependencies injected explicitly.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 import numpy as np
 import structlog
@@ -253,7 +252,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         return new_project_manager
 
-    def create_project(  # noqa: C901
+    def create_project(
         self,
         *,
         setup_detector_callback: Callable[[Any], None] | None = None,

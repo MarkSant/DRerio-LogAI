@@ -33,7 +33,7 @@ class TestSingleVideoConfigPersistence:
         with patch(
             "zebtrack.ui.dialogs.single_video_config_dialog.SingleVideoConfigDialog.__init__",
             return_value=None,
-        ):
+        ) as mock_init:
             # Instantiate without calling real __init__
             dialog = SingleVideoConfigDialog(mock_gui, mock_videopath, mock_settings)
 
@@ -98,9 +98,7 @@ class TestSingleVideoConfigPersistence:
             assert mock_settings.behavioral_analysis.geotaxis_mode == GeotaxisMode.ZONES
             assert mock_settings.behavioral_analysis.geotaxis_num_zones == 4
 
-            # Verify that the correct payload describes these settings
+            # Verify that the correct payload describes these settings (implies they were read correctly)
             assert dialog.result is not None
-            assert (
-                dialog.result["config"]["behavioral_config"]["aquarium_perspective"] == "Lateral"
-            )
+            assert dialog.result["config"]["behavioral_config"]["aquarium_perspective"] == "Lateral"
             assert dialog.result["config"]["behavioral_config"]["geotaxis_num_zones"] == 4

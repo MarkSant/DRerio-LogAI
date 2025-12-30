@@ -907,9 +907,8 @@ class LiveCameraService:
                         continue
 
                     # MELHORIA: Skip frames during detection to cover more time
-                    # Process only every 5th frame. With 10 frames max, this covers ~50 frames
-                    # (1.6s @ 30fps) instead of just 10 frames (0.33s).
-                    # This helps bypass initial camera auto-adjustments.
+                    # Process only every 5th frame. With 10 frames max, this covers ~50 frames (1.6s @ 30fps)
+                    # instead of just 10 frames (0.33s). This helps bypass initial camera auto-adjustments.
                     if frame_number % 5 != 0:
                         self._aquarium_detection_frames += (
                             1  # Count skipped frames towards timeout?
@@ -924,19 +923,15 @@ class LiveCameraService:
                     # Update preview status
                     if self.preview_window and frame_number % 5 == 0:
                         self.preview_window.update_status_text(
-                            f"🔍 Detectando aquário... "
-                            f"({self._aquarium_detection_frames}/"
-                            f"{self._aquarium_detection_max_frames})",
+                            f"🔍 Detectando aquário... ({self._aquarium_detection_frames}/{self._aquarium_detection_max_frames})",
                             color="yellow",
                         )
 
                     # Run detection to find aquarium (class_id=0)
                     detector = self.detector_service.detector
                     if detector:
-                        # MELHORIA: Force low confidence threshold (0.05) to match
-                        # AquariumDetector robustness
-                        # This ensures we see the aquarium even if the model is unsure,
-                        # and rely on AREA validation.
+                        # MELHORIA: Force low confidence threshold (0.05) to match AquariumDetector robustness
+                        # This ensures we see the aquarium even if the model is unsure, and rely on AREA validation.
                         detections, _ = detector.detect(frame, "live", conf_threshold=0.05)
 
                         # Collect aquarium bboxes (class_id=0)
@@ -955,10 +950,9 @@ class LiveCameraService:
                         detection_found_in_frame = False
                         for det in detections:
                             if len(det) >= 7:
-                                x1, y1, x2, y2, _, _, class_id = det
+                                x1, y1, x2, y2, conf, track_id, class_id = det
 
-                                # Verify class (allow target class OR huge fish fallback which
-                                # detector might have swapped)
+                                # Verify class (allow target class OR huge fish fallback which detector might have swapped)
                                 if class_id == target_class_id:
                                     bbox_area = (x2 - x1) * (y2 - y1)
                                     if bbox_area >= min_aquarium_area:
@@ -1106,8 +1100,7 @@ class LiveCameraService:
                     # This makes bounding boxes persist instead of flickering
                     detections = self.get_last_detections()
 
-                # ✅ ALWAYS draw overlay when displaying
-                # (even if no detections, so we see the arena)
+                # ✅ ALWAYS draw overlay when displaying (even if no detections, so we see the arena)
                 detector = self.detector_service.detector
                 if detector and should_display:
                     detector.draw_overlay(frame, detections)

@@ -119,8 +119,7 @@ def test_controller_workflow_roundtrip_persists_intervals(
     """Test that ProjectWorkflowService correctly persists interval settings.
 
     Phase 3E: Refactored to test ProjectWorkflowService directly.
-    The ProjectManager persistence is already tested in
-    test_project_manager_persists_interval_settings.
+    The ProjectManager persistence is already tested in test_project_manager_persists_interval_settings.
     """
     from zebtrack.core.project_workflow_service import ProjectWorkflowService
     from zebtrack.core.state_manager import StateManager
