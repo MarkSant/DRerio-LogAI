@@ -6,8 +6,13 @@ Delegates specific responsibilities to CanvasRenderer and CanvasEventHandler.
 """
 
 import os
+import typing
+from typing import TYPE_CHECKING, Any
 
 import cv2
+
+if TYPE_CHECKING:
+    from zebtrack.core.detector import MultiAquariumZoneData
 import numpy as np
 import structlog
 import ttkbootstrap as ttk
@@ -1436,7 +1441,7 @@ class CanvasManager:
             self.gui.show_error("Erro", f"Falha ao remover ROI: {e}")
 
     # BGR to color name mapping (matches color_selection_dialog.py)
-    _BGR_COLOR_MAP = {
+    _BGR_COLOR_MAP: typing.ClassVar[dict[tuple[int, int, int], str]] = {
         (0, 128, 0): "Verde",
         (255, 0, 0): "Azul",
         (0, 0, 255): "Vermelho",
@@ -1610,7 +1615,7 @@ class CanvasManager:
     # -------------------------------------------------------------------------
 
     # Distinct colors for each aquarium
-    AQUARIUM_COLORS = {
+    AQUARIUM_COLORS: typing.ClassVar[dict[int, dict[str, Any]]] = {
         0: {"border": (0, 102, 204), "fill": (0, 102, 204, 51), "text": "Aquário 1"},
         1: {"border": (0, 204, 102), "fill": (0, 204, 102, 51), "text": "Aquário 2"},
     }
@@ -1679,7 +1684,7 @@ class CanvasManager:
                         label += f" - {aq.group}"
 
                     # Draw background rectangle for label
-                    (text_w, text_h), baseline = cv2.getTextSize(
+                    (text_w, text_h), _ = cv2.getTextSize(
                         label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
                     )
                     cv2.rectangle(
@@ -1724,7 +1729,7 @@ class CanvasManager:
             if detections_by_aquarium and aq.id in detections_by_aquarium:
                 for det in detections_by_aquarium[aq.id]:
                     if len(det) >= 6:
-                        x1, y1, x2, y2, conf, track_id = det[:6]
+                        x1, y1, x2, y2, _, track_id = det[:6]
                         x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
                         # Draw bounding box
@@ -1822,7 +1827,7 @@ class CanvasManager:
                 border_color = self.hex_to_bgr(border_color[0])
                 for det in detections_by_aquarium[aq.id]:
                     if len(det) >= 6:
-                        dx1, dy1, dx2, dy2, conf, track_id = det[:6]
+                        dx1, dy1, dx2, dy2, _, track_id = det[:6]
                         # Adjust to crop coordinates
                         dx1, dy1 = int(dx1 - x1), int(dy1 - y1)
                         dx2, dy2 = int(dx2 - x1), int(dy2 - y1)

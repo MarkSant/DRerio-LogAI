@@ -189,7 +189,7 @@ class TestDetectorSetup:
     def test_setup_detector_with_plugins(self, detector_coordinator, mock_detector_service):
         """Test detector setup with custom plugins."""
         plugins = {"custom": MagicMock()}
-        success, error = detector_coordinator.setup_detector(
+        success, _ = detector_coordinator.setup_detector(
             detector_plugins=plugins,
         )
 
@@ -849,7 +849,7 @@ class TestDetectorCoordinatorIntegration:
         )
 
         # Setup detector
-        success, error = coordinator.setup_detector(
+        success, _ = coordinator.setup_detector(
             animal_method="det",
             use_openvino=True,
         )

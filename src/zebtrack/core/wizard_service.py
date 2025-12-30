@@ -22,6 +22,7 @@ from zebtrack.io.arduino import Arduino
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
+    from zebtrack.ui.wizard.models import MultiAquariumData
 
 log = structlog.get_logger()
 
@@ -681,8 +682,8 @@ class WizardService:
         return (True, "")
 
     @staticmethod
-    def validate_multi_aquarium_config(
-        config: "MultiAquariumData",
+    def validate_multi_aquarium_config(  # noqa: C901
+        config: MultiAquariumData,
         sample_filenames: list[str] | None = None,
     ) -> tuple[bool, list[str], list[str]]:
         """

@@ -189,7 +189,7 @@ class TestAquariumAssignmentDialog:
                 # Call confirm handler which updates apply_to_all
                 dialog._on_confirm_click()
 
-                configs, apply_to_all = dialog.get_result()
+                _, apply_to_all = dialog.get_result()
                 assert apply_to_all is True
 
     def test_dynamic_group_addition(self, tkinter_root):

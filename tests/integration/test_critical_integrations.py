@@ -453,7 +453,7 @@ def test_frame_buffer_prevents_lag_in_live_mode(temp_results_dir, sample_zones):
         # Get multiple frames rapidly
         frames_retrieved = 0
         for _ in range(10):
-            ret, frame = camera.get_frame()
+            ret, _ = camera.get_frame()
             if ret:
                 frames_retrieved += 1
             time.sleep(0.05)  # simulate processing time (intentional)

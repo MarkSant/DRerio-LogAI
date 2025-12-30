@@ -17,12 +17,12 @@ Total: ~2600 lines consolidated → ~1400 lines (smart delegation to services)
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
@@ -1957,7 +1957,7 @@ class ProcessingCoordinator(BaseCoordinator):
             processing_start_time=datetime.now(),
         )
 
-    def process_pending_project_videos(
+    def process_pending_project_videos(  # noqa: C901
         self,
         video_paths: list[str] | None = None,
     ) -> None:
@@ -2490,7 +2490,8 @@ class ProcessingCoordinator(BaseCoordinator):
                             )
                             print(f"[DIAGNOSTIC] video_path={video_path!s}")
                             print(
-                                f"[DIAGNOSTIC] has_multi_aquarium_config={bool(multi_aquarium_config)}"
+                        f"[DIAGNOSTIC] has_multi_aquarium_config="
+                        f"{bool(multi_aquarium_config)}"
                             )
 
                             self._publish_event(
@@ -2718,7 +2719,8 @@ class ProcessingCoordinator(BaseCoordinator):
             video_path: Path to the video file
             zone_data: MultiAquariumZoneData with updated aquarium metadata
             old_parquet_files: Parquet files dict captured BEFORE save_multi_aquarium_zone_data
-                              overwrote them. This is needed to find the original Sujeito_Indefinido folder.
+                              overwrote them. This is needed to find the original
+                              Sujeito_Indefinido folder.
         """
         import shutil
         from pathlib import Path
@@ -3719,7 +3721,9 @@ class ProcessingCoordinator(BaseCoordinator):
             try:
                 zone_data = self.project_manager.get_zone_data(video_path=path)
                 if zone_data and zone_data.roi_names and zone_data.roi_colors:
-                    for roi_name, color in zip(zone_data.roi_names, zone_data.roi_colors):
+                    for roi_name, color in zip(
+                        zone_data.roi_names, zone_data.roi_colors, strict=False
+                    ):
                         # Store first color encountered for each ROI name
                         if roi_name not in roi_colors_map:
                             roi_colors_map[roi_name] = color
@@ -3859,7 +3863,8 @@ class ProcessingCoordinator(BaseCoordinator):
 
             # CRITICAL FIX: After renaming, we might have duplicate columns
             # (e.g., if 'distancia' became 'distance' but 'distance' already existed).
-            # We must drop duplicates to avoid "Reindexing only valid with uniquely valued Index objects"
+            # We must drop duplicates to avoid "Reindexing only valid with
+            # uniquely valued Index objects"
             if df.columns.duplicated().any():
                 df = df.loc[:, ~df.columns.duplicated()]
 

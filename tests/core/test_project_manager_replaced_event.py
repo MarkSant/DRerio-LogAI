@@ -23,7 +23,8 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             # Create new project manager
             new_manager = Mock()
 
-            # Create mock services that have project_manager attribute (no _on_project_manager_replaced)
+            # Create mock services that have project_manager attribute
+            # (no _on_project_manager_replaced)
             mock_service1 = Mock(spec=["project_manager"])  # Only project_manager
             mock_service1.project_manager = Mock()
             mock_service2 = Mock(spec=["project_manager"])  # Only project_manager

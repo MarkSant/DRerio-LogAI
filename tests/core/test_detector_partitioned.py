@@ -476,7 +476,7 @@ class TestROICroppingOptimization:
         cropped_0, crop_info_0 = detector._crop_aquarium_region(frame, 0, padding=0)
         assert cropped_0 is not None
         assert crop_info_0 is not None
-        x_off, y_off, w, h = crop_info_0
+        _, _, _, _ = crop_info_0
         # Cropped region should contain the aquarium 0 marker
         assert np.mean(cropped_0[:, :, 0]) > 50  # Blue channel should be present
 
@@ -592,8 +592,8 @@ class TestROICroppingOptimization:
         full_frame_pixels = frame.shape[0] * frame.shape[1]  # 720 * 1280 = 921,600
 
         # Get cropped regions for both aquariums
-        cropped_0, info_0 = detector._crop_aquarium_region(frame, 0, padding=10)
-        cropped_1, info_1 = detector._crop_aquarium_region(frame, 1, padding=10)
+        cropped_0, _ = detector._crop_aquarium_region(frame, 0, padding=10)
+        cropped_1, _ = detector._crop_aquarium_region(frame, 1, padding=10)
 
         if cropped_0 is not None and cropped_1 is not None:
             cropped_pixels = (
@@ -671,7 +671,8 @@ class TestParallelDetection:
         )
 
         frame = np.zeros((720, 1280, 3), dtype=np.uint8)
-        # Return a detection in cropped coordinates (7-tuple format: x1, y1, x2, y2, conf, track_id, class_id)
+        # Return a detection in cropped coordinates
+        # (7-tuple format: x1, y1, x2, y2, conf, track_id, class_id)
         # class_id=1 for zebrafish (matches animal_class_id)
         mock_plugin.detect.return_value = [(10, 10, 50, 50, 0.9, None, 1)]
 

@@ -173,7 +173,7 @@ class TestDetector(unittest.TestCase):
 
         self.assertEqual(len(detections), 1)
         # Unpack 7 elements (x1, y1, x2, y2, confidence, track_id, class_id)
-        x1, y1, x2, y2, confidence, track_id, class_id = detections[0]
+        x1, y1, x2, y2, confidence, track_id, _ = detections[0]
         self.assertIsInstance(track_id, int)
         self.assertGreaterEqual(confidence, 0.0)
         self.assertLessEqual(confidence, 1.0)
@@ -399,14 +399,14 @@ class TestDetectorZoneLogic(unittest.TestCase):
         self.mock_plugin.set_detect_return_value([(150, 150, 160, 160, 0.8, None, 1)])
 
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
-            detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
+            self.detector.detect(dummy_frame, "pre-recorded")
 
         # Verify plugin.detect was called
         self.mock_plugin.detect = MagicMock(return_value=[(150, 150, 160, 160, 0.8, None, 1)])
         self.mock_plugin.set_detect_return_value([(150, 150, 160, 160, 0.8, None, 1)])
 
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
-            detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
+            self.detector.detect(dummy_frame, "pre-recorded")
 
         self.mock_plugin.detect.assert_called()
 
@@ -579,7 +579,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
         # Frame 1: Create a track
         self.mock_plugin.set_detect_return_value([(100, 100, 120, 120, 0.9, None, 1)])
         with patch.object(self.detector, "_is_inside_polygon", return_value=True):
-            detections1, _ = self.detector.detect(dummy_frame, "pre-recorded")
+            self.detector.detect(dummy_frame, "pre-recorded")
         # Track ID is assigned but we'll verify the reset behavior below
 
         # Reset tracking
@@ -702,7 +702,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
         self.assertEqual(len(detections), 1)
 
         # Verify it was converted to class 1
-        x1, y1, x2, y2, conf, track_id, class_id = detections[0]
+        x1, y1, x2, y2, _, _, class_id = detections[0]
         self.assertEqual(class_id, 1)
         self.assertEqual((x1, y1, x2, y2), (500, 500, 510, 510))
 

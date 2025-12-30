@@ -31,7 +31,8 @@ def test_apply_snapping_to_edge():
     #   - X=0: 60. X=100: 40.
     #   - Y=0: 5. (Align with y=0 axis).
     #
-    # O snap_point_to_axes para (60, 5) vai encontrar alinhamento com Y=0 (dos vértices 0,0 e 100,0).
+    # O snap_point_to_axes para (60, 5) vai encontrar alinhamento com Y=0
+    # (dos vértices 0,0 e 100,0).
     # Isso resulta em (60, 0). Distância 5.
     #
     # Edge snap dá (60, 0), distância 5.

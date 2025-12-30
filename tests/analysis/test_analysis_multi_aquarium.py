@@ -348,7 +348,7 @@ class TestReporterMultiAquarium:
             mock_from.return_value = mock_reporter
 
             # Should not raise, just log error
-            paths = Reporter.export_multi_aquarium_reports(
+            Reporter.export_multi_aquarium_reports(
                 results_by_aquarium=mock_analysis_results,
                 output_dirs_by_aquarium=output_dirs,
                 base_name="test_video",

@@ -107,7 +107,7 @@ class TestAquariumSelectorVisibility:
     def test_selector_initially_hidden(self, zone_controls):
         """Test aquarium selector is initially hidden."""
         # Check that the frame is not packed (not visible)
-        info = zone_controls.aquarium_selector_frame.pack_info()
+        zone_controls.aquarium_selector_frame.pack_info()
         # If pack_info doesn't raise, the widget is packed
         # We expect it to NOT be packed initially
         pytest.skip("Widget packing behavior is complex in tests")

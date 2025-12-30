@@ -158,7 +158,7 @@ def test_single_video_workflow_creates_output_files(single_video_test_setup):
     Tests that the video processing workflow components are properly wired together
     and can be called in sequence.
     """
-    controller, video_info, test_config, output_dir, root = single_video_test_setup
+    controller, video_info, test_config, output_dir, _ = single_video_test_setup
 
     # Test that controller has the required services wired together
     assert controller.analysis_service is not None, "Controller should have analysis_service"

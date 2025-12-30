@@ -1009,7 +1009,7 @@ class Reporter:
         )
 
     @staticmethod
-    def export_project_report(
+    def export_project_report(  # noqa: C901
         aggregated_df: pd.DataFrame,
         output_path: Path | str,
         roi_colors: dict[str, tuple[int, int, int]] | None = None,
@@ -1095,14 +1095,16 @@ class Reporter:
                 metrics_of_interest.append(col)
             elif (
                 "Mean Speed in" in col or "Time in" in col
-            ):  # Handle dynamic ROI columns if already renamed (unlikely in raw but checking) or raw ROI columns
+            ):
+                # Handle dynamic ROI columns if already renamed
+                # (unlikely in raw but checking) or raw ROI columns
                 pass
 
         # Filter metrics that actually exist in the dataframe
         available_metrics = [m for m in metrics_of_interest if m in aggregated_df.columns]
 
-        # Also include any numeric columns that appear to be ROI metrics or Geotaxis zones from raw data
-        # (The aggregated_df here comes from Parquet so it has raw names)
+        # Also include any numeric columns that appear to be ROI metrics or Geotaxis zones
+        # from raw data. (The aggregated_df here comes from Parquet so it has raw names)
         for col in aggregated_df.columns:
             if col not in available_metrics:
                 if (

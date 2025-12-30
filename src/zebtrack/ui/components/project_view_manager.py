@@ -153,7 +153,9 @@ class ProjectViewManager:
 
         confirm = self.gui.dialog_manager.ask_ok_cancel(
             "Apagar Dados de Processamento",
-            f"Tem certeza que deseja apagar TODOS os dados de processamento (Arena, ROIs, Trajetória, Relatórios) para:\n\n{os.path.basename(video_path)}?\n\nO vídeo será mantido no projeto.",
+            "Tem certeza que deseja apagar TODOS os dados de processamento "
+            "(Arena, ROIs, Trajetória, Relatórios) para:\n\n"
+            f"{os.path.basename(video_path)}?\n\nO vídeo será mantido no projeto.",
         )
         if not confirm:
             return
@@ -1187,7 +1189,7 @@ class ProjectViewManager:
 
         self._handle_report_file_node({"file_path": str(latest_file)})
 
-    def _delete_all_unified_reports(self, data: dict = None) -> None:
+    def _delete_all_unified_reports(self, data: dict | None = None) -> None:
         """
         Delete the entire unified_reports directory.
         Subscribed to event 'reports.delete_unified'.
@@ -1237,7 +1239,8 @@ class ProjectViewManager:
 
                 msg = "Não foi possível apagar a pasta.\nVerifique se algum arquivo está aberto."
                 if last_error and "OneDrive" in str(unified_dir):
-                    msg += "\n\nO OneDrive pode estar bloqueando arquivos. Tente novamente em instantes."
+                    msg += "\n\nO OneDrive pode estar bloqueando arquivos. " \
+                           "Tente novamente em instantes."
 
                 self.gui.show_error("Erro ao Apagar", f"{msg}\n\nErro: {last_error}")
         else:
@@ -1401,7 +1404,7 @@ class ProjectViewManager:
 
         log.debug("project_view_manager.reports_tree_updated")
 
-    def _populate_reports_tree_from_hierarchy(
+    def _populate_reports_tree_from_hierarchy(  # noqa: C901
         self,
         tree,
         hierarchy: dict,
@@ -1449,7 +1452,8 @@ class ProjectViewManager:
                     if isinstance(first_video, dict):
                         meta = first_video.get("metadata", {})
                         if meta and meta.get("day") is not None:
-                            # Use ValidationManager logic or similar consistent formatting if available
+                            # Use ValidationManager logic or similar consistent formatting
+                            # if available.
                             # For now, simplistic fallback to match previous potential intent
                             day_val = meta.get("day")
                             day_label = (

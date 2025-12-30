@@ -497,7 +497,7 @@ class VisualizationGenerator:
             fig.colorbar(im, ax=ax, label="Occupancy Density")
         return fig
 
-    def generate_roi_reference_plot(
+    def generate_roi_reference_plot(  # noqa: C901
         self,
         ax: Axes | None = None,
         video_path: str | None = None,
