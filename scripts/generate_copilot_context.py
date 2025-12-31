@@ -157,7 +157,8 @@ def scan_key_files() -> dict[str, Any]:
     file_index = {}
     for key, path in key_files.items():
         if path.exists():
-            rel_path = path.relative_to(BASE_DIR)
+            # Normalize to POSIX separators so YAML strings avoid backslash escapes on Windows
+            rel_path = path.relative_to(BASE_DIR).as_posix()
             analysis = analyze_file(path)
             file_index[key] = {
                 "path": str(rel_path),
@@ -173,6 +174,9 @@ def generate_yaml_context() -> str:
     architecture = build_architecture_map()
     _ = build_decision_trees()  # Reserved for future use
     file_index = scan_key_files()
+
+    discovered_json = json.dumps(file_index, indent=2)
+    discovered_block = "\n".join(f"  {line}" for line in discovered_json.splitlines())
 
     yaml_content = f"""# ZebTrack-AI Copilot Context Map (Auto-generated)
 # Generated: {Path(__file__).name}
@@ -279,7 +283,7 @@ critical_docs:
 # === FILE STATS ===
 # Auto-discovered classes and entry points
 discovered_classes:
-{json.dumps(file_index, indent=2)}
+{discovered_block}
 """
     return yaml_content
 
