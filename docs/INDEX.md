@@ -20,6 +20,7 @@ docs/
 ├── README.md                # Documentation entry point
 ├── changelog.md             # Version history
 ├── VULNERABILITY_REPORT.md  # Active security tracking
+├── LIVE_CAMERA_V2.2_COMPLETE.md  # Live camera v2.2.0 implementation
 │
 ├── architecture/            # System design & patterns
 ├── guides/                  # Developer & user guides
@@ -87,6 +88,8 @@ docs/
 
 ### Feature-Specific Guides
 
+- **[Live Camera v2.2.0 Complete](LIVE_CAMERA_V2.2_COMPLETE.md)** - ✨ Multi-aquarium, disconnect recovery, batch reports
+- **[Live Camera Multi-Aquarium](guides/developer/LIVE_CAMERA_MULTI_AQUARIUM.md)** - Developer guide for v2.2
 - **[Live Camera Unification](guides/developer/LIVE_CAMERA_UNIFICATION.md)** - v2.1 camera architecture
 - **[Wizard & Live Improvements](guides/developer/WIZARD_LIVE_IMPROVEMENTS.md)** - Phase 4-7 enhancements
 - **[Multi-Aquarium v2](decisions/ADR-001-multi-aquarium-support.md)** - Parallel detection, batch inference, ROI cropping, uncertainty tracking, thigmotaxis metrics

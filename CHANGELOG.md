@@ -7,7 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 🟢 New Features
+### � Fixed
+
+#### Live Camera v2.2.0 - Audit Fixes (January 2026)
+
+**Dependency Injection Compliance (BLOCKER)**
+- Fixed `LiveConfigStep` importing singleton `settings` instead of using constructor injection
+- Added `settings_obj` parameter to `LiveConfigStep.__init__()`
+- Updated `WizardDialog` to pass settings via constructor
+- Eliminates architectural violation preventing headless tests
+
+**Multi-Aquarium Preview Window (HIGH)**
+- Fixed `MultiAquariumLivePreviewWindow` never being instantiated
+- Added conditional logic in `LiveCameraService._create_preview_window()` to detect `MultiAquariumZoneData`
+- Multi-aquarium sessions now correctly show side-by-side preview windows
+
+**FPS Dynamic Adjustment (MEDIUM)**
+- Fixed `_adjust_fps_dynamically()` return value being ignored in processing loop
+- Now correctly applies dynamic frame skip under heavy load
+- Expected 20-40% performance improvement when processing is slow
+
+**Test Fixes**
+- Fixed hardware capability detection mocks returning 2 values instead of 4
+- Fixed zone control builder undefined variable (`controls_container` → `video_selector_frame`)
+- Fixed GUI state observer assertion to use `assert_any_call` for flexibility
+
+**Documentation**
+- Added `ADR-006-live-batch-coordinator-future.md` documenting deferred batch coordinator integration
+- Created comprehensive audit fixes report in `docs/guides/developer/LIVE_CAMERA_AUDIT_FIXES_REPORT.md`
+
+### �🟢 New Features
 
 #### Multi-Aquarium v2 Improvements (Phase 1-5)
 

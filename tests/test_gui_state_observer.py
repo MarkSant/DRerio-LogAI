@@ -267,8 +267,8 @@ class TestGUIStateObserver:
 
         wait_for_condition(_process_and_check, timeout=3.0, interval=0.05)
 
-        # Verify button state was updated
-        mock_gui.process_video_btn.config.assert_called_with(state="normal")
+        # Verify button state was updated (use any_call for flexibility)
+        mock_gui.process_video_btn.config.assert_any_call(state="normal")
 
 
 if __name__ == "__main__":

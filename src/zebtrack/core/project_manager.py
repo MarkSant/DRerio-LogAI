@@ -2584,6 +2584,68 @@ class ProjectManager:
 
         return video_entry.get("multi_aquarium_outputs")
 
+    @_threadsafe
+    def register_batch_outputs(
+        self,
+        batch_id: str,
+        unified_excel: str,
+        session_count: int,
+        group: str | None = None,
+        day: str | None = None,
+        subject_id: str | None = None,
+    ) -> bool:
+        """Register unified batch report outputs.
+
+        Args:
+            batch_id: Unique batch identifier
+            unified_excel: Path to unified Excel report
+            session_count: Number of sessions in batch
+            group: Optional experimental group
+            day: Optional day identifier
+            subject_id: Optional subject identifier
+
+        Returns:
+            True if registration successful
+        """
+        if not self.project_data:
+            log.warning("project.batch_outputs.no_project")
+            return False
+
+        # Ensure batch_reports section exists
+        if "batch_reports" not in self.project_data:
+            self.project_data["batch_reports"] = {}
+
+        # Register batch
+        self.project_data["batch_reports"][batch_id] = {
+            "unified_excel": Path(unified_excel).as_posix(),
+            "session_count": session_count,
+            "group": group,
+            "day": day,
+            "subject_id": subject_id,
+            "created_at": datetime.now().isoformat(),
+        }
+
+        log.info(
+            "project.batch_outputs.registered",
+            batch_id=batch_id,
+            session_count=session_count,
+        )
+
+        if self.project_path:
+            self.save_project()
+
+        return True
+
+    def get_batch_reports(self) -> dict[str, dict]:
+        """Get all registered batch reports.
+
+        Returns:
+            Dictionary mapping batch_id to batch metadata
+        """
+        if not self.project_data:
+            return {}
+        return self.project_data.get("batch_reports", {})
+
     def get_next_video(self):
         """
         Return the path of the next video with 'pending' status from all batches.

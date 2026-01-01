@@ -101,6 +101,9 @@ class UICoordinator:
         self._events_handled = 0
         self._errors_count = 0
 
+        # v2.2.0: Progress dialog for aquarium detection
+        self._aquarium_detection_dialog = None
+
         # Setup subscriptions to all relevant events
         self._setup_subscriptions()
 
@@ -148,6 +151,12 @@ class UICoordinator:
 
         # External Trigger Events
         self.event_bus.subscribe(UIEvents.EXTERNAL_TRIGGER_NOTICE, self._on_external_trigger_notice)
+
+        # Live Camera Events (v2.2.0)
+        self.event_bus.subscribe("CAMERA_DISCONNECT_DETECTED", self._on_camera_disconnect)
+        self.event_bus.subscribe("CAMERA_RECONNECTED", self._on_camera_reconnected)
+        self.event_bus.subscribe("AQUARIUM_DETECTION_PROGRESS", self._on_aquarium_detection_progress)
+        self.event_bus.subscribe("BATCH_ANALYSIS_COMPLETED", self._on_batch_analysis_completed)
         self.event_bus.subscribe(
             UIEvents.EXTERNAL_TRIGGER_NOTICE_CLEARED, self._on_external_trigger_notice_cleared
         )
@@ -505,6 +514,233 @@ class UICoordinator:
             "events_handled": self._events_handled,
             "errors_count": self._errors_count,
         }
+
+    # =========================================================================
+    # Live Camera Event Handlers (v2.2.0)
+    # =========================================================================
+
+    def _on_camera_disconnect(self, event_data: dict[str, Any]) -> None:
+        """Handle camera disconnect event.
+
+        Shows recovery dialog with options: Wait | Resume | Stop.
+
+        Args:
+            event_data: Event payload with gap_duration_s, experiment_id, etc.
+        """
+        try:
+            from zebtrack.ui.dialogs.camera_disconnect_recovery_dialog import (
+                CameraDisconnectRecoveryDialog,
+            )
+
+            gap_duration = event_data.get("gap_duration_s", 0.0)
+            experiment_id = event_data.get("experiment_id", "unknown")
+
+            log.info(
+                "ui_coordinator.camera_disconnect",
+                experiment_id=experiment_id,
+                gap_duration_s=gap_duration,
+            )
+
+            def show_dialog():
+                if not self.root:
+                    log.warning("ui_coordinator.camera_disconnect.no_root")
+                    return
+
+                def on_action(action):
+                    """Forward user action to live camera service."""
+                    log.info(
+                        "ui_coordinator.camera_disconnect.user_action",
+                        action=action,
+                        experiment_id=experiment_id,
+                    )
+                    # Publish action event for LiveCameraService to handle
+                    self.event_bus.publish_event(
+                        "CAMERA_DISCONNECT_USER_ACTION",
+                        {"action": action, "experiment_id": experiment_id},
+                    )
+
+                dialog = CameraDisconnectRecoveryDialog(
+                    parent=self.root,
+                    gap_duration_s=gap_duration,
+                    experiment_id=experiment_id,
+                    on_action_callback=on_action,
+                )
+
+            self._safe_ui_call(show_dialog)
+            self._events_handled += 1
+
+        except Exception as e:
+            log.error(
+                "ui_coordinator.camera_disconnect.error",
+                error=str(e),
+                exc_info=True,
+            )
+            self._errors_count += 1
+
+    def _on_camera_reconnected(self, event_data: dict[str, Any]) -> None:
+        """Handle camera reconnected event.
+
+        Logs reconnection and optionally shows toast notification.
+
+        Args:
+            event_data: Event payload with gap_duration_s, total_gaps, etc.
+        """
+        try:
+            gap_duration = event_data.get("gap_duration_s", 0.0)
+            total_gaps = event_data.get("total_gaps", 0)
+
+            log.info(
+                "ui_coordinator.camera_reconnected",
+                gap_duration_s=gap_duration,
+                total_gaps=total_gaps,
+            )
+
+            # Update status synchronizer if available
+            if self.state_synchronizer:
+
+                def update_status():
+                    self.state_synchronizer.update_status(
+                        f"Câmera reconectada (gap: {gap_duration:.1f}s)"
+                    )
+
+                self._safe_ui_call(update_status)
+
+            self._events_handled += 1
+
+        except Exception as e:
+            log.error(
+                "ui_coordinator.camera_reconnected.error",
+                error=str(e),
+                exc_info=True,
+            )
+            self._errors_count += 1
+
+    def _on_aquarium_detection_progress(self, event_data: dict[str, Any]) -> None:
+        """Handle aquarium detection progress event.
+
+        Creates dialog on first event, updates it on subsequent events.
+        Closes dialog when frame count reaches max_frames (100).
+
+        Args:
+            event_data: Event payload with frame_number, frame_image, bbox, etc.
+        """
+        try:
+            frame_number = event_data.get("frame_number", 0)
+            experiment_id = event_data.get("experiment_id", "unknown")
+            frame_image = event_data.get("frame_image")
+            detected_bbox = event_data.get("detected_bbox")
+            is_valid = event_data.get("is_valid", False)
+
+            log.debug(
+                "ui_coordinator.aquarium_detection_progress",
+                frame_number=frame_number,
+                experiment_id=experiment_id,
+                has_image=frame_image is not None,
+            )
+
+            # Create dialog on first event (frame 1)
+            if self._aquarium_detection_dialog is None and frame_number == 1:
+                if self.root:
+                    from zebtrack.ui.dialogs.aquarium_detection_progress_dialog import (
+                        AquariumDetectionProgressDialog,
+                    )
+
+                    def create_dialog():
+                        self._aquarium_detection_dialog = AquariumDetectionProgressDialog(
+                            parent=self.root,
+                            experiment_id=experiment_id,
+                            max_frames=100,
+                        )
+
+                    self._safe_ui_call(create_dialog)
+
+            # Update dialog if it exists
+            if self._aquarium_detection_dialog and self.root:
+                def update_dialog():
+                    if self._aquarium_detection_dialog:
+                        self._aquarium_detection_dialog.update_progress(
+                            frame_number=frame_number,
+                            frame_image=frame_image,
+                            detected_bbox=detected_bbox,
+                            is_valid=is_valid,
+                        )
+
+                        # Close dialog when detection phase completes
+                        if frame_number >= 100:
+                            try:
+                                self._aquarium_detection_dialog.destroy()
+                            except Exception:
+                                pass
+                            finally:
+                                self._aquarium_detection_dialog = None
+
+                self._safe_ui_call(update_dialog)
+
+            # Update status bar every 10 frames
+            if self.state_synchronizer and frame_number % 10 == 0:
+
+                def update_status():
+                    self.state_synchronizer.update_status(
+                        f"Detectando aquário: frame {frame_number}/100"
+                    )
+
+                self._safe_ui_call(update_status)
+
+            self._events_handled += 1
+
+        except Exception as e:
+            log.error(
+                "ui_coordinator.aquarium_detection_progress.error",
+                error=str(e),
+                exc_info=True,
+            )
+            self._errors_count += 1
+
+    def _on_batch_analysis_completed(self, event_data: dict[str, Any]) -> None:
+        """Handle batch analysis completed event.
+
+        Refreshes project views to show unified report.
+
+        Args:
+            event_data: Event payload with batch_id, session_count, etc.
+        """
+        try:
+            batch_id = event_data.get("batch_id", "unknown")
+            session_count = event_data.get("session_count", 0)
+
+            log.info(
+                "ui_coordinator.batch_analysis_completed",
+                batch_id=batch_id,
+                session_count=session_count,
+            )
+
+            # Refresh project views to show new unified report
+            if self.project_view_manager:
+
+                def refresh_views():
+                    self.project_view_manager.refresh_reports_tree()
+
+                self._safe_ui_call(refresh_views)
+
+            # Update status
+            if self.state_synchronizer:
+
+                def update_status():
+                    self.state_synchronizer.update_status(
+                        f"Relatório unificado gerado: {session_count} sessões"
+                    )
+
+                self._safe_ui_call(update_status)
+
+            self._events_handled += 1
+
+        except Exception as e:
+            log.error(
+                "ui_coordinator.batch_analysis_completed.error",
+                error=str(e),
+                exc_info=True,
+            )
+            self._errors_count += 1
 
     def reset_statistics(self) -> None:
         """Reset coordinator statistics (useful for testing)."""

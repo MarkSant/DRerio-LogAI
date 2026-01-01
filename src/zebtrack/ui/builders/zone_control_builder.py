@@ -345,7 +345,7 @@ class ZoneControlBuilder:
         ).pack(pady=(5, 0))
 
         # 3.2. Legend section
-        legend_frame = ttk.Frame(controls_container)
+        legend_frame = ttk.Frame(video_selector_frame)
         legend_frame.pack(fill="x", padx=10, pady=(5, 5))
 
         self.status_legend_label = ttk.Label(

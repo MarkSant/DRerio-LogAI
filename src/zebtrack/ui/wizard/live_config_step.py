@@ -25,11 +25,17 @@ from tkinter import (
 
 import structlog
 
+from zebtrack.core.live_camera_mode import LiveCameraMode, LiveCameraModeSelector
 from zebtrack.core.wizard_service import WizardService
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner
 from zebtrack.ui.wizard.tooltip import ToolTip
+from zebtrack.utils.hardware_capability import (
+    HardwareCapabilityDetector,
+    HardwareCapabilityReport,
+    MultiAquariumCapability,
+)
 
 log = structlog.get_logger()
 
@@ -56,10 +62,11 @@ class LiveConfigStep(WizardStep):
         }
     """
 
-    def __init__(self, parent, wizard_data: dict):
+    def __init__(self, parent, wizard_data: dict, settings_obj: "Settings | None" = None):
         """Initialize live config step."""
         super().__init__(parent, wizard_data)
         self.step_id = WizardStepID.LIVE_CONFIG
+        self.settings_obj = settings_obj
 
         # UI state
         self.camera_selection_var = StringVar(value="")  # Stores camera display name
@@ -81,6 +88,10 @@ class LiveConfigStep(WizardStep):
         self.arduino_port_map = {}  # Maps display name -> port device
         self.template_info_var = StringVar(value="")
         self.template_info_label = None
+
+        # Hardware capability (v2.2.0)
+        self.hardware_report: HardwareCapabilityReport | None = None
+        self.selected_mode: LiveCameraMode | None = None
 
     def build_ui(self):
         """Build live configuration UI."""
@@ -423,6 +434,9 @@ class LiveConfigStep(WizardStep):
         self._on_timed_toggle()
         self._on_countdown_toggle()
 
+        # v2.2.0: Detect hardware capability
+        self._detect_hardware_capability()
+
     def _update_template_banner(self):
         banner_text = format_template_banner(self.wizard_data.get("template_metadata"))
 
@@ -439,6 +453,127 @@ class LiveConfigStep(WizardStep):
         """Restore processing intervals to default values."""
         self.analysis_interval_var.set(10)
         self.display_interval_var.set(10)
+
+    def _detect_hardware_capability(self) -> None:
+        """Detect hardware capability for multi-aquarium processing.
+
+        Runs hardware assessment and stores report for later validation.
+        Shows warning if hardware is insufficient for real-time processing.
+        """
+        try:
+            # Use injected settings_obj
+            detector = HardwareCapabilityDetector(self.settings_obj)
+            self.hardware_report = detector.assess_capability()
+
+            log.info(
+                "live_config.hardware_detected",
+                capability=self.hardware_report.capability.name,
+                max_aquariums=self.hardware_report.max_aquariums_recommended,
+                can_realtime=self.hardware_report.can_process_realtime,
+            )
+
+            # Show info message if hardware is limited/insufficient
+            if self.hardware_report.capability in [
+                MultiAquariumCapability.LIMITED,
+                MultiAquariumCapability.INSUFFICIENT,
+            ]:
+                msg = (
+                    f"Hardware Detectado:\n\n"
+                    f"Capacidade: {self.hardware_report.capability.name}\n"
+                    f"CPU: {self.hardware_report.cpu_cores} cores\n"
+                    f"RAM: {self.hardware_report.available_memory_gb:.1f} GB\n"
+                    f"GPU: {'Sim' if self.hardware_report.has_gpu else 'Não'}\n\n"
+                )
+
+                if self.hardware_report.capability == MultiAquariumCapability.INSUFFICIENT:
+                    msg += (
+                        "⚠️ Seu sistema NÃO suporta processamento em tempo real.\n"
+                        "Recomendação: Use modo 'Apenas Gravação' (offline)."
+                    )
+                else:
+                    msg += (
+                        f"Aquários suportados: {self.hardware_report.max_aquariums_recommended}\n"
+                        f"Multi-aquário em tempo real pode não ser possível."
+                    )
+
+                messagebox.showinfo("Detecção de Hardware", msg, parent=self)
+
+        except Exception as e:
+            log.error("live_config.hardware_detection_failed", error=str(e))
+            # Non-critical - continue without hardware report
+            self.hardware_report = None
+
+    def _check_mode_compatibility(self, requested_aquariums: int) -> bool:
+        """Check if requested aquarium count is compatible with hardware.
+
+        Shows mode selection dialog if hardware insufficient.
+
+        Args:
+            requested_aquariums: Number of aquariums from zone config step
+
+        Returns:
+            True if mode selected/compatible, False if user cancelled
+        """
+        if not self.hardware_report:
+            # No hardware report - allow proceeding (fail gracefully)
+            log.warning("live_config.no_hardware_report")
+            return True
+
+        # Use LiveCameraModeSelector to get recommendation
+        selector = LiveCameraModeSelector(self.settings_obj)
+        recommendation = selector.recommend_mode(
+            requested_aquariums=requested_aquariums, hardware_report=self.hardware_report
+        )
+
+        # Check if recommended mode is different from multi-aquarium real-time
+        if (
+            requested_aquariums > 1
+            and recommendation.recommended_mode != LiveCameraMode.MULTI_AQUARIUM_REALTIME
+        ):
+            # Show mode selection dialog
+            return self._show_mode_selection_dialog(requested_aquariums, recommendation)
+        else:
+            # Hardware supports requested config or single aquarium
+            self.selected_mode = (
+                LiveCameraMode.MULTI_AQUARIUM_REALTIME
+                if requested_aquariums > 1
+                else LiveCameraMode.SINGLE_AQUARIUM_REALTIME
+            )
+            return True
+
+    def _show_mode_selection_dialog(self, requested_aquariums: int, recommendation) -> bool:
+        """Show mode selection dialog and wait for user choice.
+
+        Args:
+            requested_aquariums: Number of aquariums requested
+            recommendation: LiveCameraModeRecommendation from selector
+
+        Returns:
+            True if mode selected, False if user cancelled
+        """
+        from zebtrack.ui.dialogs.live_camera_mode_selection_dialog import (
+            LiveCameraModeSelectionDialog,
+        )
+
+        mode_selected = [False]  # Mutable flag for callback
+
+        def on_mode_selected(mode: LiveCameraMode) -> None:
+            self.selected_mode = mode
+            mode_selected[0] = True
+            log.info("live_config.mode_selected", mode=mode.name)
+
+        dialog = LiveCameraModeSelectionDialog(
+            parent=self,
+            requested_aquariums=requested_aquariums,
+            hardware_report=self.hardware_report,
+            recommendation=recommendation,
+            on_mode_selected=on_mode_selected,
+        )
+
+        # Wait for dialog to close
+        self.wait_window(dialog)
+
+        return mode_selected[0]
 
     def _on_arduino_toggle(self):
         """Enable/disable Arduino controls based on checkbox."""
@@ -634,7 +769,43 @@ class LiveConfigStep(WizardStep):
             # Use WizardService for validation
             is_valid, error_msg = WizardService.validate_live_config(data)
 
-            return (is_valid, error_msg)
+            if not is_valid:
+                return (is_valid, error_msg)
+
+            # v2.2.0: Check mode compatibility with zone config
+            zone_data = self.wizard_data.get("zone_config", {})
+            zones = zone_data.get("zones", [])
+            requested_aquariums = len(zones) if zones else 1
+
+            # v2.2.0: Enforce 2-aquarium constraint for live recording
+            if requested_aquariums > 2:
+                import tkinter.messagebox as messagebox
+
+                messagebox.showwarning(
+                    "Limitação de Aquários",
+                    f"⚠️ Gravação simultânea limitada a 2 aquários.\n\n"
+                    f"Seu projeto tem {requested_aquariums} aquários configurados.\n\n"
+                    f"Opções:\n"
+                    f"• Reduza para 2 aquários na configuração de zonas\n"
+                    f"• Use modo sequencial (processar aquários separadamente)\n"
+                    f"• Processe offline após gravação sem detecção",
+                )
+                return (False, f"Projeto com {requested_aquariums} aquários excede o limite de 2 para gravação simultânea.")
+
+            # Check if hardware supports requested aquarium count
+            if not self._check_mode_compatibility(requested_aquariums):
+                return (False, "Seleção de modo cancelada. Por favor, ajuste o número de aquários ou selecione um modo compatível.")
+
+            # Store selected mode in wizard_data for later use
+            if self.selected_mode:
+                self.wizard_data["selected_live_mode"] = self.selected_mode.name
+                log.info(
+                    "live_config.mode_stored",
+                    mode=self.selected_mode.name,
+                    aquariums=requested_aquariums,
+                )
+
+            return (True, "")
 
         except Exception as e:
             return (False, f"Erro ao validar dados: {e!s}")
@@ -676,6 +847,8 @@ class LiveConfigStep(WizardStep):
             "countdown_duration_s": self.countdown_duration_var.get(),
             "analysis_interval_frames": self.analysis_interval_var.get(),
             "display_interval_frames": self.display_interval_var.get(),
+            # v2.2.0: Include selected mode for coordinator integration
+            "selected_live_mode": self.wizard_data.get("selected_live_mode"),
         }
 
     def set_data(self, data: dict):

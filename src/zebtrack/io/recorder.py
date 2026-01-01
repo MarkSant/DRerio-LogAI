@@ -83,6 +83,11 @@ class Recorder:
         # Uncertainty tracking (Phase 1.2)
         self._last_detections_by_track: dict[int, tuple[float, float, float, float]] = {}
 
+        # Pause/Resume support (v2.2.0) for camera disconnect recovery
+        self._is_paused: bool = False
+        self._pause_start_time: float | None = None
+        self._total_paused_duration: float = 0.0
+
         # Extract settings with defaults
         self._fps = 30.0  # Default fps
         if settings_obj:
@@ -277,6 +282,80 @@ class Recorder:
         self._last_detections_by_track.clear()
         log_context.info("recorder.start.success")
         return True
+
+    def pause_recording(self) -> bool:
+        """Pause recording during camera disconnect.
+
+        Prevents writing frames/detections until resumed.
+        Tracks pause duration for metadata.
+
+        Returns:
+            True if paused successfully, False if not recording or already paused
+        """
+        if not self.is_recording:
+            log.warning("recorder.pause.not_recording")
+            return False
+
+        if self._is_paused:
+            log.warning("recorder.pause.already_paused")
+            return False
+
+        self._is_paused = True
+        self._pause_start_time = time.time()
+
+        log.info(
+            "recorder.pause.success",
+            base_name=self.base_name,
+            frame_count=self.frame_count,
+        )
+        return True
+
+    def resume_recording(self) -> bool:
+        """Resume recording after camera reconnect.
+
+        Accumulates pause duration and continues recording.
+
+        Returns:
+            True if resumed successfully, False if not paused
+        """
+        if not self._is_paused:
+            log.warning("recorder.resume.not_paused")
+            return False
+
+        if self._pause_start_time is not None:
+            pause_duration = time.time() - self._pause_start_time
+            self._total_paused_duration += pause_duration
+
+            log.info(
+                "recorder.resume.success",
+                base_name=self.base_name,
+                pause_duration_s=f"{pause_duration:.1f}",
+                total_paused_s=f"{self._total_paused_duration:.1f}",
+            )
+
+        self._is_paused = False
+        self._pause_start_time = None
+        return True
+
+    def is_paused(self) -> bool:
+        """Check if recorder is currently paused.
+
+        Returns:
+            True if paused
+        """
+        return self._is_paused
+
+    def get_pause_metadata(self) -> dict:
+        """Get pause/resume metadata for session report.
+
+        Returns:
+            Dict with pause statistics
+        """
+        return {
+            "is_paused": self._is_paused,
+            "total_paused_duration_s": self._total_paused_duration,
+            "pause_start_time": self._pause_start_time,
+        }
 
     def stop_recording(self, force_stop: bool = False, reason: str | None = None):
         """
@@ -557,6 +636,10 @@ class Recorder:
 
     def write_video_frame(self, frame):
         """Writes a single frame to the video file."""
+        # Skip writing if paused (camera disconnected)
+        if self._is_paused:
+            return
+
         if self.is_recording and self.video_writer:
             self.video_writer.write(frame)
 
@@ -565,6 +648,15 @@ class Recorder:
         if not self.is_recording:
             log.warning(
                 "recorder.write_detection_data.not_recording",
+                frame=frame_number,
+                num_detections=len(detections),
+            )
+            return
+
+        # Skip writing if paused (camera disconnected)
+        if self._is_paused:
+            log.debug(
+                "recorder.write_detection_data.paused",
                 frame=frame_number,
                 num_detections=len(detections),
             )

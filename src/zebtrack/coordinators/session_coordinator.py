@@ -1060,6 +1060,15 @@ class SessionCoordinator(BaseCoordinator):
             animals_per_aquarium=animals_per_aquarium,
         )
 
+        # v2.2.0: Apply preferred mode if selected in wizard
+        selected_mode = config.get("selected_live_mode")
+        if selected_mode:
+            self.live_camera_service.set_preferred_mode(selected_mode)
+            log.info(
+                "session_coordinator.live_analysis.preferred_mode_applied",
+                mode=selected_mode,
+            )
+
         # Delegate to LiveCameraService
         # ✅ FIX: Use integrated canvas preview (no external window)
         success = self.live_camera_service.start_session(

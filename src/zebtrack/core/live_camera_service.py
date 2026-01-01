@@ -198,6 +198,22 @@ class LiveCameraService:
         self._dropped_frames_processing: int = 0  # Frames dropped from frame_queue
         self._dropped_frames_video: int = 0  # Frames dropped from video_queue
 
+        # Live Camera v2.2.0: User action tracking
+        self._user_disconnect_action: str | None = None  # wait | resume | stop
+
+        # Subscribe to user action events
+        if self.event_bus:
+            self.event_bus.subscribe(
+                "CAMERA_DISCONNECT_USER_ACTION", self._on_disconnect_user_action
+            )
+
+        # Camera disconnect detection (v2.2.0)
+        self._last_valid_frame_time: float | None = None  # Timestamp of last successful frame
+        self._camera_disconnect_threshold_s: float = 2.0  # Gap threshold for disconnect detection
+        self._camera_disconnected: bool = False  # Disconnect state flag
+        self._disconnect_gaps: list[tuple[float, float]] = []  # List of (start_time, end_time) gaps
+        self._recording_paused: bool = False  # Recorder pause state
+
         # Aquarium detection phase state
         self._aquarium_detection_phase: bool = False
         self._aquarium_detection_frames: int = 0
@@ -208,6 +224,16 @@ class LiveCameraService:
         self._arena_defined_event = threading.Event()  # Signal when arena is ready
         self._animals_per_aquarium: int = 1  # Default to single subject
         self._use_external_preview: bool = False  # Track if using external UI (CanvasManager)
+
+        # v2.2.0: Dynamic FPS adjustment
+        self._target_fps: float = 30.0  # Default target FPS
+        self._current_fps: float = 30.0  # Measured FPS
+        self._processing_times: list[float] = []  # Rolling window of processing times
+        self._frame_skip_count: int = 0  # Number of frames to skip
+        self._fps_adjustment_interval: int = 30  # Adjust every N frames
+
+        # v2.2.0: Mode selection integration
+        self._preferred_mode: Any = None  # LiveCameraMode enum value (optional)
 
     @property
     def camera(self) -> Camera | None:
@@ -300,6 +326,32 @@ class LiveCameraService:
         """Thread-safe setter for last detections."""
         with self._lock:
             self._last_detections = list(detections)
+
+    def set_preferred_mode(self, mode: Any) -> None:
+        """Set preferred live camera mode from wizard selection.
+
+        Args:
+            mode: LiveCameraMode enum value or string name
+        """
+        if isinstance(mode, str):
+            # Convert string to enum
+            try:
+                from zebtrack.core.live_camera_mode import LiveCameraMode
+                self._preferred_mode = LiveCameraMode[mode]
+                log.info("live_camera_service.preferred_mode_set", mode=mode)
+            except (KeyError, ImportError) as e:
+                log.warning(
+                    "live_camera_service.preferred_mode_invalid",
+                    mode=mode,
+                    error=str(e),
+                )
+                self._preferred_mode = None
+        else:
+            self._preferred_mode = mode
+            log.info(
+                "live_camera_service.preferred_mode_set",
+                mode=mode.name if hasattr(mode, 'name') else str(mode),
+            )
 
     def start_session(  # noqa: C901
         self,
@@ -773,6 +825,8 @@ class LiveCameraService:
     def _create_preview_window(self, camera_index: int, duration_s: float):
         """Create the live preview window."""
         from zebtrack.ui.dialogs import LivePreviewWindow
+        from zebtrack.ui.dialogs.multi_aquarium_live_preview_window import MultiAquariumLivePreviewWindow
+        from zebtrack.core.zone_manager import MultiAquariumZoneData
 
         def on_stop_callback():
             """Handle manual stop from preview window."""
@@ -785,14 +839,32 @@ class LiveCameraService:
                 # Fallback if output_dir not available
                 self.stop_session()
 
-        self.preview_window = LivePreviewWindow(
-            parent=self.root,
-            camera_index=camera_index,
-            duration_s=duration_s,
-            on_stop_callback=on_stop_callback,
-        )
+        # ✅ FIX: Check if multi-aquarium mode and create appropriate window
+        zone_data = self.project_manager.get_zone_data() if self.project_manager else None
 
-        log.info("live_camera_service.preview_window_created")
+        if isinstance(zone_data, MultiAquariumZoneData) and zone_data.aquariums:
+            # Multi-aquarium mode
+            num_aquariums = len(zone_data.aquariums)
+            self.preview_window = MultiAquariumLivePreviewWindow(
+                parent=self.root,
+                camera_index=camera_index,
+                num_aquariums=num_aquariums,
+                duration_s=duration_s,
+                on_stop_callback=on_stop_callback,
+            )
+            log.info(
+                "live_camera_service.multi_aquarium_preview_window_created",
+                num_aquariums=num_aquariums,
+            )
+        else:
+            # Standard single-aquarium mode
+            self.preview_window = LivePreviewWindow(
+                parent=self.root,
+                camera_index=camera_index,
+                duration_s=duration_s,
+                on_stop_callback=on_stop_callback,
+            )
+            log.info("live_camera_service.preview_window_created")
 
     def _start_threads(self) -> bool:
         """Start capture and processing threads."""
@@ -847,8 +919,20 @@ class LiveCameraService:
                 ret, frame = self.camera.get_frame()
                 if not ret or frame is None:
                     log.warning("live_camera_service.frame_capture_failed", frame_count=frame_count)
+
+                    # Check for camera disconnect
+                    self._check_camera_disconnect()
+
                     time.sleep(0.1)
                     continue
+
+                # Update last valid frame timestamp
+                current_time = time.time()
+                self._last_valid_frame_time = current_time
+
+                # If we were disconnected, mark reconnection
+                if self._camera_disconnected:
+                    self._on_camera_reconnected()
 
                 frame_count += 1
 
@@ -998,6 +1082,21 @@ class LiveCameraService:
                                                 total_collected=len(self._detected_aquarium_bboxes),
                                                 area_ratio=f"{bbox_area / frame_area:.2f}",
                                             )
+
+                                        # Publish progress event
+                                        if self.event_bus:
+                                            self.event_bus.publish_event(
+                                                "AQUARIUM_DETECTION_PROGRESS",
+                                                {
+                                                    "frame_number": self._aquarium_detection_frames,
+                                                    "max_frames": self._aquarium_detection_max_frames,
+                                                    "frame_image": frame.copy(),
+                                                    "detected_bbox": (int(x1), int(y1), int(x2), int(y2)),
+                                                    "is_valid": True,
+                                                    "experiment_id": self._analysis_params.get("experiment_id", "unknown"),
+                                                    "valid_count": len(self._detected_aquarium_bboxes),
+                                                },
+                                            )
                                     else:
                                         log.info(
                                             "live_camera_service.aquarium_rejected_area",
@@ -1006,6 +1105,21 @@ class LiveCameraService:
                                             min_ratio=min_ratio,
                                             bbox=(int(x1), int(y1), int(x2), int(y2)),
                                         )
+
+                                        # Publish progress event for invalid detection
+                                        if self.event_bus and frame_number % 5 == 0:
+                                            self.event_bus.publish_event(
+                                                "AQUARIUM_DETECTION_PROGRESS",
+                                                {
+                                                    "frame_number": self._aquarium_detection_frames,
+                                                    "max_frames": self._aquarium_detection_max_frames,
+                                                    "frame_image": frame.copy(),
+                                                    "detected_bbox": (int(x1), int(y1), int(x2), int(y2)),
+                                                    "is_valid": False,
+                                                    "experiment_id": self._analysis_params.get("experiment_id", "unknown"),
+                                                    "valid_count": len(self._detected_aquarium_bboxes),
+                                                },
+                                            )
 
                         if not detection_found_in_frame:
                             # Limit "nothing found" logs to avoid flooding info channel
@@ -1066,6 +1180,9 @@ class LiveCameraService:
                 detections = []
 
                 if should_analyze:
+                    # v2.2.0: Start timing for FPS adjustment
+                    frame_start_time = time.time()
+
                     processed_count += 1
 
                     # Apply calibration if available
@@ -1080,47 +1197,71 @@ class LiveCameraService:
                     # Run detection
                     detector = self.detector_service.detector
                     if detector:
-                        detections, _command = detector.detect(frame, "live")
+                        # v2.2.0: Check for multi-aquarium zone data
+                        zone_data = self.project_manager.get_zone_data()
+                        is_multi_aquarium = hasattr(zone_data, 'aquariums') and zone_data.aquariums
 
-                        # Cache detections for persistent overlay on non-analyzed frames
-                        self.set_last_detections(detections)
+                        if is_multi_aquarium:
+                            # Multi-aquarium processing with parallel detection
+                            detections = self._run_multi_aquarium_detection(
+                                frame, frame_number, zone_data
+                            )
+                        else:
+                            # Standard single aquarium detection
+                            detections, _command = detector.detect(frame, "live")
 
-                        # 🔍 DEBUG: Log detection result
-                        log.info(
-                            "live_camera_service.detection_result",
+                    # v2.2.0: Adjust FPS dynamically based on processing time
+                    # ✅ FIX: Use return value to potentially skip next analysis interval
+                    frame_processing_time = time.time() - frame_start_time
+                    should_continue_processing = self._adjust_fps_dynamically(frame_number, frame_processing_time)
+
+                    # If dynamic FPS says skip, update analysis interval
+                    if not should_continue_processing:
+                        log.debug(
+                            "live_camera_service.fps_skip_triggered",
                             frame_number=frame_number,
-                            num_detections=len(detections),
-                            has_recorder=self.recorder is not None,
-                            recorder_start_time=self.recorder.start_time if self.recorder else None,
+                            processing_time=frame_processing_time,
                         )
 
-                        # Record detections
-                        if self.recorder and self.recorder.start_time:
-                            if detections:
-                                timestamp = time.time() - self.recorder.start_time
-                                self.recorder.write_detection_data(
-                                    timestamp, frame_number, detections
-                                )
-                                # 🔍 INFO: Log detection writes (changed from DEBUG to INFO)
-                                log.info(
-                                    "live_camera_service.detection_written",
-                                    frame_number=frame_number,
-                                    num_detections=len(detections),
-                                    timestamp=timestamp,
-                                )
-                            else:
-                                log.info(
-                                    "live_camera_service.detection_skipped_empty",
-                                    frame_number=frame_number,
-                                )
-                        else:
-                            log.warning(
-                                "live_camera_service.detection_skipped_no_recorder",
+                    # Cache detections for persistent overlay on non-analyzed frames
+                    self.set_last_detections(detections)
+
+                    # 🔍 DEBUG: Log detection result
+                    log.info(
+                        "live_camera_service.detection_result",
+                        frame_number=frame_number,
+                        num_detections=len(detections),
+                        has_recorder=self.recorder is not None,
+                        recorder_start_time=self.recorder.start_time if self.recorder else None,
+                    )
+
+                    # Record detections
+                    if self.recorder and self.recorder.start_time:
+                        if detections:
+                            timestamp = time.time() - self.recorder.start_time
+                            self.recorder.write_detection_data(
+                                timestamp, frame_number, detections
+                            )
+                            # 🔍 INFO: Log detection writes (changed from DEBUG to INFO)
+                            log.info(
+                                "live_camera_service.detection_written",
                                 frame_number=frame_number,
-                                has_recorder=self.recorder is not None,
-                                recorder_start_time=self.recorder.start_time
-                                if self.recorder
-                                else None,
+                                num_detections=len(detections),
+                                timestamp=timestamp,
+                            )
+                        else:
+                            log.info(
+                                "live_camera_service.detection_skipped_empty",
+                                frame_number=frame_number,
+                            )
+                    else:
+                        log.warning(
+                            "live_camera_service.detection_skipped_no_recorder",
+                            frame_number=frame_number,
+                            has_recorder=self.recorder is not None,
+                            recorder_start_time=self.recorder.start_time
+                            if self.recorder
+                            else None,
                             )
                 else:
                     # Use cached detections for overlay on non-analyzed frames
@@ -1552,20 +1693,50 @@ class LiveCameraService:
         """
         # Get zone data for recorder
         from zebtrack.core.detector import ZoneData
+        from zebtrack.core.zone_manager import MultiAquariumZoneData
 
         zone_data = self.project_manager.get_zone_data() if self.project_manager else ZoneData()
+
+        # Check if multi-aquarium setup (limit: 2 aquariums max)
+        is_multi_aquarium = isinstance(zone_data, MultiAquariumZoneData)
 
         # Start recorder
         if self.is_capturing_for_video and self.recorder:
             try:
-                recorder_started = self.recorder.start_recording(
-                    output_folder=str(self.current_output_dir),
-                    frame_width=self.camera.actual_width if self.camera else 640,
-                    frame_height=self.camera.actual_height if self.camera else 480,
-                    zones=zone_data,
-                    is_video_file=False,  # We want to record video
-                    base_name=f"{self._experiment_id}",
-                )
+                if is_multi_aquarium and len(zone_data.aquariums) <= 2:
+                    # Multi-aquarium recording (max 2 aquariums)
+                    zones_by_aquarium = {aq_id: aq_data.zone for aq_id, aq_data in zone_data.aquariums.items()}
+
+                    recorder_started = self.recorder.start_recording_multi_aquarium(
+                        output_folder=str(self.current_output_dir),
+                        width=self.camera.actual_width if self.camera else 640,
+                        height=self.camera.actual_height if self.camera else 480,
+                        zones_by_aquarium=zones_by_aquarium,
+                        base_name=f"{self._experiment_id}",
+                    )
+
+                    log.info(
+                        "live_camera_service.recorder_started_multi_aquarium",
+                        aquarium_count=len(zones_by_aquarium),
+                    )
+                elif is_multi_aquarium and len(zone_data.aquariums) > 2:
+                    # Exceeds 2-aquarium limit
+                    log.error(
+                        "live_camera_service.multi_aquarium_limit_exceeded",
+                        count=len(zone_data.aquariums),
+                        max=2,
+                    )
+                    return
+                else:
+                    # Standard single aquarium recording
+                    recorder_started = self.recorder.start_recording(
+                        output_folder=str(self.current_output_dir),
+                        frame_width=self.camera.actual_width if self.camera else 640,
+                        frame_height=self.camera.actual_height if self.camera else 480,
+                        zones=zone_data,
+                        is_video_file=False,  # We want to record video
+                        base_name=f"{self._experiment_id}",
+                    )
 
                 if not recorder_started:
                     log.error("live_camera_service.recorder_start_failed_after_arena")
@@ -1574,6 +1745,7 @@ class LiveCameraService:
                 log.info(
                     "live_camera_service.recorder_started_after_arena",
                     output_dir=str(self.current_output_dir),
+                    multi_aquarium=is_multi_aquarium,
                 )
 
             except Exception as e:
@@ -1728,6 +1900,272 @@ class LiveCameraService:
                 self.video_queue.get_nowait()
             except queue.Empty:
                 break
+
+    def _run_multi_aquarium_detection(
+        self, frame: np.ndarray, frame_number: int, zone_data: Any
+    ) -> list:
+        """Run detection for multi-aquarium setup using partitioned processing.
+
+        Args:
+            frame: Full camera frame
+            frame_number: Current frame number
+            zone_data: MultiAquariumZoneData with per-aquarium zones
+
+        Returns:
+            List of detections with adjusted track IDs (aquarium_id * 1000 + local_id)
+        """
+        detector = self.detector_service.detector
+        if not detector:
+            return []
+
+        try:
+            # Use optimized partitioned detection if available
+            if hasattr(detector, 'detect_partitioned_optimized'):
+                all_detections = detector.detect_partitioned_optimized(
+                    frame=frame,
+                    zone_data=zone_data,
+                    context="live",
+                )
+            elif hasattr(detector, 'detect_partitioned_parallel'):
+                all_detections = detector.detect_partitioned_parallel(
+                    frame=frame,
+                    zone_data=zone_data,
+                    context="live",
+                )
+            else:
+                # Fallback to sequential processing
+                log.warning("live_camera_service.no_partitioned_detection_fallback")
+                all_detections, _ = detector.detect(frame, "live")
+                return all_detections if isinstance(all_detections, list) else []
+
+            # Record detections per aquarium if recorder supports it
+            if self.recorder and self.recorder.start_time:
+                timestamp = time.time() - self.recorder.start_time
+
+                if hasattr(self.recorder, 'write_partitioned_detection_data'):
+                    # Use partitioned writer for multi-aquarium
+                    self.recorder.write_partitioned_detection_data(
+                        timestamp=timestamp,
+                        frame=frame_number,
+                        aquarium_detections=all_detections,
+                    )
+                else:
+                    # Fallback: write flattened detections
+                    flat_detections = []
+                    for aq_id, dets in all_detections.items():
+                        flat_detections.extend(dets)
+
+                    if flat_detections:
+                        self.recorder.write_detection_data(
+                            timestamp, frame_number, flat_detections
+                        )
+
+                log.info(
+                    "live_camera_service.multi_aquarium_detection_written",
+                    frame_number=frame_number,
+                    aquariums=len(all_detections),
+                    total_detections=sum(len(dets) for dets in all_detections.values()),
+                )
+
+            # Flatten detections for preview overlay
+            flat_detections = []
+            for aq_id, dets in all_detections.items():
+                flat_detections.extend(dets)
+
+            return flat_detections
+
+        except Exception as e:
+            log.error(
+                "live_camera_service.multi_aquarium_detection_failed",
+                error=str(e),
+                exc_info=True,
+            )
+            # Fallback to single detection
+            detections, _ = detector.detect(frame, "live")
+            return detections
+
+    def _check_camera_disconnect(self) -> None:
+        """Check if camera has been disconnected based on frame gap.
+
+        Detects disconnects when no valid frames received for > threshold seconds.
+        Publishes CAMERA_DISCONNECT_DETECTED event and pauses recorder.
+        """
+        if self._last_valid_frame_time is None:
+            # First frames, no disconnect yet
+            return
+
+        current_time = time.time()
+        gap_duration = current_time - self._last_valid_frame_time
+
+        if gap_duration > self._camera_disconnect_threshold_s and not self._camera_disconnected:
+            # Camera disconnected
+            self._camera_disconnected = True
+            gap_start_time = self._last_valid_frame_time
+
+            log.error(
+                "live_camera_service.camera_disconnected",
+                gap_duration=f"{gap_duration:.1f}s",
+                threshold=f"{self._camera_disconnect_threshold_s}s",
+            )
+
+            # Pause recorder to avoid writing invalid/cached frames
+            if self.recorder and not self._recording_paused:
+                try:
+                    self.recorder.pause_recording()
+                    self._recording_paused = True
+                    log.info("live_camera_service.recorder_paused")
+                except AttributeError:
+                    # Recorder doesn't support pause yet (will implement next)
+                    log.warning("live_camera_service.recorder_pause_not_supported")
+                except Exception as e:
+                    log.error("live_camera_service.recorder_pause_failed", error=str(e))
+
+            # Publish disconnect event
+            if self.event_bus:
+                self.event_bus.publish_event(
+                    "CAMERA_DISCONNECT_DETECTED",
+                    {
+                        "gap_duration_s": gap_duration,
+                        "gap_start_time": gap_start_time,
+                        "experiment_id": self._analysis_params.get("experiment_id", "unknown"),
+                    },
+                )
+
+            # Record gap start
+            self._disconnect_gaps.append((gap_start_time, None))  # End time TBD
+
+    def _on_camera_reconnected(self) -> None:
+        """Handle camera reconnection after disconnect.
+
+        Resumes recorder and logs gap duration for metadata.
+        """
+        if not self._camera_disconnected:
+            return
+
+        current_time = time.time()
+
+        # Find the open gap and close it
+        if self._disconnect_gaps and self._disconnect_gaps[-1][1] is None:
+            gap_start = self._disconnect_gaps[-1][0]
+            gap_duration = current_time - gap_start
+            self._disconnect_gaps[-1] = (gap_start, current_time)
+
+            log.info(
+                "live_camera_service.camera_reconnected",
+                gap_duration=f"{gap_duration:.1f}s",
+            )
+
+        # Resume recorder
+        if self.recorder and self._recording_paused:
+            try:
+                self.recorder.resume_recording()
+                self._recording_paused = False
+                log.info("live_camera_service.recorder_resumed")
+            except AttributeError:
+                log.warning("live_camera_service.recorder_resume_not_supported")
+            except Exception as e:
+                log.error("live_camera_service.recorder_resume_failed", error=str(e))
+
+        # Publish reconnect event
+        if self.event_bus:
+            self.event_bus.publish_event(
+                "CAMERA_RECONNECTED",
+                {
+                    "gap_duration_s": gap_duration if self._disconnect_gaps else 0.0,
+                    "total_gaps": len(self._disconnect_gaps),
+                },
+            )
+
+        self._camera_disconnected = False
+
+    def _on_disconnect_user_action(self, event_data: dict[str, Any]) -> None:
+        """Handle user action from disconnect recovery dialog.
+
+        Args:
+            event_data: Event payload with 'action' (wait|resume|stop) and 'experiment_id'
+        """
+        action = event_data.get("action", "wait")
+        experiment_id = event_data.get("experiment_id", "unknown")
+
+        log.info(
+            "live_camera_service.disconnect_user_action",
+            action=action,
+            experiment_id=experiment_id,
+        )
+
+        with self._lock:
+            self._user_disconnect_action = action
+
+        if action == "resume":
+            # Force reconnect check on next iteration
+            if self._camera_disconnected:
+                log.info("live_camera_service.force_resume_attempt")
+                # The processing loop will detect valid frames and call _on_camera_reconnected
+        elif action == "stop":
+            # Stop session gracefully
+            log.info("live_camera_service.stop_by_user_action")
+            self.stop_session()
+        # else action == "wait": Continue monitoring for automatic reconnection
+
+    def _adjust_fps_dynamically(self, frame_number: int, processing_time: float) -> bool:
+        """Adjust FPS dynamically based on processing performance.
+
+        Monitors processing time and adjusts frame skip to maintain target FPS.
+        Uses exponentially weighted moving average for smoothing.
+
+        Args:
+            frame_number: Current frame number
+            processing_time: Time taken to process this frame (seconds)
+
+        Returns:
+            True if frame should be processed, False if should skip
+        """
+        # Track processing time
+        self._processing_times.append(processing_time)
+
+        # Keep only last N samples for moving average
+        max_samples = 30
+        if len(self._processing_times) > max_samples:
+            self._processing_times = self._processing_times[-max_samples:]
+
+        # Calculate measured FPS every N frames
+        if frame_number % self._fps_adjustment_interval == 0 and len(self._processing_times) >= 10:
+            avg_processing_time = sum(self._processing_times) / len(self._processing_times)
+            self._current_fps = 1.0 / avg_processing_time if avg_processing_time > 0 else 30.0
+
+            # Adjust frame skip based on performance
+            if self._current_fps < self._target_fps * 0.7:  # >30% slower than target
+                # Processing is too slow, increase skip
+                self._frame_skip_count = min(4, self._frame_skip_count + 1)
+                log.warning(
+                    "live_camera_service.fps_too_low",
+                    measured_fps=f"{self._current_fps:.1f}",
+                    target_fps=f"{self._target_fps:.1f}",
+                    frame_skip=self._frame_skip_count,
+                )
+            elif self._current_fps > self._target_fps * 1.2 and self._frame_skip_count > 0:  # >20% faster
+                # Processing is fast enough, reduce skip
+                self._frame_skip_count = max(0, self._frame_skip_count - 1)
+                log.info(
+                    "live_camera_service.fps_improved",
+                    measured_fps=f"{self._current_fps:.1f}",
+                    target_fps=f"{self._target_fps:.1f}",
+                    frame_skip=self._frame_skip_count,
+                )
+
+        # Determine if frame should be processed
+        if self._frame_skip_count > 0:
+            # Skip every N frames
+            should_process = (frame_number % (self._frame_skip_count + 1)) == 0
+            if not should_process:
+                log.debug(
+                    "live_camera_service.frame_skipped",
+                    frame_number=frame_number,
+                    skip_pattern=self._frame_skip_count + 1,
+                )
+            return should_process
+
+        return True  # Process all frames when skip=0
 
     def __enter__(self) -> LiveCameraService:
         """Enter context manager - service is ready for session start."""

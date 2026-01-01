@@ -74,5 +74,31 @@
     // Editor hints
     "editor.rulers": [100],  // Ruff line length
     "files.trimTrailingWhitespace": true,
-    "files.insertFinalNewline": true
+    "files.insertFinalNewline": true,
+
+    // ========================================
+    // Ruff Linter & Formatter (Native Extension)
+    // ========================================
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+        },
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
+
+    // Ruff configuration (reads from pyproject.toml by default)
+    "ruff.enable": true,
+    "ruff.organizeImports": true,
+    "ruff.fixAll": true,
+
+    // Line length is configured in pyproject.toml (line-length = 100)
+    // No need to duplicate here with deprecated args
+
+    // Disable conflicting formatters/linters
+    "python.linting.enabled": false,
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": false,
+    "python.formatting.provider": "none"
 }
