@@ -153,10 +153,10 @@ class UICoordinator:
         self.event_bus.subscribe(UIEvents.EXTERNAL_TRIGGER_NOTICE, self._on_external_trigger_notice)
 
         # Live Camera Events (v2.2.0)
-        self.event_bus.subscribe("CAMERA_DISCONNECT_DETECTED", self._on_camera_disconnect)
-        self.event_bus.subscribe("CAMERA_RECONNECTED", self._on_camera_reconnected)
-        self.event_bus.subscribe("AQUARIUM_DETECTION_PROGRESS", self._on_aquarium_detection_progress)
-        self.event_bus.subscribe("BATCH_ANALYSIS_COMPLETED", self._on_batch_analysis_completed)
+        self.event_bus.subscribe(UIEvents.CAMERA_DISCONNECT_DETECTED, self._on_camera_disconnect)
+        self.event_bus.subscribe(UIEvents.CAMERA_RECONNECTED, self._on_camera_reconnected)
+        self.event_bus.subscribe(UIEvents.AQUARIUM_DETECTION_PROGRESS, self._on_aquarium_detection_progress)
+        self.event_bus.subscribe(UIEvents.BATCH_ANALYSIS_COMPLETED, self._on_batch_analysis_completed)
         self.event_bus.subscribe(
             UIEvents.EXTERNAL_TRIGGER_NOTICE_CLEARED, self._on_external_trigger_notice_cleared
         )

@@ -71,6 +71,12 @@ class UIEvents(Enum):
     NAVIGATE_TO_PROJECT = auto()
     NAVIGATE_TO_ANALYSIS = auto()
 
+    # Live Camera Events (v2.2.0)
+    CAMERA_DISCONNECT_DETECTED = auto()  # Camera disconnected during live session
+    CAMERA_RECONNECTED = auto()  # Camera successfully reconnected
+    AQUARIUM_DETECTION_PROGRESS = auto()  # Progress updates during aquarium detection
+    BATCH_ANALYSIS_COMPLETED = auto()  # Batch analysis workflow completed
+
 
 @dataclass(frozen=True)
 class Event:
