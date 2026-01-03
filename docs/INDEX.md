@@ -89,6 +89,7 @@ docs/
 ### Feature-Specific Guides
 
 - **[Live Camera v2.2.0 Complete](LIVE_CAMERA_V2.2_COMPLETE.md)** - ✨ Multi-aquarium, disconnect recovery, batch reports
+- **[Live Camera v2.3.0 Batch Coordinator](decisions/ADR-006-live-batch-coordinator-future.md)** - ✨ Unified batch reporting integration
 - **[Live Camera Multi-Aquarium](guides/developer/LIVE_CAMERA_MULTI_AQUARIUM.md)** - Developer guide for v2.2
 - **[Live Camera Unification](guides/developer/LIVE_CAMERA_UNIFICATION.md)** - v2.1 camera architecture
 - **[Wizard & Live Improvements](guides/developer/WIZARD_LIVE_IMPROVEMENTS.md)** - Phase 4-7 enhancements
@@ -128,6 +129,7 @@ docs/
 - **[ADR-003: Live Analysis Canvas Integration Fix](decisions/ADR-003-live-analysis-canvas-integration-fix.md)** ⭐ NEW
 - **[ADR-004: Live Camera Divergence](decisions/ADR-004-live-camera-divergence.md)**
 - **[ADR-005: Model Overrides Duplication](decisions/ADR-005-model-overrides-duplication.md)**
+- **[ADR-006: LiveBatchCoordinator v2.3.0 Implementation](decisions/ADR-006-live-batch-coordinator-future.md)** ⭐ NEW (✅ Implemented)
 
 ### Recent Fixes & Improvements
 

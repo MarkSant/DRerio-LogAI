@@ -163,6 +163,23 @@ video_orchestrator = VideoOrchestrator(
     recorder=recorder,
 )
 
+# Live Camera Batch Coordinator (v2.3.0)
+live_batch_coordinator = LiveBatchCoordinator(
+    project_manager=project_manager,
+    analysis_service=analysis_service,
+    state_manager=state_manager,
+    settings_obj=settings_obj,
+    event_bus=event_bus if settings_obj.ui_features.enable_event_queue else None,
+)
+
+session_coordinator = SessionCoordinator(
+    project_manager=project_manager,
+    state_manager=state_manager,
+    ui_event_bus=event_bus,
+    settings_obj=settings_obj,
+    live_batch_coordinator=live_batch_coordinator,  # v2.3.0 integration
+)
+
 # Wire all dependencies into MainViewModel
 controller = MainViewModel(
     root=root,
@@ -221,6 +238,172 @@ def test_camera_fails_without_settings():
 ```
 
 ## New Service Examples (Post-Phase 2 Refactoring)
+
+### LiveBatchCoordinator (v2.3.0)
+
+**Location**: `coordinators/live_batch_coordinator.py`
+
+```python
+class LiveBatchCoordinator:
+    """Coordinates unified batch reporting across live camera sessions."""
+
+    def __init__(
+        self,
+        project_manager: ProjectManager,
+        analysis_service: AnalysisService,
+        state_manager: StateManager,
+        settings_obj: Settings,
+        event_bus: EventBus | None = None,
+    ):
+        """Initialize with all dependencies via constructor."""
+        self.project_manager = project_manager
+        self.analysis_service = analysis_service
+        self.state_manager = state_manager
+        self.settings = settings_obj
+        self.event_bus = event_bus
+        
+        # Batch tracking state
+        self._batches: dict[str, BatchInfo] = {}
+        self.logger = get_logger()
+```
+
+**Key Integration Points**:
+
+1. **Wizard Metadata Collection** (`ui/wizard/live_config_step.py`):
+   ```python
+   def get_data(self):
+       return {
+           "experimental_group": self.experimental_group_var.get() or None,
+           "experiment_day": self.experiment_day_var.get() or None,
+           "subject_id": self.subject_id_var.get() or None,
+           "is_batch_last_session": self.is_batch_last_session_var.get(),
+       }
+   ```
+
+2. **SessionCoordinator Registration** (`coordinators/session_coordinator.py`):
+   ```python
+   def _register_batch_session(self):
+       """Register completed session with LiveBatchCoordinator (v2.3.0)."""
+       if not self.live_batch_coordinator or not self._active_wizard_data:
+           return
+
+       # Extract batch metadata
+       group = self._active_wizard_data.get("experimental_group")
+       day = self._active_wizard_data.get("experiment_day")
+       subject_id = self._active_wizard_data.get("subject_id")
+
+       # Transform to batch metadata
+       metadata = {
+           "group": group,  # Wizard field → Batch field
+           "day": day,
+           "subject_id": subject_id,
+           "timestamp": datetime.datetime.now().isoformat(),
+       }
+
+       batch_id = self.live_batch_coordinator.register_session(
+           experiment_id=self._active_live_session_id or "unknown",
+           video_path=video_path,
+           metadata=metadata,
+       )
+   ```
+
+3. **Batch Key Creation** (groups sessions by Group × Day × Subject):
+   ```python
+   def _create_batch_key(self, group: str | None, day: str | None, subject_id: str | None) -> str:
+       """Create unique batch key from metadata."""
+       parts = [
+           group or "no_group",
+           day or "no_day",
+           subject_id or "no_subject",
+       ]
+       return "_".join(parts)
+       # Example: "Controle_Dia_1_Peixe_01"
+   ```
+
+4. **Batch ID Uniqueness** (prevents collisions):
+   ```python
+   # Include microseconds for uniqueness when multiple batches created in same second
+   batch_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+   # Example: "batch_20260103_143025_123456"
+   ```
+
+5. **Event Publishing** (after unified report generation):
+   ```python
+   if self.event_bus:
+       self.event_bus.publish_event(
+           "BATCH_ANALYSIS_COMPLETED",
+           {
+               "batch_id": batch_id,
+               "session_count": batch.session_count,
+               "report_path": str(unified_excel),
+               "group": batch.group,
+               "day": batch.day,
+               "subject_id": batch.subject_id,
+           },
+       )
+   ```
+
+6. **UICoordinator Event Handler** (`ui/ui_coordinator.py`):
+   ```python
+   self.event_bus.subscribe(UIEvents.BATCH_ANALYSIS_COMPLETED, self._on_batch_analysis_completed)
+   
+   def _on_batch_analysis_completed(self, event_data: dict[str, Any]) -> None:
+       """Handle batch analysis completed event (v2.3.0)."""
+       batch_id = event_data.get("batch_id", "unknown")
+       report_path = event_data.get("report_path")
+       session_count = event_data.get("session_count", 0)
+       
+       # Show success notification
+       messagebox.showinfo(
+           title="Análise de Lote Completa",
+           message=f"✅ Relatório de Lote Gerado!\n\nLote: {batch_id}\nSessões: {session_count}"
+       )
+       
+       # Open file explorer to report location
+       os.startfile(os.path.dirname(report_path))
+   ```
+
+**Multi-Aquarium Support**:
+- Each aquarium treated as separate subject_id: `Peixe_01_Aquario_0`, `Peixe_01_Aquario_1`
+- Separate batches per aquarium (independent reporting)
+- Batch keys: `Controle_Dia_1_Peixe_01_Aquario_0`, `Controle_Dia_1_Peixe_01_Aquario_1`
+
+**Key Points**:
+- All dependencies via constructor (no singleton imports)
+- Settings injected for analysis parameters
+- Event bus optional (graceful degradation if disabled)
+- Batch key format ensures session grouping by experimental design
+- Microsecond-precision batch IDs prevent collisions
+
+### SessionCoordinator (v2.3.0)
+
+**Location**: `coordinators/session_coordinator.py`
+
+```python
+class SessionCoordinator:
+    """Coordinates live camera session lifecycle and batch integration."""
+
+    def __init__(
+        self,
+        project_manager: ProjectManager,
+        state_manager: StateManager,
+        ui_event_bus: EventBus,
+        settings_obj: Settings,
+        live_batch_coordinator: "LiveBatchCoordinator | None" = None,  # v2.3.0
+    ):
+        """Initialize with all dependencies."""
+        self.project_manager = project_manager
+        self.state_manager = state_manager
+        self.ui_event_bus = ui_event_bus
+        self.settings = settings_obj
+        self.live_batch_coordinator = live_batch_coordinator  # v2.3.0 integration
+```
+
+**Key Points**:
+- Receives `live_batch_coordinator` as optional dependency
+- Calls `_register_batch_session()` after live camera stops
+- Transforms wizard field names to batch metadata keys
+- Enables unified reporting across live camera sessions
 
 ### ProjectWorkflowAdapter
 
@@ -310,15 +493,17 @@ class DialogManager:
 
 ## Migration Status
 
-✅ **Phase 1**: Core services (WeightManager, DetectorService, ProjectManager)
-✅ **Phase 2**: Analysis & IO layers (AnalysisService, Camera, Recorder, Plugins)
-✅ **Phase 3**: UI layer (ApplicationGUI, WizardDialog, all dialogs)
-✅ **Phase 2+ Refactoring**: Coordinators/Adapters (ProjectWorkflowAdapter, AnalysisCoordinator, DialogManager)
-✅ **Singleton Removed**: No global `settings` object exists
+✅ **Phase 1**: Core services (WeightManager, DetectorService, ProjectManager)  
+✅ **Phase 2**: Analysis & IO layers (AnalysisService, Camera, Recorder, Plugins)  
+✅ **Phase 3**: UI layer (ApplicationGUI, WizardDialog, all dialogs)  
+✅ **Phase 2+ Refactoring**: Coordinators/Adapters (ProjectWorkflowAdapter, AnalysisCoordinator, DialogManager)  
+✅ **v2.3.0**: LiveBatchCoordinator activated with wizard integration and unified batch reporting  
+✅ **Singleton Removed**: No global `settings` object exists  
 ✅ **MainViewModel Status**: Currently ~5442 lines; coordinators/adapters extract complex orchestration responsibilities to dedicated components
 
 ## References
 
-- Composition Root: `src/zebtrack/__main__.py:140-362` (settings load through MainViewModel instantiation)
+- Composition Root: `src/zebtrack/__main__.py:140-404` (includes LiveBatchCoordinator and SessionCoordinator instantiation)
 - Settings Model: `src/zebtrack/settings.py`
 - Test Migration Guide: `TEST_MIGRATION_TODO.md`
+- LiveBatchCoordinator Implementation: `docs/decisions/ADR-006-live-batch-coordinator-future.md` (Status: ✅ Implemented)
