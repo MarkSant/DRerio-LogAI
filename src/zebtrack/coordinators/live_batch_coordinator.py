@@ -129,7 +129,8 @@ class LiveBatchCoordinator:
         batch_key = self._create_batch_key(group, day, subject_id)
 
         if batch_key not in self._active_batches:
-            batch_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            # Include microseconds for uniqueness when multiple batches created in same second
+            batch_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
             self._active_batches[batch_key] = BatchMetadata(
                 batch_id=batch_id,
                 group=group,

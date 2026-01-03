@@ -104,6 +104,7 @@ class SessionCoordinator(BaseCoordinator):
         settings_obj: Settings,
         event_bus: EventBus | None = None,
         arduino_manager: ArduinoManager | None = None,
+        live_batch_coordinator: "LiveBatchCoordinator | None" = None,  # v2.3.0
         # UI components (temporary - being phased out)
         root: Any = None,
         view: Any = None,
@@ -138,6 +139,7 @@ class SessionCoordinator(BaseCoordinator):
         self.weight_manager = weight_manager
         self.settings = settings_obj
         self.arduino_manager = arduino_manager
+        self.live_batch_coordinator = live_batch_coordinator  # v2.3.0
 
         # UI components (temporary - being phased out)
         self.root = root
@@ -146,6 +148,7 @@ class SessionCoordinator(BaseCoordinator):
         # Session state
         self._pending_external_trigger: dict | None = None
         self._active_live_session_id: str | None = None
+        self._active_wizard_data: dict | None = None  # v2.3.0: Store for batch tracking
         self.camera: Camera | None = None
         self._pending_zone_confirmation = False
         self._pending_recording_context = None
@@ -692,6 +695,7 @@ class SessionCoordinator(BaseCoordinator):
         record_video: bool = True,
         output_base_dir: str | None = None,
         zones: list[dict] | None = None,
+        wizard_data: dict | None = None,  # v2.3.0: For batch metadata
     ) -> bool:
         """Start a live camera analysis session.
 
@@ -761,6 +765,7 @@ class SessionCoordinator(BaseCoordinator):
 
             # Store active session ID
             self._active_live_session_id = experiment_id
+            self._active_wizard_data = wizard_data or {}  # v2.3.0
 
             # Delegate to LiveCameraService
             success = self.live_camera_service.start_session(
@@ -864,6 +869,10 @@ class SessionCoordinator(BaseCoordinator):
             # Publish event
             self._publish_event("LIVE_SESSION_STOPPED", {})
 
+            # v2.3.0: Register session for batch tracking
+            if success and self.live_batch_coordinator and self._active_wizard_data:
+                self._register_batch_session()
+
             log.info(
                 "session_coordinator.stop_live_session.success",
                 success=success,
@@ -886,6 +895,99 @@ class SessionCoordinator(BaseCoordinator):
             True if session active, False otherwise
         """
         return self._active_live_session_id is not None
+
+    def _register_batch_session(self):
+        """Register completed session with LiveBatchCoordinator (v2.3.0).
+
+        Internal method called after session stops successfully.
+        Extracts batch metadata from wizard_data and registers with coordinator.
+        """
+        if not self.live_batch_coordinator or not self._active_wizard_data:
+            return
+
+        try:
+            # Extract batch metadata
+            group = self._active_wizard_data.get("experimental_group")
+            day = self._active_wizard_data.get("experiment_day")
+            subject_id = self._active_wizard_data.get("subject_id")
+
+            # Only register if all batch fields present
+            if not all([group, day, subject_id]):
+                log.debug(
+                    "session_coordinator.batch_metadata_incomplete",
+                    group=group,
+                    day=day,
+                    subject_id=subject_id,
+                )
+                return
+
+            # Find video file in live session output
+            video_path = self._find_video_in_live_session()
+            if not video_path:
+                log.warning("session_coordinator.batch_registration_no_video")
+                return
+
+            # Register session
+            metadata = {
+                "group": group,
+                "day": day,
+                "subject_id": subject_id,
+                "timestamp": datetime.datetime.now().isoformat(),
+                "duration_s": self._active_wizard_data.get("recording_duration_s"),
+                "camera_index": self._active_wizard_data.get("camera_index"),
+            }
+
+            batch_id = self.live_batch_coordinator.register_session(
+                experiment_id=self._active_live_session_id or "unknown",
+                video_path=video_path,
+                metadata=metadata,
+            )
+
+            log.info(
+                "session_coordinator.batch_session_registered",
+                batch_id=batch_id,
+                group=group,
+                day=day,
+                subject_id=subject_id,
+            )
+
+            # Check if user marked as last session
+            if self._active_wizard_data.get("is_batch_last_session"):
+                log.info("session_coordinator.batch_marked_complete", batch_id=batch_id)
+                self.live_batch_coordinator.mark_batch_complete(batch_id)
+
+        except Exception as e:
+            log.error(
+                "session_coordinator.batch_registration_failed",
+                error=str(e),
+                exc_info=True,
+            )
+        finally:
+            # Clear wizard data after processing
+            self._active_wizard_data = None
+
+    def _find_video_in_live_session(self) -> Path | None:
+        """Find video file in current live session output directory.
+
+        Returns:
+            Path to video file, or None if not found
+        """
+        if not hasattr(self.live_camera_service, 'current_output_dir'):
+            return None
+
+        output_dir = self.live_camera_service.current_output_dir
+        if not output_dir or not Path(output_dir).exists():
+            return None
+
+        # Search for video file
+        video_extensions = [".mp4", ".avi", ".mkv"]
+        for ext in video_extensions:
+            video_files = list(Path(output_dir).glob(f"*{ext}"))
+            if video_files:
+                return video_files[0]
+
+        # Fallback: return expected path
+        return Path(output_dir) / "live_recording.mp4"
 
     def get_live_session_info(self) -> dict[str, Any] | None:
         """Get information about current live session.

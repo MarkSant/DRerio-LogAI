@@ -384,6 +384,23 @@ def main():
             root=root,
         )
 
+        # 5. LiveBatchCoordinator - Unified batch reporting (v2.3.0)
+        _t0_batch = time.perf_counter()
+        from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
+
+        live_batch_coordinator = LiveBatchCoordinator(
+            project_manager=project_manager,
+            analysis_service=analysis_service,
+            state_manager=state_manager,
+            settings_obj=settings_obj,
+            event_bus=event_bus if settings_obj.ui_features.enable_event_queue else None,
+        )
+        log.info(
+            "composition_root.live_batch_coordinator_initialized",
+            has_event_bus=live_batch_coordinator.event_bus is not None,
+            elapsed_ms=int((time.perf_counter() - _t0_batch) * 1000),
+        )
+
         session_coordinator = SessionCoordinator(
             state_manager=state_manager,
             recording_service=recording_service,
@@ -394,6 +411,7 @@ def main():
             settings_obj=settings_obj,
             event_bus=event_bus,
             arduino_manager=None,  # Will be set when Arduino is initialized
+            live_batch_coordinator=live_batch_coordinator,  # v2.3.0: Batch tracking
             root=root,
             view=None,  # Set after ApplicationGUI is created
         )
@@ -438,6 +456,7 @@ def main():
             hardware_coordinator=hardware_coordinator,
             processing_coordinator=processing_coordinator,
             session_coordinator=session_coordinator,
+            live_batch_coordinator=live_batch_coordinator,  # v2.3.0
             # Threading events - shared across components
             cancel_event=cancel_event,
         )

@@ -65,6 +65,7 @@ class MainViewModelDependencies:
     processing_coordinator: Optional[ProcessingCoordinator] = None
     session_coordinator: Optional[SessionCoordinator] = None
     project_workflow_adapter: Optional[ProjectWorkflowAdapter] = None
+    live_batch_coordinator: Optional["LiveBatchCoordinator"] = None  # v2.3.0
 
     # Legacy coordinators (DEPRECATED - will be removed in Phase 4)
     # Kept temporarily for backward compatibility during gradual migration

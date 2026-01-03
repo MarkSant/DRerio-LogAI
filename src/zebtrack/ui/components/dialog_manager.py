@@ -584,42 +584,63 @@ class DialogManager:
             day: Day number
             group_name: Group name
         """
-        pm = self.gui.controller.project_manager
-        subjects_per_group = pm.project_data.get("subjects_per_group", 0)
-        completed_sessions = pm.get_completed_sessions()
+        # v2.3.0: Use BlockDetailDialog for batch-aware session management
+        from zebtrack.ui.dialogs.block_detail_dialog import BlockDetailDialog
 
-        completed_subjects = {s for (d, g, s) in completed_sessions if d == day and g == group_name}
+        live_batch_coordinator = getattr(self.gui.controller, "live_batch_coordinator", None)
+        session_coordinator = getattr(self.gui.controller, "session_coordinator", None)
 
-        # Import here to avoid circular dependency if needed, or use existing import
-        from zebtrack.ui.dialogs.subject_selection_dialog import SubjectSelectionDialog
+        if not live_batch_coordinator or not session_coordinator:
+            # Fallback to legacy SubjectSelectionDialog if coordinators not available
+            pm = self.gui.controller.project_manager
+            subjects_per_group = pm.project_data.get("subjects_per_group", 0)
+            completed_sessions = pm.get_completed_sessions()
+            completed_subjects = {s for (d, g, s) in completed_sessions if d == day and g == group_name}
 
-        dialog = SubjectSelectionDialog(
-            self.gui.root, day, group_name, subjects_per_group, completed_subjects
+            from zebtrack.ui.dialogs.subject_selection_dialog import SubjectSelectionDialog
+
+            dialog = SubjectSelectionDialog(
+                self.gui.root, day, group_name, subjects_per_group, completed_subjects
+            )
+
+            if dialog.result:
+                subject_id = dialog.result
+                project_type = pm.get_project_type()
+
+                if project_type == "live":
+                    success = self.gui.controller.start_live_project_session(
+                        day=day,
+                        group=group_name,
+                        subject=str(subject_id),
+                    )
+
+                    if not success:
+                        self.show_error(
+                            "Erro na Gravação",
+                            f"Falha ao iniciar sessão de gravação para {group_name}/{subject_id}.",
+                        )
+                else:
+                    # Legacy path for pre-recorded projects
+                    self.gui.controller.start_recording(
+                        day=day, group=group_name, cobaia=str(subject_id)
+                    )
+
+                self.gui.widget_factory.render_progress_grid()
+            return
+
+        # New v2.3.0 path: Open BlockDetailDialog with batch integration
+        dialog = BlockDetailDialog(
+            self.gui.root,
+            day,
+            group_name,
+            self.gui.controller.project_manager,
+            session_coordinator,
+            live_batch_coordinator,
         )
 
-        if dialog.result:
-            subject_id = dialog.result
-            project_type = pm.get_project_type()
-
-            if project_type == "live":
-                success = self.gui.controller.start_live_project_session(
-                    day=day,
-                    group=group_name,
-                    subject=str(subject_id),
-                )
-
-                if not success:
-                    self.show_error(
-                        "Erro na Gravação",
-                        f"Falha ao iniciar sessão de gravação para {group_name}/{subject_id}.",
-                    )
-            else:
-                # Legacy path for pre-recorded projects
-                self.gui.controller.start_recording(
-                    day=day, group=group_name, cobaia=str(subject_id)
-                )
-
-            self.gui.widget_factory.render_progress_grid()
+        # Dialog handles all session start/stop/batch actions internally
+        # Refresh grid after dialog closes to reflect any changes
+        self.gui.widget_factory.render_progress_grid()
 
     # =========================================================================
     # Confirmation Dialogs

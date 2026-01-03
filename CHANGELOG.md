@@ -6,7 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### 🟢 New Features
 
+#### LiveBatchCoordinator v2.3.0 Integration (January 2026)
+
+**Unified Batch Reporting**
+- Activated dormant `LiveBatchCoordinator` (433 lines, fully implemented in v2.2.0)
+- Instantiated in composition root (`__main__.py`) with dependency injection
+- Integrated with `SessionCoordinator` for automatic session registration after live camera stops
+- Added 4 batch metadata fields to `LiveConfigStep` wizard:
+  - `experimental_group`: Experimental group name (e.g., "Controle", "Tratado")
+  - `experiment_day`: Day identifier (e.g., "Dia_1", "Dia_2")
+  - `subject_id`: Subject/cobaia identifier (e.g., "Peixe_01")
+  - `is_batch_last_session`: Checkbox to mark last session and trigger unified report
+
+**Experiment Progress Dashboard**
+- Enhanced existing "Progresso do Experimento" tab with batch integration
+- Replaced `SubjectSelectionDialog` with `BlockDetailDialog` for detailed session management
+- Day × Group grid shows session completion status per experimental block
+- Click Day/Group cell → Opens `BlockDetailDialog` with subject list and batch actions
+- Dialog allows starting new sessions, viewing results, and marking batch complete
+
+**Multi-Aquarium Batch Support**
+- Each aquarium treated as separate `subject_id` (e.g., `Peixe_01_Aquario_0`, `Peixe_01_Aquario_1`)
+- Automatic batch key generation: `{group}_{day}_{subject_id}`
+- Batch ID includes microseconds for uniqueness: `batch_20260103_113918_048070`
+- Separate batches per aquarium enable independent reporting
+
+**Event-Driven Completion**
+- `BATCH_ANALYSIS_COMPLETED` event published when batch marked complete
+- `UICoordinator` handler shows success messagebox and opens file explorer with unified report
+- Batch completion triggers `AnalysisService.generate_unified_report()` across all sessions
+
+**Testing**
+- 4 integration tests covering wizard → batch coordinator flow
+- Multi-aquarium batch registration validation
+- Incomplete metadata handling (graceful skips)
+- Session coordinator integration with LiveBatchCoordinator
 ### � Fixed
 
 #### Live Camera v2.2.0 - Audit Fixes (January 2026)

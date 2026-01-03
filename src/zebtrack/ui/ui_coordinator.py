@@ -697,22 +697,57 @@ class UICoordinator:
             self._errors_count += 1
 
     def _on_batch_analysis_completed(self, event_data: dict[str, Any]) -> None:
-        """Handle batch analysis completed event.
+        """Handle batch analysis completed event (v2.3.0).
 
-        Refreshes project views to show unified report.
+        Shows success notification and opens file explorer to report location.
 
         Args:
-            event_data: Event payload with batch_id, session_count, etc.
+            event_data: Event payload with batch_id, report_path, session_count
         """
         try:
             batch_id = event_data.get("batch_id", "unknown")
+            report_path = event_data.get("report_path")
             session_count = event_data.get("session_count", 0)
 
             log.info(
                 "ui_coordinator.batch_analysis_completed",
                 batch_id=batch_id,
+                report_path=report_path,
                 session_count=session_count,
             )
+
+            # Show success notification
+            def _show_notification():
+                try:
+                    from tkinter import messagebox
+                    import subprocess
+                    import platform
+
+                    message = (
+                        f"✅ Relatório de Lote Gerado!\n\n"
+                        f"Lote: {batch_id}\n"
+                        f"Sessões: {session_count}\n\n"
+                        f"Relatório salvo em:\n{report_path}"
+                    )
+
+                    messagebox.showinfo(
+                        title="Análise de Lote Completa",
+                        message=message,
+                    )
+
+                    # Open file explorer to report location
+                    if report_path and Path(report_path).exists():
+                        if platform.system() == "Windows":
+                            subprocess.run(["explorer", "/select,", str(report_path)], check=False)
+                        elif platform.system() == "Darwin":  # macOS
+                            subprocess.run(["open", "-R", str(report_path)], check=False)
+                        else:  # Linux
+                            subprocess.run(["xdg-open", str(Path(report_path).parent)], check=False)
+
+                except Exception as e:
+                    log.error("ui_coordinator.batch_notification_failed", error=str(e))
+
+            self._safe_ui_call(_show_notification)
 
             # Refresh project views to show new unified report
             if self.project_view_manager:
