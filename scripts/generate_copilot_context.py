@@ -290,16 +290,16 @@ discovered_classes:
 
 def main():
     """Gera arquivo de contexto otimizado."""
-    print("🔍 Analisando codebase do ZebTrack-AI...")
+    print("Analisando codebase do ZebTrack-AI...")
 
     context = generate_yaml_context()
 
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write(context)
 
-    print(f"✅ Contexto gerado: {OUTPUT_FILE}")
-    print(f"📊 Tamanho: {len(context)} chars")
-    print("\n💡 Use este arquivo para navegação rápida com GitHub Copilot")
+    print(f"Contexto gerado: {OUTPUT_FILE}")
+    print(f"Tamanho: {len(context)} chars")
+    print("\nUse este arquivo para navegacao rapida com GitHub Copilot")
 
 
 if __name__ == "__main__":
