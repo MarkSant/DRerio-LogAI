@@ -1,0 +1,22 @@
+# Normalize all text files to LF on check-in
+* text=auto eol=lf
+
+# Explicitly set line endings for common text files
+*.py text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.sh text eol=lf
+
+# Binary files (should not be normalized)
+*.pt binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.lnk binary
+*.parquet binary
