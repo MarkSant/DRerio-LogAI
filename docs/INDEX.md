@@ -79,6 +79,7 @@ docs/
 
 ### Development Workflows
 
+- **[🔍 Prompt Mestre: Agente Investigador](../AGENT_INVESTIGATOR.md)** - ⭐ Guia completo para agentes de IA investigarem problemas
 - **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute
 - **[Developer Cheatsheet](guides/developer/CHEATSHEET.md)** - Quick command reference
 - **[Workflows](guides/developer/WORKFLOWS.md)** - Common development flows
