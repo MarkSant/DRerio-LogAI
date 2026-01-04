@@ -260,12 +260,31 @@ class TestGUIStateObserver:
         # Stop processing
         controller.state_manager.update_processing_state(source="test", is_processing=False)
 
-        # Wait for async observers and process scheduled UI updates
-        def _process_and_check():
-            mock_gui.root.update_idletasks()
-            return mock_gui.process_video_btn.config.call_count > 0
+        # Wait for async observers to schedule callbacks
+        # (StateManager notifies observers asynchronously via ThreadPoolExecutor)
+        def _callback_scheduled():
+            return len([c for c in mock_gui.root._scheduled_callbacks if c[0] == 0]) > 0
 
-        wait_for_condition(_process_and_check, timeout=3.0, interval=0.05)
+        wait_for_condition(_callback_scheduled, timeout=3.0, interval=0.02)
+
+        # Process all scheduled UI updates
+        mock_gui.root.update_idletasks()
+
+        # Additional wait to ensure the button config was called
+        def _button_updated():
+            try:
+                mock_gui.process_video_btn.config.assert_any_call(state="normal")
+                return True
+            except AssertionError:
+                # Process any remaining callbacks
+                mock_gui.root.update_idletasks()
+                return False
+
+        success = wait_for_condition(_button_updated, timeout=3.0, interval=0.05)
+
+        if not success:
+            # Final attempt with detailed diagnostics
+            mock_gui.root.update_idletasks()
 
         # Verify button state was updated (use any_call for flexibility)
         mock_gui.process_video_btn.config.assert_any_call(state="normal")
