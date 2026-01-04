@@ -458,7 +458,7 @@ class _WorkerProcess(multiprocessing.Process):
         if self.config.model_type == "openvino":
             from zebtrack.plugins.openvino_detector import OpenVINOPlugin
 
-            plugin = OpenVINOPlugin(model_path=model_path, settings_obj=settings)
+            plugin = OpenVINOPlugin(model_path=model_path, settings_obj=settings, mode="batch")
         else:
             from zebtrack.plugins.ultralytics_detector import UltralyticsDetectorPlugin
 

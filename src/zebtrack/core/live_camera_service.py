@@ -249,6 +249,58 @@ class LiveCameraService:
         # Session timer for countdown display (v2.3.0)
         self._session_start_time: float | None = None
 
+    def _cleanup_existing_session_folders(
+        self,
+        output_base: Path,
+        experiment_id: str,
+    ) -> None:
+        """Cleanup existing session folders for the same experiment_id.
+
+        v2.3.2: When re-recording a live session, remove all existing folders
+        matching the experiment_id pattern to prevent folder accumulation.
+        This ensures that recording again overwrites previous data.
+
+        Args:
+            output_base: Base directory where session folders are created.
+            experiment_id: Experiment identifier used for folder matching.
+        """
+        if not output_base.exists():
+            return
+
+        # Find folders matching pattern: experiment_id_YYYYMMDD_HHMMSS
+        pattern = f"{experiment_id}_*"
+        matching_folders = list(output_base.glob(pattern))
+
+        if not matching_folders:
+            log.debug(
+                "live_camera_service.cleanup.no_existing_folders",
+                output_base=str(output_base),
+                experiment_id=experiment_id,
+            )
+            return
+
+        log.info(
+            "live_camera_service.cleanup.found_existing_folders",
+            count=len(matching_folders),
+            experiment_id=experiment_id,
+            folders=[f.name for f in matching_folders],
+        )
+
+        for folder in matching_folders:
+            if folder.is_dir():
+                try:
+                    shutil.rmtree(folder)
+                    log.info(
+                        "live_camera_service.cleanup.folder_removed",
+                        folder=str(folder),
+                    )
+                except Exception as e:
+                    log.warning(
+                        "live_camera_service.cleanup.folder_remove_failed",
+                        folder=str(folder),
+                        error=str(e),
+                    )
+
     @property
     def camera(self) -> Camera | None:
         """Thread-safe access to camera instance."""
@@ -490,6 +542,11 @@ class LiveCameraService:
             output_base = Path("live_analysis_sessions")
 
         output_base.mkdir(exist_ok=True)
+
+        # ✅ v2.3.2: Cleanup existing session folders for same experiment_id
+        # This prevents accumulating multiple timestamped folders when re-recording
+        self._cleanup_existing_session_folders(output_base, experiment_id)
+
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         folder_name = f"{experiment_id}_{timestamp}"
         self._current_base_name = folder_name

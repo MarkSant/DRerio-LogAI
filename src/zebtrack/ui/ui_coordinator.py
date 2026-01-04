@@ -155,11 +155,18 @@ class UICoordinator:
         # Live Camera Events (v2.2.0)
         self.event_bus.subscribe(UIEvents.CAMERA_DISCONNECT_DETECTED, self._on_camera_disconnect)
         self.event_bus.subscribe(UIEvents.CAMERA_RECONNECTED, self._on_camera_reconnected)
-        self.event_bus.subscribe(UIEvents.AQUARIUM_DETECTION_PROGRESS, self._on_aquarium_detection_progress)
-        self.event_bus.subscribe(UIEvents.BATCH_ANALYSIS_COMPLETED, self._on_batch_analysis_completed)
+        self.event_bus.subscribe(
+            UIEvents.AQUARIUM_DETECTION_PROGRESS, self._on_aquarium_detection_progress
+        )
+        self.event_bus.subscribe(
+            UIEvents.BATCH_ANALYSIS_COMPLETED, self._on_batch_analysis_completed
+        )
         self.event_bus.subscribe(
             UIEvents.EXTERNAL_TRIGGER_NOTICE_CLEARED, self._on_external_trigger_notice_cleared
         )
+
+        # v2.3.2: Zone Display Management
+        self.event_bus.subscribe(UIEvents.ZONE_DISPLAY_CLEARED, self._on_zone_display_cleared)
 
         log.debug("ui_coordinator.subscriptions_setup", count=self._count_subscriptions())
 
@@ -481,6 +488,70 @@ class UICoordinator:
             self._errors_count += 1
             log.exception("ui_coordinator.external_trigger_notice_cleared.error", error=str(e))
 
+    def _on_zone_display_cleared(self, data: dict[str, Any]) -> None:
+        """Handle ZONE_DISPLAY_CLEARED event.
+
+        **Workflow: Zone Display Clear Coordination (v2.3.2)**
+
+        Publishers: MenuManager (after video/arena deletion)
+
+        Coordinates:
+        1. Clear the canvas background image
+        2. Clear zone polygons from canvas
+        3. Clear zone listbox
+        4. Reset zone-related state
+
+        Args:
+            data: Event payload containing:
+                - deleted_video_path: str - Path of deleted video
+                - asset: str - Type of asset deleted (video, arena)
+        """
+        self._events_handled += 1
+        deleted_video = data.get("deleted_video_path")
+        asset = data.get("asset", "")
+
+        try:
+            log.info(
+                "ui_coordinator.zone_display_cleared",
+                deleted_video=deleted_video,
+                asset=asset,
+            )
+
+            # Clear canvas and zone display
+            if self.canvas_manager:
+                self._safe_ui_call(lambda: self._clear_canvas_display())
+
+            # Clear zone listbox
+            if self.canvas_manager and hasattr(self.canvas_manager, "update_zone_listbox"):
+                self._safe_ui_call(lambda: self.canvas_manager.update_zone_listbox(None))
+
+            log.debug("ui_coordinator.zone_display_cleared.completed")
+
+        except Exception as e:
+            self._errors_count += 1
+            log.exception("ui_coordinator.zone_display_cleared.error", error=str(e))
+
+    def _clear_canvas_display(self) -> None:
+        """Clear the canvas display after video/arena deletion."""
+        if not self.canvas_manager:
+            return
+
+        # Clear background image reference
+        self.canvas_manager._canvas_bg_image = None
+        self.canvas_manager._raw_bg_image = None
+        self.canvas_manager._canvas_bg_position = None
+
+        # Clear the canvas itself
+        canvas = self.canvas_manager._get_canvas()
+        if canvas:
+            canvas.delete("all")
+
+        # Clear any interactive polygon state
+        if hasattr(self.canvas_manager, "clear_interactive_polygon"):
+            self.canvas_manager.clear_interactive_polygon()
+
+        log.debug("ui_coordinator.canvas_display_cleared")
+
     # ===========================
     # Helper Methods
     # ===========================
@@ -656,6 +727,7 @@ class UICoordinator:
 
             # Update dialog if it exists
             if self._aquarium_detection_dialog and self.root:
+
                 def update_dialog():
                     if self._aquarium_detection_dialog:
                         self._aquarium_detection_dialog.update_progress(
@@ -719,9 +791,9 @@ class UICoordinator:
             # Show success notification
             def _show_notification():
                 try:
-                    from tkinter import messagebox
-                    import subprocess
                     import platform
+                    import subprocess
+                    from tkinter import messagebox
 
                     message = (
                         f"✅ Relatório de Lote Gerado!\n\n"

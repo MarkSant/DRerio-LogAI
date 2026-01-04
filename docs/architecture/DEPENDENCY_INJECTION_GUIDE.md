@@ -261,7 +261,7 @@ class LiveBatchCoordinator:
         self.state_manager = state_manager
         self.settings = settings_obj
         self.event_bus = event_bus
-        
+
         # Batch tracking state
         self._batches: dict[str, BatchInfo] = {}
         self.logger = get_logger()
@@ -346,19 +346,19 @@ class LiveBatchCoordinator:
 6. **UICoordinator Event Handler** (`ui/ui_coordinator.py`):
    ```python
    self.event_bus.subscribe(UIEvents.BATCH_ANALYSIS_COMPLETED, self._on_batch_analysis_completed)
-   
+
    def _on_batch_analysis_completed(self, event_data: dict[str, Any]) -> None:
        """Handle batch analysis completed event (v2.3.0)."""
        batch_id = event_data.get("batch_id", "unknown")
        report_path = event_data.get("report_path")
        session_count = event_data.get("session_count", 0)
-       
+
        # Show success notification
        messagebox.showinfo(
            title="Análise de Lote Completa",
            message=f"✅ Relatório de Lote Gerado!\n\nLote: {batch_id}\nSessões: {session_count}"
        )
-       
+
        # Open file explorer to report location
        os.startfile(os.path.dirname(report_path))
    ```
@@ -493,12 +493,12 @@ class DialogManager:
 
 ## Migration Status
 
-✅ **Phase 1**: Core services (WeightManager, DetectorService, ProjectManager)  
-✅ **Phase 2**: Analysis & IO layers (AnalysisService, Camera, Recorder, Plugins)  
-✅ **Phase 3**: UI layer (ApplicationGUI, WizardDialog, all dialogs)  
-✅ **Phase 2+ Refactoring**: Coordinators/Adapters (ProjectWorkflowAdapter, AnalysisCoordinator, DialogManager)  
-✅ **v2.3.0**: LiveBatchCoordinator activated with wizard integration and unified batch reporting  
-✅ **Singleton Removed**: No global `settings` object exists  
+✅ **Phase 1**: Core services (WeightManager, DetectorService, ProjectManager)
+✅ **Phase 2**: Analysis & IO layers (AnalysisService, Camera, Recorder, Plugins)
+✅ **Phase 3**: UI layer (ApplicationGUI, WizardDialog, all dialogs)
+✅ **Phase 2+ Refactoring**: Coordinators/Adapters (ProjectWorkflowAdapter, AnalysisCoordinator, DialogManager)
+✅ **v2.3.0**: LiveBatchCoordinator activated with wizard integration and unified batch reporting
+✅ **Singleton Removed**: No global `settings` object exists
 ✅ **MainViewModel Status**: Currently ~5442 lines; coordinators/adapters extract complex orchestration responsibilities to dedicated components
 
 ## References

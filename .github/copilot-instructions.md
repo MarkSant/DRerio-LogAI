@@ -1,5 +1,21 @@
 # ZebTrack-AI Agent Playbook (Optimized for Speed & Token Efficiency)
 
+---
+
+## 🚨 MANDATORY: Impact Analysis Protocol
+
+**BEFORE making ANY code change**, you MUST:
+
+1. **Read**: [`docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md`](../docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md) - Complete workflow
+2. **Run**: `python scripts/impact_analyzer.py <type> <name>` - Trace all affected components
+3. **Consult**: [`.copilot-impact-map.yaml`](../.copilot-impact-map.yaml) - Quick dependency lookup
+4. **Verify**: Update ALL affected components consistently
+5. **Test**: Run domain-specific tests from protocol
+
+**Failure to follow this protocol results in incomplete changes that break system coherence.**
+
+---
+
 ## 🎯 Quick Navigation Index
 **ALWAYS check `.copilot-context.yaml` first** - auto-generated file index and decision trees.
 
@@ -43,8 +59,9 @@
 - **Scripts**: Tools like `scripts/build_templates.py` and `scripts/compile_translations.py` refresh shared assets; run before release branches.
 - **Thread safety**: `StateManager` is thread-safe for cross-thread updates; still pass updates through it instead of mutating view state directly.
 - **Dependency Injection**: All services use constructor injection. Add `settings_obj: Settings` parameter to new services; pass it from `__main__.py` Composition Root (lines 140-280). See `docs/architecture/DEPENDENCY_INJECTION_GUIDE.md` for patterns (RuntimeError vs graceful fallback).
-- **Common pitfalls**: Forgetting to rescale zones, skipping `root.after`, writing new columns mid-Parquet, or importing singleton `from zebtrack import settings`—existing tests catch these.
+- **Common pitfalls**: Forgetting to rescale zones, skipping `root.after`, writing new columns mid-Parquet, or importing singleton `from zebtrack import settings`—existing tests catch these. **See `.copilot-impact-map.yaml` Section `pitfalls` for top 8 errors.**
 - **When extending**: Prefer augmenting services/adapters (e.g., `ProjectWorkflowService`, `DetectorService`) over bypassing them to keep UI/state synchronization intact. Inject settings via constructor, never use singleton.
+- **Impact Analysis**: **ALWAYS run `python scripts/impact_analyzer.py` before completing any change.** This tool traces all affected files, events, and DI chains.
 - **Support**: If unexpected user edits exist, coordinate rather than reverting; log domain events using existing patterns.
 
 ## 📋 Documentation Standards (MANDATORY)

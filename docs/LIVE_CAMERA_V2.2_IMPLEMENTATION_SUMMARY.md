@@ -1,7 +1,7 @@
 # Live Camera Multi-Aquarium Implementation Summary
 
-**Version:** 2.2.0  
-**Date:** 2026-01-01  
+**Version:** 2.2.0
+**Date:** 2026-01-01
 **Status:** ✅ IMPLEMENTADO
 
 ---
@@ -317,6 +317,6 @@ batch_coordinator.mark_batch_complete(batch_id)
 
 ---
 
-**Implementado por:** ZebTrack-AI Agent  
-**Revisado por:** [Aguardando revisão]  
+**Implementado por:** ZebTrack-AI Agent
+**Revisado por:** [Aguardando revisão]
 **Aprovado por:** [Aguardando aprovação]

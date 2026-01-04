@@ -167,9 +167,28 @@ def main():
                     # Apply benchmark recommendations to settings
                     if benchmark_result.recommendation:
                         rec = benchmark_result.recommendation
+
                         # Update use_openvino based on recommendation
                         if rec.backend == "openvino":
                             settings_obj.model_selection.use_openvino = True
+
+                            # Apply specific OpenVINO optimizations
+                            settings_obj.openvino.device = rec.device_live
+                            settings_obj.openvino.device_batch = rec.device_batch
+                            settings_obj.openvino.performance_hint_live = rec.openvino_hint_live
+                            settings_obj.openvino.performance_hint_batch = rec.openvino_hint_batch
+                            settings_obj.openvino.precision = rec.openvino_precision
+                            settings_obj.openvino.enable_model_cache = rec.enable_model_cache
+
+                        # Persist these settings to config.local.yaml so they are used in future sessions
+                        from zebtrack.settings import save_settings
+
+                        try:
+                            save_settings(settings_obj)
+                            log.info("benchmark.settings_persisted")
+                        except Exception as e:
+                            log.warning("benchmark.settings_persist_failed", error=str(e))
+
                         log.info(
                             "benchmark.applied_recommendations",
                             backend=rec.backend,

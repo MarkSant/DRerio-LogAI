@@ -77,6 +77,9 @@ class UIEvents(Enum):
     AQUARIUM_DETECTION_PROGRESS = auto()  # Progress updates during aquarium detection
     BATCH_ANALYSIS_COMPLETED = auto()  # Batch analysis workflow completed
 
+    # v2.3.2: Zone/Canvas State Management
+    ZONE_DISPLAY_CLEARED = auto()  # Clear zone canvas and reset zone display state
+
 
 @dataclass(frozen=True)
 class Event:

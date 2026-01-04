@@ -595,7 +595,9 @@ class DialogManager:
             pm = self.gui.controller.project_manager
             subjects_per_group = pm.project_data.get("subjects_per_group", 0)
             completed_sessions = pm.get_completed_sessions()
-            completed_subjects = {s for (d, g, s) in completed_sessions if d == day and g == group_name}
+            completed_subjects = {
+                s for (d, g, s) in completed_sessions if d == day and g == group_name
+            }
 
             from zebtrack.ui.dialogs.subject_selection_dialog import SubjectSelectionDialog
 

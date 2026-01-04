@@ -1,7 +1,7 @@
 # Live Camera v2.2.0 - Melhorias Opcionais Implementadas ✅
 
-**Data**: 1 de Janeiro de 2026  
-**Versão**: 2.2.0  
+**Data**: 1 de Janeiro de 2026
+**Versão**: 2.2.0
 **Status**: TODAS AS MELHORIAS IMPLEMENTADAS
 
 ---
@@ -183,7 +183,7 @@ class HardwareCapabilityReport:
 ```python
 def _detect_gpu(self) -> tuple[bool, str | None, float | None, float | None]:
     """Detect GPU presence and name.
-    
+
     Returns:
         (has_gpu, gpu_name, total_memory_gb, available_memory_gb) tuple
     """
@@ -194,7 +194,7 @@ def _detect_gpu(self) -> tuple[bool, str | None, float | None, float | None]:
             gpu_mem_total = torch.cuda.get_device_properties(0).total_memory / (1024**3)
             gpu_mem_allocated = torch.cuda.memory_allocated(0) / (1024**3)
             gpu_mem_free = gpu_mem_total - gpu_mem_allocated
-            
+
             self.logger.info(
                 "hardware_capability.gpu_detected",
                 gpu=gpu_name,
@@ -245,7 +245,7 @@ self._fps_adjustment_interval: int = 30  # Adjust every N frames
 ```python
 def _adjust_fps_dynamically(self, frame_number: int, processing_time: float) -> bool:
     """Adjust FPS dynamically based on processing performance.
-    
+
     Returns:
         True if frame should be processed, False if should skip
     """
@@ -253,12 +253,12 @@ def _adjust_fps_dynamically(self, frame_number: int, processing_time: float) -> 
     self._processing_times.append(processing_time)
     if len(self._processing_times) > 30:
         self._processing_times = self._processing_times[-30:]
-    
+
     # 2. Calculate measured FPS every 30 frames
     if frame_number % 30 == 0 and len(self._processing_times) >= 10:
         avg_time = sum(self._processing_times) / len(self._processing_times)
         self._current_fps = 1.0 / avg_time if avg_time > 0 else 30.0
-        
+
         # 3. Adjust frame skip based on performance
         if self._current_fps < self._target_fps * 0.7:  # >30% slower
             self._frame_skip_count = min(4, self._frame_skip_count + 1)
@@ -266,12 +266,12 @@ def _adjust_fps_dynamically(self, frame_number: int, processing_time: float) -> 
         elif self._current_fps > self._target_fps * 1.2:  # >20% faster
             self._frame_skip_count = max(0, self._frame_skip_count - 1)
             log.info("fps_improved", measured=self._current_fps, skip=self._frame_skip_count)
-    
+
     # 4. Determine if frame should be processed
     if self._frame_skip_count > 0:
         should_process = (frame_number % (self._frame_skip_count + 1)) == 0
         return should_process
-    
+
     return True
 ```
 
@@ -280,9 +280,9 @@ def _adjust_fps_dynamically(self, frame_number: int, processing_time: float) -> 
 if should_analyze:
     # v2.2.0: Start timing
     frame_start_time = time.time()
-    
+
     # ... detection code ...
-    
+
     # v2.2.0: Adjust FPS dynamically
     frame_processing_time = time.time() - frame_start_time
     self._adjust_fps_dynamically(frame_number, frame_processing_time)
@@ -504,7 +504,7 @@ elif self._current_fps > self._target_fps * 1.5:  # 150% em vez de 120%
 
 ---
 
-**Autor**: GitHub Copilot (Claude Sonnet 4.5)  
-**Data**: 1 de Janeiro de 2026  
-**Versão**: 2.2.0  
+**Autor**: GitHub Copilot (Claude Sonnet 4.5)
+**Data**: 1 de Janeiro de 2026
+**Versão**: 2.2.0
 **Commit**: Todas melhorias opcionais v2.2.0

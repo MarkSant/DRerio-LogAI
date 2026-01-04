@@ -136,7 +136,9 @@ class WizardDialog(Dialog):
         self.all_steps = {
             WizardStepID.DISCOVERY: DiscoveryStep(self.steps_container, self.wizard_data),
             WizardStepID.FILE_SELECTION: FileSelectionStep(self.steps_container, self.wizard_data),
-            WizardStepID.LIVE_CONFIG: LiveConfigStep(self.steps_container, self.wizard_data, settings_obj=self.settings),
+            WizardStepID.LIVE_CONFIG: LiveConfigStep(
+                self.steps_container, self.wizard_data, settings_obj=self.settings
+            ),
             WizardStepID.EXPERIMENTAL_DESIGN: ExperimentalDesignStep(
                 self.steps_container, self.wizard_data
             ),

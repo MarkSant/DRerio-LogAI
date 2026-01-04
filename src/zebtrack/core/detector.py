@@ -531,13 +531,30 @@ class Detector:
         # Optimization: Crop the frame to the bounding box of the arena polygon
         if self.scaled_polygon.size > 0:
             x, y, w, h = cv2.boundingRect(self.scaled_polygon)
-            cropped_frame = frame[y : y + h, x : x + w]
+
+            # Clip to frame boundaries to avoid empty crops with negative coordinates
+            img_h, img_w = frame.shape[:2]
+            crop_x1 = max(0, x)
+            crop_y1 = max(0, y)
+            crop_x2 = min(img_w, x + w)
+            crop_y2 = min(img_h, y + h)
+
+            if crop_x2 <= crop_x1 or crop_y2 <= crop_y1:
+                log.warning(
+                    "detector.invalid_crop",
+                    bbox=(x, y, w, h),
+                    frame_size=(img_w, img_h),
+                    message="Arena polygon bounding box is outside frame boundaries.",
+                )
+                return [], None
+
+            cropped_frame = frame[crop_y1:crop_y2, crop_x1:crop_x2]
 
             # ✅ DEBUG: Log crop dimensions to verify detection area
             log.debug(
                 "detector.frame_crop_applied",
                 original_size=(frame.shape[1], frame.shape[0]),
-                crop_bbox=(x, y, w, h),
+                crop_bbox=(crop_x1, crop_y1, crop_x2 - crop_x1, crop_y2 - crop_y1),
                 cropped_size=(cropped_frame.shape[1], cropped_frame.shape[0]),
                 conf_threshold=conf_threshold,
             )
@@ -555,7 +572,7 @@ class Detector:
             else:
                 log.debug(
                     "detector.plugin_no_detections",
-                    crop_size=(w, h),
+                    crop_size=(crop_x2 - crop_x1, crop_y2 - crop_y1),
                     conf_threshold=conf_threshold,
                 )
 
@@ -570,10 +587,10 @@ class Detector:
                     track_id,
                     class_id,
                 ) = self._ensure_track_tuple(det)
-                x1 = x1_crop + x
-                y1 = y1_crop + y
-                x2 = x2_crop + x
-                y2 = y2_crop + y
+                x1 = x1_crop + crop_x1
+                y1 = y1_crop + crop_y1
+                x2 = x2_crop + crop_x1
+                y2 = y2_crop + crop_y1
                 predictions.append((x1, y1, x2, y2, conf, track_id, class_id))
         else:
             # Fallback to detecting on the full frame if no polygon is defined

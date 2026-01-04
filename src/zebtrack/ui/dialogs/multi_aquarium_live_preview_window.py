@@ -15,8 +15,8 @@ from typing import TYPE_CHECKING, Callable
 
 import cv2
 import numpy as np
-from PIL import Image, ImageTk
 import structlog
+from PIL import Image, ImageTk
 
 if TYPE_CHECKING:
     pass
@@ -223,9 +223,7 @@ class MultiAquariumLivePreviewWindow:
 
             # Update detection count
             if aquarium_id in self.aquarium_labels:
-                self.aquarium_labels[aquarium_id].config(
-                    text=f"Detecções: {num_detections}"
-                )
+                self.aquarium_labels[aquarium_id].config(text=f"Detecções: {num_detections}")
 
         except Exception as e:
             log.error(

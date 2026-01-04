@@ -2,7 +2,7 @@ import glob
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import cv2
 import numpy as np
@@ -62,6 +62,7 @@ class OpenVINOPlugin(DetectorPlugin):
         model_path: Path | str,
         expected_hash: str | None = None,
         settings_obj: Any | None = None,
+        mode: Literal["live", "batch"] = "live",
     ):
         """
         Initializes the plugin, verifies model integrity, and loads the model.
@@ -71,6 +72,7 @@ class OpenVINOPlugin(DetectorPlugin):
             expected_hash: The expected SHA256 hash of the .xml file.
                 If provided, the file's integrity will be verified before loading.
             settings_obj: Settings instance (injected, uses global if None for backward compat).
+            mode: Execution mode ('live' for camera, 'batch' for offline processing).
 
         Raises:
             FileNotFoundError: If the model's .xml file cannot be found.
@@ -145,8 +147,13 @@ class OpenVINOPlugin(DetectorPlugin):
 
         if self._settings is not None and hasattr(self._settings, "openvino"):
             ov_settings = self._settings.openvino
-            device_name = ov_settings.device
-            performance_hint = ov_settings.performance_hint_live
+
+            if mode == "batch":
+                device_name = ov_settings.device_batch
+                performance_hint = ov_settings.performance_hint_batch
+            else:
+                device_name = ov_settings.device
+                performance_hint = ov_settings.performance_hint_live
 
             # Enable model cache for faster subsequent loads
             if ov_settings.enable_model_cache:
@@ -315,6 +322,8 @@ class OpenVINOPlugin(DetectorPlugin):
         self, frame: np.ndarray, conf_threshold: float | None = None
     ) -> list[tuple[int, int, int, int, float, int | None, int]]:
         """Run inference using the OpenVINO model and return raw detections."""
+        if frame is None or frame.size == 0:
+            return []
 
         # Temporarily override confidence threshold if provided
         old_conf = None

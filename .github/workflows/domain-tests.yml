@@ -1,0 +1,335 @@
+name: Domain Tests
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Test domain to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - gui
+          - processing
+          - multi_aquarium
+          - events
+          - analysis
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      gui_changed: ${{ steps.changes.outputs.gui }}
+      processing_changed: ${{ steps.changes.outputs.processing }}
+      multi_aquarium_changed: ${{ steps.changes.outputs.multi_aquarium }}
+      events_changed: ${{ steps.changes.outputs.events }}
+      analysis_changed: ${{ steps.changes.outputs.analysis }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed domains
+        id: changes
+        run: |
+          # Get changed files
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD 2>/dev/null || git diff --name-only HEAD~1)
+
+          # GUI domain
+          if echo "$CHANGED_FILES" | grep -qE "(ui/|widgets/|dialogs/|gui\.py|canvas)"; then
+            echo "gui=true" >> $GITHUB_OUTPUT
+          else
+            echo "gui=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Processing domain
+          if echo "$CHANGED_FILES" | grep -qE "(processing|recorder|video_source|detector)"; then
+            echo "processing=true" >> $GITHUB_OUTPUT
+          else
+            echo "processing=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Multi-aquarium domain
+          if echo "$CHANGED_FILES" | grep -qE "(multi|aquarium|partitioned|zone_manager)"; then
+            echo "multi_aquarium=true" >> $GITHUB_OUTPUT
+          else
+            echo "multi_aquarium=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Events domain
+          if echo "$CHANGED_FILES" | grep -qE "(event|coordinator|dispatcher)"; then
+            echo "events=true" >> $GITHUB_OUTPUT
+          else
+            echo "events=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Analysis domain
+          if echo "$CHANGED_FILES" | grep -qE "(analysis|reporter|behavior|roi)"; then
+            echo "analysis=true" >> $GITHUB_OUTPUT
+          else
+            echo "analysis=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+  run-impact-analyzer:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run impact analyzer on changed files
+        run: |
+          echo "## Impact Analysis Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD 2>/dev/null || git diff --name-only HEAD~1)
+
+          for file in $CHANGED_FILES; do
+            if [[ $file == *.py ]] && [[ $file == src/* ]]; then
+              echo "### \`$file\`" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              python scripts/impact_analyzer.py file "$file" 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "Unable to analyze"
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+  test-gui:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.gui_changed == 'true' || github.event.inputs.domain == 'gui' || github.event.inputs.domain == 'all'
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libavcodec-extra ffmpeg libopencv-dev python3-opencv
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Configure Poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Build templates
+        run: |
+          poetry run python scripts/build_templates.py
+          poetry run python scripts/compile_translations.py
+
+      - name: Run GUI tests
+        run: |
+          xvfb-run --auto-servernum poetry run pytest -m gui -n0 --timeout=300 --timeout-method=thread -v
+        timeout-minutes: 25
+
+  test-processing:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.processing_changed == 'true' || github.event.inputs.domain == 'processing' || github.event.inputs.domain == 'all'
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libavcodec-extra ffmpeg libopencv-dev python3-opencv
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Configure Poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Build templates
+        run: |
+          poetry run python scripts/build_templates.py
+          poetry run python scripts/compile_translations.py
+
+      - name: Run processing tests
+        run: |
+          poetry run pytest tests/test_processing*.py tests/test_recorder.py -v --timeout=300
+
+  test-multi-aquarium:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.multi_aquarium_changed == 'true' || github.event.inputs.domain == 'multi_aquarium' || github.event.inputs.domain == 'all'
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libavcodec-extra ffmpeg libopencv-dev python3-opencv
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Configure Poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Build templates
+        run: |
+          poetry run python scripts/build_templates.py
+          poetry run python scripts/compile_translations.py
+
+      - name: Run multi-aquarium tests
+        run: |
+          poetry run pytest -k "multi_aquarium or partitioned" -v --timeout=300
+
+  test-events:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.events_changed == 'true' || github.event.inputs.domain == 'events' || github.event.inputs.domain == 'all'
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libavcodec-extra ffmpeg libopencv-dev python3-opencv
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Configure Poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Build templates
+        run: |
+          poetry run python scripts/build_templates.py
+          poetry run python scripts/compile_translations.py
+
+      - name: Run event/coordinator tests
+        run: |
+          poetry run pytest tests/test_event*.py tests/coordinators/ -v --timeout=300
+
+  test-analysis:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.analysis_changed == 'true' || github.event.inputs.domain == 'analysis' || github.event.inputs.domain == 'all'
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libavcodec-extra ffmpeg libopencv-dev python3-opencv
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Configure Poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Build templates
+        run: |
+          poetry run python scripts/build_templates.py
+          poetry run python scripts/compile_translations.py
+
+      - name: Run analysis tests
+        run: |
+          poetry run pytest tests/test_analysis*.py tests/test_reporter*.py -v --timeout=300
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, test-gui, test-processing, test-multi-aquarium, test-events, test-analysis]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Domain Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Domain | Changed | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| GUI | ${{ needs.detect-changes.outputs.gui_changed }} | ${{ needs.test-gui.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Processing | ${{ needs.detect-changes.outputs.processing_changed }} | ${{ needs.test-processing.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Multi-Aquarium | ${{ needs.detect-changes.outputs.multi_aquarium_changed }} | ${{ needs.test-multi-aquarium.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Events | ${{ needs.detect-changes.outputs.events_changed }} | ${{ needs.test-events.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Analysis | ${{ needs.detect-changes.outputs.analysis_changed }} | ${{ needs.test-analysis.result || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY

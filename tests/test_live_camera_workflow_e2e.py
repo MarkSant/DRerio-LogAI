@@ -11,17 +11,18 @@ Version: 2.2.0
 Author: ZebTrack-AI Team
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
+from unittest.mock import Mock, patch
 
+import pytest
+
+from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
+from zebtrack.core.live_camera_mode import LiveCameraMode, LiveCameraModeSelector
+from zebtrack.io.recorder import Recorder
 from zebtrack.utils.hardware_capability import (
     HardwareCapabilityDetector,
     MultiAquariumCapability,
 )
-from zebtrack.core.live_camera_mode import LiveCameraModeSelector, LiveCameraMode
-from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
-from zebtrack.io.recorder import Recorder
 
 
 class TestHardwareCapabilityDetection:
@@ -31,16 +32,19 @@ class TestHardwareCapabilityDetection:
         """Test detection with excellent hardware (GPU + 8 cores + 16GB)."""
         detector = HardwareCapabilityDetector(settings_obj)
 
-        with patch("multiprocessing.cpu_count", return_value=8), \
-             patch("psutil.virtual_memory") as mock_mem, \
-             patch("psutil.cpu_percent", return_value=20.0):
-
+        with (
+            patch("multiprocessing.cpu_count", return_value=8),
+            patch("psutil.virtual_memory") as mock_mem,
+            patch("psutil.cpu_percent", return_value=20.0),
+        ):
             mock_mem.return_value.total = 32 * 1024**3  # 32GB total
             mock_mem.return_value.available = 20 * 1024**3  # 20GB free (>16GB required)
             mock_mem.return_value.percent = 37.5
 
             # Mock GPU detection (has_gpu, name, total_memory_gb, free_memory_gb)
-            with patch.object(detector, "_detect_gpu", return_value=(True, "NVIDIA RTX 3060", 6.0, 5.5)):
+            with patch.object(
+                detector, "_detect_gpu", return_value=(True, "NVIDIA RTX 3060", 6.0, 5.5)
+            ):
                 report = detector.assess_capability()
 
         assert report.capability == MultiAquariumCapability.EXCELLENT
@@ -52,10 +56,11 @@ class TestHardwareCapabilityDetection:
         """Test detection with limited hardware (2 cores + 5GB)."""
         detector = HardwareCapabilityDetector(settings_obj)
 
-        with patch("multiprocessing.cpu_count", return_value=2), \
-             patch("psutil.virtual_memory") as mock_mem, \
-             patch("psutil.cpu_percent", return_value=30.0):
-
+        with (
+            patch("multiprocessing.cpu_count", return_value=2),
+            patch("psutil.virtual_memory") as mock_mem,
+            patch("psutil.cpu_percent", return_value=30.0),
+        ):
             mock_mem.return_value.total = 8 * 1024**3  # 8GB
             mock_mem.return_value.available = 5 * 1024**3  # 5GB free
             mock_mem.return_value.percent = 37.5
@@ -71,10 +76,11 @@ class TestHardwareCapabilityDetection:
         """Test detection with insufficient hardware (1 core + 3GB)."""
         detector = HardwareCapabilityDetector(settings_obj)
 
-        with patch("multiprocessing.cpu_count", return_value=1), \
-             patch("psutil.virtual_memory") as mock_mem, \
-             patch("psutil.cpu_percent", return_value=80.0):
-
+        with (
+            patch("multiprocessing.cpu_count", return_value=1),
+            patch("psutil.virtual_memory") as mock_mem,
+            patch("psutil.cpu_percent", return_value=80.0),
+        ):
             mock_mem.return_value.total = 4 * 1024**3  # 4GB
             mock_mem.return_value.available = 3 * 1024**3  # 3GB free
             mock_mem.return_value.percent = 75.0
@@ -238,11 +244,12 @@ class TestLiveBatchCoordinator:
         )
 
         # Mock video entries with analysis results
-        with patch.object(project_manager, "find_video_entry") as mock_find, \
-             patch.object(project_manager, "register_batch_outputs"), \
-             patch("pandas.read_excel"), \
-             patch("pandas.ExcelWriter"):
-
+        with (
+            patch.object(project_manager, "find_video_entry") as mock_find,
+            patch.object(project_manager, "register_batch_outputs"),
+            patch("pandas.read_excel"),
+            patch("pandas.ExcelWriter"),
+        ):
             mock_find.return_value = {
                 "summary_excel": "test_summary.xlsx",
             }

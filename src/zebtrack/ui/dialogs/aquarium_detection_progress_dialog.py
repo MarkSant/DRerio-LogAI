@@ -221,12 +221,12 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
         elif detected_bbox:
             if is_valid:
                 self.status_label.config(
-                    text=f"✓ Aquário detectado (área válida)",
+                    text="✓ Aquário detectado (área válida)",
                     foreground="green",
                 )
             else:
                 self.status_label.config(
-                    text=f"✗ Detecção ignorada (área insuficiente)",
+                    text="✗ Detecção ignorada (área insuficiente)",
                     foreground="orange",
                 )
 

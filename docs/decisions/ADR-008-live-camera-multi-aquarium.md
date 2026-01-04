@@ -1,7 +1,7 @@
 # ADR-008: Live Camera Multi-Aquarium Support with Hardware-Based Fallbacks
 
-**Status:** Accepted  
-**Date:** 2026-01-01  
+**Status:** Accepted
+**Date:** 2026-01-01
 **Version:** 2.2.0
 
 ## Context
@@ -104,17 +104,17 @@ Else if mode == RECORD_ONLY:
 ## Consequences
 
 ### Positive
-✅ **Multi-Aquarium Support:** Process 2-6 aquariums simultaneously (hardware-dependent)  
-✅ **Graceful Degradation:** Automatic fallback to single-aquarium or record-only  
-✅ **User Transparency:** Clear hardware requirements and recommendations  
-✅ **Disconnect Recovery:** No silent data corruption; user-guided recovery  
-✅ **Unified Reporting:** Cross-session aggregation for batch experiments  
+✅ **Multi-Aquarium Support:** Process 2-6 aquariums simultaneously (hardware-dependent)
+✅ **Graceful Degradation:** Automatic fallback to single-aquarium or record-only
+✅ **User Transparency:** Clear hardware requirements and recommendations
+✅ **Disconnect Recovery:** No silent data corruption; user-guided recovery
+✅ **Unified Reporting:** Cross-session aggregation for batch experiments
 ✅ **Sequential Mode:** Alternative for low-end hardware (1 aquarium per session)
 
 ### Negative
-⚠️ **Complexity Increase:** 4 processing modes vs 1 (testing burden)  
-⚠️ **Hardware Detection Accuracy:** Heuristics may misclassify edge cases  
-⚠️ **UI Overhead:** New dialogs (recovery, progress, mode selection)  
+⚠️ **Complexity Increase:** 4 processing modes vs 1 (testing burden)
+⚠️ **Hardware Detection Accuracy:** Heuristics may misclassify edge cases
+⚠️ **UI Overhead:** New dialogs (recovery, progress, mode selection)
 ⚠️ **Migration Path:** Existing projects assume single-aquarium (need schema versioning)
 
 ### Neutral

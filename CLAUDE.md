@@ -2,6 +2,22 @@
 
 **AI Assistant Guidance for ZebTrack-AI Development**
 
+---
+
+## 🚨 MANDATORY: Impact Analysis Protocol
+
+**BEFORE making ANY code change**, you MUST follow the Impact Analysis Protocol:
+
+1. **Read**: [`docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md`](docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md)
+2. **Run**: `python scripts/impact_analyzer.py <type> <name>` to identify affected components
+3. **Consult**: [`.copilot-impact-map.yaml`](.copilot-impact-map.yaml) for quick dependency lookup
+4. **Verify**: All affected components are updated consistently
+5. **Test**: Run domain-specific tests from the protocol
+
+**This is NOT optional.** Incomplete impact analysis leads to system incoherence.
+
+---
+
 ## Quick Context
 
 **DRerio LogAI** (`zebtrack` package) - Python 3.12+ Tkinter app for zebrafish behavioral tracking and analysis.
@@ -677,12 +693,17 @@ What are the results?
 
 ## Development Workflow
 
-1. **Before Coding**: Read relevant files in `docs/` and existing tests
+1. **Before Coding**:
+   - **MANDATORY**: Run `python scripts/impact_analyzer.py` to identify affected components
+   - Read [`IMPACT_ANALYSIS_PROTOCOL.md`](docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md)
+   - Consult [`.copilot-impact-map.yaml`](.copilot-impact-map.yaml) for dependency graphs
+   - Read relevant files in `docs/` and existing tests
 2. **Coding**: Follow DI patterns, use `structlog`, inject `settings_obj`
 3. **Testing**: Write tests before/during implementation, run `pytest -q`
 4. **Quality**: `ruff check --fix .`, run pre-commit
 5. **Documentation**: Update relevant docs in `docs/` if user-facing
-6. **System Map**: Update `docs/SYSTEM_INTEGRATION_MAP.md` immediately if changing events, payloads, or cross-component logic.
-7. **Commit**: Clear message, reference issue if applicable
+6. **System Map**: Update `docs/architecture/SYSTEM_INTEGRATION_MAP.md` immediately if changing events, payloads, or cross-component logic.
+7. **Impact Verification**: Verify ALL affected components identified by `impact_analyzer.py` are updated
+8. **Commit**: Clear message, reference issue if applicable
 
-**For detailed workflows**: `docs/WORKFLOWS.md`
+**For detailed workflows**: `docs/guides/developer/WORKFLOWS.md`

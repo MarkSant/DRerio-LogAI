@@ -299,6 +299,18 @@ class MenuManager:
             return
 
         basename = os.path.basename(video_path) or video_path
+
+        # v2.3.2: Check for multi-aquarium mode to show appropriate warning
+        is_multi_aquarium = False
+        num_aquariums = 0
+        if hasattr(self.gui.controller, "project_manager"):
+            video_entry = self.gui.controller.project_manager.find_video_entry(path=video_path)
+            if video_entry and isinstance(video_entry, dict):
+                is_multi_aquarium = bool(video_entry.get("multi_aquarium_mode", False))
+                multi_outputs = video_entry.get("multi_aquarium_outputs")
+                if multi_outputs and isinstance(multi_outputs, dict):
+                    num_aquariums = len(multi_outputs)
+
         prompts = {
             "arena": (
                 "Remover arena",
@@ -333,6 +345,23 @@ class MenuManager:
                 "Confirma a remoção do item selecionado?",
             ),
         )
+
+        # v2.3.2: Add multi-aquarium warning if applicable
+        if is_multi_aquarium and asset == "video":
+            message = (
+                f"Este vídeo possui dados de {num_aquariums} aquário(s) separados.\n\n"
+                f"⚠️ ATENÇÃO: Ao remover o vídeo, TODOS os dados e relatórios de "
+                f"TODOS os aquários serão excluídos permanentemente.\n\n"
+                f"Se deseja manter os dados de algum aquário, cancele esta operação "
+                f"e exporte os relatórios antes de prosseguir.\n\n"
+                f"Deseja continuar com a remoção?"
+            )
+        elif is_multi_aquarium and asset in ("trajectory", "summary"):
+            message = (
+                f"Este vídeo possui dados de {num_aquariums} aquário(s) separados.\n\n"
+                f"⚠️ Ao remover este item, os dados de TODOS os aquários serão afetados.\n\n"
+                f"{message}"
+            )
 
         confirm = messagebox.askyesno(
             title,
@@ -407,6 +436,15 @@ class MenuManager:
                     source="MenuManager.handle_overview_asset_removal",
                 )
             )
+            # v2.3.2: Clear zone display when video or arena is deleted
+            if asset in ("video", "arena"):
+                self.gui.event_bus_v2.publish(
+                    Event(
+                        type=UIEvents.ZONE_DISPLAY_CLEARED,
+                        data={"deleted_video_path": video_path, "asset": asset},
+                        source="MenuManager.handle_overview_asset_removal",
+                    )
+                )
 
     def show_processing_reports_context_menu(
         self,

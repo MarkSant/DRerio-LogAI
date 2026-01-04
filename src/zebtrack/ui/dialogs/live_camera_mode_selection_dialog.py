@@ -10,11 +10,11 @@ from tkinter import (
     Button,
     Frame,
     Label,
-    Listbox,
     Radiobutton,
-    Scrollbar,
     StringVar,
     Toplevel,
+)
+from tkinter import (
     font as tkfont,
 )
 from typing import Callable
@@ -191,9 +191,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
             frame,
             text=f"Capacidade: {self.hardware_report.capability.name}",
             font=tkfont.Font(size=10, weight="bold"),
-            fg=capability_colors.get(
-                self.hardware_report.capability, "#555555"
-            ),
+            fg=capability_colors.get(self.hardware_report.capability, "#555555"),
             bg="#F5F5F5",
         )
         capability_label.pack(pady=2)

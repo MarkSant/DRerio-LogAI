@@ -887,11 +887,17 @@ class LiveConfigStep(WizardStep):
                     f"• Use modo sequencial (processar aquários separadamente)\n"
                     f"• Processe offline após gravação sem detecção",
                 )
-                return (False, f"Projeto com {requested_aquariums} aquários excede o limite de 2 para gravação simultânea.")
+                return (
+                    False,
+                    f"Projeto com {requested_aquariums} aquários excede o limite de 2 para gravação simultânea.",
+                )
 
             # Check if hardware supports requested aquarium count
             if not self._check_mode_compatibility(requested_aquariums):
-                return (False, "Seleção de modo cancelada. Por favor, ajuste o número de aquários ou selecione um modo compatível.")
+                return (
+                    False,
+                    "Seleção de modo cancelada. Por favor, ajuste o número de aquários ou selecione um modo compatível.",
+                )
 
             # Store selected mode in wizard_data for later use
             if self.selected_mode:

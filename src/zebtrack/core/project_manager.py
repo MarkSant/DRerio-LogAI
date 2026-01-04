@@ -2008,6 +2008,25 @@ class ProjectManager:
             if self._delete_file_if_exists(video_path):
                 changed = True
 
+            # v2.3.2: Delete results_dir if registered (common for live recordings)
+            results_dir = video_entry.get("results_dir")
+            if results_dir:
+                results_path = Path(results_dir)
+                if results_path.exists() and results_path.is_dir():
+                    try:
+                        shutil.rmtree(results_path, ignore_errors=True)
+                        log.info(
+                            "project_manager.results_dir_deleted",
+                            results_dir=str(results_path),
+                        )
+                        changed = True
+                    except Exception as e:
+                        log.warning(
+                            "project_manager.results_dir_delete_failed",
+                            results_dir=str(results_path),
+                            error=str(e),
+                        )
+
             # v2.3.1: Delete zone parquets and results folder
             video_dir = Path(video_path).parent
             if video_dir.exists():
@@ -2017,16 +2036,42 @@ class ProjectManager:
                 for pattern in ["1_ProcessingArea_*.parquet", "2_ZonasROI_*.parquet"]:
                     for zone_file in glob.glob(str(video_dir / pattern)):
                         self._delete_file_if_exists(zone_file)
-                # Delete folder if empty (or only contains hidden files)
-                try:
-                    remaining = [f for f in video_dir.iterdir() if not f.name.startswith(".")]
-                    if not remaining:
-                        import shutil
 
-                        shutil.rmtree(video_dir, ignore_errors=True)
-                        log.info("project_manager.video_folder_deleted", folder=str(video_dir))
+                # v2.3.2: Force delete subject folder (don't wait for empty)
+                # The user explicitly chose to delete the video, so clean up completely
+                try:
+                    shutil.rmtree(video_dir, ignore_errors=True)
+                    log.info("project_manager.video_folder_deleted", folder=str(video_dir))
+                    changed = True
                 except Exception as e:
                     log.warning("project_manager.folder_cleanup_failed", error=str(e))
+
+            # v2.3.2: Delete multi-aquarium output directories if present
+            multi_aq_outputs = video_entry.get("multi_aquarium_outputs", {})
+            if multi_aq_outputs:
+                for aq_key, aq_data in multi_aq_outputs.items():
+                    aq_results_dir = aq_data.get("results_dir")
+                    if aq_results_dir:
+                        aq_results_path = Path(aq_results_dir)
+                        if aq_results_path.exists() and aq_results_path.is_dir():
+                            try:
+                                shutil.rmtree(aq_results_path, ignore_errors=True)
+                                log.info(
+                                    "project_manager.multi_aquarium_results_dir_deleted",
+                                    aquarium=aq_key,
+                                    results_dir=str(aq_results_path),
+                                )
+                            except Exception as e:
+                                log.warning(
+                                    "project_manager.multi_aquarium_results_dir_delete_failed",
+                                    aquarium=aq_key,
+                                    results_dir=str(aq_results_path),
+                                    error=str(e),
+                                )
+                    # Also delete individual parquet files in case results_dir differs
+                    for pq_path in (aq_data.get("parquet_files") or {}).values():
+                        if pq_path:
+                            self._delete_file_if_exists(pq_path)
 
         self.clear_zone_data_for_video(video_path, persist=False)
 

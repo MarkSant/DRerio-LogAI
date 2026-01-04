@@ -1,7 +1,7 @@
 # Live Camera v2.2.0 - Implementation Complete ✅
 
-**Status**: INTEGRATION COMPLETE  
-**Date**: December 2025  
+**Status**: INTEGRATION COMPLETE
+**Date**: December 2025
 **Version**: 2.2.0
 
 ---
@@ -80,8 +80,8 @@ Complete implementation of live camera multi-aquarium workflow with disconnect r
 
 ### 1. Hardware Capability Detection
 
-**File**: `src/zebtrack/utils/hardware_capability.py`  
-**Lines**: 370  
+**File**: `src/zebtrack/utils/hardware_capability.py`
+**Lines**: 370
 **Dependencies**: `psutil`, `torch` (optional)
 
 #### Classes
@@ -117,8 +117,8 @@ print(f"Real-time: {report.can_process_realtime}")
 
 ### 2. Live Camera Mode Selection
 
-**File**: `src/zebtrack/core/live_camera_mode.py`  
-**Lines**: 280  
+**File**: `src/zebtrack/core/live_camera_mode.py`
+**Lines**: 280
 **Dependencies**: `hardware_capability`
 
 #### Modes
@@ -166,11 +166,11 @@ def _check_camera_disconnect(self) -> None:
     """Detect disconnect when gap > 2s threshold."""
     current_time = time.time()
     gap_duration = current_time - self._last_valid_frame_time
-    
+
     if gap_duration > self._camera_disconnect_threshold_s:
         # Pause recorder
         self.recorder.pause_recording()
-        
+
         # Publish event
         self.event_bus.publish_event(
             "CAMERA_DISCONNECT_DETECTED",
@@ -344,7 +344,7 @@ def _on_camera_disconnect(self, event_data: dict[str, Any]) -> None:
             "CAMERA_DISCONNECT_USER_ACTION",
             {"action": action, "experiment_id": experiment_id},
         )
-    
+
     dialog = CameraDisconnectRecoveryDialog(
         parent=self.root,
         on_action_callback=on_action,
@@ -501,7 +501,7 @@ if recommendation.recommended_mode != LiveCameraMode.MULTI_AQUARIUM_REALTIME:
         f"Alternativas: {[m.name for m in recommendation.fallback_modes]}\n\n"
         f"Aceitar recomendação?"
     )
-    
+
     if response:
         selected_mode = recommendation.recommended_mode
     else:
@@ -515,17 +515,17 @@ if recommendation.recommended_mode != LiveCameraMode.MULTI_AQUARIUM_REALTIME:
 # In LiveCameraCoordinator
 def start_live_session(self, camera_index: int, duration_s: float, **kwargs):
     """Start live session with automatic disconnect handling."""
-    
+
     # LiveCameraService automatically detects disconnects
     # and publishes CAMERA_DISCONNECT_DETECTED event
-    
+
     with LiveCameraService(...) as service:
         service.start_session(
             camera_index=camera_index,
             duration_s=duration_s,
             **kwargs
         )
-        
+
         # UICoordinator will:
         # 1. Show CameraDisconnectRecoveryDialog
         # 2. Wait for user action
@@ -685,7 +685,7 @@ Live Camera v2.2.0 provides a **complete, production-ready** workflow for multi-
 
 ---
 
-**Author**: GitHub Copilot (Claude Sonnet 4.5)  
-**Date**: December 2025  
-**Version**: 2.2.0  
+**Author**: GitHub Copilot (Claude Sonnet 4.5)
+**Date**: December 2025
+**Version**: 2.2.0
 **Status**: ✅ COMPLETE

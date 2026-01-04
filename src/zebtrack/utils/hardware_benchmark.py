@@ -906,12 +906,14 @@ def get_optimal_settings(
 
     return {
         "use_openvino": rec.backend == "openvino",
-        "openvino_device": rec.device_live,
-        "openvino_device_batch": rec.device_batch,
-        "openvino_hint_live": rec.openvino_hint_live,
-        "openvino_hint_batch": rec.openvino_hint_batch,
-        "openvino_precision": rec.openvino_precision,
-        "enable_model_cache": rec.enable_model_cache,
+        "openvino": {
+            "device": rec.device_live,
+            "device_batch": rec.device_batch,
+            "performance_hint_live": rec.openvino_hint_live,
+            "performance_hint_batch": rec.openvino_hint_batch,
+            "precision": rec.openvino_precision,
+            "enable_model_cache": rec.enable_model_cache,
+        },
         "decode_backend": rec.decode_backend,
         "batch_size": rec.recommended_batch_size,
         "estimated_fps_live": rec.estimated_fps_live,

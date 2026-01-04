@@ -1,8 +1,8 @@
 # ADR-006: LiveBatchCoordinator - v2.3.0 Implementation
 
-**Status**: ✅ Implemented  
-**Implementation Date**: January 3, 2026  
-**Original Decision**: January 2026 (Deferred from v2.2.0)  
+**Status**: ✅ Implemented
+**Implementation Date**: January 3, 2026
+**Original Decision**: January 2026 (Deferred from v2.2.0)
 **Context**: Live Camera v2.2.0 Audit → v2.3.0 Integration
 
 ## Problem

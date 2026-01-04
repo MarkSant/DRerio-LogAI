@@ -3,6 +3,22 @@
 Zebrafish tracking and behavioral analysis application using YOLO/OpenVINO, Tkinter GUI, and
 event-driven architecture with dependency injection.
 
+---
+
+## 🚨 MANDATORY: Impact Analysis Protocol
+
+**BEFORE making ANY code change**, you MUST:
+
+1. **Read**: [`docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md`](docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md)
+2. **Run**: `python scripts/impact_analyzer.py <type> <name>` - Identify affected components
+3. **Consult**: [`.copilot-impact-map.yaml`](.copilot-impact-map.yaml) - Quick dependency lookup
+4. **Verify**: Update ALL affected components consistently
+5. **Test**: Run domain-specific tests
+
+**Incomplete impact analysis leads to system incoherence.**
+
+---
+
 ## Quick Reference
 
 | Command | Purpose |
@@ -11,6 +27,7 @@ event-driven architecture with dependency injection.
 | `poetry run zebtrack` | Run application |
 | `poetry run pytest` | Run tests |
 | `poetry run ruff check . --fix` | Lint and fix |
+| `python scripts/impact_analyzer.py <type> <name>` | **Trace change impact** |
 
 ## Architecture Essentials
 
@@ -50,10 +67,17 @@ When working with multi-aquarium features:
 
 ## Agent Protocol
 
-- **Planning**: Check `SYSTEM_INTEGRATION_MAP.md` first
+- **Planning**:
+  1. **MANDATORY**: Run `python scripts/impact_analyzer.py` first
+  2. Check `SYSTEM_INTEGRATION_MAP.md` for contracts
+  3. Consult `.copilot-impact-map.yaml` for dependency graphs
 - **Execution**: Ensure `MultiAquariumZoneData` compatibility
-- **Verification**: Verify reports (Word/Excel) after analysis changes
+- **Verification**:
+  1. Run domain-specific tests (see `IMPACT_ANALYSIS_PROTOCOL.md`)
+  2. Verify reports (Word/Excel) after analysis changes
+  3. Confirm ALL affected components from analyzer are updated
 
 ---
 
 *Historical fixes archived to `docs/archive/fixes/DEC_2025_CRITICAL_FIXES.md`*
+*Impact Analysis Protocol: `docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md`*

@@ -1,6 +1,6 @@
 # Live Camera Multi-Aquarium Developer Guide
 
-**Version:** 2.2.0  
+**Version:** 2.2.0
 **Last Updated:** 2026-01-01
 
 ## Quick Start
@@ -75,7 +75,7 @@ from zebtrack.ui.dialogs.camera_disconnect_recovery_dialog import CameraDisconne
 
 def on_disconnect_event(event_data):
     """Called when CAMERA_DISCONNECT_DETECTED event fires."""
-    
+
     def on_user_action(action):
         if action == "wait":
             # Try auto-reconnect for 30s
@@ -86,7 +86,7 @@ def on_disconnect_event(event_data):
         elif action == "stop":
             # Stop and save
             live_camera_coordinator.stop_live_session()
-    
+
     # Show dialog
     dialog = CameraDisconnectRecoveryDialog(
         parent=root,
@@ -349,11 +349,11 @@ poetry run python scripts/test_live_camera_modes.py
 def on_aquarium_count_changed(self, count: int):
     # Check hardware
     hardware_report = assess_hardware_for_live_multi_aquarium(self.settings)
-    
+
     # Get recommendation
     selector = LiveCameraModeSelector(self.settings)
     recommendation = selector.recommend_mode(count, hardware_report)
-    
+
     if recommendation.warnings:
         # Show warning dialog with alternatives
         self.show_mode_selection_dialog(recommendation)
@@ -380,20 +380,20 @@ def on_session_complete(self, experiment_id):
 
 ## Troubleshooting
 
-**Issue:** Hardware detector always returns LIMITED  
+**Issue:** Hardware detector always returns LIMITED
 **Fix:** Check `psutil` installation; verify CPU/RAM detection:
 ```python
 import psutil
 print(f"CPU: {psutil.cpu_count()}, RAM: {psutil.virtual_memory().available / 1e9}GB")
 ```
 
-**Issue:** Recorder doesn't pause on disconnect  
+**Issue:** Recorder doesn't pause on disconnect
 **Fix:** Ensure `LiveCameraService._check_camera_disconnect()` is called in capture loop.
 
-**Issue:** Batch reports not generating  
+**Issue:** Batch reports not generating
 **Fix:** Call `batch_coordinator.mark_batch_complete(batch_id)` explicitly after last session.
 
-**Issue:** Multi-aquarium detection uses too much RAM  
+**Issue:** Multi-aquarium detection uses too much RAM
 **Fix:** Reduce `processing_interval_frames` in LiveConfigStep (default 10 → 20).
 
 ## References

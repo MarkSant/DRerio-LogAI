@@ -1,9 +1,7 @@
 """Integration tests for LiveBatchCoordinator with wizard workflow (v2.3.0)."""
 
-import pytest
 from datetime import datetime
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
 from zebtrack.coordinators.session_coordinator import SessionCoordinator
@@ -72,7 +70,9 @@ def test_wizard_to_batch_coordinator_flow(test_settings, tmp_path):
     # Batch key format: {group}_{day}_{subject}
     batch_key = "Controle_Dia_1_Peixe_01"
     batch = batch_coord._active_batches.get(batch_key)
-    assert batch is not None, f"Batch not found. Available batches: {list(batch_coord._active_batches.keys())}"
+    assert batch is not None, (
+        f"Batch not found. Available batches: {list(batch_coord._active_batches.keys())}"
+    )
     assert batch.session_count == 3
 
 

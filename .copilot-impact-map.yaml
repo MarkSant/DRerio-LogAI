@@ -1,0 +1,329 @@
+# ZebTrack-AI Impact Map
+# Quick-lookup map for AI agents to understand component dependencies
+# Last Updated: Jan 4, 2026 (v1.0)
+#
+# Usage: Agents should consult this file BEFORE making changes to understand
+# which components will be affected.
+
+# =============================================================================
+# DOMAIN DEPENDENCY GRAPHS
+# =============================================================================
+
+domains:
+  # ---------------------------------------------------------------------------
+  # EVENTS DOMAIN
+  # ---------------------------------------------------------------------------
+  events:
+    description: "Event-driven communication between components"
+
+    event_bus_v1:
+      definition_file: "src/zebtrack/ui/events.py"
+      implementation: "src/zebtrack/ui/event_bus.py"
+      event_format: "String constants (Events class)"
+      use_for: "Domain events - recording, project, model, video"
+
+      critical_events:
+        VIDEO_ANALYZE_SINGLE:
+          publishers: ["ui/dialogs/single_video_config_dialog.py"]
+          subscribers: ["core/main_view_model.py", "coordinators/processing_coordinator.py"]
+          payload: ["video_path: str", "config: dict"]
+
+        VIDEO_CANCEL_ANALYSIS:
+          publishers: ["ui/gui.py"]
+          subscribers: ["core/main_view_model.py -> ProcessingCoordinator.cancel_processing()"]
+
+        UI_DISPLAY_FRAME:
+          publishers: ["core/processing_worker.py"]
+          subscribers: ["ui/event_dispatcher.py -> CanvasManager"]
+          payload: ["frame: np.ndarray", "detections: list (opt)", "info: dict (opt)"]
+          note: "Only for ProcessingWorker. Live Camera uses LivePreviewWindow directly."
+
+        ZONE_MULTI_AUTO_DETECT:
+          publishers: ["ui/widgets/zone_controls.py"]
+          subscribers: ["coordinators/processing_coordinator.py"]
+          payload: ["video_path", "stabilization_frames", "expected_count"]
+
+    event_bus_v2:
+      definition_file: "src/zebtrack/ui/event_bus_v2.py"
+      event_format: "Enum (UIEvents)"
+      use_for: "UI component sync - zones, canvas, dialogs"
+
+      critical_events:
+        ZONES_UPDATED:
+          publishers: ["ui/dialogs/dialog_manager.py", "ui/canvas_manager.py", "ui/gui.py"]
+          subscribers: ["ui/ui_coordinator.py", "ui/canvas_manager.py"]
+
+        VIDEO_TREE_REFRESH_REQUESTED:
+          publishers: ["ui/dialogs/dialog_manager.py", "ui/widgets/zone_control_builder.py"]
+          subscribers: ["ui/ui_coordinator.py"]
+
+  # ---------------------------------------------------------------------------
+  # MULTI-AQUARIUM DOMAIN (CRITICAL)
+  # ---------------------------------------------------------------------------
+  multi_aquarium:
+    description: "Multi-aquarium detection and processing"
+    critical_rule: "ALWAYS use get_multi_aquarium_zone_data() not get_zone_data()"
+
+    data_flow:
+      - step: 1
+        component: "ZoneControls"
+        action: "User configures aquariums"
+
+      - step: 2
+        component: "ProcessingCoordinator"
+        action: "serialize_zones() using ZoneManager.multi_aquarium_zone_data_to_dict"
+
+      - step: 3
+        component: "ProcessingWorker"
+        action: "deserialize using ZoneManager.multi_aquarium_zone_data_from_dict"
+
+      - step: 4
+        component: "Detector"
+        action: "detect_partitioned_optimized() for each aquarium"
+
+      - step: 5
+        component: "Recorder"
+        action: "write_partitioned_detection_data() with aquarium_id in track"
+
+      - step: 6
+        component: "AnalysisService"
+        action: "run_multi_aquarium_analysis() generates per-aquarium results"
+
+      - step: 7
+        component: "ProjectManager"
+        action: "register_multi_aquarium_outputs() persists results"
+
+    track_id_convention: "aquarium_id * 1000 + local_track_id"
+    output_structure: "<video>_aquarium_N/ directories"
+
+    key_files:
+      - "src/zebtrack/core/zone_manager.py"
+      - "src/zebtrack/core/project_manager.py"
+      - "src/zebtrack/plugins/detector.py"
+      - "src/zebtrack/io/recorder.py"
+      - "src/zebtrack/analysis/analysis_service.py"
+      - "src/zebtrack/coordinators/processing_coordinator.py"
+
+  # ---------------------------------------------------------------------------
+  # SETTINGS/DI DOMAIN
+  # ---------------------------------------------------------------------------
+  settings:
+    description: "Configuration and dependency injection"
+
+    injection_chain:
+      - source: "config.yaml / config.local.yaml"
+        target: "load_settings()"
+
+      - source: "load_settings()"
+        target: "__main__.py Composition Root (lines 140-280)"
+
+      - source: "Composition Root"
+        target: "All services via settings_obj parameter"
+
+    critical_rule: "NEVER import singleton 'from zebtrack import settings'"
+
+    pydantic_models: "src/zebtrack/settings.py"
+    composition_root: "src/zebtrack/__main__.py"
+
+    services_receiving_settings_obj:
+      - "ProjectManager"
+      - "DetectorService"
+      - "ProcessingWorker (via ProcessingContext)"
+      - "Recorder"
+      - "AnalysisService"
+      - "LiveCameraService"
+      - "WizardService"
+      - "All Coordinators"
+
+  # ---------------------------------------------------------------------------
+  # UI/THREADING DOMAIN
+  # ---------------------------------------------------------------------------
+  ui:
+    description: "Tkinter UI and threading constraints"
+
+    critical_rule: "All UI updates MUST use root.after(0, ...)"
+
+    thread_safe_components:
+      - "StateManager (thread-safe for cross-thread updates)"
+
+    thread_sensitive_components:
+      - "All Tkinter widgets (main thread only)"
+      - "CanvasManager"
+      - "All dialogs"
+
+    update_patterns:
+      correct: "root.after(0, lambda: widget.config(...))"
+      incorrect: "widget.config(...) from worker thread"
+
+    tab_awareness:
+      - component: "CanvasManager"
+        behavior: "Overlays only drawn when is_on_analysis_tab=True"
+        location: "ui/canvas_manager.py"
+
+  # ---------------------------------------------------------------------------
+  # PROCESSING DOMAIN
+  # ---------------------------------------------------------------------------
+  processing:
+    description: "Video processing pipeline"
+
+    pipeline_steps:
+      - "VideoSource -> frames"
+      - "DetectorService -> detections with zones"
+      - "Recorder -> Parquet + MP4"
+      - "AnalysisService -> behavioral metrics"
+      - "Reporter -> Word/Excel reports"
+
+    parquet_schema:
+      columns: ["timestamp", "frame", "track_id", "x1", "y1", "x2", "y2", "confidence"]
+      optional: ["x_center_px", "y_center_px", "x_cm", "y_cm"]
+      rule: "IMMUTABLE - column order is fixed"
+
+    key_files:
+      - "src/zebtrack/core/processing_worker.py"
+      - "src/zebtrack/core/detector_service.py"
+      - "src/zebtrack/io/recorder.py"
+      - "src/zebtrack/io/video_source.py"
+
+# =============================================================================
+# COORDINATOR HIERARCHY
+# =============================================================================
+
+coordinators:
+  MainViewModel:
+    role: "Top-level orchestrator"
+    dependencies: 11+ injected parameters
+    location: "src/zebtrack/core/main_view_model.py"
+
+  ProcessingCoordinator:
+    role: "Video processing, analysis, zones"
+    handles: ["VIDEO_ANALYZE_SINGLE", "VIDEO_CANCEL_ANALYSIS", "ZONE_AUTO_DETECT"]
+    location: "src/zebtrack/coordinators/processing_coordinator.py"
+
+  HardwareCoordinator:
+    role: "Detector, camera, model service"
+    handles: ["MODEL_SET_WEIGHT", "DETECTOR_SETUP"]
+    location: "src/zebtrack/coordinators/hardware_coordinator.py"
+
+  SessionCoordinator:
+    role: "Recording, Arduino, batch"
+    handles: ["RECORDING_START", "RECORDING_STOP"]
+    location: "src/zebtrack/coordinators/session_coordinator.py"
+
+  ProjectLifecycleCoordinator:
+    role: "Project CRUD, calibration, zones"
+    handles: ["PROJECT_CREATE", "PROJECT_OPEN", "ZONE_AQUARIUM_CONFIG_UPDATED"]
+    location: "src/zebtrack/coordinators/project_lifecycle_coordinator.py"
+
+# =============================================================================
+# SERIALIZATION CHAINS
+# =============================================================================
+
+serialization:
+  ZoneData:
+    serializer: "ZoneManager.zone_data_to_dict"
+    deserializer: "ZoneManager.zone_data_from_dict"
+    crosses: "ProcessingCoordinator -> ProcessingWorker"
+
+  MultiAquariumZoneData:
+    serializer: "ZoneManager.multi_aquarium_zone_data_to_dict"
+    deserializer: "ZoneManager.multi_aquarium_zone_data_from_dict"
+    crosses: "ProcessingCoordinator -> ProcessingWorker"
+    critical: "MUST use multi-aquarium serializer, not single-aquarium"
+
+  ProcessingContext:
+    serializer: "ProcessingCoordinator._create_context"
+    deserializer: "ProcessingWorker.__init__"
+    crosses: "Main process -> Worker process"
+
+  Settings:
+    serializer: "settings.model_dump()"
+    deserializer: "Settings(**dict)"
+    crosses: "Config files -> Application"
+
+# =============================================================================
+# TEST MAPPING
+# =============================================================================
+
+tests:
+  gui:
+    command: "pytest -m gui -n0"
+    count: "~949 tests"
+    covers: ["ui/", "widgets/", "dialogs/"]
+
+  processing:
+    command: "pytest tests/test_processing*.py tests/test_recorder.py"
+    covers: ["core/processing_worker.py", "io/recorder.py"]
+
+  multi_aquarium:
+    command: 'pytest -k "multi_aquarium or partitioned"'
+    covers: ["Multi-aquarium data flow", "Zone serialization"]
+
+  events:
+    command: "pytest tests/test_event*.py tests/coordinators/"
+    covers: ["Event bus", "Coordinators"]
+
+  analysis:
+    command: "pytest tests/test_analysis*.py tests/test_reporter*.py"
+    covers: ["analysis/", "Reporter"]
+
+  full:
+    command: "pytest -m '' -n0"
+    count: "~2568 tests"
+    time: "6-7 minutes"
+    coverage_requirement: "70%"
+
+# =============================================================================
+# COMMON PITFALLS (Quick Reference)
+# =============================================================================
+
+pitfalls:
+  - id: 1
+    name: "Missing event payload keys"
+    impact: "UI crash or silent failure"
+    check: "Verify payload matches SYSTEM_INTEGRATION_MAP.md"
+
+  - id: 2
+    name: "Using get_zone_data() for multi-aquarium"
+    impact: "Aquarium 1 gets Aquarium 0 data"
+    check: "Use get_multi_aquarium_zone_data() instead"
+
+  - id: 3
+    name: "Forgetting root.after() for UI updates"
+    impact: "Thread safety violation, random crashes"
+    check: "All non-main-thread UI updates use root.after(0, ...)"
+
+  - id: 4
+    name: "Not rescaling zones after video dimensions"
+    impact: "Zones in wrong position"
+    check: "Call Detector.set_zones() after video loaded"
+
+  - id: 5
+    name: "Singleton settings import"
+    impact: "Tests fail, DI broken"
+    check: "Use settings_obj parameter, not 'from zebtrack import settings'"
+
+  - id: 6
+    name: "Mixing EventBus v1 and v2"
+    impact: "Events never received"
+    check: "Events class -> EventBus, UIEvents enum -> EventBusV2"
+
+  - id: 7
+    name: "ByteTracker Kalman drift"
+    impact: "Tracks outside polygon"
+    check: "Post-filter after _apply_byte_tracking()"
+
+  - id: 8
+    name: "Modifying Parquet schema"
+    impact: "Breaking change, corrupts data"
+    check: "Schema is IMMUTABLE - requires migration"
+
+# =============================================================================
+# DOCUMENTATION REFERENCES
+# =============================================================================
+
+documentation:
+  impact_protocol: "docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md"
+  system_integration: "docs/architecture/SYSTEM_INTEGRATION_MAP.md"
+  di_guide: "docs/architecture/DEPENDENCY_INJECTION_GUIDE.md"
+  architecture: "docs/architecture/ARCHITECTURE.md"
+  state_management: "docs/architecture/STATE_MANAGEMENT_GUIDE.md"
