@@ -76,7 +76,17 @@ def configure_logging(log_file: str = "analysis.log"):
     log_name = Path(log_file).name
     overwrite_each_run_files = {"analysis.log", "analysis_worker.log"}
 
-    def _truncate_file(path: str) -> None:
+    def _truncate_file(path: str, create_if_missing: bool = True) -> None:
+        """Truncate a file.
+
+        Args:
+            path: Path to the file.
+            create_if_missing: If True (default), create the file and parent dirs if missing.
+                               If False, do nothing if the file doesn't exist.
+        """
+        if not create_if_missing and not os.path.exists(path):
+            return
+
         try:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
         except Exception:
@@ -96,15 +106,10 @@ def configure_logging(log_file: str = "analysis.log"):
 
     if log_name == "analysis.log":
         _truncate_file(effective_log_file)
-        _truncate_file(resolve_log_path("analysis_worker.log"))
+        # Truncate worker log only if it exists (don't create empty files)
+        _truncate_file(resolve_log_path("analysis_worker.log"), create_if_missing=False)
         _truncate_if_exists_in_cwd("analysis.log")
         _truncate_if_exists_in_cwd("analysis_worker.log")
-        # Compatibility: some user environments might have used a different filename.
-        if os.path.exists("analysis]-worker.log"):
-            _truncate_file("analysis]-worker.log")
-        compat_effective = resolve_log_path("analysis]-worker.log")
-        if os.path.exists(compat_effective):
-            _truncate_file(compat_effective)
     elif log_name in overwrite_each_run_files:
         _truncate_file(effective_log_file)
         _truncate_if_exists_in_cwd(log_name)
@@ -163,7 +168,13 @@ def configure_logging(log_file: str = "analysis.log"):
 
     # Configure handlers levels
     file_handler.setLevel(logging.DEBUG)  # All levels in file
-    console_handler.setLevel(logging.INFO)  # INFO and above in console (hides DEBUG)
+
+    # Check if running in test environment - suppress console output to keep terminal clean
+    if os.environ.get("ZEBTRACK_SUPPRESS_CONSOLE_LOGS") or os.environ.get("PYTEST_CURRENT_TEST"):
+        # Above CRITICAL = effectively disabled (only dots/letters in pytest output)
+        console_handler.setLevel(logging.CRITICAL + 1)
+    else:
+        console_handler.setLevel(logging.INFO)  # INFO and above in console (hides DEBUG)
 
     # Clear existing handlers to avoid duplication if called multiple times.
     # Close them first to reduce Windows file locking issues.
@@ -176,7 +187,13 @@ def configure_logging(log_file: str = "analysis.log"):
         root_logger.handlers.clear()
 
     root_logger.addHandler(file_handler)
-    root_logger.addHandler(console_handler)
+
+    # Only add console handler if NOT in test mode
+    # Tests set ZEBTRACK_SUPPRESS_CONSOLE_LOGS or pytest sets PYTEST_CURRENT_TEST
+    if not (
+        os.environ.get("ZEBTRACK_SUPPRESS_CONSOLE_LOGS") or os.environ.get("PYTEST_CURRENT_TEST")
+    ):
+        root_logger.addHandler(console_handler)
 
     # Log session start marker to track execution count
     logger = structlog.get_logger()

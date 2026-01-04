@@ -129,8 +129,11 @@ class LiveBatchCoordinator:
         batch_key = self._create_batch_key(group, day, subject_id)
 
         if batch_key not in self._active_batches:
-            # Include microseconds for uniqueness when multiple batches created in same second
-            batch_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+            # Include microseconds AND batch_key hash for uniqueness when multiple batches
+            # are created in same second (common in multi-aquarium scenarios)
+            timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            key_hash = abs(hash(batch_key)) % 10000  # 4-digit suffix from batch_key
+            batch_id = f"batch_{timestamp_str}_{key_hash:04d}"
             self._active_batches[batch_key] = BatchMetadata(
                 batch_id=batch_id,
                 group=group,
@@ -231,9 +234,7 @@ class LiveBatchCoordinator:
                 return batch
         return None
 
-    def _create_batch_key(
-        self, group: str | None, day: str | None, subject_id: str | None
-    ) -> str:
+    def _create_batch_key(self, group: str | None, day: str | None, subject_id: str | None) -> str:
         """Create unique batch key from metadata.
 
         Args:

@@ -1,12 +1,61 @@
+import logging
 import os
 import platform
 import tkinter as tk
 import warnings
 
 import pytest
+import structlog
 
 os.environ.setdefault("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE", "1")
 os.environ.setdefault("ZEBTRACK_SUPPRESS_WIZARD_DIALOGS", "1")
+# Suppress console logs during tests - this env var is checked by logging_config.py
+os.environ["ZEBTRACK_SUPPRESS_CONSOLE_LOGS"] = "1"
+
+
+class _NullHandler(logging.Handler):
+    """A handler that does nothing - discards all logs."""
+
+    def emit(self, record):
+        pass
+
+
+def _configure_silent_logging():
+    """Configure logging to be silent during tests.
+
+    This must run BEFORE any ZebTrack modules are imported to prevent
+    console output from structlog loggers created at module level.
+    """
+    # Configure root logger with NullHandler only
+    root_logger = logging.getLogger()
+
+    # Remove any existing handlers (especially StreamHandlers)
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    # Add only a NullHandler - this prevents "No handlers" warnings
+    # and ensures no output to console
+    root_logger.addHandler(_NullHandler())
+    root_logger.setLevel(logging.DEBUG)
+
+    # Configure structlog to NOT output anything to console
+    # Use a simple processor chain that goes nowhere
+    structlog.configure(
+        processors=[
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.add_logger_name,
+            structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S", utc=False),
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=False,  # Don't cache to allow reconfiguration
+    )
+
+
+# Run IMMEDIATELY at import time, BEFORE any other imports
+_configure_silent_logging()
 
 
 @pytest.fixture(scope="session", autouse=True)
