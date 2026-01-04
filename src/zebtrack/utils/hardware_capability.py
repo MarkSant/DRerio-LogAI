@@ -76,7 +76,7 @@ class HardwareCapabilityReport:
             f"Capability: {self.capability.value.upper()}\n"
             f"Max Aquariums: {self.max_aquariums_recommended}\n"
             f"CPU: {self.cpu_cores} cores ({self.cpu_usage_percent:.1f}% used)\n"
-            f"Memory: {self.available_memory_gb:.1f}GB / {self.total_memory_gb:.1f}GB available\n"
+            f"Memory: {self.available_memory_gb:.1f}GB available of {self.total_memory_gb:.1f}GB total\n"
             f"GPU: {gpu_str}\n"
             f"Real-time: {'Yes' if self.can_process_realtime else 'No (record-only recommended)'}"
         )
@@ -128,17 +128,17 @@ class HardwareCapabilityDetector:
         # GPU detection
         has_gpu, gpu_name, gpu_mem_total, gpu_mem_free = self._detect_gpu()
 
-        # Determine capability tier
+        # Determine capability tier (use total memory, not available)
         capability = self._calculate_capability_tier(
             cpu_cores=cpu_cores,
-            available_memory_gb=available_memory_gb,
+            total_memory_gb=total_memory_gb,
             has_gpu=has_gpu,
             cpu_usage=cpu_percent,
             memory_usage=memory_usage_percent,
         )
 
         # Calculate max recommended aquariums
-        max_aquariums = self._calculate_max_aquariums(capability, cpu_cores, available_memory_gb)
+        max_aquariums = self._calculate_max_aquariums(capability, cpu_cores, total_memory_gb)
 
         # Check if real-time processing is feasible
         can_process_realtime = capability not in (MultiAquariumCapability.INSUFFICIENT,)
@@ -218,26 +218,38 @@ class HardwareCapabilityDetector:
             pass
 
         # Check for OpenVINO support (Intel integrated graphics)
+        # v2.2.1: Detect Intel GPU directly via OpenVINO Core, not just cached models
         try:
-            openvino_cache = None
-            if hasattr(self.settings, "paths") and hasattr(
-                self.settings.paths, "openvino_model_cache"  # type: ignore
-            ):
-                openvino_cache = self.settings.paths.openvino_model_cache  # type: ignore
-            elif hasattr(self.settings, "openvino_model_cache"):
-                openvino_cache = self.settings.openvino_model_cache  # type: ignore
+            import openvino as ov
 
-            if openvino_cache and openvino_cache.exists() and any(openvino_cache.glob("*.xml")):
-                # Assume Intel GPU if OpenVINO models exist
-                system_name = platform.processor()
-                gpu_name = f"Intel Graphics ({system_name})"
+            core = ov.Core()
+            available_devices = core.available_devices
+
+            # Check if any GPU device is available in OpenVINO
+            gpu_devices = [d for d in available_devices if "GPU" in d]
+            if gpu_devices:
+                # Try to get more detailed GPU info
+                try:
+                    gpu_device = gpu_devices[0]
+                    gpu_full_name = core.get_property(gpu_device, "FULL_DEVICE_NAME")
+                    gpu_name = f"{gpu_full_name} (OpenVINO)"
+                except Exception:
+                    # Fallback to processor name
+                    system_name = platform.processor()
+                    gpu_name = f"Intel Graphics ({system_name})"
+
                 self.logger.info(
-                    "hardware_capability.gpu_detected", gpu=gpu_name, backend="OpenVINO"
+                    "hardware_capability.gpu_detected",
+                    gpu=gpu_name,
+                    backend="OpenVINO",
+                    devices=gpu_devices,
                 )
-                # OpenVINO doesn't expose memory, return None
+                # OpenVINO doesn't expose memory info, return None
                 return True, gpu_name, None, None
-        except Exception:
-            pass
+        except ImportError:
+            self.logger.debug("hardware_capability.openvino_not_installed")
+        except Exception as e:
+            self.logger.debug("hardware_capability.openvino_detection_failed", error=str(e))
 
         self.logger.info("hardware_capability.gpu_not_detected")
         return False, None, None, None
@@ -245,7 +257,7 @@ class HardwareCapabilityDetector:
     def _calculate_capability_tier(
         self,
         cpu_cores: int,
-        available_memory_gb: float,
+        total_memory_gb: float,
         has_gpu: bool,
         cpu_usage: float,
         memory_usage: float,
@@ -254,7 +266,7 @@ class HardwareCapabilityDetector:
 
         Args:
             cpu_cores: Number of logical CPU cores
-            available_memory_gb: Available RAM in GB
+            total_memory_gb: Total RAM in GB (not available, for stable classification)
             has_gpu: Whether GPU is detected
             cpu_usage: Current CPU usage percentage
             memory_usage: Current memory usage percentage
@@ -263,37 +275,37 @@ class HardwareCapabilityDetector:
             Capability tier enum
         """
         # Insufficient: Cannot process in real-time
-        if cpu_cores < 2 or available_memory_gb < 4:
+        if cpu_cores < 2 or total_memory_gb < 4:
             return MultiAquariumCapability.INSUFFICIENT
 
         # Limited: Single aquarium only
-        if cpu_cores <= 3 or available_memory_gb < 6:
+        if cpu_cores <= 3 or total_memory_gb < 6:
             return MultiAquariumCapability.LIMITED
 
         # Moderate: 2 aquariums
-        if cpu_cores <= 5 or available_memory_gb < 8:
+        if cpu_cores <= 5 or total_memory_gb < 8:
             return MultiAquariumCapability.MODERATE
 
         # Good: 2-3 aquariums
-        if cpu_cores <= 7 or available_memory_gb < 16:
+        if cpu_cores <= 7 or total_memory_gb < 16:
             return MultiAquariumCapability.GOOD
 
         # Excellent: 4+ aquariums
-        if has_gpu and cpu_cores >= 8 and available_memory_gb >= 16:
+        if has_gpu and cpu_cores >= 8 and total_memory_gb >= 16:
             return MultiAquariumCapability.EXCELLENT
 
         # Default to GOOD if meets all thresholds
         return MultiAquariumCapability.GOOD
 
     def _calculate_max_aquariums(
-        self, capability: MultiAquariumCapability, cpu_cores: int, available_memory_gb: float
+        self, capability: MultiAquariumCapability, cpu_cores: int, total_memory_gb: float
     ) -> int:
         """Calculate maximum recommended aquariums for live processing.
 
         Args:
             capability: Hardware capability tier
             cpu_cores: Number of CPU cores
-            available_memory_gb: Available memory in GB
+            total_memory_gb: Total memory in GB
 
         Returns:
             Maximum recommended aquarium count (0 = record-only)
@@ -314,7 +326,7 @@ class HardwareCapabilityDetector:
         if capability == MultiAquariumCapability.EXCELLENT:
             # Scale with CPU cores and memory
             max_from_cpu = cpu_cores // 2  # Conservative: 2 cores per aquarium
-            max_from_memory = int(available_memory_gb // 4)  # 4GB per aquarium
+            max_from_memory = int(total_memory_gb // 4)  # 4GB per aquarium
             return min(max_from_cpu, max_from_memory, 6)  # Cap at 6 aquariums
 
         return 1  # Fallback
@@ -408,9 +420,7 @@ class HardwareCapabilityDetector:
         warnings = []
 
         if capability == MultiAquariumCapability.INSUFFICIENT:
-            warnings.append(
-                "⚠️ PROCESSAMENTO EM TEMPO REAL NÃO RECOMENDADO. Use modo record-only."
-            )
+            warnings.append("⚠️ PROCESSAMENTO EM TEMPO REAL NÃO RECOMENDADO. Use modo record-only.")
 
         if cpu_usage > 80:
             warnings.append(f"⚠️ CPU sobrecarregada ({cpu_usage:.1f}%). Frames podem ser perdidos.")
