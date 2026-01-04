@@ -84,6 +84,7 @@ class OpenVINOPlugin(DetectorPlugin):
         assert ov is not None
 
         # Use injected settings or sensible defaults
+        self._settings = settings_obj
         if settings_obj is not None:
             self.conf_threshold = settings_obj.yolo_model.confidence_threshold
             self.nms_threshold = settings_obj.yolo_model.nms_threshold
@@ -136,12 +137,53 @@ class OpenVINOPlugin(DetectorPlugin):
         except Exception as e:
             log.warning("openvino.shape_check.failed", error=str(e))
 
-        # Determine device preference
+        # Determine device and configuration from settings or benchmark results
         device_name = "AUTO"
+        performance_hint = "LATENCY"
+        precision_hint = None
+        cache_dir = None
 
-        log.info("openvino.compiling_model", target_device=device_name)
+        if self._settings is not None and hasattr(self._settings, "openvino"):
+            ov_settings = self._settings.openvino
+            device_name = ov_settings.device
+            performance_hint = ov_settings.performance_hint_live
 
-        config = {"PERFORMANCE_HINT": "LATENCY"}
+            # Enable model cache for faster subsequent loads
+            if ov_settings.enable_model_cache:
+                cache_dir = ov_settings.cache_dir
+
+            # Set precision hint if not FP32
+            if ov_settings.precision == "FP16":
+                precision_hint = "f16"
+            elif ov_settings.precision == "INT8":
+                precision_hint = "i8"
+
+        # Verify requested device is available
+        if device_name != "AUTO" and device_name not in available_devices:
+            log.warning(
+                "openvino.device_not_available",
+                requested=device_name,
+                available=available_devices,
+                fallback="AUTO",
+            )
+            device_name = "AUTO"
+
+        log.info(
+            "openvino.compiling_model",
+            target_device=device_name,
+            hint=performance_hint,
+            cache_enabled=cache_dir is not None,
+        )
+
+        # Build configuration
+        config: dict[str, Any] = {"PERFORMANCE_HINT": performance_hint}
+        if cache_dir:
+            # Ensure cache directory exists
+            Path(cache_dir).mkdir(parents=True, exist_ok=True)
+            config["CACHE_DIR"] = str(cache_dir)
+        if precision_hint and "GPU" in device_name:
+            config["INFERENCE_PRECISION_HINT"] = precision_hint
+
         try:
             self.compiled_model = core.compile_model(
                 model=model, device_name=device_name, config=config

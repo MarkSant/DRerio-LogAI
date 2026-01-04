@@ -184,6 +184,45 @@ model_selection:
   # Most use cases work well with "det" for speed; use "seg" for precise shape analysis
   animal_method: "det"
 
+  # Use OpenVINO for inference (auto-detected based on hardware benchmark)
+  # Set to true to force OpenVINO, false to force PyTorch
+  # If left at default, the system will auto-detect optimal backend
+  use_openvino: false
+
+# -----------------------------------------------------------------------------
+# OpenVINO Settings (GPU Acceleration)
+# -----------------------------------------------------------------------------
+# These settings control how OpenVINO uses your GPU for inference.
+# The system runs a hardware benchmark on first startup and auto-configures
+# optimal settings. You can override them here if needed.
+openvino:
+  # Device for inference: "AUTO" (let OpenVINO choose), "CPU", "GPU"
+  # Benchmark will determine the fastest device for your system
+  device: "AUTO"
+
+  # Device for batch/offline video processing (can differ from live)
+  device_batch: "AUTO"
+
+  # Performance hint for live camera analysis
+  # "LATENCY" = minimize delay per frame (recommended for real-time)
+  # "THROUGHPUT" = maximize frames/second (may increase latency)
+  # WARNING: "THROUGHPUT" can be very slow on Intel integrated GPUs (Iris Xe)
+  performance_hint_live: "LATENCY"
+
+  # Performance hint for batch video processing
+  performance_hint_batch: "LATENCY"
+
+  # Inference precision: "FP32" (default), "FP16" (faster on some GPUs), "INT8" (requires quantized model)
+  precision: "FP32"
+
+  # Cache compiled models to speed up subsequent startups
+  # First run compiles GPU kernels (30-60s), later runs load from cache
+  enable_model_cache: true
+  cache_dir: "openvino_model_cache/compiled_cache"
+
+  # Run hardware benchmark on first startup to detect optimal settings
+  auto_benchmark: true
+
 # -----------------------------------------------------------------------------
 # Weight File Selection
 # -----------------------------------------------------------------------------

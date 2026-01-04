@@ -142,6 +142,51 @@ def main():
         splash = create_splash(parent=root)
         splash.update_status("Carregando configurações...")
 
+        # ===== HARDWARE BENCHMARK (Auto-optimization) =====
+        # Run adaptive benchmark on first startup or if hardware changed
+        if settings_obj.openvino.auto_benchmark:
+            try:
+                from zebtrack.utils.hardware_benchmark import (
+                    get_or_run_benchmark,
+                    load_cached_benchmark,
+                )
+
+                cached = load_cached_benchmark()
+                if cached is None:
+                    splash.update_status("Otimizando para seu hardware (primeira execução)...")
+                    log.info("benchmark.running_first_time")
+
+                    def progress_cb(step: int, total: int, message: str) -> None:
+                        splash.update_status(f"Benchmark: {message}")
+
+                    benchmark_result = get_or_run_benchmark(
+                        quick_mode=True,  # Faster startup
+                        progress_callback=progress_cb,
+                    )
+
+                    # Apply benchmark recommendations to settings
+                    if benchmark_result.recommendation:
+                        rec = benchmark_result.recommendation
+                        # Update use_openvino based on recommendation
+                        if rec.backend == "openvino":
+                            settings_obj.model_selection.use_openvino = True
+                        log.info(
+                            "benchmark.applied_recommendations",
+                            backend=rec.backend,
+                            device_live=rec.device_live,
+                            estimated_fps=round(rec.estimated_fps_live, 1),
+                        )
+                else:
+                    log.info(
+                        "benchmark.using_cached",
+                        device=cached.recommendation.device_live
+                        if cached.recommendation
+                        else "unknown",
+                    )
+            except Exception as e:
+                log.warning("benchmark.failed", error=str(e))
+                # Continue without benchmark - use default settings
+
         # ===== DEPENDENCY INJECTION: Create all services =====
 
         # Core infrastructure

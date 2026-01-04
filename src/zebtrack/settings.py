@@ -539,6 +539,78 @@ class ReproducibilitySettings(BaseModel):
     )
 
 
+class OpenVINOSettings(BaseModel):
+    """OpenVINO-specific configuration settings.
+
+    These settings control how OpenVINO is used for model inference.
+    The system can auto-detect optimal settings via hardware benchmark,
+    or you can override them manually here.
+    """
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra="forbid",
+    )
+
+    device: Literal["AUTO", "CPU", "GPU"] = Field(
+        "AUTO",
+        description=(
+            "OpenVINO device for inference. 'AUTO' lets OpenVINO choose, "
+            "'CPU' forces CPU, 'GPU' forces Intel GPU. "
+            "Use 'AUTO' unless benchmark shows specific device is faster."
+        ),
+    )
+    device_batch: Literal["AUTO", "CPU", "GPU"] = Field(
+        "AUTO",
+        description=(
+            "OpenVINO device for batch/offline video processing. "
+            "Can be different from live camera device."
+        ),
+    )
+    performance_hint_live: Literal["LATENCY", "THROUGHPUT"] = Field(
+        "LATENCY",
+        description=(
+            "Performance hint for live camera analysis. "
+            "'LATENCY' minimizes per-frame delay (recommended for real-time). "
+            "'THROUGHPUT' maximizes frames/second (may increase latency)."
+        ),
+    )
+    performance_hint_batch: Literal["LATENCY", "THROUGHPUT"] = Field(
+        "LATENCY",
+        description=(
+            "Performance hint for batch video processing. "
+            "Note: 'THROUGHPUT' may be slower on Intel integrated GPUs (Iris Xe). "
+            "Benchmark will auto-detect the best setting."
+        ),
+    )
+    precision: Literal["FP32", "FP16", "INT8"] = Field(
+        "FP32",
+        description=(
+            "Inference precision. 'FP32' is default, 'FP16' can be faster on some GPUs, "
+            "'INT8' requires quantized model but can be 2x faster."
+        ),
+    )
+    enable_model_cache: bool = Field(
+        True,
+        description=(
+            "Cache compiled models to speed up startup. "
+            "First run compiles kernels (30-60s), subsequent runs load from cache."
+        ),
+    )
+    cache_dir: str = Field(
+        "openvino_model_cache/compiled_cache",
+        description="Directory for cached compiled models.",
+    )
+    auto_benchmark: bool = Field(
+        True,
+        description=(
+            "Automatically run hardware benchmark on first startup to detect "
+            "optimal settings. Results are cached and reused."
+        ),
+    )
+
+
 class ModelSelectionSettings(BaseModel):
     """Settings for selecting which model type to use for different tasks."""
 
@@ -558,7 +630,7 @@ class ModelSelectionSettings(BaseModel):
     )
     use_openvino: bool = Field(
         False,
-        description="Whether to use OpenVINO for model inference",
+        description="Whether to use OpenVINO for model inference (auto-detected if not set)",
     )
 
 
@@ -785,6 +857,10 @@ class Settings(BaseModel):
     weights: WeightsSelectionSettings = Field(
         default_factory=lambda: WeightsSelectionSettings(),  # type: ignore[call-arg]
         description="Settings for weight file selection by type",
+    )
+    openvino: OpenVINOSettings = Field(
+        default_factory=lambda: OpenVINOSettings(),  # type: ignore[call-arg]
+        description="OpenVINO-specific settings for GPU inference optimization",
     )
 
     # ROI inclusion rule settings
