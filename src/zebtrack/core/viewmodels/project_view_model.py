@@ -83,9 +83,11 @@ class ProjectViewModel:
         if added_count > 0:
             self.project_manager.save_project()
 
-    def handle_delete_project_asset(self, video_path: str, asset: str):
+    def handle_delete_project_asset(self, video_path: str, asset: str, delete_source: bool = False):
         if self.project_lifecycle_coordinator:
-            self.project_lifecycle_coordinator.delete_project_asset(video_path, asset)
+            self.project_lifecycle_coordinator.delete_project_asset(
+                video_path, asset, delete_source=delete_source
+            )
 
     def can_remove_project_asset(self, video_path: str, asset: str) -> tuple[bool, str | None]:
         return self.project_lifecycle_coordinator.can_remove_project_asset(video_path, asset)

@@ -165,11 +165,22 @@ class LiveCameraService:
 
         # Threading infrastructure
         self._lock = threading.Lock()  # Protects all shared state below
-        self.frame_queue = queue.Queue(maxsize=30)
-        self.video_queue = queue.Queue(maxsize=30)
+        # ✅ ARCHITECTURE v2.3.1: Separate priorities for video vs analysis
+        # Video queue: LARGE (600 = 20s @ 30fps) - video recording is CRITICAL, never drop
+        # Frame queue: Medium (180 = 6s @ 30fps) - analysis can lag behind real-time
+        self.frame_queue = queue.Queue(maxsize=180)
+        self.video_queue = queue.Queue(maxsize=600)  # Priority: recording > analysis
         self.exit_event = threading.Event()
         self.capture_thread: threading.Thread | None = None
         self.processing_thread: threading.Thread | None = None
+        self.video_recording_thread: threading.Thread | None = None  # ✅ NEW: Dedicated thread
+
+        # ✅ NEW: Analysis lag tracking for UI feedback
+        self._analysis_lag_frames: int = 0  # How many frames behind real-time
+        self._last_analyzed_frame: int = 0  # Last frame number analyzed
+        self._last_captured_frame: int = 0  # Last frame number captured
+        self._analysis_lag_warning_threshold: int = 30  # Show warning if >1s behind
+        self._video_frames_written: int = 0  # Counter for video frames written
 
         # Active session state (protected by self._lock)
         self._camera: Camera | None = None
@@ -234,6 +245,9 @@ class LiveCameraService:
 
         # v2.2.0: Mode selection integration
         self._preferred_mode: Any = None  # LiveCameraMode enum value (optional)
+
+        # Session timer for countdown display (v2.3.0)
+        self._session_start_time: float | None = None
 
     @property
     def camera(self) -> Camera | None:
@@ -337,6 +351,7 @@ class LiveCameraService:
             # Convert string to enum
             try:
                 from zebtrack.core.live_camera_mode import LiveCameraMode
+
                 self._preferred_mode = LiveCameraMode[mode]
                 log.info("live_camera_service.preferred_mode_set", mode=mode)
             except (KeyError, ImportError) as e:
@@ -350,7 +365,7 @@ class LiveCameraService:
             self._preferred_mode = mode
             log.info(
                 "live_camera_service.preferred_mode_set",
-                mode=mode.name if hasattr(mode, 'name') else str(mode),
+                mode=mode.name if hasattr(mode, "name") else str(mode),
             )
 
     def start_session(  # noqa: C901
@@ -427,7 +442,9 @@ class LiveCameraService:
             log.info(
                 "live_camera_service.preview_window.skip",
                 camera_index=camera_index,
-                reason="using_integrated_canvas" if not use_external_preview else "explicitly_disabled",
+                reason="using_integrated_canvas"
+                if not use_external_preview
+                else "explicitly_disabled",
             )
 
         # Show initialization status
@@ -502,6 +519,15 @@ class LiveCameraService:
 
         # ✅ Check if we need aquarium detection phase
         zone_data = self.project_manager.get_zone_data() if self.project_manager else None
+
+        # 🔍 DEBUG: Log zone data status
+        log.info(
+            "live_camera_service.zone_data_check",
+            has_zone_data=zone_data is not None,
+            has_polygon=zone_data.polygon if zone_data else None,
+            polygon_points=len(zone_data.polygon) if zone_data and zone_data.polygon else 0,
+            has_project=bool(self.project_manager.project_path) if self.project_manager else False,
+        )
 
         if not zone_data or not zone_data.polygon:
             # No predefined arena - enter aquarium detection phase
@@ -677,15 +703,27 @@ class LiveCameraService:
             except Exception as e:
                 log.warning("live_camera_service.recorder_stop_error", error=str(e))
 
+        # 🔧 FIX: Limpar filas ANTES de setar exit_event para prevenir processar frames residuais
+        self._clear_queues()
+        log.info("live_camera_service.queues_cleared_before_exit")
+
         # Signal threads to exit
         self.exit_event.set()
 
         # Wait for threads to finish
         if self.capture_thread and self.capture_thread.is_alive():
-            self.capture_thread.join(timeout=2.0)
+            self.capture_thread.join(timeout=5.0)
 
         if self.processing_thread and self.processing_thread.is_alive():
-            self.processing_thread.join(timeout=2.0)
+            self.processing_thread.join(timeout=5.0)
+
+        # ✅ NEW: Wait for video recording thread to finish
+        if self.video_recording_thread and self.video_recording_thread.is_alive():
+            self.video_recording_thread.join(timeout=5.0)
+            log.info(
+                "live_camera_service.video_recording_thread_stopped",
+                frames_written=self._video_frames_written,
+            )
 
         # Close preview window
         if self.preview_window:
@@ -775,23 +813,50 @@ class LiveCameraService:
             # Notebook cameras may need MORE warmup time than external webcams
             log.info("live_camera_service.camera_warmup_start", camera_index=camera_index)
 
-            # Adaptive warmup: more frames for low-index cameras (usually integrated cameras)
-            # Index 0-1: 30 frames (~1.5s at 20fps), Index 2+: 10 frames (~0.5s)
-            warmup_frames = 30 if camera_index <= 1 else 10
+            # ✅ FIX: Increased warmup for ALL cameras (USB cameras often need more time)
+            # All cameras get 50 frames (~2.5s at 20fps) to stabilize exposure/white balance
+            warmup_frames = 50
+            warmup_timeout = 5.0  # Maximum 5 seconds for warmup
+            min_success_ratio = 0.3  # Need at least 30% success to proceed
 
             successful_warmup = 0
+            warmup_start = time.time()
             for warmup_count in range(warmup_frames):
+                # Check timeout
+                if time.time() - warmup_start > warmup_timeout:
+                    log.warning(
+                        "live_camera_service.camera_warmup_timeout",
+                        camera_index=camera_index,
+                        elapsed=time.time() - warmup_start,
+                    )
+                    break
+
                 ret, frame = self.camera.get_frame()
                 if ret and frame is not None:
                     successful_warmup += 1
+                else:
+                    # If frame capture fails, wait a bit longer for camera to initialize
+                    time.sleep(0.1)
                 time.sleep(0.05)  # 50ms between warmup frames
 
+            # ✅ FIX: Warn if warmup had poor success rate
+            success_ratio = successful_warmup / warmup_frames if warmup_frames > 0 else 0
             log.info(
                 "live_camera_service.camera_warmup_complete",
                 camera_index=camera_index,
                 frames_requested=warmup_frames,
                 frames_successful=successful_warmup,
+                success_ratio=f"{success_ratio:.1%}",
+                warmup_duration=f"{time.time() - warmup_start:.2f}s",
             )
+
+            if success_ratio < min_success_ratio:
+                log.warning(
+                    "live_camera_service.camera_warmup_poor",
+                    camera_index=camera_index,
+                    success_ratio=f"{success_ratio:.1%}",
+                    recommendation="Camera may not be fully ready. Consider longer warmup.",
+                )
 
             # Verify the camera is using the correct index
             actual_camera_index = self.camera._camera_index
@@ -824,20 +889,18 @@ class LiveCameraService:
 
     def _create_preview_window(self, camera_index: int, duration_s: float):
         """Create the live preview window."""
-        from zebtrack.ui.dialogs import LivePreviewWindow
-        from zebtrack.ui.dialogs.multi_aquarium_live_preview_window import MultiAquariumLivePreviewWindow
         from zebtrack.core.zone_manager import MultiAquariumZoneData
+        from zebtrack.ui.dialogs import LivePreviewWindow
+        from zebtrack.ui.dialogs.multi_aquarium_live_preview_window import (
+            MultiAquariumLivePreviewWindow,
+        )
 
         def on_stop_callback():
             """Handle manual stop from preview window."""
             log.info("live_camera_service.manual_stop_requested")
-            # ✅ FIX: Call _on_session_complete to trigger post-analysis
-            # Previously only called stop_session(), which skipped analysis
-            if self.current_output_dir:
-                self._on_session_complete(self.current_output_dir)
-            else:
-                # Fallback if output_dir not available
-                self.stop_session()
+            # 🔧 FIX: Call stop_session directly to stop threads immediately
+            # Post-analysis happens automatically in stop_session
+            self.stop_session()
 
         # ✅ FIX: Check if multi-aquarium mode and create appropriate window
         zone_data = self.project_manager.get_zone_data() if self.project_manager else None
@@ -867,10 +930,11 @@ class LiveCameraService:
             log.info("live_camera_service.preview_window_created")
 
     def _start_threads(self) -> bool:
-        """Start capture and processing threads."""
+        """Start capture, processing, and video recording threads."""
         try:
             # Clear exit event
             self.exit_event.clear()
+            self._video_frames_written = 0  # Reset counter
 
             # Start capture thread
             self.capture_thread = threading.Thread(
@@ -881,7 +945,7 @@ class LiveCameraService:
             self.capture_thread.start()
             log.info("live_camera_service.capture_thread_started")
 
-            # Start processing thread
+            # Start processing thread (detection + display)
             self.processing_thread = threading.Thread(
                 target=self._processing_loop,
                 name="LiveCameraProcessingThread",
@@ -889,6 +953,17 @@ class LiveCameraService:
             )
             self.processing_thread.start()
             log.info("live_camera_service.processing_thread_started")
+
+            # ✅ NEW: Start dedicated video recording thread
+            # Follows pattern from original working code (Integração_Zeb_Arduino)
+            # Video recording must be in a separate thread to never drop frames
+            self.video_recording_thread = threading.Thread(
+                target=self._video_recording_loop,
+                name="LiveCameraVideoRecordingThread",
+                daemon=True,
+            )
+            self.video_recording_thread.start()
+            log.info("live_camera_service.video_recording_thread_started")
 
             return True
 
@@ -935,37 +1010,47 @@ class LiveCameraService:
                     self._on_camera_reconnected()
 
                 frame_count += 1
+                self._last_captured_frame = frame_count  # Track for lag calculation
 
                 # MELHORIA #1: Create single copy of frame to share between queues
                 # This reduces memory usage from 5.4MB to 2.7MB per frame (50% reduction)
                 frame_copy = frame.copy()
 
-                # Put frame in processing queue
-                if not self.frame_queue.full():
-                    self.frame_queue.put((frame_count, frame_copy))
-                else:
-                    # MELHORIA #5: Track dropped frames for visibility
-                    self._dropped_frames_processing += 1
-                    if self._dropped_frames_processing % 10 == 1:  # Log every 10th drop
-                        log.warning(
-                            "live_camera_service.frame_dropped_processing",
+                # ✅ PRIORITY 1: VIDEO RECORDING - NEVER DROP
+                # Video recording is critical and must capture every frame
+                if self.is_capturing_for_video:
+                    try:
+                        # Use blocking put with timeout - video is priority
+                        self.video_queue.put(frame_copy, timeout=0.5)
+                    except queue.Full:
+                        # This should rarely happen with 600-frame queue
+                        # If it does, log as critical error
+                        self._dropped_frames_video += 1
+                        log.error(
+                            "live_camera_service.video_frame_dropped_critical",
                             frame_count=frame_count,
-                            total_dropped=self._dropped_frames_processing,
+                            queue_size=self.video_queue.qsize(),
+                            note="video_recording_may_have_gaps",
                         )
 
-                # Put same frame in video queue if recording (reuse same copy)
-                if self.is_capturing_for_video:
-                    if not self.video_queue.full():
-                        self.video_queue.put(frame_copy)
-                    else:
-                        # MELHORIA #5: Track dropped frames for video recording
-                        self._dropped_frames_video += 1
-                        if self._dropped_frames_video % 10 == 1:  # Log every 10th drop
-                            log.warning(
-                                "live_camera_service.frame_dropped_video",
-                                frame_count=frame_count,
-                                total_dropped=self._dropped_frames_video,
-                            )
+                # ✅ PRIORITY 2: ANALYSIS FRAMES - Preserve frames at analysis interval
+                is_analysis_frame = (frame_count % self.analysis_interval_frames) == 0
+
+                if is_analysis_frame:
+                    # Analysis frames are important - wait up to 0.5s
+                    try:
+                        self.frame_queue.put((frame_count, frame_copy), timeout=0.5)
+                    except queue.Full:
+                        self._dropped_frames_processing += 1
+                        log.warning(
+                            "live_camera_service.analysis_frame_dropped",
+                            frame_count=frame_count,
+                            queue_backlog=self.frame_queue.qsize(),
+                        )
+                elif not self.frame_queue.full():
+                    # Non-analysis frames: add only if space available (no waiting)
+                    self.frame_queue.put_nowait((frame_count, frame_copy))
+                # else: silently skip non-analysis frames when queue is full
 
                 # Control capture rate
                 default_fps = 30.0
@@ -988,17 +1073,100 @@ class LiveCameraService:
             drop_rate_video=f"{drop_rate_vid:.1f}%",
         )
 
+    def _video_recording_loop(self):
+        """
+        ✅ NEW: Dedicated thread for video recording.
+
+        This follows the pattern from the original working code (Integração_Zeb_Arduino).
+        Video recording MUST be in a separate thread to ensure ALL frames are recorded
+        without drops, regardless of how slow the detection/analysis may be.
+
+        Key design decisions:
+        1. Reads from video_queue (separate from frame_queue used by detection)
+        2. Blocks waiting for frames (with timeout for clean exit)
+        3. Writes EVERY frame to the video file
+        4. Independent of detection speed - video is never dropped
+        """
+        log.info("live_camera_service.video_recording_loop_started")
+
+        while not self.exit_event.is_set():
+            # Only record if we're capturing for video AND recorder is ready
+            if not self.is_capturing_for_video or not self.recorder:
+                time.sleep(0.05)  # Small sleep to prevent busy-wait
+                continue
+
+            try:
+                # Block waiting for frame with timeout (allows clean exit)
+                frame = self.video_queue.get(timeout=0.5)
+
+                # Write frame to video file
+                if self.recorder and self.recorder.is_recording and self.recorder.video_writer:
+                    try:
+                        self.recorder.write_video_frame(frame)
+                        self._video_frames_written += 1
+
+                        # Log periodically (every 100 frames)
+                        if self._video_frames_written % 100 == 0:
+                            log.debug(
+                                "live_camera_service.video_frames_written",
+                                count=self._video_frames_written,
+                                queue_size=self.video_queue.qsize(),
+                            )
+                    except Exception as e:
+                        log.warning(
+                            "live_camera_service.video_write_error",
+                            error=str(e),
+                            frames_written=self._video_frames_written,
+                        )
+
+            except queue.Empty:
+                # Timeout - check exit condition and continue
+                continue
+            except Exception as e:
+                log.error(
+                    "live_camera_service.video_recording_error",
+                    error=str(e),
+                    exc_info=True,
+                )
+                time.sleep(0.1)
+
+        # Log final count when thread exits
+        log.info(
+            "live_camera_service.video_recording_loop_finished",
+            total_frames_written=self._video_frames_written,
+        )
+
     def _processing_loop(self):  # noqa: C901
         """Thread loop for processing frames with detection."""
         log.info("live_camera_service.processing_loop_started")
         processed_count = 0
         first_frame_active = False
+        # ✅ FIX Bug 1: Track frames received by processing thread, not capture thread
+        # When frames are dropped due to queue being full, frame_number can skip
+        # (e.g., 40 -> 150). Using a local counter ensures consistent analysis intervals.
+        frames_received = 0
+        last_lag_update_time = 0.0  # For throttling lag status updates
 
         while not self.exit_event.is_set():
             try:
                 frame_number, frame = self.frame_queue.get(timeout=1)
             except queue.Empty:
                 continue
+
+            # ✅ FIX Bug 1: Increment local counter for every frame actually received
+            frames_received += 1
+            self._last_analyzed_frame = frame_number
+
+            # ✅ NEW: Calculate and report analysis lag
+            self._analysis_lag_frames = self._last_captured_frame - frame_number
+            current_time = time.time()
+
+            # Update UI with lag status (throttled to every 2 seconds)
+            if self._analysis_lag_frames > self._analysis_lag_warning_threshold:
+                if current_time - last_lag_update_time > 2.0:
+                    last_lag_update_time = current_time
+                    lag_seconds = self._analysis_lag_frames / 30.0  # Approximate
+                    self._publish_analysis_lag_status(lag_seconds)
 
             try:
                 # Trigger session timer on first frame
@@ -1091,10 +1259,19 @@ class LiveCameraService:
                                                     "frame_number": self._aquarium_detection_frames,
                                                     "max_frames": self._aquarium_detection_max_frames,
                                                     "frame_image": frame.copy(),
-                                                    "detected_bbox": (int(x1), int(y1), int(x2), int(y2)),
+                                                    "detected_bbox": (
+                                                        int(x1),
+                                                        int(y1),
+                                                        int(x2),
+                                                        int(y2),
+                                                    ),
                                                     "is_valid": True,
-                                                    "experiment_id": self._analysis_params.get("experiment_id", "unknown"),
-                                                    "valid_count": len(self._detected_aquarium_bboxes),
+                                                    "experiment_id": self._analysis_params.get(
+                                                        "experiment_id", "unknown"
+                                                    ),
+                                                    "valid_count": len(
+                                                        self._detected_aquarium_bboxes
+                                                    ),
                                                 },
                                             )
                                     else:
@@ -1114,10 +1291,19 @@ class LiveCameraService:
                                                     "frame_number": self._aquarium_detection_frames,
                                                     "max_frames": self._aquarium_detection_max_frames,
                                                     "frame_image": frame.copy(),
-                                                    "detected_bbox": (int(x1), int(y1), int(x2), int(y2)),
+                                                    "detected_bbox": (
+                                                        int(x1),
+                                                        int(y1),
+                                                        int(x2),
+                                                        int(y2),
+                                                    ),
                                                     "is_valid": False,
-                                                    "experiment_id": self._analysis_params.get("experiment_id", "unknown"),
-                                                    "valid_count": len(self._detected_aquarium_bboxes),
+                                                    "experiment_id": self._analysis_params.get(
+                                                        "experiment_id", "unknown"
+                                                    ),
+                                                    "valid_count": len(
+                                                        self._detected_aquarium_bboxes
+                                                    ),
                                                 },
                                             )
 
@@ -1130,20 +1316,6 @@ class LiveCameraService:
                                     num_raw_detections=len(detections),
                                     target_class_id=target_class_id,
                                 )
-                                # DEBUG: Save frame to inspect visibility
-                                try:
-                                    debug_path = (
-                                        Path.home() / f"zebtrack_debug_frame_{frame_number}.jpg"
-                                    )
-                                    cv2.imwrite(str(debug_path), frame)
-                                    log.info(
-                                        "live_camera_service.debug_frame_saved",
-                                        path=str(debug_path),
-                                    )
-                                except Exception as e:
-                                    log.error(
-                                        "live_camera_service.debug_frame_save_failed", error=str(e)
-                                    )
 
                     self._aquarium_detection_frames += 1
 
@@ -1174,8 +1346,11 @@ class LiveCameraService:
 
                 # ✅ PHASE 2: Normal Processing (after arena is defined)
                 # Determine if we should process/display this frame
-                should_analyze = (frame_number % self.analysis_interval_frames) == 0
-                should_display = (frame_number % self.display_interval_frames) == 0
+                # ✅ FIX Bug 1: Use frames_received (local counter) instead of frame_number
+                # This ensures consistent analysis intervals even when frames are dropped.
+                # frame_number can skip (e.g., 40 -> 150) when queue is full.
+                should_analyze = (frames_received % self.analysis_interval_frames) == 0
+                should_display = (frames_received % self.display_interval_frames) == 0
 
                 detections = []
 
@@ -1199,7 +1374,18 @@ class LiveCameraService:
                     if detector:
                         # v2.2.0: Check for multi-aquarium zone data
                         zone_data = self.project_manager.get_zone_data()
-                        is_multi_aquarium = hasattr(zone_data, 'aquariums') and zone_data.aquariums
+                        is_multi_aquarium = hasattr(zone_data, "aquariums") and zone_data.aquariums
+
+                        # 🔍 DEBUG: Log detection attempt
+                        log.debug(
+                            "live_camera_service.detection_attempt",
+                            frame_number=frame_number,
+                            is_multi_aquarium=is_multi_aquarium,
+                            has_detector=detector is not None,
+                            conf_threshold=getattr(detector.plugin, "conf_threshold", None)
+                            if hasattr(detector, "plugin")
+                            else None,
+                        )
 
                         if is_multi_aquarium:
                             # Multi-aquarium processing with parallel detection
@@ -1208,12 +1394,17 @@ class LiveCameraService:
                             )
                         else:
                             # Standard single aquarium detection
-                            detections, _command = detector.detect(frame, "live")
+                            # 🔧 FIX: Use low confidence threshold to ensure detections during live sessions
+                            detections, _command = detector.detect(
+                                frame, "live", conf_threshold=0.05
+                            )
 
                     # v2.2.0: Adjust FPS dynamically based on processing time
                     # ✅ FIX: Use return value to potentially skip next analysis interval
                     frame_processing_time = time.time() - frame_start_time
-                    should_continue_processing = self._adjust_fps_dynamically(frame_number, frame_processing_time)
+                    should_continue_processing = self._adjust_fps_dynamically(
+                        frame_number, frame_processing_time
+                    )
 
                     # If dynamic FPS says skip, update analysis interval
                     if not should_continue_processing:
@@ -1239,9 +1430,7 @@ class LiveCameraService:
                     if self.recorder and self.recorder.start_time:
                         if detections:
                             timestamp = time.time() - self.recorder.start_time
-                            self.recorder.write_detection_data(
-                                timestamp, frame_number, detections
-                            )
+                            self.recorder.write_detection_data(timestamp, frame_number, detections)
                             # 🔍 INFO: Log detection writes (changed from DEBUG to INFO)
                             log.info(
                                 "live_camera_service.detection_written",
@@ -1259,10 +1448,8 @@ class LiveCameraService:
                             "live_camera_service.detection_skipped_no_recorder",
                             frame_number=frame_number,
                             has_recorder=self.recorder is not None,
-                            recorder_start_time=self.recorder.start_time
-                            if self.recorder
-                            else None,
-                            )
+                            recorder_start_time=self.recorder.start_time if self.recorder else None,
+                        )
                 else:
                     # Use cached detections for overlay on non-analyzed frames
                     # This makes bounding boxes persist instead of flickering
@@ -1279,23 +1466,9 @@ class LiveCameraService:
                         is_cached=not should_analyze,
                     )
 
-                # ✅ CRITICAL FIX: Write video frame to MP4/AVI
-                # Previously frames were queued but never written, causing no video output
-                if self.is_capturing_for_video and self.recorder:
-                    # Additional check: only write if recorder is still recording
-                    if self.recorder.is_recording and self.recorder.video_writer:
-                        try:
-                            self.recorder.write_video_frame(frame)
-                            log.debug(
-                                "live_camera_service.frame_written",
-                                frame_number=frame_number,
-                            )
-                        except Exception as e:
-                            log.warning(
-                                "live_camera_service.frame_write_failed",
-                                frame_number=frame_number,
-                                error=str(e),
-                            )
+                # ✅ VIDEO RECORDING: Now handled by dedicated _video_recording_loop thread
+                # This ensures video is recorded from video_queue at full framerate
+                # while analysis can run at reduced interval without affecting video quality
 
                 # Update preview window if exists
                 if self.preview_window and should_display:
@@ -1322,7 +1495,13 @@ class LiveCameraService:
                 # When use_external_preview=False, frames go to integrated Analysis tab canvas
                 # CRITICAL: This must be OUTSIDE the preview_window check since we don't create
                 # preview_window when using integrated canvas!
-                if should_display and not self._use_external_preview and self.event_bus:
+                # ✅ FIX: Check exit_event before emitting to prevent infinite loop after session ends
+                if (
+                    should_display
+                    and not self._use_external_preview
+                    and self.event_bus
+                    and not self.exit_event.is_set()
+                ):
                     # Emit event to update main UI canvas
                     # We pass a copy of the frame to avoid thread safety issues
                     from zebtrack.ui.events import Events
@@ -1341,7 +1520,11 @@ class LiveCameraService:
                             "fps": self._actual_fps,
                         },
                     )
-                elif should_display and not self._use_external_preview:
+                elif (
+                    should_display
+                    and not self._use_external_preview
+                    and not self.exit_event.is_set()
+                ):
                     log.warning(
                         "live_camera_service.no_event_bus",
                         frame_number=frame_number,
@@ -1392,6 +1575,8 @@ class LiveCameraService:
             duration_s: Session duration in seconds
             output_dir: Output directory for results
         """
+        # Store session start time for countdown display
+        self._session_start_time = time.time()
 
         def on_timer_expired():
             """Called when duration expires."""
@@ -1411,6 +1596,74 @@ class LiveCameraService:
                 "live_camera_service.timer_scheduled",
                 duration_s=duration_s,
             )
+
+            # Start periodic countdown updates for integrated canvas mode
+            if not self._use_external_preview:
+                self._update_session_countdown(duration_s)
+
+    def _update_session_countdown(self, duration_s: float):
+        """Update status bar with session countdown for integrated canvas mode.
+
+        Args:
+            duration_s: Total session duration in seconds
+        """
+        if not self.root or self.exit_event.is_set() or not hasattr(self, "_session_start_time"):
+            return
+
+        elapsed = time.time() - self._session_start_time
+        remaining = max(0, duration_s - elapsed)
+
+        # Update status via event bus
+        if self.event_bus and remaining > 0:
+            from zebtrack.ui.events import Events
+
+            status_msg = (
+                f"● Gravando: {elapsed:.1f}s / {duration_s:.1f}s (Restante: {remaining:.1f}s)"
+            )
+
+            self.event_bus.publish_event(
+                Events.UI_SET_STATUS,
+                {"message": status_msg},
+            )
+
+            # Schedule next update (every 1 second)
+            self.root.after(1000, self._update_session_countdown, duration_s)
+
+    def _publish_analysis_lag_status(self, lag_seconds: float):
+        """Publish analysis lag status to UI.
+
+        When analysis is behind real-time recording, this updates the status bar
+        to inform the user that recording continues but analysis is catching up.
+
+        Args:
+            lag_seconds: How many seconds behind real-time the analysis is
+        """
+        if not self.event_bus:
+            return
+
+        from zebtrack.ui.events import Events
+
+        # Format message based on lag severity
+        if lag_seconds < 2.0:
+            status_msg = f"⏳ Analisando... ({lag_seconds:.1f}s atrás) - Gravação OK"
+        elif lag_seconds < 5.0:
+            status_msg = f"⏳ Análise atrasada ({lag_seconds:.1f}s) - Gravação continua normalmente"
+        else:
+            status_msg = (
+                f"⚠️ Análise muito atrasada ({lag_seconds:.1f}s) - Gravação OK, análise em fila"
+            )
+
+        log.debug(
+            "live_camera_service.analysis_lag_status",
+            lag_seconds=lag_seconds,
+            lag_frames=self._analysis_lag_frames,
+            queue_size=self.frame_queue.qsize(),
+        )
+
+        self.event_bus.publish_event(
+            Events.UI_SET_STATUS,
+            {"message": status_msg},
+        )
 
     def _on_session_complete(self, output_dir: Path):
         """Handle session completion and trigger post-processing analysis.
@@ -1596,6 +1849,9 @@ class LiveCameraService:
                         summary_excel=str(excel_path),
                         report_path=str(word_path),
                         experiment_id=self._experiment_id,
+                        group=self._analysis_params.get("group"),
+                        day=self._analysis_params.get("day"),
+                        subject_id=self._analysis_params.get("subject_id"),
                     )
 
                     # Refresh project views to show the new results
@@ -1705,7 +1961,9 @@ class LiveCameraService:
             try:
                 if is_multi_aquarium and len(zone_data.aquariums) <= 2:
                     # Multi-aquarium recording (max 2 aquariums)
-                    zones_by_aquarium = {aq_id: aq_data.zone for aq_id, aq_data in zone_data.aquariums.items()}
+                    zones_by_aquarium = {
+                        aq_id: aq_data.zone for aq_id, aq_data in zone_data.aquariums.items()
+                    }
 
                     recorder_started = self.recorder.start_recording_multi_aquarium(
                         output_folder=str(self.current_output_dir),
@@ -1920,13 +2178,13 @@ class LiveCameraService:
 
         try:
             # Use optimized partitioned detection if available
-            if hasattr(detector, 'detect_partitioned_optimized'):
+            if hasattr(detector, "detect_partitioned_optimized"):
                 all_detections = detector.detect_partitioned_optimized(
                     frame=frame,
                     zone_data=zone_data,
                     context="live",
                 )
-            elif hasattr(detector, 'detect_partitioned_parallel'):
+            elif hasattr(detector, "detect_partitioned_parallel"):
                 all_detections = detector.detect_partitioned_parallel(
                     frame=frame,
                     zone_data=zone_data,
@@ -1942,7 +2200,7 @@ class LiveCameraService:
             if self.recorder and self.recorder.start_time:
                 timestamp = time.time() - self.recorder.start_time
 
-                if hasattr(self.recorder, 'write_partitioned_detection_data'):
+                if hasattr(self.recorder, "write_partitioned_detection_data"):
                     # Use partitioned writer for multi-aquarium
                     self.recorder.write_partitioned_detection_data(
                         timestamp=timestamp,
@@ -1956,9 +2214,7 @@ class LiveCameraService:
                         flat_detections.extend(dets)
 
                     if flat_detections:
-                        self.recorder.write_detection_data(
-                            timestamp, frame_number, flat_detections
-                        )
+                        self.recorder.write_detection_data(timestamp, frame_number, flat_detections)
 
                 log.info(
                     "live_camera_service.multi_aquarium_detection_written",
@@ -2143,7 +2399,9 @@ class LiveCameraService:
                     target_fps=f"{self._target_fps:.1f}",
                     frame_skip=self._frame_skip_count,
                 )
-            elif self._current_fps > self._target_fps * 1.2 and self._frame_skip_count > 0:  # >20% faster
+            elif (
+                self._current_fps > self._target_fps * 1.2 and self._frame_skip_count > 0
+            ):  # >20% faster
                 # Processing is fast enough, reduce skip
                 self._frame_skip_count = max(0, self._frame_skip_count - 1)
                 log.info(

@@ -533,9 +533,34 @@ class Detector:
             x, y, w, h = cv2.boundingRect(self.scaled_polygon)
             cropped_frame = frame[y : y + h, x : x + w]
 
+            # ✅ DEBUG: Log crop dimensions to verify detection area
+            log.debug(
+                "detector.frame_crop_applied",
+                original_size=(frame.shape[1], frame.shape[0]),
+                crop_bbox=(x, y, w, h),
+                cropped_size=(cropped_frame.shape[1], cropped_frame.shape[0]),
+                conf_threshold=conf_threshold,
+            )
+
             # 1. Delegate actual detection to the loaded plugin on the cropped frame
+            raw_detections = self.plugin.detect(cropped_frame, conf_threshold=conf_threshold)
+
+            # ✅ DEBUG: Log raw detections from plugin
+            if raw_detections:
+                log.debug(
+                    "detector.plugin_raw_detections",
+                    count=len(raw_detections),
+                    sample=str(raw_detections[:2]) if len(raw_detections) > 0 else "[]",
+                )
+            else:
+                log.debug(
+                    "detector.plugin_no_detections",
+                    crop_size=(w, h),
+                    conf_threshold=conf_threshold,
+                )
+
             predictions = []
-            for det in self.plugin.detect(cropped_frame, conf_threshold=conf_threshold):
+            for det in raw_detections:
                 (
                     x1_crop,
                     y1_crop,

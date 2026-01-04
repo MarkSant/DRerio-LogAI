@@ -1442,9 +1442,9 @@ class ProjectViewManager:
                 "group_id": group_id,
             }
 
-            # Iterate over days
+            # Iterate over days - v2.3.1: Use str() key function to handle mixed int/str day IDs
             days = group_data.get("days", {})
-            for day_id, videos in sorted(days.items()):
+            for day_id, videos in sorted(days.items(), key=lambda x: str(x[0])):
                 # Fix: day_data (now videos) is a list of video entries, not a dict with 'display'
                 # Derive day title from first video metadata if possible
                 day_label = f"Dia {day_id}"

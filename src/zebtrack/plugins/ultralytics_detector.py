@@ -99,6 +99,20 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         # Use provided threshold or instance default
         conf = conf_threshold if conf_threshold is not None else self.conf_threshold
 
+        import structlog
+
+        log = structlog.get_logger()
+
+        # ✅ DEBUG: Log detection parameters
+        log.debug(
+            "ultralytics.detect.start",
+            frame_shape=frame.shape,
+            conf_threshold=conf,
+            iou_threshold=self.nms_threshold,
+            imgsz=self._imgsz,
+            half_enabled=self._half_enabled,
+        )
+
         results = self.model.predict(
             frame,
             verbose=False,
@@ -116,6 +130,14 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
             confs = boxes.conf.cpu().numpy()  # type: ignore[attr-defined]
             classes = boxes.cls.cpu().numpy()  # type: ignore[attr-defined]
 
+            # ✅ DEBUG: Log raw boxes from model
+            log.debug(
+                "ultralytics.detect.raw_boxes",
+                num_boxes=len(xyxys),
+                confidences=confs.tolist() if len(confs) > 0 else [],
+                classes=classes.tolist() if len(classes) > 0 else [],
+            )
+
             for i in range(len(xyxys)):
                 x1, y1, x2, y2 = xyxys[i]
                 confidence = confs[i]
@@ -131,6 +153,14 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                         class_id,
                     )
                 )
+        else:
+            # ✅ DEBUG: Log when model returns no boxes
+            log.debug(
+                "ultralytics.detect.no_boxes",
+                has_results=results is not None,
+                has_boxes=results[0].boxes is not None if results else False,
+                frame_shape=frame.shape,
+            )
 
         return predictions
 

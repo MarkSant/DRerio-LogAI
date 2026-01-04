@@ -418,11 +418,15 @@ class ValidationManager:
             pending_video = getattr(self.gui, "pending_single_video_path", None)
             active_video = pending_video
 
+        # v2.3.1: For Live projects, always fallback to global detection_zones
+        # since zones are defined once for the entire project, not per-video
+        is_live_project = pm.get_project_type() == "live"
+
         if active_video:
             try:
                 zone_data = pm.get_zone_data(
                     video_path=active_video,
-                    fallback_to_global=False,
+                    fallback_to_global=is_live_project,  # v2.3.1: Fallback for Live projects
                 )
             except Exception:
                 zone_data = ZoneData()
@@ -896,6 +900,46 @@ class ValidationManager:
             value_str = str(value) if value is not None else ""
             return (1, value_str.lower())
 
+    def _normalize_day_id(self, value) -> str:
+        """Normalize day identifier to consistent format for grouping.
+
+        v2.3.1: Ensures all day formats are converted to "Dia_N" for consistent
+        tree node grouping. Handles: "Dia_1", "Dia 1", 1, "1", etc.
+
+        Args:
+            value: Day identifier in any format
+
+        Returns:
+            Normalized day ID string (e.g., "Dia_1", "Dia_2", or "Sem Dia")
+        """
+        if value in (None, "", "None"):
+            return "Sem Dia"
+
+        # Already in correct format
+        if isinstance(value, str) and value.startswith("Dia_"):
+            return value
+
+        # Handle integer
+        if isinstance(value, int):
+            return f"Dia_{value}"
+
+        # Handle string
+        value_str = str(value).strip()
+        if not value_str or value_str.lower() == "sem dia":
+            return "Sem Dia"
+
+        # Try to extract numeric day
+        match = re.search(r"(\d+)", value_str)
+        if match:
+            try:
+                day_num = int(match.group(1))
+                return f"Dia_{day_num}"
+            except ValueError:
+                pass
+
+        # Fallback: use original value
+        return f"Dia_{value_str}"
+
     def _format_day_display(self, value) -> str:
         """Format day value (wrapper for static method).
 
@@ -1065,8 +1109,13 @@ class ValidationManager:
         """
         group_id = group_override or metadata.get("group") or "Sem Grupo"
         group_display = metadata.get("group_display_name") or group_id
-        day_id = day_override or metadata.get("day") or "Sem Dia"
-        day_display = metadata.get("day_label") or self._format_day_display(day_id)
+        raw_day = day_override or metadata.get("day") or "Sem Dia"
+
+        # v2.3.1: Normalize day_id to consistent format for proper grouping
+        # Extract numeric day from various formats: "Dia_1", "Dia 1", 1, "1", etc.
+        day_id = self._normalize_day_id(raw_day)
+
+        day_display = metadata.get("day_label") or self._format_day_display(raw_day)
         subject_id = subject_override or metadata.get("subject")
         filename = os.path.basename(video.get("path", ""))
         status_label = video.get("status", "")

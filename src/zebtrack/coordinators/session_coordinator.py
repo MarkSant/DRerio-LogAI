@@ -104,7 +104,7 @@ class SessionCoordinator(BaseCoordinator):
         settings_obj: Settings,
         event_bus: EventBus | None = None,
         arduino_manager: ArduinoManager | None = None,
-        live_batch_coordinator: "LiveBatchCoordinator | None" = None,  # v2.3.0
+        live_batch_coordinator: LiveBatchCoordinator | None = None,  # v2.3.0
         # UI components (temporary - being phased out)
         root: Any = None,
         view: Any = None,
@@ -610,6 +610,15 @@ class SessionCoordinator(BaseCoordinator):
             # Other settings
             analysis_interval = int(project_data.get("analysis_interval_frames", 1))
 
+            # v2.3.1: Build analysis_config with batch metadata for video registration
+            # Extract from context which has day/group/cobaia from Smart Recording flow
+            analysis_config = {
+                "group": context.get("group"),
+                "day": context.get("day"),
+                "subject_id": context.get("cobaia"),
+                "camera_index": camera_index,
+            }
+
             # Delegate to LiveCameraService
             success = self.live_camera_service.start_session(
                 camera_index=camera_index,
@@ -622,6 +631,7 @@ class SessionCoordinator(BaseCoordinator):
                 # Consider adding animals_per_aquarium if available in context
                 animals_per_aquarium=1,
                 use_external_preview=False,  # Use integrated canvas in Analysis tab
+                analysis_config=analysis_config,  # v2.3.1: Pass metadata for file tree display
             )
 
             if success:
@@ -643,6 +653,17 @@ class SessionCoordinator(BaseCoordinator):
                         "mode": "live_analysis",
                     },
                 )
+
+                # ✅ FIX Bug 3: Enable cancel button in integrated canvas mode
+                if self.view and hasattr(self.view, "show_progress_bar"):
+                    if self.root:
+                        self.root.after(0, self.view.show_progress_bar)
+                        log.info(
+                            "session_coordinator.start_session_from_config.cancel_button_enabled",
+                            via="show_progress_bar",
+                        )
+                    else:
+                        self.view.show_progress_bar()
 
             return
 
@@ -767,6 +788,19 @@ class SessionCoordinator(BaseCoordinator):
             self._active_live_session_id = experiment_id
             self._active_wizard_data = wizard_data or {}  # v2.3.0
 
+            # Extract animals_per_aquarium from wizard_data if available
+            animals_per_aquarium = wizard_data.get("animals_per_aquarium", 1) if wizard_data else 1
+
+            # v2.3.1: Build analysis_config with batch metadata for video registration
+            analysis_config = None
+            if wizard_data:
+                analysis_config = {
+                    "group": wizard_data.get("experimental_group"),
+                    "day": wizard_data.get("experiment_day"),
+                    "subject_id": wizard_data.get("subject_id"),
+                    "camera_index": camera_index,
+                }
+
             # Delegate to LiveCameraService
             success = self.live_camera_service.start_session(
                 camera_index=camera_index,
@@ -776,7 +810,9 @@ class SessionCoordinator(BaseCoordinator):
                 display_interval_frames=display_interval_frames,
                 record_video=record_video,
                 output_base_dir=output_base_dir,
+                animals_per_aquarium=animals_per_aquarium,
                 use_external_preview=False,  # Use integrated canvas in Analysis tab
+                analysis_config=analysis_config,  # v2.3.1: Pass metadata for file tree display
             )
 
             if not success:
@@ -801,6 +837,18 @@ class SessionCoordinator(BaseCoordinator):
                     "duration_s": duration_s,
                 },
             )
+
+            # ✅ FIX Bug 3: Enable cancel button in integrated canvas mode
+            # When use_external_preview=False, we need to show progress bar and enable cancel
+            if self.view and hasattr(self.view, "show_progress_bar"):
+                if self.root:
+                    self.root.after(0, self.view.show_progress_bar)
+                    log.info(
+                        "session_coordinator.start_live_session.cancel_button_enabled",
+                        via="show_progress_bar",
+                    )
+                else:
+                    self.view.show_progress_bar()
 
             log.info(
                 "session_coordinator.start_live_session.success",
@@ -868,6 +916,39 @@ class SessionCoordinator(BaseCoordinator):
 
             # Publish event
             self._publish_event("LIVE_SESSION_STOPPED", {})
+
+            # v2.3.1: Re-enable start recording button after session ends
+            if self.event_bus:
+                from zebtrack.ui.events import Events
+
+                self.event_bus.publish_event(
+                    Events.UI_UPDATE_BUTTON_STATE, {"button_name": "start_rec", "state": "normal"}
+                )
+                self.event_bus.publish_event(
+                    Events.UI_UPDATE_BUTTON_STATE, {"button_name": "stop_rec", "state": "disabled"}
+                )
+                log.info("session_coordinator.stop_live_session.buttons_restored")
+
+            # ✅ FIX Bug 3: Hide progress bar and disable cancel button
+            if hasattr(self, "view") and self.view and hasattr(self.view, "hide_progress_bar"):
+                if self.root:
+                    self.root.after(0, self.view.hide_progress_bar)
+                    log.info("session_coordinator.stop_live_session.progress_bar_hidden")
+                else:
+                    self.view.hide_progress_bar()
+
+            # ✅ FIX BUG: Unsubscribe canvas from live frame updates to stop warnings
+            if hasattr(self, "view") and self.view and hasattr(self.view, "canvas_manager"):
+                log.info("session_coordinator.stop_live_session.unsubscribing_canvas")
+                self.view.canvas_manager.unsubscribe_from_live_frames()
+            else:
+                log.warning(
+                    "session_coordinator.stop_live_session.cannot_unsubscribe",
+                    has_view=hasattr(self, "view") and self.view is not None,
+                    has_canvas=hasattr(self.view, "canvas_manager")
+                    if hasattr(self, "view") and self.view
+                    else False,
+                )
 
             # v2.3.0: Register session for batch tracking
             if success and self.live_batch_coordinator and self._active_wizard_data:
@@ -972,7 +1053,7 @@ class SessionCoordinator(BaseCoordinator):
         Returns:
             Path to video file, or None if not found
         """
-        if not hasattr(self.live_camera_service, 'current_output_dir'):
+        if not hasattr(self.live_camera_service, "current_output_dir"):
             return None
 
         output_dir = self.live_camera_service.current_output_dir
@@ -1171,6 +1252,14 @@ class SessionCoordinator(BaseCoordinator):
                 mode=selected_mode,
             )
 
+        # v2.3.0: Build analysis_config with batch metadata for video registration
+        analysis_config = {
+            "group": config.get("experimental_group"),
+            "day": config.get("experiment_day"),
+            "subject_id": config.get("subject_id"),
+            "camera_index": camera_index,
+        }
+
         # Delegate to LiveCameraService
         # ✅ FIX: Use integrated canvas preview (no external window)
         success = self.live_camera_service.start_session(
@@ -1182,6 +1271,7 @@ class SessionCoordinator(BaseCoordinator):
             record_video=record_video,
             animals_per_aquarium=animals_per_aquarium,
             use_external_preview=False,  # Use canvas in Analysis tab
+            analysis_config=analysis_config,
         )
 
         # UI feedback
@@ -1256,6 +1346,36 @@ class SessionCoordinator(BaseCoordinator):
             duration_s=duration_s,
         )
 
+        # v2.3.1: Ensure zones are defined before recording (shows reuse dialog for 2nd+ recording)
+        if not self._ensure_zones_before_recording():
+            log.info("session_coordinator.live_project_session.zones_not_ready")
+            return False
+
+        # v2.3.1: Increment session count to track recordings for zone reuse dialog
+        self._increment_session_count()
+
+        # v2.3.0: Store batch metadata for LiveBatchCoordinator registration
+        # Transform dialog parameters to wizard data format expected by _register_batch_session
+        self._active_wizard_data = {
+            "experimental_group": group,
+            "experiment_day": f"Dia_{day}",  # Format: "Dia_1", "Dia_2", etc.
+            "subject_id": subject,
+            "recording_duration_s": duration_s,
+            "camera_index": camera_index,
+            "is_batch_last_session": False,  # Grid sessions are never marked as last by default
+        }
+
+        # Extract animals_per_aquarium from project data
+        animals_per_aquarium = project_data.get("animals_per_aquarium", 1)
+
+        # v2.3.0: Build analysis_config with batch metadata for video registration
+        analysis_config = {
+            "group": group,
+            "day": f"Dia_{day}",
+            "subject_id": subject,
+            "camera_index": camera_index,
+        }
+
         # Delegate to LiveCameraService (unified system)
         success = self.live_camera_service.start_session(
             camera_index=camera_index,
@@ -1264,7 +1384,9 @@ class SessionCoordinator(BaseCoordinator):
             analysis_interval_frames=analysis_interval_frames,
             display_interval_frames=display_interval_frames,
             record_video=True,  # Projects always record
+            animals_per_aquarium=animals_per_aquarium,
             use_external_preview=False,  # Use integrated canvas in Analysis tab
+            analysis_config=analysis_config,
         )
 
         return success
@@ -1396,10 +1518,14 @@ class SessionCoordinator(BaseCoordinator):
                 # Navigate to zone tab
                 if self.event_bus:
                     self.event_bus.publish_event(Events.UI_SELECT_TAB, {"tab_name": "zone_tab"})
-                    # Force update of zone list and canvas to ensure consistency
-                    # This fixes the "ghost zone" issue where canvas shows zone but list is empty
+
+                    # ⚠️ FIX BUG #7: Don't publish UI_REDRAW_ZONES immediately after
+                    # UI_DISPLAY_VIDEO_FRAME because redraw_zones() might be called
+                    # before display_roi_video_frame() completes setting the active video.
+                    # The image display event handler will redraw zones after loading.
+
+                    # Only update zone list (not redraw - that happens after image loads)
                     self.event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST, {})
-                    self.event_bus.publish_event(Events.UI_REDRAW_ZONES, {})
 
                     self.event_bus.publish_event(
                         Events.UI_SHOW_INFO,
@@ -1821,6 +1947,12 @@ class SessionCoordinator(BaseCoordinator):
                     "session_coordinator.capture_reference_frame.camera_init_failed", error=str(e)
                 )
                 return False
+
+            # CRITICAL: Wait for Camera's background thread to start filling buffer
+            # Camera uses background thread to continuously capture frames into buffer.
+            # Must wait for first frame to become available before warmup loop.
+            log.info("session_coordinator.capture_reference_frame.waiting_for_thread_start")
+            time.sleep(0.5)  # Give background thread time to capture first frame
 
             # CRITICAL: Warm up camera by discarding first frames
             # Webcams often need time to adjust exposure/white balance

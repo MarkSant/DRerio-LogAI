@@ -10,8 +10,6 @@ Critical Fixes Tested:
 4. analysis_active flag properly set during live sessions
 """
 
-import threading
-from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
@@ -191,13 +189,13 @@ class TestCanvasManagerIntegration:
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
-        # Should log warning when analysis_active=False
+        # Should log debug message when analysis_active=False (changed from warning to debug)
         with patch("zebtrack.ui.components.canvas_manager.log") as mock_log:
             canvas_manager.update_video_frame(frame)
-            # Verify warning was logged (frame skipped)
+            # Verify debug was logged (frame skipped) - uses debug level to reduce log noise
             assert any(
                 call[0][0] == "canvas_manager.update_video_frame.skipped"
-                for call in mock_log.warning.call_args_list
+                for call in mock_log.debug.call_args_list
             )
 
 

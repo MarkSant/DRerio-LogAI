@@ -189,8 +189,16 @@ class HardwareStatusViewModel:
     def start_live_camera_analysis(self, camera_index: int | None = None):
         return self.session_coordinator.start_live_camera_analysis(camera_index)
 
-    def start_live_project_session(self):
-        return self.session_coordinator.start_live_project_session()
+    def start_live_project_session(
+        self,
+        day: int,
+        group: str,
+        subject: str,
+        duration_s: float | None = None,
+    ):
+        return self.session_coordinator.start_live_project_session(
+            day=day, group=group, subject=subject, duration_s=duration_s
+        )
 
     def start_recording(self, **kwargs):
         # Use SessionCoordinator for recording (consolidated from RecordingSessionOrchestrator)

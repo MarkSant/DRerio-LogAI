@@ -196,6 +196,7 @@ class MainViewModel:
         self.hardware_coordinator = dependencies.hardware_coordinator
         self.processing_coordinator = dependencies.processing_coordinator
         self.session_coordinator = dependencies.session_coordinator
+        self.live_batch_coordinator = dependencies.live_batch_coordinator  # v2.3.0
 
         # Legacy dependencies
         self.recording_coordinator = dependencies.recording_coordinator
@@ -299,8 +300,16 @@ class MainViewModel:
     def start_live_camera_analysis(self, camera_index: int | None = None):
         return self.hardware_vm.start_live_camera_analysis(camera_index)
 
-    def start_live_project_session(self):
-        return self.hardware_vm.start_live_project_session()
+    def start_live_project_session(
+        self,
+        day: int,
+        group: str,
+        subject: str,
+        duration_s: float | None = None,
+    ):
+        return self.hardware_vm.start_live_project_session(
+            day=day, group=group, subject=subject, duration_s=duration_s
+        )
 
     def can_remove_project_asset(self, video_path: str, asset: str) -> tuple[bool, str | None]:
         return self.project_vm.can_remove_project_asset(video_path, asset)

@@ -774,6 +774,10 @@ class ApplicationGUI:
             pending_video = getattr(self, "pending_single_video_path", None)
             active_video = pending_video
 
+        # v2.3.1: For Live projects, always fallback to global detection_zones
+        # since zones are defined once for the entire project, not per-video
+        is_live_project = pm.get_project_type() == "live"
+
         if active_video:
             try:
                 # Check for multi-aquarium data first
@@ -786,7 +790,7 @@ class ApplicationGUI:
 
                 zone_data = pm.get_zone_data(
                     video_path=active_video,
-                    fallback_to_global=False,
+                    fallback_to_global=is_live_project,  # v2.3.1: Fallback for Live projects
                 )
             except Exception:
                 zone_data = ZoneData()

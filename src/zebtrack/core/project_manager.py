@@ -1995,19 +1995,47 @@ class ProjectManager:
         delete_files: bool,
     ) -> bool:
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
+        # v2.3.1: Normalize path for comparison (handles Windows backslash vs forward slash)
+        normalized_video_path = video_path.replace("\\", "/").lower()
         changed = False
 
         parquet_files = dict(video_entry.get("parquet_files") or {})
         if delete_files:
+            # Delete associated parquet/output files
             for path in parquet_files.values():
                 self._delete_file_if_exists(path)
+            # v2.3.1 FIX: Also delete the video file itself
+            if self._delete_file_if_exists(video_path):
+                changed = True
+
+            # v2.3.1: Delete zone parquets and results folder
+            video_dir = Path(video_path).parent
+            if video_dir.exists():
+                # Delete zone parquets (1_ProcessingArea_*.parquet, 2_ZonasROI_*.parquet)
+                import glob
+
+                for pattern in ["1_ProcessingArea_*.parquet", "2_ZonasROI_*.parquet"]:
+                    for zone_file in glob.glob(str(video_dir / pattern)):
+                        self._delete_file_if_exists(zone_file)
+                # Delete folder if empty (or only contains hidden files)
+                try:
+                    remaining = [f for f in video_dir.iterdir() if not f.name.startswith(".")]
+                    if not remaining:
+                        import shutil
+
+                        shutil.rmtree(video_dir, ignore_errors=True)
+                        log.info("project_manager.video_folder_deleted", folder=str(video_dir))
+                except Exception as e:
+                    log.warning("project_manager.folder_cleanup_failed", error=str(e))
 
         self.clear_zone_data_for_video(video_path, persist=False)
 
         for batch in self.project_data.get("batches", []):
             original_count = len(batch.get("videos", []))
             batch["videos"] = [
-                item for item in batch.get("videos", []) if item.get("path") != video_path
+                item
+                for item in batch.get("videos", [])
+                if item.get("path", "").replace("\\", "/").lower() != normalized_video_path
             ]
             if len(batch["videos"]) != original_count:
                 changed = True
@@ -2284,8 +2312,27 @@ class ProjectManager:
         summary_excel: str | None = None,
         report_path: str | None = None,
         experiment_id: str | None = None,
+        group: str | None = None,
+        day: str | None = None,
+        subject_id: str | None = None,
     ) -> bool:
-        """Update project metadata with freshly generated analysis artifacts."""
+        """Update project metadata with freshly generated analysis artifacts.
+
+        Args:
+            video_path: Path to the video file
+            results_dir: Directory containing analysis results
+            trajectory_path: Path to trajectory parquet file
+            summary_parquet: Path to summary parquet file
+            summary_excel: Path to summary Excel file
+            report_path: Path to report file
+            experiment_id: Experiment identifier
+            group: Experimental group (e.g., "Controle", "Tratado")
+            day: Experiment day (e.g., "Dia_1")
+            subject_id: Subject identifier (e.g., "Peixe_01")
+
+        Returns:
+            True if registration successful, False otherwise
+        """
         video_path = Path(video_path).as_posix()
         video_entry = self.find_video_entry(path=video_path, experiment_id=experiment_id)
         if not video_entry:
@@ -2293,9 +2340,16 @@ class ProjectManager:
                 "project.outputs.adding_missing_video",
                 video_path=video_path,
             )
-            # Add the video to the in-memory project data
+            # Add the video to the in-memory project data with metadata
             # This can happen during single video workflows
-            self.add_video_batch([{"path": video_path, "status": "processing"}], save_project=False)
+            video_info = {"path": video_path, "status": "processing"}
+            if group:
+                video_info["group"] = group
+            if day:
+                video_info["day"] = day
+            if subject_id:
+                video_info["subject"] = subject_id
+            self.add_video_batch([video_info], save_project=False)
             video_entry = self.find_video_entry(path=video_path)
             if not video_entry:
                 log.warning(
@@ -2303,6 +2357,15 @@ class ProjectManager:
                     video_path=video_path,
                 )
                 return False
+
+        # Update metadata if provided and not already set
+        metadata = video_entry.setdefault("metadata", {})
+        if group and not metadata.get("group"):
+            metadata["group"] = group
+        if day and not metadata.get("day"):
+            metadata["day"] = day
+        if subject_id and not metadata.get("subject"):
+            metadata["subject"] = subject_id
 
         # Update flags, parquet mapping and persist as needed using helpers
         self._update_entry_zone_flags(video_entry, video_path)
@@ -3120,30 +3183,49 @@ class ProjectManager:
 
         return normalized
 
-    def get_completed_sessions(self) -> set[tuple[int, str, int]]:
+    def get_completed_sessions(self) -> set[tuple[int, str, str]]:
         """
         Scan the project directory for completed session folders and returns them.
 
         A session is a tuple of (day, group_name, subject_id).
+        subject_id is returned as string for UI compatibility.
         """
         if not self.project_path:
             return set()
 
         completed = set()
-        # Regex to capture day, group name, and subject ID from folder names
-        # like "D1_GControl_S3" or "D12_GGroup Name with spaces_S15"
-        pattern = re.compile(r"^D(\d+)_G(.+)_S(\d+)$")
+
+        # Pattern 1: New format - day{day}_{group}_{subject}_{timestamp}
+        # Example: "day1_Controle_1_20260103_142530"
+        pattern_new = re.compile(r"^day(\d+)_(.+)_(\d+)_\d{8}_\d{6}$")
+
+        # Pattern 2: Legacy format - D{day}_G{group}_S{subject}
+        # Example: "D1_GControl_S3"
+        pattern_legacy = re.compile(r"^D(\d+)_G(.+)_S(\d+)$")
 
         for item in os.scandir(self.project_path):
             if not item.is_dir():
                 continue
 
-            match = pattern.match(item.name)
+            # Try new format first
+            match = pattern_new.match(item.name)
             if match:
                 try:
                     day = int(match.group(1))
                     group_name = match.group(2)
-                    subject_id = int(match.group(3))
+                    subject_id = match.group(3)  # Keep as string
+                    completed.add((day, group_name, subject_id))
+                    continue
+                except (ValueError, IndexError):
+                    pass
+
+            # Try legacy format
+            match = pattern_legacy.match(item.name)
+            if match:
+                try:
+                    day = int(match.group(1))
+                    group_name = match.group(2)
+                    subject_id = str(match.group(3))  # Convert to string
                     completed.add((day, group_name, subject_id))
                 except (ValueError, IndexError):
                     log.warning("project.scan.invalid_folder_name", name=item.name)

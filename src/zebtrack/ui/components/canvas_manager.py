@@ -53,6 +53,9 @@ class CanvasManager:
         # Visualization settings
         self.show_geotaxis_zones = False
 
+        # Live session tracking
+        self._live_frame_subscription = None  # Track subscription for cleanup
+
         # Initialize sub-components
         self.renderer = CanvasRenderer(self)
         self.event_handler = CanvasEventHandler(self)
@@ -101,7 +104,10 @@ class CanvasManager:
 
         # Subscribe to legacy UI events (Live Camera Stream)
         if hasattr(self.gui, "event_bus") and self.gui.event_bus:
-            self.gui.event_bus.subscribe(Events.UI_UPDATE_LIVE_FRAME, self._on_live_frame_update)
+            self._live_frame_subscription = self.gui.event_bus.subscribe(
+                Events.UI_UPDATE_LIVE_FRAME, self._on_live_frame_update
+            )
+            # Note: _live_session_active remains False until a live session actually starts
             log.debug("canvas_manager.subscribed_to_live_frame_updates")
 
     def _on_zones_updated(self, data: dict):
@@ -159,6 +165,25 @@ class CanvasManager:
         if frame is not None:
             # We are already on the main thread here via EventDispatcher polling
             self.update_video_frame(frame, detections)
+
+    def unsubscribe_from_live_frames(self):
+        """Unsubscribe from live frame updates to stop receiving events."""
+        log.info(
+            "canvas_manager.unsubscribe_from_live_frames.called",
+            has_subscription=hasattr(self, "_live_frame_subscription"),
+            has_event_bus=hasattr(self.gui, "event_bus") and self.gui.event_bus is not None,
+        )
+
+        if hasattr(self.gui, "event_bus") and self.gui.event_bus:
+            try:
+                self.gui.event_bus.unsubscribe(
+                    Events.UI_UPDATE_LIVE_FRAME, self._on_live_frame_update
+                )
+                if hasattr(self, "_live_frame_subscription"):
+                    self._live_frame_subscription = None
+                log.info("canvas_manager.unsubscribed_from_live_frames.success")
+            except Exception as e:
+                log.warning("canvas_manager.unsubscribe_failed", error=str(e), exc_info=True)
 
     def setup_interactive_polygon(self, polygon: np.ndarray | list) -> None:
         """Set up interactive polygon editing.
@@ -498,8 +523,12 @@ class CanvasManager:
         log.debug(
             "canvas_manager.update_video_frame.called",
             has_frame=frame is not None,
-            analysis_active=self.gui.analysis_active if hasattr(self.gui, "analysis_active") else None,
-            has_widget=bool(self.gui.analysis_display_widget) if hasattr(self.gui, "analysis_display_widget") else None,
+            analysis_active=self.gui.analysis_active
+            if hasattr(self.gui, "analysis_active")
+            else None,
+            has_widget=bool(self.gui.analysis_display_widget)
+            if hasattr(self.gui, "analysis_display_widget")
+            else None,
         )
 
         if frame is None:
@@ -514,8 +543,7 @@ class CanvasManager:
             # Do NOT update zone canvas - it should remain showing the static zone drawing
             if self.gui.analysis_active and self.gui.analysis_display_widget:
                 # Dynamic sizing
-                target_w = 1280
-                target_h = 720
+                target_w, target_h = 640, 480
 
                 # Try to get current container size if available
                 if self.gui.analysis_display_widget.video_container:
@@ -527,7 +555,7 @@ class CanvasManager:
                 pil_image.thumbnail((target_w, target_h), Image.LANCZOS)
                 self.gui.analysis_display_widget.update_frame(pil_image)
             else:
-                log.warning(
+                log.debug(
                     "canvas_manager.update_video_frame.skipped",
                     analysis_active=self.gui.analysis_active,
                     has_widget=bool(self.gui.analysis_display_widget),
