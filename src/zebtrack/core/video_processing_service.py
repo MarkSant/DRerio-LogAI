@@ -1578,8 +1578,11 @@ class VideoProcessingService:
             summary_excel=summary_excel,
             report_path=report_path,
         )
-        # TODO: refresh_project_views needs to be called by MainViewModel
-        # Could emit an event here instead
+        # Publish event to refresh project views
+        if self.ui_event_bus:
+            self.ui_event_bus.publish_event(
+                Events.UI_REFRESH_PROJECT_VIEWS, {"reason": "processing_complete"}
+            )
 
     def _run_analysis_pipeline(
         self,
