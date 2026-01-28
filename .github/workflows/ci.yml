@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ '**' ]
+    branches: ["**"]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   lint:
@@ -16,7 +16,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install Poetry
         run: |
@@ -77,20 +77,31 @@ jobs:
           poetry run mypy .
 
   test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
-      - name: Install system dependencies
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libavcodec-extra ffmpeg libopencv-dev python3-opencv
+
+      - name: Install system dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install ffmpeg --no-progress
 
       - name: Install Poetry
         run: |
@@ -114,7 +125,7 @@ jobs:
       - name: Install dependencies
         run: |
           poetry install --no-interaction --no-ansi
-        timeout-minutes: 10
+        timeout-minutes: 15
 
       - name: Build wizard template archive
         run: |
@@ -134,10 +145,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-build-
 
-      - name: "Run tests with coverage (v2.1: pytest-timeout configured)"
+      - name: "Run tests (Linux - with xvfb)"
+        if: runner.os == 'Linux'
         run: |
           xvfb-run --auto-servernum poetry run pytest -m "not (gui or slow)" --cov-fail-under=60 --timeout=300 --timeout-method=thread
-        timeout-minutes: 10
+        timeout-minutes: 15
+
+      - name: "Run tests (Windows)"
+        if: runner.os == 'Windows'
+        run: |
+          poetry run pytest -m "not (gui or slow)" --cov-fail-under=60 --timeout=300 --timeout-method=thread
+        timeout-minutes: 15
 
       - name: Archive coverage results
         uses: actions/upload-artifact@v4
