@@ -45,17 +45,28 @@ if ! command -v pipx >/dev/null 2>&1; then
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
-# 3. Install Poetry
+# 3. Install Poetry via pipx (Isolated)
+# We use pipx to install tools in isolation, which is the PEP 668 compliant way.
 if ! command -v poetry >/dev/null 2>&1; then
     echo "Installing Poetry via pipx..."
+    # Ensure pipx path is available for this session
+    export PATH="$HOME/.local/bin:$PATH"
     pipx install poetry
+
+    # Ensure poetry is on path immediately
+    export PATH="$HOME/.local/bin:$PATH"
 else
     echo "Poetry is already installed."
 fi
 
 # 4. Install Project Dependencies
 echo "[3/5] Installing Python dependencies with Poetry..."
+
+# FORCE poetry to create a virtualenv and install there, never touching system python
+poetry config virtualenvs.create true
 poetry config virtualenvs.in-project true
+
+# Install dependencies
 poetry install
 
 # 5. Verify Setup
