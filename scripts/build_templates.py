@@ -82,7 +82,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     archive_path = build_archive(args.output_dir)
-    print(f"✅ Wizard templates archive generated at: {archive_path}")
+    print(f"[OK] Wizard templates archive generated at: {archive_path}")
     return 0
 
 

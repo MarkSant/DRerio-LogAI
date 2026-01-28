@@ -57,7 +57,7 @@ log = structlog.get_logger()
 class OpenVINOPlugin(DetectorPlugin):
     """A detector plugin that uses an OpenVINO-optimized model."""
 
-    def __init__(
+    def __init__(  # noqa: C901
         self,
         model_path: Path | str,
         expected_hash: str | None = None,

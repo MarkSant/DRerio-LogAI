@@ -506,7 +506,10 @@ class BlockDetailDialog(Toplevel):
                 raise ValueError("Nenhum dado válido encontrado nos arquivos de resumo")
 
             # Concatenate all data
-            unified_df = pd.concat(all_data, ignore_index=True)
+            non_empty_dfs = [df for df in all_data if not df.empty]
+            if not non_empty_dfs:
+                raise ValueError("Nenhum dado válido encontrado (todos os arquivos estavam vazios)")
+            unified_df = pd.concat(non_empty_dfs, ignore_index=True)
 
             # Write to Excel with multiple sheets
             with pd.ExcelWriter(output_path, engine="openpyxl") as writer:

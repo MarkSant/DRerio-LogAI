@@ -58,7 +58,8 @@ class TestReadinessSnapshotEvent:
         assert events_received[0]["without_arena"] == [{"path": "/video4.mp4"}]
 
     def test_project_view_manager_subscribes_to_readiness_snapshot(self):
-        """ProjectViewManager subscribes to READINESS_SNAPSHOT_UPDATED and calls apply_pending_readiness_snapshot."""
+        """ProjectViewManager subscribes to READINESS_SNAPSHOT_UPDATED and calls
+        apply_pending_readiness_snapshot."""
         # Arrange
         event_bus = EventBusV2()
         gui_mock = MagicMock()
@@ -129,7 +130,8 @@ class TestReadinessSnapshotEvent:
             try:
                 dialog_manager.show_pending_videos_dialog(**snapshot_lists)
             except Exception:
-                # If method fails due to missing dependencies, that's OK - we're testing event publishing
+                # If method fails due to missing dependencies, that's OK - we're
+                # testing event publishing
                 pass
 
         # Assert - event was published

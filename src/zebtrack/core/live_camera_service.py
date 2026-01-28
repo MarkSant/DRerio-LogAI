@@ -17,6 +17,7 @@ import datetime
 import glob
 import math
 import queue
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -1254,9 +1255,9 @@ class LiveCameraService:
                             )
                         continue
 
-                    # MELHORIA: Skip frames during detection to cover more time
-                    # Process only every 5th frame. With 10 frames max, this covers ~50 frames (1.6s @ 30fps)
-                    # instead of just 10 frames (0.33s). This helps bypass initial camera auto-adjustments.
+                    # Process only every 5th frame. With 10 frames max,
+                    # this covers ~50 frames (1.6s @ 30fps) instead of just 10 frames (0.33s).
+                    # This helps bypass initial camera auto-adjustments.
                     if frame_number % 5 != 0:
                         self._aquarium_detection_frames += (
                             1  # Count skipped frames towards timeout?
@@ -1270,121 +1271,120 @@ class LiveCameraService:
 
                     # Update preview status
                     if self.preview_window and frame_number % 5 == 0:
-                        self.preview_window.update_status_text(
-                            f"🔍 Detectando aquário... ({self._aquarium_detection_frames}/{self._aquarium_detection_max_frames})",
-                            color="yellow",
+                        status_msg = (
+                            f"🔍 Detectando aquário... "
+                            f"({self._aquarium_detection_frames}/{self._aquarium_detection_max_frames})"
                         )
+                        self.preview_window.update_status_text(status_msg, color="yellow")
 
                     # Run detection to find aquarium (class_id=0)
                     detector = self.detector_service.detector
                     if detector:
-                        # MELHORIA: Force low confidence threshold (0.05) to match AquariumDetector robustness
-                        # This ensures we see the aquarium even if the model is unsure, and rely on AREA validation.
+                        # MELHORIA: Force low confidence threshold (0.05) to match
+                        # AquariumDetector robustness. This ensures we see the aquarium
+                        # even if the model is unsure, and rely on AREA validation.
                         detections, _ = detector.detect(frame, "live", conf_threshold=0.05)
 
-                        # Collect aquarium bboxes (class_id=0)
-                        # Dynamically get aquarium class ID (usually 0, but safest to ask detector)
-                        target_class_id = detector.aquarium_class_id
+                    # Collect aquarium bboxes (class_id=0)
+                    # Dynamically get aquarium class ID (usually 0, but safest to ask detector)
+                    target_class_id = detector.aquarium_class_id
 
-                        h, w = frame.shape[:2]
-                        frame_area = w * h
-                        # MELHORIA: Use configurable threshold
-                        min_ratio = 0.10
-                        if hasattr(self.settings, "detection_zones"):
-                            min_ratio = self.settings.detection_zones.min_aquarium_area_ratio
+                    h, w = frame.shape[:2]
+                    frame_area = w * h
+                    # MELHORIA: Use configurable threshold
+                    min_ratio = 0.10
+                    if hasattr(self.settings, "detection_zones"):
+                        min_ratio = self.settings.detection_zones.min_aquarium_area_ratio
 
-                        min_aquarium_area = frame_area * min_ratio
+                    min_aquarium_area = frame_area * min_ratio
 
-                        detection_found_in_frame = False
-                        for det in detections:
-                            if len(det) >= 7:
-                                x1, y1, x2, y2, conf, track_id, class_id = det
+                    detection_found_in_frame = False
+                    for det in detections:
+                        if len(det) >= 7:
+                            x1, y1, x2, y2, conf, track_id, class_id = det
 
-                                # Verify class (allow target class OR huge fish fallback which detector might have swapped)
-                                if class_id == target_class_id:
-                                    bbox_area = (x2 - x1) * (y2 - y1)
-                                    if bbox_area >= min_aquarium_area:
-                                        self._detected_aquarium_bboxes.append(
-                                            (int(x1), int(y1), int(x2), int(y2))
-                                        )
-                                        detection_found_in_frame = True
-                                        # Log only periodically or on first detection to reduce spam
-                                        if (
-                                            len(self._detected_aquarium_bboxes) == 1
-                                            or len(self._detected_aquarium_bboxes) % 5 == 0
-                                        ):
-                                            log.info(
-                                                "live_camera_service.aquarium_detected",
-                                                frame=frame_number,
-                                                total_collected=len(self._detected_aquarium_bboxes),
-                                                area_ratio=f"{bbox_area / frame_area:.2f}",
-                                            )
-
-                                        # Publish progress event
-                                        if self.event_bus:
-                                            self.event_bus.publish_event(
-                                                "AQUARIUM_DETECTION_PROGRESS",
-                                                {
-                                                    "frame_number": self._aquarium_detection_frames,
-                                                    "max_frames": self._aquarium_detection_max_frames,
-                                                    "frame_image": frame.copy(),
-                                                    "detected_bbox": (
-                                                        int(x1),
-                                                        int(y1),
-                                                        int(x2),
-                                                        int(y2),
-                                                    ),
-                                                    "is_valid": True,
-                                                    "experiment_id": self._analysis_params.get(
-                                                        "experiment_id", "unknown"
-                                                    ),
-                                                    "valid_count": len(
-                                                        self._detected_aquarium_bboxes
-                                                    ),
-                                                },
-                                            )
-                                    else:
+                            # Verify class (allow target class OR huge fish fallback
+                            # which detector might have swapped)
+                            if class_id == target_class_id:
+                                bbox_area = (x2 - x1) * (y2 - y1)
+                                if bbox_area >= min_aquarium_area:
+                                    self._detected_aquarium_bboxes.append(
+                                        (int(x1), int(y1), int(x2), int(y2))
+                                    )
+                                    detection_found_in_frame = True
+                                    # Log only periodically or on first detection to reduce spam
+                                    if (
+                                        len(self._detected_aquarium_bboxes) == 1
+                                        or len(self._detected_aquarium_bboxes) % 5 == 0
+                                    ):
                                         log.info(
-                                            "live_camera_service.aquarium_rejected_area",
+                                            "live_camera_service.aquarium_detected",
                                             frame=frame_number,
+                                            total_collected=len(self._detected_aquarium_bboxes),
                                             area_ratio=f"{bbox_area / frame_area:.2f}",
-                                            min_ratio=min_ratio,
-                                            bbox=(int(x1), int(y1), int(x2), int(y2)),
                                         )
 
-                                        # Publish progress event for invalid detection
-                                        if self.event_bus and frame_number % 5 == 0:
-                                            self.event_bus.publish_event(
-                                                "AQUARIUM_DETECTION_PROGRESS",
-                                                {
-                                                    "frame_number": self._aquarium_detection_frames,
-                                                    "max_frames": self._aquarium_detection_max_frames,
-                                                    "frame_image": frame.copy(),
-                                                    "detected_bbox": (
-                                                        int(x1),
-                                                        int(y1),
-                                                        int(x2),
-                                                        int(y2),
-                                                    ),
-                                                    "is_valid": False,
-                                                    "experiment_id": self._analysis_params.get(
-                                                        "experiment_id", "unknown"
-                                                    ),
-                                                    "valid_count": len(
-                                                        self._detected_aquarium_bboxes
-                                                    ),
-                                                },
-                                            )
+                                    # Publish progress event
+                                    if self.event_bus:
+                                        self.event_bus.publish_event(
+                                            "AQUARIUM_DETECTION_PROGRESS",
+                                            {
+                                                "frame_number": self._aquarium_detection_frames,
+                                                "max_frames": self._aquarium_detection_max_frames,
+                                                "frame_image": frame.copy(),
+                                                "detected_bbox": (
+                                                    int(x1),
+                                                    int(y1),
+                                                    int(x2),
+                                                    int(y2),
+                                                ),
+                                                "is_valid": True,
+                                                "experiment_id": self._analysis_params.get(
+                                                    "experiment_id", "unknown"
+                                                ),
+                                                "valid_count": len(self._detected_aquarium_bboxes),
+                                            },
+                                        )
+                                else:
+                                    log.info(
+                                        "live_camera_service.aquarium_rejected_area",
+                                        frame=frame_number,
+                                        area_ratio=f"{bbox_area / frame_area:.2f}",
+                                        min_ratio=min_ratio,
+                                        bbox=(int(x1), int(y1), int(x2), int(y2)),
+                                    )
 
-                        if not detection_found_in_frame:
-                            # Limit "nothing found" logs to avoid flooding info channel
-                            if frame_number % 5 == 0:
-                                log.info(
-                                    "live_camera_service.no_valid_aquarium_in_frame",
-                                    frame=frame_number,
-                                    num_raw_detections=len(detections),
-                                    target_class_id=target_class_id,
-                                )
+                                    # Publish progress event for invalid detection
+                                    if self.event_bus and frame_number % 5 == 0:
+                                        self.event_bus.publish_event(
+                                            "AQUARIUM_DETECTION_PROGRESS",
+                                            {
+                                                "frame_number": self._aquarium_detection_frames,
+                                                "max_frames": self._aquarium_detection_max_frames,
+                                                "frame_image": frame.copy(),
+                                                "detected_bbox": (
+                                                    int(x1),
+                                                    int(y1),
+                                                    int(x2),
+                                                    int(y2),
+                                                ),
+                                                "is_valid": False,
+                                                "experiment_id": self._analysis_params.get(
+                                                    "experiment_id", "unknown"
+                                                ),
+                                                "valid_count": len(self._detected_aquarium_bboxes),
+                                            },
+                                        )
+
+                    if not detection_found_in_frame:
+                        # Limit "nothing found" logs to avoid flooding info channel
+                        if frame_number % 5 == 0:
+                            log.info(
+                                "live_camera_service.no_valid_aquarium_in_frame",
+                                frame=frame_number,
+                                num_raw_detections=len(detections),
+                                target_class_id=target_class_id,
+                            )
 
                     self._aquarium_detection_frames += 1
 
@@ -1463,7 +1463,8 @@ class LiveCameraService:
                             )
                         else:
                             # Standard single aquarium detection
-                            # 🔧 FIX: Use low confidence threshold to ensure detections during live sessions
+                            # 🔧 FIX: Use low confidence threshold to ensure
+                            # detections during live sessions
                             detections, _command = detector.detect(
                                 frame, "live", conf_threshold=0.05
                             )
@@ -1524,7 +1525,8 @@ class LiveCameraService:
                     # This makes bounding boxes persist instead of flickering
                     detections = self.get_last_detections()
 
-                # ✅ ALWAYS draw overlay when displaying (even if no detections, so we see the arena)
+                # ✅ ALWAYS draw overlay when displaying (even if no detections, so we
+                # see the arena)
                 detector = self.detector_service.detector
                 if detector and should_display:
                     detector.draw_overlay(frame, detections)
@@ -1564,7 +1566,8 @@ class LiveCameraService:
                 # When use_external_preview=False, frames go to integrated Analysis tab canvas
                 # CRITICAL: This must be OUTSIDE the preview_window check since we don't create
                 # preview_window when using integrated canvas!
-                # ✅ FIX: Check exit_event before emitting to prevent infinite loop after session ends
+                # ✅ FIX: Check exit_event before emitting to prevent infinite
+                # loop after session ends
                 if (
                     should_display
                     and not self._use_external_preview
@@ -1734,7 +1737,7 @@ class LiveCameraService:
             {"message": status_msg},
         )
 
-    def _on_session_complete(self, output_dir: Path):
+    def _on_session_complete(self, output_dir: Path):  # noqa: C901
         """Handle session completion and trigger post-processing analysis.
 
         Task 1.4: Thread-safe check-and-set pattern to prevent race conditions.
@@ -1760,7 +1763,7 @@ class LiveCameraService:
         # This prevents blocking the main UI thread during heavy I/O and DataFrame operations
         log.info("live_camera_service.starting_post_analysis", output_dir=str(output_dir))
 
-        def _run_post_analysis():
+        def _run_post_analysis():  # noqa: C901
             """Background thread worker for post-processing analysis."""
             try:
                 from zebtrack.analysis.analysis_service import AnalysisService

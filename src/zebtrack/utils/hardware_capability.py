@@ -76,9 +76,10 @@ class HardwareCapabilityReport:
             f"Capability: {self.capability.value.upper()}\n"
             f"Max Aquariums: {self.max_aquariums_recommended}\n"
             f"CPU: {self.cpu_cores} cores ({self.cpu_usage_percent:.1f}% used)\n"
-            f"Memory: {self.available_memory_gb:.1f}GB available of {self.total_memory_gb:.1f}GB total\n"
+            f"Memory: {self.available_memory_gb:.1f}GB available / "
+            f"{self.total_memory_gb:.1f}GB total\n"
             f"GPU: {gpu_str}\n"
-            f"Real-time: {'Yes' if self.can_process_realtime else 'No (record-only recommended)'}"
+            f"Real-time: {'Yes' if self.can_process_realtime else 'No (record-only)'}"
         )
 
 

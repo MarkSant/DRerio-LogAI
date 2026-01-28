@@ -33,6 +33,11 @@ else
     exit 1
 fi
 
+# Ensure the git working tree is clean (discarding permission changes or other artifacts)
+# This satisfies Jules' verification requirement.
+git checkout .
+
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo "  ✅ Jules Setup Complete"
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+exit 0

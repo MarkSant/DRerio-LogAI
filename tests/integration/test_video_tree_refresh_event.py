@@ -40,7 +40,8 @@ class TestVideoTreeRefreshEvent:
         assert events_received[0]["filter_text"] == "test_filter"
 
     def test_project_view_manager_subscribes_to_video_tree_refresh(self):
-        """ProjectViewManager subscribes to VIDEO_TREE_REFRESH_REQUESTED and calls _populate_video_selector_tree."""
+        """ProjectViewManager subscribes to VIDEO_TREE_REFRESH_REQUESTED and calls
+        _populate_video_selector_tree."""
         # Arrange
         event_bus = EventBusV2()
         gui_mock = MagicMock()

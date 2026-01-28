@@ -55,7 +55,8 @@ def test_ttkbootstrap_style_initialization(monkeypatch, caplog):
     assert isinstance(app._ttkbootstrap_style, DummyStyle)
     assert app._ttkbootstrap_style.theme == "cosmo"
 
-    # Scenario 2: Style(theme=...) fails, but Style(theme=..., master=...) succeeds (Legacy fallback)
+    # Scenario 2: Style(theme=...) fails, but Style(theme=..., master=...) succeeds
+    # (Legacy fallback)
     def style_factory_legacy(*args, **kwargs):
         if "master" not in kwargs:
             raise TypeError("master argument required")

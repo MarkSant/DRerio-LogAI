@@ -668,7 +668,8 @@ def test_standardize_roi_columns_pads_missing_columns():
 
 
 def test_standardize_roi_columns_returns_unchanged_when_no_expected_rois():
-    """Test that standardize_roi_columns returns unchanged DataFrame when expected_roi_names is None."""
+    """Test that standardize_roi_columns returns unchanged DataFrame when
+    expected_roi_names is None."""
     transformer = DataTransformer()
 
     df = pd.DataFrame(

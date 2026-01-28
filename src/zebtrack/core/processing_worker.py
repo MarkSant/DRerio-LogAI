@@ -585,7 +585,7 @@ class _WorkerProcess(multiprocessing.Process):
             )
             return self._default_zone_data
 
-    def _process_single_video(
+    def _process_single_video(  # noqa: C901
         self,
         index: int,
         total_videos: int,

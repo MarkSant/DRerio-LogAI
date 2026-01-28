@@ -47,6 +47,7 @@ from zebtrack.io.camera import Camera
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
+    from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
     from zebtrack.core.detector_service import DetectorService
     from zebtrack.core.live_camera_service import LiveCameraService
     from zebtrack.core.project_manager import ProjectManager
@@ -597,14 +598,19 @@ class SessionCoordinator(BaseCoordinator):
             experiment_id = context.get("experiment_id")
             if not experiment_id:
                 # Construct from folder name components
-                experiment_id = f"{context.get('day', 'D')}_{context.get('group', 'G')}_{context.get('cobaia', 'S')}"
+                experiment_id = (
+                    f"{context.get('day', 'D')}_"
+                    f"{context.get('group', 'G')}_"
+                    f"{context.get('cobaia', 'S')}"
+                )
 
             # Output directory (LiveCameraService expects base dir or full path?)
             # It expects specific structure usually, but let's pass the project path or output base
             # If we pass output_base_dir, it creates subfolders.
             # But we already defined 'output_folder' in context.
             # Let's see if we can force it.
-            # LiveCameraService logic: if output_base_dir provided, self.output_dir = output_base_dir
+            # LiveCameraService logic: if output_base_dir provided,
+            # self.output_dir = output_base_dir
             output_folder = context.get("output_folder")
 
             # Other settings
@@ -1467,7 +1473,8 @@ class SessionCoordinator(BaseCoordinator):
             if method == "auto":
                 log.info("session_coordinator.zones.attempting_auto_detection")
 
-                # IMPORTANT: Use 30 frames for camera exposure adjustment (not just aquarium detection)
+                # IMPORTANT: Use 30 frames for camera exposure adjustment
+                # (not just aquarium detection)
                 success = self.run_live_calibration(stabilization_frames=30, show_preview=True)
 
                 if success:
@@ -1498,7 +1505,8 @@ class SessionCoordinator(BaseCoordinator):
                                 "title": "Detecção Falhou",
                                 "message": (
                                     "Não foi possível detectar o aquário automaticamente.\n\n"
-                                    "Você será levado para a aba de zonas para desenhar manualmente."
+                                    "Você será levado para a aba de zonas para desenhar "
+                                    "manualmente."
                                 ),
                             },
                         )
@@ -1608,7 +1616,7 @@ class SessionCoordinator(BaseCoordinator):
     # NEW METHODS - Live Calibration Workflow (Phase 3.1)
     # =============================================================================
 
-    def run_live_calibration(
+    def run_live_calibration(  # noqa: C901
         self, stabilization_frames: int = 10, show_preview: bool = True
     ) -> bool:
         """Execute live aquarium calibration with auto-detection.
@@ -1806,9 +1814,12 @@ class SessionCoordinator(BaseCoordinator):
                             Events.UI_SHOW_WARNING,
                             {
                                 "title": "Detecção Automática Falhou",
-                                "message": "Não foi possível detectar o aquário automaticamente.\n\n"
-                                "A imagem capturada foi carregada para desenho manual.\n"
-                                "Por favor, use a ferramenta 'Polígono Principal' para definir a arena.",
+                                "message": (
+                                    "Não foi possível detectar o aquário automaticamente.\n\n"
+                                    "A imagem capturada foi carregada para desenho manual.\n"
+                                    "Por favor, use a ferramenta 'Polígono Principal' "
+                                    "para definir a arena."
+                                ),
                             },
                         )
                 except Exception as e:

@@ -203,12 +203,12 @@ def pytest_sessionfinish(session, exitstatus):
     all_objects = gc.get_objects()
     executors_shutdown = 0
     for obj in all_objects:
-        if isinstance(obj, ThreadPoolExecutor):
-            try:
+        try:
+            if isinstance(obj, ThreadPoolExecutor):
                 obj.shutdown(wait=False)
                 executors_shutdown += 1
-            except Exception:
-                pass
+        except (Exception, ReferenceError):
+            pass
 
     if executors_shutdown > 0:
         print("\n=== PYTEST SESSION CLEANUP ===")

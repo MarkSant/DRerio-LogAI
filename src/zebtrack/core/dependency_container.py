@@ -1,5 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
 
 from zebtrack.analysis.analysis_service import AnalysisService
 
@@ -65,7 +70,7 @@ class MainViewModelDependencies:
     processing_coordinator: ProcessingCoordinator | None = None
     session_coordinator: SessionCoordinator | None = None
     project_workflow_adapter: ProjectWorkflowAdapter | None = None
-    live_batch_coordinator: Optional["LiveBatchCoordinator"] = None  # v2.3.0
+    live_batch_coordinator: LiveBatchCoordinator | None = None  # v2.3.0
 
     # Legacy coordinators (DEPRECATED - will be removed in Phase 4)
     # Kept temporarily for backward compatibility during gradual migration

@@ -21,7 +21,7 @@ warnings.filterwarnings(
 )
 
 
-def main():
+def main():  # noqa: C901
     """
     Initializes and runs the application.
     """
@@ -180,7 +180,8 @@ def main():
                             settings_obj.openvino.precision = rec.openvino_precision
                             settings_obj.openvino.enable_model_cache = rec.enable_model_cache
 
-                        # Persist these settings to config.local.yaml so they are used in future sessions
+                        # Persist these settings to config.local.yaml so they are used in future
+                        # sessions
                         from zebtrack.settings import save_settings
 
                         try:

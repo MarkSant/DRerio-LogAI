@@ -59,55 +59,27 @@ class ImpactResult:
             f"{'=' * 70}\n",
         ]
 
-        if self.direct_dependents:
-            lines.append("📦 DIRECT DEPENDENTS (files that import/use this):")
-            for dep in sorted(set(self.direct_dependents)):
-                lines.append(f"   └── {dep}")
-            lines.append("")
-
-        if self.indirect_dependents:
-            lines.append("🔗 INDIRECT DEPENDENTS (transitive dependencies):")
-            for dep in sorted(set(self.indirect_dependents))[:20]:
-                lines.append(f"   └── {dep}")
-            if len(self.indirect_dependents) > 20:
-                lines.append(f"   ... and {len(self.indirect_dependents) - 20} more")
-            lines.append("")
-
-        if self.event_publishers:
-            lines.append("📤 EVENT PUBLISHERS (files that emit this event):")
-            for pub in sorted(set(self.event_publishers)):
-                lines.append(f"   └── {pub}")
-            lines.append("")
-
-        if self.event_subscribers:
-            lines.append("📥 EVENT SUBSCRIBERS (files that handle this event):")
-            for sub in sorted(set(self.event_subscribers)):
-                lines.append(f"   └── {sub}")
-            lines.append("")
-
-        if self.di_consumers:
-            lines.append("💉 DI CONSUMERS (services receiving this via constructor):")
-            for consumer in sorted(set(self.di_consumers)):
-                lines.append(f"   └── {consumer}")
-            lines.append("")
-
-        if self.serialization_chain:
-            lines.append("🔄 SERIALIZATION CHAIN:")
-            for step in self.serialization_chain:
-                lines.append(f"   └── {step}")
-            lines.append("")
-
-        if self.test_files:
-            lines.append("🧪 RELATED TEST FILES:")
-            for test in sorted(set(self.test_files)):
-                lines.append(f"   └── {test}")
-            lines.append("")
-
-        if self.warnings:
-            lines.append("⚠️  WARNINGS:")
-            for warn in self.warnings:
-                lines.append(f"   └── {warn}")
-            lines.append("")
+        self._add_section(
+            lines, "📦 DIRECT DEPENDENTS (files that import/use this):", self.direct_dependents
+        )
+        self._add_section(
+            lines,
+            "🔗 INDIRECT DEPENDENTS (transitive dependencies):",
+            self.indirect_dependents,
+            limit=20,
+        )
+        self._add_section(
+            lines, "📤 EVENT PUBLISHERS (files that emit this event):", self.event_publishers
+        )
+        self._add_section(
+            lines, "📥 EVENT SUBSCRIBERS (files that handle this event):", self.event_subscribers
+        )
+        self._add_section(
+            lines, "💉 DI CONSUMERS (services receiving this via constructor):", self.di_consumers
+        )
+        self._add_section(lines, "🔄 SERIALIZATION CHAIN:", self.serialization_chain)
+        self._add_section(lines, "🧪 RELATED TEST FILES:", self.test_files)
+        self._add_section(lines, "⚠️  WARNINGS:", self.warnings)
 
         # Summary
         total_affected = len(
@@ -140,6 +112,25 @@ class ImpactResult:
 
         lines.append("")
         return "\n".join(lines)
+
+    def _add_section(
+        self, lines: list[str], title: str, items: list[str], limit: int | None = None
+    ) -> None:
+        """Add a section to the report if items exist."""
+        if not items:
+            return
+
+        lines.append(title)
+        sorted_items = sorted(set(items))
+
+        if limit and len(sorted_items) > limit:
+            for item in sorted_items[:limit]:
+                lines.append(f"   └── {item}")
+            lines.append(f"   ... and {len(sorted_items) - limit} more")
+        else:
+            for item in sorted_items:
+                lines.append(f"   └── {item}")
+        lines.append("")
 
     def _detect_domains(self) -> set[str]:
         """Detect which domains are affected."""
@@ -451,7 +442,8 @@ class ImpactAnalyzer:
                         info = class_visitor.classes[class_name]
                         if info["init_params"]:
                             result.di_consumers.append(
-                                f"DEFINITION: {rel_path} - __init__({', '.join(info['init_params'])})"
+                                f"DEFINITION: {rel_path} - "
+                                f"__init__({', '.join(info['init_params'])})"
                             )
                     else:
                         result.direct_dependents.append(rel_path)

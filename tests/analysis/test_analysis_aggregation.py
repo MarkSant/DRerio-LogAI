@@ -66,7 +66,8 @@ def test_aggregate_session_summaries(service, tmp_path):
 
 
 def test_aggregate_session_summaries_multi_row_mean(service, tmp_path):
-    """Test that aggregation uses mean (not sum) for entries when multiple rows exist per session."""
+    """Test that aggregation uses mean (not sum) for entries when multiple rows
+    exist per session."""
     # Session 1: Two animals
     data1 = {
         "total_distance_cm": [100.0, 100.0],

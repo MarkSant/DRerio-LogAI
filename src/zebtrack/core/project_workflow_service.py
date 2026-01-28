@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
+    from zebtrack.ui.ui_coordinator import UICoordinator
 
 log = structlog.get_logger()
 

@@ -91,13 +91,15 @@ def test_detect_aquariums_strict_threshold(mock_yolo, mock_frame, mock_yolo_resu
             "mock_video.mp4", stabilization_frames=1, min_area_ratio=0.2
         )
 
-        # Should fail (return empty or default, depending on fallback, but here we expect handled empty list from filtering, then consensus fail or default)
+        # Should fail (return empty or default, depending on fallback, but here
+        # we expect handled empty list from filtering, then consensus fail or default)
         # Note: consensus generates default if list empty. But good_polygons will be empty.
 
         # Wait, if good_polygons is empty, it returns default polygon (80% frame).
         # We need to check that the returned polygon is NOT our 15% polygon.
 
-        # The 15% polygon has width 15. The default one has margin 10% -> 10,10 to 90,90 -> width 80.
+        # The 15% polygon has width 15. The default one has margin 10% -> 10,10 to
+        # 90,90 -> width 80.
 
         # However, _find_consensus_polygon returns default only if `good_polygons` is empty.
         # So we assert that result is NOT the input polygon.

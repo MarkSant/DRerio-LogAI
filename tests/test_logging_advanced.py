@@ -280,7 +280,10 @@ class TestLoggingEdgeCases:
     """Test suite for logging edge cases."""
 
     @pytest.mark.skip(
-        reason="Mock doesn't capture actual logging setup - configure_logging() uses real logging module."
+        reason=(
+            "Mock doesn't capture actual logging setup - "
+            "configure_logging() uses real logging module."
+        )
     )
     @patch("logging.getLogger")
     def test_configure_logging_called_multiple_times(self, mock_get_logger):

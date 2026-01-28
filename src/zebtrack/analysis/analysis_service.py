@@ -581,7 +581,10 @@ class AnalysisService:
             raise ValueError("No valid summary data to aggregate")
 
         # Concatenate all session data
-        unified_df = pd.concat(all_data, ignore_index=True)
+        non_empty_dfs = [df for df in all_data if not df.empty]
+        if not non_empty_dfs:
+            raise ValueError("No valid summary data to aggregate (all files were empty)")
+        unified_df = pd.concat(non_empty_dfs, ignore_index=True)
 
         # Write to Excel
         with pd.ExcelWriter(output_path, engine="openpyxl") as writer:

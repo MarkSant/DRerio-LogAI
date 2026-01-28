@@ -671,7 +671,8 @@ class TestParallelDetection:
         )
 
         frame = np.zeros((720, 1280, 3), dtype=np.uint8)
-        # Return a detection in cropped coordinates (7-tuple format: x1, y1, x2, y2, conf, track_id, class_id)
+        # Return a detection in cropped coordinates
+        # (7-tuple format: x1, y1, x2, y2, conf, track_id, class_id)
         # class_id=1 for zebrafish (matches animal_class_id)
         mock_plugin.detect.return_value = [(10, 10, 50, 50, 0.9, None, 1)]
 

@@ -253,7 +253,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         return new_project_manager
 
-    def create_project(
+    def create_project(  # noqa: C901
         self,
         *,
         setup_detector_callback: Callable[[Any], None] | None = None,

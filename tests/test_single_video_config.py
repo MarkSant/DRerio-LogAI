@@ -98,7 +98,8 @@ class TestSingleVideoConfigPersistence:
             assert mock_settings.behavioral_analysis.geotaxis_mode == GeotaxisMode.ZONES
             assert mock_settings.behavioral_analysis.geotaxis_num_zones == 4
 
-            # Verify that the correct payload describes these settings (implies they were read correctly)
+            # Verify that the correct payload describes these settings
+            # (implies they were read correctly)
             assert dialog.result is not None
             assert dialog.result["config"]["behavioral_config"]["aquarium_perspective"] == "Lateral"
             assert dialog.result["config"]["behavioral_config"]["geotaxis_num_zones"] == 4

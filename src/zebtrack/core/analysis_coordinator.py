@@ -13,6 +13,7 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from zebtrack.core.ui_coordinator import UICoordinator
     from zebtrack.settings import Settings
     from zebtrack.ui.gui import ApplicationGUI
 
@@ -197,7 +198,11 @@ class AnalysisCoordinator:
             return
 
         # Aggregate all data
-        aggregated_df = pd.concat(all_tidy_data, ignore_index=True)
+        non_empty_dfs = [df for df in all_tidy_data if not df.empty]
+        if not non_empty_dfs:
+            log.warning("analysis_coordinator.generate_report.no_data")
+            return
+        aggregated_df = pd.concat(non_empty_dfs, ignore_index=True)
 
         # Ask user for save location
         save_path = self.view.ask_save_filename(

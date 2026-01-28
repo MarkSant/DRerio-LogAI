@@ -495,7 +495,7 @@ class Detector:
 
         return False
 
-    def detect(self, frame: np.ndarray, project_type: str, conf_threshold: float | None = None):
+    def detect(self, frame: np.ndarray, project_type: str, conf_threshold: float | None = None):  # noqa: C901
         """Process a single frame for object detection and state tracking."""
         # Task 1.3: Frame validation to prevent crashes with invalid input
         if frame is None or not isinstance(frame, np.ndarray):
@@ -625,7 +625,8 @@ class Detector:
 
             # ✅ If no polygon defined and in diagnostic mode OR detecting aquarium,
             # accept all detections.
-            # In multi-mode, we generally enforce polygon constraints unless specifically detecting aquariums.
+            # In multi-mode, we generally enforce polygon constraints
+            # unless specifically detecting aquariums.
             should_filter = True
             if not has_polygon and not self._multi_aquarium_mode:
                 if self._context == "diagnostic" or not self._aquarium_region_defined:
@@ -660,7 +661,8 @@ class Detector:
                         for aq_id, poly in self._scaled_aquarium_polygons.items():
                             if self._is_inside_polygon(x1, y1, x2, y2, poly):
                                 is_inside = True
-                                # TODO (Phase 5): Attach aquarium ID to detection if tracking architecture supports it
+                                # TODO (Phase 5): Attach aquarium ID to detection if tracking
+                                # architecture supports it
                                 break
                     elif self.scaled_polygon.size > 0:
                         # Check against main polygon

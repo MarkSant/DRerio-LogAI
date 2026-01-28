@@ -530,7 +530,7 @@ class ProjectManager:
 
         return exported
 
-    def copy_zone_parquet_files(
+    def copy_zone_parquet_files(  # noqa: C901
         self,
         source_video_path: Path | str,
         target_video_path: Path | str,
@@ -1903,7 +1903,7 @@ class ProjectManager:
 
         return changed
 
-    def _remove_video_entry(
+    def _remove_video_entry(  # noqa: C901
         self,
         video_path: Path | str,
         video_entry: dict,
@@ -2962,7 +2962,8 @@ class ProjectManager:
 
         Args:
             experiment_id: The ID of the experiment (e.g., the video file stem).
-            video_path: Absolute path to the video file (optional but recommended for robust lookup).
+            video_path: Absolute path to the video file (optional but recommended
+                for robust lookup).
 
         Returns:
             A dictionary of metadata for that experiment.

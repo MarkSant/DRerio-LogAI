@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import typing
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -11,7 +12,7 @@ from zebtrack.core.processing_worker import WorkerConfig, _WorkerProcess
 class FakePlugin:
     """Lightweight detector plugin stub."""
 
-    class_names: dict[int, str] = {}
+    class_names: typing.ClassVar[dict[int, str]] = {}
 
     def __init__(self, model_path: str, settings_obj):
         self.model_path = model_path

@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from zebtrack.io.recorder import Recorder
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus
+    from zebtrack.ui.ui_coordinator import UICoordinator
 
 from zebtrack.analysis.reporter import Reporter
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
@@ -360,7 +361,9 @@ class VideoProcessingService:
                         UIEvents.ERROR_OCCURRED,
                         {
                             "title": "Erro de Processamento",
-                            "message": f"Falha ao gerar arquivo de trajetória para {experiment_id}.",
+                            "message": (
+                                f"Falha ao gerar arquivo de trajetória para {experiment_id}."
+                            ),
                             "details": f"Arquivo não encontrado: {trajectory_path}",
                         },
                     )

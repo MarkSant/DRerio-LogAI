@@ -6,6 +6,8 @@ and maintainability. All validation, hardware detection, and calculation
 logic should live here instead of in the UI layer.
 """
 
+from __future__ import annotations
+
 import os
 import sys
 import threading
@@ -22,6 +24,7 @@ from zebtrack.io.arduino import Arduino
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
+    from zebtrack.ui.wizard.models import MultiAquariumData
 
 log = structlog.get_logger()
 
@@ -343,7 +346,7 @@ class WizardService:
 
     @classmethod
     def detect_arduino_ports(
-        cls, use_cache: bool = True, settings_obj: "Settings | None" = None
+        cls, use_cache: bool = True, settings_obj: Settings | None = None
     ) -> list[dict]:
         """
         Detect available Arduino serial ports with descriptions and caching.
@@ -681,8 +684,8 @@ class WizardService:
         return (True, "")
 
     @staticmethod
-    def validate_multi_aquarium_config(
-        config: "MultiAquariumData",
+    def validate_multi_aquarium_config(  # noqa: C901
+        config: MultiAquariumData,
         sample_filenames: list[str] | None = None,
     ) -> tuple[bool, list[str], list[str]]:
         """
