@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import shapely
 from shapely import affinity, prepare
-from shapely.geometry import Point, box
+from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
 
 from zebtrack.analysis.behavior import BehavioralAnalyzer
