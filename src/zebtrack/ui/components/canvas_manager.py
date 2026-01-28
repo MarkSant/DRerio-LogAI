@@ -1809,7 +1809,7 @@ class CanvasManager:
                         label += f" - {aq.group}"
 
                     # Draw background rectangle for label
-                    (text_w, text_h), baseline = cv2.getTextSize(
+                    (text_w, text_h), _baseline = cv2.getTextSize(
                         label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
                     )
                     cv2.rectangle(
@@ -1854,7 +1854,7 @@ class CanvasManager:
             if detections_by_aquarium and aq.id in detections_by_aquarium:
                 for det in detections_by_aquarium[aq.id]:
                     if len(det) >= 6:
-                        x1, y1, x2, y2, conf, track_id = det[:6]
+                        x1, y1, x2, y2, _conf, track_id = det[:6]
                         x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
 
                         # Draw bounding box
@@ -1952,7 +1952,7 @@ class CanvasManager:
                 border_color = self.hex_to_bgr(border_color[0])
                 for det in detections_by_aquarium[aq.id]:
                     if len(det) >= 6:
-                        dx1, dy1, dx2, dy2, conf, track_id = det[:6]
+                        dx1, dy1, dx2, dy2, _conf, track_id = det[:6]
                         # Adjust to crop coordinates
                         dx1, dy1 = int(dx1 - x1), int(dy1 - y1)
                         dx2, dy2 = int(dx2 - x1), int(dy2 - y1)

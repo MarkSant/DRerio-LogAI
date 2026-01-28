@@ -6,8 +6,8 @@ aquariums are in the video.
 """
 
 import tkinter as tk
+from collections.abc import Callable
 from tkinter import simpledialog, ttk
-from typing import Callable
 
 import structlog
 

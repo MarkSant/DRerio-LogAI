@@ -159,7 +159,7 @@ class TestRunTrackingIfNeeded:
             return_value=Mock(polygon=[[0, 0], [640, 0], [640, 480]])
         )
 
-        success, polygon = video_processing_service.run_tracking_if_needed(
+        _success, _polygon = video_processing_service.run_tracking_if_needed(
             video_path="/fake/video.mp4",
             results_dir="/fake/results",
             experiment_id="test_001",
@@ -316,7 +316,7 @@ class TestPrepareZoneData:
             return_value=Mock(polygon=None)  # No arena defined
         )
 
-        zone_data, arena_polygon = video_processing_service._prepare_zone_data_for_tracking(
+        _zone_data, arena_polygon = video_processing_service._prepare_zone_data_for_tracking(
             frame_width=1920, frame_height=1080
         )
 

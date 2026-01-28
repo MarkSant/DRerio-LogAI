@@ -165,7 +165,7 @@ class TestVideoFrameDisplay(unittest.TestCase):
             cap.release()
 
             self.assertTrue(ret)
-            h, w, _ = frame.shape
+            _h, _w, _ = frame.shape
 
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image = Image.fromarray(frame_rgb)

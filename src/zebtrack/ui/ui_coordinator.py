@@ -8,6 +8,7 @@ This is part of the v4.0 Event-Driven Architecture refactoring (PLANO_ACAO_V4.md
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -630,7 +631,7 @@ class UICoordinator:
                         {"action": action, "experiment_id": experiment_id},
                     )
 
-                dialog = CameraDisconnectRecoveryDialog(
+                CameraDisconnectRecoveryDialog(
                     parent=self.root,
                     gap_duration_s=gap_duration,
                     experiment_id=experiment_id,

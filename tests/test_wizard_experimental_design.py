@@ -182,7 +182,7 @@ def test_experimental_design_only_validates_active_groups(step):
     step.group_name_vars[0].set("Grupo 1")
     step.group_name_vars[1].set("Grupo 2")
 
-    valid, msg = step.validate()
+    valid, _msg = step.validate()
 
     # Should be valid even though there might be more entries
     assert valid

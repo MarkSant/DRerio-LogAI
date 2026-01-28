@@ -2027,7 +2027,7 @@ class SessionCoordinator(BaseCoordinator):
         self.event_bus.subscribe(Events.ZONE_SET_ARENA_POLYGON, self._on_zone_saved)
         self.event_bus.subscribe(Events.ZONE_SAVE_ARENA, self._on_zone_saved)
 
-    def _on_zone_saved(self, data: dict = None):
+    def _on_zone_saved(self, data: dict | None = None):
         """Handle zone saved event to resume pending recording."""
         if not self._pending_zone_confirmation:
             return

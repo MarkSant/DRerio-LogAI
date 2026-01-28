@@ -501,7 +501,7 @@ class ProjectManager:
         # 2. Export ROIs
         if zone_data.roi_polygons and zone_data.roi_names:
             roi_data = []
-            for name, poly in zip(zone_data.roi_names, zone_data.roi_polygons):
+            for name, poly in zip(zone_data.roi_names, zone_data.roi_polygons, strict=False):
                 for idx, point in enumerate(poly):
                     roi_data.append(
                         {"roi_name": name, "point_index": idx, "x": point[0], "y": point[1]}

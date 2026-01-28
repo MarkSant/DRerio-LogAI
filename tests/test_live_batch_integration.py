@@ -192,12 +192,12 @@ def test_multi_aquarium_batch_registration(test_settings, tmp_path):
 
     Per user requirement 3: Each aquarium treated as separate subject_id.
     """
-    mock_recording_service = MagicMock()
+    MagicMock()
     mock_live_camera_service = MagicMock()
     mock_live_camera_service.current_output_dir = tmp_path
     mock_project_manager = MagicMock()
-    mock_detector_service = MagicMock()
-    mock_weight_manager = MagicMock()
+    MagicMock()
+    MagicMock()
     mock_analysis_service = MagicMock()
 
     batch_coord = LiveBatchCoordinator(

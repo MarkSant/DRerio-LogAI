@@ -6,6 +6,7 @@ requested aquarium count exceeds hardware capabilities.
 Version: 2.2.0
 """
 
+from collections.abc import Callable
 from tkinter import (
     Button,
     Frame,
@@ -17,7 +18,6 @@ from tkinter import (
 from tkinter import (
     font as tkfont,
 )
-from typing import Callable
 
 import structlog
 

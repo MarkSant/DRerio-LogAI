@@ -29,7 +29,6 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
 
 # Project root detection
 SCRIPT_DIR = Path(__file__).parent
@@ -43,14 +42,14 @@ class ImpactResult:
 
     target: str
     target_type: str
-    direct_dependents: List[str] = field(default_factory=list)
-    indirect_dependents: List[str] = field(default_factory=list)
-    event_publishers: List[str] = field(default_factory=list)
-    event_subscribers: List[str] = field(default_factory=list)
-    di_consumers: List[str] = field(default_factory=list)
-    serialization_chain: List[str] = field(default_factory=list)
-    test_files: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    direct_dependents: list[str] = field(default_factory=list)
+    indirect_dependents: list[str] = field(default_factory=list)
+    event_publishers: list[str] = field(default_factory=list)
+    event_subscribers: list[str] = field(default_factory=list)
+    di_consumers: list[str] = field(default_factory=list)
+    serialization_chain: list[str] = field(default_factory=list)
+    test_files: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def to_report(self) -> str:
         """Generate a human-readable report."""
@@ -142,7 +141,7 @@ class ImpactResult:
         lines.append("")
         return "\n".join(lines)
 
-    def _detect_domains(self) -> Set[str]:
+    def _detect_domains(self) -> set[str]:
         """Detect which domains are affected."""
         domains = set()
         all_files = (
@@ -168,8 +167,8 @@ class ImportVisitor(ast.NodeVisitor):
     """AST visitor to extract imports from a Python file."""
 
     def __init__(self):
-        self.imports: List[str] = []
-        self.from_imports: Dict[str, List[str]] = defaultdict(list)
+        self.imports: list[str] = []
+        self.from_imports: dict[str, list[str]] = defaultdict(list)
 
     def visit_Import(self, node):
         for alias in node.names:
@@ -187,7 +186,7 @@ class ClassVisitor(ast.NodeVisitor):
     """AST visitor to extract class definitions and their dependencies."""
 
     def __init__(self):
-        self.classes: Dict[str, dict] = {}
+        self.classes: dict[str, dict] = {}
         self.current_class = None
 
     def visit_ClassDef(self, node):
@@ -225,8 +224,8 @@ class EventVisitor(ast.NodeVisitor):
     """AST visitor to find event publish/subscribe patterns."""
 
     def __init__(self):
-        self.publishes: List[Tuple[str, int]] = []  # (event_name, line)
-        self.subscribes: List[Tuple[str, int]] = []  # (event_name, line)
+        self.publishes: list[tuple[str, int]] = []  # (event_name, line)
+        self.subscribes: list[tuple[str, int]] = []  # (event_name, line)
 
     def visit_Call(self, node):
         # Check for publish patterns
@@ -242,7 +241,7 @@ class EventVisitor(ast.NodeVisitor):
                     self.subscribes.append((event_name, node.lineno))
         self.generic_visit(node)
 
-    def _extract_event_name(self, args) -> Optional[str]:
+    def _extract_event_name(self, args) -> str | None:
         if not args:
             return None
         arg = args[0]
@@ -269,13 +268,13 @@ class ImpactAnalyzer:
     def __init__(self, src_dir: Path = SRC_DIR, project_root: Path = PROJECT_ROOT):
         self.src_dir = src_dir
         self.project_root = project_root
-        self.file_cache: Dict[str, str] = {}
-        self.ast_cache: Dict[str, ast.AST] = {}
-        self.import_graph: Dict[str, Set[str]] = defaultdict(set)
-        self.reverse_import_graph: Dict[str, Set[str]] = defaultdict(set)
+        self.file_cache: dict[str, str] = {}
+        self.ast_cache: dict[str, ast.AST] = {}
+        self.import_graph: dict[str, set[str]] = defaultdict(set)
+        self.reverse_import_graph: dict[str, set[str]] = defaultdict(set)
         self._build_import_graph()
 
-    def _get_all_python_files(self) -> List[Path]:
+    def _get_all_python_files(self) -> list[Path]:
         """Get all Python files in the source directory."""
         files = []
         for root, dirs, filenames in os.walk(self.src_dir):
@@ -286,7 +285,7 @@ class ImpactAnalyzer:
                     files.append(Path(root) / filename)
         return files
 
-    def _get_all_test_files(self) -> List[Path]:
+    def _get_all_test_files(self) -> list[Path]:
         """Get all test files."""
         test_dir = self.project_root / "tests"
         if not test_dir.exists():
@@ -299,7 +298,7 @@ class ImpactAnalyzer:
                     files.append(Path(root) / filename)
         return files
 
-    def _read_file(self, path: Path) -> Optional[str]:
+    def _read_file(self, path: Path) -> str | None:
         """Read and cache file contents."""
         str_path = str(path)
         if str_path not in self.file_cache:
@@ -310,7 +309,7 @@ class ImpactAnalyzer:
                 return None
         return self.file_cache.get(str_path)
 
-    def _parse_file(self, path: Path) -> Optional[ast.AST]:
+    def _parse_file(self, path: Path) -> ast.AST | None:
         """Parse and cache AST for a file."""
         str_path = str(path)
         if str_path not in self.ast_cache:
@@ -345,7 +344,7 @@ class ImpactAnalyzer:
                     self.import_graph[rel_path].add(module)
                     self.reverse_import_graph[module].add(rel_path)
 
-    def _module_to_path(self, module: str) -> Optional[str]:
+    def _module_to_path(self, module: str) -> str | None:
         """Convert module name to file path."""
         parts = module.replace("zebtrack.", "").split(".")
         potential_path = self.src_dir / "/".join(parts)
@@ -417,7 +416,7 @@ class ImpactAnalyzer:
 
         return result
 
-    def _path_to_module(self, path: Path) -> Optional[str]:
+    def _path_to_module(self, path: Path) -> str | None:
         """Convert file path to module name."""
         try:
             rel = path.relative_to(self.src_dir.parent)
@@ -623,7 +622,7 @@ class ImpactAnalyzer:
         lines.append("}")
         return "\n".join(lines)
 
-    def _find_related_tests(self, file_path: Path) -> List[str]:
+    def _find_related_tests(self, file_path: Path) -> list[str]:
         """Find test files related to a source file."""
         tests = []
         stem = file_path.stem
@@ -637,7 +636,7 @@ class ImpactAnalyzer:
 
         return tests
 
-    def _find_tests_for_class(self, class_name: str) -> List[str]:
+    def _find_tests_for_class(self, class_name: str) -> list[str]:
         """Find test files that test a specific class."""
         tests = []
         pattern = re.compile(rf"\b{class_name}\b")

@@ -118,7 +118,7 @@ class TestProcessingCoordinatorSingleVideoFix:
 
             # Verify save_zone_data WAS called (persist=False)
             coordinator.project_manager.save_zone_data.assert_called()
-            args, kwargs = coordinator.project_manager.save_zone_data.call_args
+            _args, kwargs = coordinator.project_manager.save_zone_data.call_args
             assert kwargs.get("persist") is False
 
     def test_load_zones_for_eligible_videos_project_mode(self, coordinator):

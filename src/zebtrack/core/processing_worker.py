@@ -20,9 +20,10 @@ import re
 import threading
 import time
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np

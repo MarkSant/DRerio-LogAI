@@ -22,6 +22,7 @@ from tkinter import (
 from tkinter import (
     font as tkfont,
 )
+from typing import TYPE_CHECKING
 
 import structlog
 
@@ -36,6 +37,9 @@ from zebtrack.utils.hardware_capability import (
     HardwareCapabilityReport,
     MultiAquariumCapability,
 )
+
+if TYPE_CHECKING:
+    from zebtrack.settings import Settings
 
 log = structlog.get_logger()
 

@@ -9,8 +9,8 @@ Allows assigning group, subject_id, and day to each aquarium.
 """
 
 import tkinter as tk
+from collections.abc import Callable
 from tkinter import simpledialog, ttk
-from typing import Callable
 
 import structlog
 
@@ -127,7 +127,6 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
             auto_frame = ttk.Frame(master)
             auto_frame.pack(fill=tk.X, pady=(0, 10))
 
-            enable_auto = True
             if self.video_path:
                 # Pre-check if regex matches to enable/disable button visual hint?
                 # For now just always show it enabled.

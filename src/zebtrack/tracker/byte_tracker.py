@@ -224,7 +224,6 @@ class BYTETracker:
         self.frame_id += 1
         activated_starcks = []
         refind_stracks = []
-        lost_stracks = []
         removed_stracks = []
 
         # Assumes Ultralytics YOLO format (5 columns: x1, y1, x2, y2, confidence)
