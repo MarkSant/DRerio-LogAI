@@ -121,6 +121,7 @@ class TestZoneManagementFacadeROITemplates:
             "roi_polygons": [[(0, 0), (50, 0), (50, 50), (0, 50)]],
             "roi_names": ["ROI1"],
             "roi_colors": ["red"],
+            "polygon": [(0, 0), (100, 0), (100, 100), (0, 100)],
         }
         mock_project_manager.roi_template_manager.load_template.return_value = expected_data
 
@@ -173,6 +174,7 @@ class TestZoneManagementFacadeROITemplates:
             "roi_polygons": [[(0, 0), (50, 0), (50, 50), (0, 50)]],
             "roi_names": ["ROI1"],
             "roi_colors": ["red"],
+            "polygon": [(0, 0), (100, 0), (100, 100), (0, 100)],  # Source arena required for scaling
         }
         arena = [(0, 0), (200, 0), (200, 200), (0, 200)]
 

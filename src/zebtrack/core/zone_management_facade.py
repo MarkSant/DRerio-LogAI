@@ -161,24 +161,38 @@ class ZoneManagementFacade:
             if not template:
                 raise ValueError(f"Template '{template_name}' not found")
 
+            # Extract data handling both dict and ZoneData object
+            if isinstance(template, dict):
+                roi_polygons = template.get("roi_polygons", [])
+                roi_names = template.get("roi_names", [])
+                roi_colors = template.get("roi_colors", [])
+                source_arena = template.get("polygon")
+            else:
+                # Assume object (ZoneData)
+                roi_polygons = getattr(template, "roi_polygons", [])
+                roi_names = getattr(template, "roi_names", [])
+                roi_colors = getattr(template, "roi_colors", [])
+                source_arena = getattr(template, "polygon", None)
+
             # Get arena for scaling
-            arena = self.project_manager.get_arena_for_video(str(video_path))  # type: ignore[attr-defined]
+            target_arena = self.project_manager.get_arena_for_video(str(video_path))  # type: ignore[attr-defined]
 
             # Scale ROIs if needed
-            if scale_to_arena and arena:
+            if scale_to_arena and target_arena and source_arena:
                 scaled_rois = self._scale_rois_to_arena(
-                    template.get("roi_polygons", []),
-                    arena,
+                    roi_polygons,
+                    target_arena,
+                    source_arena,
                 )
             else:
-                scaled_rois = template.get("roi_polygons", [])
+                scaled_rois = roi_polygons
 
             # Save to project
             self.project_manager.set_rois_for_video(  # type: ignore[attr-defined]
                 video_path=str(video_path),
                 roi_polygons=scaled_rois,
-                roi_names=template.get("roi_names", []),
-                roi_colors=template.get("roi_colors", []),
+                roi_names=roi_names,
+                roi_colors=roi_colors,
             )
 
             log.info(
@@ -288,19 +302,58 @@ class ZoneManagementFacade:
     def _scale_rois_to_arena(
         self,
         rois: list[Any],
-        arena: list[tuple[float, float]],
+        target_arena: list[tuple[float, float]],
+        source_arena: list[tuple[float, float]] | None = None,
     ) -> list[Any]:
         """
-        Scale ROIs to fit within arena bounds.
+        Scale ROIs to fit within target arena bounds relative to source arena.
 
         Args:
             rois: List of ROI polygons
-            arena: Arena polygon
+            target_arena: Target arena polygon
+            source_arena: Source arena polygon (optional)
 
         Returns:
             Scaled ROI polygons
         """
-        # Simple implementation: return as-is for now
-        # Full implementation would calculate bounding boxes and scale factors
-        # TODO: Implement proper scaling logic
-        return rois
+        if not source_arena or len(source_arena) < 3 or not rois:
+            return rois
+
+        if not target_arena or len(target_arena) < 3:
+            return rois
+
+        try:
+            # Calculate bounds manually to avoid shapely dependency overhead
+            s_xs = [p[0] for p in source_arena]
+            s_ys = [p[1] for p in source_arena]
+            minx_s, miny_s, maxx_s, maxy_s = min(s_xs), min(s_ys), max(s_xs), max(s_ys)
+
+            t_xs = [p[0] for p in target_arena]
+            t_ys = [p[1] for p in target_arena]
+            minx_t, miny_t, maxx_t, maxy_t = min(t_xs), min(t_ys), max(t_xs), max(t_ys)
+
+            w_s, h_s = maxx_s - minx_s, maxy_s - miny_s
+            w_t, h_t = maxx_t - minx_t, maxy_t - miny_t
+
+            if w_s <= 0 or h_s <= 0:
+                return rois
+
+            scale_x = w_t / w_s
+            scale_y = h_t / h_s
+
+            scaled_rois = []
+            for roi in rois:
+                scaled_points = []
+                for point in roi:
+                    # Handle both tuple and list points
+                    x, y = point[0], point[1]
+                    new_x = minx_t + (x - minx_s) * scale_x
+                    new_y = miny_t + (y - miny_s) * scale_y
+                    scaled_points.append((new_x, new_y))
+                scaled_rois.append(scaled_points)
+
+            return scaled_rois
+
+        except Exception as e:
+            log.warning("zone_facade.scaling_failed", error=str(e))
+            return rois
