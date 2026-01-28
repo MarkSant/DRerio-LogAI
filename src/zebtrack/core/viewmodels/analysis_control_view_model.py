@@ -101,7 +101,7 @@ class AnalysisControlViewModel:
         )
 
     def start_single_video_processing(self, **kwargs):
-        # Phase 3.2: Redirect to ProcessingCoordinator (consolidated from VideoProcessingOrchestrator)
+        # Phase 3.2: Redirect to ProcessingCoordinator (from VideoProcessingOrchestrator)
         if self.processing_coordinator:
             self.processing_coordinator.start_single_video_processing(
                 video_path=kwargs.get("video_path"),
@@ -329,14 +329,61 @@ class AnalysisControlViewModel:
                 df = self.analysis_service.load_trajectory_dataframe(parquet_path)
 
                 # Run Analysis via DTO
-                # Note: We assume 30 FPS if not available, or retrieve from video metadata if possible.
+                # Note: Assume 30 FPS if not available, or retrieve from video metadata.
                 # Ideally, FPS should be stored in parquet metadata or project entry.
                 fps = entry.get("fps", 30.0)
 
                 # Get Calibration
                 pixelcm_x = 1.0
                 pixelcm_y = 1.0
-                # TODO: Retrieve real calibration from ProjectManager/Entry
+
+                # Retrieve real calibration from ProjectManager
+                project_calib = {}
+                if self.project_manager and hasattr(self.project_manager, "project_data"):
+                    project_calib = self.project_manager.project_data.get("calibration", {})
+
+                try:
+                    real_width_cm = float(project_calib.get("aquarium_width_cm", 0.0))
+                    real_height_cm = float(project_calib.get("aquarium_height_cm", 0.0))
+                except (ValueError, TypeError):
+                    real_width_cm = 0.0
+                    real_height_cm = 0.0
+                    log.warning(
+                        "generate_summaries.calibration_format_error", calibration=project_calib
+                    )
+
+                # Calculate pixels per cm based on arena polygon
+                if arena_poly and len(arena_poly) > 2:
+                    # Handle both list of lists/tuples and numpy array
+                    try:
+                        xs = [p[0] for p in arena_poly]
+                        ys = [p[1] for p in arena_poly]
+                        if xs and ys:
+                            width_px = max(xs) - min(xs)
+                            height_px = max(ys) - min(ys)
+
+                            if real_width_cm > 0 and width_px > 0:
+                                pixelcm_x = width_px / real_width_cm
+
+                            if real_height_cm > 0 and height_px > 0:
+                                pixelcm_y = height_px / real_height_cm
+                            elif real_width_cm > 0 and width_px > 0:
+                                # Fallback: assume square pixels if only width is provided
+                                pixelcm_y = pixelcm_x
+                    except (IndexError, TypeError) as e:
+                        log.warning(
+                            "generate_summaries.calibration_error",
+                            error=str(e),
+                            message="Failed to calculate calibration. Using default 1.0",
+                        )
+
+                log.info(
+                    "generate_summaries.calibration_calculated",
+                    pixelcm_x=pixelcm_x,
+                    pixelcm_y=pixelcm_y,
+                    real_width_cm=real_width_cm,
+                    real_height_cm=real_height_cm,
+                )
 
                 analysis_result = self.analysis_service.run_full_analysis_as_dto(
                     trajectory_df=df,
