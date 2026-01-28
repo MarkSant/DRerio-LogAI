@@ -16,6 +16,11 @@ echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 export CI=true
 export DISPLAY=:99  # Setup for Xvfb (Virtual Framebuffer)
 
+# Force Poetry to create a virtualenv, overriding any local poetry.toml settings (create=false)
+# This prevents PEP 668 "externally-managed-environment" errors in the agent environment.
+export POETRY_VIRTUALENVS_CREATE=true
+export POETRY_VIRTUALENVS_IN_PROJECT=true
+
 # Check if we are in a Jules environment (or similar CI)
 # We can proceed to run the main setup script.
 # The main setup script handles apt-get, pipx, poetry, and dependencies.

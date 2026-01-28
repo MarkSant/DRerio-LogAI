@@ -62,10 +62,6 @@ fi
 # 4. Install Project Dependencies
 echo "[3/5] Installing Python dependencies with Poetry..."
 
-# FORCE poetry to create a virtualenv and install there, never touching system python
-poetry config virtualenvs.create true
-poetry config virtualenvs.in-project true
-
 # Install dependencies
 poetry install
 
