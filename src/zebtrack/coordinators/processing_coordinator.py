@@ -3719,7 +3719,7 @@ class ProcessingCoordinator(BaseCoordinator):
             try:
                 zone_data = self.project_manager.get_zone_data(video_path=path)
                 if zone_data and zone_data.roi_names and zone_data.roi_colors:
-                    for roi_name, color in zip(zone_data.roi_names, zone_data.roi_colors, strict=False):
+                    for roi_name, color in zip(zone_data.roi_names, zone_data.roi_colors, strict=True):
                         # Store first color encountered for each ROI name
                         if roi_name not in roi_colors_map:
                             roi_colors_map[roi_name] = color
