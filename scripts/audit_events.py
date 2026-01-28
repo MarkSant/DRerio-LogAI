@@ -1,14 +1,15 @@
 import ast
 import os
 from collections import defaultdict
+from typing import Any
 
 
 class EventVisitor(ast.NodeVisitor):
-    def __init__(self, filename, event_constants):
+    def __init__(self, filename: str, event_constants: dict[str, str]) -> None:
         self.filename = filename
         self.event_constants = event_constants
-        self.publishers = []
-        self.subscribers = []
+        self.publishers: list[dict[str, Any]] = []
+        self.subscribers: list[dict[str, Any]] = []
 
     def resolve_event_name(self, node):
         if isinstance(node, ast.Attribute):
@@ -142,7 +143,9 @@ def main():
                         print(f"Error parsing {filepath}: {e}")
 
     # Group by event
-    events = defaultdict(lambda: {"publishers": [], "subscribers": []})
+    events: dict[str, dict[str, list[dict[str, Any]]]] = defaultdict(
+        lambda: {"publishers": [], "subscribers": []}
+    )
 
     for pub in all_publishers:
         events[pub["event"]]["publishers"].append(pub)

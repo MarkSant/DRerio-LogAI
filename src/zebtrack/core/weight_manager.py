@@ -292,7 +292,7 @@ class WeightManager:
                 legacy_path=legacy_path,
             )
 
-    def save_weights(self):
+    def save_weights(self) -> None:
         """Save the current weights configuration to the JSON file."""
         try:
             with open(self.config_path, "w", encoding="utf-8") as f:

@@ -121,6 +121,8 @@ class TabBuilder:
         self.gui.stabilization_frames_var = self.gui.zone_controls.stabilization_frames_var
         self.gui.zone_controls_frame = self.gui.zone_controls.zone_controls_frame
         self.gui.fixed_button_frame = self.gui.zone_controls.fixed_button_frame
+        self.gui.controls_canvas = self.gui.zone_controls.controls_canvas
+        self.gui.controls_canvas_window = self.gui.zone_controls.controls_canvas_window
 
         def _on_pane_configure(event=None):
             try:

@@ -89,6 +89,7 @@ class ZoneControlsWidget(BaseWidget):
         self.save_arena_btn: ttk.Button | None = None
         self.discard_arena_btn: ttk.Button | None = None
         self.interactive_buttons_frame: ttk.Frame | None = None
+        self.controls_canvas_window: int | None = None
         self.roi_rule_combo: ttk.Combobox | None = None
         self.radius_frame: ttk.Frame | None = None
         self.overlap_frame: ttk.Frame | None = None
@@ -128,7 +129,9 @@ class ZoneControlsWidget(BaseWidget):
         scrollbar.pack(side="right", fill="y")
 
         # Create window in canvas for the scrollable frame
-        self.controls_canvas.create_window((0, 0), window=self.zone_controls_frame, anchor="nw")
+        self.controls_canvas_window = self.controls_canvas.create_window(
+            (0, 0), window=self.zone_controls_frame, anchor="nw"
+        )
 
         # Bind to configure event to update scrollregion
         self.zone_controls_frame.bind(

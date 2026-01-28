@@ -30,7 +30,7 @@ DETECTOR_PLUGINS: dict[str, type] = {}
 
 # Only add plugins if they're available
 if ULTRALYTICS_PLUGIN_AVAILABLE and UltralyticsDetectorPlugin is not None:
-    DETECTOR_PLUGINS[UltralyticsDetectorPlugin.get_name()] = UltralyticsDetectorPlugin
+    DETECTOR_PLUGINS[UltralyticsDetectorPlugin.get_name()] = UltralyticsDetectorPlugin  # type: ignore[attr-defined]
 
 if OPENVINO_PLUGIN_AVAILABLE and OpenVINOPlugin is not None:
-    DETECTOR_PLUGINS[OpenVINOPlugin.get_name()] = OpenVINOPlugin
+    DETECTOR_PLUGINS[OpenVINOPlugin.get_name()] = OpenVINOPlugin  # type: ignore[attr-defined]

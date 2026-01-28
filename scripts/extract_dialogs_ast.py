@@ -6,6 +6,7 @@ This ensures we get complete class definitions with all methods.
 
 import ast
 from pathlib import Path
+from typing import cast
 
 
 def extract_imports_for_class(class_node: ast.ClassDef, source_code: str) -> list[str]:
@@ -42,33 +43,39 @@ def extract_imports_for_class(class_node: ast.ClassDef, source_code: str) -> lis
     ]
 
     # Check which ones are actually used
-    class_source = ast.get_source_segment(source_code, class_node)
+    class_source_seg = ast.get_source_segment(source_code, class_node)
+    if class_source_seg is None:
+        return []
+
+    # Type assertion for mypy
+    assert class_source_seg is not None
+
     used_imports = []
     for imp in tk_imports:
-        if imp in class_source:
+        if imp in class_source_seg:
             used_imports.append(imp)
 
     if used_imports:
         imports[0] = "from tkinter import (\n    " + ",\n    ".join(used_imports) + ",\n)"
 
     # Check for other common imports
-    if "structlog" in class_source:
+    if "structlog" in class_source_seg:
         imports.append("\nimport structlog")
-    if "cv2" in class_source:
+    if "cv2" in class_source_seg:
         imports.append("import cv2")
-    if "Path" in class_source:
+    if "Path" in class_source_seg:
         imports.append("from pathlib import Path")
-    if "yaml" in class_source:
+    if "yaml" in class_source_seg:
         imports.append("import yaml")
-    if "settings" in class_source:
+    if "settings" in class_source_seg:
         imports.append("from zebtrack.settings import settings")
-    if "schedule_maximize" in class_source:
+    if "schedule_maximize" in class_source_seg:
         imports.append("from zebtrack.ui.window_utils import schedule_maximize")
-    if "CollapsibleFrame" in class_source:
+    if "CollapsibleFrame" in class_source_seg:
         imports.append("from zebtrack.ui.collapsible_frame import CollapsibleFrame")
-    if "ToolTip" in class_source:
+    if "ToolTip" in class_source_seg:
         imports.append("from zebtrack.ui.wizard.tooltip import ToolTip")
-    if "set_window_icon" in class_source:
+    if "set_window_icon" in class_source_seg:
         imports.append("from zebtrack.ui.icon_utils import set_window_icon")
 
     return [imp for imp in imports if imp]  # Remove empty
@@ -100,7 +107,7 @@ def create_dialog_module(class_name: str, class_source: str, source_code: str, o
     # Get imports
     # For simplicity, we'll parse the class as AST node
     try:
-        class_node = ast.parse(class_source).body[0]
+        class_node = cast(ast.ClassDef, ast.parse(class_source).body[0])
         imports = extract_imports_for_class(class_node, class_source)
     except (SyntaxError, IndexError, ValueError):
         # Fallback: basic imports

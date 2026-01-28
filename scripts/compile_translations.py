@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if not args.locales_root.exists():
         print(
-            f"⚠️ Locales directory '{args.locales_root}' not found – nothing to compile.",
+            f"[WARNING] Locales directory '{args.locales_root}' not found – nothing to compile.",
             file=sys.stderr,
         )
         return 0
@@ -59,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     po_files = discover_po_files(args.locales_root)
     if not po_files:
         print(
-            f"⚠️ No .po files discovered under '{args.locales_root}'.",
+            f"[WARNING] No .po files discovered under '{args.locales_root}'.",
             file=sys.stderr,
         )
         return 0
@@ -67,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
     for po_file in po_files:
         mo_path = compile_catalog(po_file)
         print(
-            "✅ Compiled "
+            "[SUCCESS] Compiled "
             f"{po_file.relative_to(args.locales_root)} "
             f"→ {mo_path.relative_to(args.locales_root)}"
         )

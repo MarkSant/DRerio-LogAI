@@ -1,0 +1,82 @@
+Run poetry run mypy .
+  poetry run mypy .
+  shell: /usr/bin/bash -e {0}
+  env:
+    pythonLocation: /opt/hostedtoolcache/Python/3.12.12/x64
+    PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.12/x64/lib/pkgconfig
+    Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.12/x64
+    Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.12/x64
+    Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.12/x64
+    LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.12/x64/lib
+Skipping virtualenv creation, as specified in config file.
+src/zebtrack/core/exceptions.py:15: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+scripts/validate_docs.py:28: error: Need type annotation for "issues" (hint: "issues: list[<type>] = ...")  [var-annotated]
+scripts/update_gui_imports.py:22: error: Incompatible return value type (got "dict[str, tuple[int, int | None]]", expected "dict[str, tuple[int, int]]")  [return-value]
+scripts/extract_dialogs_ast.py:48: error: Unsupported right operand type for in ("str | None")  [operator]
+scripts/extract_dialogs_ast.py:55: error: Unsupported right operand type for in ("str | None")  [operator]
+scripts/extract_dialogs_ast.py:57: error: Unsupported right operand type for in ("str | None")  [operator]
+scripts/extract_dialogs_ast.py:59: error: Unsupported right operand type for in ("str | None")  [operator]
+scripts/extract_dialogs_ast.py:61: error: Unsupported right operand type for in ("str | None")  [operator]
+scripts/extract_dialogs_ast.py:63: error: Unsupported right operand type for in ("str | None")  [operator]
+scripts/extract_dialogs_ast.py:65: error: Unsupported right operand type for in ("str | None")  [operator]
+scripts/extract_dialogs_ast.py:67: error: Unsupported right operand type for in ("str | None")  [operator]
+scripts/extract_dialogs_ast.py:69: error: Unsupported right operand type for in ("str | None")  [operator]
+scripts/extract_dialogs_ast.py:71: error: Unsupported right operand type for in ("str | None")  [operator]
+scripts/extract_dialogs_ast.py:104: error: Argument 1 to "extract_imports_for_class" has incompatible type "stmt"; expected "ClassDef"  [arg-type]
+scripts/audit_events.py:145: error: Need type annotation for "events"  [var-annotated]
+docs/scripts/delegate_methods.py:27: error: Unsupported operand types for - ("int" and "None")  [operator]
+docs/scripts/delegate_methods.py:27: note: Right operand is of type "int | None"
+docs/scripts/delegate_methods.py:42: error: Unsupported operand types for - ("int" and "None")  [operator]
+docs/scripts/delegate_methods.py:42: note: Right operand is of type "int | None"
+docs/scripts/delegate_methods.py:54: error: Unsupported operand types for - ("int" and "None")  [operator]
+docs/scripts/delegate_methods.py:54: note: Right operand is of type "int | None"
+docs/api/source/conf.py:26: error: Need type annotation for "exclude_patterns" (hint: "exclude_patterns: list[<type>] = ...")  [var-annotated]
+scripts/safe_gui_test_runner.py:78: error: Need type annotation for "tests_by_file" (hint: "tests_by_file: dict[<type>, <type>] = ...")  [var-annotated]
+scripts/compile_translations.py:17: error: Library stubs not installed for "polib"  [import-untyped]
+scripts/compile_translations.py:17: note: Hint: "python3 -m pip install types-polib"
+scripts/compile_translations.py:17: note: (or run "mypy --install-types" to install all missing stub packages)
+scripts/compile_translations.py:17: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
+src/zebtrack/ui/wizard/tooltip.py:69: error: Incompatible types in assignment (expression has type "Toplevel", variable has type "None")  [assignment]
+src/zebtrack/ui/wizard/tooltip.py:70: error: "None" has no attribute "wm_overrideredirect"  [attr-defined]
+src/zebtrack/ui/wizard/tooltip.py:71: error: "None" has no attribute "wm_geometry"  [attr-defined]
+src/zebtrack/ui/dialogs/zone_calibration_dialog.py:41: error: No overload variant matches argument type "Misc"  [call-overload]
+src/zebtrack/ui/dialogs/zone_calibration_dialog.py:41: note: Possible overload variants:
+src/zebtrack/ui/dialogs/zone_calibration_dialog.py:41: note:     def wm_transient(self, master: None = ...) -> Tcl_Obj
+src/zebtrack/ui/dialogs/zone_calibration_dialog.py:41: note:     def wm_transient(self, master: Wm | Tcl_Obj) -> None
+src/zebtrack/ui/dialogs/template_dialog.py:68: error: Incompatible types in assignment (expression has type "None", variable has type "dict[str, object]")  [assignment]
+src/zebtrack/ui/dialogs/subject_selection_dialog.py:72: error: Cannot infer type of lambda  [misc]
+src/zebtrack/ui/dialogs/pending_videos_dialog.py:53: error: Cannot determine type of "result"  [has-type]
+src/zebtrack/ui/dialogs/pending_videos_dialog.py:103: error: No overload variant of "tag_configure" of "Treeview" matches argument types "str", "dict[str, str]"  [call-overload]
+src/zebtrack/__main__.py:176: error: Incompatible types in assignment (expression has type "str", variable has type "Literal['AUTO', 'CPU', 'GPU']")  [assignment]
+src/zebtrack/__main__.py:177: error: Incompatible types in assignment (expression has type "str", variable has type "Literal['AUTO', 'CPU', 'GPU']")  [assignment]
+src/zebtrack/__main__.py:178: error: Incompatible types in assignment (expression has type "str", variable has type "Literal['LATENCY', 'THROUGHPUT']")  [assignment]
+src/zebtrack/__main__.py:179: error: Incompatible types in assignment (expression has type "str", variable has type "Literal['LATENCY', 'THROUGHPUT']")  [assignment]
+src/zebtrack/__main__.py:180: error: Incompatible types in assignment (expression has type "str", variable has type "Literal['FP32', 'FP16', 'INT8']")  [assignment]
+src/zebtrack/__main__.py:252: error: Argument "ui_coordinator" to "ProjectWorkflowService" has incompatible type "UIScheduler"; expected "UICoordinator | None"  [arg-type]
+src/zebtrack/__main__.py:300: error: Argument "ui_coordinator" to "VideoProcessingService" has incompatible type "UIScheduler"; expected "UICoordinator"  [arg-type]
+src/zebtrack/__main__.py:434: error: Argument "controller" to "RecordingService" has incompatible type "None"; expected "MainViewModel"  [arg-type]
+src/zebtrack/__main__.py:539: error: Accessing "__init__" on an instance is unsound, since instance.__init__ could be from an incompatible subclass  [misc]
+src/zebtrack/__main__.py:547: error: "MainViewModel" has no attribute "view"  [attr-defined]
+src/zebtrack/__main__.py:551: error: "MainViewModel" has no attribute "view"  [attr-defined]
+src/zebtrack/__main__.py:552: error: "MainViewModel" has no attribute "view"  [attr-defined]
+src/zebtrack/__main__.py:553: error: "MainViewModel" has no attribute "view"  [attr-defined]
+tests/integration/test_error_scenarios.py:58: error: Need type annotation for "processing_results"  [var-annotated]
+tests/integration/test_error_scenarios.py:96: error: Cannot infer type of lambda  [misc]
+tests/integration/test_error_scenarios.py:309: error: Argument "polygon" to "ZoneData" has incompatible type "list[tuple[int, int]]"; expected "list[list[int]]"  [arg-type]
+tests/integration/test_error_scenarios.py:310: error: List item 0 has incompatible type "tuple[int, int]"; expected "list[int]"  [list-item]
+tests/integration/test_error_scenarios.py:310: error: List item 1 has incompatible type "tuple[int, int]"; expected "list[int]"  [list-item]
+tests/integration/test_error_scenarios.py:310: error: List item 2 has incompatible type "tuple[int, int]"; expected "list[int]"  [list-item]
+tests/integration/test_error_scenarios.py:310: error: List item 3 has incompatible type "tuple[int, int]"; expected "list[int]"  [list-item]
+tests/test_main_view_model_threading.py:303: error: Argument 1 to "append" of "list" has incompatible type "tuple[Any, str]"; expected "tuple[Any, int]"  [arg-type]
+scripts/debug_multi_subject_wizard.py:59: error: Cannot assign to a method  [method-assign]
+scripts/debug_multi_subject_wizard.py:122: error: Cannot assign to a method  [method-assign]
+scripts/debug_multi_subject_wizard.py:132: error: "type[ValidationManager]" has no attribute "_build_video_hierarchy"  [attr-defined]
+scripts/debug_multi_subject_wizard.py:166: error: "type[ValidationManager]" has no attribute "_build_video_hierarchy"  [attr-defined]
+tests/test_single_video_workflow.py:19: error: Module has no attribute "VideoWriter_fourcc"  [attr-defined]
+tests/test_single_video_workflow.py:36: error: Signature of "detect" incompatible with supertype "zebtrack.plugins.base.DetectorPlugin"  [override]
+tests/test_single_video_workflow.py:36: note:      Superclass:
+tests/test_single_video_workflow.py:36: note:          def detect(self, frame: ndarray[Any, Any], conf_threshold: float | None = ...) -> list[tuple[int, int, int, int, float, int | None, int]]
+tests/test_single_video_workflow.py:36: note:      Subclass:
+tests/test_single_video_workflow.py:36: note:          def detect(self, frame: ndarray[Any, Any]) -> list[Any]
+Found 1952 errors in 235 files (checked 450 source files)
+Error: Process completed with exit code 1.

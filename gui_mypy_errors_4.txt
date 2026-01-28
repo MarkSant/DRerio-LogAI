@@ -1,0 +1,4 @@
+src\zebtrack\ui\gui.py:856: error: No return value expected  [return-value]
+src\zebtrack\ui\gui.py:885: error: No return value expected  [return-value]
+src\zebtrack\ui\gui.py:1135: error: Incompatible types in assignment (expression has type "str", variable has type "None")  [assignment]
+Found 3 errors in 1 file (checked 1 source file)

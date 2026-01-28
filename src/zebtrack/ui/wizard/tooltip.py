@@ -29,8 +29,8 @@ class ToolTip:
         self.widget = widget
         self.text = text
         self.delay = delay
-        self.tooltip_window = None
-        self.scheduled_id = None
+        self.tooltip_window: tk.Toplevel | None = None
+        self.scheduled_id: str | None = None
 
         # Bind hover events
         widget.bind("<Enter>", self._on_enter)
@@ -67,6 +67,7 @@ class ToolTip:
 
         # Create tooltip window
         self.tooltip_window = tk.Toplevel(self.widget)
+        assert self.tooltip_window is not None  # For mypy
         self.tooltip_window.wm_overrideredirect(True)  # No window decorations
         self.tooltip_window.wm_geometry(f"+{x}+{y}")
 

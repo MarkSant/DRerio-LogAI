@@ -6,7 +6,9 @@ import ast
 from pathlib import Path
 
 
-def find_class_positions(source_code: str, class_names: list[str]) -> dict[str, tuple[int, int]]:
+def find_class_positions(
+    source_code: str, class_names: list[str]
+) -> dict[str, tuple[int, int | None]]:
     """Find start and end positions of classes in source code."""
     tree = ast.parse(source_code)
 
@@ -15,7 +17,9 @@ def find_class_positions(source_code: str, class_names: list[str]) -> dict[str, 
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef) and node.name in class_names:
             start_line = node.lineno - 1  # 0-indexed
-            end_line = node.end_lineno  # 1-indexed, so this is exclusive
+            end_line = node.end_lineno
+            if end_line is None:
+                continue
 
             positions[node.name] = (start_line, end_line)
 

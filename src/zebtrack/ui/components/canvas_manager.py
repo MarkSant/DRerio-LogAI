@@ -56,6 +56,8 @@ class CanvasManager:
 
         # Live session tracking
         self._live_frame_subscription = None  # Track subscription for cleanup
+        self._last_analysis_frame: np.ndarray | None = None
+        self._last_detections: list | None = None
 
         # Initialize sub-components
         self.renderer = CanvasRenderer(self)
@@ -535,6 +537,10 @@ class CanvasManager:
         if frame is None:
             return
 
+        # Save for re-rendering if needed
+        self._last_analysis_frame = frame.copy()
+        self._last_detections = detections
+
         try:
             # Convert the frame for display (BGR -> RGB)
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -566,6 +572,12 @@ class CanvasManager:
 
         except Exception as e:
             log.error("canvas_manager.update_video_frame.error", error=str(e))
+
+    def _render_last_analysis_frame(self) -> None:
+        """Re-render the last analysis frame with current settings."""
+        if self._last_analysis_frame is not None:
+            log.debug("canvas_manager._render_last_analysis_frame.called")
+            self.update_video_frame(self._last_analysis_frame, self._last_detections)
 
     def load_video_frame_to_canvas(self, video_path: str | None = None, frame_number: int = 0):
         """Load a video frame to the canvas.

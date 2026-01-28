@@ -363,7 +363,7 @@ class BlockDetailDialog(Toplevel):
             # Start the live project session
             success = self.session_coordinator.start_live_project_session(
                 day=self.day_num,
-                group=self.group,
+                group=str(self.group),
                 subject=subject,
             )
 

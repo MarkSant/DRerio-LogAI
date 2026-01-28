@@ -11,7 +11,7 @@ from tkinter import ttk
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tkinter import Misc
+    pass
 
 
 class ZoneCalibrationDialog:
@@ -24,7 +24,7 @@ class ZoneCalibrationDialog:
         dict with 'method' key: 'auto', 'manual', or None if cancelled
     """
 
-    def __init__(self, parent: Misc):
+    def __init__(self, parent: tk.Tk | tk.Toplevel):
         """Initialize the zone calibration dialog.
 
         Args:
@@ -38,7 +38,7 @@ class ZoneCalibrationDialog:
         self.dialog.title("Configuração de Zonas")
         self.dialog.geometry("450x280")
         self.dialog.resizable(False, False)
-        self.dialog.transient(parent)
+        self.dialog.transient(parent)  # type: ignore[call-overload]
         self.dialog.grab_set()
 
         # Center dialog

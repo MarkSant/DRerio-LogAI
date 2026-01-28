@@ -25,7 +25,7 @@ class PendingVideosDialog(simpledialog.Dialog):
     def __init__(
         self,
         parent,
-        hierarchy_builder,
+        hierarchy_builder: callable,  # type: ignore[valid-type]
         ready_with_trajectory: list[dict],
         ready_with_zones: list[dict],
         arena_only: list[dict],
@@ -47,6 +47,8 @@ class PendingVideosDialog(simpledialog.Dialog):
         self.arena_only = arena_only or []
         self.without_arena = without_arena or []
         self.include_arena_only_var = BooleanVar(value=False)
+        # Declare result type for mypy
+        self.result: dict[str, bool] | None = None
         # Must call super().__init__ before setting result, as Dialog base sets it to None
         super().__init__(parent, "Processar Vídeos Pendentes")
         # Set default result after Dialog initialization

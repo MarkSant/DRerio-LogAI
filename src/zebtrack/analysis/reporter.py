@@ -11,6 +11,7 @@ import os
 import warnings
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import structlog
@@ -1013,7 +1014,7 @@ class Reporter:
         aggregated_df: pd.DataFrame,
         output_path: Path | str,
         roi_colors: dict[str, tuple[int, int, int]] | None = None,
-        detector_params: dict[str, any] | None = None,
+        detector_params: dict[str, Any] | None = None,
     ):
         """Export aggregated project report with comparative analysis.
 

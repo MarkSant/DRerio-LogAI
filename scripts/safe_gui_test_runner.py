@@ -29,7 +29,7 @@ def run_single_gui_test(test_name, test_num, total_tests):
     ]
 
     try:
-        result = subprocess.run(
+        result: subprocess.CompletedProcess[bytes] = subprocess.run(
             cmd,
             capture_output=False,
             timeout=120,  # 2 minute timeout per test
@@ -75,7 +75,7 @@ def main():
     print("Running tests ONE AT A TIME with safety pauses...\n")
 
     # Group tests by file to run file-by-file
-    tests_by_file = {}
+    tests_by_file: dict[str, list[str]] = {}
     for item in test_items:
         file_path = item.split("::")[0]
         if file_path not in tests_by_file:

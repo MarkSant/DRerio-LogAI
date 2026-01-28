@@ -12,16 +12,15 @@ All application exceptions inherit from ZebTrackError for easy catching.
 class ZebTrackError(Exception):
     """Base exception for all ZebTrack errors."""
 
-    def __init__(self, *args, details: dict | None = None, **kwargs):
+    def __init__(self, *args: object, details: dict | None = None) -> None:
         """
         Initialize ZebTrackError with message and optional details.
 
         Args:
             *args: Positional arguments for Exception (typically error message)
             details: Optional dictionary with error context
-            **kwargs: Additional keyword arguments for Exception
         """
-        super().__init__(*args, **kwargs)
+        super().__init__(*args)
         self.details = details or {}
 
 

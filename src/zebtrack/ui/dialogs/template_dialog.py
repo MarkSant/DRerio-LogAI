@@ -23,6 +23,9 @@ class TemplateDialog(simpledialog.Dialog):
         Returns:
             The initial focus widget.
         """
+        # Declare result attribute for type checking
+        self.result: dict[str, object] | None = None
+
         self.template_type = StringVar(value="vertical")
         self.num_lanes = StringVar(value="3")
         self.num_rows = StringVar(value="2")

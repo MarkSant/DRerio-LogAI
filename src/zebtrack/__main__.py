@@ -173,11 +173,11 @@ def main():  # noqa: C901
                             settings_obj.model_selection.use_openvino = True
 
                             # Apply specific OpenVINO optimizations
-                            settings_obj.openvino.device = rec.device_live
-                            settings_obj.openvino.device_batch = rec.device_batch
-                            settings_obj.openvino.performance_hint_live = rec.openvino_hint_live
-                            settings_obj.openvino.performance_hint_batch = rec.openvino_hint_batch
-                            settings_obj.openvino.precision = rec.openvino_precision
+                            settings_obj.openvino.device = rec.device_live  # type: ignore[assignment]
+                            settings_obj.openvino.device_batch = rec.device_batch  # type: ignore[assignment]
+                            settings_obj.openvino.performance_hint_live = rec.openvino_hint_live  # type: ignore[assignment]
+                            settings_obj.openvino.performance_hint_batch = rec.openvino_hint_batch  # type: ignore[assignment]
+                            settings_obj.openvino.precision = rec.openvino_precision  # type: ignore[assignment]
                             settings_obj.openvino.enable_model_cache = rec.enable_model_cache
 
                         # Persist these settings to config.local.yaml so they are used in future
@@ -249,7 +249,7 @@ def main():  # noqa: C901
             project_manager=project_manager,
             model_service=model_service,
             state_manager=state_manager,
-            ui_coordinator=ui_coordinator,
+            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
             settings_obj=settings_obj,
         )
         log.info(
@@ -297,7 +297,7 @@ def main():  # noqa: C901
         video_processing_service = VideoProcessingService(
             project_manager=project_manager,
             state_manager=state_manager,
-            ui_coordinator=ui_coordinator,
+            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
             ui_event_bus=event_bus,
             cancel_event=cancel_event,
             settings_obj=settings_obj,
@@ -385,7 +385,7 @@ def main():  # noqa: C901
             root=root,
             ui_event_bus=event_bus,
             state_manager=state_manager,
-            ui_coordinator=ui_coordinator,
+            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
             project_manager=project_manager,
             weight_manager=weight_manager,
             detector_service=detector_service,
@@ -401,7 +401,7 @@ def main():  # noqa: C901
             detector_service=detector_service,
             weight_manager=weight_manager,
             settings_obj=settings_obj,
-            ui_coordinator=ui_coordinator,
+            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
             ui_state_controller=ui_state_controller,
             cancel_event=cancel_event,
             video_selection_service=video_selection_service,
@@ -431,7 +431,7 @@ def main():  # noqa: C901
         # Create services (will be passed to SessionCoordinator)
         # Note: controller parameter is temporary - will be removed in future refactoring
         recording_service = RecordingService(
-            controller=None,  # Will be set by MainViewModel for backward compatibility
+            controller=None,  # type: ignore[arg-type]
             state_manager=state_manager,
             project_manager=project_manager,
             root=root,
@@ -536,7 +536,7 @@ def main():  # noqa: C901
         bootstrap_result = bootstrapper.initialize(controller_proxy)
 
         # Complete MainViewModel initialization
-        controller_proxy.__init__(dependencies, bootstrap_result)
+        controller_proxy.__init__(dependencies, bootstrap_result)  # type: ignore[misc]
 
         # Use the fully initialized controller
         controller = controller_proxy
@@ -544,13 +544,13 @@ def main():  # noqa: C901
         log.info("timing.mainviewmodel_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # Set view reference for legacy components
-        ui_state_controller.view = controller.view
+        ui_state_controller.view = controller.view  # type: ignore[attr-defined]
         ui_state_controller.main_view_model = controller
 
         # Set view reference for Phase 3 coordinators
-        hardware_coordinator.view = controller.view
-        processing_coordinator.view = controller.view
-        session_coordinator.view = controller.view
+        hardware_coordinator.view = controller.view  # type: ignore[attr-defined]
+        processing_coordinator.view = controller.view  # type: ignore[attr-defined]
+        session_coordinator.view = controller.view  # type: ignore[attr-defined]
 
         # Bind events
         controller.bind_events()

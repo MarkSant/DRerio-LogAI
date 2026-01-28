@@ -378,7 +378,7 @@ def _benchmark_openvino_inference(
     num_iterations: int = 30,
 ) -> dict[str, BenchmarkResult]:
     """Benchmark OpenVINO inference on available devices."""
-    results = {}
+    results: dict[str, BenchmarkResult] = {}
 
     try:
         import openvino as ov

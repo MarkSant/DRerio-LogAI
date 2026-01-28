@@ -122,11 +122,11 @@ class ApplicationGUI:
         # Subscribe to VideoProcessingService events (v2.2 UI decoupling)
         self.event_bus_v2.subscribe(
             UIEvents.ERROR_OCCURRED,
-            lambda event: self.root.after(
+            lambda data: self.root.after(
                 0,
                 lambda: self.show_error(
-                    event.data.get("title", "Erro"),
-                    event.data.get("message", "Ocorreu um erro desconhecido."),
+                    data.get("title", "Erro"),
+                    data.get("message", "Ocorreu um erro desconhecido."),
                 ),
             ),
         )
@@ -134,16 +134,16 @@ class ApplicationGUI:
         self.root.title("DRerio LogAI")
         self.root.protocol("WM_DELETE_WINDOW", self.controller.on_close)
 
-        self._ttkbootstrap_style = None
-        self._ttkbootstrap_theme = None
+        self._ttkbootstrap_style: Any | None = None
+        self._ttkbootstrap_theme: Any | None = None
         self._initialize_theme()
 
         # Initialize state variables before components
-        self.notebook = None
-        self.welcome_frame = None
-        self.main_controls_frame = None
-        self.zone_tab_frame = None
-        self.analysis_tab_frame = None
+        self.notebook: ttk.Notebook | None = None
+        self.welcome_frame: ttk.Frame | None = None
+        self.main_controls_frame: ttk.Frame | None = None
+        self.zone_tab_frame: ttk.Frame | None = None
+        self.analysis_tab_frame: ttk.Frame | None = None
 
         # Initialize component managers (extracted from God Object)
         # Phase 1 components
@@ -202,18 +202,25 @@ class ApplicationGUI:
         # --- Legacy Attributes (Shim Layer for Components) ---
         # These attributes are initialized here to prevent AttributeErrors in components
         # that still access them directly on the GUI object.
-        self.edited_polygon_points = []
-        self.interactive_polygon_item = None
-        self.polygon_handles = []
-        self.current_editing_zone = None
-        self._dragged_handle_index = None
-        self._drag_offset = (0, 0)
-        self._drag_start_mouse = (0, 0)
-        self._original_image = None
-        self._raw_bg_image = None
-        self._roi_templates_cache = []
+        self.edited_polygon_points: list[list[float]] = []
+        self.interactive_polygon_item: Any | None = None
+        self.polygon_handles: list[Any] = []
+        self.current_editing_zone: Any | None = None
+        self._dragged_handle_index: int | None = None
+        self._drag_offset: tuple[float, float] = (0, 0)
+        self._drag_start_mouse: tuple[float, float] = (0, 0)
+        self._original_image: Any | None = None
+        self._raw_bg_image: Any | None = None
+        self._canvas_bg_image: Any | None = None
+        self._roi_templates_cache: list[dict[str, Any]] = []
         self.roi_choice_var = StringVar(value="none")
-        self.video_path = None
+        self.video_path: str | None = None
+        self.video_display: Any | None = None
+        self.controls_canvas: Any | None = None
+        self.controls_canvas_window: Any | None = None
+        self.fixed_button_frame: ttk.Frame | None = None
+        self._project_status_containers: dict[str, Any] = {}
+        self._last_overview_counts: dict[str, int] = {}
         # -----------------------------------------------------
 
         # Dynamic widgets / state variables
@@ -233,9 +240,9 @@ class ApplicationGUI:
         self.drawing_instruction_label = None
         self.current_drawing_type = None
         self.status_var = StringVar()
-        self.pending_single_video_path = None
-        self.pending_single_video_config = None
-        self.start_single_analysis_btn = None
+        self.pending_single_video_path: str | None = None
+        self.pending_single_video_config: dict[str, Any] | None = None
+        self.start_single_analysis_btn: ttk.Button | None = None
         self._zone_prompt_history: set[str] = set()
 
         # Model management state (reflected across welcome + project views)
@@ -264,7 +271,6 @@ class ApplicationGUI:
         self.roi_template_var = StringVar(value="")
         # Add trace to log all changes to template var
         self.roi_template_var.trace_add("write", self._on_roi_template_var_changed)
-        self._roi_templates_cache: list[dict[str, Any]] = []
         self.delete_template_btn: ttk.Button | None = None
 
         # Configuration editor widget (created in notebook)
@@ -282,6 +288,7 @@ class ApplicationGUI:
         # Analysis status widgets and variables
         self.analysis_status_var = StringVar(value="Nenhuma análise em andamento.")
         self.analysis_task_var = StringVar(value="Nenhuma tarefa em andamento.")
+        self.analysis_profile_var = StringVar(value="Perfil de análise: default")
         self.analysis_video_label: Label | None = None
 
         # User options
@@ -314,7 +321,7 @@ class ApplicationGUI:
         # Backward compatibility - delegate to widget
         self._project_status_containers = {}
         self._overview_refresh_job = None
-        self._pending_overview_status = None
+        self._pending_overview_status: str | None = None
         self._overview_status_append = False
         self._last_overview_counts = {}
         self._overview_video_index: dict[str, dict] = {}
@@ -634,6 +641,18 @@ class ApplicationGUI:
             "Valores restaurados para refletir as configurações atuais.",
         )
 
+    def _reload_config_editor_values_widget(self) -> None:
+        """Reload the config editor with current settings."""
+        if self.config_editor_widget and self.settings:
+            try:
+                # Use model_dump if it's a Pydantic model
+                if hasattr(self.settings, "model_dump"):
+                    self.config_editor_widget.set_values(self.settings.model_dump())
+                else:
+                    self.config_editor_widget.set_values(vars(self.settings))
+            except Exception as e:
+                log.error("gui.config_reload_error", error=str(e))
+
     def _on_roi_rule_change_widget(self, rule: str) -> None:
         """Handle ROI rule change from ConfigEditorWidget."""
         # This widget doesn't need conditional UI updates (unlike the zones tab)
@@ -662,7 +681,7 @@ class ApplicationGUI:
         if not self.widget_factory:
             log.warning("gui.project_overview.missing_widget_factory")
             return
-        return self.widget_factory.create_project_overview_panel(parent)
+        self.widget_factory.create_project_overview_panel(parent)
 
     def _on_project_overview_tree_double_click(self, event) -> None:
         """Handle double-click events on the overview tree (legacy handler)."""
@@ -673,7 +692,7 @@ class ApplicationGUI:
 
         item_id = self.project_overview_tree.focus()
         if item_id:
-            self._on_project_overview_tree_double_click_impl(item_id)
+            self.project_view_manager._on_project_overview_tree_double_click_impl(None)
 
     def _on_project_overview_right_click(self, event) -> None:
         """Handle right-click events on the overview tree (legacy handler)."""
@@ -689,27 +708,34 @@ class ApplicationGUI:
 
     def _on_frame_configure(self, event=None):
         """Update scroll region when frame size changes."""
-        self.controls_canvas.configure(scrollregion=self.controls_canvas.bbox("all"))
+        if self.controls_canvas:
+            self.controls_canvas.configure(scrollregion=self.controls_canvas.bbox("all"))
 
     def _on_canvas_configure_scroll(self, event=None):
         """Update frame width when canvas size changes."""
-        canvas_width = event.width if event else self.controls_canvas.winfo_width()
-        self.controls_canvas.itemconfig(self.controls_canvas_window, width=canvas_width)
+        if self.controls_canvas and self.controls_canvas_window:
+            canvas_width = event.width if event else self.controls_canvas.winfo_width()
+            self.controls_canvas.itemconfig(self.controls_canvas_window, width=canvas_width)
 
     def _bind_mousewheel(self):
         """Bind mouse wheel scrolling to the canvas."""
 
         def _on_mousewheel(event):
-            self.controls_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            if self.controls_canvas:
+                # For Windows/macOS
+                if hasattr(event, "delta"):
+                    self.controls_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                # For Linux (Button-4, Button-5)
+                elif event.num == 4:
+                    self.controls_canvas.yview_scroll(-1, "units")
+                elif event.num == 5:
+                    self.controls_canvas.yview_scroll(1, "units")
 
-        self.controls_canvas.bind("<MouseWheel>", _on_mousewheel)
-        # For Linux
-        self.controls_canvas.bind(
-            "<Button-4>", lambda e: self.controls_canvas.yview_scroll(-1, "units")
-        )
-        self.controls_canvas.bind(
-            "<Button-5>", lambda e: self.controls_canvas.yview_scroll(1, "units")
-        )
+        if self.controls_canvas:
+            self.controls_canvas.bind("<MouseWheel>", _on_mousewheel)
+            # For Linux
+            self.controls_canvas.bind("<Button-4>", _on_mousewheel)
+            self.controls_canvas.bind("<Button-5>", _on_mousewheel)
 
     def _recenter_canvas_image(self, canvas_width, canvas_height):
         """Recenter the canvas background image."""
@@ -827,11 +853,11 @@ class ApplicationGUI:
 
     def _on_delete_roi_template(self) -> None:
         """Delete the currently selected template. Delegates to ROITemplateManager."""
-        return self.roi_template_manager.delete_template()
+        self.roi_template_manager.delete_template()
 
     def _on_import_roi_template(self) -> None:
         """Import a template file into the library. Delegates to ROITemplateManager."""
-        return self.roi_template_manager.import_template()
+        self.roi_template_manager.import_template()
 
     def _on_import_and_apply_roi_template(self) -> None:
         """Import a template file and immediately apply it to current video.
@@ -856,7 +882,7 @@ class ApplicationGUI:
 
     def _on_apply_roi_template(self) -> None:
         """Apply template. Delegates to ROITemplateManager."""
-        return self.roi_template_manager.apply_template()
+        self.roi_template_manager.apply_template()
 
     def _filter_video_tree(self) -> None:
         """Filter video tree based on search text. Delegates to ProjectViewManager."""
@@ -1155,14 +1181,14 @@ class ApplicationGUI:
 
     def _remove_selected_roi_confirm(self) -> None:
         """Remove the selected ROI after user confirmation (legacy UI flow)."""
-        if not getattr(self, "zone_listbox", None):
+        if not self.zone_controls or not self.zone_controls.zone_listbox:
             return
 
-        selected = self.zone_listbox.selection()
+        selected = self.zone_controls.zone_listbox.selection()
         if not selected:
             return
 
-        item = self.zone_listbox.item(selected[0])
+        item = self.zone_controls.zone_listbox.item(selected[0])
         values = item.get("values") if isinstance(item, dict) else None
         if not values:
             return
@@ -1321,9 +1347,8 @@ class ApplicationGUI:
         """Handle single video analysis. Delegates to EventDispatcher."""
         log.info("gui._on_analyze_single_video_clicked.START")
         try:
-            result = self.event_dispatcher.handle_analyze_single_video_clicked()
-            log.info("gui._on_analyze_single_video_clicked.END", result=result)
-            return result
+            self.event_dispatcher.handle_analyze_single_video_clicked()
+            log.info("gui._on_analyze_single_video_clicked.END")
         except Exception as e:
             log.error("gui._on_analyze_single_video_clicked.ERROR", error=str(e))
             # We don't raise here to avoid crashing the UI loop for a single button click
@@ -1367,7 +1392,8 @@ class ApplicationGUI:
             self._create_main_control_frame()
 
         self.canvas_manager.display_roi_video_frame(video_path)
-        self.notebook.select(self.zone_tab_frame)
+        if self.notebook:
+            self.notebook.select(self.zone_tab_frame)
 
         # Clear template selection for single video workflow - user should
         # explicitly choose if they want to apply a template
@@ -1375,13 +1401,16 @@ class ApplicationGUI:
 
         # Add a "Start Analysis" button specific to this flow
         if not self.start_single_analysis_btn:
-            self.start_single_analysis_btn = ttk.Button(
+            btn = ttk.Button(
                 self.fixed_button_frame,  # Add to the fixed button frame at bottom
                 text="Iniciar Análise de Vídeo Único",
                 command=self._on_start_single_video_processing_clicked,
             )
-            self.start_single_analysis_btn.pack(side="bottom", fill="x", pady=5)
-        self.start_single_analysis_btn.config(state="normal")
+            btn.pack(side="bottom", fill="x", pady=5)
+            self.start_single_analysis_btn = btn
+
+        if self.start_single_analysis_btn:
+            self.start_single_analysis_btn.config(state="normal")
 
         self.state_synchronizer.prepare_single_video_ui_state(config)
 
@@ -1487,7 +1516,8 @@ class ApplicationGUI:
         self.pending_single_video_config = updated_config
 
         # 2. Disable the button and publish the event
-        self.start_single_analysis_btn.config(state="disabled")
+        if self.start_single_analysis_btn:
+            self.start_single_analysis_btn.config(state="disabled")
         self.event_dispatcher.publish_event(
             Events.VIDEO_START_SINGLE_PROCESSING,
             {
@@ -1861,19 +1891,6 @@ class ApplicationGUI:
     # Compatibility layer removed as part of Phase 6 cleanup.
     # All legacy properties have been migrated to direct component access.
 
-    def _filter_video_tree(self):
-        """Filter video tree based on search text."""
-        if hasattr(self, "video_search_var"):
-            self.project_view_manager._populate_video_selector_tree(self.video_search_var.get())
-
-    def _refresh_video_selector_tree(self):
-        """Refresh the video selector tree."""
-        self.project_view_manager._populate_video_selector_tree()
-
-    def _on_video_tree_double_click(self, event):
-        """Handle double click on video tree."""
-        self.canvas_manager.load_selected_video_frame()
-
     def _load_selected_video_frame(self):
         """Load selected video frame."""
         self.canvas_manager.load_selected_video_frame()
@@ -1910,13 +1927,6 @@ class ApplicationGUI:
         """Render the progress grid. Delegates to WidgetFactory."""
         self.widget_factory.render_progress_grid()
 
-    def _bind_mousewheel(self):
-        """Bind mousewheel events to the controls canvas."""
-        if hasattr(self, "controls_canvas") and self.controls_canvas:
-            self.controls_canvas.bind_all("<MouseWheel>", self._on_mousewheel)
-            self.controls_canvas.bind_all("<Button-4>", self._on_mousewheel)
-            self.controls_canvas.bind_all("<Button-5>", self._on_mousewheel)
-
     def _on_mousewheel(self, event):
         """Handle mousewheel scrolling."""
         if hasattr(self, "controls_canvas") and self.controls_canvas:
@@ -1924,17 +1934,6 @@ class ApplicationGUI:
                 self.controls_canvas.yview_scroll(1, "units")
             elif event.num == 4 or event.delta > 0:
                 self.controls_canvas.yview_scroll(-1, "units")
-
-    def _cleanup_single_analysis_button(self):
-        """Remove the single analysis button if it exists."""
-        if self.start_single_analysis_btn:
-            self.start_single_analysis_btn.destroy()
-            self.start_single_analysis_btn = None
-
-    def _reset_analysis_widgets(self):
-        """Reset analysis widgets."""
-        # Add logic if needed, or just pass if logic is elsewhere
-        pass
 
     def _refresh_processing_reports_tab(self) -> None:
         """Refresh the processing reports tab."""

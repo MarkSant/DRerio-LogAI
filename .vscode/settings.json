@@ -3,32 +3,26 @@
     "github.copilot.chat.codesearch.enabled": true,
     "github.copilot.chat.agent.thinkingTool": true,
     "github.copilot.chat.generateTests.codeLens": true,
-
     // ========================================
     // ZebTrack-AI Quick Access
     // ========================================
-
     // File associations
     "files.associations": {
         "CLAUDE.md": "markdown",
         "WIDGETS.md": "markdown",
         "*.yaml": "yaml"
     },
-
     // Quick navigation bookmarks (use File Explorer → right-click → "Reveal in File Explorer")
     // Key files for development:
-
     // Core Architecture
     // - src/zebtrack/core/main_view_model.py (Application orchestrator)
     // - src/zebtrack/core/state_manager.py (Centralized state)
     // - src/zebtrack/core/project_service.py (Project I/O)
     // - src/zebtrack/core/detector.py (AI model abstraction)
-
     // UI Components
     // - src/zebtrack/ui/gui.py (Main window)
     // - src/zebtrack/ui/wizard/wizard_dialog.py (Project creation wizard)
     // - src/zebtrack/ui/collapsible_frame.py (Reusable collapsible widget)
-
     // Wizard Steps (LIVE projects)
     // - src/zebtrack/ui/wizard/discovery_step.py
     // - src/zebtrack/ui/wizard/experimental_design_step.py (NumberInput widget)
@@ -36,13 +30,11 @@
     // - src/zebtrack/ui/wizard/calibration_step.py
     // - src/zebtrack/ui/wizard/model_selection_step.py (PanedWindow layout)
     // - src/zebtrack/ui/wizard/confirmation_step.py (Text widget optimization)
-
     // Documentation
     // - CLAUDE.md (Development guide)
     // - docs/WIDGETS.md (UI widgets catalog)
     // - docs/WIZARD_LIVE_IMPROVEMENTS.md (Phase 0-4 features)
     // - README_TESTS.md (Testing guide)
-
     // Search scopes for common tasks
     "search.exclude": {
         "**/node_modules": true,
@@ -52,13 +44,11 @@
         "**/__pycache__": true,
         "**/*.pyc": true
     },
-
     // Python settings
     "python.analysis.extraPaths": [
         "./src"
     ],
     "python.defaultInterpreterPath": ".venv/Scripts/python.exe",
-
     // Testing configuration (v2.1: pytest hang fixes applied)
     // Total: 2568 tests (1586 fast, 949 GUI, 35 slow)
     // Note: pytest-timeout plugin configured (300s per test)
@@ -66,16 +56,17 @@
     "python.testing.unittestEnabled": false,
     "python.testing.pytestArgs": [
         "-v",
-        "--override-ini=addopts=",  // Clear pytest.ini addopts to avoid -n=auto conflict
-        "--no-cov",  // Disable coverage in Test Explorer for faster discovery
-        "-m", "not (gui or slow)"  // Match pytest.ini defaults (exclude GUI and slow tests)
+        "--override-ini=addopts=", // Clear pytest.ini addopts to avoid -n=auto conflict
+        "--no-cov", // Disable coverage in Test Explorer for faster discovery
+        "-m",
+        "not (gui or slow)" // Match pytest.ini defaults (exclude GUI and slow tests)
     ],
-
     // Editor hints
-    "editor.rulers": [100],  // Ruff line length
+    "editor.rulers": [
+        100
+    ], // Ruff line length
     "files.trimTrailingWhitespace": true,
     "files.insertFinalNewline": true,
-
     // ========================================
     // Ruff Linter & Formatter (Native Extension)
     // ========================================
@@ -87,18 +78,22 @@
         },
         "editor.defaultFormatter": "charliermarsh.ruff"
     },
-
     // Ruff configuration (reads from pyproject.toml by default)
     "ruff.enable": true,
     "ruff.organizeImports": true,
     "ruff.fixAll": true,
-
     // Line length is configured in pyproject.toml (line-length = 100)
     // No need to duplicate here with deprecated args
-
     // Disable conflicting formatters/linters
     "python.linting.enabled": false,
     "python.linting.pylintEnabled": false,
     "python.linting.flake8Enabled": false,
-    "python.formatting.provider": "none"
+    "python.formatting.provider": "none",
+    "cSpell.words": [
+        "mypy",
+        "polib",
+        "pytest",
+        "tkinter",
+        "zebtrack"
+    ]
 }

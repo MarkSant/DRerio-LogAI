@@ -25,7 +25,7 @@ DOCS_DIR = BASE_DIR / "docs"
 
 def check_settings_documentation() -> list[str]:
     """Verifica se campos de settings.py estão documentados."""
-    issues = []
+    issues: list[str] = []
     settings_file = SRC_DIR / "settings.py"
     ref_guide = DOCS_DIR / "REFERENCE_GUIDE.md"
 
@@ -58,7 +58,7 @@ def check_settings_documentation() -> list[str]:
 
 def check_singleton_imports() -> list[str]:
     """Detecta importações singleton proibidas."""
-    issues = []
+    issues: list[str] = []
     forbidden_pattern = re.compile(r"from\s+zebtrack\s+import\s+settings")
 
     for py_file in SRC_DIR.rglob("*.py"):
@@ -78,7 +78,7 @@ def check_singleton_imports() -> list[str]:
 
 def check_key_docstrings() -> list[str]:
     """Verifica se classes principais têm docstrings."""
-    issues = []
+    issues: list[str] = []
     key_files = [
         SRC_DIR / "core" / "detector_service.py",
         SRC_DIR / "core" / "project_manager.py",
@@ -104,7 +104,7 @@ def check_key_docstrings() -> list[str]:
 
 def check_context_file_freshness() -> list[str]:
     """Verifica se .copilot-context.yaml está atualizado."""
-    issues = []
+    issues: list[str] = []
     context_file = BASE_DIR / ".copilot-context.yaml"
 
     if not context_file.exists():

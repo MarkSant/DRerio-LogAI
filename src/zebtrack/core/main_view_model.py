@@ -40,6 +40,7 @@ class MainViewModel:
     - ProjectViewModel: Project management
     - AnalysisControlViewModel: Analysis control
     - HardwareStatusViewModel: Hardware/Model status
+    view: Any
     """
 
     def __init__(

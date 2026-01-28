@@ -186,7 +186,7 @@ class WizardService:
             return cls._camera_cache
 
         log.info("wizard_service.detect_cameras.start")
-        cameras = []
+        cameras: list[dict[str, int | str]] = []
         consecutive_failures = 0
         max_consecutive_failures = 3
 

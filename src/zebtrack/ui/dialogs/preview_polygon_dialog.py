@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from tkinter import ttk
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
@@ -39,13 +39,13 @@ class PreviewPolygonDialog:
         self.parent = parent
         self.frame = frame
         self.polygon = polygon
-        self.result: dict[str, any] | None = None
+        self.result: dict[str, Any] | None = None
 
         # Create dialog window
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Aquário Detectado - Confirmar?")
         self.dialog.resizable(False, False)
-        self.dialog.transient(parent)
+        self.dialog.transient(parent)  # type: ignore[call-overload]
         self.dialog.grab_set()
 
         # Build UI
@@ -218,7 +218,7 @@ class PreviewPolygonDialog:
         self.result = {"approved": False, "polygon": None}
         self.dialog.destroy()
 
-    def show(self) -> dict[str, any] | None:
+    def show(self) -> dict[str, Any] | None:
         """Show the dialog and wait for user response.
 
         Returns:

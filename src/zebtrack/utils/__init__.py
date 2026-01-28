@@ -19,7 +19,7 @@ try:  # pragma: no cover - optional dependency
 
     TORCH_AVAILABLE = True
 except ImportError:  # pragma: no cover - graceful degradation
-    torch = None
+    torch = None  # type: ignore[assignment]
     TORCH_AVAILABLE = False
 
 log = structlog.get_logger()

@@ -12,15 +12,7 @@ except ImportError:
     ULTRALYTICS_AVAILABLE = False
 
 from zebtrack.plugins.base import DetectorPlugin
-
-# OPTIMIZATION: Import hardware detection for CUDA check
-try:
-    from zebtrack.utils.hardware_detection import is_cuda_available
-except ImportError:
-
-    def is_cuda_available() -> bool:
-        """Fallback if hardware_detection module is not available."""
-        return False
+from zebtrack.utils.hardware_detection import is_cuda_available
 
 
 class UltralyticsDetectorPlugin(DetectorPlugin):

@@ -8,6 +8,7 @@ Cache is invalidated when video selection changes (Step 2).
 """
 
 import hashlib
+from typing import Callable
 
 import structlog
 
@@ -42,7 +43,9 @@ class WizardCache:
         self._design_detection: dict | None = None
         self._videos_hash: str | None = None
 
-    def get_scan_results(self, video_paths: list[str], scan_func: callable) -> dict[str, dict]:
+    def get_scan_results(
+        self, video_paths: list[str], scan_func: Callable[[list[str]], dict[str, dict]]
+    ) -> dict[str, dict]:
         """
         Get cached scan results or compute if cache miss/invalid.
 
@@ -74,7 +77,9 @@ class WizardCache:
 
         return self._scan_results
 
-    def get_design_detection(self, video_paths: list[str], detect_func: callable) -> dict | None:
+    def get_design_detection(
+        self, video_paths: list[str], detect_func: Callable[[list[str]], dict | None]
+    ) -> dict | None:
         """
         Get cached design detection or compute if cache miss.
 

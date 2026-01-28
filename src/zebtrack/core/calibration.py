@@ -14,7 +14,9 @@ log = structlog.get_logger()
 class Calibration:
     """Handles perspective correction and scale calibration based on a detected polygon."""
 
-    def __init__(self, polygon, real_width_cm: float, real_height_cm: float):
+    def __init__(
+        self, polygon: np.ndarray | None, real_width_cm: float, real_height_cm: float
+    ) -> None:
         """
         Initialize the Calibration object.
 
@@ -26,9 +28,9 @@ class Calibration:
         self.polygon = polygon
         self.real_width_cm = real_width_cm
         self.real_height_cm = real_height_cm
-        self.homography_matrix = None
-        self.pixel_per_cm_ratio = (0.0, 0.0)  # (x_ratio, y_ratio)
-        self.target_dims_px = (0, 0)  # (width, height)
+        self.homography_matrix: np.ndarray | None = None
+        self.pixel_per_cm_ratio: tuple[float, float] = (0.0, 0.0)  # (x_ratio, y_ratio)
+        self.target_dims_px: tuple[int, int] = (0, 0)  # (width, height)
 
         if self.polygon is not None:
             self._process_polygon()

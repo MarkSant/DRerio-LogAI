@@ -5,19 +5,19 @@ import re
 from pathlib import Path
 
 
-def analyze_methods(filepath):
+def analyze_methods(filepath: str) -> list[dict[str, int | str]]:
     """Analyze methods in gui.py and categorize them."""
     content = Path(filepath).read_text()
     lines = content.split("\n")
 
-    methods = []
-    current_method = None
-    current_start = None
+    methods: list[dict[str, int | str]] = []
+    current_method: str | None = None
+    current_start: int = 0
 
     for i, line in enumerate(lines, 1):
         # Detect method definition
         if re.match(r"^    def [_a-zA-Z]", line):
-            if current_method:
+            if current_method and current_start > 0:
                 # Save previous method
                 methods.append(
                     {
@@ -33,7 +33,7 @@ def analyze_methods(filepath):
                 current_method = match.group(1)
                 current_start = i
         # Detect end of class (next class or end of file)
-        elif re.match(r"^class ", line) and current_method:
+        elif re.match(r"^class ", line) and current_method and current_start > 0:
             methods.append(
                 {
                     "name": current_method,
@@ -45,7 +45,7 @@ def analyze_methods(filepath):
             current_method = None
 
     # Handle last method
-    if current_method:
+    if current_method and current_start > 0:
         methods.append(
             {
                 "name": current_method,
