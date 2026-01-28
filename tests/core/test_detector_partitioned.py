@@ -476,7 +476,7 @@ class TestROICroppingOptimization:
         cropped_0, crop_info_0 = detector._crop_aquarium_region(frame, 0, padding=0)
         assert cropped_0 is not None
         assert crop_info_0 is not None
-        x_off, y_off, w, h = crop_info_0
+        _x_off, _y_off, _w, _h = crop_info_0
         # Cropped region should contain the aquarium 0 marker
         assert np.mean(cropped_0[:, :, 0]) > 50  # Blue channel should be present
 
@@ -592,8 +592,8 @@ class TestROICroppingOptimization:
         full_frame_pixels = frame.shape[0] * frame.shape[1]  # 720 * 1280 = 921,600
 
         # Get cropped regions for both aquariums
-        cropped_0, info_0 = detector._crop_aquarium_region(frame, 0, padding=10)
-        cropped_1, info_1 = detector._crop_aquarium_region(frame, 1, padding=10)
+        cropped_0, _info_0 = detector._crop_aquarium_region(frame, 0, padding=10)
+        cropped_1, _info_1 = detector._crop_aquarium_region(frame, 1, padding=10)
 
         if cropped_0 is not None and cropped_1 is not None:
             cropped_pixels = (

@@ -332,14 +332,14 @@ class TestMultiAquariumDataFlow:
         for det in detections_aq0:
             x1, y1, x2, y2, conf, track_id, _ = det
             center_x = (x1 + x2) / 2
-            center_y = (y1 + y2) / 2
+            (y1 + y2) / 2
             assert track_id < 1000  # Aquarium 0 IDs
             assert 100 <= center_x <= 130
 
         for det in detections_aq1:
-            x1, y1, x2, y2, conf, track_id, _ = det
+            x1, y1, x2, y2, _conf, track_id, _ = det
             center_x = (x1 + x2) / 2
-            center_y = (y1 + y2) / 2
+            (y1 + y2) / 2
             assert track_id >= 1000  # Aquarium 1 IDs
             assert 400 <= center_x <= 432
 

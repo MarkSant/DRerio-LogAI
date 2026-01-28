@@ -3,8 +3,9 @@
 This module provides decorators for marking and documenting UI component interfaces.
 """
 
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, TypeVar
+from typing import TypeVar
 
 F = TypeVar("F", bound=Callable)
 

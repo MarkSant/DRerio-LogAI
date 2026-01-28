@@ -161,7 +161,7 @@ class VideoManager:
                 try:
                     import json
 
-                    with open(metadata_file, "r", encoding="utf-8") as f:
+                    with open(metadata_file, encoding="utf-8") as f:
                         recording_metadata = json.load(f)
 
                     # Add metadata to result

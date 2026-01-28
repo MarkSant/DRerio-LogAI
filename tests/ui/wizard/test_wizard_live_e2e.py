@@ -52,7 +52,7 @@ class TestWizardServiceIntegration:
             "external_trigger_mode": False,
         }
 
-        is_valid, error = WizardService.validate_live_config(data)
+        is_valid, _error = WizardService.validate_live_config(data)
         assert is_valid
 
         validated = LiveConfigData(**data)
@@ -100,7 +100,7 @@ class TestWizardServiceIntegration:
             "external_trigger_mode": False,
         }
 
-        is_valid, error = WizardService.validate_live_config(data)
+        is_valid, _error = WizardService.validate_live_config(data)
         assert not is_valid
 
     def test_experimental_design_validation_valid(self):
@@ -133,7 +133,7 @@ class TestWizardServiceIntegration:
         }
 
         # Should fail service validation
-        is_valid, error = WizardService.validate_experimental_design(data)
+        is_valid, _error = WizardService.validate_experimental_design(data)
         assert not is_valid
 
         # Should fail Pydantic validation
@@ -149,7 +149,7 @@ class TestWizardServiceIntegration:
             "group_names": ["Control", ""],  # Empty name
         }
 
-        is_valid, error = WizardService.validate_experimental_design(data)
+        is_valid, _error = WizardService.validate_experimental_design(data)
         assert not is_valid
 
     def test_experimental_design_validation_duplicate_group_names(self):
@@ -161,7 +161,7 @@ class TestWizardServiceIntegration:
             "group_names": ["Control", "Control"],  # Duplicate
         }
 
-        is_valid, error = WizardService.validate_experimental_design(data)
+        is_valid, _error = WizardService.validate_experimental_design(data)
         assert not is_valid
 
         with pytest.raises(ValidationError):
@@ -186,7 +186,7 @@ class TestWizardServiceIntegration:
             "subjects_per_group": 20,
             "group_names": [f"Group{i}" for i in range(1, 7)],
         }
-        is_valid, error = WizardService.validate_experimental_design(data)
+        is_valid, _error = WizardService.validate_experimental_design(data)
         assert is_valid
 
         # Test out of bounds (days > 365)
@@ -259,7 +259,7 @@ class TestWizardServiceIntegration:
             "aquarium_height_cm": 20.0,
         }
 
-        is_valid, error = WizardService.validate_basic_calibration(data)
+        is_valid, _error = WizardService.validate_basic_calibration(data)
         assert not is_valid
 
         with pytest.raises(ValidationError):
@@ -274,7 +274,7 @@ class TestWizardServiceIntegration:
             "aquarium_height_cm": 20.0,
         }
 
-        is_valid, error = WizardService.validate_basic_calibration(data)
+        is_valid, _error = WizardService.validate_basic_calibration(data)
         assert not is_valid
 
         with pytest.raises(ValidationError):

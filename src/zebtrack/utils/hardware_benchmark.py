@@ -24,7 +24,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import cv2
 import numpy as np
@@ -149,7 +149,7 @@ class SystemBenchmarkResult:
     pipeline_batch_results: dict[str, dict] = field(default_factory=dict)
 
     # Recommendations
-    recommendation: Optional[BenchmarkRecommendation] = None
+    recommendation: BenchmarkRecommendation | None = None
 
     def to_dict(self) -> dict:
         result = {
@@ -294,7 +294,7 @@ def detect_hardware_profile() -> HardwareProfile:
     return profile
 
 
-def _find_test_video() -> Optional[Path]:
+def _find_test_video() -> Path | None:
     """Find a test video for benchmarking."""
     search_paths = [
         Path("live_analysis_sessions"),
@@ -313,7 +313,7 @@ def _find_test_video() -> Optional[Path]:
     return None
 
 
-def _find_openvino_model() -> Optional[Path]:
+def _find_openvino_model() -> Path | None:
     """Find an OpenVINO model for benchmarking."""
     cache_dir = Path("openvino_model_cache")
     if not cache_dir.exists():
@@ -347,7 +347,7 @@ def _benchmark_video_decode(video_path: Path, num_frames: int = 50) -> dict[str,
             for _ in range(num_frames):
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 start = time.perf_counter()
-                ret, frame = cap.read()
+                ret, _frame = cap.read()
                 elapsed = (time.perf_counter() - start) * 1000
                 if ret:
                     times.append(elapsed)
@@ -522,7 +522,7 @@ def _benchmark_pipeline_complete(
     device: str,
     hint: str,
     num_frames: int = 30,
-) -> Optional[BenchmarkResult]:
+) -> BenchmarkResult | None:
     """Benchmark complete pipeline: decode → preprocess → inference → postprocess."""
     try:
         import openvino as ov
@@ -571,7 +571,7 @@ def _benchmark_pipeline_complete(
             blob = np.expand_dims(blob, 0)
 
             infer_request.infer({0: blob})
-            output = infer_request.get_output_tensor(0).data.copy()
+            infer_request.get_output_tensor(0).data.copy()
 
             times.append((time.perf_counter() - start) * 1000)
 
@@ -678,7 +678,7 @@ def _generate_recommendation(
 
 def run_adaptive_benchmark(
     quick_mode: bool = False,
-    progress_callback: Optional[callable] = None,
+    progress_callback: callable | None = None,
 ) -> SystemBenchmarkResult:
     """
     Run adaptive benchmark based on detected hardware.
@@ -717,7 +717,7 @@ def run_adaptive_benchmark(
     sample_frame = None
     if video_path:
         cap = cv2.VideoCapture(str(video_path))
-        ret, sample_frame = cap.read()
+        _ret, sample_frame = cap.read()
         cap.release()
 
     if sample_frame is None:
@@ -810,7 +810,7 @@ def get_benchmark_cache_path() -> Path:
     return Path("openvino_model_cache") / "system_benchmark.json"
 
 
-def load_cached_benchmark() -> Optional[SystemBenchmarkResult]:
+def load_cached_benchmark() -> SystemBenchmarkResult | None:
     """Load benchmark results from cache if valid."""
     cache_path = get_benchmark_cache_path()
 
@@ -859,7 +859,7 @@ def save_benchmark_cache(result: SystemBenchmarkResult) -> None:
 def get_or_run_benchmark(
     force_rerun: bool = False,
     quick_mode: bool = False,
-    progress_callback: Optional[callable] = None,
+    progress_callback: callable | None = None,
 ) -> SystemBenchmarkResult:
     """
     Get benchmark results from cache or run new benchmark if needed.
@@ -884,7 +884,7 @@ def get_or_run_benchmark(
 
 
 def get_optimal_settings(
-    benchmark_result: Optional[SystemBenchmarkResult] = None,
+    benchmark_result: SystemBenchmarkResult | None = None,
 ) -> dict[str, Any]:
     """
     Get optimal settings dictionary based on benchmark results.

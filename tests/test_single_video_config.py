@@ -33,7 +33,7 @@ class TestSingleVideoConfigPersistence:
         with patch(
             "zebtrack.ui.dialogs.single_video_config_dialog.SingleVideoConfigDialog.__init__",
             return_value=None,
-        ) as mock_init:
+        ):
             # Instantiate without calling real __init__
             dialog = SingleVideoConfigDialog(mock_gui, mock_videopath, mock_settings)
 

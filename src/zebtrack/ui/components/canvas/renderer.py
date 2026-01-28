@@ -342,7 +342,7 @@ class CanvasRenderer:
                     x1, y1, x2, y2, conf, track_id = det
                     class_id = 0
                 else:
-                    x1, y1, x2, y2, conf, track_id, class_id = det
+                    x1, y1, x2, y2, _conf, track_id, class_id = det
 
                 # Convert to canvas coordinates
                 cx1, cy1 = self.manager._video_to_canvas(x1, y1)

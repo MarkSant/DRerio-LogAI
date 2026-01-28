@@ -1191,7 +1191,7 @@ class ProjectViewManager:
 
         self._handle_report_file_node({"file_path": str(latest_file)})
 
-    def _delete_all_unified_reports(self, data: dict = None) -> None:
+    def _delete_all_unified_reports(self, data: dict | None = None) -> None:
         """
         Delete the entire unified_reports directory.
         Subscribed to event 'reports.delete_unified'.

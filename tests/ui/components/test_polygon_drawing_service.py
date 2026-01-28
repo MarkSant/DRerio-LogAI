@@ -31,7 +31,7 @@ def test_roi_completion_strategy():
     strategy = ROICompletionStrategy()
     points = [(0, 0), (100, 0), (100, 100)]
 
-    can_complete, error = strategy.can_complete(points)
+    can_complete, _error = strategy.can_complete(points)
     assert can_complete
 
 

@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import time
 import tkinter as tk
+from collections.abc import Callable
 from tkinter import ttk
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np

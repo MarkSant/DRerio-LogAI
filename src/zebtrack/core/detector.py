@@ -1110,7 +1110,7 @@ class Detector:
             best_det = None
 
             for det in detections:
-                det_x1, det_y1, det_x2, det_y2, det_conf, _, det_class_id = det
+                det_x1, det_y1, det_x2, det_y2, _det_conf, _, det_class_id = det
 
                 # Calculate IoU between track bbox and detection bbox
                 iou = self._calculate_iou(
@@ -2050,7 +2050,7 @@ class Detector:
 
         for aq in self._aquariums:
             # Crop to aquarium region
-            cropped, (offset_x, offset_y, crop_w, crop_h) = self._crop_aquarium_region(frame, aq.id)
+            cropped, (offset_x, offset_y, _crop_w, _crop_h) = self._crop_aquarium_region(frame, aq.id)
 
             # Run detection on cropped region
             raw_detections = self.plugin.detect(cropped)

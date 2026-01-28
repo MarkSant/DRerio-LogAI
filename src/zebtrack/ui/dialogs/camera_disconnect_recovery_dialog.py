@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import threading
 import tkinter as tk
+from collections.abc import Callable
 from tkinter import ttk
-from typing import TYPE_CHECKING, Callable, Literal
+from typing import TYPE_CHECKING, Literal
 
 import structlog
 
