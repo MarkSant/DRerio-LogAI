@@ -57,13 +57,14 @@ When working with multi-aquarium features:
 
 ## Documentation Structure
 
-| Folder | Purpose |
+| File/Folder | Purpose |
 |--------|---------|
 | `docs/architecture/` | System design, events, DI |
 | `docs/guides/developer/` | Developer workflows |
 | `docs/guides/user/` | End-user docs (English) |
 | `docs/wiki/` | User guides (Portuguese) |
 | `docs/archive/` | Historical docs and fixes |
+| `AGENTS.md` | **Context for Google Jules Agent** |
 
 ## Agent Protocol
 
