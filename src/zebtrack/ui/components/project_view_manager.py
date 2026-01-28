@@ -153,7 +153,9 @@ class ProjectViewManager:
 
         confirm = self.gui.dialog_manager.ask_ok_cancel(
             "Apagar Dados de Processamento",
-            f"Tem certeza que deseja apagar TODOS os dados de processamento (Arena, ROIs, Trajetória, Relatórios) para:\n\n{os.path.basename(video_path)}?\n\nO vídeo será mantido no projeto.",
+            f"Tem certeza que deseja apagar TODOS os dados de processamento "
+            f"(Arena, ROIs, Trajetória, Relatórios) para:\n\n{os.path.basename(video_path)}?\n\n"
+            f"O vídeo será mantido no projeto.",
         )
         if not confirm:
             return
@@ -1241,7 +1243,10 @@ class ProjectViewManager:
 
                 msg = "Não foi possível apagar a pasta.\nVerifique se algum arquivo está aberto."
                 if last_error and "OneDrive" in str(unified_dir):
-                    msg += "\n\nO OneDrive pode estar bloqueando arquivos. Tente novamente em instantes."
+                    msg += (
+                        "\n\nO OneDrive pode estar bloqueando arquivos. "
+                        "Tente novamente em instantes."
+                    )
 
                 self.gui.show_error("Erro ao Apagar", f"{msg}\n\nErro: {last_error}")
         else:
@@ -1421,241 +1426,285 @@ class ProjectViewManager:
             parent: Parent node ID
             metadata_store: Metadata storage dictionary
         """
-        from zebtrack.ui.gui import STATUS_SYMBOLS
-
         # Iterate over groups
         for group_id, group_data in sorted(hierarchy.items()):
-            group_name = group_data.get("display", group_id)
-            group_node_id = f"group_{group_id}"
+            self._insert_group_node(tree, parent, group_id, group_data, metadata_store)
+
+    def _insert_group_node(
+        self, tree, parent: str, group_id: str | int, group_data: dict, metadata_store: dict
+    ) -> None:
+        """Insert a group node and its children into the tree."""
+        group_name = group_data.get("display", group_id)
+        group_node_id = f"group_{group_id}"
+
+        tree.insert(
+            parent,
+            "end",
+            iid=group_node_id,
+            text=f"🏷️ {group_name}",
+            values=("", "", "", "", "", ""),
+            open=True,
+        )
+
+        metadata_store[group_node_id] = {
+            "type": "group",
+            "group_id": group_id,
+        }
+
+        # Iterate over days - v2.3.1: Use str() key function to handle mixed int/str day IDs
+        days = group_data.get("days", {})
+        for day_id, videos in sorted(days.items(), key=lambda x: str(x[0])):
+            self._insert_day_node(tree, group_node_id, day_id, videos, group_id, metadata_store)
+
+    def _insert_day_node(
+        self,
+        tree,
+        parent: str,
+        day_id: str | int,
+        videos: list,
+        group_id: str | int,
+        metadata_store: dict,
+    ) -> None:
+        """Insert a day node and its videos into the tree."""
+        # Fix: day_data (now videos) is a list of video entries, not a dict with 'display'
+        # Derive day title from first video metadata if possible
+        day_label = f"Dia {day_id}"
+        if videos and isinstance(videos, list) and len(videos) > 0:
+            first_video = videos[0]
+            if isinstance(first_video, dict):
+                meta = first_video.get("metadata", {})
+                if meta and meta.get("day") is not None:
+                    # Use ValidationManager logic or similar consistent formatting if available
+                    # For now, simplistic fallback to match previous potential intent
+                    day_val = meta.get("day")
+                    day_label = f"{day_val:02d}" if isinstance(day_val, int) else str(day_val)
+                elif "day_label" in first_video:
+                    day_label = first_video["day_label"]
+
+        day_node_id = f"{parent}_day_{day_id}"
+
+        tree.insert(
+            parent,
+            "end",
+            iid=day_node_id,
+            text=f"📅 {day_label}",
+            values=("", "", "", "", "", ""),
+            open=True,
+        )
+
+        metadata_store[day_node_id] = {
+            "type": "day",
+            "group_id": group_id,
+            "day_id": day_id,
+        }
+
+        # Iterate over videos
+        for video in videos:
+            self._insert_video_node(tree, day_node_id, video, metadata_store)
+
+    def _insert_video_node(self, tree, parent: str, video: dict, metadata_store: dict) -> None:
+        """Insert a video node into the tree."""
+        from zebtrack.ui.gui import STATUS_SYMBOLS
+
+        video_path = video.get("path")
+        if not video_path:
+            return
+
+        video_name = os.path.basename(video_path)
+        # FIX: Use resolved 'subject' from entry, not from raw metadata
+        subject = video.get("subject", "")
+        subject_label = f"Sujeito {subject}" if subject else video_name
+
+        # Build individual column values
+        col_arena = STATUS_SYMBOLS["arena"] if video.get("has_arena") else ""
+        col_rois = STATUS_SYMBOLS["rois"] if video.get("has_rois") else ""
+        col_traj = STATUS_SYMBOLS["trajectory"] if video.get("has_trajectory") else ""
+        col_summary = STATUS_SYMBOLS["summary"] if video.get("has_summary") else ""
+
+        # Determine status label
+        status_label = "Processado" if video.get("has_trajectory") else "Pendente"
+        if not video.get("has_arena"):
+            status_label = "Sem Arena"
+
+        # For multi-subject entries, include the index to avoid duplicate tree IDs
+        multi_subject_index = video.get("multi_subject_index", 0)
+        is_multi_subject_entry = video.get("is_multi_subject_entry", False)
+        if is_multi_subject_entry:
+            video_node_id = f"{parent}_video_{video_path}_sub_{multi_subject_index}"
+        else:
+            video_node_id = f"{parent}_video_{video_path}"
+
+        tree.insert(
+            parent,
+            "end",
+            iid=video_node_id,
+            text=f"🐟 {subject_label}",
+            values=(
+                col_arena,
+                col_rois,
+                col_traj,
+                col_summary,
+                status_label,
+                video_path,
+            ),
+        )
+
+        metadata_store[video_node_id] = {
+            "type": "video",
+            "video_path": video_path,
+            "results_dir": video.get("results_dir"),
+        }
+
+        # Check for multi-aquarium mode
+        multi_outputs = video.get("multi_aquarium_outputs")
+        if not multi_outputs:
+            try:
+                pm = self.gui.controller.project_manager
+                canonical_entry = pm.find_video_entry(path=video_path) if pm else None
+                if canonical_entry and isinstance(canonical_entry, dict):
+                    multi_outputs = canonical_entry.get("multi_aquarium_outputs")
+            except Exception:
+                pass
+
+        if multi_outputs and isinstance(multi_outputs, dict) and len(multi_outputs) > 0:
+            self._insert_multi_aquarium_nodes(
+                tree,
+                video_node_id,
+                video,
+                multi_outputs,
+                metadata_store,
+                is_multi_subject_entry,
+                multi_subject_index,
+            )
+        else:
+            self._insert_single_aquarium_node(
+                tree, video_node_id, video, video_path, metadata_store
+            )
+
+    def _insert_multi_aquarium_nodes(
+        self,
+        tree,
+        parent: str,
+        video: dict,
+        multi_outputs: dict,
+        metadata_store: dict,
+        is_multi_subject_entry: bool,
+        multi_subject_index: int,
+    ) -> None:
+        """Insert nodes for multi-aquarium outputs."""
+        from zebtrack.ui.gui import STATUS_SYMBOLS
+
+        # Normalize keys
+        normalized_outputs: dict[int, dict] = {}
+        for raw_key, raw_output in multi_outputs.items():
+            aq_digits = "".join(ch for ch in str(raw_key) if ch.isdigit())
+            if not aq_digits:
+                continue
+            try:
+                aq_id_int = int(aq_digits)
+                normalized_outputs[aq_id_int] = dict(raw_output)
+            except Exception:
+                continue
+
+        video_path = video.get("path")
+        # If this is an expanded multi-subject row, only show the artifact node
+        # for the SPECIFIC aquarium this row represents (if matched)
+        # otherwise show all (for unexpanded videos)
+        for aq_id, aq_output in sorted(normalized_outputs.items()):
+            # Filter if we are in an expanded row
+            if is_multi_subject_entry:
+                # Match aquarium_id or use index as fallback
+                subject_entries = video.get("metadata", {}).get("subject_entries", [])
+                if multi_subject_index < len(subject_entries):
+                    entry = subject_entries[multi_subject_index]
+                    row_aq_id = entry.get("aquarium_id")
+                    # Fallback: if aquarium_id is missing but we have entries,
+                    # assume index 0 is aq 0, etc.
+                    if row_aq_id is None:
+                        row_aq_id = multi_subject_index
+
+                    # Secondary filter: check subject_id match if available
+                    aq_subject = aq_output.get("subject_id")
+                    row_subject = entry.get("subject")
+
+                    if row_aq_id is not None and aq_id != row_aq_id:
+                        # If IDs don't match, maybe subjects do?
+                        if not (aq_subject and row_subject and str(aq_subject) == str(row_subject)):
+                            continue
+
+            aq_results_dir = aq_output.get("results_dir")
+            aq_group = aq_output.get("group", "")
+            aq_subject = aq_output.get("subject_id", "")
+            aq_parquet_files = aq_output.get("parquet_files", {})
+
+            # Per-aquarium status indicators
+            aq_has_traj = bool(aq_parquet_files.get("trajectory"))
+            aq_has_summary = bool(
+                aq_parquet_files.get("summary") or aq_parquet_files.get("summary_excel")
+            )
+            aq_col_traj = STATUS_SYMBOLS["trajectory"] if aq_has_traj else ""
+            aq_col_summary = STATUS_SYMBOLS["summary"] if aq_has_summary else ""
+
+            aq_label = f"Aquário {aq_id}"
+            if aq_group:
+                aq_label += f" - {aq_group}"
+            if aq_subject:
+                aq_label += f" ({aq_subject})"
+
+            aq_node_id = f"{parent}_aquarium_{aq_id}"
 
             tree.insert(
                 parent,
                 "end",
-                iid=group_node_id,
-                text=f"🏷️ {group_name}",
-                values=("", "", "", "", "", ""),
-                open=True,
+                iid=aq_node_id,
+                text=f"🐠 {aq_label}",
+                values=(
+                    "",  # Arena
+                    "",  # ROIs
+                    aq_col_traj,
+                    aq_col_summary,
+                    "",  # Status
+                    aq_results_dir or "",
+                ),
             )
 
-            metadata_store[group_node_id] = {
-                "type": "group",
-                "group_id": group_id,
+            metadata_store[aq_node_id] = {
+                "type": "aquarium",
+                "video_path": video_path,
+                "aquarium_id": aq_id,
+                "results_dir": aq_results_dir,
+                "group": aq_group,
+                "subject_id": aq_subject,
             }
 
-            # Iterate over days - v2.3.1: Use str() key function to handle mixed int/str day IDs
-            days = group_data.get("days", {})
-            for day_id, videos in sorted(days.items(), key=lambda x: str(x[0])):
-                # Fix: day_data (now videos) is a list of video entries, not a dict with 'display'
-                # Derive day title from first video metadata if possible
-                day_label = f"Dia {day_id}"
-                if videos and isinstance(videos, list) and len(videos) > 0:
-                    first_video = videos[0]
-                    if isinstance(first_video, dict):
-                        meta = first_video.get("metadata", {})
-                        if meta and meta.get("day") is not None:
-                            # Use ValidationManager logic or similar consistent formatting if available
-                            # For now, simplistic fallback to match previous potential intent
-                            day_val = meta.get("day")
-                            day_label = (
-                                f"{day_val:02d}" if isinstance(day_val, int) else str(day_val)
-                            )
-                        elif "day_label" in first_video:
-                            day_label = first_video["day_label"]
-
-                day_node_id = f"{group_node_id}_day_{day_id}"
-
-                tree.insert(
-                    group_node_id,
-                    "end",
-                    iid=day_node_id,
-                    text=f"📅 {day_label}",
-                    values=("", "", "", "", "", ""),
-                    open=True,
+            if aq_results_dir and os.path.exists(aq_results_dir):
+                self.append_processing_reports_artifacts(
+                    tree, aq_node_id, aq_results_dir, metadata_store
                 )
 
-                metadata_store[day_node_id] = {
-                    "type": "day",
-                    "group_id": group_id,
-                    "day_id": day_id,
-                }
+    def _insert_single_aquarium_node(
+        self,
+        tree,
+        parent: str,
+        video: dict,
+        video_path: str,
+        metadata_store: dict,
+    ) -> None:
+        """Insert nodes for single-aquarium outputs."""
+        results_dir = video.get("results_dir")
+        if not results_dir:
+            pm = self.gui.controller.project_manager
+            results_dir = pm.resolve_results_directory(
+                experiment_id=video.get("experiment_id")
+                or video.get("metadata", {}).get("experiment_id"),
+                video_path=video_path,
+                metadata=video.get("metadata"),
+            )
+            if isinstance(results_dir, Path):
+                results_dir = str(results_dir)
 
-                # Iterate over videos
-                # 'videos' is already the list of video dictionaries for this day
-                for video in videos:
-                    video_path = video.get("path")
-                    if not video_path:
-                        continue
-
-                    video_name = os.path.basename(video_path)
-                    # FIX: Use resolved 'subject' from entry, not from raw metadata
-                    subject = video.get("subject", "")
-                    subject_label = f"Sujeito {subject}" if subject else video_name
-
-                    # Build individual column values
-                    col_arena = STATUS_SYMBOLS["arena"] if video.get("has_arena") else ""
-                    col_rois = STATUS_SYMBOLS["rois"] if video.get("has_rois") else ""
-                    col_traj = STATUS_SYMBOLS["trajectory"] if video.get("has_trajectory") else ""
-                    col_summary = STATUS_SYMBOLS["summary"] if video.get("has_summary") else ""
-
-                    # Determine status label
-                    status_label = "Processado" if video.get("has_trajectory") else "Pendente"
-                    if not video.get("has_arena"):
-                        status_label = "Sem Arena"
-
-                    # For multi-subject entries, include the index to avoid duplicate tree IDs
-                    multi_subject_index = video.get("multi_subject_index", 0)
-                    is_multi_subject_entry = video.get("is_multi_subject_entry", False)
-                    if is_multi_subject_entry:
-                        video_node_id = (
-                            f"{day_node_id}_video_{video_path}_sub_{multi_subject_index}"
-                        )
-                    else:
-                        video_node_id = f"{day_node_id}_video_{video_path}"
-
-                    tree.insert(
-                        day_node_id,
-                        "end",
-                        iid=video_node_id,
-                        text=f"🐟 {subject_label}",
-                        values=(
-                            col_arena,
-                            col_rois,
-                            col_traj,
-                            col_summary,
-                            status_label,
-                            video_path,
-                        ),
-                    )
-
-                    metadata_store[video_node_id] = {
-                        "type": "video",
-                        "video_path": video_path,
-                        "results_dir": video.get("results_dir"),
-                    }
-
-                    # Check for multi-aquarium mode
-                    multi_outputs = video.get("multi_aquarium_outputs")
-                    if not multi_outputs:
-                        try:
-                            pm = self.gui.controller.project_manager
-                            canonical_entry = pm.find_video_entry(path=video_path) if pm else None
-                            if canonical_entry and isinstance(canonical_entry, dict):
-                                multi_outputs = canonical_entry.get("multi_aquarium_outputs")
-                        except Exception:
-                            pass
-
-                    if multi_outputs and isinstance(multi_outputs, dict) and len(multi_outputs) > 0:
-                        # Normalize keys
-                        normalized_outputs: dict[int, dict] = {}
-                        for raw_key, raw_output in multi_outputs.items():
-                            aq_digits = "".join(ch for ch in str(raw_key) if ch.isdigit())
-                            if not aq_digits:
-                                continue
-                            try:
-                                aq_id_int = int(aq_digits)
-                                normalized_outputs[aq_id_int] = dict(raw_output)
-                            except Exception:
-                                continue
-
-                        # If this is an expanded multi-subject row, only show the artifact node
-                        # for the SPECIFIC aquarium this row represents (if matched)
-                        # otherwise show all (for unexpanded videos)
-                        for aq_id, aq_output in sorted(normalized_outputs.items()):
-                            # Filter if we are in an expanded row
-                            if is_multi_subject_entry:
-                                # Match aquarium_id or use index as fallback
-                                subject_entries = video.get("metadata", {}).get(
-                                    "subject_entries", []
-                                )
-                                if multi_subject_index < len(subject_entries):
-                                    entry = subject_entries[multi_subject_index]
-                                    row_aq_id = entry.get("aquarium_id")
-                                    # Fallback: if aquarium_id is missing but we have entries,
-                                    # assume index 0 is aq 0, etc.
-                                    if row_aq_id is None:
-                                        row_aq_id = multi_subject_index
-
-                                    # Secondary filter: check subject_id match if available
-                                    aq_subject = aq_output.get("subject_id")
-                                    row_subject = entry.get("subject")
-
-                                    if row_aq_id is not None and aq_id != row_aq_id:
-                                        # If IDs don't match, maybe subjects do?
-                                        if not (
-                                            aq_subject
-                                            and row_subject
-                                            and str(aq_subject) == str(row_subject)
-                                        ):
-                                            continue
-
-                            aq_results_dir = aq_output.get("results_dir")
-                            aq_group = aq_output.get("group", "")
-                            aq_subject = aq_output.get("subject_id", "")
-                            aq_parquet_files = aq_output.get("parquet_files", {})
-
-                            # Per-aquarium status indicators
-                            aq_has_traj = bool(aq_parquet_files.get("trajectory"))
-                            aq_has_summary = bool(
-                                aq_parquet_files.get("summary")
-                                or aq_parquet_files.get("summary_excel")
-                            )
-                            aq_col_traj = STATUS_SYMBOLS["trajectory"] if aq_has_traj else ""
-                            aq_col_summary = STATUS_SYMBOLS["summary"] if aq_has_summary else ""
-
-                            aq_label = f"Aquário {aq_id}"
-                            if aq_group:
-                                aq_label += f" - {aq_group}"
-                            if aq_subject:
-                                aq_label += f" ({aq_subject})"
-
-                            aq_node_id = f"{video_node_id}_aquarium_{aq_id}"
-
-                            tree.insert(
-                                video_node_id,
-                                "end",
-                                iid=aq_node_id,
-                                text=f"🐠 {aq_label}",
-                                values=(
-                                    "",  # Arena
-                                    "",  # ROIs
-                                    aq_col_traj,
-                                    aq_col_summary,
-                                    "",  # Status
-                                    aq_results_dir or "",
-                                ),
-                            )
-
-                            metadata_store[aq_node_id] = {
-                                "type": "aquarium",
-                                "video_path": video_path,
-                                "aquarium_id": aq_id,
-                                "results_dir": aq_results_dir,
-                                "group": aq_group,
-                                "subject_id": aq_subject,
-                            }
-
-                            if aq_results_dir and os.path.exists(aq_results_dir):
-                                self.append_processing_reports_artifacts(
-                                    tree, aq_node_id, aq_results_dir, metadata_store
-                                )
-                    else:
-                        # Single-aquarium mode
-                        results_dir = video.get("results_dir")
-                        if not results_dir:
-                            pm = self.gui.controller.project_manager
-                            results_dir = pm.resolve_results_directory(
-                                experiment_id=video.get("experiment_id")
-                                or video.get("metadata", {}).get("experiment_id"),
-                                video_path=video_path,
-                                metadata=video.get("metadata"),
-                            )
-                            if isinstance(results_dir, Path):
-                                results_dir = str(results_dir)
-
-                        if results_dir and os.path.exists(results_dir):
-                            self.append_processing_reports_artifacts(
-                                tree, video_node_id, results_dir, metadata_store
-                            )
+        if results_dir and os.path.exists(results_dir):
+            self.append_processing_reports_artifacts(tree, parent, results_dir, metadata_store)
 
     def append_report_artifacts(
         self, tree, parent_id: str, results_dir: str, metadata_store: dict

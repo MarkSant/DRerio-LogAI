@@ -112,7 +112,24 @@ class CanvasRenderer:
                 log.warning("gui.redraw_zones.no_zone_data")
                 return
 
-        # Clear only zone elements, preserve background
+        self._clear_zone_elements(canvas)
+        self._ensure_background(canvas)
+        self._draw_geotaxis_overlay()
+
+        # Handle Multi-Aquarium Data
+        from zebtrack.core.detector import MultiAquariumZoneData
+
+        if isinstance(zone_data, MultiAquariumZoneData):
+            self._draw_multi_aquarium_zones(canvas, zone_data)
+            return
+
+        # Draw main polygon (Single Aquarium)
+        self._draw_single_aquarium_zones(canvas, zone_data)
+
+        log.info("gui.redraw_zones.complete")
+
+    def _clear_zone_elements(self, canvas):
+        """Clear only zone elements, preserving background."""
         for tag in [
             "main_polygon",
             "roi_polygon",
@@ -125,35 +142,38 @@ class CanvasRenderer:
         ]:
             canvas.delete(tag)
 
-        # Background should already be present, if not, try to restore
+    def _ensure_background(self, canvas):
+        """Ensure background image is present."""
         if self.manager._canvas_bg_image:
             bg_items = canvas.find_withtag("background_image")
             if not bg_items:
-                if (
-                    hasattr(self.manager, "_canvas_bg_position")
-                    and self.manager._canvas_bg_position
-                ):
-                    x, y, anchor = self.manager._canvas_bg_position
-                else:
-                    canvas_width = canvas.winfo_width() or 800
-                    canvas_height = canvas.winfo_height() or 600
-                    x, y, anchor = canvas_width // 2, canvas_height // 2, "center"
-
-                canvas.create_image(
-                    x,
-                    y,
-                    anchor=anchor,
-                    image=self.manager._canvas_bg_image,
-                    tags="background_image",
-                )
-                canvas.tag_lower("background_image")
-                log.info("gui.redraw_zones.background_restored")
+                self._restore_background_image(canvas)
         else:
             log.warning("gui.redraw_zones.no_background_image")
             # Try to load a frame if there's no background image
             self.manager.load_video_frame_to_canvas()
 
-        # Draw Geotaxis Zones if enabled
+    def _restore_background_image(self, canvas):
+        """Restore background image to canvas."""
+        if hasattr(self.manager, "_canvas_bg_position") and self.manager._canvas_bg_position:
+            x, y, anchor = self.manager._canvas_bg_position
+        else:
+            canvas_width = canvas.winfo_width() or 800
+            canvas_height = canvas.winfo_height() or 600
+            x, y, anchor = canvas_width // 2, canvas_height // 2, "center"
+
+        canvas.create_image(
+            x,
+            y,
+            anchor=anchor,
+            image=self.manager._canvas_bg_image,
+            tags="background_image",
+        )
+        canvas.tag_lower("background_image")
+        log.info("gui.redraw_zones.background_restored")
+
+    def _draw_geotaxis_overlay(self):
+        """Draw Geotaxis Zones if enabled."""
         if getattr(self.manager, "show_geotaxis_zones", False):
             # Get config from manager or settings
             settings = getattr(self.manager.gui, "settings", None)
@@ -165,56 +185,50 @@ class CanvasRenderer:
 
             self.draw_geotaxis_zones(num_zones=num_zones, bottom_zones=bottom_zones)
 
-        # Handle Multi-Aquarium Data
+    def _draw_multi_aquarium_zones(self, canvas, zone_data):
+        """Draw zones for multi-aquarium setup."""
+        for aquarium in zone_data.aquariums:
+            if aquarium.polygon and len(aquarium.polygon) >= 3:
+                try:
+                    self._draw_aquarium_polygon(canvas, aquarium)
+                except Exception as e:
+                    log.error(
+                        "gui.multi_aquarium.draw_error", aquarium_id=aquarium.id, error=str(e)
+                    )
 
-        from zebtrack.core.detector import MultiAquariumZoneData
+    def _draw_aquarium_polygon(self, canvas, aquarium):
+        """Draw a single aquarium polygon."""
+        canvas_polygon = []
+        for point in aquarium.polygon:
+            canvas_point = self.manager._video_to_canvas(point[0], point[1])
+            canvas_polygon.extend([canvas_point[0], canvas_point[1]])
 
-        if isinstance(zone_data, MultiAquariumZoneData):
-            for aquarium in zone_data.aquariums:
-                if aquarium.polygon and len(aquarium.polygon) >= 3:
-                    try:
-                        canvas_polygon = []
-                        for point in aquarium.polygon:
-                            canvas_point = self.manager._video_to_canvas(point[0], point[1])
-                            canvas_polygon.extend([canvas_point[0], canvas_point[1]])
+        # Use different colors for different aquariums if desired
+        outline_color = "#008B8B" if aquarium.id == 0 else "#0066CC"
 
-                        # Use different colors for different aquariums if desired,
-                        # or stick to the standard Teal
-                        outline_color = "#008B8B" if aquarium.id == 0 else "#0066CC"
+        canvas.create_polygon(
+            canvas_polygon,
+            fill="",
+            outline=outline_color,
+            width=2,
+            tags=("main_polygon", f"aquarium_{aquarium.id}"),
+        )
 
-                        canvas.create_polygon(
-                            canvas_polygon,
-                            fill="",
-                            outline=outline_color,
-                            width=2,
-                            tags=("main_polygon", f"aquarium_{aquarium.id}"),
-                        )
+        # Add label for aquarium
+        center_x = sum(canvas_polygon[0::2]) / len(aquarium.polygon)
+        center_y = sum(canvas_polygon[1::2]) / len(aquarium.polygon)
 
-                        # Add label for aquarium
-                        center_x = sum(canvas_polygon[0::2]) / len(aquarium.polygon)
-                        center_y = sum(canvas_polygon[1::2]) / len(aquarium.polygon)
+        canvas.create_text(
+            center_x,
+            center_y,
+            text=f"Aquário {aquarium.id + 1}",
+            fill=outline_color,
+            font=("Segoe UI", 10, "bold"),
+            tags=("main_polygon", "aquarium_label"),
+        )
 
-                        canvas.create_text(
-                            center_x,
-                            center_y,
-                            text=f"Aquário {aquarium.id + 1}",
-                            fill=outline_color,
-                            font=("Segoe UI", 10, "bold"),
-                            tags=("main_polygon", "aquarium_label"),
-                        )
-
-                    except Exception as e:
-                        log.error(
-                            "gui.multi_aquarium.draw_error", aquarium_id=aquarium.id, error=str(e)
-                        )
-
-            # TODO: Handle ROIs for multi-aquarium (nested structure) if needed here
-            # For now, let's assume ROIs are handled per-aquarium or flattened elsewhere
-            # But strictly speaking, we should loop through aquarium.roi_polygons too.
-
-            return
-
-        # Draw main polygon (Single Aquarium)
+    def _draw_single_aquarium_zones(self, canvas, zone_data):
+        """Draw zones for single aquarium setup."""
         if zone_data.polygon and len(zone_data.polygon) >= 3:
             try:
                 canvas_polygon = []
@@ -233,6 +247,10 @@ class CanvasRenderer:
                 log.error("gui.main_polygon.draw_error", error=str(e))
 
         # Draw ROI polygons
+        self._draw_roi_polygons(canvas, zone_data)
+
+    def _draw_roi_polygons(self, canvas, zone_data):
+        """Draw ROI polygons and labels."""
         for i, polygon in enumerate(zone_data.roi_polygons):
             if len(polygon) < 3:
                 continue
@@ -242,57 +260,51 @@ class CanvasRenderer:
             name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i + 1}"
 
             try:
-                canvas_polygon = []
-                for point in polygon:
-                    canvas_point = self.manager._video_to_canvas(point[0], point[1])
-                    canvas_polygon.extend([canvas_point[0], canvas_point[1]])
-
-                canvas.create_polygon(
-                    canvas_polygon,
-                    fill="",
-                    outline=color_hex,
-                    width=2,
-                    tags=("roi_polygon", f"roi_{i}"),
-                )
-
-                # Add label
-                poly_array = np.array(
-                    [
-                        (canvas_polygon[i], canvas_polygon[i + 1])
-                        for i in range(0, len(canvas_polygon), 2)
-                    ]
-                )
-                center_x = int(poly_array[:, 0].mean())
-                center_y = int(poly_array[:, 1].mean())
-
-                canvas.create_oval(
-                    center_x - 25,
-                    center_y - 10,
-                    center_x + 25,
-                    center_y + 10,
-                    fill="white",
-                    outline=color_hex,
-                    width=1,
-                    tags=("roi_label_bg", f"roi_label_bg_{i}"),
-                )
-
-                canvas.create_text(
-                    center_x,
-                    center_y,
-                    text=name,
-                    fill=color_hex,
-                    font=("Arial", 9, "bold"),
-                    tags=("roi_label", f"roi_label_{i}"),
-                )
-
+                self._draw_single_roi(canvas, polygon, color_hex, name, i)
             except Exception as e:
                 log.error("gui.roi_draw_error", name=name, error=str(e), index=i)
 
-        # Note: We do NOT publish ZONES_UPDATED here because redraw_zones is usually
-        # the *result* of that event. Publishing it would cause an infinite loop.
-        # The component initiating the change (e.g. DialogManager) is responsible for publishing.
+    def _draw_single_roi(self, canvas, polygon, color_hex, name, index):
+        """Draw a single ROI polygon and its label."""
+        canvas_polygon = []
+        for point in polygon:
+            canvas_point = self.manager._video_to_canvas(point[0], point[1])
+            canvas_polygon.extend([canvas_point[0], canvas_point[1]])
 
-        log.info("gui.redraw_zones.complete")
+        canvas.create_polygon(
+            canvas_polygon,
+            fill="",
+            outline=color_hex,
+            width=2,
+            tags=("roi_polygon", f"roi_{index}"),
+        )
+
+        # Add label
+        poly_array = np.array(
+            [(canvas_polygon[i], canvas_polygon[i + 1]) for i in range(0, len(canvas_polygon), 2)]
+        )
+        center_x = int(poly_array[:, 0].mean())
+        center_y = int(poly_array[:, 1].mean())
+
+        canvas.create_oval(
+            center_x - 25,
+            center_y - 10,
+            center_x + 25,
+            center_y + 10,
+            fill="white",
+            outline=color_hex,
+            width=1,
+            tags=("roi_label_bg", f"roi_label_bg_{index}"),
+        )
+
+        canvas.create_text(
+            center_x,
+            center_y,
+            text=name,
+            fill=color_hex,
+            font=("Arial", 9, "bold"),
+            tags=("roi_label", f"roi_label_{index}"),
+        )
 
     def update_overlay(self, detections, is_single_subject=False):
         """Draw detection overlays on the canvas.

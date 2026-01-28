@@ -2050,7 +2050,9 @@ class Detector:
 
         for aq in self._aquariums:
             # Crop to aquarium region
-            cropped, (offset_x, offset_y, _crop_w, _crop_h) = self._crop_aquarium_region(frame, aq.id)
+            cropped, (offset_x, offset_y, _crop_w, _crop_h) = self._crop_aquarium_region(
+                frame, aq.id
+            )
 
             # Run detection on cropped region
             raw_detections = self.plugin.detect(cropped)

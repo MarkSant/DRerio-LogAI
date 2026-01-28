@@ -70,7 +70,8 @@ class PanelBuilder:
 
         Returns:
             Tuple containing (created_frame, cards_data_dict)
-            cards_data_dict maps keys (arena_missing, etc.) to dicts containing 'value' and 'detail' StringVars.
+            cards_data_dict maps keys (arena_missing, etc.) to dicts containing
+            'value' and 'detail' StringVars.
         """
         zone_summary_frame = ttk.LabelFrame(
             parent,

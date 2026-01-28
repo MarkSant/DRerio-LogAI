@@ -247,8 +247,8 @@ class StateSynchronizer:
                     pass
                 self.gui._overview_refresh_job = None
             self.gui.project_overview_frame = None
-            # Note: project_overview_tree is a read-only property derived from project_overview_widget
-            # Clear the widget reference instead
+            # Note: project_overview_tree is a read-only property derived from
+            # project_overview_widget. Clear the widget reference instead.
             if hasattr(self.gui, "project_overview_widget"):
                 self.gui.project_overview_widget = None
             # Safely reset overview status caches only if they still exist

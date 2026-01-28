@@ -370,7 +370,8 @@ class BlockDetailDialog(Toplevel):
             if not success:
                 messagebox.showerror(
                     "Erro",
-                    f"Falha ao iniciar sessão para Animal {subject}\nDia {self.day_num} - {self.group}",
+                    f"Falha ao iniciar sessão para Animal {subject}\n"
+                    f"Dia {self.day_num} - {self.group}",
                 )
         except Exception as e:
             log.error("block_detail.start_session.failed", error=str(e), exc_info=True)

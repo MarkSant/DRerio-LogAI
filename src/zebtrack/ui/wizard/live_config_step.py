@@ -893,14 +893,16 @@ class LiveConfigStep(WizardStep):
                 )
                 return (
                     False,
-                    f"Projeto com {requested_aquariums} aquários excede o limite de 2 para gravação simultânea.",
+                    f"Projeto com {requested_aquariums} aquários excede o "
+                    f"limite de 2 para gravação simultânea.",
                 )
 
             # Check if hardware supports requested aquarium count
             if not self._check_mode_compatibility(requested_aquariums):
                 return (
                     False,
-                    "Seleção de modo cancelada. Por favor, ajuste o número de aquários ou selecione um modo compatível.",
+                    "Seleção de modo cancelada. Por favor, ajuste o número "
+                    "de aquários ou selecione um modo compatível.",
                 )
 
             # Store selected mode in wizard_data for later use
@@ -970,40 +972,48 @@ class LiveConfigStep(WizardStep):
         Args:
             data: Previously collected live config data
         """
+        self._restore_camera(data)
+        self._restore_arduino(data)
+        self._restore_recording_settings(data)
+        self._restore_advanced_settings(data)
+        self._restore_batch_metadata(data)
+
+        # Update UI state
+        self._on_arduino_toggle()
+        self._on_timed_toggle()
+        self._on_countdown_toggle()
+
+    def _restore_camera(self, data: dict):
+        """Restore camera selection."""
         if "camera_index" in data:
-            # Find camera display name for this index
             camera_idx = data["camera_index"]
-            found_camera = None
             for display_name, idx in self.camera_index_map.items():
                 if idx == camera_idx:
-                    found_camera = display_name
+                    self.camera_selection_var.set(display_name)
                     break
 
-            if found_camera:
-                self.camera_selection_var.set(found_camera)
-            # If not found in map, it will be set when cameras are detected
-
+    def _restore_arduino(self, data: dict):
+        """Restore Arduino settings."""
         if "use_arduino" in data:
             self.use_arduino_var.set(data["use_arduino"])
-
-        if data.get("arduino_port"):
-            # If we already have detected ports, try to find matching display text
-            port_device = data["arduino_port"]
-            found_display = None
-            for display, device in self.arduino_port_map.items():
-                if device == port_device:
-                    found_display = display
-                    break
-
-            if found_display:
-                self.arduino_port_var.set(found_display)
-            else:
-                # Fallback: set the raw device (may not have description yet)
-                self.arduino_port_var.set(port_device)
 
         if "external_trigger_mode" in data:
             self.external_trigger_mode_var.set(data["external_trigger_mode"])
 
+        if not data.get("arduino_port"):
+            return
+
+        port_device = data["arduino_port"]
+        for display, device in self.arduino_port_map.items():
+            if device == port_device:
+                self.arduino_port_var.set(display)
+                return
+
+        # Fallback: set the raw device
+        self.arduino_port_var.set(port_device)
+
+    def _restore_recording_settings(self, data: dict):
+        """Restore recording configuration."""
         if "use_timed_recording" in data:
             self.use_timed_recording_var.set(data["use_timed_recording"])
 
@@ -1016,13 +1026,16 @@ class LiveConfigStep(WizardStep):
         if "countdown_duration_s" in data:
             self.countdown_duration_var.set(data["countdown_duration_s"])
 
+    def _restore_advanced_settings(self, data: dict):
+        """Restore advanced processing intervals."""
         if "analysis_interval_frames" in data:
             self.analysis_interval_var.set(data["analysis_interval_frames"])
 
         if "display_interval_frames" in data:
             self.display_interval_var.set(data["display_interval_frames"])
 
-        # v2.3.0: Batch metadata
+    def _restore_batch_metadata(self, data: dict):
+        """Restore experimental design metadata."""
         if "experimental_group" in data:
             self.experimental_group_var.set(data["experimental_group"] or "")
 
@@ -1034,8 +1047,3 @@ class LiveConfigStep(WizardStep):
 
         if "is_batch_last_session" in data:
             self.is_batch_last_session_var.set(data["is_batch_last_session"])
-
-        # Update UI state
-        self._on_arduino_toggle()
-        self._on_timed_toggle()
-        self._on_countdown_toggle()

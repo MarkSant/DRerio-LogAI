@@ -83,7 +83,8 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
         print(f"[DIAGNOSTIC] has_multi_aquarium_config={bool(multi_aquarium_config)}")
         if multi_aquarium_config:
             print(
-                f"[DIAGNOSTIC] regex_pattern={getattr(multi_aquarium_config, 'regex_pattern', 'NONE')}"
+                f"[DIAGNOSTIC] regex_pattern="
+                f"{getattr(multi_aquarium_config, 'regex_pattern', 'NONE')}"
             )
 
         log.debug(

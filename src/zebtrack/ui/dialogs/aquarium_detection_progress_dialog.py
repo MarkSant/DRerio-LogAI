@@ -61,7 +61,7 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
         self.current_frame = 0
         self.valid_detections = 0
         self.invalid_detections = 0
-        self._thumbnail_photo = None  # Keep reference to prevent GC
+        self._thumbnail_photo: ImageTk.PhotoImage | None = None  # Keep reference to prevent GC
 
         self.title("Detectando Aquário")
         self.geometry("600x500")
@@ -102,7 +102,10 @@ class AquariumDetectionProgressDialog(tk.Toplevel):
         # Description
         desc_label = ttk.Label(
             main_frame,
-            text=f"Sessão: {self.experiment_id}\nAnalisando frames para identificar região do aquário...",
+            text=(
+                f"Sessão: {self.experiment_id}\n"
+                "Analisando frames para identificar região do aquário..."
+            ),
             justify=tk.CENTER,
         )
         desc_label.pack(pady=(0, 15))

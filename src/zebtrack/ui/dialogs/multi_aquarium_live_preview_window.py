@@ -258,7 +258,10 @@ class MultiAquariumLivePreviewWindow:
             remaining_sec = int(remaining % 60)
 
             self.timer_label.config(
-                text=f"Tempo: {elapsed_min:02d}:{elapsed_sec:02d} / {remaining_min:02d}:{remaining_sec:02d}"
+                text=(
+                    f"Tempo: {elapsed_min:02d}:{elapsed_sec:02d} / "
+                    f"{remaining_min:02d}:{remaining_sec:02d}"
+                )
             )
 
             # Auto-stop if time expired

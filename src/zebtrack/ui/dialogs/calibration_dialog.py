@@ -699,7 +699,8 @@ class CalibrationDialog(simpledialog.Dialog):
             "Match Threshold\n\n"
             "Tolerância para associar uma nova detecção a um rastro existente.\n"
             "• Valores altos (ex: 0.8+) são mais permissivos (bom para movimentos rápidos).\n"
-            "• Valores baixos (<0.5) são restritivos (evita troca de identidade, mas pode perder o rastro).\n"
+            "• Valores baixos (<0.5) são restritivos "
+            "(evita troca de identidade, mas pode perder o rastro).\n"
             "• Padrão recomendado: 0.95",
         ).grid(row=t_row, column=4, padx=2)
 
@@ -1083,7 +1084,7 @@ class CalibrationDialog(simpledialog.Dialog):
         def refresh_callback():
             self._populate_weights_dropdown()
 
-        ManageWeightsDialog(self.parent, self.controller, refresh_callback)
+        ManageWeightsDialog(self.master, self.controller, refresh_callback)
 
     def _select_diagnostic_video(self):
         path = filedialog.askopenfilename(

@@ -937,116 +937,126 @@ class ApplicationGUI:
 
         # Load persisted user preferences if present
         if pm.get_project_type() == "pre-recorded":
-            if pm.project_data.get("last_processing_interval") is not None:
-                try:
-                    self.processing_interval_var.set(
-                        str(int(pm.project_data["last_processing_interval"]))
-                    )
-                except (ValueError, TypeError):
-                    pass
-            if pm.project_data.get("last_show_preview") is not None:
-                try:
-                    self.show_preview_var.set(
-                        bool(pm.project_data["last_show_preview"])  # type: ignore[arg-type]
-                    )
-                except Exception:
-                    pass
-
-            # Restore analysis and display intervals
-            if pm.project_data.get("analysis_interval_frames") is not None:
-                try:
-                    self.analysis_interval_var.set(
-                        str(int(pm.project_data["analysis_interval_frames"]))
-                    )
-                except (ValueError, TypeError):
-                    pass
-            if pm.project_data.get("display_interval_frames") is not None:
-                try:
-                    self.display_interval_var.set(
-                        str(int(pm.project_data["display_interval_frames"]))
-                    )
-                except (ValueError, TypeError):
-                    pass
-
-            # Synchronize num_aquariums from project calibration to settings
-            # This ensures multi-aquarium detection mode works correctly
-            calibration = pm.project_data.get("calibration", {})
-            if isinstance(calibration, dict):
-                num_aquariums = calibration.get("num_aquariums", 1)
-                if self.settings and hasattr(self.settings, "analysis_config"):
-                    try:
-                        self.settings.analysis_config.num_aquariums = int(num_aquariums)
-                        log.info(
-                            "project.load.num_aquariums_synced",
-                            num_aquariums=num_aquariums,
-                        )
-                    except (ValueError, TypeError) as e:
-                        log.warning(
-                            "project.load.num_aquariums_sync_failed",
-                            error=str(e),
-                        )
+            self._restore_persisted_project_settings(pm)
 
         self._create_main_control_frame()
 
         project_type = pm.get_project_type()
         if project_type == "live":
-            # Initial rendering of the progress grid
-            self.root.after(100, self._render_progress_grid)
-
-            # Only attempt to connect if a port is configured from the dialog
-            if self.controller.settings and self.controller.settings.arduino.port:
-                if not self.controller.hardware_vm.arduino.connect():
-                    self.show_warning(
-                        "Aviso do Arduino",
-                        f"Não foi possível conectar ao Arduino na porta "
-                        f"{self.controller.settings.arduino.port}. Executando em modo offline.",
-                    )
-            try:
-                # ✅ Use camera_index from project_data (saved by wizard)
-                pm = self.controller.project_manager
-                camera_index = pm.project_data.get("camera_index", 0)
-
-                log.info(
-                    "gui.project_loading.live_camera_setup",
-                    camera_index=camera_index,
-                    project_name=pm.get_project_name(),
-                )
-
-                # Create temporary settings with correct camera index
-                temp_settings = self.controller.settings.model_copy(deep=True)
-                temp_settings.camera.index = camera_index
-
-                # Initialize camera with modified settings
-                self.controller.hardware_vm.camera = Camera(settings_obj=temp_settings)
-
-                self.controller.hardware_vm.active_frame_source = self.controller.hardware_vm.camera
-                self.controller.hardware_vm.detector.update_scaling(
-                    self.controller.hardware_vm.camera.actual_width,
-                    self.controller.hardware_vm.camera.actual_height,
-                )
-            except OSError as e:
-                self.show_error("Erro na Câmera", str(e))
-                self.widget_factory.create_welcome_frame()
-                return
+            self._initialize_live_components(pm)
         elif project_type == "pre-recorded":
-            self.update_reports_tree()
-
-            if self.event_bus_v2:
-                self.event_bus_v2.publish(
-                    Event(
-                        type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                        data={"filter_text": None},
-                        source="GUI._load_project_view",
-                    )
-                )
-
-            ready_message = f"Projeto: {pm.get_project_name()} - Pronto."
-            self.set_status(ready_message)
-            self._request_overview_refresh(reason=ready_message, append_summary=True)
+            self._initialize_prerecorded_components(pm)
 
         if project_type == "live":
             # Auto-calibration for Live projects when no zones are defined
             self.root.after(1000, self._check_live_project_calibration)
+
+    def _restore_persisted_project_settings(self, pm):
+        """Restore settings from project data."""
+        if pm.project_data.get("last_processing_interval") is not None:
+            try:
+                self.processing_interval_var.set(
+                    str(int(pm.project_data["last_processing_interval"]))
+                )
+            except (ValueError, TypeError):
+                pass
+        if pm.project_data.get("last_show_preview") is not None:
+            try:
+                self.show_preview_var.set(
+                    bool(pm.project_data["last_show_preview"])  # type: ignore[arg-type]
+                )
+            except Exception:
+                pass
+
+        # Restore analysis and display intervals
+        if pm.project_data.get("analysis_interval_frames") is not None:
+            try:
+                self.analysis_interval_var.set(
+                    str(int(pm.project_data["analysis_interval_frames"]))
+                )
+            except (ValueError, TypeError):
+                pass
+        if pm.project_data.get("display_interval_frames") is not None:
+            try:
+                self.display_interval_var.set(str(int(pm.project_data["display_interval_frames"])))
+            except (ValueError, TypeError):
+                pass
+
+        # Synchronize num_aquariums from project calibration to settings
+        # This ensures multi-aquarium detection mode works correctly
+        calibration = pm.project_data.get("calibration", {})
+        if isinstance(calibration, dict):
+            num_aquariums = calibration.get("num_aquariums", 1)
+            if self.settings and hasattr(self.settings, "analysis_config"):
+                try:
+                    self.settings.analysis_config.num_aquariums = int(num_aquariums)
+                    log.info(
+                        "project.load.num_aquariums_synced",
+                        num_aquariums=num_aquariums,
+                    )
+                except (ValueError, TypeError) as e:
+                    log.warning(
+                        "project.load.num_aquariums_sync_failed",
+                        error=str(e),
+                    )
+
+    def _initialize_live_components(self, pm):
+        """Initialize components for Live project type."""
+        # Initial rendering of the progress grid
+        self.root.after(100, self._render_progress_grid)
+
+        # Only attempt to connect if a port is configured from the dialog
+        if self.controller.settings and self.controller.settings.arduino.port:
+            if not self.controller.hardware_vm.arduino.connect():
+                self.show_warning(
+                    "Aviso do Arduino",
+                    f"Não foi possível conectar ao Arduino na porta "
+                    f"{self.controller.settings.arduino.port}. Executando em modo offline.",
+                )
+        try:
+            # ✅ Use camera_index from project_data (saved by wizard)
+            pm = self.controller.project_manager
+            camera_index = pm.project_data.get("camera_index", 0)
+
+            log.info(
+                "gui.project_loading.live_camera_setup",
+                camera_index=camera_index,
+                project_name=pm.get_project_name(),
+            )
+
+            # Create temporary settings with correct camera index
+            temp_settings = self.controller.settings.model_copy(deep=True)
+            temp_settings.camera.index = camera_index
+
+            # Initialize camera with modified settings
+            self.controller.hardware_vm.camera = Camera(settings_obj=temp_settings)
+
+            self.controller.hardware_vm.active_frame_source = self.controller.hardware_vm.camera
+            self.controller.hardware_vm.detector.update_scaling(
+                self.controller.hardware_vm.camera.actual_width,
+                self.controller.hardware_vm.camera.actual_height,
+            )
+        except OSError as e:
+            self.show_error("Erro na Câmera", str(e))
+            self.widget_factory.create_welcome_frame()
+            return
+
+    def _initialize_prerecorded_components(self, pm):
+        """Initialize components for Pre-recorded project type."""
+        self.update_reports_tree()
+
+        if self.event_bus_v2:
+            self.event_bus_v2.publish(
+                Event(
+                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
+                    data={"filter_text": None},
+                    source="GUI._load_project_view",
+                )
+            )
+
+        ready_message = f"Projeto: {pm.get_project_name()} - Pronto."
+        self.set_status(ready_message)
+        self._request_overview_refresh(reason=ready_message, append_summary=True)
 
     def _check_live_project_calibration(self):
         """Check if Live project needs calibration. Delegates to ValidationManager."""
@@ -1341,7 +1351,8 @@ class ApplicationGUI:
         self.pending_single_video_path = video_path
         self.pending_single_video_config = config
 
-        # MELHORIA: Save num_aquariums to global settings so ProcessingCoordinator can see it during auto-detection
+        # MELHORIA: Save num_aquariums to global settings so
+        # ProcessingCoordinator can see it during auto-detection
         if config and "num_aquariums" in config and self.settings:
             try:
                 self.settings.analysis_config.num_aquariums = int(config["num_aquariums"])

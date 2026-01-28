@@ -208,8 +208,10 @@ class ConfigEditorWidget(BaseWidget):
         create_help_label(
             video_frame,
             "Offset Inicial\n\n"
-            "Número de frames iniciais a serem ignorados antes de começar o rastreamento.\n"
-            "• Use para descartar o período de estabilização da água ou a mão do experimentador saindo de cena.\n"
+            "Número de frames iniciais a serem ignorados antes de "
+            "começar o rastreamento.\n"
+            "• Use para descartar o período de estabilização da água ou a mão "
+            "do experimentador saindo de cena.\n"
             "• Ex: Em um vídeo de 30fps, um offset de 90 frames ignora os primeiros 3 segundos.",
         ).grid(row=3, column=1, padx=2)
         ttk.Entry(video_frame, textvariable=self.processing_offset_var, width=8).grid(
@@ -239,7 +241,8 @@ class ConfigEditorWidget(BaseWidget):
             smoothing_frame,
             "Janela de Suavização (Window Length)\n\n"
             "Número de frames usados para suavizar a trajetória. DEVE SER ÍMPAR.\n"
-            "• Aumentar (ex: 11, 15): Remove mais ruído/tremido, mas pode 'arredondar' demais as curvas.\n"
+            "• Aumentar (ex: 11, 15): Remove mais ruído/tremido, mas pode "
+            "'arredondar' demais as curvas.\n"
             "• Diminuir (ex: 3, 5): Mantém mais detalhes dos movimentos bruscos.\n"
             "• Padrão: 7",
         ).grid(row=0, column=1, padx=2)
@@ -300,7 +303,8 @@ class ConfigEditorWidget(BaseWidget):
         create_help_label(
             recorder_frame,
             "Intervalo de Flush (Tempo)\n\n"
-            "A cada X segundos, o sistema força a gravação dos dados da memória para o arquivo Parquet.\n"
+            "A cada X segundos, o sistema força a gravação dos dados da "
+            "memória para o arquivo Parquet.\n"
             "• Protege contra perda de dados se o app cair.\n"
             "• Valores baixos (ex: 1.0) aumentam o uso de disco.\n"
             "• Padrão: 5.0s",
@@ -399,7 +403,10 @@ class ConfigEditorWidget(BaseWidget):
         # Hint
         ttk.Label(
             roi_frame,
-            text="💡 Dica: Estas são configurações GLOBAIS. Você pode alterá-las por projeto na aba de Zonas.",
+            text=(
+                "💡 Dica: Estas são configurações GLOBAIS. Você pode alterá-las "
+                "por projeto na aba de Zonas."
+            ),
             font=("TkDefaultFont", 8),
             foreground="#555555",
         ).grid(row=3, column=0, columnspan=4, sticky="w", pady=(6, 0))
@@ -483,34 +490,45 @@ class ConfigEditorWidget(BaseWidget):
         Args:
             values: Nested dictionary matching Settings structure
         """
-        # Video processing
-        if "video_processing" in values:
-            vp = values["video_processing"]
-            if "fps" in vp:
-                self.fps_var.set(str(vp["fps"]))
-            if "processing_interval" in vp:
-                self.processing_interval_var.set(str(vp["processing_interval"]))
-            if "display_interval" in vp:
-                self.display_interval_var.set(str(vp["display_interval"]))
-            if "processing_offset" in vp:
-                self.processing_offset_var.set(str(vp["processing_offset"]))
+        self._set_video_processing(values.get("video_processing", {}))
+        self._set_trajectory_smoothing(values.get("trajectory_smoothing", {}))
+        self._set_recorder(values.get("recorder", {}))
+        self._set_roi_settings(values)
+        self._set_behavioral_analysis(values.get("behavioral_analysis", {}))
 
-        # Trajectory smoothing
-        if "trajectory_smoothing" in values:
-            ts = values["trajectory_smoothing"]
-            if "window_length" in ts:
-                self.window_length_var.set(str(ts["window_length"]))
-            if "polyorder" in ts:
-                self.polyorder_var.set(str(ts["polyorder"]))
+    def _set_video_processing(self, vp: dict[str, Any]) -> None:
+        """Populate video processing settings."""
+        if not vp:
+            return
+        if "fps" in vp:
+            self.fps_var.set(str(vp["fps"]))
+        if "processing_interval" in vp:
+            self.processing_interval_var.set(str(vp["processing_interval"]))
+        if "display_interval" in vp:
+            self.display_interval_var.set(str(vp["display_interval"]))
+        if "processing_offset" in vp:
+            self.processing_offset_var.set(str(vp["processing_offset"]))
 
-        # Recorder
-        if "recorder" in values:
-            rec = values["recorder"]
-            if "flush_interval_seconds" in rec:
-                self.flush_interval_var.set(str(rec["flush_interval_seconds"]))
-            if "flush_row_threshold" in rec:
-                self.flush_rows_var.set(str(rec["flush_row_threshold"]))
+    def _set_trajectory_smoothing(self, ts: dict[str, Any]) -> None:
+        """Populate trajectory smoothing settings."""
+        if not ts:
+            return
+        if "window_length" in ts:
+            self.window_length_var.set(str(ts["window_length"]))
+        if "polyorder" in ts:
+            self.polyorder_var.set(str(ts["polyorder"]))
 
+    def _set_recorder(self, rec: dict[str, Any]) -> None:
+        """Populate recorder settings."""
+        if not rec:
+            return
+        if "flush_interval_seconds" in rec:
+            self.flush_interval_var.set(str(rec["flush_interval_seconds"]))
+        if "flush_row_threshold" in rec:
+            self.flush_rows_var.set(str(rec["flush_row_threshold"]))
+
+    def _set_roi_settings(self, values: dict[str, Any]) -> None:
+        """Populate ROI settings."""
         if "roi_min_bbox_overlap_ratio" in values:
             self.roi_overlap_ratio_var.set(str(values["roi_min_bbox_overlap_ratio"]))
 
@@ -520,29 +538,31 @@ class ConfigEditorWidget(BaseWidget):
         if "roi_buffer_radius_value" in values:
             self.roi_buffer_radius_var.set(str(values["roi_buffer_radius_value"]))
 
-        # Behavioral analysis
-        if "behavioral_analysis" in values and self.behavioral_config_widget:
-            ba = values["behavioral_analysis"]
-            widget_values = {}
-            # Map settings keys -> widget keys
-            if "default_thigmotaxis_distance_cm" in ba:
-                widget_values["thigmotaxis_distance_cm"] = ba["default_thigmotaxis_distance_cm"]
-            if "default_geotaxis_distance_cm" in ba:
-                widget_values["geotaxis_distance_cm"] = ba["default_geotaxis_distance_cm"]
-            if "default_geotaxis_num_zones" in ba:
-                widget_values["geotaxis_num_zones"] = ba["default_geotaxis_num_zones"]
-            if "default_geotaxis_bottom_zones" in ba:
-                widget_values["geotaxis_bottom_zones"] = ba["default_geotaxis_bottom_zones"]
-            if "aquarium_perspective" in ba:
-                widget_values["aquarium_perspective"] = ba["aquarium_perspective"]
-            if "geotaxis_mode" in ba:
-                widget_values["geotaxis_mode"] = ba["geotaxis_mode"]
+    def _set_behavioral_analysis(self, ba: dict[str, Any]) -> None:
+        """Populate behavioral analysis settings."""
+        if not ba or not self.behavioral_config_widget:
+            return
 
-            # We enable geotaxis in the editor so user can edit the values,
-            # even if it's not "enabled" by default in a specific analysis.
-            widget_values["geotaxis_enabled"] = True
+        widget_values = {}
+        # Map settings keys -> widget keys
+        if "default_thigmotaxis_distance_cm" in ba:
+            widget_values["thigmotaxis_distance_cm"] = ba["default_thigmotaxis_distance_cm"]
+        if "default_geotaxis_distance_cm" in ba:
+            widget_values["geotaxis_distance_cm"] = ba["default_geotaxis_distance_cm"]
+        if "default_geotaxis_num_zones" in ba:
+            widget_values["geotaxis_num_zones"] = ba["default_geotaxis_num_zones"]
+        if "default_geotaxis_bottom_zones" in ba:
+            widget_values["geotaxis_bottom_zones"] = ba["default_geotaxis_bottom_zones"]
+        if "aquarium_perspective" in ba:
+            widget_values["aquarium_perspective"] = ba["aquarium_perspective"]
+        if "geotaxis_mode" in ba:
+            widget_values["geotaxis_mode"] = ba["geotaxis_mode"]
 
-            self.behavioral_config_widget.set_values(widget_values)
+        # We enable geotaxis in the editor so user can edit the values,
+        # even if it's not "enabled" by default in a specific analysis.
+        widget_values["geotaxis_enabled"] = True
+
+        self.behavioral_config_widget.set_values(widget_values)
 
     def _on_save_clicked(self) -> None:
         """Handle save button click."""

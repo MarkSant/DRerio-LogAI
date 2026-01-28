@@ -6,6 +6,7 @@ requested aquarium count exceeds hardware capabilities.
 Version: 2.2.0
 """
 
+import typing
 from collections.abc import Callable
 from tkinter import (
     Button,
@@ -54,7 +55,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
     """
 
     # Mode descriptions (Portuguese)
-    MODE_DESCRIPTIONS = {
+    MODE_DESCRIPTIONS: typing.ClassVar = {
         LiveCameraMode.MULTI_AQUARIUM_REALTIME: (
             "Processamento Paralelo em Tempo Real\n"
             "• Detecta 2-6 aquários simultaneamente\n"
@@ -197,14 +198,21 @@ class LiveCameraModeSelectionDialog(Toplevel):
         capability_label.pack(pady=2)
 
         # Hardware details
+        gpu_status = (
+            f"✓ {self.hardware_report.gpu_name}"
+            if self.hardware_report.has_gpu
+            else "✗ Não detectada"
+        )
+        realtime_status = "✓ Sim" if self.hardware_report.can_process_realtime else "✗ Não"
+
         details = (
             f"CPU: {self.hardware_report.cpu_cores} cores "
             f"({self.hardware_report.cpu_usage_percent:.0f}% uso)\n"
             f"RAM: {self.hardware_report.available_memory_gb:.1f} GB disponível "
             f"de {self.hardware_report.total_memory_gb:.1f} GB\n"
-            f"GPU: {'✓ ' + self.hardware_report.gpu_name if self.hardware_report.has_gpu else '✗ Não detectada'}\n"
+            f"GPU: {gpu_status}\n"
             f"Aquários Suportados: {self.hardware_report.max_aquariums_recommended}\n"
-            f"Tempo Real: {'✓ Sim' if self.hardware_report.can_process_realtime else '✗ Não'}"
+            f"Tempo Real: {realtime_status}"
         )
         details_label = Label(
             frame,
@@ -231,9 +239,10 @@ class LiveCameraModeSelectionDialog(Toplevel):
         rec_frame = Frame(frame, relief="solid", borderwidth=2, bg="#E8F5E9")
         rec_frame.pack(fill="x", pady=(0, 10))
 
+        rec_name = self._mode_display_name(self.recommendation.recommended_mode)
         Radiobutton(
             rec_frame,
-            text=f"✨ {self._mode_display_name(self.recommendation.recommended_mode)} (Recomendado)",
+            text=f"✨ {rec_name} (Recomendado)",
             variable=self.mode_var,
             value=self.recommendation.recommended_mode.name,
             font=tkfont.Font(weight="bold"),

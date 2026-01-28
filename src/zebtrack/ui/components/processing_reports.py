@@ -325,30 +325,34 @@ class ProcessingReportsWidget(BaseWidget):
 
     def _expand_all_items(self) -> None:
         """Recursively expand all items in the tree."""
-        if not self.tree:
+        tree = self.tree
+        if not tree:
             return
 
         def expand_recursive(item_id: str) -> None:
-            self.tree.item(item_id, open=True)
-            for child in self.tree.get_children(item_id):
+            # Type ignore needed because passing 'open' kwarg to item() might trigger stubs issues
+            # or simply because tree is known to be Treeview here.
+            tree.item(item_id, open=True)  # type: ignore[union-attr]
+            for child in tree.get_children(item_id):  # type: ignore[union-attr]
                 expand_recursive(child)
 
         # Expand all root items and their children
-        for item in self.tree.get_children():
+        for item in tree.get_children():
             expand_recursive(item)
 
     def _collapse_all_items(self) -> None:
         """Recursively collapse all items in the tree."""
-        if not self.tree:
+        tree = self.tree
+        if not tree:
             return
 
         def collapse_recursive(item_id: str) -> None:
-            self.tree.item(item_id, open=False)
-            for child in self.tree.get_children(item_id):
+            tree.item(item_id, open=False)  # type: ignore[union-attr]
+            for child in tree.get_children(item_id):  # type: ignore[union-attr]
                 collapse_recursive(child)
 
         # Collapse all root items and their children
-        for item in self.tree.get_children():
+        for item in tree.get_children():
             collapse_recursive(item)
 
     def _on_selection_changed(self, event) -> None:
@@ -447,7 +451,9 @@ class ProcessingReportsWidget(BaseWidget):
 
         confirm = messagebox.askyesno(
             "Confirmar Exclusão",
-            "Tem certeza que deseja apagar TODOS os relatórios unificados (Parquet, Excel, Word)?\n\nEsta ação não pode ser desfeita.",
+            "Tem certeza que deseja apagar TODOS os relatórios unificados "
+            "(Parquet, Excel, Word)?\n\n"
+            "Esta ação não pode ser desfeita.",
             icon="warning",
         )
 
@@ -497,9 +503,10 @@ class ProcessingReportsWidget(BaseWidget):
             if os.name == "nt":  # Windows
                 os.startfile(latest_file)
             elif os.name == "posix":  # macOS/Linux
+                import platform
                 import subprocess
 
-                if os.uname().sysname == "Darwin":  # macOS
+                if platform.system() == "Darwin":  # macOS
                     subprocess.call(["open", latest_file])
                 else:  # Linux
                     subprocess.call(["xdg-open", latest_file])

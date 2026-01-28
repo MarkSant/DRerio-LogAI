@@ -408,23 +408,11 @@ class DetectionStep(WizardStep):
         """
         Pattern: User-defined custom regex patterns.
 
-        Supports multi-subject files like "G1_D1_S1--G1_D1_S2.mp4" by using
-        finditer to extract ALL matches per file.
-
-        Args:
-            paths: List of video file paths
-            patterns: Dict with keys: group_pattern, day_pattern, subject_pattern
-
-        Returns:
-            dict | None: Detected design with subject_mappings, or None if patterns don't match
+        Supports multi-subject files.
         """
         from zebtrack.ui.wizard.models import MultiAquariumData
 
-        group_pattern = patterns.get("group_pattern")
-        day_pattern = patterns.get("day_pattern")
-        subject_pattern = patterns.get("subject_pattern")
-
-        if not group_pattern:
+        if not patterns.get("group_pattern"):
             log.warning("wizard.detection.custom_regex.no_group_pattern")
             return None
 
@@ -432,131 +420,149 @@ class DetectionStep(WizardStep):
         days_found = set()
         subjects_per_group = {}
         match_count = 0
-
-        # NEW: Build combined pattern for multi-subject extraction
-        combined_pattern = MultiAquariumData.build_combined_regex_pattern(
-            group_pattern=group_pattern,
-            day_pattern=day_pattern,
-            subject_pattern=subject_pattern,
-        )
-
-        # NEW: Map file paths to their extracted subject entries
         subject_mappings: dict[str, list[dict]] = {}
 
-        for path in paths:
-            path_str = str(path)
-            file_subjects: list[dict] = []
-
-            # Try combined pattern first (for multi-subject files)
-            if combined_pattern:
-                try:
-                    compiled = re.compile(combined_pattern)
-                    matches = list(compiled.finditer(path_str))
-
-                    if len(matches) >= 1:
-                        for m in matches:
-                            groups_dict = m.groupdict()
-                            group_val = groups_dict.get("group", "")
-                            day_val = groups_dict.get("day", "")
-                            subject_val = groups_dict.get("subject", "")
-
-                            # Normalize values
-                            if group_val and group_val.isdigit():
-                                group_val = f"G{group_val.zfill(2)}"
-                            if day_val and day_val.isdigit():
-                                day_val = f"Day{day_val.zfill(2)}"
-                            if subject_val and subject_val.isdigit():
-                                subject_val = f"S{subject_val.zfill(2)}"
-
-                            if group_val:
-                                groups_found.add(group_val)
-                                if group_val not in subjects_per_group:
-                                    subjects_per_group[group_val] = set()
-                                if subject_val:
-                                    subjects_per_group[group_val].add(subject_val)
-
-                            if day_val:
-                                days_found.add(day_val)
-
-                            file_subjects.append(
-                                {
-                                    "group": group_val,
-                                    "day": day_val,
-                                    "subject": subject_val,
-                                }
-                            )
-
-                        match_count += 1
-
-                except re.error as e:
-                    log.error("wizard.detection.custom_regex.combined_error", error=str(e))
-
-            # Fallback: Use individual patterns if no combined matches
-            if not file_subjects:
-                group = None
-                if group_pattern:
-                    try:
-                        match = re.search(group_pattern, path_str)
-                        if match:
-                            group = match.group(1) if match.groups() else match.group(0)
-                            groups_found.add(group)
-                            match_count += 1
-                            if group not in subjects_per_group:
-                                subjects_per_group[group] = set()
-                    except re.error as e:
-                        log.error("wizard.detection.custom_regex.group_error", error=str(e))
-                        return None
-
-                day = None
-                if day_pattern:
-                    try:
-                        match = re.search(day_pattern, path_str)
-                        if match:
-                            day = match.group(1) if match.groups() else match.group(0)
-                            if day.isdigit():
-                                day = f"Day{day.zfill(2)}"
-                            days_found.add(day)
-                    except re.error as e:
-                        log.error("wizard.detection.custom_regex.day_error", error=str(e))
-
-                subject = None
-                if subject_pattern and group:
-                    try:
-                        match = re.search(subject_pattern, path_str)
-                        if match:
-                            subject = match.group(1) if match.groups() else match.group(0)
-                            if subject.isdigit():
-                                subject = f"S{subject.zfill(2)}"
-                            subjects_per_group[group].add(subject)
-                    except re.error as e:
-                        log.error("wizard.detection.custom_regex.subject_error", error=str(e))
-
-                if group:
-                    file_subjects.append(
-                        {
-                            "group": group or "",
-                            "day": day or "",
-                            "subject": subject or "",
-                        }
-                    )
-
-            # Store mapping for this file
-            if file_subjects:
-                subject_mappings[path_str] = file_subjects
-
-        # Validation: Either 2+ groups OR 1 group with 2+ subjects (multi-aquarium)
-        total_subjects = sum(len(subs) for subs in subjects_per_group.values())
-
-        # DEBUG: Log captured data before validation
-        log.info(
-            "wizard.detection.custom_regex.pre_validation",
-            groups_found=list(groups_found),
-            days_found=list(days_found),
-            subjects_per_group=subjects_per_group,
-            total_subjects=total_subjects,
-            match_count=match_count,
-            subject_mappings_count=len(subject_mappings),
+        combined_pattern = MultiAquariumData.build_combined_regex_pattern(
+            group_pattern=patterns.get("group_pattern"),
+            day_pattern=patterns.get("day_pattern"),
+            subject_pattern=patterns.get("subject_pattern"),
         )
+
+        for path in paths:
+            file_subjects = []
+            matched = False
+
+            # Try combined pattern first
+            if combined_pattern:
+                file_subjects = self._process_path_with_combined_pattern(
+                    str(path), combined_pattern, groups_found, days_found, subjects_per_group
+                )
+                if file_subjects:
+                    matched = True
+                    match_count += 1
+
+            # Fallback
+            if not matched:
+                fallback_result = self._process_path_with_individual_patterns(
+                    str(path), patterns, groups_found, days_found, subjects_per_group
+                )
+                if fallback_result:
+                    file_subjects.append(fallback_result)
+                    match_count += 1
+
+            if file_subjects:
+                subject_mappings[str(path)] = file_subjects
+
+        return self._build_custom_regex_result(
+            paths, groups_found, days_found, subjects_per_group, match_count, subject_mappings
+        )
+
+    def _process_path_with_combined_pattern(
+        self, path_str, pattern, groups_found, days_found, subjects_per_group
+    ):
+        """Process path using combined regex pattern."""
+        file_subjects = []
+        try:
+            compiled = re.compile(pattern)
+            matches = list(compiled.finditer(path_str))
+
+            if len(matches) >= 1:
+                for m in matches:
+                    data = self._extract_match_data(m.groupdict())
+                    if not data["group"]:
+                        continue
+
+                    self._update_detected_sets(data, groups_found, days_found, subjects_per_group)
+                    file_subjects.append(data)
+        except re.error as e:
+            log.error("wizard.detection.custom_regex.combined_error", error=str(e))
+
+        return file_subjects
+
+    def _process_path_with_individual_patterns(
+        self, path_str, patterns, groups_found, days_found, subjects_per_group
+    ):
+        """Process path using individual regex patterns as fallback."""
+        group = None
+        group_pattern = patterns.get("group_pattern")
+        if group_pattern:
+            try:
+                match = re.search(group_pattern, path_str)
+                if match:
+                    group = match.group(1) if match.groups() else match.group(0)
+            except re.error as e:
+                log.error("wizard.detection.custom_regex.group_error", error=str(e))
+                return None
+
+        if not group:
+            return None
+
+        day = None
+        day_pattern = patterns.get("day_pattern")
+        if day_pattern:
+            try:
+                match = re.search(day_pattern, path_str)
+                if match:
+                    day = match.group(1) if match.groups() else match.group(0)
+                    if day.isdigit():
+                        day = f"Day{day.zfill(2)}"
+            except re.error as e:
+                log.error("wizard.detection.custom_regex.day_error", error=str(e))
+
+        subject = None
+        subject_pattern = patterns.get("subject_pattern")
+        if subject_pattern:
+            try:
+                match = re.search(subject_pattern, path_str)
+                if match:
+                    subject = match.group(1) if match.groups() else match.group(0)
+                    if subject.isdigit():
+                        subject = f"S{subject.zfill(2)}"
+            except re.error as e:
+                log.error("wizard.detection.custom_regex.subject_error", error=str(e))
+
+        data = {"group": group, "day": day or "", "subject": subject or ""}
+        self._update_detected_sets(data, groups_found, days_found, subjects_per_group)
+        return data
+
+    def _extract_match_data(self, groups_dict):
+        """Extract and normalize data from regex match dict."""
+        group_val = groups_dict.get("group", "")
+        day_val = groups_dict.get("day", "")
+        subject_val = groups_dict.get("subject", "")
+
+        if group_val and group_val.isdigit():
+            group_val = f"G{group_val.zfill(2)}"
+        if day_val and day_val.isdigit():
+            day_val = f"Day{day_val.zfill(2)}"
+        if subject_val and subject_val.isdigit():
+            subject_val = f"S{subject_val.zfill(2)}"
+
+        return {"group": group_val, "day": day_val, "subject": subject_val}
+
+    def _update_detected_sets(self, data, groups_found, days_found, subjects_per_group):
+        """Update detection sets with found data."""
+        if data["group"]:
+            groups_found.add(data["group"])
+            if data["group"] not in subjects_per_group:
+                subjects_per_group[data["group"]] = set()
+            if data["subject"]:
+                subjects_per_group[data["group"]].add(data["subject"])
+
+        if data["day"]:
+            days_found.add(data["day"])
+
+    def _build_custom_regex_result(
+        self,
+        paths,
+        groups_found,
+        days_found,
+        subjects_per_group,
+        match_count,
+        subject_mappings,
+    ):
+        """Validate and build final result dict."""
+        total_subjects = sum(len(subs) for subs in subjects_per_group.values())
 
         if len(groups_found) < 2 and total_subjects < 2:
             log.debug(
@@ -566,24 +572,12 @@ class DetectionStep(WizardStep):
             )
             return None
 
-        # Convert sets to sorted lists
         subjects_per_group_sorted = {
             group: sorted(list(subjects)) for group, subjects in subjects_per_group.items()
         }
 
-        # Calculate confidence based on match coverage
         coverage = match_count / len(paths) if paths else 0
         confidence = coverage * 0.9
-
-        # Count multi-subject files
-        multi_subject_count = sum(1 for subs in subject_mappings.values() if len(subs) > 1)
-
-        log.info(
-            "wizard.detection.custom_regex.completed",
-            groups=len(groups_found),
-            total_subjects=total_subjects,
-            multi_subject_files=multi_subject_count,
-        )
 
         return {
             "groups": sorted(list(groups_found)),
@@ -591,7 +585,7 @@ class DetectionStep(WizardStep):
             "subjects_per_group": subjects_per_group_sorted,
             "confidence": confidence,
             "pattern_used": "custom_regex",
-            "subject_mappings": subject_mappings,  # NEW: Per-file subject mappings
+            "subject_mappings": subject_mappings,
         }
 
     def _pattern_groups_as_folders(self, paths: list[Path]) -> dict | None:

@@ -6,6 +6,7 @@ Delegates specific responsibilities to CanvasRenderer and CanvasEventHandler.
 """
 
 import os
+import typing
 
 import cv2
 import numpy as np
@@ -1566,7 +1567,7 @@ class CanvasManager:
             self.gui.show_error("Erro", f"Falha ao remover ROI: {e}")
 
     # BGR to color name mapping (matches color_selection_dialog.py)
-    _BGR_COLOR_MAP = {
+    _BGR_COLOR_MAP: typing.ClassVar = {
         (0, 128, 0): "Verde",
         (255, 0, 0): "Azul",
         (0, 0, 255): "Vermelho",
@@ -1740,7 +1741,7 @@ class CanvasManager:
     # -------------------------------------------------------------------------
 
     # Distinct colors for each aquarium
-    AQUARIUM_COLORS = {
+    AQUARIUM_COLORS: typing.ClassVar = {
         0: {"border": (0, 102, 204), "fill": (0, 102, 204, 51), "text": "Aquário 1"},
         1: {"border": (0, 204, 102), "fill": (0, 204, 102, 51), "text": "Aquário 2"},
     }

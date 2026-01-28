@@ -156,10 +156,13 @@ class RecordingService:
         if "group" in context:
             metadata_to_save["group"] = context["group"]
         if "cobaia" in context:
-            metadata_to_save["subject"] = context["cobaia"]  # Use 'subject' key as per project_manager
+            metadata_to_save["subject"] = context[
+                "cobaia"
+            ]  # Use 'subject' key as per project_manager
 
         if metadata_to_save:
             import json
+
             metadata_file = Path(output_folder) / "_recording_metadata.json"
             try:
                 with open(metadata_file, "w", encoding="utf-8") as f:

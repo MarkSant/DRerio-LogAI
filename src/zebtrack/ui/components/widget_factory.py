@@ -399,8 +399,10 @@ class WidgetFactory:
             # Register handlers directly in event_bus (not just in dictionary)
             def save_handler(data):
                 return self.on_save_global_config_from_widget(data["values"])
+
             def reset_handler(data):
                 return self.on_reset_global_config_form_widget()
+
             def roi_rule_handler(data):
                 return self.update_roi_rule_ui(data["rule"])
 
@@ -448,10 +450,9 @@ class WidgetFactory:
             # Register handlers directly in event_bus (not just in dictionary)
             def track_handler(data):
                 return self.gui._on_track_selection_changed()
+
             def cancel_handler(data):
-                return self.gui.event_dispatcher.publish_event(
-                            Events.VIDEO_CANCEL_ANALYSIS, {}
-                        )
+                return self.gui.event_dispatcher.publish_event(Events.VIDEO_CANCEL_ANALYSIS, {})
 
             # Subscribe to event_bus
             self.gui.event_bus.subscribe("analysis.track_selected", track_handler)
@@ -778,31 +779,7 @@ class WidgetFactory:
         and updates runtime settings.
         """
         try:
-            # Extract values (already parsed by widget)
-            fps = values["video_processing"]["fps"]
-            processing_interval = values["video_processing"]["processing_interval"]
-            processing_offset = values["video_processing"]["processing_offset"]
-            flush_interval = values["recorder"]["flush_interval_seconds"]
-            flush_rows = values["recorder"]["flush_row_threshold"]
-            window_length = values["trajectory_smoothing"]["window_length"]
-            polyorder = values["trajectory_smoothing"]["polyorder"]
-
-            # Validate
-            if fps <= 0:
-                raise ValueError("FPS deve ser maior que 0.")
-            if processing_interval <= 0:
-                raise ValueError("O intervalo de processamento deve ser maior que 0.")
-            if processing_offset < 0:
-                raise ValueError("O offset deve ser maior ou igual a 0.")
-            if flush_interval < 0:
-                raise ValueError("O intervalo de flush deve ser >= 0.")
-            if flush_rows < 1:
-                raise ValueError("O limite de linhas para flush deve ser >= 1.")
-            if window_length < 3 or window_length % 2 == 0:
-                raise ValueError("Window length deve ser ímpar e pelo menos 3.")
-            if polyorder < 1:
-                raise ValueError("Polyorder deve ser pelo menos 1.")
-
+            self._validate_config_values(values)
         except ValueError as exc:
             self.gui.show_error("Erro de Validação", str(exc))
             return
@@ -823,69 +800,93 @@ class WidgetFactory:
             return
 
         # LOGIC SPLIT: Project Open vs No Project
-        # User Request 2025-12-29: If a project is open, ONLY update that project.
-        # Do not touch global config.local.yaml to avoid "polluting" defaults.
-
         if self.gui.controller.project_manager.project_path:
-            # --- BRANCH A: ACTIVE PROJECT OPEN ---
-            try:
-                # 1. Update Runtime Settings (Memory)
-                for field_name in validated.model_fields:
-                    setattr(
-                        self._settings,
-                        field_name,
-                        getattr(validated, field_name),
-                    )
+            self._update_current_project_settings(validated)
+        else:
+            self._update_global_settings_file(update_payload, validated)
 
-                # 2. Update Project Data Persistence
-                project_data = self.gui.controller.project_manager.project_data
+    def _validate_config_values(self, values: dict) -> None:
+        """Validate configuration values."""
+        # Extract values (already parsed by widget)
+        fps = values["video_processing"]["fps"]
+        processing_interval = values["video_processing"]["processing_interval"]
+        processing_offset = values["video_processing"]["processing_offset"]
+        flush_interval = values["recorder"]["flush_interval_seconds"]
+        flush_rows = values["recorder"]["flush_row_threshold"]
+        window_length = values["trajectory_smoothing"]["window_length"]
+        polyorder = values["trajectory_smoothing"]["polyorder"]
 
-                # Video Processing
-                project_data["analysis_interval_frames"] = (
-                    validated.video_processing.processing_interval
-                )
-                project_data["display_interval_frames"] = (
-                    validated.video_processing.display_interval
-                )
-                project_data["video_processing"] = validated.video_processing.model_dump()
+        # Validate
+        if fps <= 0:
+            raise ValueError("FPS deve ser maior que 0.")
+        if processing_interval <= 0:
+            raise ValueError("O intervalo de processamento deve ser maior que 0.")
+        if processing_offset < 0:
+            raise ValueError("O offset deve ser maior ou igual a 0.")
+        if flush_interval < 0:
+            raise ValueError("O intervalo de flush deve ser >= 0.")
+        if flush_rows < 1:
+            raise ValueError("O limite de linhas para flush deve ser >= 1.")
+        if window_length < 3 or window_length % 2 == 0:
+            raise ValueError("Window length deve ser ímpar e pelo menos 3.")
+        if polyorder < 1:
+            raise ValueError("Polyorder deve ser pelo menos 1.")
 
-                # Advanced Params
-                project_data["trajectory_smoothing"] = validated.trajectory_smoothing.model_dump()
-                project_data["behavioral_config"] = validated.behavioral_analysis.model_dump()
-
-                # ROI Rules (stored as top-level fields, not nested)
-                if "roi_settings" not in project_data:
-                    project_data["roi_settings"] = {}
-                project_data["roi_settings"]["roi_inclusion_rule"] = (
-                    validated.roi_inclusion_rule
-                )
-                project_data["roi_settings"]["roi_buffer_radius_value"] = (
-                    validated.roi_buffer_radius_value
-                )
-                project_data["roi_settings"]["roi_min_bbox_overlap_ratio"] = (
-                    validated.roi_min_bbox_overlap_ratio
-                )
-
-                # 3. Save to project_config.json
-                self.gui.controller.project_manager.save_project()
-
-                self.gui.show_info(
-                    "Configurações do Projeto Atualizadas",
-                    "As alterações foram salvas APENAS no projeto atual.\n"
-                    "O arquivo global (config.local.yaml) NÃO foi alterado.",
+    def _update_current_project_settings(self, validated: Settings) -> None:
+        """Update settings for the currently active project."""
+        try:
+            # 1. Update Runtime Settings (Memory)
+            for field_name in validated.model_fields:
+                setattr(
+                    self._settings,
+                    field_name,
+                    getattr(validated, field_name),
                 )
 
-                # Refresh UI to confirm values
-                self.reload_config_editor_values_widget()
-                return
+            # 2. Update Project Data Persistence
+            project_data = self.gui.controller.project_manager.project_data
 
-            except Exception as e:
-                self.gui.show_error(
-                    "Erro ao Salvar no Projeto", f"Falha ao atualizar configurações do projeto: {e}"
-                )
-                return
+            # Video Processing
+            project_data["analysis_interval_frames"] = (
+                validated.video_processing.processing_interval
+            )
+            project_data["display_interval_frames"] = validated.video_processing.display_interval
+            project_data["video_processing"] = validated.video_processing.model_dump()
 
-        # --- BRANCH B: NO PROJECT (GLOBAL MODE) ---
+            # Advanced Params
+            project_data["trajectory_smoothing"] = validated.trajectory_smoothing.model_dump()
+            project_data["behavioral_config"] = validated.behavioral_analysis.model_dump()
+
+            # ROI Rules (stored as top-level fields, not nested)
+            if "roi_settings" not in project_data:
+                project_data["roi_settings"] = {}
+            project_data["roi_settings"]["roi_inclusion_rule"] = validated.roi_inclusion_rule
+            project_data["roi_settings"]["roi_buffer_radius_value"] = (
+                validated.roi_buffer_radius_value
+            )
+            project_data["roi_settings"]["roi_min_bbox_overlap_ratio"] = (
+                validated.roi_min_bbox_overlap_ratio
+            )
+
+            # 3. Save to project_config.json
+            self.gui.controller.project_manager.save_project()
+
+            self.gui.show_info(
+                "Configurações do Projeto Atualizadas",
+                "As alterações foram salvas APENAS no projeto atual.\n"
+                "O arquivo global (config.local.yaml) NÃO foi alterado.",
+            )
+
+            # Refresh UI to confirm values
+            self.reload_config_editor_values_widget()
+
+        except Exception as e:
+            self.gui.show_error(
+                "Erro ao Salvar no Projeto", f"Falha ao atualizar configurações do projeto: {e}"
+            )
+
+    def _update_global_settings_file(self, update_payload: dict, validated: Settings) -> None:
+        """Update global settings file (config.local.yaml)."""
         override_path = Path("config.local.yaml")
         try:
             if override_path.exists():
@@ -915,86 +916,9 @@ class WidgetFactory:
             )
 
         # CRITICAL FIX: Also update the *current active project* configuration if one is loaded.
-        # Otherwise, the project's cached settings will override these global changes.
         project_updated = False
         if self.gui.controller.project_manager.project_path:
-            try:
-                # Update specific keys in project_data that override global settings
-                # We access project_data directly as per ProjectManager pattern
-                project_data = self.gui.controller.project_manager.project_data
-
-                # Use validated values
-                # 1. Video Processing Intervals
-                project_data["analysis_interval_frames"] = (
-                    validated.video_processing.processing_interval
-                )
-                project_data["display_interval_frames"] = (
-                    validated.video_processing.display_interval
-                )
-
-                # 2. FPS (if stored in project)
-                project_data["fps"] = validated.video_processing.fps
-
-                # 3. Behavioral Analysis Settings
-                if "behavioral_config" not in project_data:
-                    project_data["behavioral_config"] = {}
-
-                ba_settings = validated.behavioral_analysis
-                # Map Settings fields to project_data keys (matching AnalysisService expectations)
-                project_data["behavioral_config"].update(
-                    {
-                        "aquarium_perspective": ba_settings.aquarium_perspective,
-                        "thigmotaxis_distance_cm": ba_settings.default_thigmotaxis_distance_cm,
-                        "geotaxis_distance_cm": ba_settings.default_geotaxis_distance_cm,
-                        "geotaxis_num_zones": ba_settings.default_geotaxis_num_zones,
-                        "geotaxis_bottom_zones": ba_settings.default_geotaxis_bottom_zones,
-                        "geotaxis_enabled": ba_settings.aquarium_perspective == "lateral",
-                    }
-                )
-
-                # 4. Processing Offset (Video Processing)
-                project_data["analysis_offset_frames"] = (
-                    validated.video_processing.processing_offset
-                )
-
-                # 5. Trajectory Smoothing (Analysis Parameters)
-                if "analysis_parameters" not in project_data:
-                    project_data["analysis_parameters"] = {}
-
-                project_data["analysis_parameters"].update(
-                    {
-                        "smoothing_window_length": validated.trajectory_smoothing.window_length,
-                        "smoothing_polyorder": validated.trajectory_smoothing.polyorder,
-                    }
-                )
-
-                # 6. ROI Settings (Project-level overrides)
-                if "roi_settings" not in project_data:
-                    project_data["roi_settings"] = {}
-
-                project_data["roi_settings"].update(
-                    {
-                        "roi_inclusion_rule": validated.roi_inclusion_rule,
-                        "roi_buffer_radius_value": validated.roi_buffer_radius_value,
-                        "roi_min_bbox_overlap_ratio": validated.roi_min_bbox_overlap_ratio,
-                    }
-                )
-
-                # 4. Save the project to persist these changes to project_config.json
-                self.gui.controller.project_manager.save_project()
-                project_updated = True
-
-                log.info(
-                    "config.save.project_synced",
-                    project=self.gui.controller.project_manager.get_project_name(),
-                    analysis_interval=project_data["analysis_interval_frames"],
-                )
-            except Exception as e:
-                log.error("config.save.project_sync_failed", error=str(e))
-                # Don't fail the whole operation, just warn
-                self.gui.show_warning(
-                    "Aviso", f"Configuração global salva, mas erro ao atualizar projeto atual: {e}"
-                )
+            project_updated = self._sync_global_to_project(validated)
 
         self.reload_config_editor_values_widget()
 
@@ -1003,6 +927,80 @@ class WidgetFactory:
             msg += "\n\nO projeto atual também foi atualizado com estes valores."
 
         self.gui.show_info("Configurações Salvas", msg)
+
+    def _sync_global_to_project(self, validated: Settings) -> bool:
+        """Sync global settings changes to the active project."""
+        try:
+            # Update specific keys in project_data that override global settings
+            project_data = self.gui.controller.project_manager.project_data
+
+            # Use validated values
+            # 1. Video Processing Intervals
+            project_data["analysis_interval_frames"] = (
+                validated.video_processing.processing_interval
+            )
+            project_data["display_interval_frames"] = validated.video_processing.display_interval
+
+            # 2. FPS (if stored in project)
+            project_data["fps"] = validated.video_processing.fps
+
+            # 3. Behavioral Analysis Settings
+            if "behavioral_config" not in project_data:
+                project_data["behavioral_config"] = {}
+
+            ba_settings = validated.behavioral_analysis
+            project_data["behavioral_config"].update(
+                {
+                    "aquarium_perspective": ba_settings.aquarium_perspective,
+                    "thigmotaxis_distance_cm": ba_settings.default_thigmotaxis_distance_cm,
+                    "geotaxis_distance_cm": ba_settings.default_geotaxis_distance_cm,
+                    "geotaxis_num_zones": ba_settings.default_geotaxis_num_zones,
+                    "geotaxis_bottom_zones": ba_settings.default_geotaxis_bottom_zones,
+                    "geotaxis_enabled": ba_settings.aquarium_perspective == "lateral",
+                }
+            )
+
+            # 4. Processing Offset (Video Processing)
+            project_data["analysis_offset_frames"] = validated.video_processing.processing_offset
+
+            # 5. Trajectory Smoothing (Analysis Parameters)
+            if "analysis_parameters" not in project_data:
+                project_data["analysis_parameters"] = {}
+
+            project_data["analysis_parameters"].update(
+                {
+                    "smoothing_window_length": validated.trajectory_smoothing.window_length,
+                    "smoothing_polyorder": validated.trajectory_smoothing.polyorder,
+                }
+            )
+
+            # 6. ROI Settings (Project-level overrides)
+            if "roi_settings" not in project_data:
+                project_data["roi_settings"] = {}
+
+            project_data["roi_settings"].update(
+                {
+                    "roi_inclusion_rule": validated.roi_inclusion_rule,
+                    "roi_buffer_radius_value": validated.roi_buffer_radius_value,
+                    "roi_min_bbox_overlap_ratio": validated.roi_min_bbox_overlap_ratio,
+                }
+            )
+
+            # 4. Save the project to persist these changes to project_config.json
+            self.gui.controller.project_manager.save_project()
+            log.info(
+                "config.save.project_synced",
+                project=self.gui.controller.project_manager.get_project_name(),
+                analysis_interval=project_data["analysis_interval_frames"],
+            )
+            return True
+
+        except Exception as e:
+            log.error("config.save.project_sync_failed", error=str(e))
+            self.gui.show_warning(
+                "Aviso", f"Configuração global salva, mas erro ao atualizar projeto atual: {e}"
+            )
+            return False
 
     # ===========================================================================
     # CATEGORIA 5: CONSTRUTORES COMPLEXOS - Zone Control Widgets
@@ -1185,16 +1183,16 @@ class WidgetFactory:
             completed_sessions = pm.get_completed_sessions()
 
             # 3. Create headers
-            ttk.Label(self.gui.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")).grid(
-                row=0, column=0, padx=5, pady=5, sticky="nsew"
-            )
+            ttk.Label(
+                self.gui.grid_container, text="Dia/Grupo", font=("Helvetica", 10, "bold")
+            ).grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
             for j, group_name in enumerate(groups):
                 ttk.Label(
                     self.gui.grid_container,
                     text=group_name,
                     font=("Helvetica", 10, "bold"),
                     anchor="center",
-            ).grid(row=0, column=j + 1, padx=5, pady=5, sticky="nsew")
+                ).grid(row=0, column=j + 1, padx=5, pady=5, sticky="nsew")
 
             # 4. Create grid cells
             for i in range(days):
@@ -1241,9 +1239,7 @@ class WidgetFactory:
             # Add error label to container so user knows it failed but UI continues
             try:
                 ttk.Label(
-                    self.gui.grid_container,
-                    text=f"Erro ao renderizar grade: {e}",
-                    foreground="red"
+                    self.gui.grid_container, text=f"Erro ao renderizar grade: {e}", foreground="red"
                 ).pack(pady=20)
             except Exception:
                 pass
