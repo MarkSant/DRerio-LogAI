@@ -590,15 +590,21 @@ class AnalysisService:
 
             # Sheet 2: Summary statistics across sessions
             if len(all_data) > 1:
-                summary_stats = unified_df.groupby("session_number").agg(
-                    {
-                        "total_distance_cm": "mean",
-                        "average_speed_cm_s": "mean",
-                        "time_in_center_s": "mean",
-                        "entries_to_center": "sum",
-                    }
-                )
-                summary_stats.to_excel(writer, sheet_name="Session Summary")
+                # Define aggregation rules
+                agg_rules = {
+                    "total_distance_cm": "mean",
+                    "average_speed_cm_s": "mean",
+                    "time_in_center_s": "mean",
+                    "entries_to_center": "mean",  # Changed from sum to mean for per-animal average
+                }
+                # Filter rules to only include columns present in the data
+                active_rules = {
+                    col: func for col, func in agg_rules.items() if col in unified_df.columns
+                }
+
+                if active_rules:
+                    summary_stats = unified_df.groupby("session_number").agg(active_rules)
+                    summary_stats.to_excel(writer, sheet_name="Session Summary")
 
         self.log.info(
             "analysis_service.aggregate_summaries.success",
