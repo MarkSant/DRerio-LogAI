@@ -551,6 +551,61 @@ class AnalysisService:
 
         return results
 
+    def aggregate_session_summaries(self, summary_paths: list[Path], output_path: Path) -> None:
+        """Aggregate individual session summaries into unified Excel.
+
+        Args:
+            summary_paths: List of individual summary Excel files
+            output_path: Path for unified output
+        """
+        self.log.info(
+            "analysis_service.aggregate_summaries.start",
+            summary_count=len(summary_paths),
+        )
+
+        all_data = []
+        for i, summary_path in enumerate(summary_paths, 1):
+            try:
+                df = pd.read_excel(summary_path)
+                df["session_number"] = i
+                df["session_file"] = summary_path.stem
+                all_data.append(df)
+            except Exception as e:
+                self.log.warning(
+                    "analysis_service.aggregate_summaries.read_failed",
+                    summary_path=str(summary_path),
+                    error=str(e),
+                )
+
+        if not all_data:
+            raise ValueError("No valid summary data to aggregate")
+
+        # Concatenate all session data
+        unified_df = pd.concat(all_data, ignore_index=True)
+
+        # Write to Excel
+        with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+            # Sheet 1: All sessions combined
+            unified_df.to_excel(writer, sheet_name="All Sessions", index=False)
+
+            # Sheet 2: Summary statistics across sessions
+            if len(all_data) > 1:
+                summary_stats = unified_df.groupby("session_number").agg(
+                    {
+                        "total_distance_cm": "mean",
+                        "average_speed_cm_s": "mean",
+                        "time_in_center_s": "mean",
+                        "entries_to_center": "sum",
+                    }
+                )
+                summary_stats.to_excel(writer, sheet_name="Session Summary")
+
+        self.log.info(
+            "analysis_service.aggregate_summaries.success",
+            output=str(output_path),
+            total_rows=len(unified_df),
+        )
+
     # -------------------------------------------------------------------------
     # Analysis Orchestration Methods (Phase 1, Step 3)
     # -------------------------------------------------------------------------
