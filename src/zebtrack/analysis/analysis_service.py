@@ -584,7 +584,16 @@ class AnalysisService:
         non_empty_dfs = [df for df in all_data if not df.empty]
         if not non_empty_dfs:
             raise ValueError("No valid summary data to aggregate (all files were empty)")
-        unified_df = pd.concat(non_empty_dfs, ignore_index=True)
+
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=FutureWarning,
+                message=".*concatenation with empty or all-NA entries.*",
+            )
+            unified_df = pd.concat(non_empty_dfs, ignore_index=True)
 
         # Write to Excel
         with pd.ExcelWriter(output_path, engine="openpyxl") as writer:

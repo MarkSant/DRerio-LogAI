@@ -1080,7 +1080,7 @@ class VisualizationGenerator:
             matplotlib.figure.Figure: Generated figure
         """
         fig, ax = plt.subplots(figsize=(8, 6))
-        sns.boxplot(x="group_id", y=metric, data=df, ax=ax)
+        sns.boxplot(x="group_id", y=metric, data=df, ax=ax, orientation="v")
         sns.stripplot(x="group_id", y=metric, data=df, ax=ax, color=".25", size=6)
         ax.set_title(title, fontsize=16)
         ax.set_xlabel("Experimental Group", fontsize=12)

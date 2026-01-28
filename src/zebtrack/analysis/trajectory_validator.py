@@ -195,7 +195,7 @@ class TrajectoryQualityValidator:
             return
 
         # Handle potential None/NaN values in track_id
-        track_series = df["track_id"].fillna(-1)
+        track_series = df["track_id"].fillna(-1).infer_objects(copy=False)
         track_changes = (track_series.diff() != 0).sum()
         switch_rate = track_changes / len(df)
 

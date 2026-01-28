@@ -53,6 +53,7 @@ sphinx-autodoc-typehints = "^3.5.2"
 myst-parser = "^4.0.1"
 pytest-benchmark = "^5.2.0"
 pytest-timeout = "^2.4.0"
+mypy = "^1.10.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

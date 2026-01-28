@@ -3899,24 +3899,25 @@ class ProcessingCoordinator(BaseCoordinator):
         reference_cols = set(dfs[0].columns)
         schema_mismatch = any(set(df.columns) != reference_cols for df in dfs[1:])
 
-        # Align all DataFrames to have same columns (fill missing with NaN)
-        aligned_dfs = []
-        for df in dfs:
-            missing_cols = [c for c in all_columns if c not in df.columns]
-            if missing_cols:
-                df = df.copy()
-                for col in missing_cols:
-                    df[col] = pd.NA
-            aligned_dfs.append(df[all_columns])
+        # Align all DataFrames to have same columns
+        aligned_dfs = [df.reindex(columns=all_columns) for df in dfs]
 
         # Filter out empty dataframes to avoid FutureWarning
         non_empty_dfs = [df for df in aligned_dfs if not df.empty]
         if not non_empty_dfs:
-            # If all were empty, return first one (which should be empty with correct columns)
-            # or a new empty DF with the expected columns
+            # If all were empty, return a new empty DF with the expected columns
             final_df = pd.DataFrame(columns=all_columns)
         else:
-            final_df = pd.concat(non_empty_dfs, ignore_index=True)
+            import warnings
+
+            with warnings.catch_warnings():
+                # Suppress the FutureWarning about all-NA columns in concat
+                warnings.filterwarnings(
+                    "ignore",
+                    category=FutureWarning,
+                    message=".*concatenation with empty or all-NA entries.*",
+                )
+                final_df = pd.concat(non_empty_dfs, ignore_index=True)
         return final_df, schema_mismatch, all_columns
 
     def _export_unified_reports(
@@ -3972,7 +3973,7 @@ class ProcessingCoordinator(BaseCoordinator):
             word_df = final_df.copy()
             # Replace pandas NA with numpy nan which Reporter can handle
             for col in word_df.columns:
-                word_df[col] = word_df[col].replace({pd.NA: np.nan})
+                word_df[col] = word_df[col].replace({pd.NA: np.nan}).infer_objects(copy=False)
 
             Reporter.export_project_report(
                 aggregated_df=word_df,

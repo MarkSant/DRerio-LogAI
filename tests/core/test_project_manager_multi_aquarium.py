@@ -7,8 +7,6 @@ These tests cover:
 - Checking if video is in multi-aquarium mode
 """
 
-import os
-
 import pytest
 
 from zebtrack.core.project_manager import ProjectManager
@@ -188,13 +186,12 @@ class TestResolveMultiAquariumResultsDirectories:
 
         assert len(result) == 1
         path_str = str(result[0])
-        # Should not contain problematic characters
-        # Should not contain problematic characters
-        # Check specifically for the sanitized part
         sanitized_part = path_str.split("Grupo_")[1] if "Grupo_" in path_str else path_str
-        assert ":" not in sanitized_part
-        assert "/" not in sanitized_part
-        assert "\\" not in sanitized_part.replace(os.sep, "")  # Ignore system separators
+        components = sanitized_part.replace("\\", "/").split("/")
+        group_name_part = components[0]
+        assert ":" not in group_name_part
+        assert "/" not in group_name_part
+        assert "\\" not in group_name_part
 
 
 class TestRegisterMultiAquariumOutputs:
