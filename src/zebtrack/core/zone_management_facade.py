@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import structlog
+from shapely.geometry import Polygon
 
 if TYPE_CHECKING:
     from zebtrack.core.project_manager import ProjectManager
