@@ -35,7 +35,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
@@ -609,7 +609,12 @@ class VideoProcessingService:
         return True, arena_polygon
 
     def create_progress_callback(
-        self, *, index: int, total_videos: int, experiment_id: str
+        self,
+        *,
+        index: int,
+        total_videos: int,
+        experiment_id: str,
+        processing_report_callback: Callable[[], Any] | None = None,
     ) -> Callable:
         """Create progress callback for video processing.
 
@@ -619,6 +624,7 @@ class VideoProcessingService:
             index: Current video index (1-based)
             total_videos: Total number of videos
             experiment_id: Experiment identifier
+            processing_report_callback: Optional callback to get current processing report
 
         Returns:
             Callable that accepts progress stats dict
@@ -666,13 +672,19 @@ class VideoProcessingService:
 
             # Note: processing_report requires access to processing_mode which is in MainViewModel
             # This will be handled by MainViewModel after service returns
+            processing_report = None
+            if processing_report_callback:
+                try:
+                    processing_report = processing_report_callback()
+                except Exception as exc:
+                    log.warning("progress_callback.report_failed", error=str(exc))
 
             # Publish detections if available
             if detections is not None:
                 if self.ui_event_bus:
                     self.ui_event_bus.publish_event(
                         Events.UI_UPDATE_DETECTION_OVERLAY,
-                        {"detections": detections, "report": None},
+                        {"detections": detections, "report": processing_report},
                     )
 
             # Publish frame for display
@@ -1100,6 +1112,7 @@ class VideoProcessingService:
         index: int,
         total_videos: int,
         experiment_id: str,
+        processing_report_callback: Callable[[], Any] | None = None,
     ):
         """Create progress callback for video processing.
 
@@ -1146,7 +1159,12 @@ class VideoProcessingService:
 
             # Note: processing_report requires detector_service which we don't have here
             # This will need to be handled by the caller
-            processing_report = None  # TODO: Pass from caller if needed
+            processing_report = None
+            if processing_report_callback:
+                try:
+                    processing_report = processing_report_callback()
+                except Exception as exc:
+                    log.warning("progress_callback.report_failed", error=str(exc))
 
             if detections is not None:
                 if self.ui_event_bus:
@@ -1866,6 +1884,7 @@ class VideoProcessingService:
         analysis_profile: dict | None,
         detector: Detector,
         recorder: Recorder,
+        processing_report_callback: Callable[[], Any] | None = None,
     ) -> tuple[bool, str | None]:
         """Process a single video: tracking + analysis.
 
@@ -1884,6 +1903,7 @@ class VideoProcessingService:
             analysis_profile: Optional analysis profile configuration
             detector: Detector instance
             recorder: Recorder instance
+            processing_report_callback: Optional callback to get current processing report
 
         Returns:
             Tuple of (success: bool, results_dir: str | None)
@@ -1929,6 +1949,7 @@ class VideoProcessingService:
                 index=index,
                 total_videos=total_videos,
                 experiment_id=experiment_id,
+                processing_report_callback=processing_report_callback,
             )
 
             self.display_initial_frame(video_path, frame=video_context.first_frame)

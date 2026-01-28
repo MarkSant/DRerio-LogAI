@@ -468,6 +468,15 @@ class AnalysisControlViewModel:
         )
 
     def _process_single_video(self, detector, **kwargs):
+        report_callback = None
+        if self.processing_coordinator:
+            report_callback = lambda: self.processing_coordinator._publish_processing_mode(
+                source="analysis_progress", force=False
+            )
+
         return self.video_processing_service.process_single_video(
-            detector=detector, recorder=self.recorder, **kwargs
+            detector=detector,
+            recorder=self.recorder,
+            processing_report_callback=report_callback,
+            **kwargs,
         )
