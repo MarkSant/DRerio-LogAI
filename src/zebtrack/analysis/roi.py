@@ -260,31 +260,37 @@ class ROIAnalyzer:
             )
 
         prepare(roi_geometry)
-        raw_presence_list = []
 
-        # Process frame by frame for bbox intersection calculation
-        # TODO: This could be optimized for very large trajectories by chunking
-        for idx, row in self._trajectory.iterrows():
-            # Convert bbox from warped pixel space to cm, inverting Y-axis
-            x1_px = row["x1"]
-            y1_px = row["y1"]
-            x2_px = row["x2"]
-            y2_px = row["y2"]
+        # Vectorized calculation for performance optimization
+        x1_px = self._trajectory["x1"].to_numpy()
+        y1_px = self._trajectory["y1"].to_numpy()
+        x2_px = self._trajectory["x2"].to_numpy()
+        y2_px = self._trajectory["y2"].to_numpy()
 
-            min_x = min(x1_px, x2_px)
-            max_x = max(x1_px, x2_px)
-            min_y = min(y1_px, y2_px)
-            max_y = max(y1_px, y2_px)
+        min_x = np.minimum(x1_px, x2_px)
+        max_x = np.maximum(x1_px, x2_px)
+        min_y = np.minimum(y1_px, y2_px)
+        max_y = np.maximum(y1_px, y2_px)
 
-            bbox = box(min_x, min_y, max_x, max_y)
-            intersection = roi_geometry.intersection(bbox)
-            if intersection.is_empty or bbox.area == 0:
-                raw_presence_list.append(False)
-            else:
-                overlap_ratio = intersection.area / bbox.area
-                raw_presence_list.append(overlap_ratio >= self._min_bbox_overlap_ratio)
+        # Vectorized box creation
+        bboxes = shapely.box(min_x, min_y, max_x, max_y)
 
-        return pd.Series(raw_presence_list, index=self._trajectory.index)
+        # Vectorized intersection
+        intersections = shapely.intersection(roi_geometry, bboxes)
+
+        # Vectorized area calculation
+        intersection_areas = shapely.area(intersections)
+        bbox_areas = shapely.area(bboxes)
+
+        # Avoid division by zero
+        # If bbox_area is 0, overlap ratio is 0
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratios = intersection_areas / bbox_areas
+            ratios = np.nan_to_num(ratios, nan=0.0, posinf=0.0, neginf=0.0)
+
+        raw_presence_np = ratios >= self._min_bbox_overlap_ratio
+
+        return pd.Series(raw_presence_np, index=self._trajectory.index)
 
     def _calculate_seg_overlap(self, roi_geometry: BaseGeometry) -> pd.Series:
         """Calculate presence based on segmentation mask overlap."""
