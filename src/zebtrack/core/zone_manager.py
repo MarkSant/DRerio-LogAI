@@ -269,6 +269,21 @@ class ZoneManager:
         # If we reached here, no match found.
         batches = project_data.get("batches", [])
 
+        # Strategy 3: Live Projects - Save flags directly in project root
+        # Live projects don't have video entries since videos don't exist yet
+        # Check this BEFORE the single-video mode check
+        project_type = project_data.get("project_type")
+        if project_type == "live":
+            project_data["has_arena"] = has_arena
+            project_data["has_rois"] = has_rois
+            log.info(
+                "zone_manager.update_flags.updated_live_project",
+                project_type=project_type,
+                has_arena=has_arena,
+                has_rois=has_rois,
+            )
+            return
+
         # Check if project is empty (Single Video Mode) to avoid noise
         if not root_videos and not batches:
             log.debug("zone_manager.update_flags.single_video_mode_skip", target=normalized_target)

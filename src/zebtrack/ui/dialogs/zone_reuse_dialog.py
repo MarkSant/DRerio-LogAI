@@ -124,22 +124,23 @@ class ZoneReuseDialog:
         )
         arena_label.pack(anchor=tk.W, pady=2)
 
-        # ROI count
-        roi_count = (
-            len(self.zone_data.rois)
-            if hasattr(self.zone_data, "rois") and self.zone_data.rois
-            else 0
-        )
+        # ROI count - use roi_polygons attribute
+        roi_count = len(self.zone_data.roi_polygons) if self.zone_data.roi_polygons else 0
         roi_label = ttk.Label(
             parent_frame, text=f"✓ ROIs definidas: {roi_count}", font=("Segoe UI", 9)
         )
         roi_label.pack(anchor=tk.W, pady=2)
 
-        # Calibration info
-        if self.zone_data.width_cm and self.zone_data.height_cm:
-            calib_text = (
-                f"✓ Calibrado: {self.zone_data.width_cm:.1f} x {self.zone_data.height_cm:.1f} cm"
-            )
+        # Calibration info - Get from project calibration data
+        width_cm = None
+        height_cm = None
+        if self.project_manager and self.project_manager.project_data:
+            calibration = self.project_manager.project_data.get("calibration", {})
+            width_cm = calibration.get("aquarium_width_cm")
+            height_cm = calibration.get("aquarium_height_cm")
+
+        if width_cm and height_cm:
+            calib_text = f"✓ Calibrado: {width_cm:.1f} x {height_cm:.1f} cm"
         else:
             calib_text = "○ Calibração métrica: Não definida"
 
@@ -160,8 +161,8 @@ class ZoneReuseDialog:
             )
             method_label.pack(anchor=tk.W, pady=2)
 
-        # Warning if no calibration
-        if not (self.zone_data.width_cm and self.zone_data.height_cm):
+        # Warning if no calibration - use the values we retrieved above
+        if not (width_cm and height_cm):
             warning_label = ttk.Label(
                 parent_frame,
                 text="⚠ Recomenda-se calibração métrica para análises precisas",

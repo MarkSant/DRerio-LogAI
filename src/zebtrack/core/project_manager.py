@@ -394,6 +394,18 @@ class ProjectManager:
         if persist:
             # Generate parquet files if we have a valid video path and project
             target_video = video_path or self.get_active_zone_video()
+
+            # ✅ FIX: Update flags FIRST based on zone_data content
+            # This ensures Live Projects recognize arena even before parquet export
+            if target_video:
+                self._update_video_zone_flags(target_video, zone_data)
+                log.debug(
+                    "project.save_zone_data.flags_updated",
+                    video=target_video,
+                    has_arena=bool(zone_data.polygon),
+                    has_rois=bool(zone_data.roi_polygons),
+                )
+
             if target_video and self.project_path:
                 try:
                     exported = self.export_zones_to_parquet(target_video, zone_data)
@@ -404,7 +416,7 @@ class ProjectManager:
                         parquet_map = video_entry.setdefault("parquet_files", {})
                         parquet_map.update(exported)
 
-                        # Update flags based on export success
+                        # Flags already updated above, but ensure consistency
                         if "arena" in exported:
                             video_entry["has_arena"] = True
                         if "rois" in exported:
@@ -420,6 +432,9 @@ class ProjectManager:
                     video_path=str(video_path) if video_path else None,
                     reason="single_video_workflow",
                 )
+                # ✅ FIX: Save project even without parquet export for Live Projects
+                if self.project_path:
+                    self.save_project()
 
     # NOTE: save_multi_aquarium_zone_data moved to line ~2580 (consolidated implementation)
     # The method there delegates to ZoneManager and handles parquet export + flag updates.
@@ -681,7 +696,6 @@ class ProjectManager:
         Returns:
             ZoneData object with loaded zones, or None if loading failed.
         """
-        import pandas as pd  # Lazy import to avoid loading pandas during startup
 
         parquet_files = video_info.get("parquet_files", {})
         arena_path = parquet_files.get("arena")
@@ -694,107 +708,8 @@ class ProjectManager:
             )
             return None
 
-        zone_data = ZoneData()
-
-        try:
-            # Load arena polygon
-            if arena_path and os.path.exists(arena_path):
-                arena_df = pd.read_parquet(arena_path)
-                if not arena_df.empty and "x" in arena_df.columns and "y" in arena_df.columns:
-                    polygon_points = arena_df[["x", "y"]].values.tolist()
-                    zone_data.polygon = polygon_points
-                    log.info(
-                        "project_manager.load_zones.arena_loaded",
-                        path=arena_path,
-                        points=len(polygon_points),
-                    )
-                else:
-                    log.warning(
-                        "project_manager.load_zones.arena_empty",
-                        path=arena_path,
-                    )
-
-            # Load ROIs
-            if rois_path and os.path.exists(rois_path):
-                rois_df = pd.read_parquet(rois_path)
-                if not rois_df.empty:
-                    required_cols = {"roi_name", "point_index", "x", "y"}
-                    if required_cols.issubset(rois_df.columns):
-                        # Group by ROI name and reconstruct polygons
-                        roi_polygons = []
-                        roi_names = []
-
-                        for roi_name in rois_df["roi_name"].unique():
-                            roi_df = rois_df[rois_df["roi_name"] == roi_name].sort_values(
-                                "point_index"
-                            )
-                            roi_points = roi_df[["x", "y"]].values.tolist()
-                            roi_polygons.append(roi_points)
-                            roi_names.append(roi_name)
-
-                        zone_data.roi_polygons = roi_polygons
-                        zone_data.roi_names = roi_names
-
-                        # Generate default colors if not provided
-                        # (actual colors are not stored in parquet, using defaults)
-                        default_colors = [
-                            (0, 128, 0),  # Green
-                            (255, 0, 0),  # Blue
-                            (0, 0, 255),  # Red
-                            (255, 255, 0),  # Cyan
-                            (255, 0, 255),  # Magenta
-                            (0, 204, 204),  # Darker Yellow (was 0, 255, 255)
-                        ]
-                        zone_data.roi_colors = [
-                            default_colors[i % len(default_colors)] for i in range(len(roi_names))
-                        ]
-
-                        log.info(
-                            "project_manager.load_zones.rois_loaded",
-                            path=rois_path,
-                            count=len(roi_names),
-                            names=roi_names,
-                        )
-                    else:
-                        log.warning(
-                            "project_manager.load_zones.rois_invalid_schema",
-                            path=rois_path,
-                            columns=list(rois_df.columns),
-                        )
-                else:
-                    log.warning(
-                        "project_manager.load_zones.rois_empty",
-                        path=rois_path,
-                    )
-
-            return zone_data
-
-        except OSError as e:
-            log.error(
-                "project_manager.load_zones.io_error",
-                video=video_info.get("path"),
-                error=str(e),
-                exc_info=True,
-            )
-            return None
-        except (ValueError, KeyError) as e:
-            log.error(
-                "project_manager.load_zones.data_error",
-                video=video_info.get("path"),
-                error=str(e),
-                exc_info=True,
-            )
-            return None
-        except Exception as e:
-            # Catch pandas parquet errors and other unforeseen issues
-            log.error(
-                "project_manager.load_zones.unexpected_error",
-                video=video_info.get("path"),
-                error=str(e),
-                error_type=type(e).__name__,
-                exc_info=True,
-            )
-            return None
+        # Delegate entirely to ZoneManager to avoid code duplication
+        return ZoneManager.load_zones_from_parquet(video_info)
 
     def import_parquets_from_wizard(
         self,

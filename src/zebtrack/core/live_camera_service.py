@@ -824,6 +824,18 @@ class LiveCameraService:
         # Clear queues
         self._clear_queues()
 
+        # ✅ FIX: Restore button state after session ends
+        if self.event_bus:
+            from zebtrack.ui.events import Events
+
+            self.event_bus.publish_event(
+                Events.UI_UPDATE_BUTTON_STATE, {"button_name": "start_rec", "state": "normal"}
+            )
+            self.event_bus.publish_event(
+                Events.UI_UPDATE_BUTTON_STATE, {"button_name": "stop_rec", "state": "disabled"}
+            )
+            log.info("live_camera_service.buttons_restored_after_session_end")
+
         log.info("live_camera_service.session_stopped")
 
     def _setup_camera(self, camera_index: int) -> bool:
