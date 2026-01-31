@@ -139,9 +139,9 @@ discovered_classes:
       "key_methods": [
         "__init__",
         "initialize_detector",
-        "configure_zones",
-        "update_tracking_parameters",
-        "_apply_tracking_params_to_plugin"
+        "get_params",
+        "get_parameter_definitions",
+        "get_available_configs"
       ]
     },
     "project_manager": {
