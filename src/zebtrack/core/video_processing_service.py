@@ -242,7 +242,7 @@ class VideoProcessingService:
             video_path: Path to video file
         """
         if frame is not None:
-            self.ui_coordinator.display_frame(self.view, frame)
+            self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
             return
 
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
@@ -251,7 +251,7 @@ class VideoProcessingService:
             cap = cv2.VideoCapture(video_path)
             ret, frame = cap.read()
             if ret:
-                self.ui_coordinator.display_frame(self.view, frame)
+                self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
         except Exception as exc:
             log.warning("video_processing.frame_display_error", error=str(exc))
         finally:
@@ -570,7 +570,7 @@ class VideoProcessingService:
     def _finalize_tracking_session(
         self,
         *,
-        recorder: any,
+        recorder: Recorder,
         cancel_requested: bool,
         experiment_id: str,
         trajectory_path: str,
@@ -593,15 +593,10 @@ class VideoProcessingService:
 
         if cancel_requested:
             log.info("controller.tracking.cancelled", video=experiment_id)
-            if self.ui_event_bus:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS,
-                    {"message": f"Cancelamento solicitado para {experiment_id}."},
-                )
-            else:
-                self.ui_coordinator.set_status(
-                    self.view, f"Cancelamento solicitado para {experiment_id}."
-                )
+            self.ui_event_bus.publish_event(
+                Events.UI_SET_STATUS,
+                {"message": f"Cancelamento solicitado para {experiment_id}."},
+            )
             return False, arena_polygon
 
         log.info("controller.tracking.success", path=trajectory_path)
@@ -646,11 +641,22 @@ class VideoProcessingService:
             overall_progress = f"Processando {index + 1}/{total_videos}: {experiment_id}"
             step_status = f"Etapa: {status_message}"
 
-            # Use UICoordinator for UI updates
-            self.ui_coordinator.set_status(self.view, f"{overall_progress} - {step_status}")
-            self.ui_coordinator.update_progress(self.view, progress_fraction)
-            self.ui_coordinator.update_view(
-                self.view, "update_analysis_progress", progress_fraction, step_status
+            # Publish events instead of direct UI calls
+            self.ui_event_bus.publish_event(
+                Events.UI_SET_STATUS, {"message": f"{overall_progress} - {step_status}"}
+            )
+            # v4.0: Progress is handled by task status or dedicated progress event
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
+                {
+                    "payload": {
+                        "index": index,
+                        "total": total_videos,
+                        "experiment_id": experiment_id,
+                        "step": status_message,
+                        "progress": progress_fraction,
+                    }
+                },
             )
 
             # Publish task status event

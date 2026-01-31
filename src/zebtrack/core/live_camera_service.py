@@ -1862,7 +1862,9 @@ class LiveCameraService:
                             if i < len(zone_data.roi_colors)
                             else (255, 0, 0)
                         )
-                        rois.append(ROI(name=name, polygon=poly))
+                        from shapely.geometry import Polygon
+
+                        rois.append(ROI(name=name, geometry=Polygon(poly), coordinate_space="px"))
                         roi_colors[name] = color
 
                 # 3. Run full analysis

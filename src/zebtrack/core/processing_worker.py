@@ -23,7 +23,7 @@ import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import cv2
 import numpy as np
@@ -582,13 +582,22 @@ class _WorkerProcess(multiprocessing.Process):
             return zd
         else:
             # Fall back to default zone data (single video mode)
+            if self._default_zone_data is None:
+                return None
+
+            poly_points = 0
+            if hasattr(self._default_zone_data, "polygon"):
+                poly_points = len(self._default_zone_data.polygon)
+            elif (
+                hasattr(self._default_zone_data, "aquariums") and self._default_zone_data.aquariums
+            ):
+                poly_points = len(self._default_zone_data.aquariums[0].polygon)
+
             log.info(
                 "worker.using_default_zone_data",
                 video=os.path.basename(video_metadata.get("path", "")),
                 is_multi=hasattr(self._default_zone_data, "aquariums"),
-                polygon_points=len(self._default_zone_data.polygon)
-                if hasattr(self._default_zone_data, "polygon")
-                else 0,
+                polygon_points=poly_points,
             )
             return self._default_zone_data
 
@@ -817,7 +826,7 @@ class _WorkerProcess(multiprocessing.Process):
                     return False
 
                 should_process = frame_num % self.config.analysis_interval_frames == 0
-                detections = []
+                detections: list[dict[str, Any]] = []
 
                 if should_process:
                     # OPTIMIZATION: Only decode frames that will be processed

@@ -170,7 +170,7 @@ class Detector:
         self._single_subject_mode = False
         self._single_subject_tracker = SingleSubjectTracker()
         self._byte_tracker: BYTETracker | None = None
-        self._byte_tracker_params: tuple[float, float, int] | None = None
+        self._byte_tracker_params: tuple[float, float, int, float, float, bool, bool] | None = None
         self._zones_configured = False
         self._last_width: int | None = None
         self._last_height: int | None = None
@@ -184,6 +184,7 @@ class Detector:
         self._single_subject_trackers_multi: dict[int, SingleSubjectTracker] = {}
         self._scaled_aquarium_polygons: dict[int, np.ndarray] = {}
         self._scaled_aquarium_roi_polygons: dict[int, list[np.ndarray]] = {}
+        self._multi_tracker_params: tuple | None = None
 
         # Dynamic class ID resolution
         self.aquarium_class_id = 0
@@ -549,136 +550,62 @@ class Detector:
         self, frame: np.ndarray, project_type: str, conf_threshold: float | None = None
     ) -> tuple[list[tuple], str | None]:
         """Process a single frame for object detection and state tracking."""
-        # Task 1.3: Frame validation to prevent crashes with invalid input
-        if frame is None or not isinstance(frame, np.ndarray):
-            raise ValueError("Frame must be a valid numpy array")
-
-        if frame.size == 0:
-            raise ValueError("Frame cannot be empty")
-
-        if len(frame.shape) != 3 or frame.shape[2] != 3:
-            raise ValueError(f"Frame must be HxWx3 (BGR image), got shape {frame.shape}")
+        self._validate_frame(frame)
 
         if not self._zones_configured:
-            raise RuntimeError(
-                "Must call set_zones() before detect(). "
-                "Zones need video dimensions for proper scaling."
-            )
+            raise RuntimeError("Must call set_zones() before detect().")
 
-        if self._last_width is not None and frame.shape[:2] != (
-            self._last_height,
-            self._last_width,
-        ):
-            log.warning(
-                "detector.dimension_mismatch",
-                expected=(self._last_width, self._last_height),
-                actual=(frame.shape[1], frame.shape[0]),
-                message=(
-                    "Frame dimensions differ from dimensions used to set zones. "
-                    "This may cause inaccurate detection scaling."
-                ),
-            )
-        start_time = time.perf_counter()
+        crop_info = self._get_crop_info(frame)
+        if crop_info is None:
+            return [], None
 
-        # Optimization: Crop the frame to the bounding box of the arena polygon
-        if self.scaled_polygon.size > 0:
-            x, y, w, h = cv2.boundingRect(self.scaled_polygon)
+        cropped_frame, crop_x1, crop_y1 = crop_info
+        raw_detections = self.plugin.detect(cropped_frame, conf_threshold=conf_threshold)
 
-            # Clip to frame boundaries to avoid empty crops with negative coordinates
-            img_h, img_w = frame.shape[:2]
-            crop_x1 = max(0, x)
-            crop_y1 = max(0, y)
-            crop_x2 = min(img_w, x + w)
-            crop_y2 = min(img_h, y + h)
+        predictions = self._offset_detections(raw_detections, crop_x1, crop_y1)
+        return self.track(predictions, project_type)
 
-            if crop_x2 <= crop_x1 or crop_y2 <= crop_y1:
-                log.warning(
-                    "detector.invalid_crop",
-                    bbox=(x, y, w, h),
-                    frame_size=(img_w, img_h),
-                    message="Arena polygon bounding box is outside frame boundaries.",
-                )
-                return [], None
+    def _validate_frame(self, frame: np.ndarray) -> None:
+        if frame is None or not isinstance(frame, np.ndarray):
+            raise ValueError("Frame must be a valid numpy array")
+        if frame.size == 0:
+            raise ValueError("Frame cannot be empty")
+        if len(frame.shape) != 3 or frame.shape[2] != 3:
+            raise ValueError(f"Frame must be HxWx3, got {frame.shape}")
 
-            cropped_frame = frame[crop_y1:crop_y2, crop_x1:crop_x2]
+    def _get_crop_info(self, frame: np.ndarray) -> tuple[np.ndarray, int, int] | None:
+        if self.scaled_polygon.size == 0:
+            return frame, 0, 0
 
-            # ✅ DEBUG: Log crop dimensions to verify detection area
-            log.debug(
-                "detector.frame_crop_applied",
-                original_size=(frame.shape[1], frame.shape[0]),
-                crop_bbox=(crop_x1, crop_y1, crop_x2 - crop_x1, crop_y2 - crop_y1),
-                cropped_size=(cropped_frame.shape[1], cropped_frame.shape[0]),
-                conf_threshold=conf_threshold,
-            )
+        x, y, w, h = cv2.boundingRect(self.scaled_polygon)
+        img_h, img_w = frame.shape[:2]
+        c1, r1 = max(0, x), max(0, y)
+        c2, r2 = min(img_w, x + w), min(img_h, y + h)
 
-            # 1. Delegate actual detection to the loaded plugin on the cropped frame
-            raw_detections = self.plugin.detect(cropped_frame, conf_threshold=conf_threshold)
+        if c2 <= c1 or r2 <= r1:
+            log.warning("detector.invalid_crop", bbox=(x, y, w, h), frame_size=(img_w, img_h))
+            return None
 
-            # ✅ DEBUG: Log raw detections from plugin
-            if raw_detections:
-                log.debug(
-                    "detector.plugin_raw_detections",
-                    count=len(raw_detections),
-                    sample=str(raw_detections[:2]) if len(raw_detections) > 0 else "[]",
-                )
-            else:
-                log.debug(
-                    "detector.plugin_no_detections",
-                    crop_size=(crop_x2 - crop_x1, crop_y2 - crop_y1),
-                    conf_threshold=conf_threshold,
-                )
+        return frame[r1:r2, c1:c2], c1, r1
 
-            predictions: list[tuple[float, float, float, float, float, int, int]] = []
-            for det in raw_detections:
+    def _offset_detections(
+        self, raw_detections: list, dx: int, dy: int
+    ) -> list[tuple[float, float, float, float, float, int, int]]:
+        preds: list[tuple[float, float, float, float, float, int, int]] = []
+        for det in raw_detections:
+            x1_c, y1_c, x2_c, y2_c, conf, tid, cid = self._ensure_track_tuple(det)
+            preds.append(
                 (
-                    x1_crop,
-                    y1_crop,
-                    x2_crop,
-                    y2_crop,
-                    conf,
-                    track_id,
-                    class_id,
-                ) = self._ensure_track_tuple(det)
-                x1 = x1_crop + crop_x1
-                y1 = y1_crop + crop_y1
-                x2 = x2_crop + crop_x1
-                y2 = y2_crop + crop_y1
-                predictions.append(
-                    (
-                        float(x1),
-                        float(y1),
-                        float(x2),
-                        float(y2),
-                        float(conf),
-                        int(track_id if track_id is not None else -1),
-                        int(class_id),
-                    )
+                    float(x1_c + dx),
+                    float(y1_c + dy),
+                    float(x2_c + dx),
+                    float(y2_c + dy),
+                    float(conf),
+                    int(tid) if tid is not None else -1,
+                    int(cid),
                 )
-        else:
-            # Fallback to detecting on the full frame if no polygon is defined
-            predictions = []
-            for det in self.plugin.detect(frame, conf_threshold=conf_threshold):
-                x1, y1, x2, y2, conf, track_id, class_id = self._ensure_track_tuple(det)
-                predictions.append(
-                    (
-                        float(x1),
-                        float(y1),
-                        float(x2),
-                        float(y2),
-                        float(conf),
-                        int(track_id if track_id is not None else -1),
-                        int(class_id),
-                    )
-                )
-
-        # 2. Filter detections to only those inside the main polygon
-        # This is still necessary for non-rectangular polygons
-        # ✅ FIX: In diagnostic mode without polygon, accept ALL detections
-        detections_in_polygon = []
-        has_polygon = self.scaled_polygon.size > 0
-
-        if len(predictions) > 0:
-            log.debug(
+            )
+        return preds
                 "detector.predictions_before_polygon_filter",
                 count=len(predictions),
                 has_polygon=has_polygon,
@@ -891,13 +818,14 @@ class Detector:
                             class_id = zebrafish_class_id
                             # Update the tuple in the list
                             # (tuples are immutable, so we create new one)
+                            # Match expected type: (x1, y1, x2, y2, conf, track_id, class_id)
                             det = (
                                 float(x1),
                                 float(y1),
                                 float(x2),
                                 float(y2),
                                 float(conf),
-                                track_id,
+                                int(track_id) if track_id is not None else -1,
                                 int(class_id),
                             )
 
@@ -1639,9 +1567,9 @@ class Detector:
         if "single_subject_trackers_multi_state" in previous_state:
             for aq_id, state in previous_state["single_subject_trackers_multi_state"].items():
                 if aq_id in self._single_subject_trackers_multi:
-                    tracker = self._single_subject_trackers_multi[aq_id]
-                    if hasattr(tracker, "restore_state"):
-                        tracker.restore_state(state)  # type: ignore[attr-defined]
+                    s_tracker = self._single_subject_trackers_multi[aq_id]
+                    if hasattr(s_tracker, "restore_state"):
+                        s_tracker.restore_state(state)  # type: ignore[attr-defined]
                     log.debug(
                         "detector.restore_trackers.multi_simple_tracker_restored", aq_id=aq_id
                     )
@@ -1947,7 +1875,7 @@ class Detector:
                     if aq_id in self._byte_trackers_multi:
                         del self._byte_trackers_multi[aq_id]
 
-            self._multi_tracker_params = dict(params) if params is not None else None
+            self._multi_tracker_params = params if params is not None else None
 
         except Exception as e:
             # Rollback: clear partially created trackers
