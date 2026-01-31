@@ -96,10 +96,10 @@ class ProcessingWorker:
     def __init__(self, context: ProcessingContext, callbacks: ProcessingCallbacks):
         self.context = context
         self.callbacks = callbacks
-        self.result_queue = multiprocessing.Queue()
-        self.command_queue = multiprocessing.Queue()
-        self.process = None
-        self._monitor_thread = None
+        self.result_queue: multiprocessing.Queue = multiprocessing.Queue()
+        self.command_queue: multiprocessing.Queue = multiprocessing.Queue()
+        self.process: _WorkerProcess | None = None
+        self._monitor_thread: threading.Thread | None = None
 
     @property
     def is_running(self) -> bool:
@@ -109,6 +109,7 @@ class ProcessingWorker:
     def start_in_thread(self) -> threading.Thread:
         """Start the worker process and the monitoring thread."""
         if self.is_running:
+            assert self._monitor_thread is not None
             return self._monitor_thread
 
         # Prepare zone data dictionary
@@ -160,11 +161,11 @@ class ProcessingWorker:
         if self.process:  # Guard against None
             self.process.start()
 
-        self._monitor_thread = threading.Thread(target=self._monitor_loop, name="ProcessingMonitor")
-        if self._monitor_thread:  # Guard against None
-            self._monitor_thread.daemon = True
-            self._monitor_thread.start()
-        return self._monitor_thread
+        thread = threading.Thread(target=self._monitor_loop, name="ProcessingMonitor")
+        thread.daemon = True
+        thread.start()
+        self._monitor_thread = thread
+        return thread
 
     def cancel(self, timeout: float | None = None) -> bool:
         """Cancel processing."""
@@ -256,7 +257,7 @@ class ProcessingWorker:
                 elif msg_type == "fatal_error":
                     error = Exception(msg["error"])
                     context_str = "Fatal Worker Error"
-                    info = {"affected_videos": []}
+                    info: dict[str, Any] = {"affected_videos": []}
 
                     if self.callbacks.on_fatal_error is not None:
                         self.callbacks.on_fatal_error(error, context_str, info)
@@ -358,7 +359,7 @@ class _WorkerProcess(multiprocessing.Process):
                 if self._check_cancellation():
                     break
 
-                video_path = video_info.get("path")
+                video_path = str(video_info.get("path") or "")
                 # Support experiment_id override (useful for sequential multi-aquarium)
                 experiment_id = video_info.get("experiment_id")
                 if not experiment_id:
@@ -459,6 +460,7 @@ class _WorkerProcess(multiprocessing.Process):
             # Fallback to settings
             model_path = settings.yolo_model.path
 
+        plugin: Any
         if self.config.model_type == "openvino":
             from zebtrack.plugins.openvino_detector import OpenVINOPlugin
 
@@ -528,7 +530,7 @@ class _WorkerProcess(multiprocessing.Process):
                 )
 
             # Store as 'default' zones for the detector
-            self._default_zone_data: ZoneData | MultiAquariumZoneData = zd
+            self._default_zone_data = zd
         else:
             log.warning("worker.zone_data_missing", reason="config.zone_data is None")
             self._default_zone_data = ZoneData()
@@ -665,7 +667,7 @@ class _WorkerProcess(multiprocessing.Process):
             results_dir = self.config.output_base_dir
         else:
             # Use pre-calculated results_dir if provided (batch processing with project metadata)
-            results_dir = video_metadata.get("results_dir")
+            results_dir = cast(str, video_metadata.get("results_dir", ""))
             if not results_dir:
                 # Fallback: Create results directory next to the video file
                 video_dir = os.path.dirname(video_path)

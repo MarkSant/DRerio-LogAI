@@ -43,6 +43,11 @@ class BaseTrack:
         """Reset the global track ID counter. Call before processing a new video."""
         BaseTrack._count = 0
 
+    @staticmethod
+    def set_id_counter(value: int):
+        """Set the global track ID counter to a specific value."""
+        BaseTrack._count = value
+
     def activate(self, *args):
         raise NotImplementedError
 

@@ -122,8 +122,8 @@ class ProjectManager:
         self.asset_manager = AssetManager()
 
         # In-memory project state
-        self.project_path = None
-        self.project_data = {}
+        self.project_path: Path | str | None = None
+        self.project_data: dict[str, Any] = {}
         self.metadata = None  # Will hold the DataFrame for metadata.csv
         # Compatibility: keep roi_template_manager reference for legacy code
         self.roi_template_manager = self.asset_manager.roi_template_manager
@@ -181,6 +181,7 @@ class ProjectManager:
     ) -> dict[str, Any]:
         """Save an ROI template. Delegates to AssetManager."""
         persist_callback = self.save_project if persist else None
+        assert self.project_path is not None
         return self.asset_manager.save_roi_template(
             project_data=self.project_data,
             project_path=self.project_path,
@@ -204,6 +205,7 @@ class ProjectManager:
     ) -> dict[str, Any]:
         """Import an ROI template from file. Delegates to AssetManager."""
         persist_callback = self.save_project if persist and self.project_path else None
+        assert self.project_path is not None
         return self.asset_manager.import_roi_template(
             project_data=self.project_data,
             project_path=self.project_path,
@@ -231,7 +233,7 @@ class ProjectManager:
             file_path=file_path,
         )
 
-    def _zone_data_to_dict(self, zone_data: ZoneData) -> dict:
+    def _zone_data_to_dict(self, zone_data: ZoneData | None) -> dict[str, Any]:
         """Serialize ZoneData into a JSON-friendly dictionary. Delegates to ZoneManager."""
         return ZoneManager.zone_data_to_dict(zone_data)
 
@@ -490,7 +492,7 @@ class ProjectManager:
         import pandas as pd
 
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
-        exported = {}
+        exported: dict[str, str] = {}
 
         if not self.project_path:
             return exported
@@ -1321,13 +1323,13 @@ class ProjectManager:
                     metadata.setdefault(key, value)
 
             # Remove empty values to keep JSON compact
-            metadata: dict[str, Any] = {
+            filtered_metadata: dict[str, Any] = {
                 key: value
                 for key, value in metadata.items()
                 if value is not None and (value != "" or isinstance(value, (int, float)))
             }
 
-            video_entry = {
+            video_entry: dict[str, Any] = {
                 "path": video_path,
                 "sha256": video_hash,
                 "status": "processed" if has_data else "pending",
@@ -1343,8 +1345,8 @@ class ProjectManager:
                 "zones_finalized": False,
             }
 
-            if metadata:
-                video_entry["metadata"] = metadata
+            if filtered_metadata:
+                video_entry["metadata"] = filtered_metadata
 
             new_batch["videos"].append(video_entry)
 
@@ -2477,7 +2479,9 @@ class ProjectManager:
             day_component = self._format_day_component({"day": day})
             subject_component = self._format_subject_component({"subject_id": subject_id})
 
-            results_dir = self.project_path / group_component / day_component / subject_component
+            results_dir = (
+                Path(self.project_path) / group_component / day_component / subject_component
+            )
 
             results_dir.mkdir(parents=True, exist_ok=True)
             result[aq_id] = results_dir

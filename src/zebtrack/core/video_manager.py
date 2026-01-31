@@ -370,7 +370,7 @@ class VideoManager:
                 and (value != "" or isinstance(value, (int, float, bool, list)))
             }
 
-            video_entry = {
+            video_entry: dict[str, Any] = {
                 "path": video_path,
                 "sha256": video_hash,
                 "status": "processed" if has_data else "pending",

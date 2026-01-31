@@ -69,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "[SUCCESS] Compiled "
             f"{po_file.relative_to(args.locales_root)} "
-            f"→ {mo_path.relative_to(args.locales_root)}"
+            f"-> {mo_path.relative_to(args.locales_root)}"
         )
 
     return 0

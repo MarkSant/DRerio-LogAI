@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 import structlog
 
@@ -184,7 +185,7 @@ class ZoneManager:
     def update_video_zone_flags(
         project_data: dict,
         video_path: Path | str,
-        zone_data: ZoneData | None,
+        zone_data: ZoneData | MultiAquariumZoneData | None,
     ) -> None:
         """Update has_arena/has_rois flags for a given video entry.
 
@@ -431,7 +432,7 @@ class ZoneManager:
         zone_data: ZoneData,
         video_path: Path | str | None = None,
         *,
-        persist_callback: callable | None = None,
+        persist_callback: Callable[[], None] | None = None,
     ) -> None:
         """Persist zone data for the active video and project defaults.
 
@@ -450,10 +451,12 @@ class ZoneManager:
         # Determine serialization method based on data type
         if hasattr(zone_data, "aquariums"):
             # Multi-Aquarium Data
-            serialized = self.multi_aquarium_zone_data_to_dict(zone_data)
-            # Store in dedicated multi-aquarium section if applicable, or general zones?
-            # Current architecture seems to use 'multi_aquarium_zones' for this.
-            self.save_multi_aquarium_zone_data(project_data, target_video, zone_data)
+            # Cast for type checker since we just checked hasattr
+            from zebtrack.core.detector import MultiAquariumZoneData
+
+            mq_data = cast(MultiAquariumZoneData, zone_data)
+            # Store in dedicated multi-aquarium section if applicable
+            self.save_multi_aquarium_zone_data(project_data, target_video or "", mq_data)
             # We return early because save_multi_aquarium_zone_data handles persistence
             if persist_callback:
                 persist_callback()
@@ -482,7 +485,7 @@ class ZoneManager:
         project_data: dict,
         video_path: Path | str,
         *,
-        persist_callback: callable | None = None,
+        persist_callback: Callable[[], None] | None = None,
     ) -> None:
         """Remove stored zone data for a specific video.
 
@@ -557,7 +560,7 @@ class ZoneManager:
         return self.zone_data_from_dict(project_data.get("detection_zones"))
 
     def update_main_polygon(
-        self, project_data: dict, points: list, persist_callback: callable | None = None
+        self, project_data: dict, points: list, persist_callback: Callable[[], None] | None = None
     ) -> None:
         """Update or define the main polygon in project data.
 
@@ -970,7 +973,7 @@ class ZoneManager:
         project_data: dict,
         video_path: Path | str,
         *,
-        persist_callback: callable | None = None,
+        persist_callback: Callable[[], None] | None = None,
     ) -> None:
         """Remove multi-aquarium zone data for a specific video.
 

@@ -18,13 +18,13 @@ import re
 import unicodedata
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, ClassVar, Literal
+from typing import Any, Callable, ClassVar, Literal, cast
 
 import structlog
 
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.roi_template_manager import ROITemplateManager
-from zebtrack.core.types import AssetType
+from zebtrack.core.schemas import AssetType
 
 log = structlog.get_logger()
 
@@ -192,14 +192,14 @@ class AssetManager:
         project_path: Path | str,
         name: str,
         zone_data: ZoneData,
-        zone_data_to_dict_fn: callable,
+        zone_data_to_dict_fn: Callable[[ZoneData | None], dict],
         *,
         save_arena: bool = True,
         save_rois: bool = True,
         save_location: Literal["project", "global", "custom"] | None = "project",
         custom_path: str | Path | None = None,
         overwrite: bool = True,
-        persist_callback: callable | None = None,
+        persist_callback: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         """Save a ROI template to project or global storage.
 
@@ -280,7 +280,7 @@ class AssetManager:
                 save_arena=save_arena,
                 save_rois=save_rois,
                 save_location="project",
-                project_path=project_path,
+                project_path=str(project_path) if project_path else None,
                 overwrite=overwrite,
             )
 
@@ -324,7 +324,7 @@ class AssetManager:
             save_arena=save_arena,
             save_rois=save_rois,
             save_location=target_location,
-            project_path=project_path,
+            project_path=str(project_path) if project_path else None,
             custom_path=custom_path,
             overwrite=overwrite,
         )
@@ -336,11 +336,11 @@ class AssetManager:
         project_data: dict,
         project_path: Path | str | None,
         file_path: Path | str,
-        zone_data_from_dict_fn: callable,
-        zone_data_to_dict_fn: callable,
+        zone_data_from_dict_fn: Callable[[dict], ZoneData],
+        zone_data_to_dict_fn: Callable[[ZoneData | None], dict],
         *,
         name: str | None = None,
-        persist_callback: callable | None = None,
+        persist_callback: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         """Import a ROI template from a JSON file.
 
@@ -398,7 +398,7 @@ class AssetManager:
         project_data: dict,
         project_path: Path | str | None,
         name: str,
-        zone_data_from_dict_fn: callable,
+        zone_data_from_dict_fn: Callable[[dict], ZoneData],
         *,
         location: Literal["project", "global", "custom"] | None = None,
         file_path: str | Path | None = None,
@@ -678,7 +678,7 @@ class AssetManager:
             if has_summary_outputs:
                 return False, "Remova relatórios e sumários antes de excluir o vídeo."
             if any(
-                self.video_has_asset(video_entry, dependency)
+                self.video_has_asset(video_entry, cast(AssetType, dependency))
                 for dependency in ("trajectory", "rois", "arena")
             ):
                 return (

@@ -152,7 +152,7 @@ class ROITemplateManager:
         # Preparar dados do template (incluir apenas componentes selecionados)
         now = datetime.now(UTC).isoformat()
 
-        serialized_data = {}
+        serialized_data: dict[str, Any] = {}
 
         if save_arena:
             serialized_data["polygon"] = [list(point) for point in (zone_data.polygon or [])]

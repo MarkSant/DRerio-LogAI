@@ -862,13 +862,13 @@ class Detector:
                 # treat it as an animal (class 1).
 
                 # Calculate arena area for comparison
-                arena_area: float = 0
+                arena_area: float = 0.0
                 if self.scaled_polygon.size > 0:
                     arena_area = float(cv2.contourArea(self.scaled_polygon))
 
                 for det in detections_in_polygon:
                     # Cast to ensure int types for unpacking
-                    x1_f, y1_f, x2_f, y2_f, conf, track_id, class_id = det
+                    x1_f, y1_f, x2_f, y2_f, conf, track_id, class_id = det  # type: ignore[misc]
                     x1, y1, x2, y2 = int(x1_f), int(y1_f), int(x2_f), int(y2_f)
 
                     # Calculate detection area
@@ -891,7 +891,15 @@ class Detector:
                             class_id = zebrafish_class_id
                             # Update the tuple in the list
                             # (tuples are immutable, so we create new one)
-                            det = (x1, y1, x2, y2, conf, track_id, class_id)
+                            det = (
+                                float(x1),
+                                float(y1),
+                                float(x2),
+                                float(y2),
+                                float(conf),
+                                track_id,
+                                int(class_id),
+                            )
 
                     if class_id == zebrafish_class_id:
                         filtered_detections.append(det)
@@ -911,15 +919,15 @@ class Detector:
             # - Aquarium detection: need raw aquarium bboxes, ByteTracker would reject
             filtered_detections = [
                 (
-                    int(x1),
-                    int(y1),
-                    int(x2),
-                    int(y2),
+                    float(x1),
+                    float(y1),
+                    float(x2),
+                    float(y2),
                     float(confidence),
-                    None,  # No track_id
+                    int(track_id if track_id is not None else -1),
                     int(class_id),
                 )
-                for x1, y1, x2, y2, confidence, _, class_id in filtered_detections
+                for x1, y1, x2, y2, confidence, track_id, class_id in filtered_detections
             ]
             log.debug(
                 "detector.skip_tracking",
@@ -1631,7 +1639,9 @@ class Detector:
         if "single_subject_trackers_multi_state" in previous_state:
             for aq_id, state in previous_state["single_subject_trackers_multi_state"].items():
                 if aq_id in self._single_subject_trackers_multi:
-                    self._single_subject_trackers_multi[aq_id].restore_state(state)
+                    tracker = self._single_subject_trackers_multi[aq_id]
+                    if hasattr(tracker, "restore_state"):
+                        tracker.restore_state(state)  # type: ignore[attr-defined]
                     log.debug(
                         "detector.restore_trackers.multi_simple_tracker_restored", aq_id=aq_id
                     )
@@ -1937,7 +1947,7 @@ class Detector:
                     if aq_id in self._byte_trackers_multi:
                         del self._byte_trackers_multi[aq_id]
 
-            self._multi_tracker_params = params
+            self._multi_tracker_params = dict(params) if params is not None else None
 
         except Exception as e:
             # Rollback: clear partially created trackers
@@ -2005,8 +2015,8 @@ class Detector:
         # Partition detections by aquarium
         partitioned: dict[int, list] = {aq.id: [] for aq in self._aquariums}
 
-        for det in raw_detections:
-            det = self._ensure_track_tuple(det)
+        for raw_det in raw_detections:
+            det = self._ensure_track_tuple(raw_det)
             x1, y1, x2, y2, conf, _, class_id = det
 
             # Calculate centroid
@@ -2213,8 +2223,8 @@ class Detector:
 
             # Adjust coordinates back to original frame
             adjusted_detections = []
-            for det in raw_detections:
-                det = self._ensure_track_tuple(det)
+            for raw_det in raw_detections:
+                det = self._ensure_track_tuple(raw_det)
                 x1, y1, x2, y2, conf, _, class_id = det
 
                 # Offset coordinates to original frame space
@@ -2360,8 +2370,8 @@ class Detector:
                 # Get aquarium polygon for filtering
                 polygon = self._scaled_aquarium_polygons.get(aq_id)
 
-                for det in raw_detections:
-                    det = self._ensure_track_tuple(det)
+                for raw_det in raw_detections:
+                    det = self._ensure_track_tuple(raw_det)
                     # Cast to ensure int types for unpacking
                     x1_f, y1_f, x2_f, y2_f, conf, _, class_id = det
                     x1, y1, x2, y2 = int(x1_f), int(y1_f), int(x2_f), int(y2_f)

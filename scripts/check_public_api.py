@@ -47,20 +47,20 @@ def main():
     missing = []
     for method_name in EXPECTED_PUBLIC_API:
         if not hasattr(ApplicationGUI, method_name):
-            print(f"❌ Method not found: {method_name}")
+            print(f"[FAIL] Method not found: {method_name}")
             missing.append(method_name)
             continue
 
         method = getattr(ApplicationGUI, method_name)
         if not hasattr(method, "__public_api__"):
-            print(f"❌ Missing @public_api: {method_name}")
+            print(f"[FAIL] Missing @public_api: {method_name}")
             missing.append(method_name)
 
     if missing:
         print(f"Found {len(missing)} violations.")
         sys.exit(1)
 
-    print("✅ All public API methods verified.")
+    print("[OK] All public API methods verified.")
     sys.exit(0)
 
 

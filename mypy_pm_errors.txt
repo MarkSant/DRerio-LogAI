@@ -1,0 +1,27 @@
+src\zebtrack\core\detector.py:869: error: Incompatible types in assignment (expression has type "tuple[float, float, float, float, float, int, int]", variable has type "tuple[int, int, int, int, float, int | None, int]")  [assignment]
+src\zebtrack\core\detector.py:894: error: Incompatible types in assignment (expression has type "tuple[float, float, float, float, float, int | None, int]", variable has type "tuple[int, int, int, int, float, int | None, int]")  [assignment]
+src\zebtrack\core\detector.py:905: error: Argument 1 to "append" of "list" has incompatible type "tuple[int, int, int, int, float, int | None, int]"; expected "tuple[float, float, float, float, float, int, int]"  [arg-type]
+src\zebtrack\core\detector.py:1538: error: Incompatible types in assignment (expression has type "tuple[float, float, int, float, float, bool, bool]", variable has type "tuple[float, float, int] | None")  [assignment]
+src\zebtrack\core\detector.py:1642: error: Incompatible types in assignment (expression has type "SingleSubjectTracker", variable has type "BYTETracker")  [assignment]
+src\zebtrack\core\detector.py:1950: error: Incompatible types in assignment (expression has type "dict[Never, Never]", variable has type "None")  [assignment]
+src\zebtrack\core\detector.py:1950: error: Argument 1 to "dict" has incompatible type "tuple[bool, float, float, int, float, float]"; expected "Iterable[tuple[Never, Never]]"  [arg-type]
+src\zebtrack\core\roi_template_manager.py:162: error: List comprehension has incompatible type List[list[int]]; expected List[int]  [misc]
+src\zebtrack\core\roi_template_manager.py:164: error: Argument 1 to "list" has incompatible type "list[str]"; expected "Iterable[list[int]]"  [arg-type]
+src\zebtrack\core\asset_manager.py:681: error: Argument 2 to "video_has_asset" of "AssetManager" has incompatible type "str"; expected "Literal['arena', 'rois', 'trajectory', 'summary', 'video']"  [arg-type]
+src\zebtrack\core\zone_manager.py:488: error: Function "builtins.callable" is not valid as a type  [valid-type]
+src\zebtrack\core\zone_manager.py:488: note: Perhaps you meant "typing.Callable" instead of "callable"?
+src\zebtrack\core\zone_manager.py:513: error: callable? not callable  [misc]
+src\zebtrack\core\zone_manager.py:877: error: Argument 3 to "update_video_zone_flags" of "ZoneManager" has incompatible type "MultiAquariumZoneData"; expected "ZoneData | None"  [arg-type]
+src\zebtrack\core\zone_manager.py:976: error: Function "builtins.callable" is not valid as a type  [valid-type]
+src\zebtrack\core\zone_manager.py:976: note: Perhaps you meant "typing.Callable" instead of "callable"?
+src\zebtrack\core\zone_manager.py:1013: error: callable? not callable  [misc]
+src\zebtrack\ui\wizard\models.py:384: error: Need type annotation for "results" (hint: "results: list[<type>] = ...")  [var-annotated]
+src\zebtrack\core\project_manager.py:126: error: Need type annotation for "project_data" (hint: "project_data: dict[<type>, <type>] = ...")  [var-annotated]
+src\zebtrack\core\project_manager.py:186: error: Argument "project_path" to "save_roi_template" of "AssetManager" has incompatible type "Path | str | None"; expected "Path | str"  [arg-type]
+src\zebtrack\core\project_manager.py:189: error: Argument "zone_data_to_dict_fn" to "save_roi_template" of "AssetManager" has incompatible type "Callable[[ZoneData], dict[Any, Any]]"; expected "Callable[[ZoneData | None], dict[Any, Any]]"  [arg-type]
+src\zebtrack\core\project_manager.py:212: error: Argument "zone_data_to_dict_fn" to "import_roi_template" of "AssetManager" has incompatible type "Callable[[ZoneData], dict[Any, Any]]"; expected "Callable[[ZoneData | None], dict[Any, Any]]"  [arg-type]
+src\zebtrack\core\project_manager.py:1324: error: Name "metadata" already defined on line 1292  [no-redef]
+src\zebtrack\core\project_manager.py:1347: error: Incompatible types in assignment (expression has type "dict[Any, Any]", target has type "bool | str")  [assignment]
+src\zebtrack\core\project_manager.py:2480: error: Unsupported left operand type for / ("str")  [operator]
+src\zebtrack\core\project_manager.py:2480: note: Left operand is of type "Path | str"
+Found 23 errors in 6 files (checked 1 source file)
