@@ -256,12 +256,12 @@ class Reporter:
             self.validation_stats,
         ) = service.run_full_analysis(
             trajectory_df=trajectory_df,
-            pixelcm_x=pixelcm_x,
-            pixelcm_y=pixelcm_y,
-            video_height_px=video_height_px,
-            arena_polygon_px=arena_polygon_px,
-            rois=rois,
-            fps=fps,
+            pixelcm_x=pixelcm_x or 1.0,
+            pixelcm_y=pixelcm_y or 1.0,
+            video_height_px=video_height_px or 0,
+            arena_polygon_px=arena_polygon_px or [],
+            rois=rois or [],
+            fps=fps or 30.0,
             freezing_vel_threshold=freezing_threshold,
             freezing_min_duration=freezing_duration,
             smoothing_window_length=smoothing_window_length,
@@ -285,7 +285,7 @@ class Reporter:
         self.viz_generator = VisualizationGenerator(
             b_analyzer=self.b_analyzer,
             r_analyzer=self.r_analyzer,
-            metadata=self.metadata,
+            metadata=self.metadata or {},
             roi_colors=self.roi_colors,
             calibration=self.calibration,
             pixelcm_x=self._pixelcm_x,
@@ -300,14 +300,16 @@ class Reporter:
         # Generate the tidy dataframe from the report
         tidy_df = self.data_transformer.create_tidy_dataframe(
             report=self.report,
-            metadata=self.metadata,
+            metadata=self.metadata or {},
             b_analyzer=self.b_analyzer,
             r_analyzer=self.r_analyzer,
             roi_colors=self.roi_colors,
             validation_stats=self.validation_stats,
             behavioral_config=getattr(self, "behavioral_config", {}),
         )
-        self.tidy_data = self.data_transformer.standardize_tidy_dataframe(tidy_df, self.metadata)
+        self.tidy_data = self.data_transformer.standardize_tidy_dataframe(
+            tidy_df, self.metadata or {}
+        )
 
     @classmethod
     def from_analysis(cls, analysis: AnalysisResult) -> "Reporter":
@@ -447,8 +449,8 @@ class Reporter:
 
         # Apply Geotaxis column renaming if applicable
         # Requires behavioral info which might be in metadata or config
-        height_cm = float(self.metadata.get("aquarium_height_cm", 0) or 0)
-        num_zones = int(self.metadata.get("geotaxis_num_zones", 0) or 0)
+        height_cm = float((self.metadata or {}).get("aquarium_height_cm", 0) or 0)
+        num_zones = int((self.metadata or {}).get("geotaxis_num_zones", 0) or 0)
 
         # Try to fetch from behavioral config if available
         if num_zones == 0 and hasattr(self, "behavioral_config"):
@@ -494,7 +496,7 @@ class Reporter:
         total_steps = 11
         template_path = INDIVIDUAL_REPORT_TEMPLATE
         heading_text = _("Analysis Report - {experiment_id}").format(
-            experiment_id=self.metadata.get("experiment_id", "Unknown")
+            experiment_id=(self.metadata or {}).get("experiment_id", "Unknown")
         )
 
         doc_template, document = self._prepare_report_document(template_path, heading_text)
@@ -560,19 +562,19 @@ class Reporter:
     ) -> None:
         """Append the metadata section to the provided document and call progress callback."""
         document.add_heading(_("Experiment Metadata"), level=2)
-        for key, value in self.metadata.items():
+        for key, value in (self.metadata or {}).items():
             document.add_paragraph(f"{key.replace('_', ' ').title()}: {value}")
         progress_callback(1 / total_steps, _("Metadata added"))
 
         # Step 2: Summary table
         document.add_heading(_("Metrics Summary"), level=2)
         df = self.tidy_data.drop(
-            columns=[k for k in self.metadata.keys() if k in self.tidy_data.columns]
+            columns=[k for k in (self.metadata or {}).keys() if k in self.tidy_data.columns]
         )
 
         # Apply Geotaxis column renaming for Word report
-        height_cm = float(self.metadata.get("aquarium_height_cm", 0) or 0)
-        num_zones = int(self.metadata.get("geotaxis_num_zones", 0) or 0)
+        height_cm = float((self.metadata or {}).get("aquarium_height_cm", 0) or 0)
+        num_zones = int((self.metadata or {}).get("geotaxis_num_zones", 0) or 0)
         if hasattr(self, "behavioral_config") and num_zones == 0:
             num_zones = int(self.behavioral_config.get("geotaxis_num_zones", 0) or 0)
 
@@ -663,7 +665,7 @@ class Reporter:
     ) -> None:
         """Generate and append visualization plots in parallel."""
         document.add_heading(_("Visualizations"), level=2)
-        plot_configs = [
+        plot_configs: list[tuple[Callable[[Any], Any], str]] = [
             (
                 lambda ax: self.viz_generator.generate_trajectory_plot(ax, self.video_path),
                 _("Trajectory"),
@@ -843,10 +845,10 @@ class Reporter:
         output_path = Path(output_path) if isinstance(output_path, str) else output_path
 
         # Ensure we have necessary data
-        if self.behavior_analyzer is None:
+        if self.b_analyzer is None:
             raise ValueError("BehaviorAnalyzer not available. Cannot generate HTML report.")
 
-        trajectory_df = self.behavior_analyzer.trajectory_data
+        trajectory_df = self.b_analyzer.trajectory_data
 
         # Create subplots
         fig = make_subplots(
@@ -868,7 +870,7 @@ class Reporter:
 
         # 1. Trajectory plot (top-left)
         if "x_cm" in trajectory_df.columns and "y_cm" in trajectory_df.columns:
-            velocity = self.behavior_analyzer.calculate_velocity()
+            velocity = self.b_analyzer.calculate_velocity_timeseries()["v_mag"]
             fig.add_trace(
                 go.Scatter(
                     x=trajectory_df["x_cm"],
@@ -893,8 +895,9 @@ class Reporter:
             fig.update_yaxis(title_text="Y Position (cm)", row=1, col=1)
 
         # 2. Velocity over time (top-right)
-        velocity_ts = self.behavior_analyzer.calculate_velocity()
-        time_seconds = trajectory_df.index.to_numpy() / self.fps
+        velocity_ts = self.b_analyzer.calculate_velocity_timeseries()["v_mag"]
+        fps = float((self.metadata or {}).get("fps", 30.0) or 30.0)
+        time_seconds = trajectory_df.index.to_numpy() / fps
         fig.add_trace(
             go.Scatter(
                 x=time_seconds,
@@ -924,8 +927,8 @@ class Reporter:
         fig.update_yaxis(title_text="Velocity (cm/s)", row=1, col=2)
 
         # 3. ROI time spent (bottom-left)
-        if self.roi_analyzer is not None:
-            roi_time = self.roi_analyzer.get_time_spent_in_rois()
+        if self.r_analyzer is not None:
+            roi_time = self.r_analyzer.get_time_spent_in_rois()
             if roi_time:
                 roi_names = list(roi_time.keys())
                 roi_values = [roi_time[name] for name in roi_names]
@@ -945,14 +948,16 @@ class Reporter:
                 fig.update_yaxis(title_text="Time Spent (seconds)", row=2, col=1)
 
         # 4. Freezing episodes (bottom-right)
-        freezing_episodes = self.behavior_analyzer.detect_freezing_episodes(
-            velocity_threshold=freezing_threshold,
-            min_duration_s=self.freezing_duration or 1.0,
+        freezing_list = self.b_analyzer.detect_freezing_episodes(
+            min_duration=self.freezing_duration or 1.0,
+            vel_threshold=freezing_threshold,
         )
+        freezing_episodes = pd.DataFrame(freezing_list)
 
         if not freezing_episodes.empty:
             # Plot freezing episodes as scatter points
-            freeze_times = freezing_episodes["start_frame"].to_numpy() / self.fps
+            fps = float((self.metadata or {}).get("fps", 30.0) or 30.0)
+            freeze_times = freezing_episodes["start_frame"].to_numpy() / fps
             freeze_durations = freezing_episodes["duration_s"].to_numpy()
 
             fig.add_trace(

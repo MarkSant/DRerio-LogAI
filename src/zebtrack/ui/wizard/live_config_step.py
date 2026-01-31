@@ -22,11 +22,15 @@ from tkinter import (
 from tkinter import (
     font as tkfont,
 )
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.core.live_camera_mode import LiveCameraMode, LiveCameraModeSelector
+from zebtrack.core.live_camera_mode import (
+    LiveCameraMode,
+    LiveCameraModeRecommendation,
+    LiveCameraModeSelector,
+)
 from zebtrack.core.wizard_service import WizardService
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
@@ -66,7 +70,12 @@ class LiveConfigStep(WizardStep):
         }
     """
 
-    def __init__(self, parent, wizard_data: dict, settings_obj: "Settings | None" = None):
+    def __init__(
+        self,
+        parent: "Frame",
+        wizard_data: dict[str, Any],
+        settings_obj: "Settings | None" = None,
+    ):
         """Initialize live config step."""
         super().__init__(parent, wizard_data)
         self.step_id = WizardStepID.LIVE_CONFIG
@@ -527,7 +536,7 @@ class LiveConfigStep(WizardStep):
 
         self._update_template_banner()
 
-    def on_show(self):
+    def on_show(self) -> None:
         """Execute actions when step becomes visible."""
         self._update_template_banner()
         # Update UI state based on checkboxes
@@ -642,7 +651,9 @@ class LiveConfigStep(WizardStep):
             )
             return True
 
-    def _show_mode_selection_dialog(self, requested_aquariums: int, recommendation) -> bool:
+    def _show_mode_selection_dialog(
+        self, requested_aquariums: int, recommendation: LiveCameraModeRecommendation
+    ) -> bool:
         """Show mode selection dialog and wait for user choice.
 
         Args:

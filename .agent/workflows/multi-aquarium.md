@@ -4,6 +4,8 @@ description: Checklist for multi-aquarium feature changes
 
 # Multi-Aquarium Feature Workflow
 
+// turbo-all
+
 ## Pre-Implementation Checklist
 
 1. Read `docs/architecture/SYSTEM_INTEGRATION_MAP.md`

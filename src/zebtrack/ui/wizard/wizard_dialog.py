@@ -7,10 +7,11 @@ Manages 5-step wizard flow, navigation, and data accumulation.
 from datetime import datetime, timezone
 from tkinter import Frame, messagebox
 from tkinter.simpledialog import Dialog
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.cache import WizardCache
 
 if TYPE_CHECKING:
@@ -85,15 +86,19 @@ class WizardDialog(Dialog):
             settings_obj: Settings instance (optional)
             event_bus: EventBus instance (optional)
         """
-        self.all_steps = {}  # All possible steps indexed by WizardStepID
-        self.active_steps = []  # Steps for current project type (updated dynamically)
+        self.all_steps: dict[
+            WizardStepID, WizardStep
+        ] = {}  # All possible steps indexed by WizardStepID
+        self.active_steps: list[
+            WizardStep
+        ] = []  # Steps for current project type (updated dynamically)
         self.current_step_index = 0
-        self.wizard_data = {
+        self.wizard_data: dict[str, Any] = {
             "wizard_schema_version": 3,  # v3.0: Model selection & detector params
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         self.cache = WizardCache()
-        self.result = None  # Will be set on successful completion
+        self.result: dict[str, Any] | None = None  # Will be set on successful completion
         self._geometry_initialized = False
         self.settings = settings_obj  # Store settings for steps
         self.event_bus = event_bus
@@ -430,7 +435,11 @@ class WizardDialog(Dialog):
 
             # Restore previous step with data
             prev_step = self.active_steps[self.current_step_index - 1]
-            prev_data = self.wizard_data.get(prev_step.step_id.name.lower(), {})
+            step_id = prev_step.step_id
+            if step_id:
+                prev_data: dict[str, Any] = self.wizard_data.get(step_id.name.lower(), {})
+            else:
+                prev_data = {}
             prev_step.set_data(prev_data)
 
             # Show previous step

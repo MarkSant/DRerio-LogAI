@@ -399,9 +399,9 @@ class ProcessingCoordinator(BaseCoordinator):
         bus.subscribe(
             Events.VIDEO_START_SINGLE_PROCESSING,
             lambda data: self.start_single_video_processing(
-                data.get("video_path") if isinstance(data, dict) else None,
-                data.get("config") if isinstance(data, dict) else {},
-                data.get("zone_data") if isinstance(data, dict) else None,
+                video_path=str(data.get("video_path", "")) if isinstance(data, dict) else "",
+                config=data.get("config", {}) if isinstance(data, dict) else {},
+                zone_data=data.get("zone_data") if isinstance(data, dict) else None,
             ),
         )
         bus.subscribe(
@@ -704,12 +704,16 @@ class ProcessingCoordinator(BaseCoordinator):
         def _on_started_wrapper():
             self._on_processing_started(videos_to_process)
 
-        def _on_progress_wrapper(idx, total, exp_id, fraction, msg, stats):
+        def _on_progress_wrapper(
+            idx: int, total: int, exp_id: str | None, fraction: float, msg: str, stats: dict | None
+        ) -> None:
             self._on_processing_progress(
                 videos_to_process, idx, total, exp_id, fraction, msg, stats
             )
 
-        def _on_video_completed_wrapper(idx, total, exp_id, success):
+        def _on_video_completed_wrapper(
+            idx: int, total: int, exp_id: str | None, success: bool
+        ) -> None:
             self._on_video_completed(videos_to_process, idx, total, exp_id, success)
 
         def _on_completed_wrapper(cancelled, output_dir, summary=None):
@@ -748,16 +752,17 @@ class ProcessingCoordinator(BaseCoordinator):
         videos_to_process: list[dict],
         index: int,
         total: int,
-        experiment_id: str,
+        experiment_id: str | None,
         fraction: float,
         message: str,
         stats: dict | None,
-    ):
+    ) -> None:
         """Internal handler for progress updates."""
         if self.cancel_event.is_set() or not self.view:
             return
 
-        overall_progress = f"Processando {index + 1}/{total}: {experiment_id}"
+        display_exp_id = experiment_id or "Video"
+        overall_progress = f"Processando {index + 1}/{total}: {display_exp_id}"
         step_status = f"Etapa: {message}"
         self.ui_coordinator.set_status(self.view, f"{overall_progress} - {step_status}")
         self.ui_coordinator.update_progress(self.view, fraction)
@@ -786,7 +791,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 "payload": {
                     "index": index,
                     "total": total,
-                    "experiment_id": experiment_id,
+                    "experiment_id": experiment_id or "Unknown",
                     "step": message,
                     "group": video_metadata.get("group"),
                     "day": video_metadata.get("day"),
@@ -819,9 +824,9 @@ class ProcessingCoordinator(BaseCoordinator):
         videos_to_process: list[dict],
         index: int,
         total: int,
-        experiment_id: str,
+        experiment_id: str | None,
         success: bool,
-    ):
+    ) -> None:
         """Internal handler for single video completion."""
         log.info(
             "controller.video_completed",
@@ -841,9 +846,12 @@ class ProcessingCoordinator(BaseCoordinator):
             video_results_dir = video_info.get("results_dir")
             # Use original experiment_id (base filename) for parquet names
             # but allow override if stored in video_info
-            v_exp_id = (
-                video_info.get("experiment_id") or os.path.splitext(os.path.basename(video_path))[0]
-            )
+            v_exp_id = video_info.get("experiment_id")
+            if not v_exp_id and video_path:
+                v_exp_id = os.path.splitext(os.path.basename(str(video_path)))[0]
+
+            if not v_exp_id:
+                v_exp_id = "Unknown"
         else:
             log.warning("controller.video_completed.index_out_of_bounds", index=index)
             return
@@ -852,7 +860,8 @@ class ProcessingCoordinator(BaseCoordinator):
         if video_results_dir:
             results_dir = video_results_dir
         else:
-            results_dir = os.path.join(os.path.dirname(video_path), f"{v_exp_id}_results")
+            base_dir = os.path.dirname(str(video_path)) if video_path else "."
+            results_dir = os.path.join(base_dir, f"{v_exp_id}_results")
 
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{v_exp_id}.parquet")
         # Check if worker used the suffixed experiment_id for the file
@@ -1017,12 +1026,15 @@ class ProcessingCoordinator(BaseCoordinator):
 
     def _handle_sequential_multi_aquarium(self, outputs_by_aquarium):
         """Handle advancement in sequential multi-aquarium mode."""
-        if hasattr(self, "_sequential_context") and self._sequential_context:
+        if hasattr(self, "_sequential_context") and isinstance(self._sequential_context, dict):
             ctx = self._sequential_context
-            ctx_outputs = ctx.get("outputs_by_aquarium", {})
-            ctx_outputs.update(outputs_by_aquarium)
-            ctx["outputs_by_aquarium"] = ctx_outputs
-            ctx["current_aquarium_index"] = ctx.get("current_aquarium_index", 0) + 1
+            ctx_outputs = ctx.setdefault("outputs_by_aquarium", {})
+            if isinstance(ctx_outputs, dict):
+                ctx_outputs.update(outputs_by_aquarium)
+
+            current_idx = ctx.get("current_aquarium_index", 0)
+            if isinstance(current_idx, int):
+                ctx["current_aquarium_index"] = current_idx + 1
 
             if self.view and self.root:
                 self.root.after(50, self._process_next_aquarium_in_sequence)

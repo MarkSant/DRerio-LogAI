@@ -175,28 +175,31 @@ class ProjectOverviewWidget(BaseWidget):
 
     def _on_video_selected(self, event) -> None:
         """Handle video selection in tree."""
-        selection = self.project_overview_tree.selection()
-        if selection:
-            item_id = selection[0]
-            self.emit_event("project.video_selected", {"item_id": item_id})
+        if self.project_overview_tree:
+            selection = self.project_overview_tree.selection()
+            if selection:
+                item_id = selection[0]
+                self.emit_event("project.video_selected", {"item_id": item_id})
 
     def _on_video_double_click(self, event) -> None:
         """Handle video double-click in tree."""
-        selection = self.project_overview_tree.selection()
-        if selection:
-            item_id = selection[0]
-            self.emit_event("project.video_double_click", {"item_id": item_id})
+        if self.project_overview_tree:
+            selection = self.project_overview_tree.selection()
+            if selection:
+                item_id = selection[0]
+                self.emit_event("project.video_double_click", {"item_id": item_id})
 
     def _on_video_right_click(self, event) -> None:
         """Handle video right-click in tree."""
         # Get item at click position
-        item_id = self.project_overview_tree.identify_row(event.y)
-        if item_id:
-            self.project_overview_tree.selection_set(item_id)
-            self.emit_event(
-                "project.video_right_click",
-                {"item_id": item_id, "x": event.x_root, "y": event.y_root},
-            )
+        if self.project_overview_tree:
+            item_id = self.project_overview_tree.identify_row(event.y)
+            if item_id:
+                self.project_overview_tree.selection_set(item_id)
+                self.emit_event(
+                    "project.video_right_click",
+                    {"item_id": item_id, "x": event.x_root, "y": event.y_root},
+                )
 
     # Public API for updating widget state
 

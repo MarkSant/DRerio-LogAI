@@ -12,6 +12,9 @@ class DetectorPlugin(ABC):
     ensuring they can be used interchangeably by the main Detector class.
     """
 
+    conf_threshold: float = 0.25
+    nms_threshold: float = 0.45
+
     @abstractmethod
     def __init__(self, model_path: Path | str):
         """

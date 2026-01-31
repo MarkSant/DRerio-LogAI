@@ -284,7 +284,7 @@ class HardwareCoordinator(BaseCoordinator):
                     StateCategory.DETECTOR,
                     is_detector_initialized=True,
                     animal_method=animal_method
-                    or self.detector_service.settings.detection.animal_method,
+                    or self.detector_service.settings.model_selection.animal_method,
                     use_openvino=use_openvino,
                 )
 
@@ -589,10 +589,12 @@ class HardwareCoordinator(BaseCoordinator):
 
         # Delegate to service
         try:
+            from typing import Literal, cast
+
             success = self.detector_service.update_tracking_parameters(
                 params=params,
                 reset_overrides=reset_overrides,
-                scope=scope,
+                scope=cast(Literal["global", "project"], scope),
             )
 
             if success:
@@ -1001,7 +1003,11 @@ class HardwareCoordinator(BaseCoordinator):
         if not active_weight_name and hasattr(self.weight_manager, "get_active_weight_name"):
             active_weight_name = self.weight_manager.get_active_weight_name()
 
-        active_weight_details = self.weight_manager.get_weight_details(active_weight_name)
+        active_weight_details = (
+            self.weight_manager.get_weight_details(active_weight_name)
+            if self.weight_manager and active_weight_name
+            else None
+        )
 
         log.info(
             "hardware_coordinator.diagnostic.active_weight",
@@ -1058,10 +1064,16 @@ class HardwareCoordinator(BaseCoordinator):
                         )
 
                     # Refresh details after conversion
-                    active_weight_details = self.weight_manager.get_weight_details(
-                        active_weight_name
-                    )
-                    if not _is_valid_openvino_directory(active_weight_details.get("openvino_path")):
+                    if active_weight_name:
+                        active_weight_details = self.weight_manager.get_weight_details(
+                            str(active_weight_name)
+                        )
+                    else:
+                        active_weight_details = None  # Should not happen if initial check passed
+
+                    if not active_weight_details or not _is_valid_openvino_directory(
+                        active_weight_details.get("openvino_path")
+                    ):
                         if self.event_bus:
                             self.event_bus.publish_event(
                                 Events.UI_SHOW_ERROR,

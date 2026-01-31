@@ -17,7 +17,7 @@ from tkinter import (
 from tkinter import (
     font as tkfont,
 )
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from zebtrack.core.wizard_service import WizardService
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
@@ -48,7 +48,12 @@ class CalibrationStep(WizardStep):
         }
     """
 
-    def __init__(self, parent, wizard_data: dict, event_bus: "EventBus | None" = None):
+    def __init__(
+        self,
+        parent: "Frame",
+        wizard_data: dict[str, Any],
+        event_bus: "EventBus | None" = None,
+    ):
         """Initialize calibration step."""
         super().__init__(parent, wizard_data)
         self.step_id = WizardStepID.CALIBRATION
@@ -63,7 +68,7 @@ class CalibrationStep(WizardStep):
         self.analysis_interval_var = IntVar(value=5)
         self.display_interval_var = IntVar(value=5)
         self.template_info_var = StringVar(value="")
-        self.template_info_label = None
+        self.template_info_label: Label | None = None
 
         # Behavioral analysis widget reference
         self.behavioral_config_widget: BehavioralConfigWidget | None = None
@@ -356,7 +361,7 @@ class CalibrationStep(WizardStep):
         except Exception as e:
             return (False, f"Erro ao validar dados: {e!s}")
 
-    def get_data(self) -> dict:
+    def get_data(self) -> dict[str, Any]:
         """
         Extract calibration data.
 
@@ -368,7 +373,7 @@ class CalibrationStep(WizardStep):
                 - aquarium_height_cm (float)
                 - behavioral_analysis (dict)
         """
-        data = {
+        data: dict[str, Any] = {
             "num_aquariums": self.num_aquariums_var.get(),
             "animals_per_aquarium": self.animals_per_aquarium_var.get(),
             "aquarium_width_cm": self.aquarium_width_var.get(),
@@ -383,7 +388,7 @@ class CalibrationStep(WizardStep):
 
         return data
 
-    def set_data(self, data: dict):
+    def set_data(self, data: dict[str, Any]) -> None:
         """
         Restore UI from data (for back navigation).
 
@@ -414,7 +419,7 @@ class CalibrationStep(WizardStep):
 
         self._update_template_banner()
 
-    def on_show(self):
+    def on_show(self) -> None:
         """Execute actions when step becomes visible."""
         self._update_template_banner()
 

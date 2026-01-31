@@ -39,6 +39,7 @@ References:
 
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -63,7 +64,7 @@ class TestConfirmationStep:
 
     def test_confirmation_step_builds_ui_without_error(self):
         """Confirmation step should build UI without errors."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ConfirmationStep(self.root, wizard_data)
         step.build_ui()
         # Should have step_id set
@@ -71,7 +72,7 @@ class TestConfirmationStep:
 
     def test_confirmation_step_default_state(self):
         """Confirmation step should have reasonable defaults."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ConfirmationStep(self.root, wizard_data)
         step.build_ui()
 
@@ -343,7 +344,7 @@ class TestConfirmationStep:
 
     def test_get_data_returns_project_info(self):
         """get_data should return project name and full path."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
 
         step = ConfirmationStep(self.root, wizard_data)
         step.build_ui()
@@ -364,7 +365,7 @@ class TestConfirmationStep:
 
     def test_set_data_restores_ui(self):
         """set_data should restore UI from previously collected data."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
 
         step = ConfirmationStep(self.root, wizard_data)
         step.build_ui()
@@ -505,7 +506,7 @@ class TestConfirmationStep:
 
     def test_project_path_construction_is_correct(self):
         """Project path should be correctly constructed from location + name."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ConfirmationStep(self.root, wizard_data)
         step.build_ui()
 

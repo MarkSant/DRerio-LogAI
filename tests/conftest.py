@@ -3,6 +3,7 @@ import os
 import platform
 import tkinter as tk
 import warnings
+from typing import Any
 
 import pytest
 import structlog
@@ -73,7 +74,7 @@ def suppress_tk_variable_finalizer_errors():
                 return
             raise
 
-    tk.Variable.__del__ = safe_del
+    tk.Variable.__del__ = safe_del  # type: ignore[method-assign]
     yield
 
 
@@ -243,7 +244,7 @@ def pytest_sessionfinish(session, exitstatus):
     try:
         import tkinter as tk
 
-        root = tk._default_root
+        root = tk._default_root  # type: ignore[attr-defined]
         if root:
             # Cancel ALL pending after() callbacks
             try:
@@ -462,7 +463,7 @@ def tkinter_root(tkinter_session_root):
     from unittest.mock import MagicMock
 
     if isinstance(tkinter_session_root, MagicMock):
-        test_window = MagicMock()
+        test_window: Any = MagicMock()
         test_window.master = tkinter_session_root
         test_window.tk = tkinter_session_root.tk
         test_window.winfo_id = MagicMock(return_value=67890)
@@ -531,7 +532,7 @@ def single_aquarium_zone_data():
         aquariums=[
             AquariumData(
                 id=0,
-                polygon=[(0, 0), (1280, 0), (1280, 720), (0, 720)],
+                polygon=[[0, 0], [1280, 0], [1280, 720], [0, 720]],
                 roi_polygons=[],
                 roi_names=[],
                 roi_colors=[],
@@ -562,7 +563,7 @@ def multi_aquarium_zone_data():
         aquariums=[
             AquariumData(
                 id=0,
-                polygon=[(0, 0), (600, 0), (600, 720), (0, 720)],
+                polygon=[[0, 0], [600, 0], [600, 720], [0, 720]],
                 roi_polygons=[],
                 roi_names=[],
                 roi_colors=[],
@@ -572,7 +573,7 @@ def multi_aquarium_zone_data():
             ),
             AquariumData(
                 id=1,
-                polygon=[(680, 0), (1280, 0), (1280, 720), (680, 720)],
+                polygon=[[680, 0], [1280, 0], [1280, 720], [680, 720]],
                 roi_polygons=[],
                 roi_names=[],
                 roi_colors=[],
@@ -600,10 +601,10 @@ def multi_aquarium_zone_data_with_rois():
         aquariums=[
             AquariumData(
                 id=0,
-                polygon=[(0, 0), (600, 0), (600, 720), (0, 720)],
+                polygon=[[0, 0], [600, 0], [600, 720], [0, 720]],
                 roi_polygons=[
-                    [(50, 50), (200, 50), (200, 200), (50, 200)],  # Top-left ROI
-                    [(50, 520), (200, 520), (200, 670), (50, 670)],  # Bottom-left ROI
+                    [[50, 50], [200, 50], [200, 200], [50, 200]],  # Top-left ROI
+                    [[50, 520], [200, 520], [200, 670], [50, 670]],  # Bottom-left ROI
                 ],
                 roi_names=["Top", "Bottom"],
                 roi_colors=[(0, 255, 0), (255, 0, 0)],
@@ -613,9 +614,9 @@ def multi_aquarium_zone_data_with_rois():
             ),
             AquariumData(
                 id=1,
-                polygon=[(680, 0), (1280, 0), (1280, 720), (680, 720)],
+                polygon=[[680, 0], [1280, 0], [1280, 720], [680, 720]],
                 roi_polygons=[
-                    [(730, 50), (880, 50), (880, 200), (730, 200)],  # Top ROI
+                    [[730, 50], [880, 50], [880, 200], [730, 200]],  # Top ROI
                 ],
                 roi_names=["Top"],
                 roi_colors=[(0, 255, 0)],
@@ -671,7 +672,7 @@ def sample_multi_aquarium_trajectories(sample_trajectory_df):
     df_aq0 = sample_trajectory_df.copy()
     aq0 = AquariumData(
         id=0,
-        polygon=[(0, 0), (600, 0), (600, 720), (0, 720)],
+        polygon=[[0, 0], [600, 0], [600, 720], [0, 720]],
         group="Controle",
         subject_id="S01",
     )
@@ -684,7 +685,7 @@ def sample_multi_aquarium_trajectories(sample_trajectory_df):
     df_aq1["center_x"] = df_aq1["center_x"] + 680
     aq1 = AquariumData(
         id=1,
-        polygon=[(680, 0), (1280, 0), (1280, 720), (680, 720)],
+        polygon=[[680, 0], [1280, 0], [1280, 720], [680, 720]],
         group="Tratamento",
         subject_id="S02",
     )

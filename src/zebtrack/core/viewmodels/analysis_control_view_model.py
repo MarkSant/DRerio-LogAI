@@ -25,7 +25,7 @@ class AnalysisControlViewModel:
         dependencies: MainViewModelDependencies,
         bootstrap_result: BootstrapResult,
         event_bus: Any,
-    ):
+    ) -> None:
         self.video_processing_orchestrator = bootstrap_result.video_processing_orchestrator
         self.video_processing_service = dependencies.video_processing_service
         self.processing_coordinator = dependencies.processing_coordinator
@@ -49,14 +49,16 @@ class AnalysisControlViewModel:
     def is_processing(self) -> bool:
         return self.state_manager.get_processing_state().is_processing
 
-    def start_project_processing_workflow(self):
+    def start_project_processing_workflow(self) -> None:
         # TODO Phase 3.4: Migrate to ProcessingCoordinator after extracting dialog logic
         # This method involves complex UI interaction (file picker, zone dialogs)
         # that needs to be factored out before migration
         if self.video_processing_orchestrator:
             self.video_processing_orchestrator.start_project_processing_workflow()
 
-    def start_single_video_workflow(self, video_path, config, detector_vm=None):
+    def start_single_video_workflow(
+        self, video_path: str | Path, config: dict[str, Any], detector_vm: Any | None = None
+    ) -> None:
         """
         Starts the workflow for a single video.
         Requires access to detector configuration (via HardwareStatusViewModel or passed in).
@@ -100,7 +102,7 @@ class AnalysisControlViewModel:
             {"video_path": video_path, "config": config},
         )
 
-    def start_single_video_processing(self, **kwargs):
+    def start_single_video_processing(self, **kwargs: Any) -> None:
         # Phase 3.2: Redirect to ProcessingCoordinator (from VideoProcessingOrchestrator)
         if self.processing_coordinator:
             self.processing_coordinator.start_single_video_processing(
@@ -204,20 +206,22 @@ class AnalysisControlViewModel:
 
         threading.Thread(target=_await_shutdown, daemon=True).start()
 
-    def save_manual_arena(self, polygon: list[tuple[int, int]]):
+    def save_manual_arena(self, polygon: list[tuple[int, int]]) -> bool:
         return self.processing_coordinator.save_manual_arena(polygon)
 
-    def set_main_arena_polygon(self, points: list) -> bool:
+    def set_main_arena_polygon(self, points: list[tuple[int, int]]) -> bool:
         if self.processing_coordinator:
             return self.processing_coordinator.set_main_arena_polygon(points)
         return False
 
-    def add_roi_polygon(self, points: list, name: str, color: tuple) -> bool:
+    def add_roi_polygon(
+        self, points: list[tuple[int, int]], name: str, color: tuple[int, int, int]
+    ) -> bool:
         if self.processing_coordinator:
             return self.processing_coordinator.add_roi_polygon(points, name, color)
         return False
 
-    def auto_detect_zones(self, **kwargs):
+    def auto_detect_zones(self, **kwargs: Any) -> None:
         """
         Trigger auto-detection of aquarium zones via event.
         """
@@ -228,14 +232,14 @@ class AnalysisControlViewModel:
             }
             self.ui_event_bus.publish_event(Events.ZONE_AUTO_DETECT, payload)
 
-    def generate_parquet_summaries(self, video_paths: list[str]):
+    def generate_parquet_summaries(self, video_paths: list[str]) -> None:
         """Generate summaries (Word/Excel) for the given video paths."""
         log.info("analysis_control.generate_summaries.start", count=len(video_paths))
         threading.Thread(
             target=self._generate_summaries_impl, args=(video_paths,), daemon=True
         ).start()
 
-    def _generate_summaries_impl(self, video_paths: list[str]):
+    def _generate_summaries_impl(self, video_paths: list[str]) -> None:
         """Implementation of summary generation running in a separate thread."""
         import os
 
@@ -467,11 +471,11 @@ class AnalysisControlViewModel:
             {"reason": "reports_generated", "append_summary": True, "immediate": False},
         )
 
-    def _process_single_video(self, detector, **kwargs):
+    def _process_single_video(self, detector: Any, **kwargs: Any) -> Any:
         report_callback = None
         if self.processing_coordinator:
 
-            def report_callback():
+            def report_callback() -> Any:
                 return self.processing_coordinator._publish_processing_mode(
                     source="analysis_progress", force=False
                 )

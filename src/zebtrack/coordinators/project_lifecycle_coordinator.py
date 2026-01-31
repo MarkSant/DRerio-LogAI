@@ -13,7 +13,7 @@ CRITICAL: No dependency on MainViewModel. All dependencies injected explicitly.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -264,7 +264,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         get_use_openvino: Callable[[], bool] | None = None,
         apply_wizard_overrides_callback: Callable[[dict], None] | None = None,
         **wizard_data,
-    ) -> Path:
+    ) -> bool:
         """Create new project with wizard data.
 
         Args:
@@ -378,7 +378,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                         self.logger.warning("project.create.wizard_overrides_failed", error=str(e))
 
         # Delegate to adapter which handles all UI coordination
-        project_path = self.project_workflow_adapter.create_project_workflow(
+        success = self.project_workflow_adapter.create_project_workflow(
             setup_detector_callback=setup_detector_callback or _default_setup_detector,
             set_active_weight_callback=set_active_weight_callback or _default_set_active_weight,
             set_openvino_usage_callback=set_openvino_usage_callback or _default_set_openvino_usage,
@@ -392,12 +392,12 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             **wizard_data,
         )
 
-        if project_path:
-            self.logger.info("project.create.complete", path=str(project_path))
+        if success:
+            self.logger.info("project.create.complete")
         else:
             self.logger.warning("project.create.failed")
 
-        return project_path
+        return success
 
     def open_project(
         self,
@@ -851,7 +851,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self,
         get_active_weight_name: Callable[[], str | None] | None = None,
         gui_instance: Any | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Get calibration scope information for UI display.
 
         Args:
@@ -954,7 +954,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self,
         get_active_weight_name: Callable[[], str | None],
         get_use_openvino: Callable[[], bool],
-    ):
+    ) -> Generator[None, None, None]:
         """Context manager for global calibration mode.
 
         Temporarily disables project overrides and saves changes to global defaults.
@@ -979,7 +979,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             self._using_project_overrides = previous_flag
 
     @contextmanager
-    def project_calibration_session(self):
+    def project_calibration_session(self) -> Generator[None, None, None]:
         """Context manager for project-specific calibration mode.
 
         Enables project override mode and saves changes to project settings.
@@ -1031,14 +1031,16 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         Phase 3: Consolidated from ProjectOrchestrator._ensure_project_overrides_record
         """
-        project_data = self.project_manager.project_data
+        project_data: dict[str, Any] = self.project_manager.project_data
         overrides = project_data.get("model_overrides")
         if not isinstance(overrides, dict):
             overrides = {"active_weight": None, "use_openvino": None}
             project_data["model_overrides"] = overrides
         return overrides
 
-    def _persist_project_model_settings(self, weight: str | None, use_openvino: bool) -> dict:
+    def _persist_project_model_settings(
+        self, weight: str | None, use_openvino: bool
+    ) -> dict[str, Any]:
         """Persist model settings to project configuration.
 
         Args:

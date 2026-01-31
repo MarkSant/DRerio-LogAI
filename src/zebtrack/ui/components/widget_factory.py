@@ -1330,7 +1330,7 @@ class WidgetFactory:
             value="det",
         ).pack(anchor="w", padx=20)
 
-        result = [None]  # Use list to allow modification in nested function
+        result: list[str | None] = [None]  # Use list to allow modification in nested function
 
         def on_ok():
             result[0] = weight_type_var.get()

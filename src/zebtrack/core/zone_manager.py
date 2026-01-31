@@ -14,6 +14,7 @@ to reduce the God Object pattern and improve maintainability.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 import structlog
@@ -837,7 +838,7 @@ class ZoneManager:
         video_path: Path | str,
         data: MultiAquariumZoneData,
         *,
-        persist_callback: callable | None = None,
+        persist_callback: Callable[[], None] | None = None,
     ) -> bool:
         """Save multi-aquarium zone data for a video.
 

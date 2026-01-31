@@ -70,12 +70,12 @@ class MultiAquariumLivePreviewWindow:
 
         # Aquarium canvases
         self.aquarium_canvases: dict[int, tk.Canvas] = {}
-        self.aquarium_labels: dict[int, tk.Label] = {}
+        self.aquarium_labels: dict[int, ttk.Label] = {}
         self.aquarium_photo_images: dict[int, ImageTk.PhotoImage] = {}
 
         # Status labels
-        self.timer_label: tk.Label | None = None
-        self.status_label: tk.Label | None = None
+        self.timer_label: ttk.Label | None = None
+        self.status_label: ttk.Label | None = None
 
         # Create UI
         self._create_ui()

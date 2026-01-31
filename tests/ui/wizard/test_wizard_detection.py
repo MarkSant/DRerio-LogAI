@@ -12,6 +12,7 @@ Validates:
 
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -61,7 +62,7 @@ class TestDetectionStep:
 
     def test_detection_step_builds_ui_without_error(self):
         """Detection step should build UI without errors."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -70,7 +71,7 @@ class TestDetectionStep:
 
     def test_detection_step_default_state_is_empty(self):
         """Detection step defaults to empty state."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -159,7 +160,7 @@ class TestDetectionStep:
 
     def test_detection_step_pattern_groups_as_folders(self):
         """Pattern detection should identify groups from folder structure."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -175,7 +176,7 @@ class TestDetectionStep:
 
     def test_detection_step_pattern_filename_based(self):
         """Filename-based pattern should extract groups from filenames."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -343,7 +344,7 @@ class TestDetectionStep:
         """set_data should restore UI from previously collected data."""
         mock_scan.return_value = []
 
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -418,7 +419,7 @@ class TestDetectionStep:
             self.temp_dir / "Treatment" / "Day01" / "Subject02.mp4",
         ]
 
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -430,7 +431,7 @@ class TestDetectionStep:
 
     def test_detection_step_parquet_summary_all_zeros(self):
         """Parquet summary should handle case with no parquet files."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -486,7 +487,7 @@ class TestDetectionStep:
 
     def test_detection_step_pattern_confidence_calculation(self):
         """Pattern confidence should be calculated based on match quality."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -544,7 +545,7 @@ class TestDetectionStep:
 
     def test_detection_step_pattern_no_match(self):
         """Pattern detection should return None when no pattern matches."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -616,7 +617,7 @@ class TestDetectionStep:
 
     def test_detection_step_status_updates_during_processing(self):
         """Status variable should update during detection processing."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -630,7 +631,7 @@ class TestDetectionStep:
 
     def test_detection_step_custom_regex_persistence(self):
         """Custom regex patterns should persist in step state."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -670,7 +671,7 @@ class TestDetectionStep:
 
     def test_detection_step_pattern_subject_extraction(self):
         """Pattern detection should extract subject IDs when present."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -710,7 +711,7 @@ class TestDetectionStep:
 
     def test_detection_step_results_text_widget_exists(self):
         """Detection step should have results text widget for displaying results."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DetectionStep(self.root, wizard_data)
         step.build_ui()
 

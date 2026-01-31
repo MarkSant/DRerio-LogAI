@@ -55,12 +55,14 @@ class FileSelectionStep(WizardStep):
         self.step_id = WizardStepID.FILE_SELECTION
 
         # UI state
-        self.video_paths = []  # Mixed: files and folders
+        # UI state
+        self.video_paths: list[str] = []  # Mixed: files and folders
         self.summary_var = StringVar(value="Nenhum vídeo/pasta selecionado.")
         self.template_info_var = StringVar(value="")
-        self.template_info_label = None
-        self.folder_tree = None
-        self.folder_tree_placeholder = None
+        self.template_info_label: Label | None = None
+        self.folder_tree: ttk.Treeview | None = None
+        self.folder_tree_placeholder: Label | None = None
+        self.paths_listbox: Listbox | None = None
         self.folder_preview_data: list[dict] = []
 
     def build_ui(self):
@@ -257,6 +259,8 @@ class FileSelectionStep(WizardStep):
 
     def _remove_selected(self):
         """Remove currently selected item from the list."""
+        if not self.paths_listbox:
+            return
         selection = self.paths_listbox.curselection()
         if selection:
             index = selection[0]
@@ -273,15 +277,16 @@ class FileSelectionStep(WizardStep):
     def _update_display(self):
         """Update summary and listbox with current selection."""
         # Update listbox
-        self.paths_listbox.delete(0, "end")
-        for path in self.video_paths:
-            # Show type indicator
-            if os.path.isfile(path):
-                display_name = f"📄 {os.path.basename(path)}"
-            else:
-                display_name = f"📁 {os.path.basename(path)}"
+        if self.paths_listbox:
+            self.paths_listbox.delete(0, "end")
+            for path in self.video_paths:
+                # Show type indicator
+                if os.path.isfile(path):
+                    display_name = f"📄 {os.path.basename(path)}"
+                else:
+                    display_name = f"📁 {os.path.basename(path)}"
 
-            self.paths_listbox.insert("end", display_name)
+                self.paths_listbox.insert("end", display_name)
 
         # Update summary
         if not self.video_paths:
@@ -415,6 +420,8 @@ class FileSelectionStep(WizardStep):
                 )
 
     def _insert_tree_node(self, parent_id: str, node: dict):
+        if not self.folder_tree:
+            return
         text = node.get("label", node.get("path", ""))
         details = self._format_entry_details(node.get("counts", {}))
         node_id = self.folder_tree.insert(

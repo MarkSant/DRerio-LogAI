@@ -49,7 +49,7 @@ class ProjectWorkflowAdapter:
         project_manager: ProjectManager,
         detector_service: DetectorService,
         state_manager: StateManager,
-        ui_event_bus: EventBus,
+        ui_event_bus: EventBus | None,
     ):
         """
         Initialize ProjectWorkflowAdapter.
@@ -59,7 +59,7 @@ class ProjectWorkflowAdapter:
             project_manager: Project manager for state operations
             detector_service: Detector service for detector configuration
             state_manager: State manager for state updates
-            ui_event_bus: Event bus for publishing UI events
+            ui_event_bus: Event bus for publishing UI events (optional)
         """
         self.project_workflow_service = project_workflow_service
         self.project_manager = project_manager
@@ -68,6 +68,11 @@ class ProjectWorkflowAdapter:
         self.ui_event_bus = ui_event_bus
 
         log.info("project_workflow_adapter.initialized")
+
+    def _publish_event(self, event_name: str, data: Any = None) -> None:
+        """Safely publish an event if the event bus is available."""
+        if self.ui_event_bus:
+            self.ui_event_bus.publish_event(event_name, data)
 
     def close_project(
         self,
@@ -103,7 +108,7 @@ class ProjectWorkflowAdapter:
         # Navigate to welcome screen
         from zebtrack.ui.events import Events
 
-        self.ui_event_bus.publish_event(Events.UI_NAVIGATE_TO_WELCOME)
+        self._publish_event(Events.UI_NAVIGATE_TO_WELCOME)
 
         log.info("project_workflow_adapter.close_project.complete")
 
@@ -156,7 +161,7 @@ class ProjectWorkflowAdapter:
 
         # Handle failure
         if not result["success"]:
-            self.ui_event_bus.publish_event(
+            self._publish_event(
                 Events.UI_SHOW_ERROR,
                 {"title": "Configuração Inválida", "message": result["error_message"]},
             )
@@ -172,11 +177,11 @@ class ProjectWorkflowAdapter:
                 apply_wizard_overrides_callback(wizard_metadata)
 
             # Update UI
-            self.ui_event_bus.publish_event(Events.UI_NAVIGATE_TO_PROJECT_VIEW, {})
-            self.ui_event_bus.publish_event(
+            self._publish_event(Events.UI_NAVIGATE_TO_PROJECT_VIEW, {})
+            self._publish_event(
                 Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": get_use_openvino()}
             )
-            self.ui_event_bus.publish_event(
+            self._publish_event(
                 Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": get_active_weight_name()}
             )
             update_openvino_status_callback()
@@ -188,7 +193,7 @@ class ProjectWorkflowAdapter:
             log.info("project_workflow_adapter.create_project.success")
             return True
         else:
-            self.ui_event_bus.publish_event(
+            self._publish_event(
                 Events.UI_SHOW_ERROR,
                 {"title": "Erro", "message": "Falha ao configurar o detector."},
             )
@@ -245,7 +250,7 @@ class ProjectWorkflowAdapter:
 
         # Handle failure
         if not result["success"]:
-            self.ui_event_bus.publish_event(
+            self._publish_event(
                 Events.UI_SHOW_ERROR,
                 {"title": "Erro", "message": result["error_message"]},
             )
@@ -255,12 +260,8 @@ class ProjectWorkflowAdapter:
         project_info = result["project_info"]
 
         # Update UI to reflect restored state
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": get_use_openvino()}
-        )
-        self.ui_event_bus.publish_event(
-            Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": get_active_weight_name()}
-        )
+        self._publish_event(Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": get_use_openvino()})
+        self._publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": get_active_weight_name()})
         update_openvino_status_callback()
 
         # Initialize detector
@@ -269,10 +270,10 @@ class ProjectWorkflowAdapter:
             return False
         else:
             # Load project view
-            self.ui_event_bus.publish_event(Events.UI_NAVIGATE_TO_PROJECT_VIEW, {})
+            self._publish_event(Events.UI_NAVIGATE_TO_PROJECT_VIEW, {})
 
         # Display success message
-        self.ui_event_bus.publish_event(
+        self._publish_event(
             Events.UI_SHOW_INFO,
             {
                 "title": "Projeto Carregado",
@@ -309,8 +310,8 @@ class ProjectWorkflowAdapter:
         setup_detector_zones_callback()
 
         # Update zone visualization in GUI
-        self.ui_event_bus.publish_event(Events.UI_REDRAW_ZONES)
-        self.ui_event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST)
+        self._publish_event(Events.UI_REDRAW_ZONES)
+        self._publish_event(Events.UI_UPDATE_ZONE_LIST)
 
         log.debug("project_workflow_adapter.setup_zones.complete")
 
@@ -341,7 +342,7 @@ class ProjectWorkflowAdapter:
 
         # Display guide if generated
         if guide:
-            self.ui_event_bus.publish_event(
+            self._publish_event(
                 Events.UI_SHOW_INFO, {"title": guide["title"], "message": guide["message"]}
             )
             log.debug("project_workflow_adapter.post_creation_guide.shown")

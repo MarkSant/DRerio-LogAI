@@ -125,7 +125,7 @@ def configure_logging(log_file: str = "analysis.log"):
     # Configure structlog with ConsoleRenderer for compact output
     structlog.configure(
         processors=[
-            *shared_processors,
+            *shared_processors,  # type: ignore[list-item]
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         context_class=dict,

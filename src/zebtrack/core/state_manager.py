@@ -126,19 +126,15 @@ class StateChange:
     new_value: Any
     source: str = "unknown"  # Which component triggered the change
 
-    def copy(self) -> ProjectState:
-        """Create a deep copy of project state."""
-        return ProjectState(
-            project_path=self.project_path,
-            project_name=self.project_name,
-            experiment_id=self.experiment_id,
-            project_type=self.project_type,
-            video_file=self.video_file,
-            is_loaded=self.is_loaded,
-            project_data=copy.deepcopy(self.project_data),
-            metadata=self.metadata.copy() if self.metadata is not None else None,
-            active_zone_video=self.active_zone_video,
-            last_zone_source_video=self.last_zone_source_video,
+    def copy(self) -> StateChange:
+        """Create a deep copy of the state change record."""
+        return StateChange(
+            timestamp=self.timestamp,
+            category=self.category,
+            key=self.key,
+            old_value=copy.deepcopy(self.old_value),
+            new_value=copy.deepcopy(self.new_value),
+            source=self.source,
         )
 
 
@@ -686,7 +682,7 @@ class StateManager:
             return
 
         # Add completion callback to handle errors without blocking caller
-        def _on_observer_complete(fut):
+        def _on_observer_complete(fut: concurrent.futures.Future) -> None:
             try:
                 fut.result(timeout=0.1)  # Non-blocking check with minimal timeout
             except concurrent.futures.TimeoutError:
@@ -866,7 +862,7 @@ class StateManager:
     def get_state_snapshot(self) -> dict:
         """Return frozen snapshot for debugging. DO NOT MODIFY."""
 
-        def convert_paths_to_strings(d):
+        def convert_paths_to_strings(d: Any) -> Any:
             if isinstance(d, dict):
                 return {k: convert_paths_to_strings(v) for k, v in d.items()}
             if isinstance(d, list):
@@ -909,7 +905,8 @@ class StateManager:
 
         snapshot = getter()
         if dataclasses.is_dataclass(snapshot):
-            state_dict = dataclasses.asdict(snapshot)
+            # mypy doesn't narrow type here effectively for asdict
+            state_dict = dataclasses.asdict(snapshot)  # type: ignore
         elif isinstance(snapshot, dict):
             state_dict = copy.deepcopy(snapshot)
         else:
@@ -1207,8 +1204,10 @@ class StateManager:
                 "project_path": str(snapshot.project.project_path)
                 if snapshot.project.project_path
                 else None,
-                "project_data_keys": list(snapshot.project.project_data.keys()),
-                "metadata_shape": snapshot.project.metadata.shape
+                "project_data_keys": list(snapshot.project.project_data.keys())
+                if snapshot.project.project_data
+                else [],
+                "metadata_keys": list(snapshot.project.metadata.keys())
                 if snapshot.project.metadata is not None
                 else None,
                 "active_zone_video": snapshot.project.active_zone_video,

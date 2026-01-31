@@ -45,7 +45,7 @@ class ZoneReuseDialog:
         self.dialog.title("Reutilizar Zonas Existentes?")
         self.dialog.geometry("500x350")
         self.dialog.resizable(False, False)
-        self.dialog.transient(parent)
+        self.dialog.transient(parent.winfo_toplevel())
         self.dialog.grab_set()
 
         # Center dialog

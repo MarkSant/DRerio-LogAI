@@ -13,6 +13,8 @@ Validates:
 - Back navigation
 """
 
+from typing import Any
+
 import pytest
 
 from zebtrack.ui.wizard.enums import (
@@ -34,7 +36,7 @@ class TestImportConfigStep:
 
     def test_import_config_step_builds_ui_without_error(self):
         """Import config step should build UI without errors."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ImportConfigStep(self.root, wizard_data)
         step.build_ui()
 
@@ -43,7 +45,7 @@ class TestImportConfigStep:
 
     def test_import_config_step_default_state_is_empty(self):
         """Import config step defaults to empty state."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ImportConfigStep(self.root, wizard_data)
         step.build_ui()
 
@@ -53,7 +55,7 @@ class TestImportConfigStep:
 
     def test_smart_defaults_import_scope_all(self):
         """Smart defaults with 'all' scope should import everything available."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [
                 {
                     "path": "/path/video1.mp4",
@@ -79,7 +81,7 @@ class TestImportConfigStep:
 
     def test_smart_defaults_import_scope_zones(self):
         """Smart defaults with 'zones' scope should import arena+ROIs only."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [
                 {
                     "path": "/path/video1.mp4",
@@ -104,7 +106,7 @@ class TestImportConfigStep:
 
     def test_smart_defaults_import_scope_none(self):
         """Smart defaults with None scope should start fresh (no imports)."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [
                 {
                     "path": "/path/video1.mp4",
@@ -129,7 +131,7 @@ class TestImportConfigStep:
 
     def test_smart_defaults_partial_parquets(self):
         """Smart defaults should only import what exists."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [
                 {
                     "path": "/path/video1.mp4",
@@ -154,7 +156,7 @@ class TestImportConfigStep:
 
     def test_populate_table_creates_rows(self):
         """Table should be populated with all videos."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [
                 {
                     "path": "/path/video1.mp4",
@@ -181,7 +183,7 @@ class TestImportConfigStep:
 
     def test_validate_succeeds_with_videos(self):
         """Validation should succeed when videos are configured."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [
                 {
                     "path": "/path/video1.mp4",
@@ -204,7 +206,7 @@ class TestImportConfigStep:
 
     def test_validate_fails_with_no_videos(self):
         """Validation should fail when no videos are configured."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [],
             "parquet_import_scope": None,
         }
@@ -220,7 +222,7 @@ class TestImportConfigStep:
 
     def test_get_data_returns_clean_config(self):
         """get_data should return clean config without internal fields."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [
                 {
                     "path": "/path/video1.mp4",
@@ -256,7 +258,7 @@ class TestImportConfigStep:
 
     def test_roi_merge_strategy_selection(self):
         """ROI merge strategy should be configurable."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ImportConfigStep(self.root, wizard_data)
         step.build_ui()
 
@@ -269,7 +271,7 @@ class TestImportConfigStep:
 
     def test_set_data_restores_ui(self):
         """set_data should restore UI from previously collected data."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [
                 {
                     "path": "/path/video1.mp4",
@@ -311,7 +313,7 @@ class TestImportConfigStep:
 
     def test_summary_calculation(self):
         """Summary should correctly count actions."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [
                 {
                     "path": "/path/video1.mp4",
@@ -348,7 +350,7 @@ class TestImportConfigStep:
 
     def test_action_derivation_all_checked(self):
         """All checkboxes checked should derive SKIP action."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [
                 {
                     "path": "/path/video1.mp4",
@@ -369,7 +371,7 @@ class TestImportConfigStep:
 
     def test_action_derivation_zones_only(self):
         """Arena+ROIs checked should derive IMPORT_ZONES action."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [
                 {
                     "path": "/path/video1.mp4",
@@ -390,7 +392,7 @@ class TestImportConfigStep:
 
     def test_action_derivation_arena_only(self):
         """Only arena checked should derive PARTIAL action."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [
                 {
                     "path": "/path/video1.mp4",
@@ -411,7 +413,7 @@ class TestImportConfigStep:
 
     def test_action_derivation_none_checked(self):
         """No checkboxes should derive FULL action."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "scanned_videos": [
                 {
                     "path": "/path/video1.mp4",

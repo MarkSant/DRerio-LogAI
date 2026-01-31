@@ -9,8 +9,11 @@ import os
 import shutil
 import time
 from pathlib import Path
+from typing import Any
 
 import structlog
+
+from zebtrack.settings import Settings
 
 try:
     from ultralytics import YOLO
@@ -82,7 +85,7 @@ class WeightManager:
     conversion of PyTorch models to OpenVINO format for optimized inference.
     """
 
-    def __init__(self, settings_obj=None, config_dir="."):
+    def __init__(self, settings_obj: Settings | None = None, config_dir: str = "."):
         """Initialize WeightManager with settings dependency injection.
 
         Args:
@@ -92,10 +95,10 @@ class WeightManager:
         self.settings = settings_obj
         self.config_dir = config_dir
         self.config_path = os.path.join(self.config_dir, WEIGHTS_CONFIG_FILE)
-        self.weights = {}
+        self.weights: dict[str, Any] = {}
         self._load_weights()
 
-    def _load_weights(self):
+    def _load_weights(self) -> None:
         """Load the weights configuration from the JSON file."""
         if os.path.exists(self.config_path):
             try:
@@ -193,7 +196,7 @@ class WeightManager:
         else:
             return None
 
-    def _initialize_default_weight(self):
+    def _initialize_default_weight(self) -> None:
         """Initialize the config with the default weight from settings."""
         if self.settings is None:
             log.warning(
@@ -208,7 +211,7 @@ class WeightManager:
         # Check for both seg and det weights from settings
         potential_weights: list[tuple[str, str]] = []
 
-        def _coerce_path(candidate, *, source: str) -> str | None:
+        def _coerce_path(candidate: Any, *, source: str) -> str | None:
             """Convert candidate to filesystem path if possible, otherwise log and skip."""
             if not candidate:
                 return None
@@ -348,7 +351,7 @@ class WeightManager:
         """Return the name and details of the default detection weight."""
         return self.get_default_weight_by_type("det")
 
-    def set_default_weight_by_type(self, name_to_set: str, weight_type: str):
+    def set_default_weight_by_type(self, name_to_set: str, weight_type: str) -> None:
         """
         Set a new default weight for a specific type.
 
@@ -385,7 +388,7 @@ class WeightManager:
         self.save_weights()
         log.info("weights.default_by_type.set", name=name_to_set, type=weight_type)
 
-    def set_default_weight(self, name: str):
+    def set_default_weight(self, name: str) -> bool:
         """Set a new default weight with proper type handling."""
         target_weight = self.get_weight_details(name)
         if not target_weight:
@@ -418,7 +421,7 @@ class WeightManager:
 
     def add_weight(
         self, new_path: Path | str, set_as_default: bool, weight_type: str | None = None
-    ):
+    ) -> None:
         """
         Add a new weight from a given path after performing security checks.
 
@@ -509,7 +512,7 @@ class WeightManager:
         self.save_weights()
         log.info("weights.add.success", name=new_name, path=str(model_path), type=weight_type)
 
-    def delete_weight(self, name_to_delete: str):
+    def delete_weight(self, name_to_delete: str) -> None:
         """Delete a weight from the configuration."""
         if name_to_delete not in self.weights:
             log.warning("weights.delete.not_found", name=name_to_delete)

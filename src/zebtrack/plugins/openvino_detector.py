@@ -21,7 +21,7 @@ try:
 
     TORCH_AVAILABLE = True
 except ImportError:
-    torch = None
+    torch = None  # type: ignore
     TORCH_AVAILABLE = False
 
 # Substitui imports diretos por bloco compatível com múltiplas versões do ultralytics
@@ -487,6 +487,8 @@ class OpenVINOPlugin(DetectorPlugin):
         if has_mask and decode_masks and len(det) > 0:
             # Process masks using Ultralytics ops
             # process_mask returns [N, H, W] masks in input_shape
+            # proto_tensor is guaranteed not None here due to has_mask check, but mypy doesn't know
+            assert proto_tensor is not None
             masks = process_mask(
                 torch.from_numpy(proto_tensor[0]),
                 det[:, 6:],
@@ -521,7 +523,7 @@ class OpenVINOPlugin(DetectorPlugin):
                 else:
                     final_masks_contours.append(None)
         else:
-            final_masks_contours = None
+            final_masks_contours = []
 
         # Scale boxes
         det[:, :4] = scale_boxes(input_shape, det[:, :4], original_frame_shape).round()

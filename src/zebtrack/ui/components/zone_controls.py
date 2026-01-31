@@ -2,6 +2,7 @@
 
 import tkinter as tk
 from tkinter import Menu, StringVar, ttk
+from typing import Any
 
 import structlog
 
@@ -41,11 +42,11 @@ class ZoneControlsWidget(BaseWidget):
 
     def __init__(
         self,
-        parent,
+        parent: tk.Widget,
         event_bus: EventBus | None = None,
         drawing_actions_parent: ttk.Frame | None = None,
         template_actions_parent: ttk.Frame | None = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         """
         Initialize the zone controls widget.
@@ -104,7 +105,11 @@ class ZoneControlsWidget(BaseWidget):
         self.parallel_radio: ttk.Radiobutton | None = None
         self.sequential_radio: ttk.Radiobutton | None = None
 
-        super().__init__(parent, event_bus=event_bus, **kwargs)
+        if isinstance(parent, ttk.Widget):
+            super().__init__(parent, event_bus=event_bus, **kwargs)
+        else:
+            # Wrap strict typing for base widget if parent is not ttk
+            super().__init__(parent, event_bus=event_bus, **kwargs)  # type: ignore[arg-type]
 
     def _build_ui(self) -> None:
         """Build the zone controls widget UI."""
@@ -555,7 +560,7 @@ class ZoneControlsWidget(BaseWidget):
             "ready_missing": {"background": "#f8d7da", "foreground": "#842029"},
         }
         for tag, style in TAG_STYLES.items():
-            self.video_selector_tree.tag_configure(tag, **style)
+            self.video_selector_tree.tag_configure(tag, **style)  # type: ignore[call-overload]
 
         # Bind events
         self.video_selector_tree.bind("<Double-Button-1>", self._on_video_tree_double_click)
@@ -792,7 +797,7 @@ class ZoneControlsWidget(BaseWidget):
         """Handle video refresh button click."""
         self.emit_event("zone.video_refresh", {})
 
-    def _on_video_tree_double_click(self, event) -> None:
+    def _on_video_tree_double_click(self, event: tk.Event) -> None:
         """Handle video tree double-click."""
         if not self.video_selector_tree:
             return
@@ -911,14 +916,18 @@ class ZoneControlsWidget(BaseWidget):
         video_path = self._context_menu_video_path
 
         # Get current video metadata from project manager
-        pm = getattr(self.gui.controller, "project_manager", None)
+        pm = None
+        if hasattr(self.parent, "controller") and hasattr(
+            self.parent.controller, "project_manager"
+        ):  # type: ignore[attr-defined]
+            pm = self.parent.controller.project_manager  # type: ignore[attr-defined]
         if not pm:
-            self.gui.show_warning("Aviso", "Gerenciador de projetos não disponível.")
+            log.warning("zone_controls.reconfigure.no_project_manager")
             return
 
         video_entry = pm.find_video_entry(video_path)
         if not video_entry:
-            self.gui.show_warning("Aviso", f"Vídeo não encontrado no projeto: {video_path}")
+            log.warning("zone_controls.reconfigure.video_not_found", video=video_path)
             return
 
         metadata = video_entry.get("metadata", {})
@@ -933,7 +942,7 @@ class ZoneControlsWidget(BaseWidget):
                 "Reconfigurar Sujeito",
                 f"ID do sujeito para {video_path.split('/')[-1].split('\\\\')[-1]}:",
                 initialvalue=current_subject or "",
-                parent=self.gui.root,
+                parent=self.winfo_toplevel(),
             )
 
             if new_subject is not None:
@@ -941,7 +950,7 @@ class ZoneControlsWidget(BaseWidget):
                 video_entry["metadata"]["subject"] = new_subject
                 video_entry["subject"] = new_subject
                 pm.save_project()
-                self.gui.show_info("Sucesso", f"Sujeito atualizado para: {new_subject}")
+                log.info("zone_controls.reconfigure.success", subject=new_subject)
                 self.emit_event("video.metadata_updated", {"video_path": video_path})
         else:
             # Multi-subject - emit event for external dialog
@@ -1004,7 +1013,7 @@ class ZoneControlsWidget(BaseWidget):
 
         # Update visibility based on rule
         if rule == "centroid_in_on_buffered_roi":
-            if self.radius_frame:
+            if self.radius_frame and self.roi_rule_combo:
                 self.radius_frame.pack(fill="x", pady=2, after=self.roi_rule_combo.master)
             if self.overlap_frame:
                 self.overlap_frame.pack_forget()
@@ -1014,7 +1023,7 @@ class ZoneControlsWidget(BaseWidget):
         elif rule in ("bbox_intersects", "seg_overlap"):
             if self.radius_frame:
                 self.radius_frame.pack_forget()
-            if self.overlap_frame:
+            if self.overlap_frame and self.roi_rule_combo:
                 self.overlap_frame.pack(fill="x", pady=2, after=self.roi_rule_combo.master)
             help_text = (
                 "Considera dentro se a caixa/segmentação sobrepuser a ROI acima da fração mínima."
@@ -1213,13 +1222,15 @@ class ZoneControlsWidget(BaseWidget):
         self.aquarium_count_var.set(count)
 
         if count >= 2:
-            self.aquarium_selector_frame.pack(
-                fill="x",
-                pady=5,
-                padx=5,
-                after=self.drawing_actions_parent.winfo_children()[0]
-                if self.drawing_actions_parent
-                else None,
-            )
+            if self.aquarium_selector_frame:
+                self.aquarium_selector_frame.pack(
+                    fill="x",
+                    pady=5,
+                    padx=5,
+                    after=self.drawing_actions_parent.winfo_children()[0]
+                    if self.drawing_actions_parent
+                    else None,
+                )
         else:
-            self.aquarium_selector_frame.pack_forget()
+            if self.aquarium_selector_frame:
+                self.aquarium_selector_frame.pack_forget()

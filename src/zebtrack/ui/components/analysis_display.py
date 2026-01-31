@@ -352,7 +352,7 @@ class AnalysisDisplayWidget(BaseWidget):
         """Clear the video display."""
         if self.video_label:
             self.video_label.config(image="")
-            self.video_label.image = None
+            self.video_label.image = None  # type: ignore[attr-defined]
 
     def update_frame(self, image) -> None:
         """
@@ -375,7 +375,7 @@ class AnalysisDisplayWidget(BaseWidget):
                 tk_image = ImageTk.PhotoImage(image)
 
             self.video_label.configure(image=tk_image)
-            self.video_label.image = tk_image  # Keep reference to prevent garbage collection
+            self.video_label.image = tk_image  # type: ignore[attr-defined]  # Keep reference to prevent garbage collection
         except Exception as e:
             log.error("analysis_display.update_frame.error", error=str(e))
 

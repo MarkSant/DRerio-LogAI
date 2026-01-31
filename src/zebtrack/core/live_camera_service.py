@@ -22,7 +22,7 @@ import threading
 import time
 from pathlib import Path
 from types import TracebackType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import cv2
 import numpy as np
@@ -223,7 +223,9 @@ class LiveCameraService:
         self._last_valid_frame_time: float | None = None  # Timestamp of last successful frame
         self._camera_disconnect_threshold_s: float = 2.0  # Gap threshold for disconnect detection
         self._camera_disconnected: bool = False  # Disconnect state flag
-        self._disconnect_gaps: list[tuple[float, float]] = []  # List of (start_time, end_time) gaps
+        self._disconnect_gaps: list[
+            tuple[float, float | None]
+        ] = []  # List of (start_time, end_time) gaps
         self._recording_paused: bool = False  # Recorder pause state
 
         # Aquarium detection phase state
@@ -741,7 +743,7 @@ class LiveCameraService:
         log.info("live_camera_service.session_started", output_dir=str(output_dir))
         return True
 
-    def stop_session(self):
+    def stop_session(self) -> None:
         """Stop the current live camera analysis session."""
         log.info("live_camera_service.stop_session")
 
@@ -957,7 +959,7 @@ class LiveCameraService:
             )
             return False
 
-    def _create_preview_window(self, camera_index: int, duration_s: float):
+    def _create_preview_window(self, camera_index: int, duration_s: float) -> None:
         """Create the live preview window."""
         from zebtrack.core.zone_manager import MultiAquariumZoneData
         from zebtrack.ui.dialogs import LivePreviewWindow
@@ -1041,7 +1043,7 @@ class LiveCameraService:
             log.error("live_camera_service.thread_start_failed", error=str(e), exc_info=True)
             return False
 
-    def _capture_loop(self):
+    def _capture_loop(self) -> None:
         """Thread loop for capturing frames from camera."""
         log.info("live_camera_service.capture_loop_started")
 
@@ -1143,7 +1145,7 @@ class LiveCameraService:
             drop_rate_video=f"{drop_rate_vid:.1f}%",
         )
 
-    def _video_recording_loop(self):
+    def _video_recording_loop(self) -> None:
         """
         ✅ NEW: Dedicated thread for video recording.
 
@@ -1206,7 +1208,7 @@ class LiveCameraService:
             total_frames_written=self._video_frames_written,
         )
 
-    def _processing_loop(self):  # noqa: C901
+    def _processing_loop(self) -> None:  # noqa: C901
         """Thread loop for processing frames with detection."""
         log.info("live_camera_service.processing_loop_started")
         processed_count = 0
@@ -1287,7 +1289,10 @@ class LiveCameraService:
 
                     # Collect aquarium bboxes (class_id=0)
                     # Dynamically get aquarium class ID (usually 0, but safest to ask detector)
-                    target_class_id = detector.aquarium_class_id
+                    if detector:
+                        target_class_id = detector.aquarium_class_id
+                    else:
+                        target_class_id = 0
 
                     h, w = frame.shape[:2]
                     frame_area = w * h
@@ -1616,7 +1621,7 @@ class LiveCameraService:
 
         log.info("live_camera_service.processing_loop_finished", processed=processed_count)
 
-    def _on_session_active(self):
+    def _on_session_active(self) -> None:
         """Called when the first frame is processed to start the timer."""
         log.info("live_camera_service.first_frame_active")
 
@@ -1637,7 +1642,7 @@ class LiveCameraService:
                 reason="waiting_for_arena_definition",
             )
 
-    def _setup_session_timer(self, duration_s: float, output_dir: Path):
+    def _setup_session_timer(self, duration_s: float, output_dir: Path) -> None:
         """
         Setup timer to automatically stop session after duration.
 
@@ -1650,7 +1655,7 @@ class LiveCameraService:
         # Store session start time for countdown display
         self._session_start_time = time.time()
 
-        def on_timer_expired():
+        def on_timer_expired() -> None:
             """Called when duration expires."""
             log.info(
                 "live_camera_service.timer_expired",
@@ -1673,13 +1678,13 @@ class LiveCameraService:
             if not self._use_external_preview:
                 self._update_session_countdown(duration_s)
 
-    def _update_session_countdown(self, duration_s: float):
+    def _update_session_countdown(self, duration_s: float) -> None:
         """Update status bar with session countdown for integrated canvas mode.
 
         Args:
             duration_s: Total session duration in seconds
         """
-        if not self.root or self.exit_event.is_set() or not hasattr(self, "_session_start_time"):
+        if not self.root or self.exit_event.is_set() or self._session_start_time is None:
             return
 
         elapsed = time.time() - self._session_start_time
@@ -1701,7 +1706,7 @@ class LiveCameraService:
             # Schedule next update (every 1 second)
             self.root.after(1000, self._update_session_countdown, duration_s)
 
-    def _publish_analysis_lag_status(self, lag_seconds: float):
+    def _publish_analysis_lag_status(self, lag_seconds: float) -> None:
         """Publish analysis lag status to UI.
 
         When analysis is behind real-time recording, this updates the status bar
@@ -1737,7 +1742,7 @@ class LiveCameraService:
             {"message": status_msg},
         )
 
-    def _on_session_complete(self, output_dir: Path):  # noqa: C901
+    def _on_session_complete(self, output_dir: Path) -> None:  # noqa: C901
         """Handle session completion and trigger post-processing analysis.
 
         Task 1.4: Thread-safe check-and-set pattern to prevent race conditions.
@@ -1763,7 +1768,7 @@ class LiveCameraService:
         # This prevents blocking the main UI thread during heavy I/O and DataFrame operations
         log.info("live_camera_service.starting_post_analysis", output_dir=str(output_dir))
 
-        def _run_post_analysis():  # noqa: C901
+        def _run_post_analysis() -> None:  # noqa: C901
             """Background thread worker for post-processing analysis."""
             try:
                 from zebtrack.analysis.analysis_service import AnalysisService
@@ -1839,6 +1844,8 @@ class LiveCameraService:
                 # Get zones (arena and ROIs)
                 zone_data = self.project_manager.get_zone_data()
                 arena_polygon = zone_data.polygon or []
+                # Convert to format expected by AnalysisService (list of tuples)
+                arena_polygon_tuples = [(float(p[0]), float(p[1])) for p in arena_polygon]
 
                 # Build ROI objects
                 from zebtrack.analysis.roi import ROI
@@ -1882,7 +1889,7 @@ class LiveCameraService:
                     pixelcm_x=pixelcm_x,
                     pixelcm_y=pixelcm_y,
                     video_height_px=video_height,
-                    arena_polygon_px=arena_polygon,
+                    arena_polygon_px=arena_polygon_tuples,
                     rois=rois,
                     fps=fps,
                     metadata=metadata,
@@ -1969,7 +1976,7 @@ class LiveCameraService:
         analysis_success: bool = True,
         stats: dict | None = None,
         reason: str | None = None,
-    ):
+    ) -> None:
         """Show completion message with analysis results."""
         if not self.event_bus:
             return
@@ -2013,7 +2020,7 @@ class LiveCameraService:
             {"title": title, "message": message},
         )
 
-    def _start_recording_after_arena(self):
+    def _start_recording_after_arena(self) -> None:
         """
         Start recorder and timer AFTER arena has been defined.
 
@@ -2098,7 +2105,7 @@ class LiveCameraService:
             if self.preview_window:
                 self.preview_window.start_timer()
 
-    def _define_arena_from_detections(self):
+    def _define_arena_from_detections(self) -> None:
         """
         Define arena based on collected aquarium detections or fallback to default.
 
@@ -2217,7 +2224,7 @@ class LiveCameraService:
         self._arena_defined_event.set()
         self._aquarium_detection_phase = False
 
-    def _clear_queues(self):
+    def _clear_queues(self) -> None:
         """Clear all queues."""
         while not self.frame_queue.empty():
             try:
@@ -2254,19 +2261,17 @@ class LiveCameraService:
                 all_detections = detector.detect_partitioned_optimized(
                     frame=frame,
                     zone_data=zone_data,
-                    context="live",
                 )
             elif hasattr(detector, "detect_partitioned_parallel"):
                 all_detections = detector.detect_partitioned_parallel(
                     frame=frame,
                     zone_data=zone_data,
-                    context="live",
                 )
             else:
                 # Fallback to sequential processing
                 log.warning("live_camera_service.no_partitioned_detection_fallback")
-                all_detections, _ = detector.detect(frame, "live")
-                return all_detections if isinstance(all_detections, list) else []
+                fallback_detections, _ = detector.detect(frame, "live")
+                return fallback_detections if isinstance(fallback_detections, list) else []
 
             # Record detections per aquarium if recorder supports it
             if self.recorder and self.recorder.start_time:
@@ -2371,6 +2376,7 @@ class LiveCameraService:
             return
 
         current_time = time.time()
+        gap_duration = 0.0
 
         # Find the open gap and close it
         if self._disconnect_gaps and self._disconnect_gaps[-1][1] is None:
@@ -2506,7 +2512,7 @@ class LiveCameraService:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> Literal[False]:
         """
         Exit context manager - cleanup session resources.
 

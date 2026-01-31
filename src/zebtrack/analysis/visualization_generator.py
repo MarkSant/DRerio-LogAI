@@ -30,7 +30,7 @@ from shapely import affinity
 from shapely.geometry import MultiPolygon
 from shapely.geometry import Polygon as ShapelyPolygon
 
-from zebtrack.analysis.behavior import BehavioralAnalyzer
+from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 
 __all__ = ["VisualizationGenerator"]
@@ -94,7 +94,7 @@ class VisualizationGenerator:
 
     def __init__(
         self,
-        b_analyzer: BehavioralAnalyzer,
+        b_analyzer: ConcreteBehavioralAnalyzer,
         metadata: dict,
         r_analyzer: ROIAnalyzer | None = None,
         roi_colors: dict | None = None,
@@ -151,9 +151,9 @@ class VisualizationGenerator:
         if roi.coordinate_space == "px":
             px_per_cm_x = self._pixelcm_x or 1.0
             px_per_cm_y = self._pixelcm_y or 1.0
-            offset_y = (
-                self._video_height_px / px_per_cm_y if px_per_cm_y else float(self._video_height_px)
-            )
+            # Safe access to video height
+            v_height = float(self._video_height_px or 0.0)
+            offset_y = v_height / px_per_cm_y if px_per_cm_y else v_height
             geometry = affinity.affine_transform(
                 geometry,
                 [1.0 / px_per_cm_x, 0.0, 0.0, -1.0 / px_per_cm_y, 0.0, offset_y],

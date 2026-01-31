@@ -2,7 +2,7 @@ import threading
 import time
 from collections import deque
 from types import TracebackType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import cv2
 import numpy as np
@@ -251,7 +251,8 @@ class Camera(FrameSource):
         with self._lock:
             self.actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             self.actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            self.actual_fps = self.cap.get(cv2.CAP_PROP_FPS) or self.settings.video_processing.fps
+            default_fps = self.settings.video_processing.fps if self.settings else 30.0
+            self.actual_fps = self.cap.get(cv2.CAP_PROP_FPS) or default_fps
 
         log.info(
             "camera.reconnected.dimensions_updated",
@@ -320,23 +321,21 @@ class Camera(FrameSource):
             lag_ms = (time.time() - frame_time) * 1000
 
             # Log warning if lag exceeds threshold
-            if lag_ms > self.settings.camera.max_frame_lag_ms:
+            max_lag_ms = self.settings.camera.max_frame_lag_ms if self.settings else 100.0
+            if lag_ms > max_lag_ms:
                 log.warning(
                     "camera.lag.threshold_exceeded",
                     lag_ms=lag_ms,
-                    threshold_ms=self.settings.camera.max_frame_lag_ms,
+                    threshold_ms=max_lag_ms,
                 )
 
             return (True, frame)
 
-    def release(self) -> bool:
+    def release(self) -> None:
         """
         Signals the reader thread to stop and releases the camera resource.
 
         Task 1.6: Robust thread termination with timeout and forced cleanup.
-
-        Returns:
-            bool: True if the reader thread stopped cleanly, False otherwise.
         """
         log.info("camera.release.started")
         self._stopped.set()
@@ -391,7 +390,7 @@ class Camera(FrameSource):
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> Literal[False]:
         """
         Exit context manager - cleanup camera resources.
 

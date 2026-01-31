@@ -342,6 +342,11 @@ class VideoProcessingSettings(BaseModel):
         le=120,
         description="Frames Per Second (FPS) for saving output videos. Valid range: 1-120.",
     )
+    pixel_cm: float | None = Field(
+        None,
+        ge=0.0,
+        description="Global default pixels-per-cm calibration value (optional).",
+    )
     processing_interval: int = Field(
         ...,
         ge=1,
@@ -362,6 +367,10 @@ class VideoProcessingSettings(BaseModel):
             "frames 1, 11, 21, ... Must be non-negative."
         ),
     )
+    calculate_angles: bool = Field(
+        True,
+        description="Whether to calculate angular velocity metrics.",
+    )
     sharp_turn_threshold_deg_s: float = 200.0
     freezing_velocity_threshold: float = 1.5
     freezing_min_duration_s: float = 1.0
@@ -381,6 +390,10 @@ class TrajectorySmoothingSettings(BaseModel):
 
     model_config = ConfigDict(validate_assignment=True, extra="forbid")
 
+    enabled: bool = Field(
+        True,
+        description="Enable trajectory smoothing using Savitzky-Golay filter.",
+    )
     window_length: int = Field(
         7,
         ge=3,

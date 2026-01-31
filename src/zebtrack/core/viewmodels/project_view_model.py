@@ -39,13 +39,19 @@ class ProjectViewModel:
         self.settings = dependencies.settings_obj
 
     def create_project_workflow(self, **wizard_data):
-        return self.project_lifecycle_coordinator.create_project(**wizard_data)
+        if self.project_lifecycle_coordinator:
+            return self.project_lifecycle_coordinator.create_project(**wizard_data)
+        return None
 
     def open_project_workflow(self, project_path):
-        return self.project_lifecycle_coordinator.open_project(project_path)
+        if self.project_lifecycle_coordinator:
+            return self.project_lifecycle_coordinator.open_project(project_path)
+        return None
 
     def close_project(self):
-        return self.project_lifecycle_coordinator.close_project()
+        if self.project_lifecycle_coordinator:
+            return self.project_lifecycle_coordinator.close_project()
+        return None
 
     def on_video_selected(self, video_path: str):
         """Handle video selection event."""
@@ -90,7 +96,9 @@ class ProjectViewModel:
             )
 
     def can_remove_project_asset(self, video_path: str, asset: str) -> tuple[bool, str | None]:
-        return self.project_lifecycle_coordinator.can_remove_project_asset(video_path, asset)
+        if self.project_lifecycle_coordinator:
+            return self.project_lifecycle_coordinator.can_remove_project_asset(video_path, asset)
+        return (False, "ProjectLifecycleCoordinator not available")
 
     def apply_project_settings_to_batch(self, videos: list):
         return self.batch_configuration_service.apply_settings(videos)

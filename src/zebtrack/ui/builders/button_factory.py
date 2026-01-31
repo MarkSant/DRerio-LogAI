@@ -36,31 +36,31 @@ class ButtonFactory:
         ttk.Button(
             project_actions_frame,
             text="Calibração Global (Pesos e Diagnóstico)...",
-            command=commands.get("calibration"),
+            command=commands["calibration"],
         ).pack(fill="x", padx=10, pady=5)
 
         ttk.Button(
             project_actions_frame,
             text="Analisar Vídeo Único",
-            command=commands.get("single_analysis"),
+            command=commands["single_analysis"],
         ).pack(fill="x", padx=10, pady=5)
 
         ttk.Button(
             project_actions_frame,
             text="Analisar Câmera ao Vivo",
-            command=commands.get("live_camera"),
+            command=commands["live_camera"],
         ).pack(fill="x", padx=10, pady=5)
 
         ttk.Button(
             project_actions_frame,
             text="Criar Novo Projeto",
-            command=commands.get("create_project"),
+            command=commands["create_project"],
         ).pack(fill="x", padx=10, pady=5)
 
         ttk.Button(
             project_actions_frame,
             text="Abrir Projeto Existente",
-            command=commands.get("open_project"),
+            command=commands["open_project"],
         ).pack(fill="x", padx=10, pady=5)
 
         return project_actions_frame
@@ -86,7 +86,7 @@ class ButtonFactory:
         undo_btn = ttk.Button(
             drawing_buttons_frame,
             text="↶ Desfazer (Ctrl+Z)",
-            command=commands.get("undo"),
+            command=commands["undo"],
             width=20,
         )
         undo_btn.pack(side="left", padx=2)
@@ -95,7 +95,7 @@ class ButtonFactory:
         redo_btn = ttk.Button(
             drawing_buttons_frame,
             text="↷ Refazer (Ctrl+Y)",
-            command=commands.get("redo"),
+            command=commands["redo"],
             width=20,
         )
         redo_btn.pack(side="left", padx=2)

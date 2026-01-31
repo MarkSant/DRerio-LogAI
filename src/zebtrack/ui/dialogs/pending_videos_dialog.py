@@ -4,13 +4,14 @@ PendingVideosDialog.
 Extracted from gui.py for better modularity.
 """
 
+from collections.abc import Callable
 from tkinter import (
     BooleanVar,
     Frame,
     simpledialog,
     ttk,
 )
-from typing import ClassVar
+from typing import Any, ClassVar
 
 
 class PendingVideosDialog(simpledialog.Dialog):
@@ -24,12 +25,12 @@ class PendingVideosDialog(simpledialog.Dialog):
 
     def __init__(
         self,
-        parent,
-        hierarchy_builder: callable,  # type: ignore[valid-type]
-        ready_with_trajectory: list[dict],
-        ready_with_zones: list[dict],
-        arena_only: list[dict],
-        without_arena: list[dict],
+        parent: Any,
+        hierarchy_builder: Callable[[], list[dict[str, Any]]],
+        ready_with_trajectory: list[dict[str, Any]],
+        ready_with_zones: list[dict[str, Any]],
+        arena_only: list[dict[str, Any]],
+        without_arena: list[dict[str, Any]],
     ):
         """Initialize the pending videos dialog.
 
@@ -102,7 +103,9 @@ class PendingVideosDialog(simpledialog.Dialog):
         hsb.grid(row=1, column=0, sticky="ew")
 
         for tag, style in self.TAG_STYLES.items():
-            self.tree.tag_configure(tag, **style)
+            bg = style.get("background") or ""
+            fg = style.get("foreground") or ""
+            self.tree.tag_configure(tag, background=bg, foreground=fg)
         self.tree.tag_configure("ready_optional", foreground="#5f4b00")
 
         self._populate_tree()

@@ -61,14 +61,16 @@ class ImportConfigStep(WizardStep):
     def __init__(self, parent, wizard_data: dict):
         """Initialize import config step."""
         super().__init__(parent, wizard_data)
-        self.step_id = WizardStepID.IMPORT_CONFIG
+        self.step_id: WizardStepID = WizardStepID.IMPORT_CONFIG
 
         # State
-        self.video_configs = []  # List of per-video config dicts
+        # State
+        self.video_configs: list[dict] = []  # List of per-video config dicts
         self.roi_merge_strategy_var = StringVar(value=ROIMergeStrategy.REPLACE.value)
         self.summary_var = StringVar(value="")
         self.template_info_var = StringVar(value="")
-        self.template_info_label = None
+        self.template_info_label: Label | None = None
+        self.video_tree: ttk.Treeview | None = None
 
     def build_ui(self):
         """Build import configuration UI with a wider horizontal layout."""
@@ -314,6 +316,9 @@ class ImportConfigStep(WizardStep):
 
     def _populate_table(self):
         """Populate Treeview with video configurations."""
+        if not self.video_tree:
+            return
+
         # Clear existing items
         for item in self.video_tree.get_children():
             self.video_tree.delete(item)
@@ -366,6 +371,9 @@ class ImportConfigStep(WizardStep):
 
     def _on_tree_double_click(self, event):
         """Handle double-click on tree item to toggle import options."""
+        if not self.video_tree:
+            return
+
         region = self.video_tree.identify("region", event.x, event.y)
         if region != "cell":
             return
@@ -409,7 +417,7 @@ class ImportConfigStep(WizardStep):
 
     def _update_summary(self):
         """Update summary text with action counts."""
-        action_counts = {}
+        action_counts: dict[str, int] = {}
 
         for config in self.video_configs:
             action = config["action"]

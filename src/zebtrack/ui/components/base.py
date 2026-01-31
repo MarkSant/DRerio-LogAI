@@ -116,4 +116,4 @@ class BaseWidget(ttk.Frame):
             pass
 
         for child in widget.winfo_children():
-            self._set_widget_state(child, state)
+            self._set_widget_state(child, state)  # type: ignore[arg-type]

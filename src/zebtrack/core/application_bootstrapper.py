@@ -360,8 +360,8 @@ class ApplicationBootstrapper:
         )
 
         # Queues for live frame processing
-        frame_queue = queue.Queue(maxsize=30)  # Queue for frames to be processed
-        video_queue = queue.Queue(maxsize=30)  # Queue for frames to be recorded
+        frame_queue: queue.Queue = queue.Queue(maxsize=30)  # Queue for frames to be processed
+        video_queue: queue.Queue = queue.Queue(maxsize=30)  # Queue for frames to be recorded
 
         # Exit event for threads
         program_exit_event = threading.Event()
@@ -396,7 +396,7 @@ class ApplicationBootstrapper:
             use_openvino=self._hardware_state["use_openvino"],
         )
 
-    def _init_view(self, controller_proxy):
+    def _init_view(self, controller_proxy: Any) -> None:
         """Initialize the view and update it with initial state."""
         # Phase 2: Inversion of Control - view can be injected or created
         if self.view is None:
@@ -475,7 +475,11 @@ class ApplicationBootstrapper:
             video_orc = VideoOrchestrator(
                 root=self.deps.root,
                 state_manager=self.state_manager,
-                ui_event_bus=self.deps.event_bus,
+                ui_event_bus=self.deps.event_bus
+                if self.deps.event_bus is not None
+                else self.deps.ui_coordinator._create_fallback_event_bus()
+                if hasattr(self.deps.ui_coordinator, "_create_fallback_event_bus")
+                else self.deps.event_bus,  # type: ignore[arg-type]
                 ui_coordinator=self.deps.ui_coordinator,
                 settings_obj=self.settings,
                 project_manager=self.deps.project_manager,
@@ -515,26 +519,40 @@ class ApplicationBootstrapper:
         if self.deps.recording_coordinator:
             legacy_coords["recording_coordinator"] = self.deps.recording_coordinator
         else:
-            legacy_coords["recording_coordinator"] = RecordingCoordinator(
-                state_manager=self.state_manager,
-                recording_service=self.deps.recording_service,
-                arduino_manager=None,  # Initialized lazily
-                event_bus=self.deps.event_bus,
-            )
+            if self.deps.recording_service is not None:
+                legacy_coords["recording_coordinator"] = RecordingCoordinator(
+                    state_manager=self.state_manager,
+                    recording_service=self.deps.recording_service,
+                    arduino_manager=None,  # Initialized lazily
+                    event_bus=self.deps.event_bus,
+                )
+            else:
+                log.warning(
+                    "bootstrapper.recording_coordinator.skipping_init",
+                    reason="No recording_service",
+                )
+                legacy_coords["recording_coordinator"] = None
         controller_proxy.recording_coordinator = legacy_coords["recording_coordinator"]
 
         # Live Camera Coordinator
         if self.deps.live_camera_coordinator:
             legacy_coords["live_camera_coordinator"] = self.deps.live_camera_coordinator
         else:
-            legacy_coords["live_camera_coordinator"] = LiveCameraCoordinator(
-                state_manager=self.state_manager,
-                live_camera_service=self.deps.live_camera_service,
-                project_manager=self.deps.project_manager,
-                settings=self.settings,
-                camera=None,
-                event_bus=self.deps.event_bus,
-            )
+            if self.deps.live_camera_service is not None:
+                legacy_coords["live_camera_coordinator"] = LiveCameraCoordinator(
+                    state_manager=self.state_manager,
+                    live_camera_service=self.deps.live_camera_service,
+                    project_manager=self.deps.project_manager,
+                    settings=self.settings,
+                    camera=None,
+                    event_bus=self.deps.event_bus,
+                )
+            else:
+                log.warning(
+                    "bootstrapper.live_camera_coordinator.skipping_init",
+                    reason="No live_camera_service",
+                )
+                legacy_coords["live_camera_coordinator"] = None
         controller_proxy.live_camera_coordinator = legacy_coords["live_camera_coordinator"]
 
         self._legacy_coordinators = legacy_coords
@@ -598,7 +616,7 @@ class ApplicationBootstrapper:
         if self.deps.hardware_coordinator and self.deps.session_coordinator:
             self.deps.hardware_coordinator.set_recording_callbacks(
                 self.deps.session_coordinator.trigger_recording,
-                self.deps.session_coordinator.stop_recording,
+                lambda: (self.deps.session_coordinator.stop_recording(), None)[1],
             )
 
     def _safe_get_default_weight(self) -> tuple[str | None, dict | None]:

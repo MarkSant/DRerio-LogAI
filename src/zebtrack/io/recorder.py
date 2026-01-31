@@ -57,13 +57,13 @@ class Recorder:
             settings_obj: Settings instance (optional, uses defaults if None).
         """
         self.is_recording = False
-        self.video_writer = None
+        self.video_writer: cv2.VideoWriter | None = None
         self.base_name = ""
         self.output_folder = ""
         self.start_time = 0
         self.frame_count = 0
         self.recording_start_frame = 0
-        self.detection_data = []
+        self.detection_data: list[dict[str, Any]] = []
         # BUG FIX #3: Use private attributes for protected properties
         self._pixel_per_cm_ratio = None
         self._calibration = None
@@ -268,7 +268,7 @@ class Recorder:
                 self._fps,
                 (frame_width, frame_height),
             )
-            if not self.video_writer.isOpened():
+            if self.video_writer is not None and not self.video_writer.isOpened():
                 log.error("recorder.video_writer.open_error", path=video_filename)
                 return False
         else:
@@ -1131,7 +1131,7 @@ class Recorder:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> None:
         """
         Exit context manager - close all files and save data.
 

@@ -71,7 +71,7 @@ class VideoValidationService:
         >>> print(f"Scanned: {result.scan_count}, Missing: {len(result.missing_files)}")
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize VideoValidationService."""
         log.info("video_validation_service.initialized")
 

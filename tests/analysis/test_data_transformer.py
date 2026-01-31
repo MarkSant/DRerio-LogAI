@@ -6,6 +6,7 @@ Tests data transformation, column standardization, schema validation,
 trajectory warping, and RGB color name conversion.
 """
 
+from typing import Any
 from unittest.mock import Mock
 
 import numpy as np
@@ -558,8 +559,8 @@ def test_warp_trajectory_if_needed_missing_columns():
 
 def test_resolve_group_id_from_combined_data(transformer):
     """Test group ID resolution from combined_data."""
-    combined_data = {"group_id": "treatment"}
-    metadata = {}
+    combined_data: dict[str, Any] = {"group_id": "treatment"}
+    metadata: dict[str, Any] = {}
 
     result = transformer._resolve_group_id(combined_data, metadata)
     assert result == "treatment"
@@ -567,8 +568,8 @@ def test_resolve_group_id_from_combined_data(transformer):
 
 def test_resolve_group_id_from_metadata(transformer):
     """Test group ID resolution from metadata."""
-    combined_data = {}
-    metadata = {"group_id": "control"}
+    combined_data: dict[str, Any] = {}
+    metadata: dict[str, Any] = {"group_id": "control"}
 
     result = transformer._resolve_group_id(combined_data, metadata)
     assert result == "control"
@@ -576,8 +577,8 @@ def test_resolve_group_id_from_metadata(transformer):
 
 def test_resolve_group_id_from_fallback_keys(transformer):
     """Test group ID resolution from fallback keys."""
-    combined_data = {}
-    metadata = {"grupo": "experimental"}
+    combined_data: dict[str, Any] = {}
+    metadata: dict[str, Any] = {"grupo": "experimental"}
 
     result = transformer._resolve_group_id(combined_data, metadata)
     assert result == "experimental"
@@ -592,8 +593,8 @@ def test_resolve_group_id_from_fallback_keys(transformer):
 
 def test_resolve_group_id_unassigned(transformer):
     """Test group ID resolution returns 'unassigned' when not found."""
-    combined_data = {}
-    metadata = {}
+    combined_data: dict[str, Any] = {}
+    metadata: dict[str, Any] = {}
 
     result = transformer._resolve_group_id(combined_data, metadata)
     assert result == "unassigned"

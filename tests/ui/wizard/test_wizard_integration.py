@@ -11,6 +11,7 @@ These tests focus on step-to-step data flow and integration logic.
 import shutil
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -48,7 +49,7 @@ class TestWizardIntegration:
 
     def test_step1_to_step2_data_flow(self):
         """Test data flow from Discovery to File Selection."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
 
         # Step 1: Discovery
         step1 = DiscoveryStep(self.root, wizard_data)
@@ -86,7 +87,7 @@ class TestWizardIntegration:
             }
         ]
 
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "project_type": ProjectType.EXPERIMENTAL.value,
         }
 
@@ -126,7 +127,7 @@ class TestWizardIntegration:
             }
         ]
 
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "project_type": ProjectType.EXPERIMENTAL.value,
             "parquet_import_scope": "zones",
             "video_paths": [str(self.video1)],
@@ -171,7 +172,7 @@ class TestWizardIntegration:
             }
         ]
 
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "project_type": ProjectType.EXPERIMENTAL.value,
             "parquet_import_scope": "all",
             "video_paths": [str(self.video1)],
@@ -228,7 +229,7 @@ class TestWizardIntegration:
             },
         ]
 
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
 
         # Step 1: Discovery
         step1 = DiscoveryStep(self.root, wizard_data)
@@ -291,7 +292,7 @@ class TestWizardIntegration:
             }
         ]
 
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
 
         # Step 1: Discovery (exploratory)
         step1 = DiscoveryStep(self.root, wizard_data)
@@ -338,7 +339,7 @@ class TestWizardIntegration:
 
     def test_set_data_restores_state_across_all_steps(self):
         """Test that set_data works for all steps (back navigation)."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
 
         # Step 1: Create and extract data
         step1 = DiscoveryStep(self.root, wizard_data)

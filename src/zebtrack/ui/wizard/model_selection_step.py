@@ -83,7 +83,7 @@ class ModelSelectionStep(WizardStep):
         self._content_frame: ttk.Frame | None = None
         self._left_column: ttk.Frame | None = None
         self._right_column: ttk.Frame | None = None
-        self._bytetrack_frame: ttk.LabelFrame | None = None
+        self._bytetrack_frame: LabelFrame | None = None
         self._resize_after_id: str | None = None  # Debouncing for resize events
 
         # Validation tracking: Entry widgets and error labels
@@ -140,7 +140,7 @@ class ModelSelectionStep(WizardStep):
                 aquarium_method = "seg"
                 animal_method = "seg"
 
-            defaults = _Defaults()
+            defaults = _Defaults()  # type: ignore[assignment]
 
         aquarium_method = selection.get("aquarium_method", defaults.aquarium_method)
         animal_method = selection.get("animal_method", defaults.animal_method)
@@ -388,6 +388,7 @@ class ModelSelectionStep(WizardStep):
             pady=8,
         )
         self._bytetrack_frame.pack(fill="both", expand=True)
+        assert self._bytetrack_frame is not None
 
         # Configure grid for better distribution in larger space
         self._bytetrack_frame.columnconfigure(0, weight=1)

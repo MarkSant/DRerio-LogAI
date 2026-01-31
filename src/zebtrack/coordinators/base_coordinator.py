@@ -99,7 +99,7 @@ class BaseCoordinator:
 
         # Convert string to StateCategory enum if needed
         if isinstance(category, str):
-            category = StateCategory(category)
+            category = StateCategory[category.upper()]
 
         self.state_manager.update(category, key, value)
         self.logger.debug("state.updated", category=category.value, key=key)
@@ -121,7 +121,7 @@ class BaseCoordinator:
         from zebtrack.core.state_manager import StateCategory
 
         if isinstance(category, str):
-            category = StateCategory(category)
+            category = StateCategory[category.upper()]
 
         state = self.state_manager.get_state(category)
         return state.get(key, default)

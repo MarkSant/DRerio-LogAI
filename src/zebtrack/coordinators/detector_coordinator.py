@@ -183,7 +183,7 @@ class DetectorCoordinator(BaseCoordinator):
                     StateCategory.DETECTOR,
                     is_detector_initialized=True,
                     animal_method=animal_method
-                    or self.detector_service.settings.detection.animal_method,
+                    or self.detector_service.settings.model_selection.animal_method,
                     use_openvino=use_openvino,
                 )
 

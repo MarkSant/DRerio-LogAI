@@ -8,7 +8,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
@@ -51,8 +51,8 @@ class AquariumData:
     subject_id: str = ""  # Identificador do sujeito
     day: int = 0  # Dia do experimento
 
-    def to_zone_data(self) -> "ZoneData":
-        """Converte AquariumData para ZoneData padrão."""
+    def to_zone_data(self) -> ZoneData:
+        """Helper to get current zone configuration as ZoneData object."""
         return ZoneData(
             polygon=self.polygon,
             roi_polygons=self.roi_polygons,
@@ -141,7 +141,7 @@ class Detector:
         base_width: int = 1280,
         base_height: int = 720,
         settings_obj: "Settings | None" = None,
-    ):
+    ) -> None:
         """
         Initialize the detector with a specific plugin.
 
@@ -162,7 +162,7 @@ class Detector:
         log.info("detector.init.success", plugin=self.plugin.get_name())
 
         # Zone configuration is now set dynamically via set_zones()
-        self.zones: ZoneData = ZoneData()
+        self.zones: ZoneData | MultiAquariumZoneData = ZoneData()
         self.scaled_polygon: np.ndarray = np.array([])
         self.scaled_roi_polygons: list[np.ndarray] = []
         self._scaling_cache: dict = {}
@@ -190,7 +190,7 @@ class Detector:
         self.animal_class_id = 1
         self._resolve_class_ids()
 
-    def _resolve_class_ids(self):
+    def _resolve_class_ids(self) -> None:
         """Resolve class IDs from plugin metadata."""
         if hasattr(self.plugin, "class_names") and self.plugin.class_names:
             aquarium_names = ["aqua", "aquarium", "tank", "agua"]
@@ -220,7 +220,37 @@ class Detector:
                 plugin_classes=self.plugin.class_names,
             )
 
-    def set_zones(self, zones: ZoneData, actual_width: int, actual_height: int):
+    @property
+    def polygon(self) -> list[list[int]]:
+        """Delegate to zones.polygon for backward compatibility."""
+        if isinstance(self.zones, ZoneData):
+            return self.zones.polygon
+        return []
+
+    @property
+    def roi_polygons(self) -> list[list[list[int]]]:
+        """Delegate to zones.roi_polygons for backward compatibility."""
+        if isinstance(self.zones, ZoneData):
+            return self.zones.roi_polygons
+        return []
+
+    @property
+    def roi_names(self) -> list[str]:
+        """Delegate to zones.roi_names for backward compatibility."""
+        if isinstance(self.zones, ZoneData):
+            return self.zones.roi_names
+        return []
+
+    @property
+    def roi_colors(self) -> list[tuple[int, int, int]]:
+        """Delegate to zones.roi_colors for backward compatibility."""
+        if isinstance(self.zones, ZoneData):
+            return self.zones.roi_colors
+        return []
+
+    def set_zones(
+        self, zones: ZoneData | MultiAquariumZoneData, actual_width: int, actual_height: int
+    ) -> None:
         """
         Set the detection zones and scales them to the current video resolution.
 
@@ -248,7 +278,7 @@ class Detector:
 
         self._multi_aquarium_mode = is_multi
 
-        if is_multi:
+        if is_multi and hasattr(self.zones, "aquariums"):
             self._aquariums = self.zones.aquariums
             # Initialize trackers for each aquarium if not already present
             for aq in self._aquariums:
@@ -312,22 +342,31 @@ class Detector:
         self._update_scaling(actual_width, actual_height)
 
         # Collect stats for logging
-        if is_multi:
-            polygon_points = sum(len(aq.polygon) for aq in self.zones.aquariums)
-            roi_count = sum(len(aq.roi_polygons) for aq in self.zones.aquariums)
-            has_polygon = bool(self.zones.aquariums)
+        if is_multi and isinstance(self.zones, MultiAquariumZoneData):
+            # Strict type check for MyPy
+            multi_zones = self.zones
+            polygon_points = sum(len(aq.polygon) for aq in multi_zones.aquariums)
+            roi_count = sum(len(aq.roi_polygons) for aq in multi_zones.aquariums)
+            has_polygon = bool(multi_zones.aquariums)
             if has_polygon:
                 # Sample first aquarium
-                polygon_sample = str(self.zones.aquariums[0].polygon[:3])
-        else:
+                polygon_sample = str(multi_zones.aquariums[0].polygon[:3])
+        elif isinstance(self.zones, ZoneData):
             # Standard ZoneData
-            has_polygon = bool(self.zones.polygon)
-            polygon_points = len(self.zones.polygon) if self.zones.polygon else 0
-            roi_count = len(self.zones.roi_polygons) if self.zones.roi_polygons else 0
+            single_zone = self.zones
+            has_polygon = bool(single_zone.polygon)
+            polygon_points = len(single_zone.polygon) if single_zone.polygon else 0
+            roi_count = len(single_zone.roi_polygons) if single_zone.roi_polygons else 0
             if has_polygon:
                 # Handle list of tuples or numpy array
-                poly_np = np.array(self.zones.polygon)
+                poly_np = np.array(single_zone.polygon)
                 polygon_sample = poly_np[:3].tolist() if poly_np.size > 0 else "empty"
+        else:
+            # Fallback for unexpected state
+            log.warning("detector.zones.unknown_type", type=type(self.zones))
+            roi_count = 0
+            polygon_points = 0
+            has_polygon = False
 
         # DEBUG: Log zone setup with polygon details
         log.info(
@@ -346,7 +385,7 @@ class Detector:
         self._last_height = actual_height
         self._single_subject_tracker.reset()
 
-    def set_context(self, context: str):
+    def set_context(self, context: str) -> None:
         """
         Set the detection context.
 
@@ -357,7 +396,7 @@ class Detector:
             self._context = context
             log.info("detector.context.set", context=context)
 
-    def set_aquarium_region_defined(self, defined: bool = True):
+    def set_aquarium_region_defined(self, defined: bool = True) -> None:
         """
         Set whether aquarium region has been defined.
 
@@ -367,7 +406,7 @@ class Detector:
         self._aquarium_region_defined = bool(defined)
         log.info("detector.aquarium_region_defined.set", defined=defined)
 
-    def _update_scaling(self, actual_width: int, actual_height: int):
+    def _update_scaling(self, actual_width: int, actual_height: int) -> None:
         """
         Update the coordinates of the polygon and squares based on the actual video resolution.
 
@@ -436,7 +475,7 @@ class Detector:
             height=actual_height,
         )
 
-    def _is_inside_polygon(self, x1, y1, x2, y2, polygon):
+    def _is_inside_polygon(self, x1: int, y1: int, x2: int, y2: int, polygon: np.ndarray) -> bool:
         """
         Check if any of the 4 corners OR the center of the bounding box is inside the polygon.
 
@@ -495,7 +534,20 @@ class Detector:
 
         return False
 
-    def detect(self, frame: np.ndarray, project_type: str, conf_threshold: float | None = None):  # noqa: C901
+    def _draw_zones(self, frame: np.ndarray) -> None:
+        # Core drawing logic shifted to CanvasRenderer for UI
+        # This keeps a lightweight version for diagnostic output
+        if isinstance(self.zones, MultiAquariumZoneData):
+            for aq in self.zones.aquariums:
+                colors = getattr(aq, "roi_colors", [])
+                log.debug("detector.drawing.multi", aq_id=aq.id, rois=len(colors))
+        elif isinstance(self.zones, ZoneData):
+            colors = getattr(self.zones, "roi_colors", [])
+            log.debug("detector.drawing.single", rois=len(colors))
+
+    def detect(
+        self, frame: np.ndarray, project_type: str, conf_threshold: float | None = None
+    ) -> tuple[list[tuple], str | None]:
         """Process a single frame for object detection and state tracking."""
         # Task 1.3: Frame validation to prevent crashes with invalid input
         if frame is None or not isinstance(frame, np.ndarray):
@@ -576,7 +628,7 @@ class Detector:
                     conf_threshold=conf_threshold,
                 )
 
-            predictions = []
+            predictions: list[tuple[float, float, float, float, float, int, int]] = []
             for det in raw_detections:
                 (
                     x1_crop,
@@ -591,13 +643,33 @@ class Detector:
                 y1 = y1_crop + crop_y1
                 x2 = x2_crop + crop_x1
                 y2 = y2_crop + crop_y1
-                predictions.append((x1, y1, x2, y2, conf, track_id, class_id))
+                predictions.append(
+                    (
+                        float(x1),
+                        float(y1),
+                        float(x2),
+                        float(y2),
+                        float(conf),
+                        int(track_id if track_id is not None else -1),
+                        int(class_id),
+                    )
+                )
         else:
             # Fallback to detecting on the full frame if no polygon is defined
-            predictions = [
-                self._ensure_track_tuple(det)
-                for det in self.plugin.detect(frame, conf_threshold=conf_threshold)
-            ]
+            predictions = []
+            for det in self.plugin.detect(frame, conf_threshold=conf_threshold):
+                x1, y1, x2, y2, conf, track_id, class_id = self._ensure_track_tuple(det)
+                predictions.append(
+                    (
+                        float(x1),
+                        float(y1),
+                        float(x2),
+                        float(y2),
+                        float(conf),
+                        int(track_id if track_id is not None else -1),
+                        int(class_id),
+                    )
+                )
 
         # 2. Filter detections to only those inside the main polygon
         # This is still necessary for non-rectangular polygons
@@ -643,14 +715,15 @@ class Detector:
                     aquarium_defined=self._aquarium_region_defined,
                 )
                 detections_in_polygon = [
-                    (int(x1), int(y1), int(x2), int(y2), float(confidence), track_id, int(class_id))
+                    (x1, y1, x2, y2, confidence, int(track_id or -1), class_id)
                     for x1, y1, x2, y2, confidence, track_id, class_id in predictions
                 ]
             else:
                 # Normal polygon filtering - MUST filter by polygon
                 # Support Multi-Aquarium Filtering
-                for det in predictions:
-                    x1, y1, x2, y2, confidence, track_id, class_id = det
+                for pred_tuple in predictions:
+                    # predictions contains tuples: (x1, y1, x2, y2, confidence, track_id, class_id)
+                    x1, y1, x2, y2, confidence, track_id, class_id = pred_tuple  # type: ignore
                     x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
                     confidence = float(confidence)
 
@@ -744,9 +817,9 @@ class Detector:
                 if self._last_width and self._last_height:
                     frame_area = self._last_width * self._last_height
 
-                for det in detections_in_polygon:
+                for det_tuple in detections_in_polygon:
                     # det format: (x1, y1, x2, y2, confidence, track_id, class_id)
-                    x1, y1, x2, y2, conf, track_id, class_id = det
+                    x1, y1, x2, y2, conf, track_id, class_id = det_tuple
                     det_area = (x2 - x1) * (y2 - y1)
 
                     is_valid_aquarium = False
@@ -768,16 +841,16 @@ class Detector:
                             )
                             # Morph to aquarium class
                             class_id = aquarium_class_id
-                            det = (x1, y1, x2, y2, conf, track_id, class_id)
+                            det_tuple = (x1, y1, x2, y2, conf, track_id, class_id)
 
                     if is_valid_aquarium:
-                        filtered_detections.append(det)
+                        filtered_detections.append(det_tuple)
                     else:
                         log.debug(
                             "detector.filtered_by_class",
-                            bbox=(det[0], det[1], det[2], det[3]),
+                            bbox=(det_tuple[0], det_tuple[1], det_tuple[2], det_tuple[3]),
                             class_id=class_id,
-                            conf=det[4],
+                            conf=det_tuple[4],
                             reason="aquarium_not_defined_target_class_0",
                             det_area=det_area,
                             ratio=det_area / frame_area,
@@ -789,12 +862,14 @@ class Detector:
                 # treat it as an animal (class 1).
 
                 # Calculate arena area for comparison
-                arena_area = 0
+                arena_area: float = 0
                 if self.scaled_polygon.size > 0:
-                    arena_area = cv2.contourArea(self.scaled_polygon)
+                    arena_area = float(cv2.contourArea(self.scaled_polygon))
 
                 for det in detections_in_polygon:
-                    x1, y1, x2, y2, conf, track_id, class_id = det
+                    # Cast to ensure int types for unpacking
+                    x1_f, y1_f, x2_f, y2_f, conf, track_id, class_id = det
+                    x1, y1, x2, y2 = int(x1_f), int(y1_f), int(x2_f), int(y2_f)
 
                     # Calculate detection area
                     det_area = (x2 - x1) * (y2 - y1)
@@ -965,13 +1040,15 @@ class Detector:
         BaseTrack.reset_id_counter()
         log.debug("detector.reset_tracking_state.id_counter_reset")
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear the internal scaling cache to free memory."""
         self._scaling_cache.clear()
         log.debug("detector.cache.cleared")
 
     @staticmethod
-    def _ensure_track_tuple(detection):
+    def _ensure_track_tuple(
+        detection: tuple,
+    ) -> tuple[float, float, float, float, float, int | None, int]:
         if len(detection) == 5:
             x1, y1, x2, y2, confidence = detection
             track_id = None
@@ -981,7 +1058,15 @@ class Detector:
             class_id = 0  # Default class if not provided
         else:
             x1, y1, x2, y2, confidence, track_id, class_id = detection[:7]
-        return x1, y1, x2, y2, float(confidence), track_id, int(class_id)
+        return (
+            float(x1),
+            float(y1),
+            float(x2),
+            float(y2),
+            float(confidence),
+            track_id,
+            int(class_id),
+        )
 
     def _apply_simple_tracking(self, detections: list[tuple]) -> list[tuple]:
         """Apply simple SingleSubjectTracker (IoU+Distance) to detections.
@@ -1057,7 +1142,7 @@ class Detector:
                     None,
                     int(class_id),
                 )
-                for x1, y1, x2, y2, confidence, _, class_id in detections
+                for x1, y1, x2, y2, confidence, track_id, class_id in detections
             ]
 
         det_array = np.array(
@@ -1509,12 +1594,71 @@ class Detector:
             log.debug("detector.model_input_shape.fallback", exc_info=True)
         return int(self.base_height), int(self.base_width)
 
-    def draw_overlay(self, frame, detections):
+    def _restore_trackers(self, previous_state: dict[str, Any]) -> None:
+        """
+        Restore tracker states from a previous state dictionary.
+
+        This is used when switching between single and multi-aquarium modes
+        or when re-initializing the detector without losing tracking history.
+        """
+        # Restore single subject tracker state
+        # NOTE: SingleSubjectTracker does not currently support restore_state
+        # Commenting out until the method is implemented or state tracking is removed
+        # if "single_subject_tracker_state" in previous_state:
+        #     self._single_subject_tracker.restore_state(
+        #         previous_state["single_subject_tracker_state"]
+        #     )
+        #     log.debug("detector.restore_trackers.single_subject_tracker_restored")
+
+        # Restore ByteTracker state
+        if "byte_tracker_state" in previous_state and self._byte_tracker is not None:
+            # NOTE: BYTETracker does not currently implement restore_state
+            if hasattr(self._byte_tracker, "restore_state"):
+                self._byte_tracker.restore_state(previous_state["byte_tracker_state"])  # type: ignore[attr-defined]
+            log.debug("detector.restore_trackers.byte_tracker_restored")
+
+        # Restore multi-aquarium trackers
+        if "byte_trackers_multi_state" in previous_state:
+            for aq_id, state in previous_state["byte_trackers_multi_state"].items():
+                if aq_id in self._byte_trackers_multi:
+                    tracker = self._byte_trackers_multi[aq_id]
+                    if hasattr(tracker, "restore_state"):
+                        tracker.restore_state(state)  # type: ignore[attr-defined]
+                    log.debug("detector.restore_trackers.multi_byte_tracker_restored", aq_id=aq_id)
+                else:
+                    log.warning("detector.restore_trackers.multi_byte_tracker_missing", aq_id=aq_id)
+
+        if "single_subject_trackers_multi_state" in previous_state:
+            for aq_id, state in previous_state["single_subject_trackers_multi_state"].items():
+                if aq_id in self._single_subject_trackers_multi:
+                    self._single_subject_trackers_multi[aq_id].restore_state(state)
+                    log.debug(
+                        "detector.restore_trackers.multi_simple_tracker_restored", aq_id=aq_id
+                    )
+                else:
+                    log.warning(
+                        "detector.restore_trackers.multi_simple_tracker_missing", aq_id=aq_id
+                    )
+
+        # Restore global track ID counter
+        if "basetrack_id_counter" in previous_state:
+            from zebtrack.tracker.basetrack import BaseTrack
+
+            BaseTrack.set_id_counter(previous_state["basetrack_id_counter"])
+            log.debug(
+                "detector.restore_trackers.basetrack_id_counter_restored",
+                counter=previous_state["basetrack_id_counter"],
+            )
+
+        log.info("detector.restore_trackers.completed")
+
+    def draw_overlay(self, frame: np.ndarray, detections: list[tuple]) -> None:
         """Draws detection overlays on the frame."""
         # Draw the ROI polygons
         for i, polygon in enumerate(self.scaled_roi_polygons):
-            if i < len(self.zones.roi_colors):
-                color = self.zones.roi_colors[i]
+            # Use property delegate to access roi_colors
+            if i < len(self.roi_colors):
+                color = self.roi_colors[i]
                 cv2.polylines(frame, [polygon], isClosed=True, color=color, thickness=2)
 
         # Draw the processing area polygon
@@ -2218,7 +2362,9 @@ class Detector:
 
                 for det in raw_detections:
                     det = self._ensure_track_tuple(det)
-                    x1, y1, x2, y2, conf, _, class_id = det
+                    # Cast to ensure int types for unpacking
+                    x1_f, y1_f, x2_f, y2_f, conf, _, class_id = det
+                    x1, y1, x2, y2 = int(x1_f), int(y1_f), int(x2_f), int(y2_f)
 
                     x1_global = x1 + offset_x
                     y1_global = y1 + offset_y
@@ -2376,7 +2522,9 @@ class Detector:
 
                 # Apply ByteTracking if available
                 if self._byte_tracker is not None and processed:
-                    tracked = self._apply_byte_tracking(processed)
+                    # Note: frame_shape not available in batch context, using cached dimensions
+                    frame_shape_cached = (self._last_height or 720, self._last_width or 1280, 3)
+                    tracked = self._apply_byte_tracking(processed, frame_shape_cached)
                 else:
                     tracked = processed
 
@@ -2651,3 +2799,29 @@ class Detector:
                     )
 
         return frame
+
+    def get_zone_data(self) -> ZoneData:
+        """Helper to get current zone configuration as ZoneData object."""
+        if hasattr(self.zones, "to_zone_data"):
+            # If it's MultiAquariumZoneData, return first aquarium as default
+            return self.zones.to_zone_data(0)  # type: ignore[union-attr]
+        return self.zones  # type: ignore[return-value]
+
+    def get_multi_aquarium_zone_data(self) -> MultiAquariumZoneData:
+        """Helper to get MultiAquariumZoneData from current state."""
+        if isinstance(self.zones, MultiAquariumZoneData):
+            return self.zones
+        # Fallback: wrap single ZoneData into multi-aquarium structure
+        return MultiAquariumZoneData(
+            aquariums=[
+                AquariumData(
+                    id=0,
+                    polygon=self.polygon,
+                    roi_polygons=self.roi_polygons,
+                    roi_names=self.roi_names,
+                    roi_colors=self.roi_colors,
+                )
+            ],
+            video_width=self.base_width,
+            video_height=self.base_height,
+        )

@@ -29,7 +29,7 @@ class ThreadCoordinator:
         camera: Instância da câmera (opcional)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Inicializa o coordenador de threads."""
         self.program_exit_event = threading.Event()
         self.processing_thread: threading.Thread | None = None

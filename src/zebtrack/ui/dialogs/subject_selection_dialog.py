@@ -69,11 +69,10 @@ class SubjectSelectionDialog(simpledialog.Dialog):
 
             if not is_completed:
                 label.config(cursor="hand2")
-                from functools import partial
 
                 label.bind(
                     "<Button-1>",
-                    partial(lambda e, s: self.select_subject(s), subject_id=subject_id),
+                    lambda e, s=subject_id: self.select_subject(s),  # type: ignore[misc]
                 )
         return None  # No initial focus
 

@@ -105,7 +105,8 @@ class ConfirmationStep(WizardStep):
             bg=background_color,
         )
         self.template_info_label.pack_forget()
-        self._responsive_labels.append(self.template_info_label)
+        if self.template_info_label:  # Conditional append for type safety
+            self._responsive_labels.append(self.template_info_label)
         self._update_template_banner()
 
         # Project name

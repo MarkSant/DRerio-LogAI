@@ -293,13 +293,13 @@ class LiveBatchCoordinator:
                 return False
 
             # Get project root
-            project_root = (
-                self.project_manager.project_root
-                if hasattr(self.project_manager, "project_root")
-                else self.project_manager.project_path.parent
-                if hasattr(self.project_manager, "project_path")
-                else None
-            )
+            project_root = None
+            if hasattr(self.project_manager, "project_root") and self.project_manager.project_root:
+                project_root = self.project_manager.project_root
+            elif (
+                hasattr(self.project_manager, "project_path") and self.project_manager.project_path
+            ):
+                project_root = self.project_manager.project_path.parent
             if not project_root:
                 self.logger.error("live_batch.unified_report.no_project")
                 return False

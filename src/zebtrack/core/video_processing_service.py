@@ -102,11 +102,11 @@ class VideoProcessingService:
         state_manager: StateManager,
         ui_coordinator: UICoordinator,
         ui_event_bus: EventBus,
-        cancel_event,  # threading.Event
+        cancel_event: threading.Event,
         settings_obj: Settings,
         detector: Detector | None = None,
         recorder: Recorder | None = None,
-    ):
+    ) -> None:
         """Initialize VideoProcessingService with injected dependencies.
 
         v2.2: Removed view and root parameters for event-driven decoupling.
@@ -297,7 +297,7 @@ class VideoProcessingService:
         arena_polygon_px: list | None,
         video_path: Path | str | None = None,
         video_context: VideoContext | None = None,
-    ) -> list | None:
+    ) -> list[list[int]] | list | None:
         """Ensure arena polygon exists, using full frame as fallback.
 
         Args:
@@ -618,7 +618,7 @@ class VideoProcessingService:
         total_videos: int,
         experiment_id: str,
         processing_report_callback: Callable[[], Any] | None = None,
-    ) -> Callable:
+    ) -> Callable[[float, str, np.ndarray | None, dict | None, list | None], None]:
         """Create progress callback for video processing.
 
         Phase 3: Moved from MainViewModel._make_progress_callback
@@ -712,7 +712,7 @@ class VideoProcessingService:
         analysis_interval_frames: int = 10,
         display_interval_frames: int = 10,
         video_context: VideoContext | None = None,
-    ) -> tuple[bool, list | None]:
+    ) -> tuple[bool, list[list[int]] | list | None]:
         """Run tracking process using multiprocessing worker to bypass GIL.
 
         Args:
@@ -1116,7 +1116,7 @@ class VideoProcessingService:
         total_videos: int,
         experiment_id: str,
         processing_report_callback: Callable[[], Any] | None = None,
-    ):
+    ) -> Callable[[float, str, np.ndarray | None, dict | None, list | None], None]:
         """Create progress callback for video processing.
 
         Phase 3: Moved from MainViewModel._make_progress_callback
@@ -1185,7 +1185,9 @@ class VideoProcessingService:
 
         return progress_callback
 
-    def _collect_params_from_single_video(self, config: dict, experiment_id: str):
+    def _collect_params_from_single_video(
+        self, config: dict, experiment_id: str
+    ) -> tuple[dict, Any, Any, Any, Any, Any, Any, Any]:
         """Extract parameters from single video config.
 
         Phase 3: Moved from MainViewModel._collect_params_from_single_video
@@ -1217,7 +1219,7 @@ class VideoProcessingService:
 
     def _collect_params_from_project(
         self, metadata_context: dict | None, experiment_id: str, video_path: Path | str
-    ):
+    ) -> tuple[dict, Any, Any, Any, Any, Any, Any, Any]:
         """Extract parameters from project data.
 
         Phase 3: Moved from MainViewModel._collect_params_from_project

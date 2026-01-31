@@ -5,7 +5,10 @@ Each wizard step inherits from WizardStep and implements the required
 interface methods for UI building, validation, and data management.
 """
 
-from tkinter import Frame
+from tkinter import Frame, Widget
+from typing import Any
+
+from zebtrack.ui.wizard.enums import WizardStepID
 
 
 class WizardStep(Frame):
@@ -30,10 +33,10 @@ class WizardStep(Frame):
 
     Attributes:
         wizard_data (dict): Shared data dictionary from WizardDialog
-        step_id (WizardStepID): This step's identifier
+        step_id (WizardStepID | None): This step's identifier
     """
 
-    def __init__(self, parent, wizard_data: dict):
+    def __init__(self, parent: Widget, wizard_data: dict[str, Any]):
         """
         Initialize wizard step.
 
@@ -43,7 +46,7 @@ class WizardStep(Frame):
         """
         super().__init__(parent)
         self.wizard_data = wizard_data
-        self.step_id = None  # Set by subclass
+        self.step_id: WizardStepID | None = None  # Set by subclass
 
     def build_ui(self):
         """
@@ -76,7 +79,7 @@ class WizardStep(Frame):
         """
         raise NotImplementedError
 
-    def get_data(self) -> dict:
+    def get_data(self) -> dict[str, Any]:
         """
         Extract step's data for inclusion in wizard_data.
 
@@ -97,7 +100,7 @@ class WizardStep(Frame):
         """
         raise NotImplementedError
 
-    def set_data(self, data: dict):
+    def set_data(self, data: dict[str, Any]) -> None:
         """
         Populate UI from data (for Back navigation).
 
@@ -112,7 +115,7 @@ class WizardStep(Frame):
         """
         pass  # Default: no-op (override if needed)
 
-    def on_show(self):
+    def on_show(self) -> None:
         """
         Execute actions when step becomes visible.
 
@@ -125,7 +128,7 @@ class WizardStep(Frame):
         """
         pass  # Default: no-op (override if needed)
 
-    def on_hide(self):
+    def on_hide(self) -> None:
         """
         Execute actions when leaving this step.
 

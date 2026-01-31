@@ -393,6 +393,162 @@ class BehavioralAnalyzer(ABC):
 
         raise ValueError(f"Unsupported method for thigmotaxis index: {method}")
 
+    def get_geotaxis_timeseries(self) -> pd.Series:
+        """Calculate distance to bottom of arena time series for geotaxis analysis.
+
+        This metric is only meaningful for lateral perspective views where the
+        Y-axis represents vertical position in the aquarium.
+
+        Returns:
+            Series with distance to bottom boundary in centimeters.
+            Lower values indicate the animal is closer to the bottom.
+        """
+        df = self._trajectory_data
+        if df.empty:
+            return pd.Series([], dtype=np.float64, index=df.index, name="distance_to_bottom_cm")
+
+        # Prefer smoothed coordinates but gracefully fall back to raw cm values
+        y_series = df.get("y_cm_smoothed", pd.Series(dtype=np.float64))
+        if y_series.empty or y_series.isna().all():
+            y_series = df.get("y_cm", pd.Series(dtype=np.float64))
+
+        if y_series.empty:
+            return pd.Series(np.full(len(df), np.nan), index=df.index, name="distance_to_bottom_cm")
+
+        # Get the bottom boundary (minimum Y) from the arena polygon
+        if self._arena_polygon_cm.is_empty:
+            return pd.Series(np.full(len(df), np.nan), index=df.index, name="distance_to_bottom_cm")
+
+        # Extract the minimum Y coordinate as the bottom of the arena
+        arena_min_y = self._arena_polygon_cm.bounds[1]  # bounds = (minx, miny, maxx, maxy)
+
+        # Calculate distance from each point to the bottom
+        distances = y_series.to_numpy() - arena_min_y
+
+        # Ensure non-negative values (clamp if animal detected below arena)
+        distances = np.maximum(distances, 0.0)
+
+        return pd.Series(distances, index=df.index, name="distance_to_bottom_cm")
+
+    def calculate_geotaxis_index(
+        self,
+        method: str = "average_distance",
+        distance_threshold: float | None = None,
+        num_zones: int | None = None,
+        bottom_zones: int = 1,
+    ) -> float | dict[str, float]:
+        """Calculate geotaxis index (preference for bottom of aquarium).
+
+        This metric is only meaningful for lateral perspective views.
+
+        Args:
+            method: Calculation method. One of:
+                - "average_distance": Mean distance from bottom (cm)
+                - "time_near_bottom": Percentage of time within distance_threshold of bottom
+                - "zone_time": Percentage of time spent in each vertical zone
+
+            distance_threshold: Distance threshold for "time_near_bottom" method (cm).
+                Required when method is "time_near_bottom".
+
+            num_zones: Number of vertical zones for "zone_time" method.
+                Required when method is "zone_time".
+
+            bottom_zones: Number of bottom zones to aggregate for "zone_time" (1 or 2).
+                Default is 1 (only the bottom-most zone).
+
+        Returns:
+            For "average_distance" and "time_near_bottom": A single float value.
+            For "zone_time": A dict mapping zone names to percentage of time.
+        """
+        geotaxis_series = self.get_geotaxis_timeseries().dropna()
+
+        if geotaxis_series.empty:
+            if method == "zone_time" and num_zones is not None:
+                return {f"zone_{i}_pct": np.nan for i in range(num_zones)}
+            return np.nan
+
+        if method == "average_distance":
+            return float(geotaxis_series.mean())
+
+        if method == "time_near_bottom":
+            if distance_threshold is None:
+                raise ValueError("distance_threshold is required for 'time_near_bottom' method")
+            is_near_bottom = geotaxis_series < distance_threshold
+            return float(is_near_bottom.sum() / len(geotaxis_series) * 100)
+
+        if method == "zone_time":
+            if num_zones is None:
+                raise ValueError("num_zones is required for 'zone_time' method")
+
+            zone_series = self.get_vertical_zone_timeseries(num_zones)
+            zone_series = zone_series.dropna()
+
+            if zone_series.empty:
+                return {f"zone_{i}_pct": np.nan for i in range(num_zones)}
+
+            total_frames = len(zone_series)
+            zone_percentages = {}
+
+            for zone_idx in range(num_zones):
+                frames_in_zone = (zone_series == zone_idx).sum()
+                zone_percentages[f"zone_{zone_idx}_pct"] = float(
+                    frames_in_zone / total_frames * 100
+                )
+
+            # Also calculate aggregated bottom zones
+            if bottom_zones >= 1:
+                bottom_frames = sum(
+                    (zone_series == z).sum() for z in range(min(bottom_zones, num_zones))
+                )
+                zone_percentages["bottom_zones_pct"] = float(bottom_frames / total_frames * 100)
+
+            return zone_percentages
+
+        raise ValueError(
+            f"Unknown method: {method}. Use 'average_distance', 'time_near_bottom', or 'zone_time'"
+        )
+
+    def get_vertical_zone_timeseries(self, num_zones: int) -> pd.Series:
+        """Classify each frame into a vertical zone.
+
+        Divides the arena height into equal vertical zones numbered from bottom to top.
+        Zone 0 is the bottom-most zone, zone (num_zones - 1) is the top-most zone.
+
+        Args:
+            num_zones: Number of vertical zones to divide the arena into.
+
+        Returns:
+            Series with zone index (0 to num_zones-1) for each frame.
+        """
+        df = self._trajectory_data
+        if df.empty or self._arena_polygon_cm.is_empty:
+            return pd.Series([], dtype=np.int64, index=df.index, name="vertical_zone")
+
+        # Prefer smoothed coordinates but gracefully fall back to raw cm values
+        y_series = df.get("y_cm_smoothed", pd.Series(dtype=np.float64))
+        if y_series.empty or y_series.isna().all():
+            y_series = df.get("y_cm", pd.Series(dtype=np.float64))
+
+        if y_series.empty:
+            return pd.Series(np.full(len(df), -1), index=df.index, name="vertical_zone")
+
+        # Get vertical bounds
+        min_y, max_y = self._arena_polygon_cm.bounds[1], self._arena_polygon_cm.bounds[3]
+        height = max_y - min_y
+
+        if height <= 0:
+            return pd.Series(np.full(len(df), -1), index=df.index, name="vertical_zone")
+
+        zone_height = height / num_zones
+
+        # Calculate zone index: floor((y - min_y) / zone_height)
+        zone_indices = np.floor((y_series.to_numpy() - min_y) / zone_height).astype(int)
+
+        # Clip indices to [0, num_zones - 1] to handle float errors or minor out-of-bounds
+        zone_indices = np.clip(zone_indices, 0, num_zones - 1)
+
+        return pd.Series(zone_indices, index=df.index, name="vertical_zone")
+
 
 class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
     """A concrete implementation of BehavioralAnalyzer providing basic analysis methods."""
@@ -663,169 +819,6 @@ class ConcreteBehavioralAnalyzer(BehavioralAnalyzer):
             distances[valid_mask] = np.asarray(distances_valid, dtype=np.float64)
 
         return pd.Series(distances, index=df.index, name="distance_to_wall_cm")
-
-    def get_geotaxis_timeseries(self) -> pd.Series:
-        """Calculate distance to bottom of arena time series for geotaxis analysis.
-
-        This metric is only meaningful for lateral perspective views where the
-        Y-axis represents vertical position in the aquarium.
-
-        Returns:
-            Series with distance to bottom boundary in centimeters.
-            Lower values indicate the animal is closer to the bottom.
-        """
-        df = self._trajectory_data
-        if df.empty:
-            return pd.Series([], dtype=np.float64, index=df.index, name="distance_to_bottom_cm")
-
-        # Prefer smoothed coordinates but gracefully fall back to raw cm values
-        y_series = df.get("y_cm_smoothed", pd.Series(dtype=np.float64))
-        if y_series.empty or y_series.isna().all():
-            y_series = df.get("y_cm", pd.Series(dtype=np.float64))
-
-        if y_series.empty:
-            return pd.Series(np.full(len(df), np.nan), index=df.index, name="distance_to_bottom_cm")
-
-        # Get the bottom boundary (minimum Y) from the arena polygon
-        if self._arena_polygon_cm.is_empty:
-            return pd.Series(np.full(len(df), np.nan), index=df.index, name="distance_to_bottom_cm")
-
-        # Extract the minimum Y coordinate as the bottom of the arena
-        arena_min_y = self._arena_polygon_cm.bounds[1]  # bounds = (minx, miny, maxx, maxy)
-
-        # Calculate distance from each point to the bottom
-        distances = y_series.to_numpy() - arena_min_y
-
-        # Ensure non-negative values (clamp if animal detected below arena)
-        distances = np.maximum(distances, 0.0)
-
-        return pd.Series(distances, index=df.index, name="distance_to_bottom_cm")
-
-    def calculate_geotaxis_index(
-        self,
-        method: str = "average_distance",
-        distance_threshold: float | None = None,
-        num_zones: int | None = None,
-        bottom_zones: int = 1,
-    ) -> float | dict[str, float]:
-        """Calculate geotaxis index (preference for bottom of aquarium).
-
-        This metric is only meaningful for lateral perspective views.
-
-        Args:
-            method: Calculation method. One of:
-                - "average_distance": Mean distance from bottom (cm)
-                - "time_near_bottom": Percentage of time within distance_threshold of bottom
-                - "zone_time": Percentage of time spent in each vertical zone
-
-            distance_threshold: Distance threshold for "time_near_bottom" method (cm).
-                Required when method is "time_near_bottom".
-
-            num_zones: Number of vertical zones for "zone_time" method.
-                Required when method is "zone_time".
-
-            bottom_zones: Number of bottom zones to aggregate for "zone_time" (1 or 2).
-                Default is 1 (only the bottom-most zone).
-
-        Returns:
-            For "average_distance" and "time_near_bottom": A single float value.
-            For "zone_time": A dict mapping zone names to percentage of time.
-        """
-        geotaxis_series = self.get_geotaxis_timeseries().dropna()
-
-        if geotaxis_series.empty:
-            if method == "zone_time" and num_zones is not None:
-                return {f"zone_{i}_pct": np.nan for i in range(num_zones)}
-            return np.nan
-
-        if method == "average_distance":
-            return float(geotaxis_series.mean())
-
-        if method == "time_near_bottom":
-            if distance_threshold is None:
-                raise ValueError("distance_threshold is required for 'time_near_bottom' method")
-            is_near_bottom = geotaxis_series < distance_threshold
-            return float(is_near_bottom.sum() / len(geotaxis_series) * 100)
-
-        if method == "zone_time":
-            if num_zones is None:
-                raise ValueError("num_zones is required for 'zone_time' method")
-
-            zone_series = self.get_vertical_zone_timeseries(num_zones)
-            zone_series = zone_series.dropna()
-
-            if zone_series.empty:
-                return {f"zone_{i}_pct": np.nan for i in range(num_zones)}
-
-            total_frames = len(zone_series)
-            zone_percentages = {}
-
-            for zone_idx in range(num_zones):
-                frames_in_zone = (zone_series == zone_idx).sum()
-                zone_percentages[f"zone_{zone_idx}_pct"] = float(
-                    frames_in_zone / total_frames * 100
-                )
-
-            # Also calculate aggregated bottom zones
-            if bottom_zones >= 1:
-                bottom_frames = sum(
-                    (zone_series == z).sum() for z in range(min(bottom_zones, num_zones))
-                )
-                zone_percentages["bottom_zones_pct"] = float(bottom_frames / total_frames * 100)
-
-            return zone_percentages
-
-        raise ValueError(
-            f"Unknown method: {method}. Use 'average_distance', 'time_near_bottom', or 'zone_time'"
-        )
-
-    def get_vertical_zone_timeseries(self, num_zones: int) -> pd.Series:
-        """Classify each frame into a vertical zone.
-
-        Divides the arena height into equal vertical zones numbered from bottom to top.
-        Zone 0 is the bottom-most zone, zone (num_zones - 1) is the top-most zone.
-
-        Args:
-            num_zones: Number of vertical zones to divide the arena into.
-
-        Returns:
-            Series with zone index (0 to num_zones-1) for each frame.
-        """
-        df = self._trajectory_data
-        if df.empty or self._arena_polygon_cm.is_empty:
-            return pd.Series([], dtype=np.int64, index=df.index, name="vertical_zone")
-
-        # Prefer smoothed coordinates but gracefully fall back to raw cm values
-        y_series = df.get("y_cm_smoothed", pd.Series(dtype=np.float64))
-        if y_series.empty or y_series.isna().all():
-            y_series = df.get("y_cm", pd.Series(dtype=np.float64))
-
-        if y_series.empty:
-            return pd.Series(np.full(len(df), np.nan), index=df.index, name="vertical_zone")
-
-        # Get arena vertical bounds
-        bounds = self._arena_polygon_cm.bounds  # (minx, miny, maxx, maxy)
-        arena_min_y = bounds[1]
-        arena_max_y = bounds[3]
-        arena_height = arena_max_y - arena_min_y
-
-        if arena_height <= 0:
-            return pd.Series(np.full(len(df), np.nan), index=df.index, name="vertical_zone")
-
-        zone_height = arena_height / num_zones
-        y_values = y_series.to_numpy()
-
-        # Calculate zone for each point
-        relative_y = y_values - arena_min_y
-        zones = np.floor(relative_y / zone_height).astype(float)
-
-        # Clamp to valid range [0, num_zones - 1]
-        zones = np.clip(zones, 0, num_zones - 1)
-
-        # Handle NaN values
-        zones = np.where(np.isnan(y_values), np.nan, zones)
-
-        return pd.Series(zones, index=df.index, name="vertical_zone")
 
     def calculate_speed_bursts(
         self,

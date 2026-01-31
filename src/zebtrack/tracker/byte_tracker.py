@@ -9,6 +9,10 @@ log = structlog.get_logger()
 
 
 class STrack(BaseTrack):
+    mean: np.ndarray | None
+    covariance: np.ndarray | None
+    kalman_filter: KalmanFilter | None
+
     def __init__(self, tlwh, score):
         # wait activate
         self._tlwh = np.asarray(tlwh, dtype=np.float64)
@@ -21,6 +25,13 @@ class STrack(BaseTrack):
         self.tracklet_len = 0
 
     def predict(self):
+        if self.mean is None:
+            return
+        if self.kalman_filter is None:
+            return
+        if self.covariance is None:
+            return
+
         mean_state = self.mean.copy()
         if self.state != TrackState.Tracked:
             mean_state[7] = 0
@@ -41,9 +52,16 @@ class STrack(BaseTrack):
             in multi-threaded scenarios. Now requires explicit filter instance.
         """
         if len(stracks) > 0:
-            multi_mean = np.asarray([st.mean.copy() for st in stracks])
-            multi_covariance = np.asarray([st.covariance for st in stracks])
-            for i, st in enumerate(stracks):
+            # Filter out tracks with no mean to avoid errors
+            valid_stracks = [
+                st for st in stracks if st.mean is not None and st.covariance is not None
+            ]
+            if not valid_stracks:
+                return
+
+            multi_mean = np.asarray([st.mean.copy() for st in valid_stracks])
+            multi_covariance = np.asarray([st.covariance for st in valid_stracks])
+            for i, st in enumerate(valid_stracks):
                 if st.state != TrackState.Tracked:
                     multi_mean[i][7] = 0
 
@@ -53,8 +71,8 @@ class STrack(BaseTrack):
             ) = kalman_filter.multi_predict(multi_mean, multi_covariance)
 
             for i, (mean, cov) in enumerate(zip(multi_mean, multi_covariance, strict=False)):
-                stracks[i].mean = mean
-                stracks[i].covariance = cov
+                valid_stracks[i].mean = mean
+                valid_stracks[i].covariance = cov
 
     def activate(self, kalman_filter, frame_id):
         """Start a new tracklet"""
@@ -72,6 +90,12 @@ class STrack(BaseTrack):
         self.start_frame = frame_id
 
     def re_activate(self, new_track, frame_id, new_id=False):
+        if self.kalman_filter is None:
+            # Should not happen if activate was called, but safety check
+            return
+        if self.mean is None or self.covariance is None:
+            return
+
         self.mean, self.covariance = self.kalman_filter.update(
             self.mean, self.covariance, self.tlwh_to_xyah(new_track.tlwh)
         )
@@ -95,9 +119,10 @@ class STrack(BaseTrack):
         self.tracklet_len += 1
 
         new_tlwh = new_track.tlwh
-        self.mean, self.covariance = self.kalman_filter.update(
-            self.mean, self.covariance, self.tlwh_to_xyah(new_tlwh)
-        )
+        if self.kalman_filter is not None and self.mean is not None and self.covariance is not None:
+            self.mean, self.covariance = self.kalman_filter.update(
+                self.mean, self.covariance, self.tlwh_to_xyah(new_tlwh)
+            )
 
         self.state = TrackState.Tracked
         self.is_activated = True

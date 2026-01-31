@@ -35,8 +35,10 @@ class Calibration:
         if self.polygon is not None:
             self._process_polygon()
 
-    def _process_polygon(self):
+    def _process_polygon(self) -> None:
         """Process the detected polygon to calculate the homography matrix and scale."""
+        if self.polygon is None:
+            return
         # 1. Find the four corner points of the polygon.
         # Using cv2.minAreaRect is a robust way to find the corners of a
         # near-rectangular shape. A more complex RANSAC-based line fitting

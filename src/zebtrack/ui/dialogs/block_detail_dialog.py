@@ -52,7 +52,7 @@ class BlockDetailDialog(Toplevel):
             day if isinstance(day, int) else int(day.replace("Dia_", "").replace("D", ""))
         )
         self.day = f"Dia_{self.day_num}" if isinstance(day, int) else str(day)
-        self.group = group
+        self.group_name = group
         self.project_manager = project_manager
         self.session_coordinator = session_coordinator
         self.live_batch_coordinator = live_batch_coordinator
@@ -72,7 +72,7 @@ class BlockDetailDialog(Toplevel):
         log.info(
             "block_detail.init",
             day=self.day_num,
-            group=self.group,
+            group=self.group_name,
             subjects_per_group=self.subjects_per_group,
             completed_sessions=list(self.completed_sessions),
             project_path=str(project_manager.project_path)
@@ -97,7 +97,7 @@ class BlockDetailDialog(Toplevel):
 
         Label(
             header,
-            text=f"📋 Dia {self.day_num} - {self.group}",
+            text=f"📋 Dia {self.day_num} - {self.group_name}",
             font=("Segoe UI", 14, "bold"),
             bg="#f8f9fa",
         ).pack(side="left", padx=20, pady=20)
@@ -105,7 +105,7 @@ class BlockDetailDialog(Toplevel):
         # Progress info - v2.3.1: Use subjects_per_group and completed_sessions
         subjects = [str(i + 1) for i in range(self.subjects_per_group)]
         completed = sum(
-            1 for s in subjects if (self.day_num, self.group, s) in self.completed_sessions
+            1 for s in subjects if (self.day_num, self.group_name, s) in self.completed_sessions
         )
 
         Label(
@@ -209,11 +209,11 @@ class BlockDetailDialog(Toplevel):
         # Pattern 1: New format - day{day}_{group}_{subject}_{timestamp}
         # Example: "day1_Controle_1_20260103_142530"
         pattern_new = re.compile(
-            rf"^day{self.day_num}_{re.escape(self.group)}_{subject}_\d{{8}}_\d{{6}}$"
+            rf"^day{self.day_num}_{re.escape(self.group_name)}_{subject}_\d{{8}}_\d{{6}}$"
         )
 
         # Pattern 2: Legacy format - D{day}_G{group}_S{subject}
-        pattern_legacy = re.compile(rf"^D{self.day_num}_G{re.escape(self.group)}_S{subject}$")
+        pattern_legacy = re.compile(rf"^D{self.day_num}_G{re.escape(self.group_name)}_S{subject}$")
 
         for item in project_path.iterdir():
             if not item.is_dir():
@@ -266,7 +266,7 @@ class BlockDetailDialog(Toplevel):
             subject: Subject ID (e.g., "1", "2", etc.)
         """
         # v2.3.1: Use day_num (int) for session lookup
-        is_completed = (self.day_num, self.group, subject) in self.completed_sessions
+        is_completed = (self.day_num, self.group_name, subject) in self.completed_sessions
 
         # v2.3.1: Get session folder and file status
         session_folder = self._find_session_folder(subject)
@@ -353,7 +353,9 @@ class BlockDetailDialog(Toplevel):
         Args:
             subject: Subject ID to start session for
         """
-        log.info("block_detail.start_session", day=self.day_num, group=self.group, subject=subject)
+        log.info(
+            "block_detail.start_session", day=self.day_num, group=self.group_name, subject=subject
+        )
 
         # v2.3.1: Actually start the session using session_coordinator
         try:
@@ -363,7 +365,7 @@ class BlockDetailDialog(Toplevel):
             # Start the live project session
             success = self.session_coordinator.start_live_project_session(
                 day=self.day_num,
-                group=str(self.group),
+                group=str(self.group_name),
                 subject=subject,
             )
 
@@ -371,7 +373,7 @@ class BlockDetailDialog(Toplevel):
                 messagebox.showerror(
                     "Erro",
                     f"Falha ao iniciar sessão para Animal {subject}\n"
-                    f"Dia {self.day_num} - {self.group}",
+                    f"Dia {self.day_num} - {self.group_name}",
                 )
         except Exception as e:
             log.error("block_detail.start_session.failed", error=str(e), exc_info=True)
@@ -382,7 +384,7 @@ class BlockDetailDialog(Toplevel):
         # v2.3.1: Use subjects_per_group and completed_sessions
         subjects = [str(i + 1) for i in range(self.subjects_per_group)]
         for subject in subjects:
-            if (self.day_num, self.group, subject) not in self.completed_sessions:
+            if (self.day_num, self.group_name, subject) not in self.completed_sessions:
                 self.start_session(subject)
                 return
 
@@ -394,15 +396,13 @@ class BlockDetailDialog(Toplevel):
         Args:
             subject: Subject ID to view results for
         """
-        log.info("block_detail.view_results", day=self.day_num, group=self.group, subject=subject)
-
         session_folder = self._find_session_folder(subject)
 
         if not session_folder or not session_folder.exists():
             messagebox.showwarning(
                 "Pasta não encontrada",
                 f"Não foi possível encontrar a pasta de resultados para Animal {subject}.\n"
-                f"Dia {self.day_num} - {self.group}",
+                f"Dia {self.day_num} - {self.group_name}",
             )
             return
 
@@ -435,19 +435,19 @@ class BlockDetailDialog(Toplevel):
         log.info(
             "block_detail.generate_partial_report",
             day=self.day_num,
-            group=self.group,
+            group=self.group_name,
         )
 
         # Collect completed session folders for this block
         subjects = [str(i + 1) for i in range(self.subjects_per_group)]
         completed_in_block = [
-            s for s in subjects if (self.day_num, self.group, s) in self.completed_sessions
+            s for s in subjects if (self.day_num, self.group_name, s) in self.completed_sessions
         ]
 
         if not completed_in_block:
             messagebox.showwarning(
                 "Sem Sessões",
-                f"Nenhuma sessão concluída encontrada para\nDia {self.day_num} - {self.group}",
+                f"Nenhuma sessão concluída encontrada para\nDia {self.day_num} - {self.group_name}",
             )
             return
 
@@ -471,7 +471,7 @@ class BlockDetailDialog(Toplevel):
             messagebox.showwarning(
                 "Sem Relatórios",
                 f"Nenhum arquivo de resumo encontrado nas sessões de\n"
-                f"Dia {self.day_num} - {self.group}\n\n"
+                f"Dia {self.day_num} - {self.group_name}\n\n"
                 f"Execute a análise das sessões primeiro.",
             )
             return
@@ -482,7 +482,7 @@ class BlockDetailDialog(Toplevel):
             reports_dir = project_path / "partial_reports"
             reports_dir.mkdir(parents=True, exist_ok=True)
 
-            output_filename = f"PartialReport_Dia{self.day_num}_{self.group}.xlsx"
+            output_filename = f"PartialReport_Dia{self.day_num}_{self.group_name}.xlsx"
             output_path = reports_dir / output_filename
 
             # Aggregate summaries
@@ -492,7 +492,7 @@ class BlockDetailDialog(Toplevel):
                     df = pd.read_excel(summary_path)
                     df["animal"] = subject
                     df["dia"] = self.day_num
-                    df["grupo"] = self.group
+                    df["grupo"] = self.group_name
                     df["source_file"] = summary_path.name
                     all_data.append(df)
                 except Exception as e:
@@ -576,7 +576,7 @@ class BlockDetailDialog(Toplevel):
 
     def add_note(self):
         """Add note to day/group block."""
-        log.info("block_detail.add_note", day=self.day_num, group=self.group)
+        log.info("block_detail.add_note", day=self.day_num, group=self.group_name)
 
         # Get existing notes from project data
         project_data = (
@@ -587,13 +587,13 @@ class BlockDetailDialog(Toplevel):
 
         # Notes are stored in experiment_notes dict with block key
         experiment_notes = project_data.get("experiment_notes", {})
-        block_key = f"Dia_{self.day_num}_{self.group}"
+        block_key = f"Dia_{self.day_num}_{self.group_name}"
         existing_note = experiment_notes.get(block_key, "")
 
         # Show input dialog
         note = simpledialog.askstring(
             "Adicionar Nota Experimental",
-            f"Nota para Dia {self.day_num} - {self.group}:\n\n(deixe vazio para limpar)",
+            f"Nota para Dia {self.day_num} - {self.group_name}:\n\n(deixe vazio para limpar)",
             initialvalue=existing_note,
             parent=self,
         )
@@ -635,7 +635,7 @@ class BlockDetailDialog(Toplevel):
 
         if result:
             # v2.3.1: Use day_num in batch_id
-            batch_id = f"{self.group}_Dia_{self.day_num}_*"
+            batch_id = f"{self.group_name}_Dia_{self.day_num}_*"
 
             try:
                 self.live_batch_coordinator.mark_batch_complete(batch_id)

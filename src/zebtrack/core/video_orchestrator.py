@@ -84,10 +84,10 @@ class VideoOrchestrator:
         self.recorder = recorder
 
         # Callbacks for MainViewModel (set later)
-        self._set_main_arena_polygon_callback = None
-        self._activate_analysis_view_mode_callback = None
-        self._refresh_project_views_callback = None
-        self._publish_processing_mode_callback = None
+        self._set_main_arena_polygon_callback: Callable[[list], bool] | None = None
+        self._activate_analysis_view_mode_callback: Callable[[], None] | None = None
+        self._refresh_project_views_callback: Callable[..., None] | None = None
+        self._publish_processing_mode_callback: Callable[[str], None] | None = None
 
         # Processing state
         self.processing_thread: threading.Thread | None = None
@@ -703,7 +703,14 @@ class VideoOrchestrator:
             if self._publish_processing_mode_callback:
                 self._publish_processing_mode_callback(source="worker.started", force=True)
 
-        def on_progress(fraction: float, message: str, stats: dict | None):
+        def on_progress(
+            index: int,
+            total: int,
+            experiment_id: str,
+            fraction: float,
+            message: str,
+            stats: dict | None,
+        ):
             """Call with progress updates."""
             if self.cancel_event.is_set():
                 return
@@ -839,8 +846,10 @@ class VideoOrchestrator:
         # Placeholder: Create actual context
         # This would include all necessary config for processing
         return ProcessingContext(
-            videos=eligible_videos,
-            project_path=project_path,
+            videos_to_process=eligible_videos,
+            output_base_dir=project_path,
+            cancel_event=self.cancel_event,
+            settings=self.settings,
             single_video_config=single_video_config,
         )
 

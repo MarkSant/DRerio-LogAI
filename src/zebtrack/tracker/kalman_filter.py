@@ -78,7 +78,7 @@ class KalmanFilter:
         self._std_weight_position = (1.0 / 20) * dt_factor  # Scale with sqrt(dt)
         self._std_weight_velocity = (1.0 / 160) * dt_factor * 2  # Extra factor for erratic motion
 
-    def initiate(self, measurement):
+    def initiate(self, measurement: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Create track from unassociated measurement.
 
         Parameters
@@ -112,7 +112,7 @@ class KalmanFilter:
         covariance = np.diag(np.square(std))
         return mean, covariance
 
-    def predict(self, mean, covariance):
+    def predict(self, mean: np.ndarray, covariance: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Run Kalman filter prediction step.
 
         Parameters
@@ -151,7 +151,7 @@ class KalmanFilter:
 
         return mean, covariance
 
-    def project(self, mean, covariance):
+    def project(self, mean: np.ndarray, covariance: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Project state distribution to measurement space.
 
         Parameters
@@ -180,7 +180,9 @@ class KalmanFilter:
 
         return mean, covariance + innovation_cov
 
-    def multi_predict(self, mean, covariance):
+    def multi_predict(
+        self, mean: np.ndarray, covariance: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Run Kalman filter prediction step (Vectorized version).
         Parameters
         ----------
@@ -211,10 +213,10 @@ class KalmanFilter:
         ]
         sqr = np.square(np.r_[std_pos, std_vel]).T
 
-        motion_cov = []
+        motion_cov_list = []
         for i in range(len(mean)):
-            motion_cov.append(np.diag(sqr[i]))
-        motion_cov = np.asarray(motion_cov)
+            motion_cov_list.append(np.diag(sqr[i]))
+        motion_cov = np.asarray(motion_cov_list)
 
         mean = np.dot(mean, self._motion_mat.T)
         left = np.dot(self._motion_mat, covariance).transpose((1, 0, 2))
@@ -222,7 +224,9 @@ class KalmanFilter:
 
         return mean, covariance
 
-    def update(self, mean, covariance, measurement):
+    def update(
+        self, mean: np.ndarray, covariance: np.ndarray, measurement: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Run Kalman filter correction step.
 
         Parameters
@@ -257,7 +261,14 @@ class KalmanFilter:
         )
         return new_mean, new_covariance
 
-    def gating_distance(self, mean, covariance, measurements, only_position=False, metric="maha"):
+    def gating_distance(
+        self,
+        mean: np.ndarray,
+        covariance: np.ndarray,
+        measurements: np.ndarray,
+        only_position: bool = False,
+        metric: str = "maha",
+    ) -> np.ndarray:
         """Compute gating distance between state distribution and measurements.
         A suitable distance threshold can be obtained from `chi2inv95`. If
         `only_position` is False, the chi-square distribution has 4 degrees of

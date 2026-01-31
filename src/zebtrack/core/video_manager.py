@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar
@@ -52,7 +53,7 @@ class VideoManager:
     _scan_cache: ClassVar[dict[str, dict[str, Any]]] = {}
 
     @staticmethod
-    def scan_input_paths(paths: list[str]) -> list[dict]:
+    def scan_input_paths(paths: list[str]) -> list[dict[str, Any]]:
         """
         Scan a list of input paths (files or directories) and identifies video files.
 
@@ -301,7 +302,9 @@ class VideoManager:
 
     @staticmethod
     def add_video_batch(
-        project_data: dict, video_files: list[dict], save_callback: callable | None = None
+        project_data: dict[str, Any],
+        video_files: list[dict[str, Any]],
+        save_callback: Callable[[], None] | None = None,
     ) -> int:
         """
         Add a new batch of videos to the project data.
@@ -317,7 +320,7 @@ class VideoManager:
         if not video_files:
             return 0
 
-        new_batch = {
+        new_batch: dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "videos": [],
         }
@@ -409,10 +412,10 @@ class VideoManager:
 
     @staticmethod
     def update_video_status(
-        project_data: dict,
+        project_data: dict[str, Any],
         video_path: Path | str,
         new_status: str,
-        save_callback: callable | None = None,
+        save_callback: Callable[[], None] | None = None,
     ) -> bool:
         """
         Update the status of a specific video across all batches.
@@ -445,7 +448,9 @@ class VideoManager:
 
     @staticmethod
     def reset_all_video_statuses(
-        project_data: dict, to_status: str = "pending", save_callback: callable | None = None
+        project_data: dict[str, Any],
+        to_status: str = "pending",
+        save_callback: Callable[[], None] | None = None,
     ) -> bool:
         """Reset every video status to a given value (default 'pending').
 
@@ -472,7 +477,7 @@ class VideoManager:
         return changed
 
     @staticmethod
-    def get_all_videos(project_data: dict) -> list[dict]:
+    def get_all_videos(project_data: dict[str, Any]) -> list[dict[str, Any]]:
         """Return a flat list of all videos from all batches.
 
         Args:
@@ -487,7 +492,7 @@ class VideoManager:
         return all_vids
 
     @staticmethod
-    def iter_project_videos(project_data: dict):
+    def iter_project_videos(project_data: dict[str, Any]) -> Any:
         """Yield (batch_dict, video_dict) pairs for every registered video.
 
         Args:
@@ -579,10 +584,10 @@ class VideoManager:
 
     @staticmethod
     def remove_video_entry(
-        project_data: dict,
+        project_data: dict[str, Any],
         video_path: Path | str,
-        video_entry: dict,
-        clear_zones_callback: callable | None = None,
+        video_entry: dict[str, Any],
+        clear_zones_callback: Callable[[str], None] | None = None,
     ) -> bool:
         """Remove a video entry from project data.
 

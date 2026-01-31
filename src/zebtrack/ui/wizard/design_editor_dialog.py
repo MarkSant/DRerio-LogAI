@@ -5,6 +5,7 @@ Allows manual editing of detected experimental design (groups, days, subjects).
 """
 
 from collections.abc import Callable
+from functools import partial
 from tkinter import (
     Button,
     Canvas,
@@ -19,6 +20,7 @@ from tkinter import (
     font as tkfont,
 )
 from tkinter.simpledialog import Dialog
+from typing import Any
 
 import structlog
 
@@ -48,18 +50,18 @@ class DesignEditorDialog(Dialog):
 
     def __init__(
         self,
-        parent,
+        parent: Any,
         design: dict | None,
         *,
         custom_regex_patterns: dict | None = None,
         on_custom_regex_configured: Callable[[dict], dict | None] | None = None,
         sample_paths: list[str] | None = None,
-    ):
+    ) -> None:
         """Prepare working copies before showing the dialog."""
         design = design or {}
 
-        self.input_design = design.copy()
-        self.edited_design: dict | None = None
+        self.input_design: dict[str, Any] = design.copy()
+        self.edited_design: dict[str, Any] | None = None
         self.custom_regex_patterns = custom_regex_patterns.copy() if custom_regex_patterns else None
         self.on_custom_regex_configured = on_custom_regex_configured
         self.sample_paths = sample_paths or []
@@ -77,7 +79,7 @@ class DesignEditorDialog(Dialog):
 
         super().__init__(parent, title="Editar Design Experimental")
 
-    def body(self, master):
+    def body(self, master: Frame) -> Entry:
         """Build dialog UI with friendly name controls."""
         title_font = tkfont.Font(size=12, weight="bold")
         Label(
@@ -258,7 +260,7 @@ class DesignEditorDialog(Dialog):
 
         return self.new_group_id_entry
 
-    def buttonbox(self):
+    def buttonbox(self) -> None:
         """Override to add OK and Cancel buttons."""
         box = Frame(self)
 
@@ -322,7 +324,7 @@ class DesignEditorDialog(Dialog):
                 self.groups_rows_frame,
                 text="🗑️",
                 width=6,
-                command=lambda idx=index: self._remove_group(idx),
+                command=partial(self._remove_group, index),
             ).grid(row=index, column=2, sticky="nsew", pady=(0, 1))
 
         self.groups_rows_frame.update_idletasks()
@@ -493,7 +495,7 @@ class DesignEditorDialog(Dialog):
 
         log.info("design_editor.day_removed", day=day_name)
 
-    def apply(self):
+    def apply(self) -> None:
         """Validate and persist friendly names before closing."""
         if not self.groups:
             messagebox.showerror(

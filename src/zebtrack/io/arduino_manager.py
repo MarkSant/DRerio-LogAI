@@ -3,10 +3,14 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 from zebtrack.io.arduino import Arduino
+
+if TYPE_CHECKING:
+    from zebtrack.core.main_view_model import MainViewModel
 
 try:  # pragma: no cover - serial may not be available during unit tests
     from serial import SerialException  # type: ignore
@@ -29,7 +33,7 @@ class ArduinoManager:
 
     def __init__(
         self,
-        controller,
+        controller: MainViewModel | Any,
         arduino_factory: Callable[[str, int], Arduino] = Arduino,
     ) -> None:
         self.controller = controller
@@ -125,11 +129,17 @@ class ArduinoManager:
             serial_conn = getattr(self.arduino, "ser", None)
             return bool(serial_conn and getattr(serial_conn, "is_open", False))
 
-    def current_port(self) -> str | None:
-        """Returns the serial port in use, if any."""
-        return self._port
+    def list_available_ports(self) -> list[str]:
+        """List available serial ports using WizardService.
 
-    def send_command(self, command: int, *, source: str = "auto") -> bool:
+        Returns:
+            List of serial port names
+        """
+        from zebtrack.core.wizard_service import WizardService
+
+        return WizardService.detect_available_serial_ports()
+
+    def send_command(self, command: int | str, *, source: str = "auto") -> bool:
         """Sends a command to Arduino and reports outcome to controller."""
         if not self.is_connected():
             self._notify_log("Não foi possível enviar comando: Arduino desconectado.")

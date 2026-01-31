@@ -1189,7 +1189,7 @@ class ValidationManager:
         for group_id, group_data in sorted(
             hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
         ):
-            group_entry = {
+            group_entry: dict[str, Any] = {
                 "id": group_id,
                 "label": f"🏷️ {group_data['display']} ({group_id})",
                 "status_label": "",
@@ -1202,7 +1202,7 @@ class ValidationManager:
             ):
                 sample_metadata = videos[0].get("metadata") if videos else None
                 day_title = self._build_day_title(day_id, sample_metadata)
-                day_entry = {
+                day_entry: dict[str, Any] = {
                     "label": f"📅 {day_title}",
                     "status_label": "",
                     "children": [],
