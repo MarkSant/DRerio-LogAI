@@ -218,7 +218,12 @@ class ApplicationGUI:
         self.video_display: Any | None = None
         self.controls_canvas: Any | None = None
         self.controls_canvas_window: Any | None = None
+        self.controls_scrollbar: Any | None = None  # Added for WidgetFactory
         self.fixed_button_frame: ttk.Frame | None = None
+        self.roi_data: dict[str, Any] = {}  # Added for TabBuilder
+        self.viz_frame: ttk.Frame | None = None  # Added for TabBuilder
+        self.viz_top_container: ttk.Frame | None = None  # Added for TabBuilder
+        self.viz_bottom_container: ttk.Frame | None = None  # Added for TabBuilder
         self._project_status_containers: dict[str, Any] = {}
         self._last_overview_counts: dict[str, int] = {}
         # -----------------------------------------------------

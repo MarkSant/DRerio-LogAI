@@ -299,7 +299,7 @@ class LiveBatchCoordinator:
             elif (
                 hasattr(self.project_manager, "project_path") and self.project_manager.project_path
             ):
-                project_root = self.project_manager.project_path.parent
+                project_root = Path(self.project_manager.project_path).parent
             if not project_root:
                 self.logger.error("live_batch.unified_report.no_project")
                 return False

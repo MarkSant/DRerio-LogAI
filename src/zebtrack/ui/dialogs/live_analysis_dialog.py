@@ -667,8 +667,14 @@ class LiveAnalysisDialog(Dialog):
                     )
 
                 if hasattr(self.settings, "model_selection"):
-                    self.settings.model_selection.aquarium_method = self.aquarium_method_var.get()
-                    self.settings.model_selection.animal_method = self.animal_method_var.get()
+                    from typing import Literal, cast
+
+                    self.settings.model_selection.aquarium_method = cast(
+                        Literal["seg", "det"], self.aquarium_method_var.get()
+                    )
+                    self.settings.model_selection.animal_method = cast(
+                        Literal["seg", "det"], self.animal_method_var.get()
+                    )
                     self.settings.model_selection.use_openvino = bool(self.use_openvino_var.get())
 
                 if hasattr(self.settings, "analysis_config"):

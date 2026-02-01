@@ -87,7 +87,7 @@ class VideoOrchestrator:
         self._set_main_arena_polygon_callback: Callable[[list], bool] | None = None
         self._activate_analysis_view_mode_callback: Callable[[], None] | None = None
         self._refresh_project_views_callback: Callable[..., None] | None = None
-        self._publish_processing_mode_callback: Callable[[str], None] | None = None
+        self._publish_processing_mode_callback: Callable[..., None] | None = None
 
         # Processing state
         self.processing_thread: threading.Thread | None = None
@@ -139,12 +139,14 @@ class VideoOrchestrator:
         if not zone_data or not zone_data.polygon:
             log.warning("video_orchestrator.project_workflow.no_main_arena")
 
-            response = self.view.ask_ok_cancel(
-                "Arena Principal Não Definida",
-                "O polígono principal do aquário não foi definido.\n\n"
-                "É necessário definir a arena principal para análise precisa.\n"
-                "Deseja definir agora antes de processar?",
-            )
+            response = False
+            if self.view:
+                response = self.view.ask_ok_cancel(
+                    "Arena Principal Não Definida",
+                    "O polígono principal do aquário não foi definido.\n\n"
+                    "É necessário definir a arena principal para análise precisa.\n"
+                    "Deseja definir agora antes de processar?",
+                )
 
             if response:
                 # Switch to zone tab
@@ -170,11 +172,14 @@ class VideoOrchestrator:
                 return
             else:
                 # Offer default arena as fallback
-                if not self.view.ask_ok_cancel(
-                    "Usar Arena Padrão?",
-                    "Deseja usar o frame completo como arena?\n"
-                    "(Não recomendado para análise precisa)",
-                ):
+                use_default = False
+                if self.view:
+                    use_default = self.view.ask_ok_cancel(
+                        "Usar Arena Padrão?",
+                        "Deseja usar o frame completo como arena?\n"
+                        "(Não recomendado para análise precisa)",
+                    )
+                if not use_default:
                     log.info("video_orchestrator.project_workflow.cancelled_no_arena")
                     return
 
@@ -192,7 +197,9 @@ class VideoOrchestrator:
                     default_arena = [[0, 0], [width, 0], [width, height], [0, height]]
 
                     # Note: This calls back to MainViewModel's method
-                    success = self._set_main_arena_polygon_callback(default_arena)
+                    success = False
+                    if self._set_main_arena_polygon_callback:
+                        success = self._set_main_arena_polygon_callback(default_arena)
                     if success:
                         log.info(
                             "video_orchestrator.project_workflow.default_arena_created",
@@ -351,7 +358,7 @@ class VideoOrchestrator:
         callbacks = self._create_processing_callbacks(eligible_videos)
         context = self._create_processing_context(
             eligible_videos,
-            self.project_manager.project_path,
+            str(self.project_manager.project_path) if self.project_manager.project_path else "",
             single_video_config=None,  # None = project mode, uses metadata for paths
         )
 
@@ -360,7 +367,7 @@ class VideoOrchestrator:
         self.processing_thread = self.processing_worker.start_in_thread()
 
         # Activate analysis view mode (via UI event or callback)
-        if hasattr(self, "_activate_analysis_view_mode_callback"):
+        if self._activate_analysis_view_mode_callback:
             self._activate_analysis_view_mode_callback()
 
         # Update video statuses
@@ -515,7 +522,7 @@ class VideoOrchestrator:
             Returns (None, None, None) if there are no valid candidate paths.
         """
         candidate_paths = [
-            video.get("path")
+            str(video.get("path"))
             for video in candidate_entries
             if isinstance(video.get("path"), str) and video.get("path")
         ]
@@ -529,18 +536,18 @@ class VideoOrchestrator:
                     ),
                 },
             )
-            return None, None, None
+            return ({}, [], [])
 
         # Use ProjectManager to scan input paths and read metadata
         scanned_videos = ProjectManager.scan_input_paths(candidate_paths)
         info_by_norm = {
-            os.path.normpath(info["path"]): info
+            os.path.normpath(str(info["path"])): info
             for info in scanned_videos
             if isinstance(info.get("path"), str)
         }
 
         missing_files = [
-            path for path in candidate_paths if os.path.normpath(path) not in info_by_norm
+            path for path in candidate_paths if os.path.normpath(str(path)) not in info_by_norm
         ]
         if missing_files:
             sample_names = [os.path.basename(path) for path in missing_files[:5]]
@@ -757,10 +764,11 @@ class VideoOrchestrator:
             log.error(
                 "video_orchestrator.processing.worker_error", context=context, error=str(error)
             )
-            self.root.after(
-                0,
-                lambda: self.view.show_error("Erro na Análise", f"{context}: {error}"),
-            )
+            if self.view:
+                self.root.after(
+                    0,
+                    lambda: self.view.show_error("Erro na Análise", f"{context}: {error}"),
+                )
 
         def on_fatal_error(exc, context, recovery_info):
             """Call on fatal processing errors."""
@@ -770,14 +778,16 @@ class VideoOrchestrator:
                 error=str(exc),
                 affected_videos=len(recovery_info["affected_videos"]),
             )
-            self.ui_coordinator.schedule(
-                lambda: self.view.show_error(
-                    "Erro Crítico de Processamento",
-                    f"{context}\n\nErro: {exc}\n\n"
-                    f"Vídeos afetados: {len(recovery_info['affected_videos'])}\n"
-                    f"Verifique os logs para detalhes.",
+            if self.view:
+                view_ref = self.view
+                self.ui_coordinator.schedule(
+                    lambda: view_ref.show_error(
+                        "Erro Crítico de Processamento",
+                        f"{context}\n\nErro: {exc}\n\n"
+                        f"Vídeos afetados: {len(recovery_info['affected_videos'])}\n"
+                        f"Verifique os logs para detalhes.",
+                    )
                 )
-            )
             self.state_manager.update_processing_state(
                 source="worker.fatal_error", is_processing=False, error=str(exc)
             )

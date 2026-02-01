@@ -17,7 +17,7 @@ from tkinter import (
     simpledialog,
     ttk,
 )
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
@@ -42,9 +42,9 @@ class LiveConfigDialog(simpledialog.Dialog):
             parent: Parent widget.
             settings_obj: Settings object with configuration.
         """
-        self.result = None
-        self.available_cameras = {}
-        self.available_ports = {}
+        self.result: dict[str, Any] | None = None
+        self.available_cameras: dict[str, int] = {}
+        self.available_ports: dict[str, str] = {}
         self.settings_obj = settings_obj
         super().__init__(parent, "Configuração da Análise ao Vivo")
 

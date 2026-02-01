@@ -572,6 +572,11 @@ class LiveConfigStep(WizardStep):
         """
         try:
             # Use injected settings_obj
+            if not self.settings_obj:
+                log.warning("live_config.hardware_detection_skipped_no_settings")
+                self.hardware_report = None
+                return
+
             detector = HardwareCapabilityDetector(self.settings_obj)
             self.hardware_report = detector.assess_capability()
 

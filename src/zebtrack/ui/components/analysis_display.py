@@ -287,7 +287,7 @@ class AnalysisDisplayWidget(BaseWidget):
 
     def show_progress(self) -> None:
         """Show the progress bar and statistics section."""
-        if self.progress_frame:
+        if self.progress_frame and self.video_container:
             self.progress_frame.pack(fill="x", pady=(4, 0), before=self.video_container)
 
     def hide_progress(self) -> None:

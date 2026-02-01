@@ -319,12 +319,13 @@ class WeightManager:
             if details.get("is_default"):
                 return name, details
         # Gracefully fall back to type-specific defaults when legacy data lacks `is_default`
-        name, details = self.get_default_seg_weight()
-        if name and details:
-            return name, details
-        name, details = self.get_default_det_weight()
-        if name and details:
-            return name, details
+        # Gracefully fall back to type-specific defaults when legacy data lacks `is_default`
+        seg_name, seg_details = self.get_default_seg_weight()
+        if seg_name and seg_details:
+            return seg_name, seg_details
+        det_name, det_details = self.get_default_det_weight()
+        if det_name and det_details:
+            return det_name, det_details
         return None, None
 
     def get_default_weight_by_type(self, weight_type: str) -> tuple[str, dict] | tuple[None, None]:

@@ -222,27 +222,31 @@ class BaseCoordinator(ABC):
             )
             raise ValueError(error_msg)
 
-    def _validate_type(self, value: Any, expected_type: type, name: str):
+    def _validate_type(self, value: Any, expected_type: type | tuple[type, ...], name: str):
         """
         Validate that a value is of expected type.
 
         Args:
             value: Value to check
-            expected_type: Expected type
+            expected_type: Expected type or tuple of types
             name: Name of the value for error messages
 
         Raises:
             TypeError: If value is not of expected type
         """
         if not isinstance(value, expected_type):
+            if isinstance(expected_type, type):
+                type_name = expected_type.__name__
+            else:
+                type_name = ", ".join(t.__name__ for t in expected_type)
+
             error_msg = (
-                f"Parameter '{name}' must be of type {expected_type.__name__}, "
-                f"got {type(value).__name__}"
+                f"Parameter '{name}' must be of type {type_name}, got {type(value).__name__}"
             )
             log.error(
                 "validation.type_mismatch",
                 parameter=name,
-                expected=expected_type.__name__,
+                expected=type_name,
                 actual=type(value).__name__,
                 coordinator=self.__class__.__name__,
             )

@@ -22,7 +22,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import cv2
 import numpy as np
@@ -35,7 +35,7 @@ from zebtrack.analysis.roi import ROI
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.core.processing_worker import (
     ProcessingCallbacks,
@@ -980,7 +980,8 @@ class ProcessingCoordinator(BaseCoordinator):
 
         if outputs_by_aquarium:
             self.project_manager.register_multi_aquarium_outputs(
-                video_path=video_path, outputs_by_aquarium=outputs_by_aquarium
+                video_path=video_path,
+                outputs_by_aquarium=cast(dict[int, dict], outputs_by_aquarium),
             )
             log.info(
                 "controller.video_completed.multi_aquarium_registered",
@@ -1069,8 +1070,9 @@ class ProcessingCoordinator(BaseCoordinator):
             affected_videos=len(recovery_info["affected_videos"]),
         )
         if self.view:
+            view_ref = self.view
             self.ui_coordinator.schedule(
-                lambda: self.view.show_error(
+                lambda: view_ref.show_error(
                     "Erro Crítico de Processamento",
                     f"{context}\n\nErro: {exc}\n\n"
                     f"Vídeos afetados: {len(recovery_info['affected_videos'])}\n"
@@ -1230,7 +1232,7 @@ class ProcessingCoordinator(BaseCoordinator):
         self,
         video_path: Path | str,
         config: dict,
-        zone_data: ZoneData,
+        zone_data: ZoneData | MultiAquariumZoneData,
     ):
         """Start the actual processing for a single video after zone setup."""
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
@@ -1282,7 +1284,10 @@ class ProcessingCoordinator(BaseCoordinator):
             return
 
         # 3. Validate
-        val = self.validate_can_start_processing(False, False, False)
+        # 3. Validate
+        val = self.validate_can_start_processing(
+            check_project_loaded=False, check_zones=False, check_videos_exist=False
+        )
         if not val.is_valid:
             self._show_validation_error(val)
             return
@@ -4066,11 +4071,13 @@ class ProcessingCoordinator(BaseCoordinator):
                     metadata[key] = config[key]
 
             for dim_key in ("aquarium_width_cm", "aquarium_height_cm"):
-                if dim_key in config and config.get(dim_key) not in (None, ""):
-                    try:
-                        metadata[dim_key] = float(config.get(dim_key))
-                    except (TypeError, ValueError):
-                        pass
+                if dim_key in config:
+                    val = config.get(dim_key)
+                    if val not in (None, ""):
+                        try:
+                            metadata[dim_key] = float(val)
+                        except (TypeError, ValueError):
+                            pass
 
         # Set defaults
         if "group" not in metadata:
@@ -4158,6 +4165,12 @@ class ProcessingCoordinator(BaseCoordinator):
     def _generate_multi_aquarium_reports(self, path, exp_id, entry, multi_outputs):
         """Generate reports for multi-aquarium videos."""
         project_data = getattr(self.project_manager, "project_data", {}) or {}
+
+        self._ensure_analysis_service_ready()
+        if not self.analysis_service:
+            log.error("workflow.reports.service_not_ready")
+            return
+
         analysis_params = self.analysis_service.collect_analysis_parameters(project_data)
         calib = project_data.get("calibration", {})
         fps = float(self.settings.video_processing.fps)

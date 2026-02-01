@@ -86,7 +86,7 @@ if __name__ == "__main__":
     frame_width, frame_height = 640, 480
     fps = 30
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
     writer = cv2.VideoWriter(test_video_path, fourcc, fps, (frame_width, frame_height))
 
     if not writer.isOpened():
@@ -103,6 +103,7 @@ if __name__ == "__main__":
         try:
             video_source = VideoFileSource(test_video_path)
             frame_counter = 0
+            frame: np.ndarray | None = None
             while True:
                 ret, frame = video_source.get_frame()
                 if not ret:

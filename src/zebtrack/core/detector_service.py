@@ -320,9 +320,7 @@ class DetectorService:
 
         # Check zone count - handle both ZoneData and MultiAquariumZoneData
         if isinstance(resolved_zone_data, MultiAquariumZoneData):
-            zone_count = sum(
-                len(aq_data.roi_polygons) for aq_data in resolved_zone_data.aquariums.values()
-            )
+            zone_count = sum(len(aq_data.roi_polygons) for aq_data in resolved_zone_data.aquariums)
         else:
             zone_count = len(resolved_zone_data.roi_polygons) if resolved_zone_data else 0
         log.info("detector_service.zones.configured", count=zone_count)
@@ -331,7 +329,7 @@ class DetectorService:
         if isinstance(resolved_zone_data, ZoneData):
             has_aquarium = bool(resolved_zone_data and resolved_zone_data.polygon)
         elif isinstance(resolved_zone_data, MultiAquariumZoneData):
-            has_aquarium = any(bool(aq.polygon) for aq in resolved_zone_data.aquariums.values())
+            has_aquarium = any(bool(aq.polygon) for aq in resolved_zone_data.aquariums)
         else:
             has_aquarium = False
         self.detector.set_aquarium_region_defined(has_aquarium)

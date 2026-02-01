@@ -360,7 +360,7 @@ class ProjectViewManager:
         all_videos = pm.get_all_videos()
 
         # Count videos by status
-        status_counts = Counter()
+        status_counts: Counter[str] = Counter()
         for video in all_videos:
             has_trajectory = pm.has_trajectory_data(video["path"])
             has_summary = pm.has_summary_data(video["path"])
@@ -796,7 +796,7 @@ class ProjectViewManager:
         selections = []
         if selection is not None:
             # Selection passed directly (e.g. from callback args)
-            selections = self.gui._resolve_processing_reports_video_paths(selection)
+            selections = self._resolve_processing_reports_video_paths(selection)
         else:
             # Try to resolve from active widget
             selections = self.resolve_processing_reports_video_paths()
@@ -961,6 +961,40 @@ class ProjectViewManager:
         )
         # This functionality has been moved to ZoneControlsWidget
         # Kept here for backward compatibility
+
+    def _resolve_processing_reports_video_paths(self, selection: tuple[str, ...]) -> list[str]:
+        """
+        Resolve selection item IDs to video paths, handling groups recursively.
+        """
+        if (
+            not hasattr(self.gui, "processing_reports_widget")
+            or not self.gui.processing_reports_widget
+        ):
+            return []
+
+        tree = self.gui.processing_reports_widget.tree
+        if not tree:
+            return []
+
+        paths: set[str] = set()
+
+        def _collect(item_id: str) -> None:
+            try:
+                # Try getting video_path column
+                p = tree.set(item_id, "video_path")
+                if p:
+                    paths.add(p)
+                else:
+                    # If empty, might be a container, iterate children
+                    for child in tree.get_children(item_id):
+                        _collect(child)
+            except Exception:
+                pass
+
+        for item in selection:
+            _collect(item)
+
+        return list(paths)
 
     # ===========================================================================
     # CATEGORIA 5: PROCESSING REPORTS MANAGEMENT

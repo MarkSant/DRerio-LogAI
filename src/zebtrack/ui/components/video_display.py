@@ -202,7 +202,8 @@ class VideoDisplayWidget(BaseWidget):
             return
 
         # Use raw_bg_image if available, otherwise use original_image
-        image_to_draw = self._raw_bg_image or self._original_image
+        image_to_draw: Image.Image | None = self._raw_bg_image or self._original_image
+        assert image_to_draw is not None
 
         # Get actual canvas dimensions
         if not self.canvas:
@@ -240,7 +241,7 @@ class VideoDisplayWidget(BaseWidget):
             try:
                 RESAMPLING_LANCZOS = Image.LANCZOS  # type: ignore[attr-defined]
             except Exception:
-                RESAMPLING_LANCZOS = Image.BICUBIC
+                RESAMPLING_LANCZOS = Image.BICUBIC  # type: ignore[attr-defined]
 
         # Scale the image
         if image_to_draw:

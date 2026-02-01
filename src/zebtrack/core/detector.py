@@ -32,6 +32,7 @@ class ZoneData:
     roi_polygons: list[list[list[int]]] = field(default_factory=list)
     roi_names: list[str] = field(default_factory=list)
     roi_colors: list[tuple[int, int, int]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -50,6 +51,10 @@ class AquariumData:
     group: str = ""  # Grupo (ex: "Controle", "Tratamento")
     subject_id: str = ""  # Identificador do sujeito
     day: int = 0  # Dia do experimento
+    roi_mode: str = ""  # Modo de ROI (ex: "grid", "freehand")
+    roi_data: dict[str, Any] = field(
+        default_factory=dict
+    )  # Dados extras de ROI (ex: grid_rows, grid_cols)
 
     def to_zone_data(self) -> ZoneData:
         """Helper to get current zone configuration as ZoneData object."""
@@ -565,6 +570,34 @@ class Detector:
         predictions = self._offset_detections(raw_detections, crop_x1, crop_y1)
         return self.track(predictions, project_type)
 
+    def track(self, predictions: list[tuple], project_type: str) -> tuple[list[tuple], str | None]:
+        """
+        Track objects across frames using configured tracker.
+
+        Args:
+            predictions: List of detection tuples
+            project_type: Project type (e.g. 'pre-recorded')
+
+        Returns:
+            Tuple of (tracked_predictions, error_message)
+        """
+        if self._context != "tracking":
+            return predictions, None
+
+        height = self._last_height or self.base_height
+        width = self._last_width or self.base_width
+        frame_shape = (height, width, 3)
+
+        # TODO: Implement proper multi-aquarium tracking dispatch if needed here
+        # Currently _apply_byte_tracking seems designed for single/global context
+
+        if self.settings and self.settings.tracking.use_bytetrack:
+            tracks = self._apply_byte_tracking(predictions, frame_shape)
+        else:
+            tracks = self._apply_simple_tracking(predictions)
+
+        return tracks, None
+
     def _validate_frame(self, frame: np.ndarray) -> None:
         if frame is None or not isinstance(frame, np.ndarray):
             raise ValueError("Frame must be a valid numpy array")
@@ -606,311 +639,6 @@ class Detector:
                 )
             )
         return preds
-                "detector.predictions_before_polygon_filter",
-                count=len(predictions),
-                has_polygon=has_polygon,
-                sample=str(predictions[:3]),
-            )
-
-            # 🔍 DEBUG: Log decision flags for polygon filtering
-            log.debug(
-                "detector.polygon_filter_decision_flags",
-                has_polygon=has_polygon,
-                context=self._context,
-                aquarium_defined=self._aquarium_region_defined,
-                polygon_size=self.scaled_polygon.size,
-                is_multi=self._multi_aquarium_mode,
-            )
-
-            # ✅ If no polygon defined and in diagnostic mode OR detecting aquarium,
-            # accept all detections.
-            # In multi-mode, we generally enforce polygon constraints
-            # unless specifically detecting aquariums.
-            should_filter = True
-            if not has_polygon and not self._multi_aquarium_mode:
-                if self._context == "diagnostic" or not self._aquarium_region_defined:
-                    should_filter = False
-
-            if not should_filter:
-                log.debug(
-                    "detector.no_polygon_accept_all",
-                    accepting_all_detections=len(predictions),
-                    reason="diagnostic_mode"
-                    if self._context == "diagnostic"
-                    else "aquarium_detection_phase",
-                    context=self._context,
-                    aquarium_defined=self._aquarium_region_defined,
-                )
-                detections_in_polygon = [
-                    (x1, y1, x2, y2, confidence, int(track_id or -1), class_id)
-                    for x1, y1, x2, y2, confidence, track_id, class_id in predictions
-                ]
-            else:
-                # Normal polygon filtering - MUST filter by polygon
-                # Support Multi-Aquarium Filtering
-                for pred_tuple in predictions:
-                    # predictions contains tuples: (x1, y1, x2, y2, confidence, track_id, class_id)
-                    x1, y1, x2, y2, confidence, track_id, class_id = pred_tuple  # type: ignore
-                    x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
-                    confidence = float(confidence)
-
-                    is_inside = False
-
-                    if self._multi_aquarium_mode and hasattr(self, "_scaled_aquarium_polygons"):
-                        # Check against all aquarium polygons
-                        for aq_id, poly in self._scaled_aquarium_polygons.items():
-                            if self._is_inside_polygon(x1, y1, x2, y2, poly):
-                                is_inside = True
-                                # TODO (Phase 5): Attach aquarium ID to detection if tracking
-                                # architecture supports it
-                                break
-                    elif self.scaled_polygon.size > 0:
-                        # Check against main polygon
-                        is_inside = self._is_inside_polygon(x1, y1, x2, y2, self.scaled_polygon)
-                    else:
-                        # No polygon defined but filtering required? Use default bound or skip?
-                        # If we are here, should_filter is True but no polygon exists?
-                        # This implies we should filter out EVERYTHING or logic error.
-                        # Assuming strict constraint: if filtering is on and no polygon, reject.
-                        is_inside = False
-
-                    if is_inside:
-                        detections_in_polygon.append(
-                            (x1, y1, x2, y2, confidence, track_id, class_id)
-                        )
-                    else:
-                        log.info(
-                            "detector.filtered_outside_polygon",
-                            bbox=(x1, y1, x2, y2),
-                            track_id=track_id,
-                            class_id=class_id,
-                            is_multi=self._multi_aquarium_mode,
-                        )
-
-                # Log summary of polygon filtering
-                log.debug(
-                    "detector.polygon_filter_summary",
-                    predictions_count=len(predictions),
-                    passed_filter=len(detections_in_polygon),
-                    filtered_out=len(predictions) - len(detections_in_polygon),
-                    is_multi=self._multi_aquarium_mode,
-                )
-        else:
-            log.info(
-                "detector.no_predictions_from_model",
-                has_polygon=has_polygon,
-            )
-
-        # Centralized filtering logic based on context
-        # 🔍 DEBUG: Log current context during filtering
-        log.debug(
-            "detector.filtering_context_check",
-            current_context=self._context,
-            detections_in_polygon=len(detections_in_polygon),
-            aquarium_defined=self._aquarium_region_defined,
-        )
-
-        filtered_detections = []
-        if self._context == "diagnostic":
-            # Diagnostic mode shows everything
-            filtered_detections = detections_in_polygon
-            log.debug(
-                "detector.diagnostic_mode",
-                detections_count=len(filtered_detections),
-            )
-        else:
-            # Tracking mode
-            # Tracking mode
-            aquarium_class_id = self.aquarium_class_id
-            zebrafish_class_id = self.animal_class_id
-
-            target_class = (
-                f"zebrafish({zebrafish_class_id})"
-                if self._aquarium_region_defined
-                else f"aquarium({aquarium_class_id})"
-            )
-
-            log.debug(
-                "detector.filtering_by_class",
-                detections_in_polygon=len(detections_in_polygon),
-                aquarium_defined=self._aquarium_region_defined,
-                target_class=target_class,
-            )
-
-            if not self._aquarium_region_defined:
-                # Before arena is defined, show only aquarium detections (class_id 0)
-                # ✅ FIX: Also accept Class 1 (Fish) if it's "huge" (likely misclassified tank)
-                frame_area = 1280 * 720  # Default fallback
-                if self._last_width and self._last_height:
-                    frame_area = self._last_width * self._last_height
-
-                for det_tuple in detections_in_polygon:
-                    # det format: (x1, y1, x2, y2, confidence, track_id, class_id)
-                    x1, y1, x2, y2, conf, track_id, class_id = det_tuple
-                    det_area = (x2 - x1) * (y2 - y1)
-
-                    is_valid_aquarium = False
-                    if class_id == aquarium_class_id:
-                        is_valid_aquarium = True
-                    elif class_id == zebrafish_class_id:
-                        # If it's class 1 but HUGE (> 10% of frame), it's likely the tank
-                        # Lowered from 30% to 10% based on user logs showing tank is ~15%
-                        if det_area > (frame_area * 0.10):
-                            is_valid_aquarium = True
-                            log.debug(
-                                "detector.class_fallback_aquarium",
-                                bbox=(x1, y1, x2, y2),
-                                original_class=class_id,
-                                new_class=aquarium_class_id,
-                                det_area=det_area,
-                                frame_area=frame_area,
-                                ratio=det_area / frame_area,
-                            )
-                            # Morph to aquarium class
-                            class_id = aquarium_class_id
-                            det_tuple = (x1, y1, x2, y2, conf, track_id, class_id)
-
-                    if is_valid_aquarium:
-                        filtered_detections.append(det_tuple)
-                    else:
-                        log.debug(
-                            "detector.filtered_by_class",
-                            bbox=(det_tuple[0], det_tuple[1], det_tuple[2], det_tuple[3]),
-                            class_id=class_id,
-                            conf=det_tuple[4],
-                            reason="aquarium_not_defined_target_class_0",
-                            det_area=det_area,
-                            ratio=det_area / frame_area,
-                        )
-            else:
-                # After arena is defined, show only zebrafish detections (class_id 1)
-                # ✅ FIX: Handle models that output class 0 for animals
-                # If a detection is class 0 BUT is significantly smaller than the arena,
-                # treat it as an animal (class 1).
-
-                # Calculate arena area for comparison
-                arena_area: float = 0.0
-                if self.scaled_polygon.size > 0:
-                    arena_area = float(cv2.contourArea(self.scaled_polygon))
-
-                for det in detections_in_polygon:
-                    # Cast to ensure int types for unpacking
-                    x1_f, y1_f, x2_f, y2_f, conf, track_id, class_id = det  # type: ignore[misc]
-                    x1, y1, x2, y2 = int(x1_f), int(y1_f), int(x2_f), int(y2_f)
-
-                    # Calculate detection area
-                    det_area = (x2 - x1) * (y2 - y1)
-
-                    # Check if it's a "fake" aquarium (actually an animal)
-                    # Criteria: Class 0 AND Area < 50% of arena
-                    if class_id == aquarium_class_id and arena_area > 0:
-                        if det_area < (arena_area * 0.5):
-                            log.debug(
-                                "detector.class_fallback_applied",
-                                bbox=(x1, y1, x2, y2),
-                                original_class=aquarium_class_id,
-                                new_class=zebrafish_class_id,
-                                det_area=det_area,
-                                arena_area=arena_area,
-                                ratio=det_area / arena_area,
-                            )
-                            # Modify class_id to zebrafish_class_id for this detection
-                            class_id = zebrafish_class_id
-                            # Update the tuple in the list
-                            # (tuples are immutable, so we create new one)
-                            # Match expected type: (x1, y1, x2, y2, conf, track_id, class_id)
-                            det = (
-                                float(x1),
-                                float(y1),
-                                float(x2),
-                                float(y2),
-                                float(conf),
-                                int(track_id) if track_id is not None else -1,
-                                int(class_id),
-                            )
-
-                    if class_id == zebrafish_class_id:
-                        filtered_detections.append(det)
-                    else:
-                        log.debug(
-                            "detector.filtered_by_class",
-                            bbox=(det[0], det[1], det[2], det[3]),
-                            class_id=class_id,
-                            reason="arena_defined",
-                        )
-
-        # Apply tracking based on mode
-        if self._context == "diagnostic" or not self._aquarium_region_defined:
-            # Diagnostic mode OR aquarium detection phase:
-            # No tracking, preserve all detections as-is
-            # - Diagnostic: single video analysis where we want raw detections
-            # - Aquarium detection: need raw aquarium bboxes, ByteTracker would reject
-            filtered_detections = [
-                (
-                    float(x1),
-                    float(y1),
-                    float(x2),
-                    float(y2),
-                    float(confidence),
-                    int(track_id if track_id is not None else -1),
-                    int(class_id),
-                )
-                for x1, y1, x2, y2, confidence, track_id, class_id in filtered_detections
-            ]
-            log.debug(
-                "detector.skip_tracking",
-                num_detections=len(filtered_detections),
-                reason="diagnostic_mode"
-                if self._context == "diagnostic"
-                else "aquarium_detection_phase",
-                context=self._context,
-                aquarium_defined=self._aquarium_region_defined,
-            )
-        else:
-            # Tracking Mode
-            # Switch between ByteTrack and Simple SingleSubjectTracker
-            use_bytetrack = self._should_use_bytetrack()
-
-            if filtered_detections:
-                confidences = [d[4] for d in filtered_detections]
-                log.debug(
-                    "detector.tracking.input",
-                    confidences=confidences,
-                    strategy="bytetrack" if use_bytetrack else "simple_hybrid",
-                )
-
-            if use_bytetrack:
-                filtered_detections = self._apply_byte_tracking(filtered_detections, frame.shape)
-                # BUG FIX #1: Validate track_id continuity after tracking
-                self._validate_track_continuity(filtered_detections)
-            else:
-                # Use simple hybrid tracker (IoU + Distance)
-                self._ensure_simple_tracker()
-                filtered_detections = self._apply_simple_tracking(filtered_detections)
-
-            log.debug(
-                "detector.tracking.applied",
-                num_detections=len(filtered_detections),
-            )
-
-        end_time = time.perf_counter()
-        log.debug(
-            "frame.processing.time",
-            duration_ms=(end_time - start_time) * 1000,
-            plugin=self.plugin.get_name(),
-        )
-
-        # 🔍 INFO: Log final detection count before return
-        log.debug(
-            "detector.detect.final_result",
-            num_detections=len(filtered_detections),
-            context=self._context,
-            single_subject_mode=self._single_subject_mode,
-        )
-
-        # The command logic has been removed as it was tied to the old square ROIs
-        command_to_send = None
-        return filtered_detections, command_to_send
 
     def set_single_subject_mode(self, enabled: bool) -> None:
         """

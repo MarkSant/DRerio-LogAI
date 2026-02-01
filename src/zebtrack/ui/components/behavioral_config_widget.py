@@ -306,6 +306,9 @@ class BehavioralConfigWidget(BaseWidget):
 
     def _on_perspective_combo_changed(self, event=None) -> None:
         """Handle perspective combobox selection change."""
+        if not self.perspective_combo:
+            return
+
         display_value = self.perspective_combo.get()
         actual_value = self._perspective_mapping.get(
             display_value, AquariumPerspective.TOP_DOWN.value
@@ -320,13 +323,17 @@ class BehavioralConfigWidget(BaseWidget):
 
         # Enable/disable geotaxis section based on perspective
         if is_lateral:
-            self._set_widget_state(self.geotaxis_frame, "normal")
-            self.geotaxis_check.configure(state="normal")
+            if self.geotaxis_frame:
+                self._set_widget_state(self.geotaxis_frame, "normal")
+            if self.geotaxis_check:
+                self.geotaxis_check.configure(state="normal")
         else:
             # Disable geotaxis for top-down view
             self.geotaxis_enabled_var.set(False)
-            self._set_widget_state(self.geotaxis_frame, "disabled")
-            self.geotaxis_check.configure(state="disabled")
+            if self.geotaxis_frame:
+                self._set_widget_state(self.geotaxis_frame, "disabled")
+            if self.geotaxis_check:
+                self.geotaxis_check.configure(state="disabled")
 
         self._update_geotaxis_visibility()
         self.emit_event("behavioral_config.perspective_changed", {"perspective": perspective})
@@ -359,18 +366,24 @@ class BehavioralConfigWidget(BaseWidget):
 
         if enabled:
             # Show options frame
-            self.geotaxis_options_frame.pack(fill="x", pady=(5, 0))
+            if self.geotaxis_options_frame:
+                self.geotaxis_options_frame.pack(fill="x", pady=(5, 0))
 
             # Show appropriate mode frame
             if mode == GeotaxisMode.DISTANCE.value:
-                self.distance_frame.pack(fill="x", pady=(5, 0))
-                self.zones_frame.pack_forget()
+                if self.distance_frame:
+                    self.distance_frame.pack(fill="x", pady=(5, 0))
+                if self.zones_frame:
+                    self.zones_frame.pack_forget()
             else:
-                self.distance_frame.pack_forget()
-                self.zones_frame.pack(fill="x", pady=(5, 0))
+                if self.distance_frame:
+                    self.distance_frame.pack_forget()
+                if self.zones_frame:
+                    self.zones_frame.pack(fill="x", pady=(5, 0))
         else:
             # Hide options frame
-            self.geotaxis_options_frame.pack_forget()
+            if self.geotaxis_options_frame:
+                self.geotaxis_options_frame.pack_forget()
 
     # Public API
 

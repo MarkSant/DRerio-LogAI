@@ -583,7 +583,7 @@ class _WorkerProcess(multiprocessing.Process):
         else:
             # Fall back to default zone data (single video mode)
             if self._default_zone_data is None:
-                return None
+                return ZoneData()  # Return empty instead of None
 
             poly_points = 0
             if hasattr(self._default_zone_data, "polygon"):
@@ -844,7 +844,7 @@ class _WorkerProcess(multiprocessing.Process):
                         log.debug("worker.detect_multi.start", frame=frame_num)
                         partitioned_detections = detector.detect_partitioned_optimized(frame)
                         log.debug("worker.detect_multi.end", frame=frame_num)
-                        detections = []
+                        detections: list[tuple[Any, ...]] = []
                         for aq_dets in partitioned_detections.values():
                             detections.extend(aq_dets)
                     else:

@@ -69,7 +69,7 @@ class VideoContext:
     """
 
     path: str
-    cap: cv2.VideoCapture
+    cap: cv2.VideoCapture | None
     width: int
     height: int
     fps: float
@@ -354,19 +354,13 @@ class VideoProcessingService:
         if not trajectory_path.exists():
             # v2.2: Publish event instead of calling view directly
             if self.ui_event_bus is not None:
-                from zebtrack.ui.event_bus_v2 import Event, UIEvents
-
-                self.ui_event_bus.publish(
-                    Event(
-                        UIEvents.ERROR_OCCURRED,
-                        {
-                            "title": "Erro de Processamento",
-                            "message": (
-                                f"Falha ao gerar arquivo de trajetória para {experiment_id}."
-                            ),
-                            "details": f"Arquivo não encontrado: {trajectory_path}",
-                        },
-                    )
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Erro de Processamento",
+                        "message": (f"Falha ao gerar arquivo de trajetória para {experiment_id}."),
+                        "details": f"Arquivo não encontrado: {trajectory_path}",
+                    },
                 )
             return None
 
@@ -380,17 +374,13 @@ class VideoProcessingService:
             )
             # v2.2: Publish event instead of calling view directly
             if self.ui_event_bus is not None:
-                from zebtrack.ui.event_bus_v2 import Event, UIEvents
-
-                self.ui_event_bus.publish(
-                    Event(
-                        UIEvents.ERROR_OCCURRED,
-                        {
-                            "title": "Erro de Processamento",
-                            "message": f"Falha ao ler arquivo de trajetória para {experiment_id}.",
-                            "details": str(exc),
-                        },
-                    )
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_ERROR,
+                    {
+                        "title": "Erro de Processamento",
+                        "message": f"Falha ao ler arquivo de trajetória para {experiment_id}.",
+                        "details": str(exc),
+                    },
                 )
             return None
 
@@ -406,9 +396,9 @@ class VideoProcessingService:
         video_context: VideoContext | None = None,
     ) -> tuple[
         cv2.VideoCapture | None,
-        Recorder,
-        ZoneData,
-        list,
+        Recorder | None,
+        ZoneData | None,
+        list | None,
         Calibration | None,
         tuple | None,
     ]:
@@ -510,7 +500,7 @@ class VideoProcessingService:
             Tuple of (detections, detected_count_increment, should_process)
         """
         should_process = frame_num % analysis_interval_frames == 0
-        detections = []
+        detections: list[tuple[Any, ...]] = []
         detected_count_increment = 0
 
         if should_process:
@@ -802,7 +792,9 @@ class VideoProcessingService:
         result_status = {"success": False}
 
         # Create ProcessingCallbacks
-        def on_progress(fraction, message, stats):
+        def on_progress(
+            idx: int, total: int, exp_id: str, fraction: float, message: str, stats: dict | None
+        ) -> None:
             if progress_callback:
                 progress_callback(fraction, message, stats=stats)
 
@@ -814,8 +806,6 @@ class VideoProcessingService:
                         Events.UI_DISPLAY_FRAME,
                         {"frame": frame},
                     )
-                else:
-                    self.ui_coordinator.display_frame(self.view, frame)
 
         def on_video_completed(idx, total, exp_id, success):
             log.info("tracking.video_completed", video=exp_id, success=success)
@@ -827,7 +817,7 @@ class VideoProcessingService:
             on_frame_processed=on_frame_processed,
             on_video_completed=on_video_completed,
             on_error=lambda e, exp_id: log.error("tracking.error", video=exp_id, error=str(e)),
-            on_completed=lambda cancelled, out_dir: log.info(
+            on_completed=lambda cancelled, out_dir, data: log.info(
                 "tracking.session_completed", cancelled=cancelled
             ),
             on_fatal_error=lambda e, msg, data: log.error("tracking.fatal_error", error=str(e)),
@@ -1141,13 +1131,14 @@ class VideoProcessingService:
             if self.cancel_event.is_set():
                 return
 
-            overall_progress = f"Processando {index + 1}/{total_videos}: {experiment_id}"
-            step_status = f"Etapa: {status_message}"
-            self.ui_coordinator.set_status(self.view, f"{overall_progress} - {step_status}")
-            self.ui_coordinator.update_progress(self.view, progress_fraction)
-            self.ui_coordinator.update_view(
-                self.view, "update_analysis_progress", progress_fraction, step_status
-            )
+            # Legacy UI coordinator calls removed - using event bus instead
+            # overall_progress = f"Processando {index + 1}/{total_videos}: {experiment_id}"
+            # step_status = f"Etapa: {status_message}"
+            # self.ui_coordinator.set_status(self.view, f"{overall_progress} - {step_status}")
+            # self.ui_coordinator.update_progress(self.view, progress_fraction)
+            # self.ui_coordinator.update_view(
+            #     self.view, "update_analysis_progress", progress_fraction, step_status
+            # )
             self.ui_event_bus.publish_event(
                 Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
                 {

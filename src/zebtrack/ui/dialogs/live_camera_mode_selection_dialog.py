@@ -183,7 +183,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
         # Capability tier
         capability_colors = {
             MultiAquariumCapability.EXCELLENT: "#4CAF50",
-            MultiAquariumCapability.VERY_GOOD: "#8BC34A",
+            MultiAquariumCapability.MODERATE: "#8BC34A",
             MultiAquariumCapability.GOOD: "#FFC107",
             MultiAquariumCapability.LIMITED: "#FF9800",
             MultiAquariumCapability.INSUFFICIENT: "#F44336",
@@ -262,7 +262,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
         rec_desc.pack(anchor="w", padx=30, pady=(0, 10))
 
         # Fallback modes
-        if self.recommendation.fallback_modes:
+        if self.recommendation.alternative_options:
             fallback_label = Label(
                 frame,
                 text="Alternativas:",
@@ -270,7 +270,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
             )
             fallback_label.pack(anchor="w", pady=(5, 5))
 
-            for mode in self.recommendation.fallback_modes:
+            for mode, desc in self.recommendation.alternative_options:
                 mode_frame = Frame(frame, relief="groove", borderwidth=1)
                 mode_frame.pack(fill="x", pady=2)
 
@@ -284,7 +284,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
 
                 mode_desc = Label(
                     mode_frame,
-                    text=self.MODE_DESCRIPTIONS[mode],
+                    text=desc,
                     justify="left",
                     wraplength=620,
                     fg="#555555",
@@ -339,7 +339,7 @@ class LiveCameraModeSelectionDialog(Toplevel):
         )
 
         # Invoke callback
-        if self.on_mode_selected:
+        if self.selected_mode:
             self.on_mode_selected(self.selected_mode)
 
         self.destroy()

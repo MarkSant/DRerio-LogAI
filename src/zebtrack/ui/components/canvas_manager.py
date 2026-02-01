@@ -559,7 +559,13 @@ class CanvasManager:
                     if w > 100 and h > 100:
                         target_w, target_h = w, h
 
-                pil_image.thumbnail((target_w, target_h), Image.LANCZOS)
+                try:
+                    resampling = Image.Resampling.LANCZOS
+                except AttributeError:
+                    # Fallback for older Pillow versions if needed, though pyproject specifies ^10.4.0
+                    resampling = Image.LANCZOS  # type: ignore[attr-defined]
+
+                pil_image.thumbnail((target_w, target_h), resampling)
                 self.gui.analysis_display_widget.update_frame(pil_image)
             else:
                 log.debug(
@@ -1598,7 +1604,8 @@ class CanvasManager:
             Portuguese color name or hex code if not found
         """
         # Normalize to tuple of ints
-        bgr_tuple = tuple(int(c) for c in bgr)
+        # Explicitly construct tuple of length 3 to satisfy dict key type
+        bgr_tuple: tuple[int, int, int] = (int(bgr[0]), int(bgr[1]), int(bgr[2]))
         if bgr_tuple in self._BGR_COLOR_MAP:
             return self._BGR_COLOR_MAP[bgr_tuple]
         # Fallback to hex code if color not in standard palette
@@ -1804,7 +1811,8 @@ class CanvasManager:
 
         for aq in zone_data.aquariums:
             colors = self.AQUARIUM_COLORS.get(aq.id, self.AQUARIUM_COLORS[0])
-            border_color = colors["border"]  # BGR tuple
+            # Explicit cast to ensure MyPy knows it's a color tuple, not a string from the dict union
+            border_color = typing.cast(tuple[int, int, int], colors["border"])
 
             # Draw aquarium polygon border
             if aq.polygon:
@@ -1960,9 +1968,12 @@ class CanvasManager:
             crop = frame[y1:y2, x1:x2].copy()
 
             # Draw detections on crop (adjusting coordinates)
+            # Draw detections on crop (adjusting coordinates)
             if detections_by_aquarium and aq.id in detections_by_aquarium:
-                border_color = self.AQUARIUM_COLORS.get(aq.id, ("#AAAAAA", f"Aq{aq.id}"))
-                border_color = self.hex_to_bgr(border_color[0])
+                colors = self.AQUARIUM_COLORS.get(aq.id, self.AQUARIUM_COLORS[0])
+                # Explicit cast for border color
+                border_color = typing.cast(tuple[int, int, int], colors["border"])
+
                 for det in detections_by_aquarium[aq.id]:
                     if len(det) >= 6:
                         dx1, dy1, dx2, dy2, _conf, track_id = det[:6]
@@ -1985,8 +1996,9 @@ class CanvasManager:
 
             # Add label
             if show_labels:
-                colors = self.AQUARIUM_COLORS.get(aq.id, ("#AAAAAA", f"Aq{aq.id}"))
-                label = colors[1]
+                colors = self.AQUARIUM_COLORS.get(aq.id, self.AQUARIUM_COLORS[0])
+                # Explicit cast for text label
+                label = str(colors["text"])
                 if aq.group:
                     label += f" ({aq.group})"
                 cv2.putText(
@@ -1998,7 +2010,7 @@ class CanvasManager:
                     (10, 25),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.7,
-                    self.hex_to_bgr(colors[0]),
+                    typing.cast(tuple[int, int, int], colors["border"]),
                     1,
                 )
 

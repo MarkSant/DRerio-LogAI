@@ -65,7 +65,7 @@ class ConfirmationStep(WizardStep):
         self.summary_text = ""
         self.template_manager = TemplateManager()
         self.template_info_var = StringVar(value="")
-        self.template_info_label = None
+        self.template_info_label: Label | None = None
         self._responsive_labels: list[Label] = []
 
     def build_ui(self):

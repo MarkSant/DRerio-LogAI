@@ -10,7 +10,7 @@ import os
 from collections.abc import Callable
 from concurrent.futures import CancelledError, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from zebtrack.core.ui_coordinator import UICoordinator
@@ -205,17 +205,19 @@ class AnalysisCoordinator:
         aggregated_df = pd.concat(non_empty_dfs, ignore_index=True)
 
         # Ask user for save location
-        save_path = self.view.ask_save_filename(
-            title=f"Salvar Relatório {report_type.capitalize()}",
-            defaultextension=".xlsx",
-            initialfile=f"{report_type}_report.xlsx",
-            filetypes=[
-                ("Pasta de Trabalho do Excel", "*.xlsx"),
-                ("Arquivo CSV", "*.csv"),
-                ("Arquivo Parquet", "*.parquet"),
-                ("Todos os arquivos", "*.*"),
-            ],
-        )
+        save_path = None
+        if self.view:
+            save_path = self.view.ask_save_filename(
+                title=f"Salvar Relatório {report_type.capitalize()}",
+                defaultextension=".xlsx",
+                initialfile=f"{report_type}_report.xlsx",
+                filetypes=[
+                    ("Pasta de Trabalho do Excel", "*.xlsx"),
+                    ("Arquivo CSV", "*.csv"),
+                    ("Arquivo Parquet", "*.parquet"),
+                    ("Todos os arquivos", "*.*"),
+                ],
+            )
         if not save_path:
             return
 
@@ -320,10 +322,11 @@ class AnalysisCoordinator:
             raw_lookup.setdefault(norm_path, raw_path)
 
         if not normalized_targets:
-            self.view.show_info(
-                "Sumários",
-                "Nenhum vídeo selecionado para geração de sumários.",
-            )
+            if self.view:
+                self.view.show_info(
+                    "Sumários",
+                    "Nenhum vídeo selecionado para geração de sumários.",
+                )
             return
 
         videos_by_norm = {
@@ -466,7 +469,7 @@ class AnalysisCoordinator:
             callback: Function to call for refreshing project views.
                      Accepts optional keyword arguments (reason, append_summary, etc.)
         """
-        self._refresh_project_views_callback = callback
+        self._refresh_project_views_callback: Any = callback
 
     def _generate_parquet_summaries_worker(self, target_videos: list[dict], settings_obj) -> None:
         """Worker method to generate parquet summaries for a list of videos.

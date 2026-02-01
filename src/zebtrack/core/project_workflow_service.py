@@ -354,9 +354,9 @@ class ProjectWorkflowService:
 
     def create_project(  # noqa: C901
         self,
-        setup_detector_callback: callable,
-        active_weight_setter: callable | None = None,
-        use_openvino_setter: callable | None = None,
+        setup_detector_callback: Callable[..., Any],
+        active_weight_setter: Callable[..., Any] | None = None,
+        use_openvino_setter: Callable[..., Any] | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
         """
@@ -641,10 +641,10 @@ class ProjectWorkflowService:
     def open_project(
         self,
         project_path: Path | str,
-        active_weight_setter: callable | None = None,
-        use_openvino_setter: callable | None = None,
-        restore_detector_callback: callable | None = None,
-        setup_zones_callback: callable | None = None,
+        active_weight_setter: Callable[..., Any] | None = None,
+        use_openvino_setter: Callable[..., Any] | None = None,
+        restore_detector_callback: Callable[..., Any] | None = None,
+        setup_zones_callback: Callable[..., Any] | None = None,
     ) -> dict[str, Any]:
         """
         Orchestrate project opening workflow.

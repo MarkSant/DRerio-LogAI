@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from tkinter import ttk
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -110,7 +110,7 @@ class BaseWidget(ttk.Frame):
             state: "normal" or "disabled"
         """
         try:
-            widget.configure(state=state)
+            cast(Any, widget).configure(state=state)
         except Exception:
             # Some widgets don't support state configuration
             pass

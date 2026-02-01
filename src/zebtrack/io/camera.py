@@ -331,7 +331,7 @@ class Camera(FrameSource):
 
             return (True, frame)
 
-    def release(self) -> None:
+    def release(self) -> bool:
         """
         Signals the reader thread to stop and releases the camera resource.
 
@@ -451,7 +451,8 @@ if __name__ == "__main__":
                 time.sleep(0.5)
                 continue
 
-            cv2.imshow("Camera Test", frame)
+            if frame is not None:
+                cv2.imshow("Camera Test", frame)
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break

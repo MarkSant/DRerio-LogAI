@@ -1117,14 +1117,14 @@ class WidgetFactory:
         template = dialog.result
         if template["type"] == "vertical":
             lane_width = width / template["lanes"]
-            for i in range(template["lanes"]):
+            for i in range(int(template["lanes"] or 0)):
                 x1 = x_min + i * lane_width
                 x2 = x1 + lane_width
                 coords = [(x1, y_min), (x2, y_min), (x2, y_max), (x1, y_max)]
                 rois_to_add.append({"name": f"V_Lane_{i + 1}", "type": "polygon", "coords": coords})
         elif template["type"] == "horizontal":
             lane_height = height / template["lanes"]
-            for i in range(template["lanes"]):
+            for i in range(int(template["lanes"] or 0)):
                 y1 = y_min + i * lane_height
                 y2 = y1 + lane_height
                 coords = [(x_min, y1), (x_max, y1), (x_max, y2), (x_min, y2)]
@@ -1132,8 +1132,8 @@ class WidgetFactory:
         elif template["type"] == "grid":
             col_width = width / template["cols"]
             row_height = height / template["rows"]
-            for r in range(template["rows"]):
-                for c in range(template["cols"]):
+            for r in range(int(template["rows"] or 0)):
+                for c in range(int(template["cols"] or 0)):
                     x1 = x_min + c * col_width
                     y1 = y_min + r * row_height
                     x2 = x1 + col_width
@@ -1219,14 +1219,17 @@ class WidgetFactory:
                     else:
                         color = "#90EE90"  # LightGreen - Completed
 
+                    from functools import partial
+
                     cell_btn = Button(
                         self.gui.grid_container,
                         text=status_text,
                         background=color,
                         width=15,
                         height=3,
-                        command=lambda d=day,
-                        g=group_name: self.gui.dialog_manager.handle_grid_cell_click(d, g),
+                        command=partial(
+                            self.gui.dialog_manager.handle_grid_cell_click, day, group_name
+                        ),
                     )
                     cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
 

@@ -96,27 +96,28 @@ class HardwareStatusViewModel:
             )
         return False
 
-    # --- Arduino ---
+        # --- Arduino ---
 
     def setup_arduino(self) -> bool:
-        if self.hardware_coordinator:
-            success = self.hardware_coordinator.setup_arduino()
-            self.arduino = self.hardware_coordinator.arduino
-            self.arduino_manager = self.hardware_coordinator.arduino_manager
-            return success
+        # Note: Arduino setup is now handled differently in HardwareCoordinator
+        # These methods are deprecated
+        log.warning(
+            "hardware_status_view_model.arduino_deprecated",
+            message="Direct Arduino access via HardwareCoordinator is deprecated.",
+        )
         return False
 
     def log_arduino_event(self, message: str) -> None:
-        if self.hardware_coordinator:
-            self.hardware_coordinator.log_arduino_event(message)
+        # Deprecated - logging moved to SessionCoordinator
+        pass
 
     def on_arduino_status_change(self, connected: bool, port: str | None) -> None:
-        if self.hardware_coordinator:
-            self.hardware_coordinator.on_arduino_status_change(connected, port)
+        # Deprecated - status handling moved to SessionCoordinator
+        pass
 
     def on_arduino_command_sent(self, command: int, success: bool, source: str) -> None:
-        if self.hardware_coordinator:
-            self.hardware_coordinator.on_arduino_command_sent(command, success, source)
+        # Deprecated - command handling moved to SessionCoordinator
+        pass
 
     def _get_arduino_manager(self):
         # Lazy init if needed, though passed in bootstrap
@@ -140,14 +141,14 @@ class HardwareStatusViewModel:
 
     def get_openvino_status(self) -> str:
         return self.model_service.get_openvino_status(
-            weight_name=self.active_weight_name, use_openvino=self.use_openvino
+            weight_name=self.active_weight_name or "", use_openvino=self.use_openvino
         )
 
     def get_openvino_cache_status(self, weight_name: str | None = None) -> dict:
         if not weight_name:
             weight_name = self.active_weight_name
         if self.model_service:
-            return self.model_service.check_openvino_conversion_status(weight_name)
+            return self.model_service.check_openvino_conversion_status(weight_name or "")
         return {"status": "unknown"}
 
     def set_active_weight(self, name: str | None, dialog=None):
@@ -196,7 +197,9 @@ class HardwareStatusViewModel:
     # --- Recording / Live Session ---
 
     def start_live_camera_analysis(self, camera_index: int | None = None) -> Any:
-        return self.session_coordinator.start_live_camera_analysis(camera_index)
+        if self.session_coordinator:
+            return self.session_coordinator.start_live_camera_analysis(camera_index)
+        return None
 
     def start_live_project_session(
         self,
@@ -205,9 +208,11 @@ class HardwareStatusViewModel:
         subject: str,
         duration_s: float | None = None,
     ) -> Any:
-        return self.session_coordinator.start_live_project_session(
-            day=day, group=group, subject=subject, duration_s=duration_s
-        )
+        if self.session_coordinator:
+            return self.session_coordinator.start_live_project_session(
+                day=day, group=group, subject=subject, duration_s=duration_s
+            )
+        return None
 
     def start_live_session(self, **kwargs: Any) -> None:
         """Start a live session (delegates to SessionCoordinator)."""

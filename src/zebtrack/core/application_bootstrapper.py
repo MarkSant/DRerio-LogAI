@@ -497,7 +497,11 @@ class ApplicationBootstrapper:
         else:
             analysis_coord = AnalysisCoordinator(
                 root=self.deps.root,
-                ui_event_bus=self.deps.event_bus,
+                ui_event_bus=self.deps.event_bus
+                if self.deps.event_bus
+                else self.deps.ui_coordinator._create_fallback_event_bus()
+                if hasattr(self.deps.ui_coordinator, "_create_fallback_event_bus")
+                else None,  # type: ignore[arg-type]
                 ui_coordinator=self.deps.ui_coordinator,
                 settings_obj=self.settings,
                 project_manager=self.deps.project_manager,
@@ -573,7 +577,11 @@ class ApplicationBootstrapper:
         if ui_state_controller is None:
             ui_state_controller = UIStateController(
                 root=self.deps.root,
-                ui_event_bus=self.deps.event_bus,
+                ui_event_bus=self.deps.event_bus
+                if self.deps.event_bus
+                else self.deps.ui_coordinator._create_fallback_event_bus()
+                if hasattr(self.deps.ui_coordinator, "_create_fallback_event_bus")
+                else None,  # type: ignore[arg-type]
                 state_manager=self.state_manager,
                 ui_coordinator=self.deps.ui_coordinator,
                 project_manager=self.deps.project_manager,
@@ -616,7 +624,12 @@ class ApplicationBootstrapper:
         if self.deps.hardware_coordinator and self.deps.session_coordinator:
             self.deps.hardware_coordinator.set_recording_callbacks(
                 self.deps.session_coordinator.trigger_recording,
-                lambda: (self.deps.session_coordinator.stop_recording(), None)[1],
+                lambda: (
+                    self.deps.session_coordinator.stop_recording()
+                    if self.deps.session_coordinator
+                    else None,
+                    None,
+                )[1],
             )
 
     def _safe_get_default_weight(self) -> tuple[str | None, dict | None]:

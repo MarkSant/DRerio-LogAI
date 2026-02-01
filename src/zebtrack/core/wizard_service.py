@@ -187,7 +187,7 @@ class WizardService:
             return cls._camera_cache
 
         log.info("wizard_service.detect_cameras.start")
-        cameras: list[dict[str, int | str]] = []
+        cameras: list[dict[str, Any]] = []
         consecutive_failures = 0
         max_consecutive_failures = 3
 
@@ -207,7 +207,7 @@ class WizardService:
                     if cap.isOpened():
                         # CRITICAL: Verify camera can actually capture frames with timeout
                         # Some cameras report isOpened=True but never return frames (ghost cameras)
-                        test_result = {"success": False, "frame": None}
+                        test_result: dict[str, Any] = {"success": False, "frame": None}
                         result_lock = threading.Lock()
                         read_event = threading.Event()
 

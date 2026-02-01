@@ -78,6 +78,7 @@ class ZoneControlsWidget(BaseWidget):
         # False = parallel (1 pass), True = sequential (2 passes) - default True for better accuracy
         self.sequential_processing_var = tk.BooleanVar(value=True)
         # Apply processing mode to all videos (default True)
+        self.parent = parent
         self.apply_to_all_var = tk.BooleanVar(value=True)
 
         # Widget references
@@ -98,6 +99,7 @@ class ZoneControlsWidget(BaseWidget):
         self._video_tree_expanded = True
 
         # Multi-aquarium widget references
+        self._context_menu_video_path: str | None = None
         self.aquarium_selector_frame: ttk.LabelFrame | None = None
         self.aquarium_radio_1: ttk.Radiobutton | None = None
         self.aquarium_radio_2: ttk.Radiobutton | None = None
@@ -1223,14 +1225,30 @@ class ZoneControlsWidget(BaseWidget):
 
         if count >= 2:
             if self.aquarium_selector_frame:
-                self.aquarium_selector_frame.pack(
-                    fill="x",
-                    pady=5,
-                    padx=5,
-                    after=self.drawing_actions_parent.winfo_children()[0]
+                import tkinter as tk
+                from typing import cast
+
+                target_widget = (
+                    self.drawing_actions_parent.winfo_children()[0]
                     if self.drawing_actions_parent
-                    else None,
+                    else None
                 )
+                # Pack the frame
+            aquarium_frame = getattr(self, "aquarium_selector_frame", None)
+            if aquarium_frame:
+                if target_widget:
+                    aquarium_frame.pack(
+                        fill="x",
+                        pady=5,
+                        padx=5,
+                        after=cast(tk.Misc, target_widget),
+                    )
+                else:
+                    aquarium_frame.pack(
+                        fill="x",
+                        pady=5,
+                        padx=5,
+                    )
         else:
             if self.aquarium_selector_frame:
                 self.aquarium_selector_frame.pack_forget()

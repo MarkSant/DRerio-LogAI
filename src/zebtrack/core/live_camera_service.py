@@ -169,8 +169,10 @@ class LiveCameraService:
         # ✅ ARCHITECTURE v2.3.1: Separate priorities for video vs analysis
         # Video queue: LARGE (600 = 20s @ 30fps) - video recording is CRITICAL, never drop
         # Frame queue: Medium (180 = 6s @ 30fps) - analysis can lag behind real-time
-        self.frame_queue = queue.Queue(maxsize=180)
-        self.video_queue = queue.Queue(maxsize=600)  # Priority: recording > analysis
+        self.frame_queue: queue.Queue[Any] = queue.Queue(maxsize=180)
+        self.video_queue: queue.Queue[Any] = queue.Queue(
+            maxsize=600
+        )  # Priority: recording > analysis
         self.exit_event = threading.Event()
         self.capture_thread: threading.Thread | None = None
         self.processing_thread: threading.Thread | None = None
@@ -2040,32 +2042,34 @@ class LiveCameraService:
         # Start recorder
         if self.is_capturing_for_video and self.recorder:
             try:
-                if is_multi_aquarium and len(zone_data.aquariums) <= 2:
-                    # Multi-aquarium recording (max 2 aquariums)
-                    zones_by_aquarium = {
-                        aq_id: aq_data.zone for aq_id, aq_data in zone_data.aquariums.items()
-                    }
+                if isinstance(zone_data, MultiAquariumZoneData):
+                    # Type narrowed: zone_data is MultiAquariumZoneData
+                    if len(zone_data.aquariums) <= 2:
+                        # Multi-aquarium recording (max 2 aquariums)
+                        zones_by_aquarium = {
+                            aq_data.id: aq_data.to_zone_data() for aq_data in zone_data.aquariums
+                        }
 
-                    recorder_started = self.recorder.start_recording_multi_aquarium(
-                        output_folder=str(self.current_output_dir),
-                        width=self.camera.actual_width if self.camera else 640,
-                        height=self.camera.actual_height if self.camera else 480,
-                        zones_by_aquarium=zones_by_aquarium,
-                        base_name=f"{self._experiment_id}",
-                    )
+                        recorder_started = self.recorder.start_recording_multi_aquarium(
+                            output_folder=str(self.current_output_dir),
+                            width=self.camera.actual_width if self.camera else 640,
+                            height=self.camera.actual_height if self.camera else 480,
+                            zones_by_aquarium=zones_by_aquarium,
+                            base_name=f"{self._experiment_id}",
+                        )
 
-                    log.info(
-                        "live_camera_service.recorder_started_multi_aquarium",
-                        aquarium_count=len(zones_by_aquarium),
-                    )
-                elif is_multi_aquarium and len(zone_data.aquariums) > 2:
-                    # Exceeds 2-aquarium limit
-                    log.error(
-                        "live_camera_service.multi_aquarium_limit_exceeded",
-                        count=len(zone_data.aquariums),
-                        max=2,
-                    )
-                    return
+                        log.info(
+                            "live_camera_service.recorder_started_multi_aquarium",
+                            aquarium_count=len(zones_by_aquarium),
+                        )
+                    elif len(zone_data.aquariums) > 2:
+                        # Exceeds 2-aquarium limit
+                        log.error(
+                            "live_camera_service.multi_aquarium_limit_exceeded",
+                            count=len(zone_data.aquariums),
+                            max=2,
+                        )
+                        return
                 else:
                     # Standard single aquarium recording
                     recorder_started = self.recorder.start_recording(
@@ -2147,10 +2151,10 @@ class LiveCameraService:
             half = side / 2
 
             arena_polygon = [
-                [cx - half, cy - half],
-                [cx + half, cy - half],
-                [cx + half, cy + half],
-                [cx - half, cy + half],
+                [int(cx - half), int(cy - half)],
+                [int(cx + half), int(cy - half)],
+                [int(cx + half), int(cy + half)],
+                [int(cx - half), int(cy + half)],
             ]
 
             log.info(
@@ -2262,12 +2266,10 @@ class LiveCameraService:
             if hasattr(detector, "detect_partitioned_optimized"):
                 all_detections = detector.detect_partitioned_optimized(
                     frame=frame,
-                    zone_data=zone_data,
                 )
             elif hasattr(detector, "detect_partitioned_parallel"):
                 all_detections = detector.detect_partitioned_parallel(
                     frame=frame,
-                    zone_data=zone_data,
                 )
             else:
                 # Fallback to sequential processing
