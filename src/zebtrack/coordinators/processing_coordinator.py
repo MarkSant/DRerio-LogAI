@@ -2187,10 +2187,13 @@ class ProcessingCoordinator(BaseCoordinator):
                     if not aq.subject_id:
                         missing_subjects.append(f"Aquário {aq.id}")
 
+                if not video_path:
+                    continue
+
                 if missing_subjects:
                     log.error(
                         "workflow.multi_aquarium.incomplete_metadata",
-                        video=os.path.basename(video_path),
+                        video=os.path.basename(str(video_path)),
                         missing=missing_subjects,
                     )
                     self._publish_event(
@@ -2198,7 +2201,7 @@ class ProcessingCoordinator(BaseCoordinator):
                         {
                             "title": "Configuração Incompleta",
                             "message": (
-                                f"O vídeo '{os.path.basename(video_path)}' tem aquários "
+                                f"O vídeo '{os.path.basename(str(video_path))}' tem aquários "
                                 f"sem sujeito definido:\n\n"
                                 f"{', '.join(missing_subjects)}\n\n"
                                 f"Por favor:\n"
@@ -3009,7 +3012,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 if target_aq:
                     target_aq.group = group
                     target_aq.subject_id = subject_id
-                    target_aq.day = str(day) if day else "1"
+                    target_aq.day = int(day) if day else 1
                     updated = True
                     log.info(
                         "assignment_complete.aquarium_updated",
@@ -3150,8 +3153,8 @@ class ProcessingCoordinator(BaseCoordinator):
         data_changed = False
 
         # Get expected ROI names from first video for schema standardization
-        video_paths = [v.get("path") for v in target_videos if v.get("path")]
-        expected_roi_names = self._find_project_roi_names(video_paths) if video_paths else None
+        valid_paths = [str(v.get("path")) for v in target_videos if v.get("path")]
+        expected_roi_names = self._find_project_roi_names(valid_paths) if valid_paths else None
 
         for video in target_videos:
             state = None
@@ -3323,14 +3326,14 @@ class ProcessingCoordinator(BaseCoordinator):
 
                 # Validate adjusted points
                 points_outside = 0
-                for point in adjusted_points:
-                    result = cv2.pointPolygonTest(arena_poly, tuple(point), False)
+                for apt in adjusted_points:
+                    result = cv2.pointPolygonTest(arena_poly, tuple(apt), False)
                     if result < 0:
                         points_outside += 1
 
                 # If adjustment worked, use adjusted points
                 if points_outside == 0:
-                    roi_points = adjusted_points
+                    roi_points = [[int(pt[0]), int(pt[1])] for pt in adjusted_points]
 
                 if points_outside > 0:
                     outside_percent = (points_outside / len(roi_points)) * 100
@@ -3784,13 +3787,11 @@ class ProcessingCoordinator(BaseCoordinator):
         log.info("workflow.unified_report.start", count=len(video_paths))
         self._publish_event(Events.UI_SET_STATUS, {"message": "Gerando relatório unificado..."})
 
-        if not self.project_manager.project_path:
-            self._publish_event(
-                Events.UI_SHOW_ERROR, {"title": "Erro", "message": "Nenhum projeto carregado."}
-            )
+        project_path = self.project_manager.project_path
+        if not project_path:
             return
 
-        unified_dir = self.project_manager.project_path / "unified_reports"
+        unified_dir = Path(project_path) / "unified_reports"
         unified_dir.mkdir(parents=True, exist_ok=True)
 
         dfs = []

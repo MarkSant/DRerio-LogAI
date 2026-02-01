@@ -96,7 +96,7 @@ class LiveAnalysisDialog(Dialog):
 
         # UI state
         self.camera_selection_var = StringVar(value="")
-        self.camera_index_map = {}
+        self.camera_index_map: dict[str, int] = {}
         self.duration_var = DoubleVar(
             value=settings_obj.live_analysis.default_duration_s if settings_obj else 300.0
         )
@@ -154,7 +154,7 @@ class LiveAnalysisDialog(Dialog):
 
         set_window_icon(self)
 
-    def body(self, master: Frame) -> Frame:
+    def body(self, master: Frame) -> Any:
         """Create dialog body."""
         # Main container with padding
         container = ttk.Frame(master, padding=10)

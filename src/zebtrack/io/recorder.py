@@ -60,7 +60,7 @@ class Recorder:
         self.video_writer: cv2.VideoWriter | None = None
         self.base_name = ""
         self.output_folder = ""
-        self.start_time = 0
+        self.start_time: float = 0.0
         self.frame_count = 0
         self.recording_start_frame = 0
         self.detection_data: list[dict[str, Any]] = []
@@ -1138,10 +1138,7 @@ class Recorder:
         Args:
             exc_type: Exception type if raised
             exc_val: Exception value if raised
-            exc_tb: Exception traceback if raised
-
-        Returns:
-            False to propagate exceptions
+            exc_tb: Traceback for diagnostic purposes
         """
         try:
             if self.is_recording:
@@ -1153,7 +1150,6 @@ class Recorder:
                     self.stop_recording()
         except Exception as e:
             log.error("recorder.cleanup.failed", error=str(e))
-        return False  # Don't suppress exceptions
 
 
 if __name__ == "__main__":

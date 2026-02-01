@@ -331,7 +331,7 @@ class Camera(FrameSource):
 
             return (True, frame)
 
-    def release(self) -> bool:
+    def release(self) -> None:
         """
         Signals the reader thread to stop and releases the camera resource.
 
@@ -340,7 +340,6 @@ class Camera(FrameSource):
         log.info("camera.release.started")
         self._stopped.set()
         self._reconnect_state_ready.set()
-        cleanup_success = True
 
         # Wait for thread to finish with timeout
         self._thread.join(timeout=2)
@@ -352,13 +351,11 @@ class Camera(FrameSource):
                 message="Thread did not terminate after 2s, forcing camera close",
             )
             # Force close the capture to unblock thread stuck in read()
-            # This is the aggressive part: close the resource to break the blocking call
             try:
                 if self.cap.isOpened():
                     self.cap.release()
             except Exception as e:
                 log.error("camera.release.force_close_failed", error=str(e))
-                cleanup_success = False
 
             # Give thread more time to finish after forced close
             self._thread.join(timeout=1)
@@ -368,7 +365,6 @@ class Camera(FrameSource):
                     "camera.release.thread_zombie",
                     message="Thread still alive after forced close - potential resource leak",
                 )
-                cleanup_success = False
         else:
             # Thread terminated normally, safe to release capture if not already done
             try:
@@ -377,9 +373,6 @@ class Camera(FrameSource):
                     log.info("camera.released")
             except Exception as e:
                 log.error("camera.release.normal_close_failed", error=str(e))
-                cleanup_success = False
-
-        return cleanup_success
 
     def __enter__(self) -> "Camera":
         """Enter context manager - camera is already initialized."""

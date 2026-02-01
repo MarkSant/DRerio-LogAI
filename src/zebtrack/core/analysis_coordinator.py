@@ -10,7 +10,7 @@ import os
 from collections.abc import Callable
 from concurrent.futures import CancelledError, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from zebtrack.core.ui_coordinator import UICoordinator
@@ -81,7 +81,7 @@ class AnalysisCoordinator:
         self.video_processing_service = video_processing_service
 
         # Callback for refreshing project views (set by MainViewModel)
-        self._refresh_project_views_callback = None
+        self._refresh_project_views_callback: Callable[..., None] | None = None
 
         # Thread pool executor for background tasks
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="analysis_worker")
@@ -469,7 +469,7 @@ class AnalysisCoordinator:
             callback: Function to call for refreshing project views.
                      Accepts optional keyword arguments (reason, append_summary, etc.)
         """
-        self._refresh_project_views_callback: Any = callback
+        self._refresh_project_views_callback = callback
 
     def _generate_parquet_summaries_worker(self, target_videos: list[dict], settings_obj) -> None:
         """Worker method to generate parquet summaries for a list of videos.

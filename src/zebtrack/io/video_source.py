@@ -93,10 +93,12 @@ if __name__ == "__main__":
         print("Failed to create a dummy video writer.")
     else:
         for i in range(100):
-            frame = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
+            dummy_frame = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
             text = f"Frame {i + 1}"
-            cv2.putText(frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            writer.write(frame)
+            cv2.putText(
+                dummy_frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2
+            )
+            writer.write(dummy_frame)
         writer.release()
         print(f"Created a dummy video file: {test_video_path}")
 
