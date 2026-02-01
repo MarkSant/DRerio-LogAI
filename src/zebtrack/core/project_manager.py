@@ -181,10 +181,13 @@ class ProjectManager:
     ) -> dict[str, Any]:
         """Save an ROI template. Delegates to AssetManager."""
         persist_callback = self.save_project if persist else None
-        assert self.project_path is not None
+        if save_location in (None, "project") and self.project_path is None:
+            raise ValueError(
+                "Não é possível salvar o template no projeto atual: projeto não carregado."
+            )
         return self.asset_manager.save_roi_template(
             project_data=self.project_data,
-            project_path=self.project_path,
+            project_path=self.project_path or "",
             name=name,
             zone_data=zone_data,
             zone_data_to_dict_fn=self._zone_data_to_dict,
@@ -205,7 +208,6 @@ class ProjectManager:
     ) -> dict[str, Any]:
         """Import an ROI template from file. Delegates to AssetManager."""
         persist_callback = self.save_project if persist and self.project_path else None
-        assert self.project_path is not None
         return self.asset_manager.import_roi_template(
             project_data=self.project_data,
             project_path=self.project_path,

@@ -315,7 +315,7 @@ class EventDispatcher:
         self.event_bus.subscribe(
             Events.UI_APPEND_ARDUINO_LOG,
             lambda d: self.gui.arduino_dashboard_widget.append_log(
-                d.get("message") if isinstance(d, dict) else ""
+                str(d.get("message") or "") if isinstance(d, dict) else ""
             )
             if self.gui.arduino_dashboard_widget
             else None,
@@ -324,6 +324,8 @@ class EventDispatcher:
         # View Navigation & Modes
         def _handle_navigate_to_analysis(d):
             log.info("event_dispatcher.navigate_to_analysis_view.received")
+            if not self.gui:
+                return
             self.gui.start_analysis_view_mode()
 
         log.info(

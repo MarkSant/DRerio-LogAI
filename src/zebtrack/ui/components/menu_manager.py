@@ -8,7 +8,6 @@ import os
 import tkinter.font as tkfont
 from pathlib import Path
 from tkinter import Menu, Toplevel, messagebox, ttk
-from typing import Callable
 
 import structlog
 from PIL import Image, ImageTk
@@ -453,7 +452,7 @@ class MenuManager:
         column_id: str,
         x: int,
         y: int,
-        callbacks: dict[str, Callable],
+        callbacks: dict[str, callable],
     ) -> None:
         """Show context menu for processing reports tree items.
 

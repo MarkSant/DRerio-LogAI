@@ -736,7 +736,9 @@ class AnalysisService:
             }
         else:
             params = {
-                "freezing_vel_threshold": self.settings.video_processing.freezing_velocity_threshold,
+                "freezing_vel_threshold": (
+                    self.settings.video_processing.freezing_velocity_threshold
+                ),
                 "freezing_min_duration": self.settings.video_processing.freezing_min_duration_s,
                 "smoothing_window_length": self.settings.trajectory_smoothing.window_length,
                 "smoothing_polyorder": self.settings.trajectory_smoothing.polyorder,
@@ -757,7 +759,7 @@ class AnalysisService:
             }
 
         # Add behavioral defaults if available
-        if hasattr(self.settings, "behavioral_analysis"):
+        if self.settings and hasattr(self.settings, "behavioral_analysis"):
             ba_cfg = self.settings.behavioral_analysis
             # Get perspective - lateral enables geotaxis by default
             perspective = getattr(ba_cfg, "aquarium_perspective", "lateral")

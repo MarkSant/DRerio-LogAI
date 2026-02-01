@@ -312,8 +312,8 @@ class DetectorCoordinator(BaseCoordinator):
                 if isinstance(zones_data, list):
                     count = len(zones_data)
                 elif zones_data:
-                    # For ZoneData/MultiAquariumZoneData, treating as 1 config object or trying to count items
-                    # Using simple check to avoid heavy access
+                    # For ZoneData/MultiAquariumZoneData, treat as 1 config object
+                    # or try to count items using a simple check to avoid heavy access.
                     count = 1
                     if hasattr(zones_data, "aquariums"):  # MultiAquariumZoneData
                         count = len(getattr(zones_data, "aquariums", []))

@@ -256,11 +256,11 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
     def create_project(  # noqa: C901
         self,
         *,
-        setup_detector_callback: Callable[[Any], None] | None = None,
-        set_active_weight_callback: Callable[[str, Any], None] | None = None,
-        set_openvino_usage_callback: Callable[[bool, Any], None] | None = None,
+        setup_detector_callback: Callable[[str | None], bool] | None = None,
+        set_active_weight_callback: Callable[[str], None] | None = None,
+        set_openvino_usage_callback: Callable[[bool], None] | None = None,
         update_openvino_status_callback: Callable[[], None] | None = None,
-        get_active_weight_name: Callable[[], str | None] | None = None,
+        get_active_weight_name: Callable[[], str] | None = None,
         get_use_openvino: Callable[[], bool] | None = None,
         apply_wizard_overrides_callback: Callable[[dict], None] | None = None,
         **wizard_data,
@@ -286,7 +286,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         # Provide default callbacks using available dependencies
         # These are safe no-op defaults when specific callbacks are not provided
-        def _default_setup_detector(animal_method: Any) -> bool:
+        def _default_setup_detector(animal_method: str | None) -> bool:
             """Default detector setup using detector_service if available."""
             if self.detector_service:
                 try:
@@ -403,13 +403,13 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self,
         project_path: Path | str,
         *,
-        setup_detector_callback: Callable[[Any], None] | None = None,
-        set_active_weight_callback: Callable[[str, Any], None] | None = None,
-        set_openvino_usage_callback: Callable[[bool, Any], None] | None = None,
+        setup_detector_callback: Callable[[], bool] | None = None,
+        set_active_weight_callback: Callable[[str], None] | None = None,
+        set_openvino_usage_callback: Callable[[bool], None] | None = None,
         update_openvino_status_callback: Callable[[], None] | None = None,
         setup_zones_callback: Callable[[], None] | None = None,
-        restore_detector_callback: Callable[[], None] | None = None,
-        get_active_weight_name: Callable[[], str | None] | None = None,
+        restore_detector_callback: Callable[[dict], None] | None = None,
+        get_active_weight_name: Callable[[], str] | None = None,
         get_use_openvino: Callable[[], bool] | None = None,
     ) -> bool:
         """Open existing project and configure everything automatically.
@@ -1006,7 +1006,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
     def _setup_zones_from_project(
         self,
-        setup_detector_zones_callback: Callable[[Any], None] | None = None,
+        setup_detector_zones_callback: Callable[[], None] | None = None,
     ) -> None:
         """Set up zones from project data.
 

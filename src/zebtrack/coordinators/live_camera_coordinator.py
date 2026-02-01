@@ -327,7 +327,8 @@ class LiveCameraCoordinator(BaseCoordinator):
                 return False
 
             # Delegate to service
-            success = self.live_camera_service.stop_session()
+            self.live_camera_service.stop_session()
+            success = True
 
             # Update state
             self._active_session_id = None
@@ -533,7 +534,7 @@ class LiveCameraCoordinator(BaseCoordinator):
         # Duration: use from config (user-editable), fallback to setting or default
         duration_s = config.get("duration_s")
         if duration_s is None:
-            if hasattr(self.settings, "live_analysis"):
+            if self.settings and hasattr(self.settings, "live_analysis"):
                 duration_s = self.settings.live_analysis.default_duration_s
             else:
                 duration_s = 300.0  # 5 minutes default
@@ -578,6 +579,10 @@ class LiveCameraCoordinator(BaseCoordinator):
             # Open camera temporarily to get dimensions
             from zebtrack.io.camera import Camera
 
+            if not self.settings:
+                log.error("coordinator.live_analysis.missing_settings")
+                return False
+
             temp_settings = self.settings.model_copy(deep=True)
             temp_settings.camera.index = camera_index
             temp_settings.camera.desired_width = 1280
@@ -597,10 +602,10 @@ class LiveCameraCoordinator(BaseCoordinator):
                 half = side / 2
 
                 default_arena = [
-                    [cx - half, cy - half],
-                    [cx + half, cy - half],
-                    [cx + half, cy + half],
-                    [cx - half, cy + half],
+                    [int(cx - half), int(cy - half)],
+                    [int(cx + half), int(cy - half)],
+                    [int(cx + half), int(cy + half)],
+                    [int(cx - half), int(cy + half)],
                 ]
 
                 zone_data = ZoneData(polygon=default_arena)

@@ -151,8 +151,10 @@ class TabBuilder:
         )
         self.gui.video_display.pack(expand=True, fill="both")
 
-        self.gui._roi_canvas_widget = self.gui.video_display.canvas
-        self.gui._roi_canvas_widget.bind("<Configure>", self.gui._on_canvas_configure)
+        roi_canvas = self.gui.video_display.canvas
+        self.gui._roi_canvas_widget = roi_canvas
+        if roi_canvas:
+            roi_canvas.bind("<Configure>", self.gui._on_canvas_configure)
 
         # 7. ✨ NEW: Create context menu before subscribing to events
         gui.roi_context_menu = None

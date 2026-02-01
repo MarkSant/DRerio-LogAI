@@ -826,7 +826,7 @@ class _WorkerProcess(multiprocessing.Process):
                     return False
 
                 should_process = frame_num % self.config.analysis_interval_frames == 0
-                detections: list[dict[str, Any]] = []
+                detections: list[tuple[Any, ...]] = []
 
                 if should_process:
                     # OPTIMIZATION: Only decode frames that will be processed
@@ -844,7 +844,7 @@ class _WorkerProcess(multiprocessing.Process):
                         log.debug("worker.detect_multi.start", frame=frame_num)
                         partitioned_detections = detector.detect_partitioned_optimized(frame)
                         log.debug("worker.detect_multi.end", frame=frame_num)
-                        detections: list[tuple[Any, ...]] = []
+                        detections = []
                         for aq_dets in partitioned_detections.values():
                             detections.extend(aq_dets)
                     else:

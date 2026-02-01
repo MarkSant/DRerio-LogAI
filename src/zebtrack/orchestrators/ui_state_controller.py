@@ -364,6 +364,8 @@ class UIStateController:
 
     def update_openvino_status(self, dialog=None):
         """Update the status label in the GUI based on the current state."""
+        if not self.main_view_model:
+            return
         status = self.main_view_model.get_openvino_status()
         if dialog:
             dialog.update_openvino_status_label(status)
@@ -543,6 +545,8 @@ class UIStateController:
 
     def _show_cancel_feedback(self) -> None:
         """Update UI immediately after a cancellation request."""
+        if not self.main_view_model or not self.view:
+            return
         if self.main_view_model._cancel_feedback_displayed:
             return
 
@@ -575,10 +579,15 @@ class UIStateController:
 
     def _prepare_processing_ui(self, total_videos: int) -> None:
         # Phase 4: Use UICoordinator for UI updates
-        self.ui_coordinator.show_progress_bar(self.view)
+        if not self.view:
+            return
+        view = self.view
+        self.ui_coordinator.show_progress_bar(view)
         self.ui_coordinator.schedule_after(
             0,
-            lambda: self.view.set_status(f"Iniciando processamento para {total_videos} vídeos..."),
+            lambda: view.set_status(
+                f"Iniciando processamento para {total_videos} vídeos..."
+            ),
         )
         self.project_manager.set_active_zone_video(None)
 
@@ -590,6 +599,8 @@ class UIStateController:
         final_output_dir: str,
     ) -> None:
         # Phase 4: Use UICoordinator for UI updates
+        if not self.view:
+            return
         self.project_manager.set_active_zone_video(None)
         self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
         self.ui_coordinator.hide_progress_bar(self.view)

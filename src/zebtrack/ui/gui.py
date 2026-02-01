@@ -171,6 +171,7 @@ class ApplicationGUI:
         # Phase 2.5: Initialize UI Coordinator (Mediator)
         self.ui_coordinator = UICoordinator(
             event_bus=self.event_bus_v2,
+            legacy_event_bus=self.event_bus,
             canvas_manager=self.canvas_manager,
             validation_manager=self.validation_manager,
             project_view_manager=self.project_view_manager,
@@ -218,6 +219,8 @@ class ApplicationGUI:
         self.video_display: Any | None = None
         self.controls_canvas: Any | None = None
         self.controls_canvas_window: Any | None = None
+        self.zone_controls_frame: Any | None = None
+        self._roi_canvas_widget: Any | None = None
         self.controls_scrollbar: Any | None = None  # Added for WidgetFactory
         self.fixed_button_frame: ttk.Frame | None = None
         self.roi_data: dict[str, Any] = {}  # Added for TabBuilder
@@ -336,9 +339,9 @@ class ApplicationGUI:
         # Arduino dashboard widget (live projects)
         self.arduino_dashboard_widget: ArduinoDashboardWidget | None = None
         self.external_trigger_notice_var = StringVar(value="")
-        self.external_trigger_notice_label = None
-        self._external_notice_default_bg = None
-        self._external_notice_default_fg = None
+        self.external_trigger_notice_label: Label | None = None
+        self._external_notice_default_bg: str | None = None
+        self._external_notice_default_fg: str | None = None
 
         # Defer controller state initialization to avoid tight coupling during __init__
         self.root.after(100, self._post_init)

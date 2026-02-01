@@ -24,7 +24,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import cv2
 import numpy as np
@@ -457,7 +457,7 @@ def _benchmark_pytorch_cuda(
     num_iterations: int = 30,
 ) -> dict[str, BenchmarkResult]:
     """Benchmark PyTorch CUDA inference (for NVIDIA GPUs)."""
-    results = {}
+    results: dict[str, BenchmarkResult] = {}
 
     try:
         import torch
@@ -678,7 +678,7 @@ def _generate_recommendation(
 
 def run_adaptive_benchmark(
     quick_mode: bool = False,
-    progress_callback: callable | None = None,
+    progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> SystemBenchmarkResult:
     """
     Run adaptive benchmark based on detected hardware.
@@ -859,7 +859,7 @@ def save_benchmark_cache(result: SystemBenchmarkResult) -> None:
 def get_or_run_benchmark(
     force_rerun: bool = False,
     quick_mode: bool = False,
-    progress_callback: callable | None = None,
+    progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> SystemBenchmarkResult:
     """
     Get benchmark results from cache or run new benchmark if needed.

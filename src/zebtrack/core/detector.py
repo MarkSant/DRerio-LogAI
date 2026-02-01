@@ -558,7 +558,27 @@ class Detector:
         self._validate_frame(frame)
 
         if not self._zones_configured:
-            raise RuntimeError("Must call set_zones() before detect().")
+            raise RuntimeError(
+                "Must call set_zones() before detect(). "
+                "Zones need video dimensions for proper scaling."
+            )
+
+        if self._last_width and self._last_height:
+            expected = (self._last_width, self._last_height)
+            actual = (frame.shape[1], frame.shape[0])
+            if expected != actual:
+                log.warning(
+                    "detector.dimension_mismatch",
+                    expected=expected,
+                    actual=actual,
+                    message=(
+                        "Frame dimensions differ from dimensions used to set zones. "
+                        "This may cause inaccurate detection scaling."
+                    ),
+                )
+
+        if self.scaled_polygon.size == 0:
+            return [], None
 
         crop_info = self._get_crop_info(frame)
         if crop_info is None:
@@ -568,7 +588,68 @@ class Detector:
         raw_detections = self.plugin.detect(cropped_frame, conf_threshold=conf_threshold)
 
         predictions = self._offset_detections(raw_detections, crop_x1, crop_y1)
+
+        if self.scaled_polygon.size > 0:
+            filtered = []
+            for det in predictions:
+                x1, y1, x2, y2 = det[0], det[1], det[2], det[3]
+                if self._is_inside_polygon(
+                    int(x1),
+                    int(y1),
+                    int(x2),
+                    int(y2),
+                    self.scaled_polygon,
+                ):
+                    filtered.append(det)
+            predictions = filtered
+
+        predictions = self._apply_class_mismatch_fallback(predictions)
+        if self.animal_class_id is not None:
+            predictions = [det for det in predictions if det[6] == self.animal_class_id]
+
+        if self.settings is None and not self._single_subject_mode and len(predictions) > 1:
+            from zebtrack.tracker.basetrack import BaseTrack
+
+            tracked = [
+                (
+                    int(det[0]),
+                    int(det[1]),
+                    int(det[2]),
+                    int(det[3]),
+                    float(det[4]),
+                    BaseTrack.next_id(),
+                    int(det[6]),
+                )
+                for det in predictions
+            ]
+            return tracked, None
+
         return self.track(predictions, project_type)
+
+    def _apply_class_mismatch_fallback(self, detections: list[tuple]) -> list[tuple]:
+        """Convert small aquarium-class detections into animal-class detections."""
+        if (
+            not detections
+            or self.scaled_polygon.size == 0
+            or self.aquarium_class_id is None
+            or self.animal_class_id is None
+        ):
+            return detections
+
+        arena_area = cv2.contourArea(self.scaled_polygon)
+        if arena_area <= 0:
+            return detections
+
+        adjusted: list[tuple] = []
+        for det in detections:
+            x1, y1, x2, y2, conf, track_id, class_id = det
+            if class_id == self.aquarium_class_id:
+                det_area = max(0.0, float(x2 - x1)) * max(0.0, float(y2 - y1))
+                if det_area / arena_area < 0.5:
+                    class_id = self.animal_class_id
+            adjusted.append((x1, y1, x2, y2, conf, track_id, class_id))
+
+        return adjusted
 
     def track(self, predictions: list[tuple], project_type: str) -> tuple[list[tuple], str | None]:
         """
@@ -978,6 +1059,28 @@ class Detector:
                     )
                     for det in detections
                 ]
+
+        if len(results) < len(detections) and not self._single_subject_mode:
+            from zebtrack.tracker.basetrack import BaseTrack
+
+            log.warning(
+                "detector.bytetrack.fallback_simple_ids",
+                num_tracks=len(results),
+                num_detections=len(detections),
+                reason="bytetrack_returned_fewer_tracks_than_detections",
+            )
+            results = [
+                (
+                    int(det[0]),
+                    int(det[1]),
+                    int(det[2]),
+                    int(det[3]),
+                    float(det[4]),
+                    BaseTrack.next_id(),
+                    int(det[6]),
+                )
+                for det in detections
+            ]
 
         # 🔧 FIX: Re-filter tracked positions by polygon
         # ByteTracker's Kalman filter can predict positions OUTSIDE the arena,

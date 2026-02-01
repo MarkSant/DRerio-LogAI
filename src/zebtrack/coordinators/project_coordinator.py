@@ -224,9 +224,11 @@ class ProjectCoordinator(BaseCoordinator):
                 if self.project_manager.settings and hasattr(
                     self.project_manager.settings, "paths"
                 ):
-                    project_path_obj = (
-                        self.project_manager.settings.paths.projects_dir / project_name
-                    )
+                    projects_dir = self.project_manager.settings.paths.projects_dir
+                    if isinstance(projects_dir, Path):
+                        project_path_obj = projects_dir / project_name
+                    else:
+                        project_path_obj = Path(str(projects_dir)) / project_name
                 else:
                     # Fallback default if settings not available (unlikely)
                     project_path_obj = Path.home() / "ZebTrack" / "Projects" / project_name

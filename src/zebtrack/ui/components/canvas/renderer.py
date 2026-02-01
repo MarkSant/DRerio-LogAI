@@ -80,7 +80,11 @@ class CanvasRenderer:
         self.manager._bg_offset = (offset_x, offset_y)
 
         # Scale the image
-        image = self.manager._raw_bg_image.resize((new_width, new_height), Image.LANCZOS)
+        try:
+            resampling = Image.Resampling.LANCZOS
+        except AttributeError:
+            resampling = Image.LANCZOS  # type: ignore[attr-defined]
+        image = self.manager._raw_bg_image.resize((new_width, new_height), resampling)
 
         # Clear canvas and display centered image
         canvas.delete("all")

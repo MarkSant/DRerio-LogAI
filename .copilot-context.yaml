@@ -95,9 +95,9 @@ testing:
 # === DOCS PRIORITY ===
 # Read these docs first before making architectural changes
 critical_docs:
-  - "docs/ARCHITECTURE.md"
-  - "docs/DEPENDENCY_INJECTION_GUIDE.md"
-  - "docs/REFERENCE_GUIDE.md"
+  - "docs/architecture/ARCHITECTURE.md"
+  - "docs/architecture/DEPENDENCY_INJECTION_GUIDE.md"
+  - "docs/reference/REFERENCE_GUIDE.md"
   - ".github/copilot-instructions.md"
 
 # === FILE STATS ===

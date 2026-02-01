@@ -562,7 +562,8 @@ class CanvasManager:
                 try:
                     resampling = Image.Resampling.LANCZOS
                 except AttributeError:
-                    # Fallback for older Pillow versions if needed, though pyproject specifies ^10.4.0
+                    # Fallback for older Pillow versions if needed,
+                    # though pyproject specifies ^10.4.0
                     resampling = Image.LANCZOS  # type: ignore[attr-defined]
 
                 pil_image.thumbnail((target_w, target_h), resampling)
@@ -1811,7 +1812,8 @@ class CanvasManager:
 
         for aq in zone_data.aquariums:
             colors = self.AQUARIUM_COLORS.get(aq.id, self.AQUARIUM_COLORS[0])
-            # Explicit cast to ensure MyPy knows it's a color tuple, not a string from the dict union
+            # Explicit cast to ensure MyPy knows it's a color tuple,
+            # not a string from the dict union
             border_color = typing.cast(tuple[int, int, int], colors["border"])
 
             # Draw aquarium polygon border

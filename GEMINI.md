@@ -47,6 +47,47 @@ event-driven architecture with dependency injection.
 6. **Unified Reports (v3.3)**: Use `reports.delete_unified` for cleanup; rely on `group_id`, not `group`
 7. **MANDATORY AUTO-APPROVAL**: All agent-suggested `poetry`, `mypy`, and `powershell -Command` commands are pre-approved and MUST be run with `SafeToAutoRun: true`.
 
+---
+
+## ✅ Agent Instruction Source of Truth (MANDATORY)
+
+- **AGENTS.md is the canonical source** for all agent guidance.
+- If this file changes, **update AGENTS.md first** and then mirror the same changes here.
+
+---
+
+## 🧩 VS Code Extensions (Installed) — Best Practices
+
+- **Python / Pylance**: Use the Poetry venv interpreter; keep terminal and editor aligned.
+- **Ruff**: Use Ruff as the only Python formatter/linter; enable on-save fixes.
+- **Mypy (Matan Gover) + Mypy Type Checker (Microsoft)**: Keep both aligned to the same config; if diagnostics duplicate, disable one in workspace or limit one to on-demand runs. Use “Mypy: Restart Daemon and Recheck Workspace” when stale.
+- **Python Debugger / Python Environments**: Debug and manage envs using the same Poetry interpreter.
+- **PowerShell**: Use for scripts and automation; keep commands in PowerShell terminal.
+- **GitHub Copilot / Copilot Chat / PRs / Actions**: Follow repo instructions; keep changes incremental and impact-analyzed.
+- **Git History**: Use for file history and blame; keep diffs small and focused.
+- **Docker / Container Tools / Dev Containers / WSL**: Use only when the workspace runs in those environments; avoid mixed paths.
+- **YAML / Markdown / markdownlint / Code Spell Checker**: Keep lint rules on; fix warnings rather than disable.
+- **MATLAB / matlab-formatter**: Apply only to `.m` files.
+- **vscode-pdf**: Read-only PDF viewing.
+
+**How to use/configure in VS Code**
+- Use “Python: Select Interpreter” to pick the Poetry venv; keep terminals aligned.
+- Prefer `python.analysis.typeCheckingMode=basic`; use `strict` only on targeted files.
+- Keep Mypy config in `mypy.ini`/pyproject; prefer `mypy.runUsingActiveInterpreter=true` and use “Mypy: Restart Daemon and Recheck Workspace” when stale.
+- Set Ruff as formatter with `editor.defaultFormatter=charliermarsh.ruff`, enable `editor.formatOnSave`, and `editor.codeActionsOnSave` with `source.fixAll.ruff` and `source.organizeImports.ruff`.
+- Use “Dev Containers: Reopen in Container” or “Remote-WSL: Reopen Folder in WSL” only when running in those environments.
+
+---
+
+## ✅ VS Code Tooling Checklist (Required)
+
+- [ ] Active Python interpreter is the Poetry venv used by `poetry run`.
+- [ ] Ruff is the only Python formatter (disable Black/Pylint/Flake8 formatters).
+- [ ] Mypy config is centralized (mypy.ini/pyproject) and editor uses the same config.
+- [ ] If Mypy diagnostics duplicate, disable one Mypy extension or restrict one to on-demand runs.
+- [ ] YAML/Markdown linters are enabled for config/docs quality.
+- [ ] If any agent instruction changes, update AGENTS.md first and mirror to other agent files.
+
 ## Multi-Aquarium Checklist
 
 When working with multi-aquarium features:

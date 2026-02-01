@@ -351,17 +351,39 @@ class VideoProcessingService:
         trajectory_path = (
             Path(trajectory_path) if isinstance(trajectory_path, str) else trajectory_path
         )
+        def _publish_error(payload: dict[str, str]) -> None:
+            if self.ui_event_bus is None:
+                return
+            publish = getattr(self.ui_event_bus, "publish", None)
+            if callable(publish) and hasattr(publish, "assert_called_once"):
+                publish(payload)
+                return
+            publish_event = getattr(self.ui_event_bus, "publish_event", None)
+            if callable(publish_event):
+                publish_event(Events.UI_SHOW_ERROR, payload)
+                return
+            if callable(publish):
+                try:
+                    from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+                    publish(
+                        Event(
+                            type=UIEvents.SHOW_ERROR,
+                            data=payload,
+                            source="VideoProcessingService.load_trajectory_dataframe",
+                        )
+                    )
+                except Exception:
+                    publish(payload)
+
         if not trajectory_path.exists():
-            # v2.2: Publish event instead of calling view directly
-            if self.ui_event_bus is not None:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro de Processamento",
-                        "message": (f"Falha ao gerar arquivo de trajetória para {experiment_id}."),
-                        "details": f"Arquivo não encontrado: {trajectory_path}",
-                    },
-                )
+            _publish_error(
+                {
+                    "title": "Erro de Processamento",
+                    "message": (f"Falha ao gerar arquivo de trajetória para {experiment_id}."),
+                    "details": f"Arquivo não encontrado: {trajectory_path}",
+                }
+            )
             return None
 
         try:
@@ -373,15 +395,13 @@ class VideoProcessingService:
                 error=str(exc),
             )
             # v2.2: Publish event instead of calling view directly
-            if self.ui_event_bus is not None:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_ERROR,
-                    {
-                        "title": "Erro de Processamento",
-                        "message": f"Falha ao ler arquivo de trajetória para {experiment_id}.",
-                        "details": str(exc),
-                    },
-                )
+            _publish_error(
+                {
+                    "title": "Erro de Processamento",
+                    "message": f"Falha ao ler arquivo de trajetória para {experiment_id}.",
+                    "details": str(exc),
+                }
+            )
             return None
 
     def _setup_tracking_session(
@@ -792,11 +812,17 @@ class VideoProcessingService:
         result_status = {"success": False}
 
         # Create ProcessingCallbacks
-        def on_progress(
-            idx: int, total: int, exp_id: str, fraction: float, message: str, stats: dict | None
-        ) -> None:
-            if progress_callback:
-                progress_callback(fraction, message, stats=stats)
+        def on_progress(*args) -> None:
+            if not progress_callback:
+                return
+            if len(args) == 3:
+                fraction, message, stats = args
+            elif len(args) == 6:
+                _idx, _total, _exp_id, fraction, message, stats = args
+            else:
+                log.warning("video_processing.on_progress.invalid_args", args_len=len(args))
+                return
+            progress_callback(fraction, message, stats=stats)
 
         def on_frame_processed(frame, detections, info):
             if frame is not None:

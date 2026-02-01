@@ -1116,24 +1116,32 @@ class WidgetFactory:
         rois_to_add = []
         template = dialog.result
         if template["type"] == "vertical":
-            lane_width = width / template["lanes"]
-            for i in range(int(template["lanes"] or 0)):
+            lanes_value = template.get("lanes")
+            lanes = int(lanes_value) if isinstance(lanes_value, (int, float, str)) else 0
+            lane_width = width / lanes if lanes else width
+            for i in range(lanes):
                 x1 = x_min + i * lane_width
                 x2 = x1 + lane_width
                 coords = [(x1, y_min), (x2, y_min), (x2, y_max), (x1, y_max)]
                 rois_to_add.append({"name": f"V_Lane_{i + 1}", "type": "polygon", "coords": coords})
         elif template["type"] == "horizontal":
-            lane_height = height / template["lanes"]
-            for i in range(int(template["lanes"] or 0)):
+            lanes_value = template.get("lanes")
+            lanes = int(lanes_value) if isinstance(lanes_value, (int, float, str)) else 0
+            lane_height = height / lanes if lanes else height
+            for i in range(lanes):
                 y1 = y_min + i * lane_height
                 y2 = y1 + lane_height
                 coords = [(x_min, y1), (x_max, y1), (x_max, y2), (x_min, y2)]
                 rois_to_add.append({"name": f"H_Lane_{i + 1}", "type": "polygon", "coords": coords})
         elif template["type"] == "grid":
-            col_width = width / template["cols"]
-            row_height = height / template["rows"]
-            for r in range(int(template["rows"] or 0)):
-                for c in range(int(template["cols"] or 0)):
+            cols_value = template.get("cols")
+            rows_value = template.get("rows")
+            cols = int(cols_value) if isinstance(cols_value, (int, float, str)) else 0
+            rows = int(rows_value) if isinstance(rows_value, (int, float, str)) else 0
+            col_width = width / cols if cols else width
+            row_height = height / rows if rows else height
+            for r in range(rows):
+                for c in range(cols):
                     x1 = x_min + c * col_width
                     y1 = y_min + r * row_height
                     x2 = x1 + col_width

@@ -519,7 +519,7 @@ class VideoOrchestrator:
 
         Returns:
             Tuple of (info_by_norm dict or None, missing_files list, scanned_videos list)
-            Returns (None, None, None) if there are no valid candidate paths.
+            Returns (None, [], []) if there are no valid candidate paths.
         """
         candidate_paths = [
             str(video.get("path"))
@@ -536,7 +536,7 @@ class VideoOrchestrator:
                     ),
                 },
             )
-            return ({}, [], [])
+            return (None, [], [])
 
         # Use ProjectManager to scan input paths and read metadata
         scanned_videos = ProjectManager.scan_input_paths(candidate_paths)
@@ -687,6 +687,136 @@ class VideoOrchestrator:
     # PROCESSING CONTEXT & CALLBACKS
     # =============================================================================
 
+    def _on_processing_started(self, total_videos: int) -> None:
+        self.ui_coordinator.show_progress_bar(self.view)
+        self.ui_coordinator.set_status(
+            self.view,
+            f"Iniciando processamento para {total_videos} vídeos...",
+        )
+        self.project_manager.set_active_zone_video(None)
+        if self._publish_processing_mode_callback:
+            self._publish_processing_mode_callback(source="worker.started", force=True)
+
+    def _on_processing_progress(self, *args) -> None:
+        if len(args) == 3:
+            fraction, message, stats = args
+        elif len(args) == 6:
+            _index, _total, _experiment_id, fraction, message, stats = args
+        else:
+            log.warning(
+                "video_orchestrator.on_progress.invalid_args",
+                args_len=len(args),
+            )
+            return
+        if self.cancel_event.is_set():
+            return
+
+        self.ui_coordinator.set_status(self.view, message)
+        self.ui_coordinator.update_progress(self.view, fraction)
+        self.ui_coordinator.update_view(
+            self.view, "update_analysis_progress", fraction, message
+        )
+
+        if stats:
+            self.state_manager.update_processing_state(
+                source="video_orchestrator.processing_progress",
+                current_frame=stats.get("current_frame", 0),
+                total_frames=stats.get("total_frames", 0),
+            )
+
+            self.ui_event_bus.publish_event(Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats})
+
+    def _on_frame_processed(self, frame, detections, processing_info) -> None:
+        if frame is not None:
+            self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
+
+        if detections is not None and processing_info:
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_DETECTION_OVERLAY,
+                {"detections": detections, "report": processing_info},
+            )
+
+    def _on_video_completed(
+        self, index: int, total: int, experiment_id: str, success: bool
+    ) -> None:
+        log.info(
+            "video_orchestrator.video_completed",
+            index=index,
+            total=total,
+            experiment_id=experiment_id,
+            success=success,
+        )
+
+    def _on_processing_error(self, error: Exception, context: str) -> None:
+        log.error(
+            "video_orchestrator.processing.worker_error", context=context, error=str(error)
+        )
+        if self.view:
+            self.root.after(
+                0,
+                lambda: self.view.show_error("Erro na Análise", f"{context}: {error}"),
+            )
+
+    def _on_processing_fatal_error(self, exc, context, recovery_info) -> None:
+        log.error(
+            "video_orchestrator.processing.fatal_error",
+            context=context,
+            error=str(exc),
+            affected_videos=len(recovery_info["affected_videos"]),
+        )
+        if self.view:
+            view_ref = self.view
+            self.ui_coordinator.schedule(
+                lambda: view_ref.show_error(
+                    "Erro Crítico de Processamento",
+                    f"{context}\n\nErro: {exc}\n\n"
+                    f"Vídeos afetados: {len(recovery_info['affected_videos'])}\n"
+                    f"Verifique os logs para detalhes.",
+                )
+            )
+        self.state_manager.update_processing_state(
+            source="worker.fatal_error", is_processing=False, error=str(exc)
+        )
+        self.ui_coordinator.set_status(self.view, "Processamento falhou")
+
+    def _on_processing_completed(
+        self,
+        eligible_videos: list[dict],
+        was_cancelled: bool,
+        output_dir: str,
+        summary: dict | None = None,
+    ) -> None:
+        self.project_manager.set_active_zone_video(None)
+        self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
+        self.ui_coordinator.hide_progress_bar(self.view)
+
+        self.state_manager.update_processing_state(
+            source="video_orchestrator.processing_completed",
+            is_processing=False,
+            cancel_requested=was_cancelled,
+            current_video=None,
+        )
+
+        if was_cancelled:
+            if self._cancel_feedback_displayed:
+                self._cancel_feedback_displayed = False
+            else:
+                self.ui_coordinator.show_info(
+                    self.view, "Cancelado", "A análise de vídeo foi cancelada."
+                )
+        elif eligible_videos:
+            msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
+            self.ui_coordinator.show_info(self.view, "Sucesso", msg)
+            self._cancel_feedback_displayed = False
+        else:
+            self._cancel_feedback_displayed = False
+
+        self.ui_coordinator.set_status(self.view, "Pronto.")
+        if self._publish_processing_mode_callback:
+            self._publish_processing_mode_callback(source="worker.completed", force=True)
+        if self._refresh_project_views_callback:
+            self._refresh_project_views_callback()
+
     def _create_processing_callbacks(self, eligible_videos: list[dict]) -> ProcessingCallbacks:
         """Create thread-safe processing callbacks for worker.
 
@@ -699,142 +829,17 @@ class VideoOrchestrator:
             ProcessingCallbacks instance with all necessary callbacks
         """
 
-        def on_started():
-            """Call when processing starts."""
-            self.ui_coordinator.show_progress_bar(self.view)
-            self.ui_coordinator.set_status(
-                self.view,
-                f"Iniciando processamento para {len(eligible_videos)} vídeos...",
-            )
-            self.project_manager.set_active_zone_video(None)
-            if self._publish_processing_mode_callback:
-                self._publish_processing_mode_callback(source="worker.started", force=True)
-
-        def on_progress(
-            index: int,
-            total: int,
-            experiment_id: str,
-            fraction: float,
-            message: str,
-            stats: dict | None,
-        ):
-            """Call with progress updates."""
-            if self.cancel_event.is_set():
-                return
-
-            self.ui_coordinator.set_status(self.view, message)
-            self.ui_coordinator.update_progress(self.view, fraction)
-            self.ui_coordinator.update_view(
-                self.view, "update_analysis_progress", fraction, message
-            )
-
-            if stats:
-                # Update processing state in StateManager
-                self.state_manager.update_processing_state(
-                    source="video_orchestrator.processing_progress",
-                    current_frame=stats.get("current_frame", 0),
-                    total_frames=stats.get("total_frames", 0),
-                )
-
-                self.ui_event_bus.publish_event(Events.UI_UPDATE_PROCESSING_STATS, {"stats": stats})
-
-        def on_frame_processed(frame, detections, processing_info):
-            """Call when a frame is ready for display."""
-            if frame is not None:
-                self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
-
-            if detections is not None and processing_info:
-                self.ui_event_bus.publish_event(
-                    Events.UI_UPDATE_DETECTION_OVERLAY,
-                    {"detections": detections, "report": processing_info},
-                )
-
-        def on_video_completed(index: int, total: int, experiment_id: str, success: bool):
-            """Call when a single video completes."""
-            log.info(
-                "video_orchestrator.video_completed",
-                index=index,
-                total=total,
-                experiment_id=experiment_id,
-                success=success,
-            )
-
-        def on_error(error: Exception, context: str):
-            """Call when an error occurs."""
-            log.error(
-                "video_orchestrator.processing.worker_error", context=context, error=str(error)
-            )
-            if self.view:
-                self.root.after(
-                    0,
-                    lambda: self.view.show_error("Erro na Análise", f"{context}: {error}"),
-                )
-
-        def on_fatal_error(exc, context, recovery_info):
-            """Call on fatal processing errors."""
-            log.error(
-                "video_orchestrator.processing.fatal_error",
-                context=context,
-                error=str(exc),
-                affected_videos=len(recovery_info["affected_videos"]),
-            )
-            if self.view:
-                view_ref = self.view
-                self.ui_coordinator.schedule(
-                    lambda: view_ref.show_error(
-                        "Erro Crítico de Processamento",
-                        f"{context}\n\nErro: {exc}\n\n"
-                        f"Vídeos afetados: {len(recovery_info['affected_videos'])}\n"
-                        f"Verifique os logs para detalhes.",
-                    )
-                )
-            self.state_manager.update_processing_state(
-                source="worker.fatal_error", is_processing=False, error=str(exc)
-            )
-            self.ui_coordinator.set_status(self.view, "Processamento falhou")
-
-        def on_completed(was_cancelled: bool, output_dir: str, summary: dict | None = None):
-            """Call when all processing completes."""
-            self.project_manager.set_active_zone_video(None)
-            self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
-            self.ui_coordinator.hide_progress_bar(self.view)
-
-            # Update processing state in StateManager
-            self.state_manager.update_processing_state(
-                source="video_orchestrator.processing_completed",
-                is_processing=False,
-                cancel_requested=was_cancelled,
-                current_video=None,
-            )
-
-            if was_cancelled:
-                if self._cancel_feedback_displayed:
-                    self._cancel_feedback_displayed = False
-                else:
-                    self.ui_coordinator.show_info(
-                        self.view, "Cancelado", "A análise de vídeo foi cancelada."
-                    )
-            elif eligible_videos:
-                msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
-                self.ui_coordinator.show_info(self.view, "Sucesso", msg)
-                self._cancel_feedback_displayed = False
-            else:
-                self._cancel_feedback_displayed = False
-
-            self.ui_coordinator.set_status(self.view, "Pronto.")
-            if self._publish_processing_mode_callback:
-                self._publish_processing_mode_callback(source="worker.completed", force=True)
-            if self._refresh_project_views_callback:
-                self._refresh_project_views_callback()
+        def on_completed(was_cancelled: bool, output_dir: str, summary: dict | None = None) -> None:
+            self._on_processing_completed(eligible_videos, was_cancelled, output_dir, summary)
 
         return ProcessingCallbacks(
-            on_started=on_started,
-            on_progress=on_progress,
-            on_frame_processed=on_frame_processed,
-            on_video_completed=on_video_completed,
-            on_error=on_error,
+            on_started=lambda: self._on_processing_started(len(eligible_videos)),
+            on_progress=self._on_processing_progress,
+            on_frame_processed=self._on_frame_processed,
+            on_video_completed=self._on_video_completed,
+            on_error=self._on_processing_error,
             on_completed=on_completed,
-            on_fatal_error=on_fatal_error,
+            on_fatal_error=self._on_processing_fatal_error,
         )
 
     def _create_processing_context(

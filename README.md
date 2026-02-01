@@ -158,6 +158,39 @@ poetry run pre-commit install
 poetry run pytest -q
 ```
 
+### 🧩 Extensões VS Code (Desenvolvimento)
+
+Para consistência no ambiente local, siga estas boas práticas com as extensões instaladas:
+
+- **Python / Pylance**: use o interpretador do Poetry (venv) no editor e no terminal.
+- **Ruff**: use como **único** formatter/linter Python; evite Black/Pylint/Flake8 no VS Code.
+- **Mypy (Matan Gover) + Mypy Type Checker (Microsoft)**: mantenha a mesma configuração (`mypy.ini`/`pyproject`); se houver diagnósticos duplicados, desative um deles no workspace ou deixe um apenas “on-demand”.
+- **Python Debugger / Python Environments**: depure e gerencie ambientes usando o mesmo interpretador do Poetry.
+- **PowerShell**: use para scripts e automação; mantenha comandos no terminal PowerShell.
+- **GitHub Copilot / Chat / PRs / Actions**: faça mudanças incrementais e sempre com impacto analisado.
+- **Git History**: use para histórico/blame; diffs pequenos e objetivos.
+- **Docker / Container Tools / Dev Containers / WSL**: use apenas quando o projeto estiver rodando nesses ambientes.
+- **YAML / Markdown / markdownlint / Code Spell Checker**: mantenha lint ativo e corrija avisos.
+- **MATLAB / matlab-formatter**: use apenas em arquivos `.m`.
+- **vscode-pdf**: visualização somente leitura.
+
+Checklist rápido:
+
+- [ ] Interpretador ativo é o venv do Poetry.
+- [ ] Ruff é o único formatter Python.
+- [ ] Configuração do Mypy é única e compartilhada com o CLI.
+- [ ] Linters de YAML/Markdown estão ativos.
+
+Como configurar no VS Code:
+
+- Use “Python: Select Interpreter” para escolher o venv do Poetry.
+- Prefira `python.analysis.typeCheckingMode=basic` e use `strict` apenas em arquivos alvo.
+- Mypy: mantenha config em `mypy.ini`/pyproject e prefira `mypy.runUsingActiveInterpreter=true`.
+- Ruff: `editor.defaultFormatter=charliermarsh.ruff`, `editor.formatOnSave=true` e `editor.codeActionsOnSave` com `source.fixAll.ruff` e `source.organizeImports.ruff`.
+- Dev Containers/WSL: use apenas quando o projeto estiver rodando nesses ambientes.
+
+> Nota para agentes: as instruções de agentes têm **fonte de verdade** em AGENTS.md e mudanças devem começar por lá.
+
 ## ▶️ Execução
 
 ### Modo Gráfico (GUI)

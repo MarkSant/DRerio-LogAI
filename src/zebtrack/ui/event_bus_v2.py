@@ -7,10 +7,9 @@ providing a type-safe, thread-aware event bus for UI component communication.
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any
+from typing import Any, Callable
 
 import structlog
 
@@ -77,7 +76,6 @@ class UIEvents(Enum):
     CAMERA_RECONNECTED = auto()  # Camera successfully reconnected
     AQUARIUM_DETECTION_PROGRESS = auto()  # Progress updates during aquarium detection
     BATCH_ANALYSIS_COMPLETED = auto()  # Batch analysis workflow completed
-    CAMERA_DISCONNECT_USER_ACTION = auto()  # User action on camera disconnect recovery
 
     # v2.3.2: Zone/Canvas State Management
     ZONE_DISPLAY_CLEARED = auto()  # Clear zone canvas and reset zone display state

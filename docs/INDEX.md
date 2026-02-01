@@ -1,6 +1,6 @@
 # ZebTrack-AI Documentation Index
 
-**Last Updated**: January 2025
+**Last Updated**: February 2026
 **Version**: 4.0.0
 
 ## Overview

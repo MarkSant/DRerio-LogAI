@@ -129,6 +129,10 @@ class ArduinoManager:
             serial_conn = getattr(self.arduino, "ser", None)
             return bool(serial_conn and getattr(serial_conn, "is_open", False))
 
+    def current_port(self) -> str | None:
+        """Return the currently connected port, if any."""
+        return self._port
+
     def list_available_ports(self) -> list[str]:
         """List available serial ports using WizardService.
 
@@ -137,19 +141,29 @@ class ArduinoManager:
         """
         from zebtrack.core.wizard_service import WizardService
 
-        return WizardService.detect_available_serial_ports()
+        ports = WizardService.detect_arduino_ports(use_cache=True)
+        return [port.get("device", "") for port in ports if port.get("device")]
 
     def send_command(self, command: int | str, *, source: str = "auto") -> bool:
         """Sends a command to Arduino and reports outcome to controller."""
+        command_value: int
+        if isinstance(command, str):
+            if not command.isdigit():
+                self._notify_log(f"Comando inválido: {command}")
+                return False
+            command_value = int(command)
+        else:
+            command_value = command
+
         if not self.is_connected():
             self._notify_log("Não foi possível enviar comando: Arduino desconectado.")
-            self._notify_command(command, success=False, source=source)
+            self._notify_command(command_value, success=False, source=source)
             return False
 
         success = False
         try:
             assert self.arduino is not None
-            success = bool(self.arduino.send_command(command))
+            success = bool(self.arduino.send_command(command_value))
         except Exception:
             log.error(
                 "arduino_manager.command.error",
@@ -159,12 +173,12 @@ class ArduinoManager:
             success = False
 
         if success:
-            self._last_command = command
-            self._notify_log(f"Comando {command} enviado ao Arduino.")
+            self._last_command = command_value
+            self._notify_log(f"Comando {command_value} enviado ao Arduino.")
         else:
-            self._notify_log(f"Falha ao enviar comando {command} ao Arduino.")
+            self._notify_log(f"Falha ao enviar comando {command_value} ao Arduino.")
 
-        self._notify_command(command, success=success, source=source)
+        self._notify_command(command_value, success=success, source=source)
         return success
 
     def last_command(self) -> int | None:
