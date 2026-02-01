@@ -713,9 +713,7 @@ class VideoOrchestrator:
 
         self.ui_coordinator.set_status(self.view, message)
         self.ui_coordinator.update_progress(self.view, fraction)
-        self.ui_coordinator.update_view(
-            self.view, "update_analysis_progress", fraction, message
-        )
+        self.ui_coordinator.update_view(self.view, "update_analysis_progress", fraction, message)
 
         if stats:
             self.state_manager.update_processing_state(
@@ -748,9 +746,7 @@ class VideoOrchestrator:
         )
 
     def _on_processing_error(self, error: Exception, context: str) -> None:
-        log.error(
-            "video_orchestrator.processing.worker_error", context=context, error=str(error)
-        )
+        log.error("video_orchestrator.processing.worker_error", context=context, error=str(error))
         if self.view:
             self.root.after(
                 0,

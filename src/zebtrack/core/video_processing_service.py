@@ -351,6 +351,7 @@ class VideoProcessingService:
         trajectory_path = (
             Path(trajectory_path) if isinstance(trajectory_path, str) else trajectory_path
         )
+
         def _publish_error(payload: dict[str, str]) -> None:
             if self.ui_event_bus is None:
                 return

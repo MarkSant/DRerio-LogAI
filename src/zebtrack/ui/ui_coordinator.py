@@ -223,9 +223,7 @@ class UICoordinator:
             if self.project_view_manager:
                 project_view_manager = self.project_view_manager
                 self._safe_ui_call(
-                    lambda: project_view_manager.request_overview_refresh(
-                        reason="zones_updated"
-                    )
+                    lambda: project_view_manager.request_overview_refresh(reason="zones_updated")
                 )
                 log.debug("ui_coordinator.zones_updated.views_refreshed")
 
@@ -334,9 +332,7 @@ class UICoordinator:
         try:
             if self.canvas_manager and polygon is not None:
                 canvas_manager = self.canvas_manager
-                self._safe_ui_call(
-                    lambda: canvas_manager.setup_interactive_polygon(polygon)
-                )
+                self._safe_ui_call(lambda: canvas_manager.setup_interactive_polygon(polygon))
                 log.debug("ui_coordinator.polygon_edit.setup_completed")
 
         except Exception as e:
@@ -362,9 +358,7 @@ class UICoordinator:
         try:
             if self.project_view_manager:
                 project_view_manager = self.project_view_manager
-                self._safe_ui_call(
-                    lambda: project_view_manager._build_video_hierarchy_snapshot()
-                )
+                self._safe_ui_call(lambda: project_view_manager._build_video_hierarchy_snapshot())
                 log.debug("ui_coordinator.video_hierarchy_snapshot.built")
 
         except Exception as e:
@@ -394,9 +388,7 @@ class UICoordinator:
             # 1. Load frame to canvas
             if self.canvas_manager and video_path:
                 canvas_manager = self.canvas_manager
-                self._safe_ui_call(
-                    lambda: canvas_manager.load_video_frame_to_canvas(video_path)
-                )
+                self._safe_ui_call(lambda: canvas_manager.load_video_frame_to_canvas(video_path))
                 log.debug("ui_coordinator.video_loaded.frame_loaded", video_path=video_path)
 
             # 2. Check for existing zones and offer reuse
@@ -458,9 +450,7 @@ class UICoordinator:
         try:
             if self.state_synchronizer:
                 state_synchronizer = self.state_synchronizer
-                self._safe_ui_call(
-                    lambda: state_synchronizer.update_processing_stats(**data)
-                )
+                self._safe_ui_call(lambda: state_synchronizer.update_processing_stats(**data))
         except Exception as e:
             self._errors_count += 1
             log.exception("ui_coordinator.processing_stats_updated.error", error=str(e))
@@ -482,9 +472,7 @@ class UICoordinator:
         try:
             if self.state_synchronizer:
                 state_synchronizer = self.state_synchronizer
-                self._safe_ui_call(
-                    lambda: state_synchronizer.update_analysis_task_status(**data)
-                )
+                self._safe_ui_call(lambda: state_synchronizer.update_analysis_task_status(**data))
         except Exception as e:
             self._errors_count += 1
             log.exception("ui_coordinator.analysis_task_status_updated.error", error=str(e))

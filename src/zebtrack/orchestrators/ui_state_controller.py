@@ -585,9 +585,7 @@ class UIStateController:
         self.ui_coordinator.show_progress_bar(view)
         self.ui_coordinator.schedule_after(
             0,
-            lambda: view.set_status(
-                f"Iniciando processamento para {total_videos} vídeos..."
-            ),
+            lambda: view.set_status(f"Iniciando processamento para {total_videos} vídeos..."),
         )
         self.project_manager.set_active_zone_video(None)
 
