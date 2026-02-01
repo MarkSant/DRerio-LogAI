@@ -403,6 +403,24 @@ class ValidationManager:
     # Zone and Template Validation
     # ========================================================================
 
+    # ========================================================================
+    # Zone and Template Validation
+    # ========================================================================
+
+    def has_zones(self, video_path: str | Path) -> bool:
+        """Check if a video has defined zones.
+
+        Args:
+            video_path: Path to the video file.
+
+        Returns:
+            True if zones exist, False otherwise.
+        """
+        if not self.gui.project_manager:
+            return False
+
+        return self.gui.project_manager.has_arena_data(video_path)
+
     def get_zone_data_for_active_context(self) -> ZoneData:
         """Get zone data for the currently active context (video or global).
 

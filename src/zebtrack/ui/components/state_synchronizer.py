@@ -247,6 +247,20 @@ class StateSynchronizer:
                     pass
                 self.gui._overview_refresh_job = None
             self.gui.project_overview_frame = None
+
+    def update_status(self, message: str) -> None:
+        """Update the status bar message in the GUI.
+
+        Args:
+            message: The message to display.
+        """
+        if hasattr(self.gui, "set_status") and callable(self.gui.set_status):
+            self.gui.set_status(message)
+        elif hasattr(self.gui, "analysis_status_var"):
+            try:
+                self.gui.analysis_status_var.set(message)
+            except Exception:
+                pass
             # Note: project_overview_tree is a read-only property derived from
             # project_overview_widget. Clear the widget reference instead.
             if hasattr(self.gui, "project_overview_widget"):

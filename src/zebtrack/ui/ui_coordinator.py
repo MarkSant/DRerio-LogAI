@@ -8,12 +8,13 @@ This is part of the v4.0 Event-Driven Architecture refactoring (PLANO_ACAO_V4.md
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.ui.event_bus_v2 import EventBusV2, UIEvents
+from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.canvas_manager import CanvasManager
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
     from zebtrack.ui.components.project_view_manager import ProjectViewManager
     from zebtrack.ui.components.state_synchronizer import StateSynchronizer
     from zebtrack.ui.components.validation_manager import ValidationManager
+
+from zebtrack.ui.dialogs.aquarium_detection_progress_dialog import AquariumDetectionProgressDialog
 
 log = structlog.get_logger().bind(component="ui.ui_coordinator")
 
@@ -103,7 +106,7 @@ class UICoordinator:
         self._errors_count = 0
 
         # v2.2.0: Progress dialog for aquarium detection
-        self._aquarium_detection_dialog = None
+        self._aquarium_detection_dialog: AquariumDetectionProgressDialog | None = None
 
         # Setup subscriptions to all relevant events
         self._setup_subscriptions()
@@ -198,9 +201,11 @@ class UICoordinator:
 
         try:
             # 1. Update canvas zone listbox
+            # 1. Update canvas zone listbox
             if self.canvas_manager:
-                self._safe_ui_call(lambda: self.canvas_manager.update_zone_listbox(zone_data))
-                self._safe_ui_call(lambda: self.canvas_manager.update_roi_button_state())
+                manager = self.canvas_manager
+                self._safe_ui_call(lambda: manager.update_zone_listbox(zone_data))
+                self._safe_ui_call(lambda: manager.update_roi_button_state())
                 log.debug(
                     "ui_coordinator.zones_updated.canvas_updated", has_zones=zone_data is not None
                 )
@@ -379,7 +384,7 @@ class UICoordinator:
         try:
             # 1. Load frame to canvas
             if self.canvas_manager and video_path:
-                self._safe_ui_call(lambda: self.canvas_manager.load_video_frame(video_path))
+                self._safe_ui_call(lambda: self.canvas_manager.display_roi_video_frame(video_path))
                 log.debug("ui_coordinator.video_loaded.frame_loaded", video_path=video_path)
 
             # 2. Check for existing zones and offer reuse
@@ -438,7 +443,8 @@ class UICoordinator:
         self._events_handled += 1
         try:
             if self.state_synchronizer:
-                self._safe_ui_call(lambda: self.state_synchronizer.update_processing_stats(**data))
+                sync = self.state_synchronizer
+                self._safe_ui_call(lambda: sync.update_processing_stats(**data))
         except Exception as e:
             self._errors_count += 1
             log.exception("ui_coordinator.processing_stats_updated.error", error=str(e))
@@ -448,7 +454,8 @@ class UICoordinator:
         self._events_handled += 1
         try:
             if self.state_synchronizer:
-                self._safe_ui_call(lambda: self.state_synchronizer.update_social_summary(**data))
+                sync = self.state_synchronizer
+                self._safe_ui_call(lambda: sync.update_social_summary(**data))
         except Exception as e:
             self._errors_count += 1
             log.exception("ui_coordinator.social_summary_updated.error", error=str(e))
@@ -458,9 +465,8 @@ class UICoordinator:
         self._events_handled += 1
         try:
             if self.state_synchronizer:
-                self._safe_ui_call(
-                    lambda: self.state_synchronizer.update_analysis_task_status(**data)
-                )
+                sync = self.state_synchronizer
+                self._safe_ui_call(lambda: sync.update_analysis_task_status(**data))
         except Exception as e:
             self._errors_count += 1
             log.exception("ui_coordinator.analysis_task_status_updated.error", error=str(e))
@@ -470,11 +476,14 @@ class UICoordinator:
         self._events_handled += 1
         try:
             if self.dialog_manager:
-                self._safe_ui_call(
-                    lambda: self.dialog_manager.show_external_trigger_notice(
-                        data.get("session_label", ""), **data
-                    )
-                )
+
+                def _show_notice():
+                    if self.dialog_manager:
+                        self.dialog_manager.show_external_trigger_notice(
+                            data.get("session_label", ""), **data
+                        )
+
+                self._safe_ui_call(_show_notice)
         except Exception as e:
             self._errors_count += 1
             log.exception("ui_coordinator.external_trigger_notice.error", error=str(e))
@@ -484,7 +493,12 @@ class UICoordinator:
         self._events_handled += 1
         try:
             if self.dialog_manager:
-                self._safe_ui_call(lambda: self.dialog_manager.clear_external_trigger_notice())
+
+                def _clear_notice():
+                    if self.dialog_manager:
+                        self.dialog_manager.clear_external_trigger_notice()
+
+                self._safe_ui_call(_clear_notice)
         except Exception as e:
             self._errors_count += 1
             log.exception("ui_coordinator.external_trigger_notice_cleared.error", error=str(e))
@@ -523,8 +537,10 @@ class UICoordinator:
                 self._safe_ui_call(lambda: self._clear_canvas_display())
 
             # Clear zone listbox
-            if self.canvas_manager and hasattr(self.canvas_manager, "update_zone_listbox"):
-                self._safe_ui_call(lambda: self.canvas_manager.update_zone_listbox(None))
+            if self.canvas_manager:
+                manager = self.canvas_manager
+                if hasattr(manager, "update_zone_listbox"):
+                    self._safe_ui_call(lambda: manager.update_zone_listbox(None))
 
             log.debug("ui_coordinator.zone_display_cleared.completed")
 
@@ -557,7 +573,7 @@ class UICoordinator:
     # Helper Methods
     # ===========================
 
-    def _safe_ui_call(self, func: callable) -> None:
+    def _safe_ui_call(self, func: Callable[[], None]) -> None:
         """Execute a UI update safely on the main thread.
 
         If self.root is available and we're not on the main thread,
@@ -626,9 +642,11 @@ class UICoordinator:
                         experiment_id=experiment_id,
                     )
                     # Publish action event for LiveCameraService to handle
-                    self.event_bus.publish_event(
-                        "CAMERA_DISCONNECT_USER_ACTION",
-                        {"action": action, "experiment_id": experiment_id},
+                    self.event_bus.publish(
+                        Event(
+                            UIEvents.CAMERA_DISCONNECT_USER_ACTION,
+                            {"action": action, "experiment_id": experiment_id},
+                        )
                     )
 
                 CameraDisconnectRecoveryDialog(
@@ -671,9 +689,10 @@ class UICoordinator:
             if self.state_synchronizer:
 
                 def update_status():
-                    self.state_synchronizer.update_status(
-                        f"Câmera reconectada (gap: {gap_duration:.1f}s)"
-                    )
+                    if self.state_synchronizer:
+                        self.state_synchronizer.update_status(
+                            f"Câmera reconectada (gap: {gap_duration:.1f}s)"
+                        )
 
                 self._safe_ui_call(update_status)
 
@@ -718,11 +737,12 @@ class UICoordinator:
                     )
 
                     def create_dialog():
-                        self._aquarium_detection_dialog = AquariumDetectionProgressDialog(
-                            parent=self.root,
-                            experiment_id=experiment_id,
-                            max_frames=100,
-                        )
+                        if self.root:
+                            self._aquarium_detection_dialog = AquariumDetectionProgressDialog(
+                                parent=self.root,
+                                experiment_id=experiment_id,
+                                max_frames=100,
+                            )
 
                     self._safe_ui_call(create_dialog)
 
@@ -751,11 +771,11 @@ class UICoordinator:
 
             # Update status bar every 10 frames
             if self.state_synchronizer and frame_number % 10 == 0:
+                sync = self.state_synchronizer
 
                 def update_status():
-                    self.state_synchronizer.update_status(
-                        f"Detectando aquário: frame {frame_number}/100"
-                    )
+                    if sync:
+                        sync.update_status(f"Detectando aquário: frame {frame_number}/100")
 
                 self._safe_ui_call(update_status)
 
@@ -824,19 +844,21 @@ class UICoordinator:
 
             # Refresh project views to show new unified report
             if self.project_view_manager:
+                manager = self.project_view_manager
 
                 def refresh_views():
-                    self.project_view_manager.refresh_reports_tree()
+                    if manager:
+                        manager.refresh_project_views()
 
                 self._safe_ui_call(refresh_views)
 
             # Update status
             if self.state_synchronizer:
+                sync = self.state_synchronizer
 
                 def update_status():
-                    self.state_synchronizer.update_status(
-                        f"Relatório unificado gerado: {session_count} sessões"
-                    )
+                    if sync:
+                        sync.update_status(f"Relatório unificado gerado: {session_count} sessões")
 
                 self._safe_ui_call(update_status)
 

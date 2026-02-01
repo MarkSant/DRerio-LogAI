@@ -156,6 +156,7 @@ class Events:
     DETECTOR_SETUP = "detector:setup"
     DETECTOR_SETUP_ZONES = "detector:setup_zones"
     DETECTOR_UPDATE_PARAMETERS = "detector:update_parameters"
+    DETECTOR_UPDATE_ZONES = "detector:update_zones"
     ZONE_SET_ARENA_POLYGON = "zone:set_arena_polygon"
     ZONE_SAVE_MANUAL_ARENA = "zone:save_manual_arena"
     ZONE_UPDATE_ARENA = "zone:update_arena"

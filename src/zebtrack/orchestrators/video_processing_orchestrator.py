@@ -41,7 +41,7 @@ class VideoProcessingOrchestrator:
             main_view_model: Reference to MainViewModel for UI delegation.
         """
         self.main_view_model = main_view_model
-        self.view = main_view_model.view
+        self.view = getattr(main_view_model, "view", None)
         self.ui_event_bus = main_view_model.ui_event_bus
         self.cancel_event = main_view_model.cancel_event
         self.project_manager = main_view_model.project_manager
@@ -64,23 +64,46 @@ class VideoProcessingOrchestrator:
         """
         log.info("workflow.project_processing.start")
 
+        # Capture members in local variables for robust MyPy type narrowing
+        coordinator = self.processing_coordinator
+        view = self.view
+        ui_event_bus = self.ui_event_bus
+        dialog_coordinator = getattr(self.main_view_model, "dialog_coordinator", None)
+
+        if not coordinator:
+            log.error("workflow.project_processing.no_coordinator")
+            return
+
+        if not view:
+            log.error("workflow.project_processing.no_view")
+            return
+
+        if not dialog_coordinator:
+            log.error("workflow.project_processing.no_dialog_coordinator")
+            return
+
         # Sprint 11: Delegate basic validations to ProcessingCoordinator
         # Sprint 13: Use consolidated error handling
-        validation_result = self.processing_coordinator.validate_can_start_processing(
+
+        if not self.processing_coordinator:
+            log.error("workflow.project_processing.no_coordinator")
+            return
+
+        validation_result = coordinator.validate_can_start_processing(
             check_project_loaded=True,
             check_zones=False,  # Zone validation is complex with UI, handled below
             check_videos_exist=False,
         )
 
-        if not self.main_view_model.dialog_coordinator.handle_validation_error(validation_result):
+        if not dialog_coordinator.handle_validation_error(validation_result):
             return
 
         # Sprint 13: Validate zones with UI interaction
-        if not self.main_view_model.dialog_coordinator.validate_zones_with_ui():
+        if not dialog_coordinator.validate_zones_with_ui():
             return
 
         # 1. Ask user to select files or folders
-        paths = self.view.ask_open_filenames(
+        paths = view.ask_open_filenames(
             "Selecione Vídeos ou Pastas para Adicionar ao Projeto",
             [
                 ("Todos os arquivos", "*.*"),
@@ -94,30 +117,30 @@ class VideoProcessingOrchestrator:
         # 2. Scan the inputs
         scanned_videos = self.project_manager.scan_input_paths(paths)
         if not scanned_videos:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_WARNING,
-                {
-                    "title": "Nenhum Vídeo Encontrado",
-                    "message": "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados.",  # noqa: E501
-                },
-            )
+            if self.ui_event_bus:
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_WARNING,
+                    {
+                        "title": "Nenhum Vídeo Encontrado",
+                        "message": "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados.",  # noqa: E501
+                    },
+                )
             return
 
         # 3. Sprint 13: Handle mixed data scenario
-        videos_to_process = self.main_view_model.dialog_coordinator.handle_mixed_data_scenario(
-            scanned_videos
-        )
+        videos_to_process = dialog_coordinator.handle_mixed_data_scenario(scanned_videos)
         if videos_to_process is None:
             return  # User cancelled or videos already added
 
         if not videos_to_process:
-            self.ui_event_bus.publish_event(
-                Events.UI_SHOW_INFO,
-                {
-                    "title": "Processamento Concluído",
-                    "message": "Nenhum novo vídeo para processar.",
-                },
-            )
+            if self.ui_event_bus:
+                self.ui_event_bus.publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Processamento Concluído",
+                        "message": "Nenhum novo vídeo para processar.",
+                    },
+                )
             return
 
         # 4. Add the batch to the project
@@ -127,27 +150,28 @@ class VideoProcessingOrchestrator:
         # Phase 3E: Delegate to ProcessingCoordinator for callbacks and context
         self.cancel_event.clear()
 
-        callbacks = self.processing_coordinator.create_processing_callbacks(videos_to_process)
-        context = self.processing_coordinator.create_processing_context(
-            videos_to_process, self.project_manager.project_path
+        callbacks = coordinator.create_processing_callbacks(videos_to_process)
+        context = coordinator.create_processing_context(
+            videos_to_process, str(self.project_manager.project_path or "")
         )
 
         self.main_view_model._cancel_feedback_displayed = False
-        self.processing_coordinator.processing_worker = ProcessingWorker(context, callbacks)
-        self.processing_coordinator.processing_thread = (
-            self.processing_coordinator.processing_worker.start_in_thread()
-        )
+        coordinator.processing_worker = ProcessingWorker(context, callbacks)
+        coordinator.processing_thread = coordinator.processing_worker.start_in_thread()
 
-        self.main_view_model.ui_state_controller.activate_analysis_view_mode()
+        ui_state_controller = getattr(self.main_view_model, "ui_state_controller", None)
+        if ui_state_controller:
+            ui_state_controller.activate_analysis_view_mode()
 
         # 6. Update statuses in project file
         for video in videos_to_process:
             self.project_manager.update_video_status(video["path"], "complete")
 
-        self.ui_event_bus.publish_event(
-            Events.UI_SHOW_INFO,
-            {
-                "title": "Sucesso",
-                "message": f"{len(videos_to_process)} vídeo(s) foram processados e adicionados ao projeto.",  # noqa: E501
-            },
-        )
+        if ui_event_bus:
+            ui_event_bus.publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Sucesso",
+                    "message": f"{len(videos_to_process)} vídeo(s) foram processados e adicionados ao projeto.",  # noqa: E501
+                },
+            )

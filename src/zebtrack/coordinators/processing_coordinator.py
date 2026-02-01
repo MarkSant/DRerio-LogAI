@@ -226,6 +226,9 @@ class ProcessingCoordinator(BaseCoordinator):
         # Batch processing context - suppresses per-video dialogs during batch
         self._batch_context: dict | None = None
 
+        # New: Sequential context for multi-aquarium processing
+        self._sequential_context: dict[str, Any] | None = None
+
         log.info("processing_coordinator.initialized.phase3")
 
     def reset_multi_aquarium_state(self) -> None:
@@ -401,7 +404,10 @@ class ProcessingCoordinator(BaseCoordinator):
             lambda data: self.start_single_video_processing(
                 video_path=str(data.get("video_path", "")) if isinstance(data, dict) else "",
                 config=data.get("config", {}) if isinstance(data, dict) else {},
-                zone_data=data.get("zone_data") if isinstance(data, dict) else None,
+                zone_data=cast(
+                    Any,
+                    data.get("zone_data") if isinstance(data, dict) else None,
+                ),
             ),
         )
         bus.subscribe(
@@ -1254,24 +1260,26 @@ class ProcessingCoordinator(BaseCoordinator):
                 )
 
             # Bug fix: Validate that all aquariums have subject_id defined
-            for aq in zone_data.aquariums:
-                if not aq.subject_id:
-                    log.warning(
-                        "processing.missing_subject_id",
-                        aquarium_id=aq.id,
-                        video=str(video_path),
-                    )
-                    self._publish_event(
-                        Events.UI_SHOW_ERROR,
-                        {
-                            "title": "Configuração Incompleta",
-                            "message": (
-                                f"Aquário {aq.id} não tem sujeito definido. "
-                                "Configure os aquários antes de processar."
-                            ),
-                        },
-                    )
-                    return
+            # Bug fix: Validate that all aquariums have subject_id defined
+            if isinstance(zone_data, MultiAquariumZoneData):
+                for aq in zone_data.aquariums:
+                    if not aq.subject_id:
+                        log.warning(
+                            "processing.missing_subject_id",
+                            aquarium_id=aq.id,
+                            video=str(video_path),
+                        )
+                        self._publish_event(
+                            Events.UI_SHOW_ERROR,
+                            {
+                                "title": "Configuração Incompleta",
+                                "message": (
+                                    f"Aquário {aq.id} não tem sujeito definido. "
+                                    "Configure os aquários antes de processar."
+                                ),
+                            },
+                        )
+                        return
 
         use_seq = is_multi_aq and getattr(zone_data, "sequential_processing", False)
 
@@ -1328,13 +1336,15 @@ class ProcessingCoordinator(BaseCoordinator):
 
             try:
                 raw_w = config.get("aquarium_width_cm")
-                w_cm = float(raw_w) if raw_w not in (None, "") else None
+                if raw_w is not None and str(raw_w).strip():
+                    w_cm = float(raw_w)
             except (TypeError, ValueError):
                 pass
 
             try:
                 raw_h = config.get("aquarium_height_cm")
-                h_cm = float(raw_h) if raw_h not in (None, "") else None
+                if raw_h is not None and str(raw_h).strip():
+                    h_cm = float(raw_h)
             except (TypeError, ValueError):
                 pass
 
@@ -1501,7 +1511,9 @@ class ProcessingCoordinator(BaseCoordinator):
                 aqs = [AquariumData(id=i) for i in range(n_aq)]
                 new_m = MultiAquariumZoneData(aquariums=aqs)
                 persist = bool(self.project_manager.project_path)
-                self.project_manager.save_multi_aquarium_zone_data(video_path, new_m, persist)
+                self.project_manager.save_multi_aquarium_zone_data(
+                    video_path, new_m, persist=persist
+                )
                 zone_data = new_m
 
             if self.view and hasattr(self.view, "zone_controls"):
@@ -1623,9 +1635,55 @@ class ProcessingCoordinator(BaseCoordinator):
                 self.view.show_error("Erro", "Não foi possível identificar vídeo válido.")
             return
 
-        out_dir = self.project_manager.get_results_directory()
+        video_stem = Path(video_path).stem
+        out_dir = self.project_manager.resolve_results_directory(
+            video_stem, video_path=str(video_path)
+        )
         log.info("controller.single_video.analysing", video=str(video_path), out=out_dir)
         self.process_videos(scanned, out_dir)
+
+    def process_videos(self, videos_to_process: list[dict], output_base_dir: Path | str) -> None:
+        """Execute processing for a list of videos (legacy support)."""
+        output_dir_str = str(output_base_dir)
+
+        # Define wrapper callbacks to match ProcessingCallbacks signature
+        def _on_started_wrapper() -> None:
+            self._on_processing_started(videos_to_process)
+
+        def _on_progress_wrapper(
+            idx: int, tot: int, eid: str | None, frac: float, msg: str, st: dict | None
+        ) -> None:
+            self._on_processing_progress(videos_to_process, idx, tot, eid, frac, msg, st)
+
+        def _on_video_completed_wrapper(
+            index: int, total: int, exp_id: str | None, success: bool
+        ) -> None:
+            self._on_video_completed(videos_to_process, index, total, exp_id, success)
+
+        def _on_finished_wrapper(cancelled: bool, o_dir: str, summary: dict | None = None) -> None:
+            self._on_processing_complete(videos_to_process, cancelled, o_dir, summary, None)
+
+        def _on_fatal_error_wrapper(exc: Exception, context: str, info: dict) -> None:
+            self._on_processing_fatal_error(exc, context, info)
+
+        callbacks = ProcessingCallbacks(
+            on_started=_on_started_wrapper,
+            on_progress=_on_progress_wrapper,
+            on_frame_processed=self._on_frame_processed,
+            on_video_completed=_on_video_completed_wrapper,
+            on_error=self._on_processing_error,
+            on_completed=_on_finished_wrapper,
+            on_fatal_error=_on_fatal_error_wrapper,
+        )
+
+        context = self.create_processing_context(videos_to_process, output_dir_str)
+
+        if self.cancel_event:
+            self.cancel_event.clear()
+
+        # Initialize and start worker
+        self.processing_worker = ProcessingWorker(context, callbacks)
+        self.processing_thread = self.processing_worker.start_in_thread()
 
     # =========================================================================
     # Sequential Multi-Aquarium Processing
@@ -1700,15 +1758,20 @@ class ProcessingCoordinator(BaseCoordinator):
 
         ctx = self._sequential_context
 
-        if ctx["current_aquarium_index"] >= ctx["total_aquariums"]:
+        current_index = cast(int, ctx["current_aquarium_index"])
+        total = cast(int, ctx["total_aquariums"])
+
+        if current_index >= total:
             # All aquariums processed - finalize and generate reports
             log.info(
                 "workflow.sequential_multi.complete",
-                total_aquariums=ctx["total_aquariums"],
+                total_aquariums=total,
             )
 
             video_path = str(ctx["video_path"])
-            outputs_by_aquarium = ctx.get("outputs_by_aquarium", {})
+            outputs_by_aquarium = cast(
+                dict[int, dict[Any, Any]], ctx.get("outputs_by_aquarium", {})
+            )
 
             # Register all aquarium outputs with project manager
             if outputs_by_aquarium:
@@ -1765,8 +1828,9 @@ class ProcessingCoordinator(BaseCoordinator):
             self._sequential_context = None
             return
 
-        aquarium_index = ctx["current_aquarium_index"]
-        aquarium = ctx["multi_zone_data"].aquariums[aquarium_index]
+        aquarium_index = cast(int, ctx["current_aquarium_index"])
+        multi_zone_data = cast("MultiAquariumZoneData", ctx["multi_zone_data"])
+        aquarium = multi_zone_data.aquariums[aquarium_index]
 
         log.info(
             "workflow.sequential_multi.aquarium_start",
@@ -1873,8 +1937,11 @@ class ProcessingCoordinator(BaseCoordinator):
         # Create callbacks with completion handler
         callbacks = self.create_processing_callbacks([video_to_process])
 
+        if not self._sequential_context:
+            return
+
         # Get aquarium info for output registration
-        current_aquarium = self._sequential_context["multi_zone_data"].aquariums[
+        current_aquarium = self._sequential_context["multi_zone_data"].aquariums[  # type: ignore
             self._sequential_context["current_aquarium_index"]
         ]
         experiment_id = os.path.splitext(os.path.basename(str(video_path)))[0]
@@ -4075,7 +4142,7 @@ class ProcessingCoordinator(BaseCoordinator):
                     val = config.get(dim_key)
                     if val not in (None, ""):
                         try:
-                            metadata[dim_key] = float(val)
+                            metadata[dim_key] = float(str(val))
                         except (TypeError, ValueError):
                             pass
 
@@ -4176,7 +4243,9 @@ class ProcessingCoordinator(BaseCoordinator):
         fps = float(self.settings.video_processing.fps)
         probed_w, probed_h = self._probe_video_dimensions(str(path))
 
-        zone_data = self.project_manager.get_multi_aquarium_zone_data(video_path=path)
+        zone_data: ZoneData | MultiAquariumZoneData | None = (
+            self.project_manager.get_multi_aquarium_zone_data(video_path=path)
+        )
         if not zone_data:
             zone_data = self.project_manager.get_zone_data(video_path=path)
 
@@ -4218,7 +4287,7 @@ class ProcessingCoordinator(BaseCoordinator):
         }
 
         # Geometry
-        arena_polygon = []
+        arena_polygon: list[tuple[float, float]] = []
         if hasattr(zone_data, "aquariums") and zone_data.aquariums:
             for aq in zone_data.aquariums:
                 if aq.id == aq_id:
@@ -4258,7 +4327,11 @@ class ProcessingCoordinator(BaseCoordinator):
         else:
             frame_crop_for_viz = frame_crop
 
-        analysis_result = self.analysis_service.run_full_analysis_as_dto(
+        service = self.analysis_service
+        if not service:
+            return
+
+        analysis_result = service.run_full_analysis_as_dto(
             trajectory_df=df,
             pixelcm_x=px_x,
             pixelcm_y=px_y,
@@ -4292,7 +4365,13 @@ class ProcessingCoordinator(BaseCoordinator):
         df = pd.read_parquet(traj_path)
         zone_data = self.project_manager.get_zone_data(video_path=path)
         project_data = getattr(self.project_manager, "project_data", {}) or {}
-        analysis_params = self.analysis_service.collect_analysis_parameters(project_data)
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+
+        service = self.analysis_service
+        if service:
+            analysis_params = service.collect_analysis_parameters(project_data)
+        else:
+            analysis_params = {}
         calib = project_data.get("calibration", {})
         px_x_orig, px_y_orig = (
             float(calib.get("pixel_per_cm_x", 1.0)),
@@ -4319,7 +4398,11 @@ class ProcessingCoordinator(BaseCoordinator):
         frame_crop = (off_x, off_y, loc_w, loc_h)
         video_path_report = self._prepare_background_image(path, exp_id, results_path, frame_crop)
 
-        analysis_result = self.analysis_service.run_full_analysis_as_dto(
+        service = self.analysis_service
+        if not service:
+            return
+
+        analysis_result = service.run_full_analysis_as_dto(
             trajectory_df=df,
             pixelcm_x=px_x,
             pixelcm_y=px_y,
@@ -4816,9 +4899,12 @@ class ProcessingCoordinator(BaseCoordinator):
             "day": out.get("day"),
             "aquarium_id": aq_id,
         }
-        behavioral_config = self.analysis_service.collect_analysis_parameters(
-            self.project_manager.project_data
-        ).get("behavioral_config", {})
+
+        behavioral_config = {}
+        if self.analysis_service:
+            behavioral_config = self.analysis_service.collect_analysis_parameters(
+                self.project_manager.project_data
+            ).get("behavioral_config", {})
 
         # Behavioral parameters are now correctly collected by AnalysisService
         # which respects project overrides (synced from UI) > global defaults.
@@ -4881,9 +4967,12 @@ class ProcessingCoordinator(BaseCoordinator):
             meta = self.project_manager.get_metadata_for_experiment(exp_id, video_path=path) or {
                 "experiment_id": exp_id
             }
-            behavioral_config = self.analysis_service.collect_analysis_parameters(
-                self.project_manager.project_data
-            ).get("behavioral_config", {})
+            behavioral_config = {}
+            service = self.analysis_service
+            if service:
+                behavioral_config = service.collect_analysis_parameters(
+                    self.project_manager.project_data
+                ).get("behavioral_config", {})
 
             # Behavioral parameters are now correctly collected by AnalysisService
             # which respects project overrides (synced from UI) > global defaults.

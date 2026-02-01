@@ -83,7 +83,7 @@ class LiveConfigStep(WizardStep):
 
         # UI state
         self.camera_selection_var = StringVar(value="")  # Stores camera display name
-        self.camera_index_map = {}  # Maps display name -> camera index
+        self.camera_index_map: dict[str, int] = {}  # Maps display name -> camera index
         self.use_arduino_var = BooleanVar(value=False)
         self.arduino_port_var = StringVar(value="")
         self.external_trigger_mode_var = BooleanVar(value=False)
@@ -102,11 +102,11 @@ class LiveConfigStep(WizardStep):
         self.is_batch_last_session_var = BooleanVar(value=False)  # Mark as final session
 
         # Available cameras and Arduino ports (populated on show)
-        self.available_cameras = []
-        self.available_ports = []
-        self.arduino_port_map = {}  # Maps display name -> port device
+        self.available_cameras: list[dict[str, Any]] = []
+        self.available_ports: list[dict[str, Any]] = []
+        self.arduino_port_map: dict[str, str] = {}  # Maps display name -> port device
         self.template_info_var = StringVar(value="")
-        self.template_info_label = None
+        self.template_info_label: Label | None = None
 
         # Hardware capability (v2.2.0)
         self.hardware_report: HardwareCapabilityReport | None = None
@@ -134,7 +134,8 @@ class LiveConfigStep(WizardStep):
             wraplength=500,
             justify="left",
         )
-        self.template_info_label.pack_forget()
+        if self.template_info_label:
+            self.template_info_label.pack_forget()
 
         # Camera configuration
         camera_frame = LabelFrame(self, text="Configuração de Câmera", padx=15, pady=10)
@@ -635,6 +636,10 @@ class LiveConfigStep(WizardStep):
             return True
 
         # Use LiveCameraModeSelector to get recommendation
+        if not self.settings_obj or not self.hardware_report:
+            log.warning("live_config.missing_requirements_for_mode_selection")
+            return True
+
         selector = LiveCameraModeSelector(self.settings_obj)
         recommendation = selector.recommend_mode(
             requested_aquariums=requested_aquariums, hardware_report=self.hardware_report
@@ -678,6 +683,10 @@ class LiveConfigStep(WizardStep):
             self.selected_mode = mode
             mode_selected[0] = True
             log.info("live_config.mode_selected", mode=mode.name)
+
+        if not self.hardware_report:
+            log.warning("live_config.missing_hardware_report")
+            return False
 
         dialog = LiveCameraModeSelectionDialog(
             parent=self,

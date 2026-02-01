@@ -146,10 +146,11 @@ class UIStateController:
             self.weight_manager.add_weight(path, set_as_default, weight_type)
             new_name = path.name
             # Refresh UI on success
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_WEIGHTS_LIST,
-                {"weights": self.main_view_model.get_all_weight_names()},
-            )
+            if self.main_view_model:
+                self.ui_event_bus.publish_event(
+                    Events.UI_UPDATE_WEIGHTS_LIST,
+                    {"weights": self.main_view_model.get_all_weight_names()},
+                )
             self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": new_name})
             self.set_active_weight(new_name)  # This will also trigger conversion check
         except (ValueError, FileNotFoundError, OSError) as e:
@@ -168,10 +169,11 @@ class UIStateController:
         try:
             self.weight_manager.delete_weight(name)
             # Refresh UI on success
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_WEIGHTS_LIST,
-                {"weights": self.main_view_model.get_all_weight_names()},
-            )
+            if self.main_view_model:
+                self.ui_event_bus.publish_event(
+                    Events.UI_UPDATE_WEIGHTS_LIST,
+                    {"weights": self.main_view_model.get_all_weight_names()},
+                )
             default_name, _ = self.weight_manager.get_default_weight()
             self.ui_event_bus.publish_event(
                 Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": default_name}
@@ -191,32 +193,35 @@ class UIStateController:
             name: Name of the weight to set as active.
             dialog: Optional dialog to update with OpenVINO status.
         """
-        candidate = name or ""
-        available = set(self.main_view_model.get_all_weight_names())
+        if self.main_view_model:
+            candidate = name or ""
+            available = set(self.main_view_model.get_all_weight_names())
 
-        if candidate and candidate in available:
-            # Property delegates to hardware_vm automatically
-            self.main_view_model.active_weight_name = candidate
+            if candidate and candidate in available:
+                # Property delegates to hardware_vm automatically
+                self.main_view_model.active_weight_name = candidate
 
-            logger.info("controller.active_weight.set", name=candidate)
-            self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": candidate})
-            self.update_openvino_status(dialog)
-            if self.main_view_model.use_openvino:
-                self.convert_active_weight_to_openvino(dialog)
-        else:
-            if candidate:
-                logger.warning("controller.active_weight.not_found", name=name)
-            # Property delegates to hardware_vm automatically
-            self.main_view_model.active_weight_name = ""
+                logger.info("controller.active_weight.set", name=candidate)
+                self.ui_event_bus.publish_event(
+                    Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": candidate}
+                )
+                self.update_openvino_status(dialog)
+                if self.main_view_model.use_openvino:
+                    self.convert_active_weight_to_openvino(dialog)
+            else:
+                if candidate:
+                    logger.warning("controller.active_weight.not_found", name=name)
+                # Property delegates to hardware_vm automatically
+                self.main_view_model.active_weight_name = ""
 
-            self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": ""})
-            self.update_openvino_status(dialog)
+                self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": ""})
+                self.update_openvino_status(dialog)
 
-        if not self.main_view_model._using_project_overrides:
-            self.project_workflow_service.set_global_model_defaults(
-                active_weight=self.main_view_model.active_weight_name,
-                use_openvino=self.main_view_model.use_openvino,
-            )
+            if not self.main_view_model._using_project_overrides:
+                self.project_workflow_service.set_global_model_defaults(
+                    active_weight=self.main_view_model.active_weight_name,
+                    use_openvino=self.main_view_model.use_openvino,
+                )
 
     def load_new_weight(
         self,
@@ -268,21 +273,23 @@ class UIStateController:
             use_openvino: True to enable OpenVINO, False to use PyTorch.
             dialog: Optional dialog to update with status.
         """
-        self.main_view_model.use_openvino = bool(use_openvino)
-        logger.info("controller.openvino_usage.set", enabled=self.main_view_model.use_openvino)
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": self.main_view_model.use_openvino}
-        )
-        if self.main_view_model.use_openvino and self.main_view_model.active_weight_name:
-            # Trigger conversion if switching to OpenVINO and model isn't converted
-            self.convert_active_weight_to_openvino(dialog)
-        self.update_openvino_status(dialog)
-
-        if not self.main_view_model._using_project_overrides:
-            self.project_workflow_service.set_global_model_defaults(
-                active_weight=self.main_view_model.active_weight_name,
-                use_openvino=self.main_view_model.use_openvino,
+        if self.main_view_model:
+            self.main_view_model.use_openvino = bool(use_openvino)
+            logger.info("controller.openvino_usage.set", enabled=self.main_view_model.use_openvino)
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_OPENVINO_CHECKBOX,
+                {"is_checked": self.main_view_model.use_openvino},
             )
+            if self.main_view_model.use_openvino and self.main_view_model.active_weight_name:
+                # Trigger conversion if switching to OpenVINO and model isn't converted
+                self.convert_active_weight_to_openvino(dialog)
+            self.update_openvino_status(dialog)
+
+            if not self.main_view_model._using_project_overrides:
+                self.project_workflow_service.set_global_model_defaults(
+                    active_weight=self.main_view_model.active_weight_name,
+                    use_openvino=self.main_view_model.use_openvino,
+                )
 
     def convert_active_weight_to_openvino(self, dialog):
         """
@@ -291,7 +298,7 @@ class UIStateController:
         Delegates conversion logic to ModelService (Phase 2.1).
         MainViewModel only handles UI updates and status feedback.
         """
-        if not self.main_view_model.active_weight_name:
+        if not self.main_view_model or not self.main_view_model.active_weight_name:
             return
 
         if self.ui_event_bus:

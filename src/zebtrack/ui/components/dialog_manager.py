@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog
-from typing import Any
+from typing import Any, Literal
 
 import structlog
 
@@ -74,7 +74,13 @@ class DialogManager:
         """
         return messagebox.askokcancel(title, message)
 
-    def ask_yes_no(self, title: str, message: str, *, icon: str = "question") -> bool:
+    def ask_yes_no(
+        self,
+        title: str,
+        message: str,
+        *,
+        icon: Literal["error", "info", "question", "warning"] = "question",
+    ) -> bool:
         """Show a confirmation dialog with Yes/No buttons.
 
         Args:
@@ -87,7 +93,13 @@ class DialogManager:
         """
         return messagebox.askyesno(title, message, icon=icon)
 
-    def ask_yes_no_cancel(self, title: str, message: str, *, icon: str = "question") -> bool | None:
+    def ask_yes_no_cancel(
+        self,
+        title: str,
+        message: str,
+        *,
+        icon: Literal["error", "info", "question", "warning"] = "question",
+    ) -> bool | None:
         """Show a confirmation dialog with Yes/No/Cancel buttons.
 
         Args:
@@ -114,7 +126,7 @@ class DialogManager:
         Returns:
             Selected directory path or empty string if cancelled
         """
-        kwargs = {"title": title}
+        kwargs: dict[str, Any] = {"title": title}
         if initial_dir:
             kwargs["initialdir"] = initial_dir
         return filedialog.askdirectory(**kwargs)
@@ -135,7 +147,7 @@ class DialogManager:
         Returns:
             Selected file path or empty string if cancelled
         """
-        kwargs = {"title": title, "filetypes": filetypes}
+        kwargs: dict[str, Any] = {"title": title, "filetypes": filetypes}
         if initial_dir:
             kwargs["initialdir"] = initial_dir
         return filedialog.askopenfilename(**kwargs)
@@ -156,10 +168,13 @@ class DialogManager:
         Returns:
             Tuple of selected file paths or empty tuple if cancelled
         """
-        kwargs = {"title": title, "filetypes": filetypes}
+        kwargs: dict[str, Any] = {"title": title, "filetypes": filetypes}
         if initial_dir:
             kwargs["initialdir"] = initial_dir
-        return filedialog.askopenfilenames(**kwargs)
+        result = filedialog.askopenfilenames(**kwargs)
+        if isinstance(result, str) and not result:
+            return ()
+        return result
 
     def ask_save_filename(self, **options) -> str:
         """Show a dialog to select a save file path.
@@ -601,7 +616,7 @@ class DialogManager:
 
             from zebtrack.ui.dialogs.subject_selection_dialog import SubjectSelectionDialog
 
-            dialog = SubjectSelectionDialog(
+            dialog: Any = SubjectSelectionDialog(
                 self.gui.root, day, group_name, subjects_per_group, completed_subjects
             )
 

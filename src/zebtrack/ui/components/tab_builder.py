@@ -1,5 +1,5 @@
 from tkinter import Button, Label, ttk
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
@@ -25,8 +25,14 @@ class TabBuilder:
 
     def build_main_controls_tab(self) -> ttk.Frame:
         """Constrói aba de controles principais baseada no tipo de projeto."""
+        if self.gui.notebook is None:
+            return ttk.Frame(self.gui.root)  # Fallback
+
         self.gui.main_controls_frame = ttk.Frame(self.gui.notebook, padding="10")
         self.gui.notebook.add(self.gui.main_controls_frame, text="Controle Principal")
+
+        if not self.project_manager:
+            return self.gui.main_controls_frame
 
         project_type = self.project_manager.get_project_type()
         self.gui.process_video_btn = None
@@ -77,12 +83,17 @@ class TabBuilder:
 
     def build_zone_tab(self) -> None:
         """Create the tab for ROI and detection zone configuration."""
-        self.gui.roi_data = {}
-        self.gui._bg_scale = 1.0
-        self.gui._bg_offset = (0, 0)
-        self.gui._bg_img_size = (0, 0)
-        self.gui._canvas_bg_image = None
-        self.gui._drawing_buttons_frame = None
+        # Use Any cast to set dynamic attributes
+        gui = cast(Any, self.gui)
+        gui.roi_data = {}
+        gui._bg_scale = 1.0
+        gui._bg_offset = (0, 0)
+        gui._bg_img_size = (0, 0)
+        gui._canvas_bg_image = None
+        gui._drawing_buttons_frame = None
+
+        if self.gui.notebook is None:
+            return
 
         # 1. Create the main frame for the tab and rename it
         self.gui.zone_tab_frame = ttk.Frame(self.gui.notebook, padding="10")
@@ -144,7 +155,7 @@ class TabBuilder:
         self.gui._roi_canvas_widget.bind("<Configure>", self.gui._on_canvas_configure)
 
         # 7. ✨ NEW: Create context menu before subscribing to events
-        self.gui.roi_context_menu = None
+        gui.roi_context_menu = None
         self.gui.menu_manager.create_roi_context_menu()
 
         # 8. ✨ NEW: Subscribe to events emitted by the components
@@ -236,7 +247,7 @@ class TabBuilder:
 
     def _build_live_project_widgets(self, parent):
         """Constrói widgets específicos para projetos ao vivo."""
-        self.gui.external_trigger_notice_label = Label(
+        label = Label(
             parent,
             textvariable=self.gui.external_trigger_notice_var,
             anchor="w",
@@ -245,13 +256,12 @@ class TabBuilder:
             padx=10,
             pady=6,
         )
-        self.gui.external_trigger_notice_label.pack(fill="x", pady=(0, 8))
-        self.gui._external_notice_default_bg = self.gui.external_trigger_notice_label.cget(
-            "background"
-        )
-        self.gui._external_notice_default_fg = self.gui.external_trigger_notice_label.cget(
-            "foreground"
-        )
+        label.pack(fill="x", pady=(0, 8))
+        self.gui.external_trigger_notice_label = label
+
+        # Safe access to cget with defaults if needed
+        self.gui._external_notice_default_bg = str(label.cget("background"))
+        self.gui._external_notice_default_fg = str(label.cget("foreground"))
 
         self.gui.arduino_dashboard_widget = ArduinoDashboardWidget(
             parent,

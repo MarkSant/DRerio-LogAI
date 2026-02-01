@@ -222,7 +222,9 @@ class EventDispatcher:
             Events.UI_SELECT_TAB,
             lambda d: self.gui.notebook.select(
                 getattr(self.gui, f"{d.get('tab_name') if isinstance(d, dict) else ''}_frame", 0)
-            ),
+            )
+            if self.gui and self.gui.notebook
+            else None,
         )
 
         # Single video zone setup (Decoupling from MainViewModel)
@@ -284,19 +286,19 @@ class EventDispatcher:
         self.event_bus.subscribe(
             Events.UI_UPDATE_OPENVINO_STATUS,
             lambda d: self.gui.update_openvino_status_display(
-                d.get("status") if isinstance(d, dict) else None
+                str(d.get("status")) if isinstance(d, dict) and d.get("status") else "Unknown"
             ),
         )
         self.event_bus.subscribe(
             Events.UI_UPDATE_OPENVINO_CHECKBOX,
             lambda d: self.gui.update_openvino_checkbox(
-                d.get("is_checked") if isinstance(d, dict) else None
+                bool(d.get("is_checked")) if isinstance(d, dict) else False
             ),
         )
         self.event_bus.subscribe(
             Events.UI_UPDATE_WEIGHTS_LIST,
             lambda d: self.gui.update_weights_dropdown(
-                d.get("weights") if isinstance(d, dict) else None
+                list(d.get("weights", [])) if isinstance(d, dict) else []
             ),
         )
 
@@ -304,8 +306,8 @@ class EventDispatcher:
         self.event_bus.subscribe(
             Events.UI_UPDATE_ARDUINO_STATUS,
             lambda d: self.gui.arduino_dashboard_widget.update_status(
-                d.get("connected") if isinstance(d, dict) else None,
-                d.get("port") if isinstance(d, dict) else None,
+                bool(d.get("connected")) if isinstance(d, dict) else False,
+                str(d.get("port")) if isinstance(d, dict) and d.get("port") else None,
             )
             if self.gui.arduino_dashboard_widget
             else None,
@@ -349,7 +351,7 @@ class EventDispatcher:
         self.event_bus.subscribe(
             Events.UI_DISPLAY_FRAME,
             lambda d: self.gui.canvas_manager.update_video_frame(
-                d.get("frame") if isinstance(d, dict) else None,
+                d.get("frame") if isinstance(d, dict) else None,  # type: ignore
                 d.get("detections") if isinstance(d, dict) else None,
             ),
         )
@@ -375,14 +377,14 @@ class EventDispatcher:
         self.event_bus.subscribe(
             Events.UI_REQUEST_WEIGHT_TYPE,
             lambda d: self.gui.handle_request_weight_type(
-                d.get("filepath") if isinstance(d, dict) else None
+                str(d.get("filepath")) if isinstance(d, dict) and d.get("filepath") else ""
             ),
         )
         self.event_bus.subscribe(
             Events.UI_REQUEST_WEIGHT_ACTION,
             lambda d: self.gui.handle_request_weight_action(
-                d.get("filepath") if isinstance(d, dict) else None,
-                d.get("weight_type") if isinstance(d, dict) else None,
+                str(d.get("filepath")) if isinstance(d, dict) and d.get("filepath") else "",
+                str(d.get("weight_type")) if isinstance(d, dict) and d.get("weight_type") else "",
             ),
         )
 
@@ -695,6 +697,9 @@ class EventDispatcher:
             True if event was successfully published, False otherwise
         """
         if not self.validate_event_payload(event_name, data or {}):
+            return False
+
+        if not self.event_bus:
             return False
 
         return self.event_bus.publish_event(event_name, data or {})
