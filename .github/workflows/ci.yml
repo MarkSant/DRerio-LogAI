@@ -29,6 +29,7 @@ jobs:
         run: |
           # Use in-project virtualenvs to avoid cache corruption issues
           poetry config virtualenvs.in-project true
+          poetry config virtualenvs.create true
 
       - name: Ensure cache paths exist
         run: |
@@ -138,6 +139,7 @@ jobs:
         run: |
           # Use in-project virtualenvs to avoid cache corruption issues
           poetry config virtualenvs.in-project true
+          poetry config virtualenvs.create true
 
       - name: Cache pip/poetry downloads
         uses: actions/cache@v5
