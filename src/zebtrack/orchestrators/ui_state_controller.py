@@ -364,9 +364,10 @@ class UIStateController:
 
     def update_openvino_status(self, dialog=None):
         """Update the status label in the GUI based on the current state."""
-        if not self.main_view_model:
+        main_view_model = self.main_view_model
+        if main_view_model is None:
             return
-        status = self.main_view_model.get_openvino_status()
+        status = main_view_model.get_openvino_status()
         if dialog:
             dialog.update_openvino_status_label(status)
         self.ui_event_bus.publish_event(Events.UI_UPDATE_OPENVINO_STATUS, {"status": status})
@@ -545,23 +546,25 @@ class UIStateController:
 
     def _show_cancel_feedback(self) -> None:
         """Update UI immediately after a cancellation request."""
-        if not self.main_view_model or not self.view:
+        main_view_model = self.main_view_model
+        view = self.view
+        if main_view_model is None or view is None:
             return
-        if self.main_view_model._cancel_feedback_displayed:
+        if main_view_model._cancel_feedback_displayed:
             return
 
-        self.main_view_model._cancel_feedback_displayed = True
+        main_view_model._cancel_feedback_displayed = True
 
         # Switch back to zone view and clear progress indicators right away
-        self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
+        self.ui_coordinator.update_view(view, "stop_analysis_view_mode")
         self.ui_coordinator.set_status(
-            self.view,
+            view,
             "Cancelamento solicitado. Finalizando tarefas em segundo plano...",
         )
 
         # Provide immediate dialog feedback so the user knows reports won't be generated
         self.ui_coordinator.show_info(
-            self.view,
+            view,
             "Análise cancelada",
             "A análise de vídeo foi cancelada. Nenhum relatório será gerado.",
         )
@@ -579,9 +582,9 @@ class UIStateController:
 
     def _prepare_processing_ui(self, total_videos: int) -> None:
         # Phase 4: Use UICoordinator for UI updates
-        if not self.view:
-            return
         view = self.view
+        if view is None:
+            return
         self.ui_coordinator.show_progress_bar(view)
         self.ui_coordinator.schedule_after(
             0,

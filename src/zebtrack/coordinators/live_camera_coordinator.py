@@ -328,7 +328,7 @@ class LiveCameraCoordinator(BaseCoordinator):
 
             # Delegate to service
             service_result = self.live_camera_service.stop_session()
-            success = True if service_result is None else bool(service_result)
+            success = bool(service_result)
 
             # Update state
             self._active_session_id = None
@@ -534,8 +534,9 @@ class LiveCameraCoordinator(BaseCoordinator):
         # Duration: use from config (user-editable), fallback to setting or default
         duration_s = config.get("duration_s")
         if duration_s is None:
-            if self.settings and hasattr(self.settings, "live_analysis"):
-                duration_s = self.settings.live_analysis.default_duration_s
+            settings = self.settings
+            if settings is not None and hasattr(settings, "live_analysis"):
+                duration_s = settings.live_analysis.default_duration_s
             else:
                 duration_s = 300.0  # 5 minutes default
 
@@ -579,11 +580,12 @@ class LiveCameraCoordinator(BaseCoordinator):
             # Open camera temporarily to get dimensions
             from zebtrack.io.camera import Camera
 
-            if not self.settings:
+            settings = self.settings
+            if settings is None:
                 log.error("coordinator.live_analysis.missing_settings")
                 return False
 
-            temp_settings = self.settings.model_copy(deep=True)
+            temp_settings = settings.model_copy(deep=True)
             temp_settings.camera.index = camera_index
             temp_settings.camera.desired_width = 1280
             temp_settings.camera.desired_height = 720

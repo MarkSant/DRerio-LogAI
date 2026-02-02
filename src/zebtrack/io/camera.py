@@ -297,7 +297,11 @@ class Camera(FrameSource):
         self._reconnect_attempts_public = 0
 
         now = time.time()
-        max_lag_ms = self.settings.camera.max_frame_lag_ms if self.settings else 100.0
+        max_lag_ms = 100.0
+        if self.settings:
+            candidate = getattr(self.settings.camera, "max_frame_lag_ms", None)
+            if isinstance(candidate, (int, float)):
+                max_lag_ms = float(candidate)
         with self._lock:
             if self._frame_timestamps:
                 lag_ms = (now - self._frame_timestamps[-1]) * 1000

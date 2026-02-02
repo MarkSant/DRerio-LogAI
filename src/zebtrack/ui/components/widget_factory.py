@@ -1117,7 +1117,9 @@ class WidgetFactory:
         template = dialog.result
         if template["type"] == "vertical":
             lanes_value = template.get("lanes")
-            lanes = int(lanes_value) if isinstance(lanes_value, (int, float, str)) else 0
+            lanes = 0
+            if isinstance(lanes_value, (int, float, str)):
+                lanes = int(lanes_value)
             lane_width = width / lanes if lanes else width
             for i in range(lanes):
                 x1 = x_min + i * lane_width
@@ -1126,7 +1128,9 @@ class WidgetFactory:
                 rois_to_add.append({"name": f"V_Lane_{i + 1}", "type": "polygon", "coords": coords})
         elif template["type"] == "horizontal":
             lanes_value = template.get("lanes")
-            lanes = int(lanes_value) if isinstance(lanes_value, (int, float, str)) else 0
+            lanes = 0
+            if isinstance(lanes_value, (int, float, str)):
+                lanes = int(lanes_value)
             lane_height = height / lanes if lanes else height
             for i in range(lanes):
                 y1 = y_min + i * lane_height
@@ -1136,8 +1140,12 @@ class WidgetFactory:
         elif template["type"] == "grid":
             cols_value = template.get("cols")
             rows_value = template.get("rows")
-            cols = int(cols_value) if isinstance(cols_value, (int, float, str)) else 0
-            rows = int(rows_value) if isinstance(rows_value, (int, float, str)) else 0
+            cols = 0
+            rows = 0
+            if isinstance(cols_value, (int, float, str)):
+                cols = int(cols_value)
+            if isinstance(rows_value, (int, float, str)):
+                rows = int(rows_value)
             col_width = width / cols if cols else width
             row_height = height / rows if rows else height
             for r in range(rows):

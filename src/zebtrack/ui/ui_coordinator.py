@@ -204,8 +204,8 @@ class UICoordinator:
 
         try:
             # 1. Update canvas zone listbox
-            if self.canvas_manager:
-                canvas_manager = self.canvas_manager
+            canvas_manager = self.canvas_manager
+            if canvas_manager is not None:
                 self._safe_ui_call(lambda: canvas_manager.update_zone_listbox(zone_data))
                 self._safe_ui_call(lambda: canvas_manager.update_roi_button_state())
                 log.debug(
@@ -220,8 +220,8 @@ class UICoordinator:
             #     log.debug("ui_coordinator.zones_updated.zones_validated")
 
             # 3. Refresh project views if needed
-            if self.project_view_manager:
-                project_view_manager = self.project_view_manager
+            project_view_manager = self.project_view_manager
+            if project_view_manager is not None:
                 self._safe_ui_call(
                     lambda: project_view_manager.request_overview_refresh(reason="zones_updated")
                 )
@@ -260,8 +260,8 @@ class UICoordinator:
         filter_text = data.get("filter_text")
 
         try:
-            if self.project_view_manager:
-                project_view_manager = self.project_view_manager
+            project_view_manager = self.project_view_manager
+            if project_view_manager is not None:
                 self._safe_ui_call(
                     lambda: project_view_manager._populate_video_selector_tree(filter_text)
                 )
@@ -295,8 +295,8 @@ class UICoordinator:
         self._events_handled += 1
 
         try:
-            if self.project_view_manager:
-                project_view_manager = self.project_view_manager
+            project_view_manager = self.project_view_manager
+            if project_view_manager is not None:
                 self._safe_ui_call(
                     lambda: project_view_manager.apply_pending_readiness_snapshot(
                         ready_with_trajectory=data.get("ready_with_trajectory", []),
@@ -330,8 +330,8 @@ class UICoordinator:
         polygon = data.get("polygon")
 
         try:
-            if self.canvas_manager and polygon is not None:
-                canvas_manager = self.canvas_manager
+            canvas_manager = self.canvas_manager
+            if canvas_manager is not None and polygon is not None:
                 self._safe_ui_call(lambda: canvas_manager.setup_interactive_polygon(polygon))
                 log.debug("ui_coordinator.polygon_edit.setup_completed")
 
@@ -356,9 +356,13 @@ class UICoordinator:
         self._events_handled += 1
 
         try:
-            if self.project_view_manager:
-                project_view_manager = self.project_view_manager
-                self._safe_ui_call(lambda: project_view_manager._build_video_hierarchy_snapshot())
+            project_view_manager = self.project_view_manager
+            if project_view_manager is not None:
+
+                def _build_snapshot() -> None:
+                    project_view_manager._build_video_hierarchy_snapshot()
+
+                self._safe_ui_call(_build_snapshot)
                 log.debug("ui_coordinator.video_hierarchy_snapshot.built")
 
         except Exception as e:
@@ -386,19 +390,19 @@ class UICoordinator:
 
         try:
             # 1. Load frame to canvas
-            if self.canvas_manager and video_path:
-                canvas_manager = self.canvas_manager
+            canvas_manager = self.canvas_manager
+            if canvas_manager is not None and video_path:
                 self._safe_ui_call(lambda: canvas_manager.load_video_frame_to_canvas(video_path))
                 log.debug("ui_coordinator.video_loaded.frame_loaded", video_path=video_path)
 
             # 2. Check for existing zones and offer reuse
+            dialog_manager = self.dialog_manager
             if (
                 self.validation_manager
-                and self.dialog_manager
+                and dialog_manager is not None
                 and video_path
                 and not self.validation_manager.has_zones(video_path)
             ):
-                dialog_manager = self.dialog_manager
                 self._safe_ui_call(lambda: dialog_manager.offer_zone_reuse(video_path))
                 log.debug("ui_coordinator.video_loaded.zone_reuse_offered")
 
@@ -427,8 +431,8 @@ class UICoordinator:
         self._events_handled += 1
 
         try:
-            if self.project_view_manager:
-                project_view_manager = self.project_view_manager
+            project_view_manager = self.project_view_manager
+            if project_view_manager is not None:
                 reason = data.get("reason")
                 append_summary = data.get("append_summary", False)
                 immediate = data.get("immediate", False)

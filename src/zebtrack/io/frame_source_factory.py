@@ -6,7 +6,7 @@ from various input types (file paths, camera indices, or live streams).
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 import structlog
 
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     # Test 4: Error handling
     print("\n4. Testing error handling...")
     try:
-        FrameSourceFactory.create(source=cast(Any, 999.5))  # Invalid type
+        FrameSourceFactory.create(source={"type": "invalid"})
     except ValueError as e:
         print(f"   ✓ Caught expected ValueError: {e}")
 

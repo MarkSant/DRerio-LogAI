@@ -759,8 +759,9 @@ class AnalysisService:
             }
 
         # Add behavioral defaults if available
-        if self.settings and hasattr(self.settings, "behavioral_analysis"):
-            ba_cfg = self.settings.behavioral_analysis
+        settings = self.settings
+        if settings is not None and hasattr(settings, "behavioral_analysis"):
+            ba_cfg = settings.behavioral_analysis
             # Get perspective - lateral enables geotaxis by default
             perspective = getattr(ba_cfg, "aquarium_perspective", "lateral")
             params["behavioral_config"] = {

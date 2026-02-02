@@ -842,9 +842,10 @@ class _WorkerProcess(multiprocessing.Process):
                     # Detect
                     if is_multi_aquarium:
                         log.debug("worker.detect_multi.start", frame=frame_num)
-                        partitioned_detections = detector.detect_partitioned_optimized(frame)
+                        partitioned_detections: dict[int, list[tuple[Any, ...]]] = (
+                            detector.detect_partitioned_optimized(frame)
+                        )
                         log.debug("worker.detect_multi.end", frame=frame_num)
-                        detections = []
                         for aq_dets in partitioned_detections.values():
                             detections.extend(aq_dets)
                     else:

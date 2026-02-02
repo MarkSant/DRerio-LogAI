@@ -329,7 +329,7 @@ def _find_openvino_model() -> Path | None:
 
 def _benchmark_video_decode(video_path: Path, num_frames: int = 50) -> dict[str, BenchmarkResult]:
     """Benchmark video decoding with different backends."""
-    results = {}
+    results: dict[str, BenchmarkResult] = {}
 
     backends = [
         ("FFMPEG", cv2.CAP_FFMPEG, "Software decode (FFmpeg)"),
