@@ -20,6 +20,8 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: "poetry"
+          cache-dependency-path: "**/poetry.lock"
 
       - name: Install Poetry
         run: |
@@ -30,43 +32,6 @@ jobs:
           # Use in-project virtualenvs to avoid cache corruption issues
           poetry config virtualenvs.in-project true
           poetry config virtualenvs.create true
-
-      - name: Ensure cache paths exist
-        run: |
-          python -c "from pathlib import Path; home = Path.home(); (home / '.cache' / 'pip').mkdir(parents=True, exist_ok=True); (home / '.cache' / 'pypoetry').mkdir(parents=True, exist_ok=True)"
-
-      - name: Ensure in-project venv path exists (Windows only)
-        if: runner.os == 'Windows'
-        run: |
-          python -c "from pathlib import Path; Path('.venv').mkdir(parents=True, exist_ok=True)"
-
-      - name: Ensure cache paths exist
-        run: |
-          python -c "from pathlib import Path; home = Path.home(); (home / '.cache' / 'pip').mkdir(parents=True, exist_ok=True); (home / '.cache' / 'pypoetry').mkdir(parents=True, exist_ok=True)"
-
-      - name: Ensure in-project venv path exists (Windows only)
-        if: runner.os == 'Windows'
-        run: |
-          python -c "from pathlib import Path; Path('.venv').mkdir(parents=True, exist_ok=True)"
-
-      - name: Ensure cache paths exist
-        run: |
-          python -c "from pathlib import Path; home = Path.home(); (home / '.cache' / 'pip').mkdir(parents=True, exist_ok=True); (home / '.cache' / 'pypoetry').mkdir(parents=True, exist_ok=True)"
-
-      - name: Ensure in-project venv path exists (Windows only)
-        if: runner.os == 'Windows'
-        run: |
-          python -c "from pathlib import Path; Path('.venv').mkdir(parents=True, exist_ok=True)"
-
-      - name: Cache pip/poetry downloads
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cache/pip
-            ~/.cache/pypoetry
-          key: ${{ runner.os }}-pip-poetry-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-poetry-
 
       - name: Install dependencies
         run: |
@@ -128,6 +93,8 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: "poetry"
+          cache-dependency-path: "**/poetry.lock"
 
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
@@ -149,25 +116,6 @@ jobs:
           # Use in-project virtualenvs to avoid cache corruption issues
           poetry config virtualenvs.in-project true
           poetry config virtualenvs.create true
-
-      - name: Cache pip/poetry downloads
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cache/pip
-            ~/.cache/pypoetry
-          key: ${{ runner.os }}-pip-poetry-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-poetry-
-
-      - name: Cache in-project virtualenv (Windows only)
-        if: runner.os == 'Windows'
-        uses: actions/cache@v5
-        with:
-          path: .venv
-          key: ${{ runner.os }}-venv-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-venv-
 
       - name: Install dependencies
         run: |

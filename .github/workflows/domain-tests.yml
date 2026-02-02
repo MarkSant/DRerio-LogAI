@@ -88,6 +88,8 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+          cache: "poetry"
+          cache-dependency-path: "**/poetry.lock"
 
       - name: Run impact analyzer on changed files
         run: |
@@ -130,12 +132,6 @@ jobs:
       - name: Configure Poetry
         run: poetry config virtualenvs.in-project true
 
-      - name: Cache dependencies
-        uses: actions/cache@v5
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
-
       - name: Install dependencies
         run: poetry install --no-interaction
 
@@ -161,6 +157,8 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+          cache: "poetry"
+          cache-dependency-path: "**/poetry.lock"
 
       - name: Install system dependencies
         run: |
@@ -172,12 +170,6 @@ jobs:
 
       - name: Configure Poetry
         run: poetry config virtualenvs.in-project true
-
-      - name: Cache dependencies
-        uses: actions/cache@v5
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --no-interaction
@@ -203,6 +195,8 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+          cache: "poetry"
+          cache-dependency-path: "**/poetry.lock"
 
       - name: Install system dependencies
         run: |
@@ -214,12 +208,6 @@ jobs:
 
       - name: Configure Poetry
         run: poetry config virtualenvs.in-project true
-
-      - name: Cache dependencies
-        uses: actions/cache@v5
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --no-interaction
@@ -245,6 +233,8 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+          cache: "poetry"
+          cache-dependency-path: "**/poetry.lock"
 
       - name: Install system dependencies
         run: |
@@ -256,12 +246,6 @@ jobs:
 
       - name: Configure Poetry
         run: poetry config virtualenvs.in-project true
-
-      - name: Cache dependencies
-        uses: actions/cache@v5
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --no-interaction
@@ -287,6 +271,8 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+          cache: "poetry"
+          cache-dependency-path: "**/poetry.lock"
 
       - name: Install system dependencies
         run: |
@@ -298,12 +284,6 @@ jobs:
 
       - name: Configure Poetry
         run: poetry config virtualenvs.in-project true
-
-      - name: Cache dependencies
-        uses: actions/cache@v5
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --no-interaction
