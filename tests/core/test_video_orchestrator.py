@@ -6,6 +6,7 @@ Tests for batch video processing, workflows, and project orchestration.
 """
 
 import unittest
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 from zebtrack.core.video_orchestrator import VideoOrchestrator
@@ -91,6 +92,8 @@ class TestVideoOrchestratorCallbacks(unittest.TestCase):
             analysis_service=Mock(),
             recorder=Mock(),
         )
+        self.publish_event_mock = Mock()
+        self.orchestrator.ui_event_bus.publish_event = self.publish_event_mock
 
     def test_set_arena_callback(self):
         """Test setting arena polygon callback."""
@@ -134,18 +137,24 @@ class TestVideoOrchestratorScanValidate(unittest.TestCase):
             analysis_service=Mock(),
             recorder=Mock(),
         )
+        self.publish_event_mock = Mock()
+        self.orchestrator.ui_event_bus.publish_event = self.publish_event_mock
 
     def test_scan_with_empty_candidates(self):
         """Test scanning with empty candidate list."""
-        candidate_entries = []
+        candidate_entries: list[dict[str, Any]] = []
         result = self.orchestrator._scan_and_validate_candidate_paths(candidate_entries)
 
         assert result == (None, None, None)
-        self.orchestrator.ui_event_bus.publish_event.assert_called_once()
+        self.publish_event_mock.assert_called_once()
 
     def test_scan_with_invalid_paths(self):
         """Test scanning with candidates that have no valid paths."""
-        candidate_entries = [{"path": None}, {"path": ""}, {"other_key": "value"}]
+        candidate_entries: list[dict[str, Any]] = [
+            {"path": None},
+            {"path": ""},
+            {"other_key": "value"},
+        ]
         result = self.orchestrator._scan_and_validate_candidate_paths(candidate_entries)
 
         assert result == (None, None, None)
@@ -178,6 +187,7 @@ class TestVideoOrchestratorScanValidate(unittest.TestCase):
         assert info_by_norm is not None
         assert len(info_by_norm) == 2
         assert missing_files == []
+        assert scanned_videos is not None
         assert len(scanned_videos) == 2
 
     @patch("zebtrack.core.video_orchestrator.ProjectManager.scan_input_paths")
@@ -201,11 +211,14 @@ class TestVideoOrchestratorScanValidate(unittest.TestCase):
         )
 
         # Verify
+        assert info_by_norm is not None
         assert len(info_by_norm) == 1
+        assert missing_files is not None
         assert "/path/to/missing.mp4" in missing_files
+        assert scanned_videos is not None
         assert len(scanned_videos) == 1
         # Should publish warning about missing files
-        self.orchestrator.ui_event_bus.publish_event.assert_called()
+        self.publish_event_mock.assert_called()
 
 
 class TestVideoOrchestratorClassifyVideos(unittest.TestCase):
@@ -402,7 +415,7 @@ class TestVideoOrchestratorProcessingCallbacks(unittest.TestCase):
 
         # Execute on_progress
         stats = {"current_frame": 50, "total_frames": 100}
-        callbacks.on_progress(0.5, "Processing...", stats)
+        callbacks.on_progress(0, 1, "experiment", 0.5, "Processing...", stats)
 
         # Verify UI updates
         self.ui_coordinator.set_status.assert_called_once()
@@ -415,12 +428,14 @@ class TestVideoOrchestratorProcessingCallbacks(unittest.TestCase):
         callbacks = self.orchestrator._create_processing_callbacks(eligible_videos)
 
         # Execute on_completed
-        callbacks.on_completed(was_cancelled=False, output_dir="/output", summary={})
+        callbacks.on_completed(False, "/output", {})
 
         # Verify cleanup calls
         self.ui_coordinator.hide_progress_bar.assert_called_once_with(self.view)
         self.state_manager.update_processing_state.assert_called()
-        assert self.orchestrator._refresh_project_views_callback.called
+        assert self.orchestrator._refresh_project_views_callback is not None
+        refresh_callback = cast(Mock, self.orchestrator._refresh_project_views_callback)
+        assert refresh_callback.called
 
     def test_on_error_callback(self):
         """Test on_error callback behavior."""

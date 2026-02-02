@@ -7,6 +7,7 @@ These tests verify the remaining UI orchestration functionality.
 
 from __future__ import annotations
 
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -54,7 +55,7 @@ class DummyMainViewModel:
 @pytest.fixture()
 def orchestrator_setup():
     main_view_model = DummyMainViewModel()
-    orchestrator = VideoProcessingOrchestrator(main_view_model)
+    orchestrator = VideoProcessingOrchestrator(cast(Any, main_view_model))
     return orchestrator, main_view_model
 
 

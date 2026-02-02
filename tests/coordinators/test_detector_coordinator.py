@@ -3,6 +3,7 @@
 Comprehensive test coverage for detector setup and configuration orchestration.
 """
 
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -152,7 +153,7 @@ class TestDetectorCoordinatorInitialization:
         """Test that validate_dependencies raises error without detector_service."""
         coordinator = DetectorCoordinator(
             state_manager=mock_state_manager,
-            detector_service=None,
+            detector_service=cast(Any, None),
         )
 
         with pytest.raises(CoordinatorValidationError) as exc_info:
@@ -271,7 +272,7 @@ class TestDetectorSetup:
         """Test setup_detector fails validation with None detector_service."""
         coordinator = DetectorCoordinator(
             state_manager=mock_state_manager,
-            detector_service=None,
+            detector_service=cast(Any, None),
         )
 
         with pytest.raises(CoordinatorValidationError):

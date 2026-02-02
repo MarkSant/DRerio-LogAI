@@ -4,6 +4,7 @@ Tests the migration of update_zone_listbox() from direct GUI calls to Event Bus 
 This validates FASE 2 - Tarefa 2.1 (PLANO_ACAO_V4.md).
 """
 
+from typing import Any, cast
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -84,7 +85,8 @@ class TestZonesUpdatedEvent:
 
         dialog_manager = DialogManager(gui_mock, event_bus_v2=event_bus)
         # Mock show_info to avoid tkinter interaction
-        dialog_manager.show_info = MagicMock()
+        dialog_manager_any = cast(Any, dialog_manager)
+        dialog_manager_any.show_info = MagicMock()
 
         events_received = []
 
@@ -142,8 +144,9 @@ class TestZonesUpdatedEvent:
 
             roi_manager = ROITemplateManager(project_manager_mock, gui_mock, event_bus_v2=event_bus)
             # Mock gui.show_info used in apply_template
-            roi_manager.gui.show_info = MagicMock()
-            roi_manager.gui.set_status = MagicMock()
+            gui_any = cast(Any, roi_manager.gui)
+            gui_any.show_info = MagicMock()
+            gui_any.set_status = MagicMock()
 
             events_received = []
 
@@ -158,7 +161,7 @@ class TestZonesUpdatedEvent:
         ]
         roi_manager.template_var.set("test_template")
         # Mock variable does not maintain state, so force return value
-        roi_manager.template_var.get.return_value = "test_template"
+        roi_manager.template_var.get = MagicMock(return_value="test_template")
 
         # Also patch load_roi_template which is called by apply_template
         with patch.object(project_manager_mock, "load_roi_template", return_value=MagicMock()):

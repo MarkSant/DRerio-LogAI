@@ -23,6 +23,8 @@ def test_control_panel_publishes_events(tkinter_root, mock_event_bus):
     tkinter_root.update()
 
     # Enable buttons before invoking
+    assert widget.start_rec_btn is not None
+    assert widget.stop_rec_btn is not None
     widget.start_rec_btn.config(state=tk.NORMAL)
     widget.stop_rec_btn.config(state=tk.NORMAL)
 
@@ -42,6 +44,7 @@ def test_zone_controls_publishes_events(tkinter_root, mock_event_bus):
     tkinter_root.update()
 
     # A more comprehensive test would check every button, but we'll sample a few
+    assert widget.auto_detect_button is not None
     widget.auto_detect_button.invoke()
     mock_event_bus.publish_event.assert_called_with(
         event_name="zone.auto_detect_clicked",
@@ -58,4 +61,4 @@ def test_zone_controls_publishes_events(tkinter_root, mock_event_bus):
 
     # Ensure no direct controller/view_model calls exist
     with pytest.raises(AttributeError):
-        widget.controller.some_method()
+        _ = widget.controller

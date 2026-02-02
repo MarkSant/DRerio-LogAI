@@ -1,3 +1,5 @@
+from typing import cast
+
 import numpy as np
 
 
@@ -36,10 +38,11 @@ def test_generate_trajectory_plot_uses_imread_for_png_background(monkeypatch, tm
 
     monkeypatch.setattr(cv2, "imread", _imread_ok)
 
+    from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
     from zebtrack.analysis.visualization_generator import VisualizationGenerator
 
     vg = VisualizationGenerator(
-        b_analyzer=_FakeBehavioralAnalyzer(),
+        b_analyzer=cast(ConcreteBehavioralAnalyzer, _FakeBehavioralAnalyzer()),
         metadata={"experiment_id": "exp_test"},
         pixelcm_x=10.0,
         pixelcm_y=10.0,

@@ -12,6 +12,7 @@ Then run the wizard with your multi-aquarium video files and check the logs.
 
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -129,7 +130,8 @@ def patch_validation_manager():
     """Patch validation_manager to add enhanced logging."""
     from zebtrack.ui.components import validation_manager
 
-    original_build = validation_manager.ValidationManager._build_video_hierarchy
+    validation_manager_class = cast(Any, validation_manager.ValidationManager)
+    original_build = validation_manager_class._build_video_hierarchy
 
     def patched_build(self, videos, search_text=""):
         """Patched version with enhanced logging."""
@@ -163,7 +165,7 @@ def patch_validation_manager():
 
         return result
 
-    validation_manager.ValidationManager._build_video_hierarchy = patched_build
+    validation_manager_class._build_video_hierarchy = patched_build
     log.info("✅ Patched ValidationManager._build_video_hierarchy")
 
 

@@ -55,7 +55,7 @@ def test_video_processing_error_recovery(
     """
     from .conftest import create_sample_detections, setup_basic_recording
 
-    processing_results = {"success": [], "failed": []}
+    processing_results: dict[str, list[str]] = {"success": [], "failed": []}
     video_names = [f"video{i}" for i in range(1, 6)]
 
     for idx, video_name in enumerate(video_names):
@@ -93,7 +93,11 @@ def test_video_processing_error_recovery(
 
             # Wait for file flush
             coords_file = results_dir / f"3_CoordMovimento_{video_name}.parquet"
-            wait_for_condition(lambda f=coords_file: f.exists(), timeout=1.0)
+
+            def _coords_exists(coords_file=coords_file) -> bool:
+                return coords_file.exists()
+
+            wait_for_condition(_coords_exists, timeout=1.0)
 
             # Track success
             integration_state_manager.update_processing_state(

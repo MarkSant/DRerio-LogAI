@@ -1,5 +1,4 @@
 from pathlib import Path
-from types import SimpleNamespace
 
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.metrics_cache import MetricsCache
@@ -70,7 +69,9 @@ def test_metrics_cache_clear_specific_and_all(tmp_path):
 
 def test_analysis_service_initializes_metrics_cache(tmp_path):
     tmp_path / "cache"
-    settings = SimpleNamespace()
+    from tests.helpers import create_mock_settings
+
+    settings = create_mock_settings()
 
     service = AnalysisService(settings_obj=settings, enable_metrics_cache=True)
 

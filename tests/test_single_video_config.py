@@ -1,3 +1,4 @@
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -37,23 +38,21 @@ class TestSingleVideoConfigPersistence:
         Verify that clicking 'Analyze' (apply) in SingleVideoConfigDialog
         correctly updates the global Settings object with the values from the widget.
         """
-        # mocks
-        mock_videopath = "c:/fake/video.mp4"
-
         with patch(
             "zebtrack.ui.dialogs.single_video_config_dialog.SingleVideoConfigDialog.__init__",
             return_value=None,
         ):
             # Instantiate without calling real __init__
-            dialog = SingleVideoConfigDialog(mock_gui, mock_videopath, mock_settings)
+            dialog = SingleVideoConfigDialog(mock_gui, mock_settings)
 
             # Manually set attributes required by apply()
             dialog.settings = mock_settings
-            dialog.config_widget = MagicMock()
-            dialog.result = None
+            dialog_any = cast(Any, dialog)
+            dialog_any.config_widget = MagicMock()
+            dialog_any.result = None
 
             # Setup the config widget mock
-            mock_config_widget = dialog.config_widget
+            mock_config_widget = dialog_any.config_widget
             mock_config_widget.get_config = MagicMock(
                 return_value={
                     "aquarium_perspective": "Lateral",
