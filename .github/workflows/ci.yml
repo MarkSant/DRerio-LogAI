@@ -191,7 +191,7 @@ jobs:
       - name: Archive coverage results
         uses: actions/upload-artifact@v6
         with:
-          name: coverage-report
+          name: coverage-report-${{ matrix.os }}
           path: |
             coverage.xml
           retention-days: 30
