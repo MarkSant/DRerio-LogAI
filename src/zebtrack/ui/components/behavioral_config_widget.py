@@ -5,6 +5,7 @@ Used in Wizard CalibrationStep, SingleVideoConfigDialog, and LiveAnalysisDialog.
 """
 
 from tkinter import BooleanVar, DoubleVar, IntVar, StringVar, ttk
+from typing import Any
 
 import structlog
 
@@ -36,14 +37,14 @@ class BehavioralConfigWidget(BaseWidget):
     """
 
     @staticmethod
-    def _coerce_float(value: object, fallback: float) -> float:
+    def _coerce_float(value: Any, fallback: float) -> float:
         try:
             return float(value)
         except (TypeError, ValueError):
             return float(fallback)
 
     @staticmethod
-    def _coerce_int(value: object, fallback: int) -> int:
+    def _coerce_int(value: Any, fallback: int) -> int:
         try:
             return int(value)
         except (TypeError, ValueError):

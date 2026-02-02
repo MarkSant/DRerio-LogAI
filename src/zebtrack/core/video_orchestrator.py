@@ -508,7 +508,7 @@ class VideoOrchestrator:
 
     def _scan_and_validate_candidate_paths(
         self, candidate_entries: list[dict]
-    ) -> tuple[dict | None, list, list]:
+    ) -> tuple[dict | None, list | None, list | None]:
         """Scan and validate candidate video file paths.
 
         Uses ProjectManager.scan_input_paths to read video metadata (dimensions, fps, frames)
