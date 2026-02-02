@@ -57,7 +57,9 @@ def patch_detection_step():
 
         return result
 
-    detection_step.DetectionStep._pattern_custom_regex = patched_pattern_custom_regex
+    attr_name = "_pattern_custom_regex"
+    detection_step_class = cast(type[Any], detection_step.DetectionStep)
+    type.__setattr__(detection_step_class, attr_name, patched_pattern_custom_regex)
     log.info("✅ Patched detection_step._pattern_custom_regex")
 
 
@@ -120,9 +122,9 @@ def patch_project_workflow_service():
 
         return result
 
-    project_workflow_service.ProjectWorkflowService._enrich_videos_with_design_metadata = (
-        patched_enrich
-    )
+    attr_name = "_enrich_videos_with_design_metadata"
+    workflow_class = cast(type[Any], project_workflow_service.ProjectWorkflowService)
+    type.__setattr__(workflow_class, attr_name, patched_enrich)
     log.info("✅ Patched ProjectWorkflowService._enrich_videos_with_design_metadata")
 
 

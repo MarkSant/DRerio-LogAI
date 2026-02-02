@@ -4,6 +4,7 @@ Tests the migration of update_zone_listbox() from direct GUI calls to Event Bus 
 This validates FASE 2 - Tarefa 2.1 (PLANO_ACAO_V4.md).
 """
 
+from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import MagicMock, Mock, patch
 
@@ -159,9 +160,10 @@ class TestZonesUpdatedEvent:
         roi_manager._cache = [
             {"name": "test_template", "display_name": "test_template", "id": "123"}
         ]
+        template_var = SimpleNamespace(get=lambda: "test_template", set=MagicMock())
+        roi_manager_any = cast(Any, roi_manager)
+        roi_manager_any.template_var = template_var
         roi_manager.template_var.set("test_template")
-        # Mock variable does not maintain state, so force return value
-        roi_manager.template_var.get = MagicMock(return_value="test_template")
 
         # Also patch load_roi_template which is called by apply_template
         with patch.object(project_manager_mock, "load_roi_template", return_value=MagicMock()):

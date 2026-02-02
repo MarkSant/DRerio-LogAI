@@ -9,6 +9,7 @@ import numpy as np
 
 from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.plugins.base import DetectorPlugin
+from zebtrack.tracker.basetrack import BaseTrack
 
 
 class MockDetectorPlugin(DetectorPlugin):
@@ -24,6 +25,8 @@ class MockDetectorPlugin(DetectorPlugin):
     def __init__(self, model_path: str = "mock_model"):
         self.model_path = model_path
         self._detect_return_value: list[MockDetectorPlugin.DetectionOutput] = []
+        self.detect_calls = 0
+        self.reset_calls = 0
         self.single_subject_mode = False
         self.set_mode_calls = 0
         self.track_threshold: float | None = None
@@ -34,6 +37,7 @@ class MockDetectorPlugin(DetectorPlugin):
         self, frame: np.ndarray, conf_threshold: float | None = None
     ) -> list[tuple[int, int, int, int, float, int | None, int]]:
         # Allow configuring the return value for different test cases
+        self.detect_calls += 1
         return self._detect_return_value
 
     @staticmethod
@@ -68,6 +72,7 @@ class MockDetectorPlugin(DetectorPlugin):
         raise ValueError("Invalid detection tuple length for mock detector.")
 
     def reset_tracking_state(self) -> None:
+        self.reset_calls += 1
         return None
 
     def set_use_single_subject_mode(self, enabled: bool) -> None:
@@ -140,10 +145,9 @@ class TestDetector(unittest.TestCase):
         """Test that detect calls the plugin's detect method."""
         dummy_frame = np.zeros((480, 640, 3), dtype=np.uint8)
         self.detector.set_zones(ZoneData(polygon=[[0, 0], [1, 1]]), 640, 480)
-        mock_detect = MagicMock(return_value=[])
-        self.mock_plugin.detect = mock_detect
+        self.mock_plugin.detect_calls = 0
         self.detector.detect(dummy_frame, "live")
-        mock_detect.assert_called()
+        self.assertEqual(self.mock_plugin.detect_calls, 1)
 
     def test_set_single_subject_mode_configures_plugin(self):
         self.detector.set_single_subject_mode(True)
@@ -175,20 +179,20 @@ class TestDetector(unittest.TestCase):
         self.assertIs(self.detector._byte_tracker, sentinel_tracker)
         self.assertEqual(self.mock_plugin.set_mode_calls, 0)
 
-    @patch("zebtrack.tracker.basetrack.BaseTrack.reset_id_counter")
-    def test_reset_tracking_state_resets_internal_components(self, reset_id_counter: MagicMock):
-        reset_mock = MagicMock()
-        self.mock_plugin.reset_tracking_state = reset_mock
+    def test_reset_tracking_state_resets_internal_components(self):
+        self.mock_plugin.reset_calls = 0
         sentinel_tracker = MagicMock()
         self.detector._single_subject_tracker = sentinel_tracker
         self.detector._byte_tracker = cast(Any, object())
         self.detector._byte_tracker_params = (0.5, 0.5, 30, 0.5, 0.5, True, True)
 
+        BaseTrack._count = 5
+
         self.detector.reset_tracking_state()
 
-        reset_mock.assert_called_once()
+        self.assertEqual(self.mock_plugin.reset_calls, 1)
         sentinel_tracker.reset.assert_called_once()
-        reset_id_counter.assert_called_once()
+        self.assertEqual(BaseTrack._count, 0)
         self.assertIsNone(self.detector._byte_tracker)
         self.assertIsNone(self.detector._byte_tracker_params)
 
@@ -442,14 +446,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
             detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
 
         # Verify plugin.detect was called
-        mock_detect = MagicMock(return_value=[(150, 150, 160, 160, 0.8, None, 1)])
-        self.mock_plugin.detect = mock_detect
-        self.mock_plugin.set_detect_return_value([(150, 150, 160, 160, 0.8, None, 1)])
-
-        with patch.object(self.detector, "_is_inside_polygon", return_value=True):
-            _detections, _ = self.detector.detect(dummy_frame, "pre-recorded")
-
-        mock_detect.assert_called()
+        self.assertGreater(self.mock_plugin.detect_calls, 0)
 
     def test_detect_filters_multiple_detections_by_polygon(self):
         """Test that only detections inside the polygon are kept."""

@@ -20,7 +20,7 @@ class BaseTrack:
 
     history: ClassVar[OrderedDict] = OrderedDict()
     features: ClassVar[list] = []
-    curr_feature = None
+    curr_feature: np.ndarray | None = None
     score = 0
     start_frame = 0
     frame_id = 0

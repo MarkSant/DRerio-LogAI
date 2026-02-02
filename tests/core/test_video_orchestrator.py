@@ -80,11 +80,13 @@ class TestVideoOrchestratorCallbacks(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        ui_event_bus = Mock()
+        ui_event_bus.publish_event = Mock()
         self.orchestrator = VideoOrchestrator(
             root=Mock(),
             view=Mock(),
             state_manager=Mock(),
-            ui_event_bus=Mock(),
+            ui_event_bus=ui_event_bus,
             ui_coordinator=Mock(),
             settings_obj=Mock(),
             project_manager=Mock(),
@@ -92,8 +94,7 @@ class TestVideoOrchestratorCallbacks(unittest.TestCase):
             analysis_service=Mock(),
             recorder=Mock(),
         )
-        self.publish_event_mock = Mock()
-        self.orchestrator.ui_event_bus.publish_event = self.publish_event_mock
+        self.publish_event_mock = ui_event_bus.publish_event
 
     def test_set_arena_callback(self):
         """Test setting arena polygon callback."""
@@ -125,11 +126,13 @@ class TestVideoOrchestratorScanValidate(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        ui_event_bus = Mock()
+        ui_event_bus.publish_event = Mock()
         self.orchestrator = VideoOrchestrator(
             root=Mock(),
             view=Mock(),
             state_manager=Mock(),
-            ui_event_bus=Mock(),
+            ui_event_bus=ui_event_bus,
             ui_coordinator=Mock(),
             settings_obj=Mock(),
             project_manager=Mock(),
@@ -137,8 +140,7 @@ class TestVideoOrchestratorScanValidate(unittest.TestCase):
             analysis_service=Mock(),
             recorder=Mock(),
         )
-        self.publish_event_mock = Mock()
-        self.orchestrator.ui_event_bus.publish_event = self.publish_event_mock
+        self.publish_event_mock = ui_event_bus.publish_event
 
     def test_scan_with_empty_candidates(self):
         """Test scanning with empty candidate list."""

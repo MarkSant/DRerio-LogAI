@@ -8,7 +8,7 @@ and calibration integration.
 
 import threading
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import cv2
@@ -19,7 +19,7 @@ from zebtrack.core.detector import ZoneData
 from zebtrack.core.video_processing_service import VideoProcessingService
 
 # Global mock recorder instance that will be returned by MockRecorderClass
-_mock_recorder_instance = None
+_mock_recorder_instance: Any | None = None
 
 
 class MockRecorderClass:

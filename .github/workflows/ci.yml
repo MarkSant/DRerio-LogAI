@@ -8,6 +8,8 @@ on:
 
 env:
   PYTHONUTF8: 1
+  PIP_CACHE_DIR: ~/.cache/pip
+  POETRY_CACHE_DIR: ~/.cache/pypoetry
 
 jobs:
   lint:
@@ -46,13 +48,27 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-poetry-
 
+      - name: Set cache dirs (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "PIP_CACHE_DIR=$env:LOCALAPPDATA\pip\Cache" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "POETRY_CACHE_DIR=$env:LOCALAPPDATA\pypoetry\Cache" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Set cache dirs (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "PIP_CACHE_DIR=$env:LOCALAPPDATA\pip\Cache" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "POETRY_CACHE_DIR=$env:LOCALAPPDATA\pypoetry\Cache" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - name: Cache pip/poetry downloads (Windows)
         if: runner.os == 'Windows'
         uses: actions/cache@v5
         with:
           path: |
-            ${{ env.LOCALAPPDATA }}\pip\Cache
-            ${{ env.LOCALAPPDATA }}\pypoetry\Cache
+            ${{ env.PIP_CACHE_DIR }}
+            ${{ env.POETRY_CACHE_DIR }}
           key: ${{ runner.os }}-pip-poetry-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-pip-poetry-

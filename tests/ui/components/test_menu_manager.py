@@ -1,6 +1,7 @@
 """Tests for MenuManager component."""
 
 from tkinter import Menu
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -254,11 +255,8 @@ class TestOverviewBadgeFont:
     def test_get_overview_badge_font_creates_font(self, menu_manager, tkinter_root):
         """Test that font is created on first call."""
         import tkinter.font as tkfont
-        from tkinter import ttk
 
-        tree = ttk.Treeview(tkinter_root)
-        # Mock cget to return a font name since Treeview doesn't have -font option
-        tree.cget = Mock(return_value="TkDefaultFont")
+        tree = SimpleNamespace(cget=lambda _name: "TkDefaultFont")
         menu_manager.gui.project_overview_tree = tree
 
         font = menu_manager.get_overview_badge_font()
@@ -269,11 +267,7 @@ class TestOverviewBadgeFont:
 
     def test_get_overview_badge_font_caches_font(self, menu_manager, tkinter_root):
         """Test that font is cached and reused."""
-        from tkinter import ttk
-
-        tree = ttk.Treeview(tkinter_root)
-        # Mock cget to return a font name
-        tree.cget = Mock(return_value="TkDefaultFont")
+        tree = SimpleNamespace(cget=lambda _name: "TkDefaultFont")
         menu_manager.gui.project_overview_tree = tree
 
         font1 = menu_manager.get_overview_badge_font()

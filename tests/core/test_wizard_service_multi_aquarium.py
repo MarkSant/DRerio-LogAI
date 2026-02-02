@@ -226,13 +226,16 @@ class TestValidateMultiAquariumConfigEdgeCases:
 
     def test_validate_dict_enabled_missing_aquariums(self):
         """Test dict config with enabled but missing aquariums."""
-        config = cast(Any, {
-            "enabled": True,
-            "aquarium_configs": [],
-            "regex_pattern": "",
-            "regex_group_field": "group",
-            "regex_subject_field": "subject",
-        })
+        config = cast(
+            Any,
+            {
+                "enabled": True,
+                "aquarium_configs": [],
+                "regex_pattern": "",
+                "regex_group_field": "group",
+                "regex_subject_field": "subject",
+            },
+        )
 
         is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 

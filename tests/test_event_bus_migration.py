@@ -60,5 +60,4 @@ def test_zone_controls_publishes_events(tkinter_root, mock_event_bus):
     )
 
     # Ensure no direct controller/view_model calls exist
-    with pytest.raises(AttributeError):
-        _ = widget.controller
+    assert not hasattr(widget, "controller")

@@ -422,7 +422,8 @@ class TestBaseUIComponentValidation:
             settings_obj=settings_obj,
         )
 
-        component.parent = None
+        component_any = cast(Any, component)
+        component_any.parent = None
 
         assert component._validate_dependencies() is False
 
@@ -437,7 +438,8 @@ class TestBaseUIComponentValidation:
             settings_obj=settings_obj,
         )
 
-        component.controller = None
+        component_any = cast(Any, component)
+        component_any.controller = None
 
         assert component._validate_dependencies() is False
 
@@ -452,7 +454,8 @@ class TestBaseUIComponentValidation:
             settings_obj=settings_obj,
         )
 
-        component.settings = None
+        component_any = cast(Any, component)
+        component_any.settings = None
 
         assert component._validate_dependencies() is False
 

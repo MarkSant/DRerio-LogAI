@@ -46,8 +46,10 @@ class TestOpenVINOContext(unittest.TestCase):
             self.plugin._aquarium_region_defined = bool(defined)
 
         plugin_any = cast(Any, self.plugin)
-        plugin_any.set_context = set_context
-        plugin_any.set_aquarium_region_defined = set_aquarium_region_defined
+        attr_name = "set_context"
+        setattr(plugin_any, attr_name, set_context)
+        attr_name = "set_aquarium_region_defined"
+        setattr(plugin_any, attr_name, set_aquarium_region_defined)
 
         # Test setting context to diagnostic
         self.plugin.set_context("diagnostic")

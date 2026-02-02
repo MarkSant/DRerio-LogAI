@@ -52,7 +52,15 @@ def mock_project_manager():
 @pytest.fixture
 def coordinator(mock_settings, mock_project_manager):
     """Create ProcessingCoordinator with mocked dependencies."""
-    coord = ProcessingCoordinator(
+
+    class _TestProcessingCoordinator(ProcessingCoordinator):
+        _publish_event: MagicMock
+
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self._publish_event = MagicMock()
+
+    coord = _TestProcessingCoordinator(
         project_manager=mock_project_manager,
         detector_service=MagicMock(),
         weight_manager=MagicMock(),
@@ -65,7 +73,6 @@ def coordinator(mock_settings, mock_project_manager):
         video_validation_service=MagicMock(),
         video_classification_service=MagicMock(),
     )
-    coord._publish_event = MagicMock()
     return coord
 
 
