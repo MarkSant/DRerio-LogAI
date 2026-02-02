@@ -481,6 +481,7 @@ class ProcessingReportsWidget(BaseWidget):
 
         import glob
         import os
+        from typing import Any, Callable, cast
 
         unified_dir = os.path.join(self._project_path, "unified_reports")
         if not os.path.exists(unified_dir):
@@ -501,7 +502,11 @@ class ProcessingReportsWidget(BaseWidget):
         try:
             # Open file with default system application
             if os.name == "nt":  # Windows
-                os.startfile(latest_file)
+                startfile = getattr(os, "startfile", None)
+                if callable(startfile):
+                    cast(Callable[[str], Any], startfile)(latest_file)
+                else:
+                    raise OSError("startfile not available")
             elif os.name == "posix":  # macOS/Linux
                 import platform
                 import subprocess

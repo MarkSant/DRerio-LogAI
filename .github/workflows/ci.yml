@@ -34,7 +34,6 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-            .venv
             ~/.cache/pypoetry
           key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
@@ -121,7 +120,6 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-            .venv
             ~/.cache/pypoetry
           key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |

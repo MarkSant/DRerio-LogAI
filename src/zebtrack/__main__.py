@@ -117,12 +117,15 @@ def main():  # noqa: C901
     # Ensure Windows taskbar icon is displayed correctly (not generic Python icon)
     import ctypes
     import os
+    from typing import Any, cast
 
     if os.name == "nt":
         try:
             # Arbitrary AppUserModelID to group taskbar icon
             myappid = "zebtrack.ai.app.v1"
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+            windll = getattr(ctypes, "windll", None)
+            if windll is not None:
+                cast(Any, windll).shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         except Exception:
             pass  # Fail silently if not on Windows or other issue
 

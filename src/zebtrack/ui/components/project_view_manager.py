@@ -1145,7 +1145,11 @@ class ProjectViewManager:
                 log.info("gui.open_results_folder", path=results_dir)
                 try:
                     if os.name == "nt":  # Windows
-                        os.startfile(results_dir)
+                        startfile = getattr(os, "startfile", None)
+                        if callable(startfile):
+                            startfile(results_dir)
+                        else:
+                            raise OSError("startfile not available")
                     elif os.name == "posix":  # macOS, Linux
                         subprocess.Popen(["xdg-open", results_dir])
                 except Exception as e:
@@ -1164,7 +1168,11 @@ class ProjectViewManager:
                 )
                 try:
                     if os.name == "nt":  # Windows
-                        os.startfile(results_dir)
+                        startfile = getattr(os, "startfile", None)
+                        if callable(startfile):
+                            startfile(results_dir)
+                        else:
+                            raise OSError("startfile not available")
                     elif os.name == "posix":  # macOS, Linux
                         subprocess.Popen(["xdg-open", results_dir])
                 except Exception as e:
@@ -1186,7 +1194,11 @@ class ProjectViewManager:
         log.info("gui.open_report_file", path=file_path)
         try:
             if sys.platform == "win32":
-                os.startfile(file_path)
+                startfile = getattr(os, "startfile", None)
+                if callable(startfile):
+                    startfile(file_path)
+                else:
+                    raise OSError("startfile not available")
             elif sys.platform == "darwin":  # macOS
                 subprocess.Popen(["open", file_path])
             else:  # Linux
@@ -1825,7 +1837,11 @@ class ProjectViewManager:
             log.info("gui.open_results_folder", path=results_dir)
             try:
                 if os.name == "nt":  # Windows
-                    os.startfile(results_dir)
+                    startfile = getattr(os, "startfile", None)
+                    if callable(startfile):
+                        startfile(results_dir)
+                    else:
+                        raise OSError("startfile not available")
                 elif os.name == "posix":  # macOS, Linux
                     subprocess.Popen(["xdg-open", results_dir])
             except Exception as e:

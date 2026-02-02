@@ -440,6 +440,7 @@ class WeightManager:
             project_dir = Path(self.config_dir).resolve()
             # strict=True checks existence
             model_path = new_path.resolve(strict=True)
+            stored_path = new_path.absolute()
 
             # Check if the model path is inside the project directory.
             # If not, copy it to the project directory.
@@ -452,6 +453,7 @@ class WeightManager:
                         if target_path.resolve() == model_path.resolve():
                             # Same file via symlink or other path - use the existing one
                             model_path = target_path
+                            stored_path = target_path.absolute()
                             log.info("weights.add.external_file.same_file", path=str(target_path))
                         else:
                             raise ValueError(
@@ -464,6 +466,7 @@ class WeightManager:
                     else:
                         shutil.copy2(model_path, target_path)
                         model_path = target_path  # Use the new copied path
+                        stored_path = target_path.absolute()
                         log.info("weights.add.external_file.copied", target=str(target_path))
                 except Exception as e:
                     log.error("weights.add.external_file.copy_failed", error=str(e))
@@ -500,7 +503,7 @@ class WeightManager:
 
         # Store the safe, resolved path
         self.weights[new_name] = {
-            "path": str(model_path),
+            "path": str(stored_path),
             "is_default": set_as_default,
             "type": weight_type,
             "is_default_seg": weight_type == "seg" and set_as_default,
