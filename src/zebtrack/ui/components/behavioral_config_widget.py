@@ -35,6 +35,20 @@ class BehavioralConfigWidget(BaseWidget):
     - behavioral_config.values_changed: Any configuration value changed
     """
 
+    @staticmethod
+    def _coerce_float(value: object, fallback: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float(fallback)
+
+    @staticmethod
+    def _coerce_int(value: object, fallback: int) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return int(fallback)
+
     def __init__(
         self,
         parent,
@@ -60,10 +74,10 @@ class BehavioralConfigWidget(BaseWidget):
             **kwargs: Additional arguments passed to BaseWidget
         """
         # Store defaults before super().__init__ calls _build_ui
-        self._default_thigmotaxis_cm = default_thigmotaxis_cm
-        self._default_geotaxis_cm = default_geotaxis_cm
-        self._default_num_zones = default_num_zones
-        self._default_bottom_zones = default_bottom_zones
+        self._default_thigmotaxis_cm = self._coerce_float(default_thigmotaxis_cm, 1.5)
+        self._default_geotaxis_cm = self._coerce_float(default_geotaxis_cm, 1.5)
+        self._default_num_zones = self._coerce_int(default_num_zones, 3)
+        self._default_bottom_zones = self._coerce_int(default_bottom_zones, 1)
         self._default_perspective = kwargs.pop(
             "default_perspective", AquariumPerspective.LATERAL.value
         )
@@ -71,14 +85,14 @@ class BehavioralConfigWidget(BaseWidget):
 
         # State variables - initialized before _build_ui
         self.perspective_var = StringVar(value=self._default_perspective)
-        self.thigmotaxis_distance_var = DoubleVar(value=default_thigmotaxis_cm)
+        self.thigmotaxis_distance_var = DoubleVar(value=self._default_thigmotaxis_cm)
         self.geotaxis_enabled_var = BooleanVar(
             value=True if self._default_perspective == AquariumPerspective.LATERAL.value else False
         )
         self.geotaxis_mode_var = StringVar(value=self._default_geotaxis_mode)
-        self.geotaxis_distance_var = DoubleVar(value=default_geotaxis_cm)
-        self.geotaxis_num_zones_var = IntVar(value=default_num_zones)
-        self.geotaxis_bottom_zones_var = IntVar(value=default_bottom_zones)
+        self.geotaxis_distance_var = DoubleVar(value=self._default_geotaxis_cm)
+        self.geotaxis_num_zones_var = IntVar(value=self._default_num_zones)
+        self.geotaxis_bottom_zones_var = IntVar(value=self._default_bottom_zones)
 
         # Widget references
         self.perspective_combo: ttk.Combobox | None = None

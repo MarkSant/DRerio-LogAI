@@ -6,8 +6,10 @@ Handles menu bar, context menus, and menu-related operations.
 
 import os
 import tkinter.font as tkfont
+from collections.abc import Callable
 from pathlib import Path
 from tkinter import Menu, Toplevel, messagebox, ttk
+from typing import Any
 
 import structlog
 from PIL import Image, ImageTk
@@ -452,7 +454,7 @@ class MenuManager:
         column_id: str,
         x: int,
         y: int,
-        callbacks: dict[str, callable],
+        callbacks: dict[str, Callable[..., Any]],
     ) -> None:
         """Show context menu for processing reports tree items.
 

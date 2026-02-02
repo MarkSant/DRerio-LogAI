@@ -745,7 +745,7 @@ class LiveCameraService:
         log.info("live_camera_service.session_started", output_dir=str(output_dir))
         return True
 
-    def stop_session(self) -> None:
+    def stop_session(self) -> bool:
         """Stop the current live camera analysis session."""
         log.info("live_camera_service.stop_session")
 
@@ -842,6 +842,7 @@ class LiveCameraService:
             log.info("live_camera_service.buttons_restored_after_session_end")
 
         log.info("live_camera_service.session_stopped")
+        return True
 
     def _setup_camera(self, camera_index: int) -> bool:
         """Set up camera with given index."""

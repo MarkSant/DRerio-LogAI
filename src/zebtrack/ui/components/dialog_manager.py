@@ -737,7 +737,20 @@ class DialogManager:
 
         descriptors = []
         if day is not None and group is not None and cobaia is not None:
-            day_display = self.gui.validation_manager._format_day_display(day) or day
+            day_display = day
+            formatted_day = None
+            if getattr(self.gui, "validation_manager", None):
+                try:
+                    formatted_day = self.gui.validation_manager._format_day_display(day)
+                except Exception:
+                    formatted_day = None
+            if isinstance(formatted_day, str) and formatted_day.strip():
+                day_display = formatted_day
+            else:
+                try:
+                    day_display = f"{int(day):02d}"
+                except (TypeError, ValueError):
+                    day_display = str(day)
             descriptors.append(f"Dia {day_display}, Grupo {group}, Sujeito {cobaia}")
         if port:
             descriptors.append(f"Porta {port}")

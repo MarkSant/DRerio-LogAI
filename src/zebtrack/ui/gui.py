@@ -1189,14 +1189,20 @@ class ApplicationGUI:
 
     def _remove_selected_roi_confirm(self) -> None:
         """Remove the selected ROI after user confirmation (legacy UI flow)."""
-        if not self.zone_controls or not self.zone_controls.zone_listbox:
+        listbox = None
+        if hasattr(self, "zone_listbox") and self.zone_listbox:
+            listbox = self.zone_listbox
+        elif self.zone_controls and self.zone_controls.zone_listbox:
+            listbox = self.zone_controls.zone_listbox
+
+        if not listbox:
             return
 
-        selected = self.zone_controls.zone_listbox.selection()
+        selected = listbox.selection()
         if not selected:
             return
 
-        item = self.zone_controls.zone_listbox.item(selected[0])
+        item = listbox.item(selected[0])
         values = item.get("values") if isinstance(item, dict) else None
         if not values:
             return

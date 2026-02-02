@@ -519,7 +519,7 @@ class VideoOrchestrator:
 
         Returns:
             Tuple of (info_by_norm dict or None, missing_files list, scanned_videos list)
-            Returns (None, [], []) if there are no valid candidate paths.
+            Returns (None, None, None) if there are no valid candidate paths.
         """
         candidate_paths = [
             str(video.get("path"))
@@ -536,7 +536,7 @@ class VideoOrchestrator:
                     ),
                 },
             )
-            return (None, [], [])
+            return (None, None, None)
 
         # Use ProjectManager to scan input paths and read metadata
         scanned_videos = ProjectManager.scan_input_paths(candidate_paths)

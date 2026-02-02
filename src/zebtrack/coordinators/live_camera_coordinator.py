@@ -327,8 +327,8 @@ class LiveCameraCoordinator(BaseCoordinator):
                 return False
 
             # Delegate to service
-            self.live_camera_service.stop_session()
-            success = True
+            service_result = self.live_camera_service.stop_session()
+            success = True if service_result is None else bool(service_result)
 
             # Update state
             self._active_session_id = None
