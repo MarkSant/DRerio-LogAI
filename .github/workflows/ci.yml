@@ -139,6 +139,13 @@ jobs:
           poetry config virtualenvs.in-project true
           poetry config virtualenvs.create true
 
+      - name: Configure cache paths (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          echo "PIP_CACHE_DIR=$Env:LOCALAPPDATA\pip\Cache" >> $Env:GITHUB_ENV
+          echo "POETRY_CACHE_DIR=$Env:LOCALAPPDATA\pypoetry\Cache" >> $Env:GITHUB_ENV
+          python -c "from pathlib import Path; import os; Path(os.environ['LOCALAPPDATA'], 'pip', 'Cache').mkdir(parents=True, exist_ok=True); Path(os.environ['LOCALAPPDATA'], 'pypoetry', 'Cache').mkdir(parents=True, exist_ok=True)"
+
       - name: Ensure cache paths exist
         run: |
           python -c "from pathlib import Path; import os; home = Path.home(); local_app = os.environ.get('LOCALAPPDATA'); (Path(local_app, 'pip', 'Cache') if local_app else (home / '.cache' / 'pip')).mkdir(parents=True, exist_ok=True); (Path(local_app, 'pypoetry', 'Cache') if local_app else (home / '.cache' / 'pypoetry')).mkdir(parents=True, exist_ok=True)"
@@ -164,8 +171,8 @@ jobs:
         uses: actions/cache@v5
         with:
           path: |
-            ${{ env.LOCALAPPDATA }}\pip\Cache
-            ${{ env.LOCALAPPDATA }}\pypoetry\Cache
+            ${{ env.PIP_CACHE_DIR }}
+            ${{ env.POETRY_CACHE_DIR }}
           key: ${{ runner.os }}-pip-poetry-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-pip-poetry-
