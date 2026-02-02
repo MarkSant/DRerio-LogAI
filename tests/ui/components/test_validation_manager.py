@@ -1430,7 +1430,7 @@ class TestEdgeCases:
 
     def test_build_roi_template_identifier_empty_template(self, validation_manager):
         """Test identifier building with minimal template."""
-        template = {}
+        template: dict[str, object] = {}
         result = validation_manager.build_roi_template_identifier(template)
 
         assert result == "project:"  # Default location with empty name

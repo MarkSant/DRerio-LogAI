@@ -5,6 +5,7 @@ IMPROVEMENT #5: Validates trajectory data quality to detect tracking issues,
 implausible movements, and data corruption before analysis.
 """
 
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -53,7 +54,7 @@ class TrajectoryQualityValidator:
         self.min_trajectory_frames = min_trajectory_frames
 
     def validate(
-        self, df: pd.DataFrame, arena_polygon: list[tuple[float, float]] | None = None
+        self, df: pd.DataFrame, arena_polygon: Sequence[Sequence[float]] | None = None
     ) -> dict[str, Any]:
         """
         Run all validations and return comprehensive report.
@@ -213,7 +214,7 @@ class TrajectoryQualityValidator:
     def _check_arena_violations(
         self,
         df: pd.DataFrame,
-        arena_polygon: list[tuple[float, float]] | None,
+        arena_polygon: Sequence[Sequence[float]] | None,
         warnings: list[str],
         stats: dict[str, Any],
     ) -> None:

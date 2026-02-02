@@ -22,8 +22,8 @@ class TestDrawMultiAquariumOverlay:
     @pytest.fixture
     def mock_canvas_manager(self) -> CanvasManager:
         """Create a mock CanvasManager instance for testing."""
-        with patch.object(CanvasManager, "__init__", lambda x: None):
-            cm = CanvasManager()
+        with patch.object(CanvasManager, "__init__", lambda self, *args, **kwargs: None):
+            cm = CanvasManager(MagicMock())
             cm.gui = MagicMock()
             cm.event_bus_v2 = MagicMock()
             return cm
@@ -275,8 +275,8 @@ class TestMultiAquariumOverlayIntegration:
     @pytest.fixture
     def mock_canvas_manager(self) -> CanvasManager:
         """Create a mock CanvasManager instance for testing."""
-        with patch.object(CanvasManager, "__init__", lambda x: None):
-            cm = CanvasManager()
+        with patch.object(CanvasManager, "__init__", lambda self, *args, **kwargs: None):
+            cm = CanvasManager(MagicMock())
             cm.gui = MagicMock()
             cm.event_bus_v2 = MagicMock()
             return cm

@@ -216,14 +216,14 @@ jobs:
       - name: "Run tests (Linux - with xvfb)"
         if: runner.os == 'Linux'
         run: |
-          xvfb-run --auto-servernum poetry run pytest -m "not (gui or slow)" --cov=zebtrack --cov-report=xml --cov-fail-under=40 --timeout=300 --timeout-method=thread
-        timeout-minutes: 15
+          xvfb-run --auto-servernum poetry run pytest --cov=zebtrack --cov-report=xml --cov-fail-under=40 --timeout=300 --timeout-method=thread
+        timeout-minutes: 45
 
       - name: "Run tests (Windows)"
         if: runner.os == 'Windows'
         run: |
-          poetry run pytest -m "not (gui or slow)" --cov=zebtrack --cov-report=xml --cov-fail-under=0 --timeout=300 --timeout-method=thread
-        timeout-minutes: 15
+          poetry run pytest --cov=zebtrack --cov-report=xml --cov-fail-under=0 --timeout=300 --timeout-method=thread
+        timeout-minutes: 45
 
       - name: Archive coverage results
         uses: actions/upload-artifact@v6

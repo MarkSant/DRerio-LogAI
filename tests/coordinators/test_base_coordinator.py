@@ -12,6 +12,7 @@ Test Coverage:
 - Abstract method enforcement
 """
 
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -83,7 +84,7 @@ class TestBaseCoordinatorAbstractMethods:
         state_manager = Mock(spec=StateManager)
 
         with pytest.raises(TypeError) as exc_info:
-            BaseCoordinator(state_manager=state_manager)
+            cast(Any, BaseCoordinator)(state_manager=state_manager)
 
         assert "abstract" in str(exc_info.value).lower()
 
@@ -96,7 +97,7 @@ class TestBaseCoordinatorAbstractMethods:
         state_manager = Mock(spec=StateManager)
 
         with pytest.raises(TypeError):
-            IncompleteCoordinator(state_manager=state_manager)
+            cast(Any, IncompleteCoordinator)(state_manager=state_manager)
 
 
 class TestBaseCoordinatorStateMgmt:

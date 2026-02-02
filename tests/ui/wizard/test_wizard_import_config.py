@@ -179,6 +179,7 @@ class TestImportConfigStep:
         step.on_show()  # Triggers compute defaults and populate
 
         # Should have 2 rows
+        assert step.video_tree is not None
         assert len(step.video_tree.get_children()) == 2
 
     def test_validate_succeeds_with_videos(self):
@@ -309,6 +310,7 @@ class TestImportConfigStep:
         assert merge_value == ROIMergeStrategy.MANUAL.value
 
         # Verify table populated
+        assert step.video_tree is not None
         assert len(step.video_tree.get_children()) == 1
 
     def test_summary_calculation(self):

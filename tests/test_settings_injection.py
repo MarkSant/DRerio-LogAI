@@ -67,6 +67,8 @@ def test_validation_manager_uses_injected_settings(test_settings):
     manager1 = ValidationManager(gui1, settings_obj=settings1)
     manager2 = ValidationManager(gui2, settings_obj=settings2)
 
+    assert manager1._settings is not None
+    assert manager2._settings is not None
     assert manager1._settings.video_processing.fps == 25
     assert manager2._settings.video_processing.fps == 60
 
@@ -104,6 +106,8 @@ def test_widget_factory_uses_injected_settings(test_settings):
     factory1 = WidgetFactory(gui1, settings_obj=settings1)
     factory2 = WidgetFactory(gui2, settings_obj=settings2)
 
+    assert factory1._settings is not None
+    assert factory2._settings is not None
     assert factory1._settings.video_processing.fps == 25
     assert factory2._settings.video_processing.fps == 60
 
@@ -132,6 +136,8 @@ def test_validation_manager_isolation(test_settings):
     manager1 = ValidationManager(gui1, settings_obj=settings1)
     manager2 = ValidationManager(gui2, settings_obj=settings2)
 
+    assert manager1._settings is not None
+    assert manager2._settings is not None
     # Verify isolation - changing one doesn't affect the other
     assert manager1._settings.trajectory_smoothing.window_length == 5
     assert manager2._settings.trajectory_smoothing.window_length == 9
@@ -160,6 +166,8 @@ def test_widget_factory_isolation(test_settings):
     factory1 = WidgetFactory(gui1, settings_obj=settings1)
     factory2 = WidgetFactory(gui2, settings_obj=settings2)
 
+    assert factory1._settings is not None
+    assert factory2._settings is not None
     # Verify isolation
     assert factory1._settings.recorder.flush_interval_seconds == 5.0
     assert factory2._settings.recorder.flush_interval_seconds == 10.0

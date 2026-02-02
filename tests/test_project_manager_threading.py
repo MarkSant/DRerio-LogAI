@@ -98,7 +98,7 @@ class TestProjectManagerConcurrentUpdates:
             },
         }
 
-        zone_accesses = []
+        zone_accesses: list[tuple[int, int | str]] = []
 
         def zone_reader(thread_id):
             for i in range(5):
@@ -136,7 +136,7 @@ class TestProjectManagerConcurrentUpdates:
             {"path": "/path/to/video3.mp4", "status": "pending"},
         ]
 
-        status_updates = []
+        status_updates: list[tuple[int, int, int | str]] = []
 
         def status_updater(thread_id, video_index):
             for i in range(3):
@@ -177,7 +177,7 @@ class TestProjectManagerConcurrentUpdates:
             }
         )
 
-        metadata_reads = []
+        metadata_reads: list[tuple[int, int | str]] = []
 
         def metadata_reader(thread_id):
             for i in range(5):
@@ -340,7 +340,7 @@ class TestProjectManagerRaceConditions:
 
     def test_concurrent_state_manager_notifications(self, project_manager):
         """Test concurrent state manager notifications."""
-        notifications = []
+        notifications: list[tuple[int, int | str]] = []
 
         def notifier(thread_id):
             for i in range(5):

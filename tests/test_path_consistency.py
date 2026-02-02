@@ -158,7 +158,7 @@ class TestProjectServicePathConsistency:
         """Testa que save_roi_template aceita str."""
         temp_project_dir.mkdir(parents=True, exist_ok=True)
 
-        template_data = {"zones": [], "arena": None}
+        template_data: dict[str, object] = {"zones": [], "arena": None}
         project_path_str = str(temp_project_dir)
 
         template_file = project_service.save_roi_template(
@@ -173,7 +173,7 @@ class TestProjectServicePathConsistency:
         """Testa que save_roi_template aceita Path."""
         temp_project_dir.mkdir(parents=True, exist_ok=True)
 
-        template_data = {"zones": [], "arena": None}
+        template_data: dict[str, object] = {"zones": [], "arena": None}
 
         template_file = project_service.save_roi_template(
             temp_project_dir, "test_template", template_data
@@ -188,7 +188,7 @@ class TestProjectServicePathConsistency:
         temp_project_dir.mkdir(parents=True, exist_ok=True)
 
         # Criar template primeiro
-        template_data = {"zones": [], "arena": None}
+        template_data: dict[str, object] = {"zones": [], "arena": None}
         project_service.save_roi_template(temp_project_dir, "test_template", template_data)
 
         # Carregar usando str
@@ -202,7 +202,7 @@ class TestProjectServicePathConsistency:
         temp_project_dir.mkdir(parents=True, exist_ok=True)
 
         # Criar template primeiro
-        template_data = {"zones": [], "arena": None}
+        template_data: dict[str, object] = {"zones": [], "arena": None}
         project_service.save_roi_template(temp_project_dir, "test_template", template_data)
 
         # Carregar usando Path

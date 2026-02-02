@@ -2,6 +2,8 @@
 Tests for PanelBuilder builder.
 """
 
+from tkinter import StringVar
+from typing import cast
 from unittest.mock import Mock, patch
 
 from zebtrack.ui.builders.panel_builder import PanelBuilder
@@ -20,9 +22,9 @@ class TestPanelBuilder:
         mock_ttk.Label.return_value = mock_label
 
         status_vars = {
-            "active_weight": Mock(),
-            "openvino_status": Mock(),
-            "hardware_status": Mock(),
+            "active_weight": cast(StringVar, Mock()),
+            "openvino_status": cast(StringVar, Mock()),
+            "hardware_status": cast(StringVar, Mock()),
         }
 
         frame = PanelBuilder.build_model_status_panel(parent, status_vars)

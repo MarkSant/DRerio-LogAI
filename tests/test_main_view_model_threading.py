@@ -289,7 +289,7 @@ class TestMainViewModelConcurrentOperations:
 
     def test_concurrent_detector_calls(self, main_view_model):
         """Test concurrent calls to detector from multiple threads."""
-        detection_calls = []
+        detection_calls: list[tuple[int, int | str]] = []
 
         def detector_worker(worker_id):
             for i in range(3):

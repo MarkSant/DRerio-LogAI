@@ -367,7 +367,7 @@ class TestZoneManagerMultiAquariumProjectFile:
 
     def test_project_data_structure(self, zone_manager):
         """Testa estrutura correta do project_data com multi-aquário."""
-        project_data = {}
+        project_data: dict[str, object] = {}
         video_path = "/path/to/video.mp4"
 
         multi_data = MultiAquariumZoneData(
@@ -388,15 +388,17 @@ class TestZoneManagerMultiAquariumProjectFile:
 
         # multi_aquarium_zones should have the full data
         multi_zones = project_data["multi_aquarium_zones"]
+        assert isinstance(multi_zones, dict)
         assert len(multi_zones) == 1
 
         # zones_by_video should have first aquarium for compatibility
         zones_by_video = project_data["zones_by_video"]
+        assert isinstance(zones_by_video, dict)
         assert len(zones_by_video) == 1
 
     def test_compatibility_with_standard_zone_data(self, zone_manager):
         """Testa que dados multi-aquário são compatíveis com fluxo padrão."""
-        project_data = {}
+        project_data: dict[str, object] = {}
         video_path = "/path/to/video.mp4"
 
         multi_data = MultiAquariumZoneData(

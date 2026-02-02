@@ -95,6 +95,9 @@ class OpenVINOPlugin(DetectorPlugin):
             self.conf_threshold = 0.25
             self.nms_threshold = 0.45
 
+        self._context: str = "tracking"
+        self._aquarium_region_defined: bool = False
+
         xml_files = glob.glob(os.path.join(model_path, "*.xml"))
         if not xml_files:
             raise FileNotFoundError(f"Could not find a .xml model file in directory: {model_path}")
@@ -299,11 +302,21 @@ class OpenVINOPlugin(DetectorPlugin):
     def get_context_info(self) -> dict:
         """Get current context and aquarium region status for debugging."""
         return {
+            "context": self._context,
+            "aquarium_region_defined": self._aquarium_region_defined,
             "conf_threshold": self.conf_threshold,
             "nms_threshold": self.nms_threshold,
             "track_threshold": self.track_threshold,
             "match_threshold": self.match_threshold,
         }
+
+    def set_context(self, context: str) -> None:
+        """Set the execution context (tracking/analysis)."""
+        self._context = context
+
+    def set_aquarium_region_defined(self, defined: bool) -> None:
+        """Update aquarium region flag for downstream logic."""
+        self._aquarium_region_defined = bool(defined)
 
     def set_tracking_parameters(
         self,

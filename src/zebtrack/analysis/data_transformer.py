@@ -517,7 +517,7 @@ class DataTransformer:
         return column_name
 
     def rename_geotaxis_columns(
-        self, df: pd.DataFrame, height_cm: float, num_zones: int
+        self, df: pd.DataFrame, height_cm: float | None, num_zones: int | None
     ) -> pd.DataFrame:
         """Rename geotaxis zone columns to descriptive names with ranges.
 

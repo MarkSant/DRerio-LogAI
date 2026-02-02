@@ -62,9 +62,10 @@ def test_init_with_event_bus():
 def test_cannot_instantiate_base_coordinator():
     """Should not allow instantiating BaseCoordinator directly."""
     state_manager = Mock(spec=StateManager)
+    from typing import Any, cast
 
     try:
-        BaseCoordinator(state_manager=state_manager)
+        cast(Any, BaseCoordinator)(state_manager=state_manager)
         raise AssertionError("Should have raised TypeError")
     except TypeError as e:
         assert "abstract" in str(e).lower()

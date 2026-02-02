@@ -1354,13 +1354,13 @@ class CanvasManager:
         if multi_data:
             aquarium = multi_data.get_aquarium(other_id)
             if aquarium and aquarium.polygon:
-                return aquarium.polygon
+                return [list(point) for point in aquarium.polygon]
 
         # Fallback: if other_id=0, try regular zone data
         if other_id == 0:
             zone_data = self.gui.controller.project_manager.get_zone_data(video_path)
             if zone_data and hasattr(zone_data, "polygon") and zone_data.polygon:
-                return zone_data.polygon
+                return [list(point) for point in zone_data.polygon]
 
         return None
 

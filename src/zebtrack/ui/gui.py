@@ -144,6 +144,7 @@ class ApplicationGUI:
         self.main_controls_frame: ttk.Frame | None = None
         self.zone_tab_frame: ttk.Frame | None = None
         self.analysis_tab_frame: ttk.Frame | None = None
+        self.analysis_metadata_var: Any | None = None
 
         # Initialize component managers (extracted from God Object)
         # Phase 1 components
@@ -1222,6 +1223,7 @@ class ApplicationGUI:
             self.show_error("Erro", "ROI não encontrada")
             return
 
+        zone_data.roi_names = list(zone_data.roi_names)
         zone_data.roi_names.pop(idx)
 
         if isinstance(zone_data.roi_polygons, list) and idx < len(zone_data.roi_polygons):

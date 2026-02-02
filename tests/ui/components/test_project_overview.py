@@ -279,8 +279,8 @@ def test_populate_tree_with_hierarchy(overview_widget):
 
 def test_populate_tree_with_empty_hierarchy(overview_widget):
     """Test populate_tree_with_hierarchy with empty data."""
-    hierarchy_data = {"groups": []}
-    video_index = {}
+    hierarchy_data: dict[str, object] = {"groups": []}
+    video_index: dict[str, object] = {}
 
     overview_widget.populate_tree_with_hierarchy(hierarchy_data, video_index)
 

@@ -238,7 +238,7 @@ class TestUISchedulerViewUpdates(unittest.TestCase):
 
     def test_update_detection_overlay(self):
         """Test update_detection_overlay convenience method."""
-        payload = {"detections": []}
+        payload: dict[str, list[object]] = {"detections": []}
         processing_info = {"fps": 30}
         self.coordinator.update_detection_overlay(self.mock_view, payload, processing_info)
 

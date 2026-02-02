@@ -360,7 +360,7 @@ class TestWeightManagerRaceConditions:
 
     def test_mixed_read_write_operations(self, weight_manager):
         """Test mixed concurrent read and write operations."""
-        operations = []
+        operations: list[tuple[int, str, int | str]] = []
 
         def reader_worker(thread_id):
             for i in range(3):

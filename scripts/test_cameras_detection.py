@@ -52,6 +52,8 @@ def run_test():
         print(f"  - Detecção: {det_model_path}")
 
         # Inicializar plugins (usaremos segmentação para mostrar tudo)
+        if seg_model_path is None:
+            raise RuntimeError("Modelo de segmentação não encontrado")
         plugin = UltralyticsDetectorPlugin(model_path=seg_model_path, settings_obj=settings)
 
         # Reduzir threshold para ver TUDO mesmo

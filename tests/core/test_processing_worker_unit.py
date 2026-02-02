@@ -31,7 +31,7 @@ class FakeDetector:
         self.base_width = base_width
         self.base_height = base_height
         self.settings_obj = settings_obj
-        self.single_mode = None
+        self.single_mode: bool | None = None
 
     def set_single_subject_mode(self, enabled: bool):
         self.single_mode = enabled
@@ -57,8 +57,8 @@ def worker_config():
 
 
 def test_initialize_detector_syncs_interval_and_single_mode(worker_config):
-    result_queue = mp.Queue()
-    command_queue = mp.Queue()
+    result_queue: mp.Queue[object] = mp.Queue()
+    command_queue: mp.Queue[object] = mp.Queue()
 
     worker = _WorkerProcess(worker_config, result_queue, command_queue)
 
@@ -74,25 +74,32 @@ def test_initialize_detector_syncs_interval_and_single_mode(worker_config):
 
 
 def test_get_zone_data_prefers_video_metadata(worker_config):
-    result_queue = mp.Queue()
-    command_queue = mp.Queue()
+    result_queue: mp.Queue[object] = mp.Queue()
+    command_queue: mp.Queue[object] = mp.Queue()
     worker = _WorkerProcess(worker_config, result_queue, command_queue)
     worker._default_zone_data = ZoneData(polygon=[[1, 0], [0, 1], [1, 1]])
+
+    zone_polygon = [[0, 0], [10, 0], [10, 10], [0, 10]]
+    roi_polygons = [[[1, 1], [2, 1], [2, 2], [1, 2]]]
+    roi_names = ["roi"]
+    roi_colors = [(1, 2, 3)]
 
     meta_with_zone = {
         "path": "/video.mp4",
         "zone_data": {
-            "polygon": [[0, 0], [10, 0], [10, 10], [0, 10]],
-            "roi_polygons": [[[1, 1], [2, 1], [2, 2], [1, 2]]],
-            "roi_names": ["roi"],
-            "roi_colors": [(1, 2, 3)],
+            "polygon": zone_polygon,
+            "roi_polygons": roi_polygons,
+            "roi_names": roi_names,
+            "roi_colors": roi_colors,
         },
     }
 
     zone = worker._get_zone_data_for_video(meta_with_zone)
-    assert zone.polygon == meta_with_zone["zone_data"]["polygon"]
+    assert isinstance(zone, ZoneData)
+    assert zone.polygon == zone_polygon
     assert zone.roi_names == ["roi"]
 
     meta_without_zone = {"path": "/video2.mp4"}
     fallback_zone = worker._get_zone_data_for_video(meta_without_zone)
+    assert isinstance(fallback_zone, ZoneData)
     assert fallback_zone is worker._default_zone_data

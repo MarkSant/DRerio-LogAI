@@ -3,14 +3,22 @@
 
 import re
 from pathlib import Path
+from typing import TypedDict
 
 
-def analyze_methods(filepath: str) -> list[dict[str, int | str]]:
+class MethodInfo(TypedDict):
+    name: str
+    start: int
+    end: int
+    lines: int
+
+
+def analyze_methods(filepath: str) -> list[MethodInfo]:
     """Analyze methods in gui.py and categorize them."""
     content = Path(filepath).read_text()
     lines = content.split("\n")
 
-    methods: list[dict[str, int | str]] = []
+    methods: list[MethodInfo] = []
     current_method: str | None = None
     current_start: int = 0
 

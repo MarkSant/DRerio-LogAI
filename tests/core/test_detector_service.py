@@ -3,6 +3,7 @@ Tests for DetectorService - Phase 6
 """
 
 import unittest
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -26,7 +27,9 @@ class MockDetectorPlugin(DetectorPlugin):
         self._context = "tracking"
         self._aquarium_region_defined = False
 
-    def detect(self, frame: np.ndarray):
+    def detect(
+        self, frame: np.ndarray, conf_threshold: float | None = None
+    ) -> list[tuple[int, int, int, int, float, int | None, int]]:
         return []
 
     @staticmethod
@@ -34,26 +37,28 @@ class MockDetectorPlugin(DetectorPlugin):
         return "MockPlugin"
 
     @property
-    def model_input_shape(self):
+    def model_input_shape(self) -> tuple[int, int]:
         return (640, 480)
 
-    def set_context(self, context: str):
+    def set_context(self, context: str) -> None:
         self._context = context
 
-    def set_aquarium_region_defined(self, defined: bool):
+    def set_aquarium_region_defined(self, defined: bool) -> None:
         self._aquarium_region_defined = defined
 
-    def set_tracking_parameters(self, *, track_threshold=None, match_threshold=None):
+    def set_tracking_parameters(
+        self, *, track_threshold: float | None = None, match_threshold: float | None = None
+    ) -> None:
         if track_threshold is not None:
             self.track_threshold = float(track_threshold)
         if match_threshold is not None:
             self.match_threshold = float(match_threshold)
 
-    def get_context_info(self):
+    def get_context_info(self) -> dict[str, str]:
         return {"context": self._context}
 
-    def reset_tracking_state(self):
-        pass
+    def reset_tracking_state(self) -> None:
+        return None
 
 
 class TestDetectorService(unittest.TestCase):
@@ -140,6 +145,7 @@ class TestDetectorService(unittest.TestCase):
         # Verify
         self.assertFalse(success)
         self.assertIsNotNone(error)
+        assert error is not None
         self.assertIn("Nenhum modelo", error)
 
     def test_initialize_detector_weight_not_found(self):
@@ -158,6 +164,7 @@ class TestDetectorService(unittest.TestCase):
         # Verify
         self.assertFalse(success)
         self.assertIsNotNone(error)
+        assert error is not None
         self.assertIn("peso correspondente", error)
 
     @patch("zebtrack.core.detector_service.Detector")
@@ -669,6 +676,7 @@ class TestDetectorServiceModelCorruption(unittest.TestCase):
         # Verify
         self.assertFalse(success)
         self.assertIsNotNone(error)
+        assert error is not None
         self.assertIn("corrupted", error.lower())
 
     def test_initialize_detector_model_path_disappears(self):
@@ -762,7 +770,7 @@ class TestDetectorServiceTrackingParameterConflicts(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             self.service.update_tracking_parameters(
                 conf_threshold=0.5,
-                scope="invalid_scope",
+                scope=cast(Any, "invalid_scope"),
             )
 
         self.assertIn("Unsupported", str(ctx.exception))
@@ -806,7 +814,7 @@ class TestDetectorServiceTrackingParameterConflicts(unittest.TestCase):
 
         for param_name, value in invalid_values:
             with self.assertRaises(ValueError):
-                self.service.update_tracking_parameters(**{param_name: value})
+                self.service.update_tracking_parameters(params={param_name: value})
 
     def test_update_tracking_parameters_no_detector_persists_to_project(self):
         """Test parameter update without detector persists to project."""

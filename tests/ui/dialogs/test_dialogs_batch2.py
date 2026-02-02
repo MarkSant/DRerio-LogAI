@@ -248,6 +248,7 @@ class TestPendingVideosDialog:
 
         dialog.apply()
 
+        assert dialog.result is not None
         assert dialog.result["confirmed"] is True
         assert dialog.result["include_arena_only"] is False
 
@@ -272,6 +273,7 @@ class TestPendingVideosDialog:
         dialog.include_arena_only_var.set(True)
         dialog.apply()
 
+        assert dialog.result is not None
         assert dialog.result["confirmed"] is True
         assert dialog.result["include_arena_only"] is True
 
@@ -295,6 +297,7 @@ class TestPendingVideosDialog:
         dialog.result = {"confirmed": True, "include_arena_only": True}
         dialog.cancel()
 
+        assert dialog.result is not None
         assert dialog.result["confirmed"] is False
         assert dialog.result["include_arena_only"] is False
 
@@ -699,6 +702,7 @@ class TestMissingMetadataDialog:
 
         dialog.apply()
 
+        assert dialog.result is not None
         assert dialog.result["group"] == "Control Group"  # Espaços removidos
 
         dialog.destroy()

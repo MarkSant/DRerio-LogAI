@@ -676,7 +676,7 @@ class AnalysisCoordinator:
             cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
             _, video_height_px = cal.target_dims_px
             pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
-            arena_polygon_warped = cal.transform_points(arena_polygon_px)
+            arena_polygon_warped = cal.transform_points(list(arena_polygon_px))
 
             # Load ROIs
             roi_polygons = list(zone_data.roi_polygons or [])
@@ -685,7 +685,7 @@ class AnalysisCoordinator:
 
             rois: list[ROI] = []
             for idx, roi_points in enumerate(roi_polygons):
-                warped_points = cal.transform_points(roi_points)
+                warped_points = cal.transform_points(list(roi_points))
                 roi_polygon_px = [(float(x), float(y)) for x, y in warped_points]
                 roi_name = roi_names[idx] if idx < len(roi_names) else f"ROI {idx + 1}"
                 rois.append(

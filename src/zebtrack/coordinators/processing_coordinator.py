@@ -3390,6 +3390,9 @@ class ProcessingCoordinator(BaseCoordinator):
                                     return False
 
             # Add ROI after validations
+            zone_data.roi_polygons = list(zone_data.roi_polygons)
+            zone_data.roi_names = list(zone_data.roi_names)
+            zone_data.roi_colors = list(zone_data.roi_colors)
             zone_data.roi_polygons.append(roi_points)
             zone_data.roi_names.append(name)
             zone_data.roi_colors.append(color)

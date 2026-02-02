@@ -8,7 +8,7 @@ project creation to analysis output.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pandas as pd
@@ -348,7 +348,7 @@ class TestMultiAquariumDataFlow:
     ) -> None:
         """Test that aquarium data can be serialized and deserialized."""
         # Convert to dict
-        data_dict = {
+        data_dict: dict[str, Any] = {
             "aquariums": [
                 {
                     "id": aq.id,
@@ -367,11 +367,12 @@ class TestMultiAquariumDataFlow:
         }
 
         # Reconstruct from dict
-        reconstructed_aquariums = [AquariumData(**aq_data) for aq_data in data_dict["aquariums"]]
+        aquariums_data = cast(list[dict[str, Any]], data_dict["aquariums"])
+        reconstructed_aquariums = [AquariumData(**aq_data) for aq_data in aquariums_data]
         reconstructed = MultiAquariumZoneData(
             aquariums=reconstructed_aquariums,
-            video_width=data_dict["video_width"],
-            video_height=data_dict["video_height"],
+            video_width=cast(int, data_dict["video_width"]),
+            video_height=cast(int, data_dict["video_height"]),
         )
 
         # Verify reconstruction

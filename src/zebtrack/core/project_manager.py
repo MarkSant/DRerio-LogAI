@@ -890,6 +890,8 @@ class ProjectManager:
                             zone_data.roi_polygons = imported_roi_polygons
                             zone_data.roi_names = imported_roi_names
                         elif roi_merge_strategy == "merge":
+                            zone_data.roi_polygons = list(zone_data.roi_polygons)
+                            zone_data.roi_names = list(zone_data.roi_names)
                             existing_names = set(zone_data.roi_names)
                             for roi_poly, roi_name in zip(
                                 imported_roi_polygons, imported_roi_names, strict=False

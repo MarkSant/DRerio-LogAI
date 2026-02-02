@@ -11,7 +11,7 @@ Now handles batch processing, single video processing, and all coordination logi
 """
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -83,7 +83,7 @@ class AnalysisService:
         pixelcm_x: float,
         pixelcm_y: float,
         video_height_px: int,
-        arena_polygon_px: list[tuple[float, float]],
+        arena_polygon_px: Sequence[Sequence[float]],
         rois: list[ROI],
         fps: float,
         # Analysis-specific parameters
@@ -302,7 +302,7 @@ class AnalysisService:
         pixelcm_x: float,
         pixelcm_y: float,
         video_height_px: int,
-        arena_polygon_px: list[tuple[float, float]],
+        arena_polygon_px: Sequence[Sequence[float]],
         rois: list[ROI],
         fps: float,
         metadata: dict[str, Any],

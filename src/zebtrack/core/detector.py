@@ -5,6 +5,7 @@ stateful logic for zone tracking, ROI filtering, and overlay rendering.
 """
 
 import time
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from types import SimpleNamespace
@@ -28,10 +29,10 @@ log = structlog.get_logger()
 class ZoneData:
     """Holds the configuration for detection zones."""
 
-    polygon: list[list[int]] = field(default_factory=list)
-    roi_polygons: list[list[list[int]]] = field(default_factory=list)
-    roi_names: list[str] = field(default_factory=list)
-    roi_colors: list[tuple[int, int, int]] = field(default_factory=list)
+    polygon: Sequence[Sequence[int]] = field(default_factory=list)
+    roi_polygons: Sequence[Sequence[Sequence[int]]] = field(default_factory=list)
+    roi_names: Sequence[str] = field(default_factory=list)
+    roi_colors: Sequence[tuple[int, int, int]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -44,10 +45,12 @@ class AquariumData:
     """
 
     id: int  # 0 ou 1 para vídeos com 2 aquários
-    polygon: list[list[int]] = field(default_factory=list)  # Polígono da arena
-    roi_polygons: list[list[list[int]]] = field(default_factory=list)  # ROIs dentro deste aquário
-    roi_names: list[str] = field(default_factory=list)
-    roi_colors: list[tuple[int, int, int]] = field(default_factory=list)
+    polygon: Sequence[Sequence[int]] = field(default_factory=list)  # Polígono da arena
+    roi_polygons: Sequence[Sequence[Sequence[int]]] = field(
+        default_factory=list
+    )  # ROIs dentro deste aquário
+    roi_names: Sequence[str] = field(default_factory=list)
+    roi_colors: Sequence[tuple[int, int, int]] = field(default_factory=list)
     group: str = ""  # Grupo (ex: "Controle", "Tratamento")
     subject_id: str = ""  # Identificador do sujeito
     day: int = 0  # Dia do experimento
@@ -230,29 +233,34 @@ class Detector:
     def polygon(self) -> list[list[int]]:
         """Delegate to zones.polygon for backward compatibility."""
         if isinstance(self.zones, ZoneData):
-            return self.zones.polygon
+            return [list(point) for point in self.zones.polygon]
         return []
 
     @property
     def roi_polygons(self) -> list[list[list[int]]]:
         """Delegate to zones.roi_polygons for backward compatibility."""
         if isinstance(self.zones, ZoneData):
-            return self.zones.roi_polygons
+            return [[list(point) for point in polygon] for polygon in self.zones.roi_polygons]
         return []
 
     @property
     def roi_names(self) -> list[str]:
         """Delegate to zones.roi_names for backward compatibility."""
         if isinstance(self.zones, ZoneData):
-            return self.zones.roi_names
+            return list(self.zones.roi_names)
         return []
 
     @property
     def roi_colors(self) -> list[tuple[int, int, int]]:
         """Delegate to zones.roi_colors for backward compatibility."""
         if isinstance(self.zones, ZoneData):
-            return self.zones.roi_colors
+            return list(self.zones.roi_colors)
         return []
+
+    @property
+    def single_mode(self) -> bool:
+        """Backward-compatible alias for single-subject mode flag."""
+        return self._single_subject_mode
 
     def set_zones(
         self, zones: ZoneData | MultiAquariumZoneData, actual_width: int, actual_height: int

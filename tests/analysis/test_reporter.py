@@ -406,6 +406,7 @@ class TestEdgeCases:
         reporter = Reporter.from_analysis(analysis)
 
         # Should handle Unicode gracefully
+        assert reporter.metadata is not None
         assert "ção" in reporter.metadata["experiment_id"]
 
     @pytest.mark.slow

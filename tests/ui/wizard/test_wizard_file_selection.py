@@ -162,6 +162,7 @@ class TestFileSelectionStep:
         assert step.video_paths == [str(self.video1), str(self.video2)]
 
         # Verify listbox updated
+        assert step.paths_listbox is not None
         assert step.paths_listbox.size() == 2
 
     def test_file_selection_step_clear_selection(self):
@@ -179,6 +180,7 @@ class TestFileSelectionStep:
 
         # Verify cleared
         assert step.video_paths == []
+        assert step.paths_listbox is not None
         assert step.paths_listbox.size() == 0
         assert "Nenhum" in step.summary_var.get()
 

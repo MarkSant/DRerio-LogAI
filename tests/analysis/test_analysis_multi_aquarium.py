@@ -272,7 +272,12 @@ class TestReporterMultiAquarium:
 
     def test_skips_none_results(self, tmp_path):
         """Test that None results are skipped."""
-        results = {0: None, 1: MagicMock(spec=AnalysisResult)}
+        from typing import cast
+
+        results: dict[int, AnalysisResult | None] = {
+            0: None,
+            1: cast(AnalysisResult, MagicMock(spec=AnalysisResult)),
+        }
         assert results[1] is not None
         results[1].metadata = {"aquarium_id": 1, "group": "Treatment"}
 

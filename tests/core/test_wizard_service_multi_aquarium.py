@@ -8,6 +8,8 @@ These tests cover:
 - Validation against sample filenames
 """
 
+from typing import Any, cast
+
 from zebtrack.core.wizard_service import WizardService
 from zebtrack.ui.wizard.models import AquariumConfig, MultiAquariumData
 
@@ -215,9 +217,7 @@ class TestValidateMultiAquariumConfigEdgeCases:
 
     def test_validate_dict_like_config(self):
         """Test validation works with dict-like configuration."""
-        config = {
-            "enabled": False,
-        }
+        config = cast(Any, {"enabled": False})
 
         is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 
@@ -226,13 +226,13 @@ class TestValidateMultiAquariumConfigEdgeCases:
 
     def test_validate_dict_enabled_missing_aquariums(self):
         """Test dict config with enabled but missing aquariums."""
-        config = {
+        config = cast(Any, {
             "enabled": True,
             "aquarium_configs": [],
             "regex_pattern": "",
             "regex_group_field": "group",
             "regex_subject_field": "subject",
-        }
+        })
 
         is_valid, errors, _ = WizardService.validate_multi_aquarium_config(config)
 

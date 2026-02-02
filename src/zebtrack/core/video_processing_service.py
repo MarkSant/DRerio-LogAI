@@ -31,7 +31,7 @@ import os
 import shutil
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -754,7 +754,7 @@ class VideoProcessingService:
         # We need the arena polygon. In MP mode, the worker calculates/verifies it,
         # but we need to return it.
         zone_data = self.project_manager.get_zone_data()
-        arena_polygon = zone_data.polygon
+        arena_polygon = [list(point) for point in zone_data.polygon]
 
         # Early return if trajectory already exists
         if os.path.exists(trajectory_path):
@@ -879,7 +879,7 @@ class VideoProcessingService:
                 [0, frame_height],
             ]
 
-        arena_polygon = zone_data.polygon
+        arena_polygon = [list(point) for point in zone_data.polygon]
 
         detector.set_zones(zone_data, frame_width, frame_height)
 
@@ -1295,13 +1295,13 @@ class VideoProcessingService:
     def _prepare_analysis_calibration_context(
         self,
         *,
-        arena_polygon_px: list,
+        arena_polygon_px: Sequence[Sequence[float]],
         width_cm: float | None,
         height_cm: float | None,
         zone_data: ZoneData,
     ) -> tuple[
         Calibration | None,
-        list[tuple[float, float]] | None,
+        Sequence[tuple[float, float]] | None,
         list[ROI],
         dict[str, tuple[int, int, int]],
         float | None,
@@ -1322,11 +1322,11 @@ class VideoProcessingService:
         _video_width_px, _video_height_px = cal.target_dims_px
         pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
 
-        warped_points = cal.transform_points(arena_polygon_px)
+        warped_points = cal.transform_points(list(arena_polygon_px))
         arena_polygon_warped = [(float(point[0]), float(point[1])) for point in warped_points]
         rois: list[ROI] = []
         for i, polygon in enumerate(zone_data.roi_polygons):
-            warped_points = cal.transform_points(polygon)
+            warped_points = cal.transform_points(list(polygon))
             roi_points_px = [(float(x), float(y)) for x, y in warped_points]
             roi_name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI {i + 1}"
             rois.append(
@@ -1749,12 +1749,14 @@ class VideoProcessingService:
             )
             return False
 
+        arena_polygon_warped_list = list(arena_polygon_warped)
+
         # Create Reporter instance
         reporter = self._create_reporter_instance(
             filtered_df=filtered_df,
             metadata=metadata,
             calibration=calibration,
-            arena_polygon_warped=arena_polygon_warped,
+            arena_polygon_warped=arena_polygon_warped_list,
             rois=rois,
             roi_colors=roi_colors,
             video_path=video_path,

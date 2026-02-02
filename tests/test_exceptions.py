@@ -197,6 +197,7 @@ class TestExceptionInstantiation:
 
     def test_file_operation_exceptions(self):
         """Test I/O exception instantiation."""
+        exc: Exception
         exc = VideoSourceError("Cannot open video file")
         assert str(exc) == "Cannot open video file"
 
@@ -208,6 +209,7 @@ class TestExceptionInstantiation:
 
     def test_detector_exceptions(self):
         """Test detector exception instantiation."""
+        exc: Exception
         exc = ModelLoadError("Model file not found: model.pt")
         assert str(exc) == "Model file not found: model.pt"
 
@@ -216,6 +218,7 @@ class TestExceptionInstantiation:
 
     def test_processing_exceptions(self):
         """Test processing exception instantiation."""
+        exc: Exception
         exc = FrameProcessingError("Failed to decode frame 42")
         assert str(exc) == "Failed to decode frame 42"
 
@@ -229,6 +232,7 @@ class TestExceptionInstantiation:
 
     def test_ui_exceptions(self):
         """Test UI exception instantiation."""
+        exc: Exception
         exc = ValidationError("Invalid frame rate: must be > 0")
         assert str(exc) == "Invalid frame rate: must be > 0"
 
@@ -237,6 +241,7 @@ class TestExceptionInstantiation:
 
     def test_configuration_exceptions(self):
         """Test configuration exception instantiation."""
+        exc: Exception
         exc = SettingsError("Invalid configuration: missing camera.index")
         assert str(exc) == "Invalid configuration: missing camera.index"
 

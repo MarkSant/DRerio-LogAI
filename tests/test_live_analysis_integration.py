@@ -78,7 +78,7 @@ class TestLiveAnalysisCanvasIntegration:
 
         # Simulate frame processing with display enabled
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        detections = []
+        detections: list[tuple[int, int, int, int, float, int | None, int]] = []
 
         # Mock the code path: should_display=True, no preview_window
         # This simulates what happens in _processing_loop

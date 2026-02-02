@@ -1,6 +1,7 @@
 """This module defines the abstract base class for behavioral analysis of trajectory data."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -32,7 +33,7 @@ class BehavioralAnalyzer(ABC):
         pixelcm_x: float,
         pixelcm_y: float,
         video_height_px: int,
-        arena_polygon_px: list[tuple[float, float]],
+        arena_polygon_px: Sequence[Sequence[float]],
         fps: float = 30.0,
         window_length: int = 7,
         polyorder: int = 3,
@@ -51,7 +52,7 @@ class BehavioralAnalyzer(ABC):
             pixelcm_y (float): The conversion factor for pixels to cm (y-axis).
             video_height_px (int): The total height of the video in pixels,
                 used for inverting the Y-axis.
-            arena_polygon_px (List[Tuple[float, float]]): A list of (x, y)
+            arena_polygon_px (Sequence[Sequence[float]]): A list of (x, y)
                 tuples defining the arena's vertices in pixels.
             fps (float, optional): Frames per second of the source video.
                 Defaults to 30.0.

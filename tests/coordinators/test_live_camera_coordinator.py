@@ -15,6 +15,7 @@ Test Coverage (Sprint 4 - Target: 60+ tests):
 Total: 70 tests
 """
 
+from typing import Any, cast
 from unittest.mock import Mock
 
 import pytest
@@ -131,7 +132,7 @@ class TestLiveCameraCoordinatorInitialization:
         """Should fail validation without live_camera_service."""
         coordinator = LiveCameraCoordinator(
             state_manager=mock_state_manager,
-            live_camera_service=None,
+            live_camera_service=cast(Any, None),
         )
 
         assert coordinator.validate_dependencies() is False
@@ -139,7 +140,7 @@ class TestLiveCameraCoordinatorInitialization:
     def test_validate_dependencies_fails_without_state_manager(self, mock_live_camera_service):
         """Should fail validation without state_manager."""
         coordinator = LiveCameraCoordinator(
-            state_manager=None,
+            state_manager=cast(Any, None),
             live_camera_service=mock_live_camera_service,
         )
 
@@ -321,7 +322,7 @@ class TestLiveSessionStart:
         """Should raise validation error if dependencies invalid."""
         coordinator = LiveCameraCoordinator(
             state_manager=mock_state_manager,
-            live_camera_service=None,
+            live_camera_service=cast(Any, None),
         )
 
         with pytest.raises(CoordinatorValidationError):
@@ -719,6 +720,7 @@ class TestLiveCameraCoordinatorIntegration:
 
         # Get info
         info = coordinator.get_session_info()
+        assert info is not None
         assert info["session_id"] == "int_001"
 
         # Stop session
@@ -874,6 +876,7 @@ class TestLiveCameraCoordinatorIntegration:
             experiment_id=None,
         )
         first_id = coordinator.get_active_session_id()
+        assert first_id is not None
 
         coordinator.stop_live_session()
 
@@ -884,6 +887,7 @@ class TestLiveCameraCoordinatorIntegration:
             experiment_id=None,
         )
         second_id = coordinator.get_active_session_id()
+        assert second_id is not None
 
         # IDs should be different (timestamp-based)
         # Note: may be same if executed too quickly, but pattern should match
@@ -893,7 +897,7 @@ class TestLiveCameraCoordinatorIntegration:
     def test_validation_prevents_invalid_operations(self):
         """Should validate dependencies before operations."""
         coordinator = LiveCameraCoordinator(
-            state_manager=None,  # Invalid
+            state_manager=cast(Any, None),  # Invalid
             live_camera_service=Mock(),
         )
 

@@ -82,6 +82,9 @@ class MainViewModel:
             dependencies, bootstrap_result, self.ui_event_bus
         )
 
+        # Optional GUI reference (injected post-init when available)
+        self.view: Any | None = None
+
         # 4. Subscribe to state changes
         self._subscribe_to_state()
 

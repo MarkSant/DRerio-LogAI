@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import pytest
 
 from zebtrack.utils.validation import validate_calibration
@@ -48,16 +50,16 @@ def test_inf_ratio():
 def test_non_numeric_ratio():
     """Tests that a non-numeric value in the ratio raises a TypeError."""
     with pytest.raises(TypeError, match="must be numeric"):
-        validate_calibration(("1.5", 2.0))
+        validate_calibration(cast(Any, ("1.5", 2.0)))
     with pytest.raises(TypeError, match="must be numeric"):
-        validate_calibration((1.5, "2.0"))
+        validate_calibration(cast(Any, (1.5, "2.0")))
 
 
 def test_invalid_type():
     """Tests that incorrect types for the main argument raise a TypeError."""
     with pytest.raises(TypeError, match="must be a tuple"):
-        validate_calibration([1.5, 2.0])  # List instead of tuple
+        validate_calibration(cast(Any, [1.5, 2.0]))  # List instead of tuple
     with pytest.raises(TypeError, match="must be a tuple"):
-        validate_calibration((1.5,))  # Tuple with single element
+        validate_calibration(cast(Any, (1.5,)))  # Tuple with single element
     with pytest.raises(TypeError, match="must be a tuple"):
-        validate_calibration(1.5)  # Just a float
+        validate_calibration(cast(Any, 1.5))  # Just a float

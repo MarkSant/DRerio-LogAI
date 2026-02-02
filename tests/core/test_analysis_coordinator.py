@@ -260,6 +260,7 @@ class TestAnalysisCoordinatorProcessSummaryVideo(unittest.TestCase):
         state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
 
         assert state == "skipped"
+        assert msg is not None
         assert "não definido" in msg
         assert path is None
         assert changed is False
@@ -275,6 +276,7 @@ class TestAnalysisCoordinatorProcessSummaryVideo(unittest.TestCase):
             state, msg, _path, _changed = self.coordinator._process_summary_video(video, settings)
 
         assert state == "skipped"
+        assert msg is not None
         assert "ausente" in msg
 
 

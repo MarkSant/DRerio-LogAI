@@ -261,6 +261,7 @@ class TestModelServicePathHelpers(unittest.TestCase):
         name, details = self.service.find_weight_by_path("/path/to/weight1.pt")
 
         assert name == "weight1.pt"
+        assert details is not None
         assert details["path"] == "/path/to/weight1.pt"
 
     def test_find_weight_by_path_not_found(self):

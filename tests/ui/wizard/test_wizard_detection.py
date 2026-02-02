@@ -638,7 +638,7 @@ class TestDetectionStep:
         custom_patterns = {
             "group_pattern": r"Group_(\w+)",
             "day_pattern": r"Day(\d+)",
-            "subject_pattern": None,
+            "subject_pattern": "",
         }
 
         # Simulate setting custom regex

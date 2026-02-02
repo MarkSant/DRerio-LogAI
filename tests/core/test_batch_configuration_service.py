@@ -150,8 +150,8 @@ class TestApplyToSingleVideo:
 
     def test_apply_to_single_video_no_path(self, batch_service):
         """Testa falha quando vídeo não tem path."""
-        video_info = {}
-        config = {}
+        video_info: dict[str, object] = {}
+        config: dict[str, object] = {}
 
         result = batch_service._apply_to_single_video(video_info, config)
 
@@ -161,8 +161,8 @@ class TestApplyToSingleVideo:
     @patch("pathlib.Path.mkdir")
     def test_apply_to_single_video_error(self, mock_mkdir, mock_file, batch_service):
         """Testa tratamento de erro ao salvar configurações."""
-        video_info = {"path": "/test/video1.mp4"}
-        config = {
+        video_info: dict[str, object] = {"path": "/test/video1.mp4"}
+        config: dict[str, object] = {
             "zone_data": None,
             "calibration": {},
             "project_data": {},
@@ -250,7 +250,7 @@ class TestApplySettings:
     ):
         """Testa aplicação bem-sucedida a todos os vídeos."""
         batch_service.project_manager.get_zone_data.return_value = mock_zone_data
-        videos = [
+        videos: list[dict[str, object]] = [
             {"path": "/test/video1.mp4"},
             {"path": "/test/video2.mp4"},
         ]
@@ -266,7 +266,7 @@ class TestApplySettings:
     ):
         """Testa quando apenas alguns vídeos têm configurações aplicadas."""
         batch_service.project_manager.get_zone_data.return_value = mock_zone_data
-        videos = [
+        videos: list[dict[str, object]] = [
             {"path": "/test/video1.mp4"},
             {},  # Sem path - vai falhar
         ]
@@ -278,7 +278,7 @@ class TestApplySettings:
     def test_apply_settings_no_project(self, batch_service):
         """Testa falha quando não há projeto carregado."""
         batch_service.project_manager.project_path = None
-        videos = [{"path": "/test/video1.mp4"}]
+        videos: list[dict[str, object]] = [{"path": "/test/video1.mp4"}]
 
         result = batch_service.apply_settings(videos)
 
@@ -288,7 +288,7 @@ class TestApplySettings:
     @patch("pathlib.Path.mkdir")
     def test_apply_settings_empty_list(self, mock_mkdir, mock_file, batch_service):
         """Testa aplicação com lista vazia de vídeos."""
-        videos = []
+        videos: list[dict[str, object]] = []
 
         result = batch_service.apply_settings(videos)
 

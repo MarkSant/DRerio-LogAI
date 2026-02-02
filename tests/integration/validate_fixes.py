@@ -173,7 +173,7 @@ def test_3_canvas_polygon():
             if ret:
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 image = Image.fromarray(frame_rgb)
-                image.thumbnail((800, 600), Image.LANCZOS)
+                image.thumbnail((800, 600), Image.Resampling.LANCZOS)
                 photo = ImageTk.PhotoImage(image)
 
                 canvas.create_image(0, 0, anchor="nw", image=photo)

@@ -736,8 +736,8 @@ class TestProjectAndRecordingDialogs:
 
         ready_with_trajectory = [{"path": "/video1.mp4"}]
         ready_with_zones = [{"path": "/video2.mp4"}]
-        arena_only = []
-        without_arena = []
+        arena_only: list[dict[str, object]] = []
+        without_arena: list[dict[str, object]] = []
 
         result = dialog_manager.show_pending_videos_dialog(
             ready_with_trajectory=ready_with_trajectory,

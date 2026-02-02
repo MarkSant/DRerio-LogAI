@@ -1,4 +1,4 @@
-from zebtrack.ui.wizard.models import MultiAquariumData
+from zebtrack.ui.wizard.models import AquariumConfig, MultiAquariumData
 
 
 class TestMultiAquariumRegex:
@@ -12,8 +12,8 @@ class TestMultiAquariumRegex:
             regex_subject_field="subject",
             enabled=True,
             aquarium_configs=[
-                {"aquarium_id": 0, "group": "G1", "subject_id": "S1", "day": 1},
-                {"aquarium_id": 1, "group": "G2", "subject_id": "S2", "day": 1},
+                AquariumConfig(aquarium_id=0, group="G1", subject_id="S1", day=1),
+                AquariumConfig(aquarium_id=1, group="G2", subject_id="S2", day=1),
             ],
         )
 
@@ -37,8 +37,8 @@ class TestMultiAquariumRegex:
             regex_subject_field="subject",
             enabled=True,
             aquarium_configs=[
-                {"aquarium_id": 0, "group": "G1", "subject_id": "S1", "day": 1},
-                {"aquarium_id": 1, "group": "G2", "subject_id": "S2", "day": 1},
+                AquariumConfig(aquarium_id=0, group="G1", subject_id="S1", day=1),
+                AquariumConfig(aquarium_id=1, group="G2", subject_id="S2", day=1),
             ],
         )
 
@@ -61,8 +61,8 @@ class TestMultiAquariumRegex:
             regex_pattern=r"(?P<group>\w+)_(?P<subject>S\d+)",
             enabled=True,
             aquarium_configs=[
-                {"aquarium_id": 0, "group": "G1", "subject_id": "S1", "day": 1},
-                {"aquarium_id": 1, "group": "G2", "subject_id": "S2", "day": 1},
+                AquariumConfig(aquarium_id=0, group="G1", subject_id="S1", day=1),
+                AquariumConfig(aquarium_id=1, group="G2", subject_id="S2", day=1),
             ],
         )
         results = data.extract_metadata("random_video.mp4")
@@ -75,8 +75,8 @@ class TestMultiAquariumRegex:
             regex_day_field="day",
             enabled=True,
             aquarium_configs=[
-                {"aquarium_id": 0, "group": "G1", "subject_id": "S1", "day": 1},
-                {"aquarium_id": 1, "group": "G2", "subject_id": "S2", "day": 1},
+                AquariumConfig(aquarium_id=0, group="G1", subject_id="S1", day=1),
+                AquariumConfig(aquarium_id=1, group="G2", subject_id="S2", day=1),
             ],
         )
 
@@ -158,8 +158,8 @@ class TestBuildCombinedRegexPattern:
             regex_pattern=combined,
             enabled=True,
             aquarium_configs=[
-                {"aquarium_id": 0, "group": "G1", "subject_id": "S1", "day": 1},
-                {"aquarium_id": 1, "group": "G2", "subject_id": "S2", "day": 1},
+                AquariumConfig(aquarium_id=0, group="G1", subject_id="S1", day=1),
+                AquariumConfig(aquarium_id=1, group="G2", subject_id="S2", day=1),
             ],
         )
 
@@ -191,8 +191,8 @@ class TestBuildCombinedRegexPattern:
             regex_pattern=combined,
             enabled=True,
             aquarium_configs=[
-                {"aquarium_id": 0, "group": "G1", "subject_id": "S1", "day": 1},
-                {"aquarium_id": 1, "group": "G2", "subject_id": "S2", "day": 1},
+                AquariumConfig(aquarium_id=0, group="G1", subject_id="S1", day=1),
+                AquariumConfig(aquarium_id=1, group="G2", subject_id="S2", day=1),
             ],
         )
 

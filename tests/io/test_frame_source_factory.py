@@ -3,6 +3,7 @@ Tests for FrameSourceFactory - unified video/camera source creation.
 """
 
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -208,12 +209,12 @@ class TestFrameSourceFactoryCreate:
     def test_create_invalid_source_type(self):
         """Test error with completely invalid source type."""
         with pytest.raises(ValueError, match="Invalid source type"):
-            FrameSourceFactory.create(123.456)  # Float not supported
+            FrameSourceFactory.create(cast(Any, 123.456))  # Float not supported
 
     def test_create_list_not_supported(self):
         """Test that list is not a valid source type."""
         with pytest.raises(ValueError, match="Invalid source type"):
-            FrameSourceFactory.create([1, 2, 3])
+            FrameSourceFactory.create(cast(Any, [1, 2, 3]))
 
 
 class TestFrameSourceFactoryIntegration:

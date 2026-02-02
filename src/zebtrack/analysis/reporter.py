@@ -9,7 +9,7 @@ import io
 import locale
 import os
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -128,7 +128,7 @@ class Reporter:
         pixelcm_x: float | None = None,
         pixelcm_y: float | None = None,
         video_height_px: int | None = None,
-        arena_polygon_px: list[tuple[float, float]] | None = None,
+        arena_polygon_px: Sequence[Sequence[float]] | None = None,
         rois: list[ROI] | None = None,
         fps: float | None = None,
         # Optional params

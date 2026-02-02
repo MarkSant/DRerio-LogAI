@@ -58,22 +58,23 @@ class MockPluginForIntegration(DetectorPlugin):
     def __init__(self, model_path: str):
         pass  # Ignored
 
-    def detect(self, frame: np.ndarray, **kwargs) -> list:
-        # Accept conf_threshold and other kwargs but ignore them for this simple mock
+    def detect(
+        self, frame: np.ndarray, conf_threshold: float | None = None
+    ) -> list[tuple[int, int, int, int, float, int | None, int]]:
+        # Accept conf_threshold but ignore it for this simple mock
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
             return []
         x, y, w, h = cv2.boundingRect(contours[0])
-        # Return 6-tuple without class_id to avoid filtering issues
-        return [(x, y, x + w, y + h, 0.99, 1)]  # x1, y1, x2, y2, conf, track_id
+        return [(x, y, x + w, y + h, 0.99, 1, 1)]  # x1, y1, x2, y2, conf, track_id, class_id
 
     @staticmethod
     def get_name() -> str:
         return "MockIntegrationPlugin"
 
     @property
-    def model_input_shape(self):
+    def model_input_shape(self) -> tuple[int, int]:
         return (640, 480)
 
 

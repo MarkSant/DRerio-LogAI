@@ -223,7 +223,11 @@ class PerformanceProfiler:
 
             while time.time() - start_time < duration:
                 # Sample metrics using resource module
-                usage = resource.getrusage(resource.RUSAGE_SELF)
+                getrusage = getattr(resource, "getrusage", None)
+                rusage_self = getattr(resource, "RUSAGE_SELF", None)
+                if getrusage is None or rusage_self is None:
+                    raise RuntimeError("resource.getrusage is not available on this platform")
+                usage = getrusage(rusage_self)
                 # Adjust for platform differences in ru_maxrss
                 if platform.system() == "Darwin":  # macOS
                     mem_mb = usage.ru_maxrss / 1024 / 1024  # bytes to MB
@@ -287,13 +291,18 @@ class PerformanceProfiler:
 
         try:
             from zebtrack.core.detector import Detector
+            from zebtrack.core.weight_manager import WeightManager
             from zebtrack.plugins import DETECTOR_PLUGINS
             from zebtrack.settings import load_settings
 
             settings = load_settings()
 
+            weight_manager = WeightManager(settings_obj=settings)
+
             # Use configured model path from settings
-            model_path = settings.detector.model_path
+            model_path = weight_manager.get_weight_path_by_method("det", "animal")
+            if model_path is None:
+                model_path = weight_manager.get_weight_path_by_method("seg", "animal")
 
             # Fallback to cache location if not set
             if not model_path or not Path(model_path).exists():
@@ -304,12 +313,20 @@ class PerformanceProfiler:
                     print(f"SKIPPED: Model not found at {cache_path}\n")
                     return None
 
+            assert model_path is not None
+
+            plugin_class = DETECTOR_PLUGINS.get("YOLO (Ultralytics)")
+            if plugin_class is None:
+                print("SKIPPED: YOLO (Ultralytics) plugin not available\n")
+                return None
+
             with self.cpu_profile("detector_init"):
                 start = time.time()
+                plugin_instance = plugin_class(model_path=model_path, settings_obj=settings)
                 detector = Detector(
-                    detector_name="yolo",
-                    model_path=model_path,
-                    detector_plugins=DETECTOR_PLUGINS,
+                    plugin=plugin_instance,
+                    base_width=settings.camera.desired_width,
+                    base_height=settings.camera.desired_height,
                     settings_obj=settings,
                 )
                 elapsed = time.time() - start

@@ -74,6 +74,7 @@ class TestAnalysisDisplayWidget:
         tkinter_root.update_idletasks()
 
         assert widget._available_track_options == custom_tracks
+        assert widget.track_selector_widget is not None
         assert widget.track_selector_widget["values"] == tuple(custom_tracks)
 
     def test_widget_without_event_bus(self, tkinter_root):
