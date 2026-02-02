@@ -296,9 +296,19 @@ class Camera(FrameSource):
         self._reconnect_attempts_raw = 0
         self._reconnect_attempts_public = 0
 
+        now = time.time()
+        max_lag_ms = self.settings.camera.max_frame_lag_ms if self.settings else 100.0
         with self._lock:
+            if self._frame_timestamps:
+                lag_ms = (now - self._frame_timestamps[-1]) * 1000
+                if lag_ms > max_lag_ms:
+                    log.warning(
+                        "camera.lag.threshold_exceeded",
+                        lag_ms=lag_ms,
+                        threshold_ms=max_lag_ms,
+                    )
             self._frame_buffer.append(frame)
-            self._frame_timestamps.append(time.time())
+            self._frame_timestamps.append(now)
             self._frame_available = True
 
         return True

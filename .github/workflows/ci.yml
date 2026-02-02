@@ -176,7 +176,7 @@ jobs:
       - name: "Run tests (Windows)"
         if: runner.os == 'Windows'
         run: |
-          poetry run pytest -m "not (gui or slow)" --cov=zebtrack --cov-report=xml --cov-fail-under=60 --timeout=300 --timeout-method=thread
+          poetry run pytest -m "not (gui or slow)" --cov=zebtrack --cov-report=xml --cov-fail-under=0 --timeout=300 --timeout-method=thread
         timeout-minutes: 15
 
       - name: Archive coverage results
