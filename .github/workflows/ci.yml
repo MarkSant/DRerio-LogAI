@@ -49,6 +49,15 @@ jobs:
         run: |
           python -c "from pathlib import Path; Path('.venv').mkdir(parents=True, exist_ok=True)"
 
+      - name: Ensure cache paths exist
+        run: |
+          python -c "from pathlib import Path; home = Path.home(); (home / '.cache' / 'pip').mkdir(parents=True, exist_ok=True); (home / '.cache' / 'pypoetry').mkdir(parents=True, exist_ok=True)"
+
+      - name: Ensure in-project venv path exists (Windows only)
+        if: runner.os == 'Windows'
+        run: |
+          python -c "from pathlib import Path; Path('.venv').mkdir(parents=True, exist_ok=True)"
+
       - name: Cache pip/poetry downloads
         uses: actions/cache@v5
         with:
