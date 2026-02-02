@@ -4058,7 +4058,9 @@ class ProcessingCoordinator(BaseCoordinator):
             word_df = final_df.copy()
             # Replace pandas NA with numpy nan which Reporter can handle
             for col in word_df.columns:
-                word_df[col] = word_df[col].replace({pd.NA: np.nan}).infer_objects(copy=False)
+                word_df[col] = (
+                    word_df[col].where(word_df[col].notna(), np.nan).infer_objects(copy=False)
+                )
 
             Reporter.export_project_report(
                 aggregated_df=word_df,

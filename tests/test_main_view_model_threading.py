@@ -271,7 +271,7 @@ class TestMainViewModelThreadLifecycle:
             time.sleep(10.0)  # intentional interleaving delay
 
         main_view_model.processing_thread = threading.Thread(
-            target=long_running_worker, daemon=False
+            target=long_running_worker, daemon=True
         )
         main_view_model.processing_thread.start()
 

@@ -196,7 +196,7 @@ class ArduinoManager:
         self._stop_event.set()
         thread = self._reader_thread
         self._reader_thread = None
-        if thread and thread.is_alive():
+        if thread and thread.is_alive() and thread is not threading.current_thread():
             thread.join(timeout=1.0)
         if self.arduino:
             try:
