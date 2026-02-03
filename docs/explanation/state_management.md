@@ -11,6 +11,27 @@ The `StateManager` is the centralized "Source of Truth" for all dynamic applicat
 2.  **Recording State:** Activity status, camera parameters, and hardware triggers.
 3.  **UI State:** Tab selection, active video, and validation results.
 
+### 1.1. Unidirectional Flow Rule
+
+The UI should never bypass the state system to read or mutate project data directly. Instead, UI widgets:
+
+1. Publish events via the `EventBus`.
+2. Receive state updates through `StateManager` callbacks.
+
+```
+UI (View) ──event──► EventBus ──notify──► ViewModel
+	▲                                              │
+	│                                              ▼
+	└────────────── state update ◄────────── StateManager
+```
+
+This keeps UI behavior predictable, prevents accidental shared-mutable state, and makes the data flow easy to trace.
+
+### 1.2. Selective Immutability
+
+State snapshots are immutable for observers. The `StateManager` returns copies of state objects, and critical
+structures like `project_data` are deep-copied to prevent accidental mutation by UI consumers.
+
 ## 2. Thread-Safe Observer Pattern
 
 To ensure the UI stays synchronized with backend changes without causing deadlocks, the `StateManager` implements a **Safe Transition** notification system.

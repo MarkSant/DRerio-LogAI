@@ -72,7 +72,7 @@ Templates include arena, ROI polygons, names, and colors. The wizard also reuses
 - **Intra-ROI metrics:** Distance, average speed, freezing, and transitions calculated solely within each ROI.
 - **Social proximity:** Percentage of time individuals remain inside dynamically computed proximity clusters (requires multi-animal tracking and calibration).
 
-See `docs/REFERENCE_GUIDE.md` Section 5 for formulas and exact definitions.
+See `docs/reference/operational_reference.md` Section 5 for formulas and exact definitions.
 
 ---
 

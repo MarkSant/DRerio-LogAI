@@ -14,6 +14,18 @@ These metrics represent the performance characteristics of ZebTrack-AI on standa
 | **Plot Generation** | 3s per plot | <1s | Matplotlib single-threaded backend |
 | **Parquet Write** | <50ms/batch | - | I/O contention (avoided by Snappy) |
 
+### 1.1. Extended Baseline Snapshot (Nov 2025)
+
+Archived benchmarks add context for memory and end-to-end latency on CPU-only runs:
+
+| Metric | Observed | Notes |
+|--------|----------|-------|
+| **Detection FPS (CPU)** | 8-12 FPS | 640×480, YOLO11n, CPU inference |
+| **End-to-end (5 min video)** | ~14-15 min | Detection dominates total time |
+| **Peak memory** | ~1.0-1.2 GB | Detector + buffers + parallel plots |
+
+Use these numbers as a baseline when validating regressions or hardware changes.
+
 ## 2. Concurrency Model
 
 ZebTrack-AI uses a multi-threaded approach to keep the UI responsive during intensive tasks.

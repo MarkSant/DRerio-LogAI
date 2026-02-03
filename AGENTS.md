@@ -31,6 +31,7 @@ To provide an automated, high-precision tracking and analysis tool for Danio rer
 3. **Testing**:
    - Run tests heavily.
    - GUI tests require `xvfb` in headless environments.
+   - Coverage gate: Linux CI 40%; Windows CI 0% (see `.github/workflows/ci.yml`).
 4. **Linting**: Strict adherence to `ruff` rules.
 5. **Approved Commands**: Both `poetry` (run/install) and `powershell -Command` calls are pre-approved by the user and MUST be executed with `SafeToAutoRun: true` by agents. You can run these commands WITHOUT seeking explicit authorization.
 

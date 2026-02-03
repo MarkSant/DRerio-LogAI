@@ -67,7 +67,7 @@ ruff check <file>      # Lint
 
 ## 🧪 Testing
 - Fast: `pytest -q` | GUI: `pytest -m gui -n0` | Slow: `pytest -m slow`
-- Coverage: `pytest --cov=zebtrack --cov-report=html` (70% min)
+- Coverage: `pytest --cov=zebtrack --cov-report=html` (CI gate: 40% Linux, 0% Windows)
 - Fixtures: `tests/fixtures/`, `test_scenarios/`
 - Lint: `ruff check .` (line 100) | Format: `ruff format .`
 - Pre-commit: `pre-commit run --all-files`

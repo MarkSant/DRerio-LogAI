@@ -93,7 +93,7 @@ This workflow illustrates how a user request traverses the layers:
 - ApplicationGUI observes StateManager and updates UI reactively
 
 **File**: `src/zebtrack/core/state_manager.py`
-**Documentation**: [`docs/STATE_MANAGER_GUIDE.md`](STATE_MANAGER_GUIDE.md)
+**Documentation**: [`docs/explanation/state_management.md`](../../explanation/state_management.md)
 
 ## General Workflow Pattern
 
@@ -332,7 +332,7 @@ def test_start_recording_workflow(mock_event_bus, mock_state_manager):
 
 ## Related Documentation
 
-- **[ARCHITECTURE.md](ARCHITECTURE.md)**: Full system architecture and MVVM pattern
-- **[ERROR_HANDLING.md](ERROR_HANDLING.md)**: Error handling strategies and callbacks
-- **[STATE_MANAGER_GUIDE.md](STATE_MANAGER_GUIDE.md)**: StateManager API and observer pattern
-- **[REFERENCE_GUIDE.md](REFERENCE_GUIDE.md)**: API reference for all components
+- **[Architecture overview](../../explanation/architecture.md)**: Full system architecture and MVVM pattern
+- **[Error handling](ERROR_HANDLING.md)**: Error handling strategies and callbacks
+- **[State management](../../explanation/state_management.md)**: StateManager API and observer pattern
+- **[Operational reference](../../reference/operational_reference.md)**: API reference and runtime behavior

@@ -380,8 +380,8 @@ Standard Form Layout:
 ## References
 
 - **CLAUDE.md**: Main development guide
-- **WIZARD_LIVE_IMPROVEMENTS.md**: Phase 4 feature documentation
-- **ARCHITECTURE.md**: Overall system architecture
+- **Wizard guide**: `docs/guides/developer/wizard.md`
+- **Architecture overview**: `docs/explanation/architecture.md`
 - **Code Examples**: See wizard steps in `src/zebtrack/ui/wizard/`
 
 ---

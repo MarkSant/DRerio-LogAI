@@ -31,7 +31,7 @@ This protocol is **MANDATORY** for all AI agents (Claude, Copilot, Gemini, etc.)
 ### 1.2. After Completing the Change
 
 - [ ] All affected files have been modified consistently
-- [ ] Event payloads match `SYSTEM_INTEGRATION_MAP.md` contracts
+- [ ] Event payloads match `docs/reference/system_integration.md` contracts
 - [ ] DI chain is complete (settings passed through all constructors)
 - [ ] Serialization/deserialization chains are symmetric
 - [ ] Domain tests pass (`pytest -m "<domain>"`)
@@ -232,7 +232,7 @@ After making changes, run the appropriate test suite:
 | Events | `pytest tests/test_event*.py tests/coordinators/` | All coordinator tests |
 | Settings | `pytest tests/test_settings.py` | Settings tests pass |
 | Analysis | `pytest tests/test_analysis*.py tests/test_reporter*.py` | Analysis tests pass |
-| **Full Suite** | `pytest -m "" -n0` | 70% overall coverage |
+| **Full Suite** | `pytest -m "" -n0` | 40% overall coverage (Linux CI); 0% on Windows CI |
 
 ---
 
@@ -297,19 +297,19 @@ When contracts change, update these files:
 
 | Change Type | File to Update |
 |-------------|---------------|
-| Event payload | `docs/architecture/SYSTEM_INTEGRATION_MAP.md` |
-| New event | `docs/architecture/SYSTEM_INTEGRATION_MAP.md` Section 2-3 |
-| DI pattern | `docs/architecture/DEPENDENCY_INJECTION_GUIDE.md` |
-| Settings | `config.yaml` + `docs/reference/REFERENCE_GUIDE.md` |
-| API signature | Inline docstrings + `docs/api/` if public |
-| Architecture | `docs/architecture/ARCHITECTURE.md` |
-| Common pitfall | `docs/architecture/SYSTEM_INTEGRATION_MAP.md` Section 6 |
+| Event payload | `docs/reference/system_integration.md` |
+| New event | `docs/reference/system_integration.md` Section 2-3 |
+| DI pattern | `docs/explanation/dependency_injection.md` |
+| Settings | `config.yaml` + `docs/reference/operational_reference.md` |
+| API signature | Inline docstrings + `docs/reference/api/` if public |
+| Architecture | `docs/explanation/architecture.md` |
+| Common pitfall | `docs/reference/system_integration.md` Section 6 |
 
 ---
 
 ## 9. Quick Reference: Common Pitfalls
 
-See `SYSTEM_INTEGRATION_MAP.md` Section 6 for the full list (19 documented pitfalls).
+See `docs/reference/system_integration.md` Section 6 for the full list (19 documented pitfalls).
 
 **Top 5 Most Common Agent Errors:**
 
@@ -329,7 +329,7 @@ See `SYSTEM_INTEGRATION_MAP.md` Section 6 for the full list (19 documented pitfa
 │   1. Identify change type (Section 2)                           │
 │   2. Run: python scripts/impact_analyzer.py <type> <name>       │
 │   3. Read affected files from analyzer output                   │
-│   4. Check SYSTEM_INTEGRATION_MAP.md for contracts              │
+│   4. Check docs/reference/system_integration.md for contracts   │
 │                                                                 │
 │ WHILE CODING:                                                   │
 │   5. Modify ALL affected components (not just the target)       │
@@ -338,7 +338,7 @@ See `SYSTEM_INTEGRATION_MAP.md` Section 6 for the full list (19 documented pitfa
 │                                                                 │
 │ AFTER CODING:                                                   │
 │   8. Run domain-specific tests (Section 5)                      │
-│   9. Update SYSTEM_INTEGRATION_MAP.md if contracts changed      │
+│   9. Update docs/reference/system_integration.md if contracts changed │
 │  10. Verify no "no handlers" warnings in logs                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -347,10 +347,10 @@ See `SYSTEM_INTEGRATION_MAP.md` Section 6 for the full list (19 documented pitfa
 
 ## Appendix A: Related Documentation
 
-- [SYSTEM_INTEGRATION_MAP.md](./SYSTEM_INTEGRATION_MAP.md) - Event contracts and component dependencies
-- [DEPENDENCY_INJECTION_GUIDE.md](./DEPENDENCY_INJECTION_GUIDE.md) - DI patterns and error handling
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture overview
-- [STATE_MANAGEMENT_GUIDE.md](./STATE_MANAGEMENT_GUIDE.md) - StateManager patterns
+- [system_integration.md](../../reference/system_integration.md) - Event contracts and component dependencies
+- [dependency_injection.md](../../explanation/dependency_injection.md) - DI patterns and error handling
+- [architecture.md](../../explanation/architecture.md) - System architecture overview
+- [state_management.md](../../explanation/state_management.md) - StateManager patterns
 
 ## Appendix B: Tool Installation
 

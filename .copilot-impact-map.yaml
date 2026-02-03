@@ -270,7 +270,7 @@ tests:
     command: "pytest -m '' -n0"
     count: "~2568 tests"
     time: "6-7 minutes"
-    coverage_requirement: "70%"
+    coverage_requirement: "40% (Linux CI), 0% (Windows CI)"
 
 # =============================================================================
 # COMMON PITFALLS (Quick Reference)

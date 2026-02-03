@@ -225,11 +225,11 @@ video_results/
 
 ## 📚 Documentation
 
-- `docs/ARCHITECTURE.md` - System design
-- `docs/QUICK_DEBUG_GUIDE.md` - Debug tips
-- `docs/REFERENCE_GUIDE.md` - API reference
-- `README_TESTS.md` - Test guide
-- `TRANSITION_NOTE.md` - Migration notes
+- `docs/explanation/architecture.md` - System design
+- `docs/guides/developer/debugging.md` - Debug tips
+- `docs/reference/operational_reference.md` - API reference
+- `docs/guides/developer/testing_gui_windows.md` - Test guide
+- `CHANGELOG.md` - Migration notes
 
 ## 🔧 Performance
 

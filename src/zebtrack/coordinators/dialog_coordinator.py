@@ -14,8 +14,8 @@ from zebtrack.core.video_metadata_service import VideoMetadataService
 if TYPE_CHECKING:
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
-    from zebtrack.ui.components.event_bus import EventBus
-    from zebtrack.ui.components.ui_coordinator import UICoordinator
+    from zebtrack.core.ui_scheduler import UIScheduler
+    from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
 
@@ -35,7 +35,7 @@ class DialogCoordinator:
 
     def __init__(
         self,
-        ui_coordinator: "UICoordinator",
+        ui_coordinator: "UIScheduler",
         event_bus: "EventBus | None",
         state_manager: "StateManager",
         project_manager: "ProjectManager | None" = None,

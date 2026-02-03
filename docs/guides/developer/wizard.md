@@ -377,7 +377,8 @@ wizard = WizardDialog(
 
 ## Referências
 
-- [CLAUDE.md](../CLAUDE.md) - Instruções gerais do projeto
-- [WIZARD_LIVE_IMPROVEMENTS.md](WIZARD_LIVE_IMPROVEMENTS.md) - Melhorias da Fase 4
-- [README_TESTS.md](../README_TESTS.md) - Guia de testes
+- [CLAUDE.md](../../../CLAUDE.md) - Instruções gerais do projeto
+- [Operational reference](../../reference/operational_reference.md) - Comportamentos e parâmetros atuais
+- [Testing (Windows GUI)](testing_gui_windows.md) - Guia de testes
+- [Architecture](../../explanation/architecture.md) - Contexto arquitetural
 - [Pydantic v2 Docs](https://docs.pydantic.dev/latest/) - Validação de dados

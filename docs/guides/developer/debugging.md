@@ -211,7 +211,7 @@ Use `Ctrl+Shift+B` to run build tasks:
 
 ## References
 
-- Architecture: `docs/ARCHITECTURE.md`
-- Test Guide: `README_TESTS.md`
+- Architecture: `docs/explanation/architecture.md`
+- Test Guide: `docs/guides/developer/testing_gui_windows.md`
 - Agent Playbook: `.github/copilot-instructions.md`
-- Reference: `docs/REFERENCE_GUIDE.md`
+- Reference: `docs/reference/operational_reference.md`

@@ -144,7 +144,7 @@ config.local.yaml (machine-specific, git-ignored)
 ProjectManager.project_data (per-project)
 ```
 
-**Access**: `from zebtrack import settings` (after `load_settings()`)
+**Access**: Use injected `settings_obj` from the composition root; avoid singleton imports.
 
 ## 🚨 Common Pitfalls
 
@@ -160,15 +160,15 @@ ProjectManager.project_data (per-project)
 
 | Need | See |
 |------|-----|
-| **Quick commands** | `docs/CHEATSHEET.md` |
-| **Architecture deep-dive** | `docs/ARCHITECTURE.md` |
-| **Wizard dev** | `docs/DEVELOPER_GUIDE_WIZARD.md` |
-| **Testing guide** | `README_TESTS.md` |
-| **Coordinates** | `docs/COORDINATE_SYSTEMS.md` |
-| **State mgmt** | `docs/STATE_MANAGER_GUIDE.md` |
-| **DI patterns** | `docs/DEPENDENCY_INJECTION_GUIDE.md` |
-| **Full reference** | `docs/REFERENCE_GUIDE.md` |
-| **Debug tips** | `docs/QUICK_DEBUG_GUIDE.md` |
+| **Quick commands** | `docs/guides/developer/CHEATSHEET.md` |
+| **Architecture deep-dive** | `docs/explanation/architecture.md` |
+| **Wizard dev** | `docs/guides/developer/wizard.md` |
+| **Testing guide** | `docs/guides/developer/testing_gui_windows.md` |
+| **Coordinates** | `docs/reference/COORDINATE_SYSTEMS.md` |
+| **State mgmt** | `docs/explanation/state_management.md` |
+| **DI patterns** | `docs/explanation/dependency_injection.md` |
+| **Full reference** | `docs/reference/operational_reference.md` |
+| **Debug tips** | `docs/guides/developer/debugging.md` |
 | **Historical** | `docs/archive/` |
 
 ## 🔍 Quick Debugging

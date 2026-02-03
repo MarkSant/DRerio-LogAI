@@ -83,7 +83,7 @@ ui_features:
   use_wizard_for_project_creation: true  # padrão
 ```
 
-Other overrides (detector thresholds, Arduino port, event bus) are documented in `docs/REFERENCE_GUIDE.md` and `docs/PROJECT_WORKFLOW.md`.
+Other overrides (detector thresholds, Arduino port, event bus) are documented in `docs/reference/operational_reference.md` and `docs/guides/developer/wizard.md`.
 
 ## Troubleshooting
 

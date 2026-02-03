@@ -13,7 +13,7 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from zebtrack.core.ui_coordinator import UICoordinator
+    from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.settings import Settings
     from zebtrack.ui.gui import ApplicationGUI
 
@@ -52,7 +52,7 @@ class AnalysisCoordinator:
         self,
         root,
         ui_event_bus: EventBus,
-        ui_coordinator: UICoordinator,
+        ui_coordinator: UIScheduler,
         settings_obj: Settings,
         project_manager: ProjectManager,
         analysis_service: AnalysisService,
@@ -64,7 +64,7 @@ class AnalysisCoordinator:
         Args:
             root: Tkinter root window
             ui_event_bus: Event bus for UI events
-            ui_coordinator: UI coordinator for thread-safe UI operations
+            ui_coordinator: UI scheduler for thread-safe UI operations
             settings_obj: Settings instance (injected)
             project_manager: Project manager
             analysis_service: Analysis service

@@ -12,17 +12,20 @@ from zebtrack.io.arduino import Arduino
 if TYPE_CHECKING:
     from zebtrack.core.main_view_model import MainViewModel
 
+SerialExceptionType: type[BaseException]
+
 try:  # pragma: no cover - serial may not be available during unit tests
-    from serial import SerialException  # type: ignore
+    from serial import SerialException as SerialExceptionType  # type: ignore
 except Exception:  # pragma: no cover - fallback when pyserial is missing
 
-    class SerialError(Exception):
-        """Fallback SerialError when pyserial is not installed."""
+    class _SerialExceptionError(Exception):
+        """Fallback SerialException when pyserial is not installed."""
 
         pass
 
-    # Backwards-compatible alias for callers expecting SerialException
-    SerialException = SerialError
+    SerialExceptionType = _SerialExceptionError
+
+SerialException = SerialExceptionType
 
 
 log = structlog.get_logger()
@@ -222,7 +225,7 @@ class ArduinoManager:
 
             try:
                 raw_line = serial_conn.readline()
-            except SerialException:
+            except SerialExceptionType:
                 log.warning("arduino_manager.reader.serial_exception", exc_info=True)
                 self._notify_log("Conexão serial com Arduino perdida.")
                 self.disconnect()

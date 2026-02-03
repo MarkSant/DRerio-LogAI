@@ -6,6 +6,20 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-02] Docs Audit, Linting, and Test Validation
+**ID:** TASK-002
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Audit docs outside docs/archive for accuracy and references, verify agent guidance, fix markdown lint issues, and run full pytest, ruff, and mypy checks.
+
+### Subtasks:
+- [x] Review docs structure, references, and completeness (excluding docs/archive).
+- [x] Validate agent guidance documentation and usage references.
+- [x] Fix markdownlint issues in markdown files as needed.
+- [x] Run full pytest, ruff check, and mypy checks; fix any failures.
+- [x] Align coverage gate guidance with CI thresholds.
+
 ### [2026-02-02] Documentation & Tooling Consolidation (Diátaxis Alignment)
 **ID:** TASK-001
 **Agent:** GitHub Copilot (Gemini 1.5 Flash)

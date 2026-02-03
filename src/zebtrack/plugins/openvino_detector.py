@@ -8,6 +8,11 @@ import cv2
 import numpy as np
 import structlog
 
+from zebtrack.plugins.base import DetectorPlugin
+from zebtrack.utils import IntegrityError, calculate_sha256
+
+ov: Any | None
+
 try:
     import openvino as ov
 
@@ -47,9 +52,6 @@ except ImportError:
             "Falha ao importar utilitários da biblioteca ultralytics. "
             "Atualize a dependência ou ajuste o caminho do import."
         ) from e
-
-from zebtrack.plugins.base import DetectorPlugin
-from zebtrack.utils import IntegrityError, calculate_sha256
 
 log = structlog.get_logger()
 

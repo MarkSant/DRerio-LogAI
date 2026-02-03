@@ -32,7 +32,7 @@ docs/
 - **[Event Contracts](reference/events.md)** - Registry of all system events (v1 and v2) and payloads.
 - **[Data Schema](reference/data_schema.md)** - Tracking data (Parquet) structure and project hierarchy.
 - **[Metrics Guide](reference/metrics.md)** - Definitions of all locomotor and spatial metrics.
-- **[API Documentation](reference/api/README.md)** - Sphinx-ready class and method references.
+- **[Operational Reference](reference/operational_reference.md)** - Runtime behavior, config, and defaults.
 
 ## 🛠️ How-To Guides (Goal-Oriented)
 
@@ -40,12 +40,12 @@ docs/
 - **[Performance Tuning](guides/developer/performance-tuning.md)** - Troubleshooting bottlenecks and configuring parallel plots.
 - **[Getting Started](guides/developer/getting_started.md)** - Setting up the development environment.
 - **[Debugging Guide](guides/developer/debugging.md)** - Troubleshooting common tracking issues.
-- **[CI/CD & Remote Testing](guides/developer/remote-testing.md)** - Running tests in headless environments.
+- **[GUI Testing (Windows)](guides/developer/testing_gui_windows.md)** - Running Tkinter tests safely.
 
 ## 🎓 Tutorials (Learning-Oriented)
 
 - **[First Tracking Run](tutorials/first_tracking_run.md)** - Get from video to results in 5 minutes.
-- **[Multi-Aquarium Setup](tutorials/multi_aquarium.md)** - Configuring dual-track videos.
+- **[Wizard Workflow](guides/developer/wizard.md)** - Wizard details and processing modes.
 
 ---
 

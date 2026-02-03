@@ -1,12 +1,11 @@
 # Guia de Referência Operacional do ZebTrack-AI
-<!-- markdownlint-disable-file -->
 
 **Última Atualização:** Dezembro 2025 (v3.2)
 **Atualizações Recentes:** Max Speed metric, Geotaxis naming fix, Sequential Multi-Aquarium, Unified Reports improvements
 
 Este guia consolida o conhecimento funcional do ZebTrack-AI para equipes de laboratório, mantenedores de software e auditores científicos. Aqui você encontra o fluxo completo de trabalho, tabelas de variáveis utilizadas nos relatórios, definições matemáticas, integrações com hardware (Arduino) e tutoriais passo a passo.
 
-> **Escopo**: documento complementar ao `README.md`, `docs/ARCHITECTURE.md`, `docs/PROJECT_WORKFLOW.md` e `docs/COORDINATE_SYSTEMS.md`. Sempre que novos comportamentos forem adicionados, atualize este guia junto com os testes automatizados.
+> **Escopo**: documento complementar ao `README.md`, `docs/explanation/architecture.md`, `docs/guides/developer/wizard.md` e `docs/reference/COORDINATE_SYSTEMS.md`. Sempre que novos comportamentos forem adicionados, atualize este guia junto com os testes automatizados.
 
 ---
 
@@ -169,7 +168,7 @@ Colunas opcionais (calibração conhecida):
 - `x_center_px`, `y_center_px`
 - `x_cm`, `y_cm`
 
-Todas as coordenadas gravadas já estão no **espaço warped** (vide `docs/COORDINATE_SYSTEMS.md`), garantindo consistência entre vídeos diferentes.
+Todas as coordenadas gravadas já estão no **espaço warped** (vide `docs/reference/COORDINATE_SYSTEMS.md`), garantindo consistência entre vídeos diferentes.
 
 ---
 
@@ -302,7 +301,7 @@ video_results/
 3. `Recorder.write_detection_data()` aplica `transform_bbox()` → armazena coordenadas já corrigidas.
 4. Conversão para centímetros: $x_\text{cm} = \frac{x_\text{warped}}{\text{px/cm}_x}$ e $y_\text{cm} = \frac{(H_\text{warped} - y_\text{warped})}{\text{px/cm}_y}$.
 
-> Consulte `docs/COORDINATE_SYSTEMS.md` para diagramas e exemplos numéricos completos.
+> Consulte `docs/reference/COORDINATE_SYSTEMS.md` para diagramas e exemplos numéricos completos.
 
 ---
 
@@ -425,9 +424,8 @@ video_results/
 ### Referências cruzadas
 
 - `README.md` - Visão geral e guia rápido.
-- `docs/ARCHITECTURE.md` - Diagrama de componentes e decisões.
-- `docs/PROJECT_WORKFLOW.md` - Passo a passo detalhado da criação de projetos e processamento em lote.
-- `docs/WIZARD_USER_GUIDE.md` - Uso guiado do wizard de cinco etapas.
-- `docs/COORDINATE_SYSTEMS.md` - Detalhes matemáticos das transformações espaciais.
+- `docs/explanation/architecture.md` - Diagrama de componentes e decisões.
+- `docs/guides/developer/wizard.md` - Passo a passo detalhado da criação de projetos e processamento em lote.
+- `docs/reference/COORDINATE_SYSTEMS.md` - Detalhes matemáticos das transformações espaciais.
 
 Mantenha este guia sincronizado com os módulos de código e a suíte de testes para garantir rastreabilidade científica completa.

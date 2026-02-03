@@ -20,7 +20,7 @@ This tutorial walks through the complete ZebTrack-AI workflow: creating a projec
    - `FULL` when nothing should be imported.
 7. Step 5 shows a consolidated summary (design detected, processing plan, expected run time). Click **Create Project** to persist it.
 
-> 📘 Need extra details? See `docs/WIZARD_USER_GUIDE.md` for screenshots of every step.
+> 📘 Need extra details? See `docs/guides/developer/wizard.md` for screenshots of every step.
 
 ---
 
@@ -104,6 +104,6 @@ The unified report has been robustly improved:
 - Run `poetry run pytest -q` and `poetry run ruff check .` before sharing results.
 - Use `tests/manual/wizard_release_check.py` to validate new templates and translations.
 - Keep `config.local.yaml` under version control (if it contains shared lab defaults) or document overrides in your project README.
-- Consult `docs/REFERENCE_GUIDE.md` for formulas, ROI metrics, Arduino integration, and troubleshooting checklists.
+- Consult `docs/reference/operational_reference.md` for formulas, ROI metrics, Arduino integration, and troubleshooting checklists.
 
 You’re now ready to perform end-to-end experiments with ZebTrack-AI!

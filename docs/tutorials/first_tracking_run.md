@@ -1,5 +1,4 @@
 # Wizard de Criação de Projetos - Guia do Usuário
-<!-- markdownlint-disable-file -->
 
 **Versão:** 1.7
 **Última Atualização:** 2025-10-12
@@ -404,8 +403,8 @@ Exemplo:
 
 Para reportar problemas ou sugerir melhorias:
 - GitHub Issues: https://github.com/anthropics/zebtrack-ai/issues
-- Documentação técnica complementar: `docs/PROJECT_WORKFLOW.md`
-- Arquitetura: `docs/ARCHITECTURE.md`
+- Documentação técnica complementar: `docs/guides/developer/wizard.md`
+- Arquitetura: `docs/explanation/architecture.md`
 
 ---
 

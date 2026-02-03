@@ -536,7 +536,7 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 ## Testing Requirements
 
-- **Coverage**: 70% minimum (enforced)
+- **Coverage**: CI gate 40% (Linux), 0% (Windows)
 - **Markers**: `@pytest.mark.{gui,slow,integration,unit}`
 - **Fixtures**: `tests/conftest.py`
 - **Current Status**: 712 passing, 1 skipped

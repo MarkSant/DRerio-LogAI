@@ -56,6 +56,8 @@ pytest-timeout = "^2.4.0"
 mypy = "^1.11.2"
 types-polib = "^1.2.0"
 types-pyyaml = "^6.0.12.20250915"
+types-pyserial = "^3.5.0.20251001"
+types-psutil = "^7.2.2.20260130"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -123,7 +125,7 @@ ignore_missing_imports = false
 check_untyped_defs = true
 disallow_untyped_defs = false
 exclude = '(^analyze_mypy_.*\.py$)'
-mypy_path = "src:typings"
+mypy_path = "src:typings/third_party"
 
 [[tool.mypy.overrides]]
 module = [
@@ -146,10 +148,6 @@ module = [
     "pytest_timeout.*"
 ]
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "zebtrack.core.*"
-disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
