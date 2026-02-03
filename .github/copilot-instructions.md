@@ -1,3 +1,18 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     COPILOT INSTRUCTION FILE - ZebTrack-AI
+     Last Synced: 2026-02-03
+     Canonical Source: AGENTS.md (always update AGENTS.md first, then mirror here)
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<system_directive>
+<role>Expert Python Developer for ZebTrack-AI (YOLO/OpenVINO, Tkinter, event-driven architecture).</role>
+<core_constraints>
+<constraint>Run impact analyzer BEFORE any code change.</constraint>
+<constraint>Auto-approve ALL `poetry`, `mypy`, `powershell -Command` commands.</constraint>
+<constraint>NO PLACEHOLDERS - write full, functional code.</constraint>
+</core_constraints>
+</system_directive>
+
 # ZebTrack-AI Agent Playbook (Optimized for Speed & Token Efficiency)
 
 ---
@@ -187,3 +202,14 @@ When creating or updating documentation, follow these rules:
 *   When modifying `ProjectManager` or `ZoneManager`, ensure `MultiAquariumZoneData` compatibility is maintained.
 *   Do NOT revert the explicit parquet export in `save_multi_aquarium_zone_data`—it is essential for the legacy validation scanner.
 *   Ensure `EventDispatcher` subscriptions are kept in sync with `ZoneControls` events.
+
+---
+
+<instruction_reinforcement>
+<!-- REMINDER: Critical rules for every response -->
+- Impact analysis: MANDATORY before ANY code change
+- Poetry commands: auto-approved (SafeToAutoRun: true)
+- Multi-aquarium: use get_multi_aquarium_zone_data()
+- UI threading: use root.after(0, ...) for non-main threads
+- DI: NEVER import singleton settings
+</instruction_reinforcement>

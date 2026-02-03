@@ -1,3 +1,10 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     AGENTS.md - CANONICAL SOURCE OF TRUTH
+     Last Synced: 2026-02-03
+     All other agent files (CLAUDE.md, GEMINI.md, copilot-instructions.md) must
+     mirror changes from this file. Update here FIRST, then sync to others.
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
 # Project Context: ZebTrack-AI
 
 Zebrafish tracking and behavioral analysis application using YOLO/OpenVINO, Tkinter GUI, and event-driven architecture.
@@ -74,7 +81,32 @@ When creating or updating documentation, follow these rules:
 - `YYYY-MM-DD`: Short summary of what changed and why.
 
 **Change Notes**:
+- `2026-02-03`: Added XML prompt engineering framework (system_directive, constraints, verbosity, deep_think_protocol) and Last Synced header to all agent files.
 - `2026-02-01`: Added VS Code extensions best practices, checklist, and source-of-truth sync rule for all agent instruction files.
+
+---
+
+## 🏷️ XML Vocabulary Conventions (for Model-Specific Files)
+
+The following XML tags are approved for use in model-specific instruction files (GEMINI.md, CLAUDE.md, copilot-instructions.md). These tags help LLMs parse instructions more accurately.
+
+| Tag | Purpose | Required In |
+|-----|---------|-------------|
+| `<system_directive>` | Root container for role, constraints, and verbosity | All files |
+| `<role>` | Defines the AI persona and expertise areas | All files |
+| `<core_constraints>` | Container for critical rules (wrap each in `<constraint>`) | All files |
+| `<constraint>` | Single mandatory rule | All files |
+| `<output_verbosity_spec>` | Controls output detail level and style | GEMINI.md, CLAUDE.md |
+| `<deep_think_protocol>` | Forces chain-of-thought reasoning for complex tasks | GEMINI.md, CLAUDE.md |
+| `<instruction_persistence>` | Soft reminder for Gemini to keep file open in IDE | GEMINI.md only |
+| `<instruction_reinforcement>` | Critical rules repeated at file end for context persistence | All files |
+| `<thinking>`, `<answer>` | Claude-specific CoT tags (optional) | CLAUDE.md |
+
+**Rules**:
+1. Use semantic tag names that describe their content.
+2. Be consistent—use the same tag names across all files.
+3. Nest tags logically: `<system_directive>` → `<role>` + `<core_constraints>` → `<constraint>`.
+4. Place critical instructions both at the START (`<system_directive>`) and END (`<instruction_reinforcement>`) for context persistence.
 
 ---
 
