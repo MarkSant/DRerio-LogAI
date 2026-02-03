@@ -50,7 +50,7 @@ stream = LiveStreamSource(
 
 **Características:**
 - Retorna `(False, None)` quando limite de duração atingido
-- Calcula frame count estimado baseado em FPS × duração
+- Calcula frame count estimado baseado em FPS x duração
 - Mantém propriedades compatíveis com `VideoFileSource`
 
 ### 2. FrameSourceFactory (CONCLUÍDO)
@@ -101,7 +101,7 @@ Dialog completo com:
 - Validação de inputs
 
 ### 5. Menu e Controller (PARCIAL)
-**Arquivos**: 
+**Arquivos**:
 - `src/zebtrack/ui/gui.py` - Menu "Arquivo" adicionado ✅
 - `src/zebtrack/core/main_view_model.py` - Método `start_live_camera_analysis()` ✅
 
@@ -122,7 +122,7 @@ Novo método `process_frame_source()` adicionado para aceitar `FrameSource`.
 1. **Adaptar `run_tracking_if_needed` para FrameSource**
    - **Local**: `video_processing_service.py:312`
    - **Mudança**: Aceitar `FrameSource` ou `Path` em `video_path`
-   - **Lógica**: 
+   - **Lógica**:
      ```python
      if isinstance(video_path, FrameSource):
          cap = video_path  # Use frame source directly
@@ -148,11 +148,11 @@ Novo método `process_frame_source()` adicionado para aceitar `FrameSource`.
 4. **Teste de integração**
    - **Local**: `tests/test_live_analysis_integration.py` (criar)
    - **Conteúdo**: Teste end-to-end com câmera mockada
-   
+
 5. **Tratamento de erros de câmera**
    - Reconexão automática se câmera desconectar
    - Feedback visual de status da câmera
-   
+
 6. **Preview antes de iniciar**
    - Mostrar frame da câmera antes de começar análise
    - Permitir ajuste de zonas ao vivo
@@ -171,7 +171,7 @@ src/zebtrack/
 │   └── __init__.py                 ✅ MODIFICADO
 ├── core/
 │   ├── main_view_model.py          ✅ MODIFICADO (+start_live_camera_analysis)
-│   └── video_processing_service.py ⚠️  MODIFICADO (+process_frame_source, 
+│   └── video_processing_service.py ⚠️  MODIFICADO (+process_frame_source,
 │                                                    run_tracking_if_needed PENDENTE)
 ├── ui/
 │   ├── gui.py                      ✅ MODIFICADO (+Menu Arquivo)
@@ -192,7 +192,7 @@ src/zebtrack/
    - Cria `LiveStreamSource` via `FrameSourceFactory`
    - Prepara diretório de saída
    - Chama `video_processing_service.process_frame_source()`
-4. **Processing**: 
+4. **Processing**:
    - `process_frame_source()` → `run_tracking_if_needed()`
    - Loop de detecção com `frame_source.get_frame()`
    - Recorder salva dados (Parquet + vídeo opcional)

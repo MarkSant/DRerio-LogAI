@@ -1322,7 +1322,7 @@ class ProjectManager:
             ):
                 value = video_info.get(key)
                 if value is not None and (
-                    value != "" or isinstance(value, (int, float, bool, list))
+                    value != "" or isinstance(value, int | float | bool | list)
                 ):
                     metadata.setdefault(key, value)
 
@@ -1330,7 +1330,7 @@ class ProjectManager:
             filtered_metadata: dict[str, Any] = {
                 key: value
                 for key, value in metadata.items()
-                if value is not None and (value != "" or isinstance(value, (int, float)))
+                if value is not None and (value != "" or isinstance(value, int | float))
             }
 
             video_entry: dict[str, Any] = {
@@ -2070,7 +2070,7 @@ class ProjectManager:
                 value = video_entry.get(key)
                 if (
                     value is not None
-                    and (value != "" or isinstance(value, (int, float)))
+                    and (value != "" or isinstance(value, int | float))
                     and key not in metadata
                 ):
                     metadata[key] = value

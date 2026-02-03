@@ -481,7 +481,8 @@ class ProcessingReportsWidget(BaseWidget):
 
         import glob
         import os
-        from typing import Any, Callable, cast
+        from collections.abc import Callable
+        from typing import Any, cast
 
         unified_dir = os.path.join(self._project_path, "unified_reports")
         if not os.path.exists(unified_dir):

@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Experiment Progress Dashboard**
 - Enhanced existing "Progresso do Experimento" tab with batch integration
 - Replaced `SubjectSelectionDialog` with `BlockDetailDialog` for detailed session management
-- Day × Group grid shows session completion status per experimental block
+- Day x Group grid shows session completion status per experimental block
 - Click Day/Group cell → Opens `BlockDetailDialog` with subject list and batch actions
 - Dialog allows starting new sessions, viewing results, and marking batch complete
 

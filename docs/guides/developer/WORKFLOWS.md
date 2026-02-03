@@ -1,102 +1,71 @@
-# Event-Driven Workflows in ZebTrack-AI
+# Event-Driven Workflows in ZebTrack-AI (v4.1)
 
-This document outlines the event-driven architecture adopted in ZebTrack-AI, aligning with the Model-View-ViewModel (MVVM) pattern. This design decouples the user interface (View) from the business logic and orchestration (ViewModel), leading to a more maintainable, testable, and scalable application.
+This document explains the Event-Driven Architecture (EDA) and Model-View-ViewModel (MVVM) workflows in ZebTrack-AI. The system utilizes a dual-bus communication pattern and a coordination layer (Mediators) to ensure high decoupling and testability.
 
-## Core Architectural Components
+## 1. Core Architectural Layers
 
-### 1. The View (`ApplicationGUI`)
+### 1.1. View Layer (Tkinter)
+The UI is composed of self-contained components (e.g., `CanvasManager`, `ZoneControlsWidget`).
+- **Input:** Publishes events to `EventBus` or `EventBusV2`.
+- **Output:** Subscribes to UI-level events for visual updates.
+- **Rule:** Views must never call business logic services directly.
 
-The user interface layer, built with Tkinter using a **component-based architecture**.
+### 1.2. Coordination Layer (Mediators)
+Specialized "Super Coordinators" act as mediators between the UI and backend logic:
+- **`ProcessingCoordinator`**: Manages video analysis, loops, and results generation.
+- **`HardwareCoordinator`**: Handles model weighting, OpenVINO, and camera diagnostics.
+- **`SessionCoordinator`**: Manages active recording sessions and hardware triggers.
+- **`ProjectLifecycleCoordinator`**: Coordinates project creation, opening, and calibrations.
+- **`UICoordinator`**: Coordinates UI-only changes across disparate view managers.
 
-**Responsibilities**:
-- Display data to the user via modular UI components (`VideoDisplayWidget`, `ZoneControlsWidget`, etc.)
-- Capture user interactions (button clicks, form submissions)
-- **Does NOT** contain business logic or orchestration
-- Publishes events to `EventBus` when user actions occur
+### 1.3. Service Layer
+The foundation where data is actually manipulated:
+- **`DetectorService`**: Manages YOLO/OpenVINO plugins.
+- **`ProjectManager`**: Handles project-level persistence.
+- **`StateManager`**: Thread-safe source of truth for app state.
 
-**Key Characteristics**:
-- Components are self-contained `ttk.Frame` subclasses
-- Each component emits domain-specific events (e.g., `zone.draw_roi`, `recording.start_requested`)
-- Components do not know who consumes their events (decoupled)
+---
 
-**File**: `src/zebtrack/ui/gui.py`, `src/zebtrack/ui/components/`
+## 2. Event Systems
 
-### 2. The Event Bus (`EventBus`)
+### 2.1. EventBus (Domain Events)
+Uses string constants (found in `zebtrack.ui.events.Events`) for heavyweight domain operations.
+- **Example:** `Events.VIDEO_ANALYZE_SINGLE` trigger's the analysis workflow.
+- **Payloads:** Objects or dicts containing essential context (e.g., `video_path`, `config`).
 
-A central messaging system implementing the **publish-subscribe pattern**.
+### 2.2. EventBusV2 (UI Events)
+Uses Enum constants (`UIEvents`) for lightweight UI synchronization.
+- **Example:** `UIEvents.ZONES_UPDATED` tells the canvas to redraw polygons.
+- **Scope:** Primarily used within the UI layer and its immediate coordinators.
 
-**Responsibilities**:
-- Allow components to communicate without direct references
-- Route events from View to ViewModel handlers
-- Support multiple subscribers per event (future extensibility)
+---
 
-**Key Methods**:
-```python
-class EventBus:
-    def publish(self, event_name: str, payload: dict = None):
-        """Publish event from UI component."""
+## 3. Workflow: Video Analysis Initialization
 
-    def subscribe(self, event_name: str, handler: Callable):
-        """Subscribe ViewModel handler to event."""
-```
+This workflow illustrates how a user request traverses the layers:
 
-**Consolidation (Fase 3.2)**:
-- **Before**: Multiple EventBus instances or direct method calls
-- **After**: Single EventBus instance in `ApplicationGUI`, passed to all components
-- **Benefit**: Centralized event flow, easier debugging and testing
+1. **User Action:** User clicks "Analyze" in `ProjectView`.
+2. **View Action:** `ProjectView` publishes `Events.VIDEO_ANALYZE_SINGLE`.
+3. **Dispatch:** `MainViewModel` (Root) receives the event and identifies the handler.
+4. **Coordination:** `ProcessingCoordinator` receives the metadata and:
+   - Sets the state to `BUSY`.
+   - Prepares the `ProcessingWorker`.
+   - Spawns the worker thread.
+5. **Logic:** `DetectorService` loads the necessary model weights.
+6. **Iteration:** The worker sends frames back via `UI_DISPLAY_FRAME` for live preview.
+7. **Completion:** Upon finish, `ProcessingCoordinator` triggers result generation.
 
-**File**: `src/zebtrack/core/event_bus.py`
+## 4. Best Practices for Developers
 
-### 3. The Events Registry (`Events` Enum - Future)
+1. **Never use singletons:** Always inject `settings_obj` and services via constructors.
+2. **Handle UI on main thread:** Always use `root.after(0, callback)` when updating widgets from a coordinator or service.
+3. **Immutable State:** Update the `StateManager` instead of modifying instance variables directly to ensure UI reactivity.
+4. **Event Payloads:** Keep payloads serializable and minimal. Use IDs instead of full object instances when possible.
 
-A centralized enumeration defining all possible events for type safety and self-documentation.
-
-**Current State**: Events are string-based (e.g., `"recording.start_requested"`)
-**Future Enhancement**: Enum-based for IDE autocomplete and compile-time checks
-
-```python
-class Events(Enum):
-    RECORDING_START_REQUESTED = "recording.start_requested"
-    ZONE_DRAW_ROI = "zone.draw_roi"
-    PROJECT_CREATE = "project.create"
-```
-
-### 4. The ViewModel (`MainViewModel`)
-
-The **orchestrator** of the application, containing all business logic and workflow coordination.
-
-**Responsibilities** (Migradas na Fase 3.1):
-- Subscribe to events from `EventBus` via `bind_events()`
-- Execute business logic in event handlers (e.g., `start_recording_workflow`)
-- Coordinate with services (`ProjectService`, `AnalysisService`, `DetectorService`)
-- Update `StateManager` with new application state
-- Schedule UI updates via `root.after()` for thread-safety
-
-**Before Fase 3.1**:
-- Business logic scattered across UI callbacks
-- Direct coupling between UI and services
-- Difficult to test workflows
-
-**After Fase 3.1**:
-- Centralized orchestration in `MainViewModel`
-- UI only emits events, never calls services directly
-- Testable workflows via mocked EventBus
-
-**File**: `src/zebtrack/core/main_view_model.py`
-
-**Example Handler**:
-```python
-class MainViewModel:
-    def bind_events(self):
-        """Subscribe handlers to EventBus events."""
-        self.event_bus.subscribe("recording.start_requested", self.start_recording_workflow)
-
-    def start_recording_workflow(self, payload: dict):
-        """Handle recording start event."""
-        # 1. Validate preconditions
-        if not self.detector.is_initialized:
-            self.state_manager.set("ui.error_message", "Detector not ready")
-            return
+---
+**Status:** Stable API (v4.1)
+**Category:** Guide (Diátaxis)
+**Last Updated:** February 2, 2026
 
         # 2. Coordinate with services
         output_dir = self.project_service.create_output_directory()

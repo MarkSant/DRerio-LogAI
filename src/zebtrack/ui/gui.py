@@ -684,7 +684,7 @@ class ApplicationGUI:
         log.warning("gui.navigate.processing_reports_tab_not_found")
 
     def _create_project_overview_panel(self, parent: ttk.Frame | None) -> None:
-        """Legacy helper preserved for TabBuilder/tests – delegates to WidgetFactory."""
+        """Legacy helper preserved for TabBuilder/tests - delegates to WidgetFactory."""
         if parent is None:
             return
         if not self.widget_factory:

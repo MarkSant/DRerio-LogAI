@@ -206,7 +206,7 @@ def _seek_to_frame(cap, target_frame, current_frame, skip_threshold=60):
 
 #### Problem
 `trajectory_df.copy()` copied **all columns** (including confidence, raw pixel coords, etc.):
-- Large videos: 500K+ rows × 15+ columns = ~60MB per copy
+- Large videos: 500K+ rows x 15+ columns = ~60MB per copy
 - Only 9 columns actually needed for analysis
 - Wasted memory and increased GC pressure
 

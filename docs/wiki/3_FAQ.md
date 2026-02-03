@@ -28,7 +28,7 @@ Restart the application and the 5-step wizard will appear when you click **Creat
 
 ## Q: What's the recommended video format?
 
-**A:** MP4 (H.264) at 25–30 fps offers the best balance between size and quality. Higher bitrates improve detection, but ensure your storage and GPU can keep up. Other formats (AVI, MOV) work as long as OpenCV can decode them.
+**A:** MP4 (H.264) at 25-30 fps offers the best balance between size and quality. Higher bitrates improve detection, but ensure your storage and GPU can keep up. Other formats (AVI, MOV) work as long as OpenCV can decode them.
 
 ---
 

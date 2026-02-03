@@ -152,7 +152,7 @@ References:
 
 1. **Planeje**: descreva inputs/outputs, fluxos afetados e cenários negativos.
 1. **Implemente**: mantenha mudanças focadas; evite reformatar blocos não relacionados.
-1. **Teste**: cubra o caso feliz + 1–2 bordas (ex.: ausência de track_id, arquivo vazio, falta de configuração).
+1. **Teste**: cubra o caso feliz + 1-2 bordas (ex.: ausência de track_id, arquivo vazio, falta de configuração).
 1. **Documente**:
 
    - Atualize `README.md` se o usuário final for impactado.

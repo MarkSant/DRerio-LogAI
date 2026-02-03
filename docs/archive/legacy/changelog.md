@@ -89,8 +89,8 @@ video_results/
 
 | Mode | Speed | Memory | Resources | Debugging |
 |------|-------|--------|-----------|-----------|
-| Parallel | 1× | Higher | Split | More complex |
-| Sequential | 2× | Lower | 100% per aquarium | Easier |
+| Parallel | 1x | Higher | Split | More complex |
+| Sequential | 2x | Lower | 100% per aquarium | Easier |
 
 ### Testing
 
@@ -160,7 +160,7 @@ Enhanced weight management system with clear separation between segmentation (ze
 }
 ```
 
-**Previous Issue**: All models were incorrectly labeled as "instance_segmentation"  
+**Previous Issue**: All models were incorrectly labeled as "instance_segmentation"
 **Fixed**: Metadata now correctly reflects model type based on weight classification
 
 #### 3. OpenVINO Conversion Confirmation
@@ -292,7 +292,7 @@ Implemented comprehensive hardware detection system with automatic backend selec
 - Cancel button for user abort
 - Thread-safe updates via `root.after(0, ...)`
 
-**Integration**: 
+**Integration**:
 - Created in `MainViewModel.run_model_diagnostic` (line ~5045)
 - Updated by `_diagnostic_processing_thread` frame-by-frame
 - Replaced silent wait with visual feedback

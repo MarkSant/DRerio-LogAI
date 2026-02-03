@@ -1,18 +1,18 @@
-# Developer Guide v4.0
+# Developer Getting Started
 
-This guide serves as the primary entry point for developers working on ZebTrack-AI during the **Phase 2 (Migration to Event-Driven Architecture)** transition.
+This guide serves as the primary entry point for developers working on ZebTrack-AI.
 
 > **Quick Links**
-> *   [Contributing Guide](../CONTRIBUTING.md) - Environment setup, coding style, and testing.
-> *   [Architecture](../docs/ARCHITECTURE.md) - Detailed system design and diagrams.
-> *   [Event Mapping](../docs/EVENT_MAPPING.md) - Component-to-GUI event reference.
-> *   [Migration Guide](../docs/MIGRATION_GUIDE_V4.md) - How to migrate components.
+> *   [Contributing Guide](../../../CONTRIBUTING.md) - Environment setup, coding style, and testing.
+> *   [Architecture Explanation](../../explanation/architecture.md) - Detailed system design and diagrams.
+> *   [Event Contracts Reference](../../reference/events.md) - Registry of all system events.
+> *   [Quick Reference](../../reference/QUICK_REFERENCE.md) - One-liners and critical summaries.
 
 ---
 
-## 1. Architecture v4.0 (Event-Driven)
+## 1. Architecture (Event-Driven)
 
-The v4.0 architecture moves away from the monolithic `ApplicationGUI` "God Object" (Facade pattern) towards a decoupled, **Event-Driven Architecture**.
+ZebTrack-AI uses a decoupled **Event-Driven Architecture (EDA)**. Components (Views, Services) communicate via events rather than direct method calls, coordinated by Mediators.
 
 ### Key Changes
 1.  **Decoupling**: Components (e.g., `DialogManager`, `ZoneControlBuilder`) no longer call `ApplicationGUI` methods directly.

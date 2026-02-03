@@ -1417,7 +1417,7 @@ class VideoProcessingService:
         profile_dict = analysis_profile if isinstance(analysis_profile, dict) else {}
         requested_track_ids_raw = profile_dict.get("track_ids", [])
 
-        if isinstance(requested_track_ids_raw, (list, tuple, set)):
+        if isinstance(requested_track_ids_raw, list | tuple | set):
             requested_track_ids = list(requested_track_ids_raw)
         elif requested_track_ids_raw in (None, ""):
             requested_track_ids = []

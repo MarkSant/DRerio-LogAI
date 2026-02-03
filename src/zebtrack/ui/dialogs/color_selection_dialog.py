@@ -47,7 +47,7 @@ class ColorSelectionDialog(simpledialog.Dialog):
         colors_frame.pack(pady=10)
 
         # Criar botões de cor em duas fileiras
-        for i, (name, rgb, hex_color) in enumerate(self.colors):
+        for i, (name, _rgb, hex_color) in enumerate(self.colors):
             row = i // 3
             col = i % 3
 

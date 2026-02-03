@@ -665,7 +665,7 @@ class TestLivePreviewWindow:
 
         # Wait for auto-stop to trigger (process events while waiting)
         def check_stopped_with_events():
-            for _ in range(20):  # 20 iterations × ~10ms = ~200ms
+            for _ in range(20):  # 20 iterations x ~10ms = ~200ms
                 tkinter_root.update()
                 tkinter_root.update_idletasks()
                 if window.is_stopped:

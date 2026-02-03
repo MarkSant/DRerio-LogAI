@@ -599,7 +599,7 @@ class CanvasManager:
         if video_path is None:
             # 1. Try to use currently active zone video (e.g. just set by display_roi_video_frame)
             active_video = self.gui.controller.project_manager.get_active_zone_video()
-            if isinstance(active_video, (str, os.PathLike)) and os.path.exists(active_video):
+            if isinstance(active_video, str | os.PathLike) and os.path.exists(active_video):
                 video_path = os.fspath(active_video)
 
             # 2. Try to use pending video (e.g. from wizard)
@@ -615,7 +615,7 @@ class CanvasManager:
                 if videos:
                     video_path = videos[0].get("path")
 
-        if video_path is not None and not isinstance(video_path, (str, os.PathLike)):
+        if video_path is not None and not isinstance(video_path, str | os.PathLike):
             log.error(
                 "gui.load_frame.invalid_video_path_type",
                 path_type=type(video_path).__name__,

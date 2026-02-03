@@ -7,7 +7,7 @@
 ## Resumo
 
 Total de facades: **23 métodos**
-Linhas estimadas removidas: **~92 linhas** (23 métodos × ~4 linhas cada)
+Linhas estimadas removidas: **~92 linhas** (23 métodos x ~4 linhas cada)
 
 ## Lista de Facades UIStateController
 

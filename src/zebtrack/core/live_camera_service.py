@@ -896,7 +896,7 @@ class LiveCameraService:
 
             successful_warmup = 0
             warmup_start = time.time()
-            for warmup_count in range(warmup_frames):
+            for _warmup_count in range(warmup_frames):
                 # Check timeout
                 if time.time() - warmup_start > warmup_timeout:
                     log.warning(
@@ -2292,7 +2292,7 @@ class LiveCameraService:
                 else:
                     # Fallback: write flattened detections
                     flat_detections = []
-                    for aq_id, dets in all_detections.items():
+                    for _aq_id, dets in all_detections.items():
                         flat_detections.extend(dets)
 
                     if flat_detections:
@@ -2307,7 +2307,7 @@ class LiveCameraService:
 
             # Flatten detections for preview overlay
             flat_detections = []
-            for aq_id, dets in all_detections.items():
+            for _aq_id, dets in all_detections.items():
                 flat_detections.extend(dets)
 
             return flat_detections

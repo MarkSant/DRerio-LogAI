@@ -966,7 +966,7 @@ class ProjectWorkflowService:
     def _normalise_day_label(self, day_value) -> str | None:
         if day_value in (None, ""):
             return None
-        if isinstance(day_value, (int, float)) and not isinstance(day_value, bool):
+        if isinstance(day_value, int | float) and not isinstance(day_value, bool):
             try:
                 return f"{int(day_value):02d}"
             except (TypeError, ValueError):
@@ -1008,7 +1008,7 @@ class ProjectWorkflowService:
 
         subject_lookup: dict = {}
         for group_id, subjects in subjects_per_group.items():
-            if not isinstance(subjects, (list, tuple, set)):
+            if not isinstance(subjects, list | tuple | set):
                 continue
             subject_lookup[group_id] = {
                 str(subject).lower(): subject for subject in subjects if subject is not None

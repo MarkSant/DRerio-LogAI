@@ -542,7 +542,7 @@ class OpenVINOPlugin(DetectorPlugin):
         det[:, :4] = scale_boxes(input_shape, det[:, :4], original_frame_shape).round()
 
         final_detections = []
-        for i, row in enumerate(det):
+        for _, row in enumerate(det):
             # Ultralytics NMS returns [x1, y1, x2, y2, conf, cls]
             # (plus masks if not consumed by process_mask?)
             # Actually process_mask consumes the mask coeffs if passed separately?

@@ -151,8 +151,8 @@ def _generate_plots_parallel(self, plot_configs):
 |-----------|----------|------|-------|-------|
 | **Detector (model)** | 0 MB | 450 MB | +450 MB | Loaded once, persistent |
 | **Frame buffer** | 0 MB | 60 MB | +60 MB | 640x480x3 RGB, double buffered |
-| **Trajectory buffer** | 0 MB | 120 MB | +120 MB | 10 subjects × 9K frames × track data |
-| **matplotlib plots** | 0 MB | 180 MB | +180 MB | 5 plots × 36MB each (concurrent) |
+| **Trajectory buffer** | 0 MB | 120 MB | +120 MB | 10 subjects x 9K frames x track data |
+| **matplotlib plots** | 0 MB | 180 MB | +180 MB | 5 plots x 36MB each (concurrent) |
 | **Other (Tkinter, libs)** | 200 MB | 250 MB | +50 MB | Baseline overhead |
 | **Total** | 200 MB | 1.06 GB | +860 MB | |
 
@@ -284,8 +284,8 @@ class Recorder:
 ```
 
 **Why it's a bottleneck**:
-- Holds 9,000 frames × 10 subjects × 11 fields = ~990K rows in RAM
-- Each row: ~12 bytes × 11 fields = 132 bytes → **~130 MB** per video
+- Holds 9,000 frames x 10 subjects x 11 fields = ~990K rows in RAM
+- Each row: ~12 bytes x 11 fields = 132 bytes → **~130 MB** per video
 - No incremental writes (all-or-nothing flush)
 
 #### Impact on Workflow

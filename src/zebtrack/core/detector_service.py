@@ -956,7 +956,7 @@ class DetectorService:
         has_aquarium = False
         has_animal = False
 
-        for class_id, name in plugin_classes.items():
+        for _class_id, name in plugin_classes.items():
             name_lower = name.lower()
             if name_lower in aquarium_names:
                 has_aquarium = True

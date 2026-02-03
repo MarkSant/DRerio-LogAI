@@ -155,8 +155,8 @@ def patch_validation_manager():
 
         # Count total entries in hierarchy
         total_entries = 0
-        for group_id, group_data in result.items():
-            for day_id, day_data in group_data.get("days", {}).items():
+        for _group_id, group_data in result.items():
+            for _day_id, day_data in group_data.get("days", {}).items():
                 total_entries += len(day_data.get("videos", []))
 
         log.warning(

@@ -90,7 +90,7 @@ class WizardService:
         # Timed recording validation
         if data.get("use_timed_recording", False):
             duration = data.get("recording_duration_s", 0)
-            if not isinstance(duration, (int, float)) or duration <= 0:
+            if not isinstance(duration, int | float) or duration <= 0:
                 return (False, "Duração de gravação deve ser maior que zero")
             if duration > 7200:  # 2 hours max
                 return (False, "Duração de gravação não pode exceder 2 horas (7200 segundos)")
@@ -607,11 +607,11 @@ class WizardService:
 
         # Dimensions validation
         width = data.get("aquarium_width_cm")
-        if not isinstance(width, (int, float)) or width <= 0:
+        if not isinstance(width, int | float) or width <= 0:
             return (False, "Largura do aquário deve ser maior que zero")
 
         height = data.get("aquarium_height_cm")
-        if not isinstance(height, (int, float)) or height <= 0:
+        if not isinstance(height, int | float) or height <= 0:
             return (False, "Altura do aquário deve ser maior que zero")
 
         # Intervals validation
@@ -679,11 +679,11 @@ class WizardService:
 
         # Dimensions validation
         width = data.get("aquarium_width_cm")
-        if not isinstance(width, (int, float)) or width <= 0:
+        if not isinstance(width, int | float) or width <= 0:
             return (False, "A largura do aquário deve ser maior que zero")
 
         height = data.get("aquarium_height_cm")
-        if not isinstance(height, (int, float)) or height <= 0:
+        if not isinstance(height, int | float) or height <= 0:
             return (False, "A altura do aquário deve ser maior que zero")
 
         return (True, "")

@@ -165,7 +165,7 @@ class TestComposeOverviewStatusLine:
 
         assert "🧮 5 vídeo(s)" in result
         assert "⏳ 2" in result
-        assert "➕ 3" in result  # Unknown statuses grouped
+        assert "+ 3" in result  # Unknown statuses grouped
 
 
 @pytest.mark.gui
@@ -803,7 +803,7 @@ class TestFormatStatusSummary:
         counts = Counter({"unknown": 5})
         result = validation_manager.format_status_summary(counts)
 
-        assert "➕ 5" in result
+        assert "+ 5" in result
 
 
 @pytest.mark.gui
@@ -1419,7 +1419,7 @@ class TestEdgeCases:
         result = validation_manager.compose_overview_status_line(5, counts)
 
         assert "🧮 5 vídeo(s)" in result
-        assert "➕ 5" in result  # All 5 are unknown
+        assert "+ 5" in result  # All 5 are unknown
 
     def test_format_video_metadata_with_day_label(self, validation_manager):
         """Test video metadata formatting with day_label override."""

@@ -4,8 +4,8 @@
 
 ### UI Component Tests - ttkbootstrap Style Singleton
 
-**Status:** Known limitation (external library)  
-**Severity:** Low (tests pass in isolation, application works correctly)  
+**Status:** Known limitation (external library)
+**Severity:** Low (tests pass in isolation, application works correctly)
 **Affected Tests:** 11 tests in `tests/ui/test_components.py`
 
 **Description:**

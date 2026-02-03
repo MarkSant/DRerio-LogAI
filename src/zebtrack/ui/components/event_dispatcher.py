@@ -56,7 +56,7 @@ class EventDispatcher:
             self.gui = context
             self.event_bus = getattr(context, "event_bus", None)
         else:
-            # Fallback/Unknown – treat as raw event bus reference
+            # Fallback/Unknown - treat as raw event bus reference
             self.event_bus = context
 
     # --- Core Dispatching Methods (Used by MainViewModel) ---

@@ -131,7 +131,7 @@ For advanced users, you can use the traditional flow:
 
 ## Understanding the Project Wizard
 
-The wizard consists of 5 steps with a consistent layout (1150×550px window):
+The wizard consists of 5 steps with a consistent layout (1150x550px window):
 
 ### Wizard Step 1: Project Information
 

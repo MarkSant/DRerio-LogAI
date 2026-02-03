@@ -88,7 +88,7 @@ class ROIAnalyzer:
         """Check for empty or invalid ROIs."""
         if not self._rois:
             raise ValueError("ROI list cannot be empty.")
-        for name, roi in self._rois.items():
+        for name, _roi in self._rois.items():
             geometry = self._roi_geometries_px[name]
             if not isinstance(geometry, BaseGeometry) or geometry.is_empty:
                 raise ValueError(f"ROI '{name}' has invalid geometry.")

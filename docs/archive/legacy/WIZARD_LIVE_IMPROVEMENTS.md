@@ -147,7 +147,7 @@ Projetos LIVE necessitam de organização estruturada (grupos, dias, animais) pa
 
 **Seções Adicionadas**:
 1. **🔬 Design Experimental**
-   - Grupos × dias × animais/grupo
+   - Grupos x dias x animais/grupo
    - Total de sessões e animais
    - Lista de nomes de grupos
 

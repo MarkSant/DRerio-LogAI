@@ -129,7 +129,7 @@ video_results/
 ### Trade-offs
 | Aspect | Parallel | Sequential |
 |--------|----------|------------|
-| Speed | 1× (faster) | 2× (slower) |
+| Speed | 1x (faster) | 2x (slower) |
 | Memory | Higher (2 trackers) | Lower (1 tracker) |
 | Resources | Split between aquariums | 100% per aquarium |
 | Debugging | More complex | Easier |

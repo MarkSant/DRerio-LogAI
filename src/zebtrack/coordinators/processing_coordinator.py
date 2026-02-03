@@ -2871,7 +2871,7 @@ class ProcessingCoordinator(BaseCoordinator):
         # The arena parquet should be copied to BOTH aquarium folders
         for aq_id, new_folder in new_folders.items():
             # Copy arena parquet to each aquarium folder
-            for key, old_file_path in parquet_files.items():
+            for _key, old_file_path in parquet_files.items():
                 old_file = Path(old_file_path)
                 if old_file.exists() and old_file.parent == old_folder:
                     new_file = new_folder / old_file.name

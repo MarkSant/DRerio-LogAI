@@ -300,7 +300,7 @@ class Camera(FrameSource):
         max_lag_ms = 100.0
         if self.settings:
             candidate = getattr(self.settings.camera, "max_frame_lag_ms", None)
-            if isinstance(candidate, (int, float)):
+            if isinstance(candidate, int | float):
                 max_lag_ms = float(candidate)
         with self._lock:
             if self._frame_timestamps:

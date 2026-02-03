@@ -182,7 +182,7 @@ class CustomRegexDialog(Dialog):
             },
         ]
 
-        for i, ex in enumerate(examples):
+        for _i, ex in enumerate(examples):
             row = Frame(examples_frame)
             row.pack(fill="x", pady=1)
 
@@ -569,8 +569,8 @@ class CustomRegexDialog(Dialog):
         usable_h = screen_h - 160
 
         # Target size: Reduced to fit 1080p screens with taskbar/scaling
-        # Previous: 800×960 (too tall for 1080p)
-        # New: 800×780 (fits comfortably with taskbar)
+        # Previous: 800x960 (too tall for 1080p)
+        # New: 800x780 (fits comfortably with taskbar)
         target_width = 800
         target_height = 780
 
@@ -599,8 +599,8 @@ class CustomRegexDialog(Dialog):
         self._geometry_initialized = True
         log.info(
             "custom_regex.geometry_initialized",
-            size=f"{int(width)}×{int(height)}",
-            screen=f"{screen_w}×{screen_h}",
+            size=f"{int(width)}x{int(height)}",
+            screen=f"{screen_w}x{screen_h}",
             position=f"+{int(x)}+{int(y)}",
         )
 

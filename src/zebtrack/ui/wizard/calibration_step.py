@@ -135,7 +135,7 @@ class CalibrationStep(WizardStep):
                 "• Projeto PRÉ-GRAVADO: Pode ser múltiplos vídeos\n\n"
                 "Exemplos:\n"
                 "  • 1 aquário: Um único experimento/gravação\n"
-                "  • 6 aquários: 6 gravações diferentes (ex: 3 grupos × 2 dias)\n"
+                "  • 6 aquários: 6 gravações diferentes (ex: 3 grupos x 2 dias)\n"
                 "  • 24 aquários: Bateria completa de experimentos\n\n"
                 "💡 Dica: Se não tiver certeza, comece com 1 e adicione mais vídeos depois."
             ),

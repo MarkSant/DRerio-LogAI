@@ -24,7 +24,7 @@ def validate_calibration(pixel_per_cm_ratio: tuple[float, float] | None) -> None
 
     x_ratio, y_ratio = pixel_per_cm_ratio
 
-    if not (isinstance(x_ratio, (int, float)) and isinstance(y_ratio, (int, float))):
+    if not (isinstance(x_ratio, int | float) and isinstance(y_ratio, int | float)):
         raise TypeError("Calibration ratios must be numeric")
 
     if not (math.isfinite(x_ratio) and math.isfinite(y_ratio)):

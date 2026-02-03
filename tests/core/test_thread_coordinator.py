@@ -9,8 +9,8 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
-
 from tests.utils.wait_helpers import wait_for_thread_exit
+
 from zebtrack.core.thread_coordinator import ThreadCoordinator
 
 

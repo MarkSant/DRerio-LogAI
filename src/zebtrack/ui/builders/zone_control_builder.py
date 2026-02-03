@@ -453,7 +453,7 @@ class ZoneControlBuilder:
         ).pack(side="left")
 
         self.gui.overlap_frame = ttk.Frame(self.gui.roi_inclusion_frame)
-        ttk.Label(self.gui.overlap_frame, text="Mín. fração de sobreposição (0–1):").pack(
+        ttk.Label(self.gui.overlap_frame, text="Mín. fração de sobreposição (0-1):").pack(
             side="left", padx=(0, 5)
         )
         self.gui.overlap_entry = ttk.Entry(

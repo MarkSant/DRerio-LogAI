@@ -82,7 +82,7 @@ class TestProjectManagerConcurrentUpdates:
             assert not worker.is_alive()
 
         # Verify updates occurred
-        assert update_count[0] == 15  # 3 threads × 5 updates each
+        assert update_count[0] == 15  # 3 threads x 5 updates each
 
     def test_concurrent_zone_data_access(self, project_manager):
         """Test concurrent access to zone data."""
@@ -125,7 +125,7 @@ class TestProjectManagerConcurrentUpdates:
             assert not reader.is_alive()
 
         # Verify accesses occurred
-        assert len(zone_accesses) == 15  # 3 threads × 5 accesses each
+        assert len(zone_accesses) == 15  # 3 threads x 5 accesses each
 
     def test_concurrent_video_status_updates(self, project_manager):
         """Test concurrent video status updates."""
@@ -241,7 +241,7 @@ class TestProjectManagerSaveLoadOperations:
             assert not worker.is_alive()
 
         # Verify save attempts
-        assert len(save_attempts) == 9  # 3 threads × 3 attempts each
+        assert len(save_attempts) == 9  # 3 threads x 3 attempts each
 
     def test_concurrent_zone_manager_operations(self, project_manager):
         """Test concurrent zone manager operations."""

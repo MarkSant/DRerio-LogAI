@@ -622,7 +622,7 @@ class Recorder:
 
     def _cleanup_aquarium_recorders(self) -> None:
         """Cleanup all aquarium recorders on error."""
-        for aq_id, recorder in list(self._aquarium_recorders.items()):
+        for _aq_id, recorder in list(self._aquarium_recorders.items()):
             try:
                 recorder.stop_recording(force_stop=True, reason="Cleanup on error")
             except Exception:
@@ -681,7 +681,7 @@ class Recorder:
             # This aligns with COORDINATE_SYSTEMS.md: Original → Warped → CM
             if self.calibration:
                 x1, y1, x2, y2 = self.calibration.transform_bbox(x1, y1, x2, y2)
-                # Now coordinates are in warped space (e.g., 600×266 px)
+                # Now coordinates are in warped space (e.g., 600x266 px)
 
             data_point = {
                 "timestamp": timestamp,
@@ -741,9 +741,9 @@ class Recorder:
     def _normalise_track_id(value: Any) -> int | None:
         if value is None:
             return None
-        if isinstance(value, (np.integer, int)):
+        if isinstance(value, np.integer | int):
             return int(value)
-        if isinstance(value, (float, np.floating)):
+        if isinstance(value, float | np.floating):
             if np.isnan(value):  # type: ignore[arg-type]
                 return None
             return int(value)

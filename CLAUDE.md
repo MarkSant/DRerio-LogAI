@@ -162,7 +162,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 ### 🗺️ Zone and Coordinate Systems
 
-- Zones defined in reference coords (`camera.desired_width` × `camera.desired_height`)
+- Zones defined in reference coords (`camera.desired_width` x `camera.desired_height`)
 - **MUST call `Detector.set_zones()` after video dimensions known** to rescale
 - Arena: "4 corners OR center" logic
 - ROI: `centroid_in`, `centroid_in_on_buffered_roi`, `bbox_intersects`, `seg_overlap`
@@ -178,7 +178,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 ### 🧙 Project Wizard (Default Flow v1.6+)
 
 - 5-step wizard (`ui/wizard/`) is primary project creation
-- Layout: 1150×550px, reserves 220px for nav buttons
+- Layout: 1150x550px, reserves 220px for nav buttons
 - `wizard_adapter.adapt_wizard_data_to_controller_format()` for backward compatibility
 - **Guide**: `docs/DEVELOPER_GUIDE_WIZARD.md`
 
@@ -459,7 +459,7 @@ video_results/
 
 **Trade-offs**:
 
-- 2× total processing time
+- 2x total processing time
 - Video read twice from disk
 
 **Serialization**: `ZoneManager.multi_aquarium_zone_data_to_dict/from_dict()` includes `sequential_processing` field

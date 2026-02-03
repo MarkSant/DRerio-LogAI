@@ -1118,7 +1118,7 @@ class WidgetFactory:
         if template["type"] == "vertical":
             lanes_value = template.get("lanes")
             lanes = 0
-            if isinstance(lanes_value, (int, float, str)):
+            if isinstance(lanes_value, int | float | str):
                 lanes = int(lanes_value)
             lane_width = width / lanes if lanes else width
             for i in range(lanes):
@@ -1129,7 +1129,7 @@ class WidgetFactory:
         elif template["type"] == "horizontal":
             lanes_value = template.get("lanes")
             lanes = 0
-            if isinstance(lanes_value, (int, float, str)):
+            if isinstance(lanes_value, int | float | str):
                 lanes = int(lanes_value)
             lane_height = height / lanes if lanes else height
             for i in range(lanes):
@@ -1142,9 +1142,9 @@ class WidgetFactory:
             rows_value = template.get("rows")
             cols = 0
             rows = 0
-            if isinstance(cols_value, (int, float, str)):
+            if isinstance(cols_value, int | float | str):
                 cols = int(cols_value)
-            if isinstance(rows_value, (int, float, str)):
+            if isinstance(rows_value, int | float | str):
                 rows = int(rows_value)
             col_width = width / cols if cols else width
             row_height = height / rows if rows else height

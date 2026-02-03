@@ -265,7 +265,7 @@ hardware:
 
 - Never block main thread
 - Use `root.after(0, callback)` for async
-- Wizard: 1150×550 layout
+- Wizard: 1150x550 layout
 - Update state via `StateManager`
 - Schedule updates via `UICoordinator`
 

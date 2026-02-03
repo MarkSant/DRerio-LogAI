@@ -40,7 +40,34 @@ To provide an automated, high-precision tracking and analysis tool for Danio rer
 
 - **AGENTS.md is the canonical source** for all agent guidance.
 - If any other agent file changes (CLAUDE/GEMINI/Copilot), **update AGENTS.md first** and then mirror the same changes.
-- When syncing instructions, add a short “Change Note” entry here to preserve intent and reduce drift.
+- **SYNC REMINDER**: Every change to agent instructions must be mirrored across all instructions files immediately to prevent drift.
+- **TASK LOGGING**: Agents MUST maintain a detailed entry in [docs/tasks/active/ROLLING_TASK_LOG.md](docs/tasks/active/ROLLING_TASK_LOG.md) for every session. Plan tasks by writing to this log and update progress incrementally.
+
+---
+
+## 📋 Documentation Standards (MANDATORY)
+
+When creating or updating documentation, follow these rules:
+
+### Diátaxis Structure
+
+| Folder | Purpose |
+|--------|---------|
+| `docs/tutorials/` | Learning-oriented (Step-by-step) |
+| `docs/guides/` | Goal-oriented (How-to) |
+| `docs/explanation/` | Understanding-oriented (Concepts) |
+| `docs/reference/` | Information-oriented (API, Config, Metrics) |
+| `docs/tasks/` | Dynamic task tracking (Active/Completed) |
+| `docs/archive/legacy/` | Obsolete or historical documents |
+| `docs/wiki/` | Portuguese end-user documentation |
+
+### Rules
+
+1. **Language**: English for all technical/developer docs. Portuguese ONLY in `docs/wiki/`.
+2. **Unified Docs**: Never create "Feature_V2_Fix.md". Update the existing canonical doc in the appropriate folder.
+3. **No Root Docs**: All docs (except README and INDEX) must reside in a subfolder.
+4. **Archive, don't delete**: Move obsolete information to `docs/archive/legacy/`.
+5. **Markdown**: Use `markdownlint` standards. Avoid file-wide disables.
 
 **Change Note Template**:
 - `YYYY-MM-DD`: Short summary of what changed and why.
@@ -53,6 +80,14 @@ To provide an automated, high-precision tracking and analysis tool for Danio rer
 ## 🧩 VS Code Extensions (Installed) — Best Practices
 
 Use these conventions to get consistent diagnostics and avoid tool conflicts.
+
+**How to find information (Source of Truth)**
+- **System Architecture**: Consult `docs/explanation/architecture.md` (EDA v4.0).
+- **Communication**: Consult `docs/reference/events.md` for all event bus payloads.
+- **Data/IO**: Consult `docs/reference/data_schema.md` for Parquet and directory formats.
+- **Performance/Threading**: Consult `docs/explanation/state_management.md` and `docs/explanation/performance.md`.
+- **Active Progress**: Check `docs/tasks/active/ROLLING_TASK_LOG.md` before starting work.
+- **Legacy Context**: Look in `docs/archive/decisions/` (ADRs) and `docs/archive/legacy/`.
 
 **Core Python Tooling**
 - **Python (Microsoft)**: Select the Poetry venv as the active interpreter; keep terminal and editor on the same interpreter.

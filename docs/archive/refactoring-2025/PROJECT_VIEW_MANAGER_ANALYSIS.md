@@ -11,8 +11,8 @@ Este documento detalha 34 métodos extraídos de `/src/zebtrack/ui/gui.py` para 
 ## Métodos Extraídos (34 total)
 
 ### 1. update_tree_selection
-**Linhas**: 170-176  
-**Tipo**: Método de instância  
+**Linhas**: 170-176
+**Tipo**: Método de instância
 **Classe**: `_VideoHierarchyHelper` (não é ApplicationGUI)
 
 ```python
@@ -35,7 +35,7 @@ def update_tree_selection(self) -> None:
 ---
 
 ### 2. _update_window_title
-**Linhas**: 539-549  
+**Linhas**: 539-549
 **Tipo**: Método de instância
 
 ```python
@@ -61,7 +61,7 @@ def _update_window_title(self, project_name: str | None = None):
 ---
 
 ### 3. _navigate_to_processing_reports_tab
-**Linhas**: 1274-1287  
+**Linhas**: 1274-1287
 **Tipo**: Método de instância
 
 ```python
@@ -90,7 +90,7 @@ def _navigate_to_processing_reports_tab(self) -> None:
 ---
 
 ### 4. _request_overview_refresh
-**Linhas**: 1303-1328  
+**Linhas**: 1303-1328
 **Tipo**: Método de instância
 
 ```python
@@ -136,7 +136,7 @@ def _request_overview_refresh(
 ---
 
 ### 5. refresh_project_views
-**Linhas**: 1330-1361  
+**Linhas**: 1330-1361
 **Tipo**: Método de instância
 
 ```python
@@ -191,7 +191,7 @@ def refresh_project_views(
 ---
 
 ### 6. _refresh_project_overview
-**Linhas**: 1363-1414  
+**Linhas**: 1363-1414
 **Tipo**: Método de instância
 
 ```python
@@ -271,7 +271,7 @@ def _refresh_project_overview(self) -> None:
 ---
 
 ### 7. _update_project_overview_summary
-**Linhas**: 1433-1466  
+**Linhas**: 1433-1466
 **Tipo**: Método de instância
 
 ```python
@@ -322,7 +322,7 @@ def _update_project_overview_summary(
 ---
 
 ### 8. _update_project_overview_tree
-**Linhas**: 1468-1488  
+**Linhas**: 1468-1488
 **Tipo**: Método de instância
 
 ```python
@@ -360,7 +360,7 @@ def _update_project_overview_tree(self, project_manager, all_videos: list[dict])
 ---
 
 ### 9. _format_status_label
-**Linhas**: 1603-1605  
+**Linhas**: 1603-1605
 **Tipo**: Método de instância
 
 ```python
@@ -377,7 +377,7 @@ def _format_status_label(self, status_key: str) -> str:
 ---
 
 ### 10. _format_status_summary
-**Linhas**: 1607-1619  
+**Linhas**: 1607-1619
 **Tipo**: Método de instância
 
 ```python
@@ -391,7 +391,7 @@ def _format_status_summary(self, counts: Counter) -> str:
 
     others = sum(count for status, count in counts.items() if status not in PROJECT_STATUS_META)
     if others:
-        parts.append(f"➕ {others}")
+        parts.append(f"+ {others}")
 
     return " | ".join(parts) if parts else "-"
 ```
@@ -406,7 +406,7 @@ def _format_status_summary(self, counts: Counter) -> str:
 ---
 
 ### 11. _format_status_ratio
-**Linhas**: 1622-1628  
+**Linhas**: 1622-1628
 **Tipo**: Método estático
 
 ```python
@@ -428,7 +428,7 @@ def _format_status_ratio(symbol_key: str, completed: int, total: int) -> str:
 ---
 
 ### 12. _summarize_batch_data
-**Linhas**: 1630-1650  
+**Linhas**: 1630-1650
 **Tipo**: Método de instância
 
 ```python
@@ -464,7 +464,7 @@ def _summarize_batch_data(self, videos: list[dict]) -> str:
 ---
 
 ### 13. _format_data_badges
-**Linhas**: 1652-1666  
+**Linhas**: 1652-1666
 **Tipo**: Método de instância
 
 ```python
@@ -494,7 +494,7 @@ def _format_data_badges(self, video: dict) -> str:
 ---
 
 ### 14. _format_video_metadata
-**Linhas**: 1668-1686  
+**Linhas**: 1668-1686
 **Tipo**: Método de instância
 
 ```python
@@ -529,7 +529,7 @@ def _format_video_metadata(self, metadata: dict) -> str:
 ---
 
 ### 15. _on_project_overview_tree_double_click
-**Linhas**: 1688-1697  
+**Linhas**: 1688-1697
 **Tipo**: Método de instância
 
 ```python
@@ -555,7 +555,7 @@ def _on_project_overview_tree_double_click(self, event) -> None:
 ---
 
 ### 16. _on_project_overview_tree_double_click_impl
-**Linhas**: 1699-1730  
+**Linhas**: 1699-1730
 **Tipo**: Método de instância
 
 ```python
@@ -608,7 +608,7 @@ def _on_project_overview_tree_double_click_impl(self, item_id: str) -> None:
 ---
 
 ### 17. _on_project_overview_right_click
-**Linhas**: 1732-1742  
+**Linhas**: 1732-1742
 **Tipo**: Método de instância
 
 ```python
@@ -635,7 +635,7 @@ def _on_project_overview_right_click(self, event) -> None:
 ---
 
 ### 18. _refresh_pipeline_video_table
-**Linhas**: 2633-2800+  
+**Linhas**: 2633-2800+
 **Tipo**: Método de instância
 
 ```python
@@ -748,7 +748,7 @@ def _refresh_pipeline_video_table(self, all_videos=None) -> None:
 ---
 
 ### 19. _resolve_processing_reports_video_paths
-**Linhas**: 2856-2875  
+**Linhas**: 2856-2875
 **Tipo**: Método de instância
 
 ```python
@@ -785,7 +785,7 @@ def _resolve_processing_reports_video_paths(self, selection: Iterable[str] | Non
 ---
 
 ### 20. _update_pipeline_buttons_state
-**Linhas**: 2894-2911  
+**Linhas**: 2894-2911
 **Tipo**: Método de instância
 
 ```python
@@ -820,7 +820,7 @@ def _update_pipeline_buttons_state(self, selections=None) -> None:
 ---
 
 ### 21. _populate_video_selector_tree
-**Linhas**: 3589-3718  
+**Linhas**: 3589-3718
 **Tipo**: Método de instância
 
 ```python
@@ -978,7 +978,7 @@ def _populate_video_selector_tree(self, filter_text: str | None = None):
 ---
 
 ### 22. _format_status_token
-**Linhas**: 3585-3587  
+**Linhas**: 3585-3587
 **Tipo**: Método estático
 
 ```python
@@ -996,7 +996,7 @@ def _format_status_token(has_parquet: bool, symbol_key: str) -> str:
 ---
 
 ### 23. _refresh_video_selector_tree
-**Linhas**: 3720-3740  
+**Linhas**: 3720-3740
 **Tipo**: Método de instância
 
 ```python
@@ -1034,7 +1034,7 @@ def _refresh_video_selector_tree(self) -> None:
 ---
 
 ### 24. _on_processing_reports_item_double_click
-**Linhas**: 4011-4054  
+**Linhas**: 4011-4054
 **Tipo**: Método de instância
 
 ```python
@@ -1098,7 +1098,7 @@ def _on_processing_reports_item_double_click(self, event=None) -> None:
 ---
 
 ### 25. _on_processing_reports_generate_partial
-**Linhas**: 4056-4085  
+**Linhas**: 4056-4085
 **Tipo**: Método de instância
 
 ```python
@@ -1147,7 +1147,7 @@ def _on_processing_reports_generate_partial(self) -> None:
 ---
 
 ### 26. _refresh_processing_reports_tab
-**Linhas**: 4087-4240+  
+**Linhas**: 4087-4240+
 **Tipo**: Método de instância
 
 ```python
@@ -1273,7 +1273,7 @@ def _refresh_processing_reports_tab(self) -> None:
 ---
 
 ### 27. _append_processing_reports_artifacts
-**Linhas**: 4313-4377  
+**Linhas**: 4313-4377
 **Tipo**: Método de instância
 
 ```python
@@ -1355,7 +1355,7 @@ def _append_processing_reports_artifacts(
 ---
 
 ### 28. update_reports_tree
-**Linhas**: 4379-4427  
+**Linhas**: 4379-4427
 **Tipo**: Método de instância
 
 ```python
@@ -1426,7 +1426,7 @@ def update_reports_tree(self):
 ---
 
 ### 29. _populate_reports_tree_from_hierarchy
-**Linhas**: 4503-4612  
+**Linhas**: 4503-4612
 **Tipo**: Método de instância
 
 ```python
@@ -1558,7 +1558,7 @@ def _populate_reports_tree_from_hierarchy(self, hierarchy: dict, pm) -> None:
 ---
 
 ### 30. _append_report_artifacts
-**Linhas**: 4614-4668  
+**Linhas**: 4614-4668
 **Tipo**: Método de instância
 
 ```python
@@ -1630,7 +1630,7 @@ def _append_report_artifacts(self, parent_id: str, entry: dict) -> None:
 ---
 
 ### 31. _on_report_item_select
-**Linhas**: 4670-4684  
+**Linhas**: 4670-4684
 **Tipo**: Método de instância
 
 ```python
@@ -1662,7 +1662,7 @@ def _on_report_item_select(self, event=None):
 ---
 
 ### 32. _on_report_item_double_click
-**Linhas**: 4686-4716  
+**Linhas**: 4686-4716
 **Tipo**: Método de instância
 
 ```python
@@ -1711,7 +1711,7 @@ def _on_report_item_double_click(self, event=None):
 ---
 
 ### 33. _update_delete_template_button_state
-**Linhas**: 5853-5862  
+**Linhas**: 5853-5862
 **Tipo**: Método de instância
 
 ```python
@@ -1737,7 +1737,7 @@ def _update_delete_template_button_state(self) -> None:
 ---
 
 ### 34. _refresh_openvino_summary
-**Linhas**: 7095-7101  
+**Linhas**: 7095-7101
 **Tipo**: Método de instância
 
 ```python

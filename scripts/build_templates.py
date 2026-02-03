@@ -4,7 +4,7 @@
 The CI pipeline calls this script to produce a distributable ZIP archive that
 bundles the curated wizard templates stored under ``resources/wizard_templates``.
 
-Running the script locally is safe and idempotent – artefacts are written to the
+Running the script locally is safe and idempotent - artefacts are written to the
 ``dist`` directory (ignored by git).
 """
 

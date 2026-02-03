@@ -1,4 +1,4 @@
-"""Block detail dialog for Day × Group session management (v2.3.0).
+"""Block detail dialog for Day x Group session management (v2.3.0).
 
 Shows all subjects (cobaias) in the block with status and quick actions.
 
@@ -25,7 +25,7 @@ log = structlog.get_logger(__name__)
 
 
 class BlockDetailDialog(Toplevel):
-    """Detail dialog for Day × Group block."""
+    """Detail dialog for Day x Group block."""
 
     def __init__(
         self,

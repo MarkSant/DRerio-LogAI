@@ -13,7 +13,6 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
-
 from tests.utils.wait_helpers import wait_for_condition
 
 

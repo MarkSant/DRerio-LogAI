@@ -51,10 +51,10 @@ def _normalize_color_for_matplotlib(color):
     - String/named color: return as-is
     - Already normalized (0-1): return as-is
     """
-    if isinstance(color, (tuple, list)) and len(color) == 3:
+    if isinstance(color, tuple | list) and len(color) == 3:
         # Check if values are in 0-255 range (need normalization)
         # If any value is > 1, assume it's in 0-255 range
-        if any(isinstance(c, (int, float)) and c > 1 for c in color):
+        if any(isinstance(c, int | float) and c > 1 for c in color):
             return tuple(c / 255.0 for c in color)
         else:
             # Already normalized or mixed values

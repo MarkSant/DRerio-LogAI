@@ -11,8 +11,8 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
-
 from tests.utils.wait_helpers import wait_for_condition
+
 from zebtrack.core.project_service import (
     CONFIG_FILE_NAME,
     ProjectService,

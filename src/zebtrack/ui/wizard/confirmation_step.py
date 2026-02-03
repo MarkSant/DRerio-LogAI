@@ -343,7 +343,7 @@ class ConfirmationStep(WizardStep):
                 total_sessions = num_groups * subjects_per_group * experiment_days
                 total_animals = num_groups * subjects_per_group
                 lines.append(
-                    f"  • {num_groups} grupos × {experiment_days} dias × "
+                    f"  • {num_groups} grupos x {experiment_days} dias x "
                     f"{subjects_per_group} animais/grupo"
                 )
                 lines.append(f"  • Total: {total_sessions} gravações ({total_animals} animais)")
@@ -539,7 +539,7 @@ class ConfirmationStep(WizardStep):
 
         lines.append(f"  • Aquários: {num_aquariums}")
         lines.append(f"  • Animais por aquário: {animals_per_aquarium}")
-        lines.append(f"  • Dimensões: {width} × {height} cm")
+        lines.append(f"  • Dimensões: {width} x {height} cm")
 
     def _append_processing_plan(self, lines: list[str]) -> None:
         lines.append("")

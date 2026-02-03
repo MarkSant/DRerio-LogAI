@@ -1,6 +1,6 @@
 # Implementation Summary: Unified Report Generation Fixes
 
-**Date**: December 13, 2025  
+**Date**: December 13, 2025
 **Issue**: Unified report generation had three critical bugs affecting UI responsiveness, data accuracy, and schema consistency.
 
 ## Problems Fixed
@@ -85,7 +85,7 @@ if entry:
             group_id = current_metadata.get("group_id") or current_metadata.get("group")
             if group_id:
                 df.loc[df["group_id"] == "unassigned", "group_id"] = str(group_id)
-        
+
         # Update only "unknown" rows
         if "experiment_id" in df.columns and (df["experiment_id"] == "unknown").any():
             exp_id = current_metadata.get("experiment_id") or entry.get("experiment_id")
@@ -191,7 +191,7 @@ poetry run pytest -q
 
 ---
 
-**Status**: ✅ Implementation Complete  
-**Test Coverage**: 19 new tests added (11 unified report + 8 data transformer)  
-**Files Changed**: 6 core files + 2 test files  
+**Status**: ✅ Implementation Complete
+**Test Coverage**: 19 new tests added (11 unified report + 8 data transformer)
+**Files Changed**: 6 core files + 2 test files
 **Lines Added**: ~600 lines (including tests)

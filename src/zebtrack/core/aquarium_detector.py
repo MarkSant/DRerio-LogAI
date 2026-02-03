@@ -608,7 +608,7 @@ class AquariumDetector:
                     boxes = results[0].boxes
                     frame_polygons = []
 
-                    for j, box in enumerate(boxes):
+                    for _j, box in enumerate(boxes):
                         conf = float(box.conf)
                         if conf < 0.05:
                             continue

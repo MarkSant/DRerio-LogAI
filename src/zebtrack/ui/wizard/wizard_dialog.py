@@ -4,7 +4,7 @@ Main wizard dialog orchestrator.
 Manages 5-step wizard flow, navigation, and data accumulation.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from tkinter import Frame, messagebox
 from tkinter.simpledialog import Dialog
 from typing import TYPE_CHECKING, Any
@@ -95,7 +95,7 @@ class WizardDialog(Dialog):
         self.current_step_index = 0
         self.wizard_data: dict[str, Any] = {
             "wizard_schema_version": 3,  # v3.0: Model selection & detector params
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
         self.cache = WizardCache()
         self.result: dict[str, Any] | None = None  # Will be set on successful completion
@@ -332,8 +332,8 @@ class WizardDialog(Dialog):
         usable_h = screen_h - 220
 
         # FIXED SIZE STRATEGY: Optimized for 1080p screens with taskbar/scaling
-        # Previous: 1150×850 (can overflow on 1080p with 125%+ scaling)
-        # New: 1050×780 (fits 1080p reliably, increased 30px for calibration step)
+        # Previous: 1150x850 (can overflow on 1080p with 125%+ scaling)
+        # New: 1050x780 (fits 1080p reliably, increased 30px for calibration step)
 
         target_width = 1050
         target_height = 780
@@ -373,8 +373,8 @@ class WizardDialog(Dialog):
         self._geometry_initialized = True
         log.info(
             "wizard.geometry_initialized",
-            size=f"{int(width)}×{int(height)}",
-            screen=f"{screen_w}×{screen_h}",
+            size=f"{int(width)}x{int(height)}",
+            screen=f"{screen_w}x{screen_h}",
             position=f"+{int(x)}+{int(y)}",
             centered=True,
         )
@@ -413,7 +413,7 @@ class WizardDialog(Dialog):
 
         log.info(
             "wizard.window_centered",
-            size=f"{width}×{height}",
+            size=f"{width}x{height}",
             position=f"+{int(x)}+{int(y)}",
         )
 
@@ -422,7 +422,7 @@ class WizardDialog(Dialog):
         Maintain fixed window size when step changes.
 
         With fixed-size strategy, we DON'T resize the window between steps.
-        Steps should be designed to fit within the allocated space (950×620).
+        Steps should be designed to fit within the allocated space (950x620).
         """
         # No-op: window maintains fixed size
         pass

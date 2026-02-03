@@ -1,5 +1,5 @@
-<!-- markdownlint-disable-file -->
 # Guia de Referência Operacional do ZebTrack-AI
+<!-- markdownlint-disable-file -->
 
 **Última Atualização:** Dezembro 2025 (v3.2)
 **Atualizações Recentes:** Max Speed metric, Geotaxis naming fix, Sequential Multi-Aquarium, Unified Reports improvements
@@ -424,10 +424,10 @@ video_results/
 
 ### Referências cruzadas
 
-- `README.md` – Visão geral e guia rápido.
-- `docs/ARCHITECTURE.md` – Diagrama de componentes e decisões.
-- `docs/PROJECT_WORKFLOW.md` – Passo a passo detalhado da criação de projetos e processamento em lote.
-- `docs/WIZARD_USER_GUIDE.md` – Uso guiado do wizard de cinco etapas.
-- `docs/COORDINATE_SYSTEMS.md` – Detalhes matemáticos das transformações espaciais.
+- `README.md` - Visão geral e guia rápido.
+- `docs/ARCHITECTURE.md` - Diagrama de componentes e decisões.
+- `docs/PROJECT_WORKFLOW.md` - Passo a passo detalhado da criação de projetos e processamento em lote.
+- `docs/WIZARD_USER_GUIDE.md` - Uso guiado do wizard de cinco etapas.
+- `docs/COORDINATE_SYSTEMS.md` - Detalhes matemáticos das transformações espaciais.
 
 Mantenha este guia sincronizado com os módulos de código e a suíte de testes para garantir rastreabilidade científica completa.

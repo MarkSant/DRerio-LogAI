@@ -161,9 +161,9 @@ All formats supported by OpenCV:
 
 ### What is the maximum video resolution?
 
-**Tested up to**: 4K (3840×2160)
-**Recommended**: 1080p (1920×1080)
-**Minimum**: 480p (640×480)
+**Tested up to**: 4K (3840x2160)
+**Recommended**: 1080p (1920x1080)
+**Minimum**: 480p (640x480)
 
 Higher resolutions:
 - ✅ Better detection accuracy
@@ -172,7 +172,7 @@ Higher resolutions:
 
 ### What is the ideal video resolution and frame rate?
 
-**Resolution**: 1080p (1920×1080)
+**Resolution**: 1080p (1920x1080)
 **Frame rate**: 30 FPS
 
 This balances:

@@ -240,7 +240,7 @@ class ImportConfigStep(WizardStep):
         info_box = Label(
             right_panel,
             text=(
-                "💡 Dica: ajuste rapidamente clicando 2× na coluna desejada. "
+                "💡 Dica: ajuste rapidamente clicando 2x na coluna desejada. "
                 "Use os botões de importação em lote para aplicar o mesmo padrão a todos os vídeos."
             ),
             fg="#555555",

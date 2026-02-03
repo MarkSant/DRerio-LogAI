@@ -381,7 +381,7 @@ class WeightManager:
         default_key = f"is_default_{weight_type}"
 
         # Unset current default for this type
-        for name, details in self.weights.items():
+        for _name, details in self.weights.items():
             details[default_key] = False
 
         # Set new default

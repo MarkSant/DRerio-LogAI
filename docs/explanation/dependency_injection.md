@@ -1,103 +1,73 @@
 # Dependency Injection Pattern - Implementation Guide
 
-## Overview
+**Status:** Canonical Reference
+**Last Updated:** February 2, 2026
+**Category:** Explanation (Diátaxis)
 
-ZebTrack-AI uses **constructor injection** throughout the codebase. The Composition Root pattern is implemented in `src/zebtrack/__main__.py`, where all dependencies are created and wired together.
+## 1. Overview
 
-## Settings Injection Strategy
+ZebTrack-AI uses **constructor injection** throughout the codebase. The Composition Root pattern is implemented in `src/zebtrack/__main__.py`, where all core services and coordinators are instantiated and wired.
 
-All services receive settings via the `settings_obj` parameter in their constructors.
+## 2. Settings Injection Strategy
 
-### Critical Services (RuntimeError on None)
+All services receive configuration via the `settings_obj` parameter. This prevents the "Global Configuration" anti-pattern and allows for easy testing with mocked settings.
 
+### 2.1. Critical Services (Strict Injection)
 Services that **cannot function** without settings raise `RuntimeError`:
 
-**`io/camera.py`**
+**`io/video_source.py`**
 ```python
-def __init__(self, settings_obj: "Settings | None" = None):
+def __init__(self, settings_obj: Settings):
     if settings_obj is None:
-        raise RuntimeError("Camera: Settings not injected.")
+        raise RuntimeError("VideoSource: Settings not injected.")
     self.settings = settings_obj
-    self._camera_index = self.settings.camera.index  # Required
 ```
 
-**Reason**: Camera requires specific hardware configuration (index, resolution) and cannot operate with defaults.
+**Reason**: Video capture requires specific hardware IDs and resolution profiles defined in settings.
 
-**`analysis/analysis_service.py`**
+### 2.2. Functional Services (Graceful Fallback)
+Services that can operate with standard defaults use an optional parameter:
+
+**`plugins/yolo_detector.py`**
 ```python
-def run_full_analysis(...):
-    if self.settings is None:
-        raise RuntimeError("AnalysisService: Settings not injected.")
+def __init__(self, model_path, settings_obj: Settings | None = None):
+    self.conf_threshold = settings_obj.yolo.conf if settings_obj else 0.25
 ```
 
-**Reason**: Analysis algorithms require precise thresholds (freezing velocity, smoothing windows) for scientific accuracy.
+## 3. The Composition Root
 
-### Optional Services (Graceful Fallback)
+The primary orchestration happens in `src/zebtrack/__main__.py` (roughly lines 100-500).
 
-Services that **can function** with reasonable defaults use graceful fallback:
+### 3.1. Infrastructure Phase
+1. `load_settings()`
+2. `StateManager` initialization.
+3. `UIScheduler` (UI thread management) and `EventBusV2`.
 
-**`plugins/openvino_detector.py`** and **`plugins/ultralytics_detector.py`**
+### 3.2. Service Phase
+1. `WeightManager` and `ModelService`.
+2. `ProjectManager` and `AnalysisService`.
+3. `DetectorService`.
+
+### 3.3. Coordination Phase
+1. **Super Coordinators**:
+   - `ProcessingCoordinator`
+   - `HardwareCoordinator`
+   - `SessionCoordinator`
+   - `ProjectLifecycleCoordinator`
+2. **UICoordinator** (Mediator for UI component sync).
+3. **MainViewModel** (Facade for the GUI).
+
+## 4. UI Component Injection
+
+UI widgets receive their dependencies (Command Handlers, Event Buses) from their parent `ViewManager` or directly from the `MainViewModel` during the "Wiring" phase.
+
 ```python
-def __init__(self, model_path, settings_obj: Any | None = None):
-    if settings_obj is not None:
-        self.conf_threshold = settings_obj.yolo_model.confidence_threshold
-        self.nms_threshold = settings_obj.yolo_model.nms_threshold
-    else:
-        # Fallback defaults
-        self.conf_threshold = 0.25
-        self.nms_threshold = 0.45
+# In main_view_model.py
+self.project_vm = ProjectViewModel(dependencies, bootstrap_result, self.ui_event_bus)
 ```
 
-**Reason**: Detection plugins can operate with industry-standard defaults (0.25 confidence, 0.45 NMS).
-
-### UI Components (Graceful Fallback)
-
-UI widgets that display settings-based defaults use fallback to maintain usability:
-
-**`ui/wizard/model_selection_step.py`**
-```python
-if self.settings and hasattr(self.settings, "yolo_model"):
-    default_confidence = self.settings.yolo_model.confidence_threshold
-else:
-    default_confidence = 0.25  # Hardcoded fallback
-```
-
-**Reason**: UI should remain functional even if settings fail to load, using safe defaults.
-
-## Design Principle
-
-**Rule**: Use `RuntimeError` when the service's **core function** depends on settings. Use **graceful fallback** when reasonable defaults exist.
-
-## Lazy Initialization
-
-Some services accept `None` initially and are populated later:
-
-**`core/video_processing_service.py`**
-```python
-def __init__(self, detector: Detector | None, ...):
-    self.detector = detector  # Can be None initially
-```
-
-**Reason**: The detector is created lazily via `detector_service.initialize_detector()` when a project is loaded, as different projects may use different detection methods (seg/det) and backends (YOLO/OpenVINO).
-
-## Composition Root
-
-**Primary dependency creation happens in `__main__.py` (lines 197-362):**
-
-```python
-# Load settings once
-settings_obj = load_settings()
-
-# Core infrastructure
-event_bus = EventBus()
-state_manager = StateManager(enable_history=True, max_history_size=100)
-ui_coordinator = UIScheduler(root=root, event_bus=event_bus)  # Renamed from UICoordinator in Phase 2
-
-# Model and weight management
-weight_manager = WeightManager(settings_obj=settings_obj)
-model_service = ModelService(weight_manager)
-
-# Project management
+---
+**Best Practice**: Never import `from zebtrack import settings`. If a class needs a configuration value, it must be passed in via the constructor.
 project_manager = ProjectManager(state_manager=state_manager, settings_obj=settings_obj)
 project_workflow_service = ProjectWorkflowService(
     project_manager=project_manager,
@@ -307,7 +277,7 @@ class LiveBatchCoordinator:
        )
    ```
 
-3. **Batch Key Creation** (groups sessions by Group × Day × Subject):
+3. **Batch Key Creation** (groups sessions by Group x Day x Subject):
    ```python
    def _create_batch_key(self, group: str | None, day: str | None, subject_id: str | None) -> str:
        """Create unique batch key from metadata."""

@@ -33,6 +33,17 @@
 
 - **AGENTS.md is the canonical source** for all agent guidance.
 - If this file changes, **update AGENTS.md first** and then mirror the same changes here.
+- **SYNC REMINDER**: Every change to agent instructions must be mirrored across all instructions files immediately to prevent drift.
+- **PLANNING & TASKS**: Agents are REQUIRED to create a detailed task entry in [docs/tasks/active/ROLLING_TASK_LOG.md](docs/tasks/active/ROLLING_TASK_LOG.md) before starting work. This ensures transparency and progress tracking.
+
+---
+
+## 📋 Documentation Standards (MANDATORY)
+
+- **Diátaxis**: Always categorize documentation into `tutorials/`, `guides/`, `explanation/`, or `reference/`.
+- **Language**: English for technical docs; Portuguese strictly for `docs/wiki/` (user-facing).
+- **Cleanup**: Do not leave fragmented files in `docs/` root. Merge into central documents or move to `docs/archive/legacy/`.
+- **Linting**: Respect `markdownlint`. Avoid file-wide disables.
 
 ---
 

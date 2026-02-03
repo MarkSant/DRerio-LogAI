@@ -80,7 +80,7 @@ Completar documentação da API pública e preparar deprecação de métodos.
 **Métodos a Marcar**:
 - `_request_overview_refresh()` (6 callers internos)
 - `_update_project_overview_summary()` (ProjectViewManager)
-- `_populate_video_selector_tree()` (ZoneControlBuilder × 2, ProjectViewManager)
+- `_populate_video_selector_tree()` (ZoneControlBuilder x 2, ProjectViewManager)
 - `_build_video_hierarchy_data()` (ProjectViewManager)
 - `_build_video_hierarchy_snapshot()` (ProjectViewManager)
 - `_format_status_token()` (ValidationManager)

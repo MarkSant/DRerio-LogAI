@@ -931,7 +931,7 @@ class TabBuilder:
         # Botão adicionar vídeos
         Button(
             parent,
-            text="➕ Adicionar Vídeos",
+            text="+ Adicionar Vídeos",
             command=lambda: self.gui.event_dispatcher.publish_event(
                 Events.PROJECT_ADD_VIDEOS, {}
             ),

@@ -21,10 +21,11 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import cv2
 import numpy as np
@@ -631,7 +632,7 @@ def _generate_recommendation(
     if profile.openvino_available:
         # Find best device for live (prioritize latency)
         best_live_fps = 0.0
-        for key, result in pipeline_live_results.items():
+        for _key, result in pipeline_live_results.items():
             if result.fps > best_live_fps:
                 best_live_fps = result.fps
                 recommendation.device_live = result.device

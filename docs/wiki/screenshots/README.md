@@ -25,7 +25,7 @@ poetry run zebtrack
 ### 2. Wizard Step 1 (`wizard_step1.png`)
 **Location**: File → New Project → Project Wizard opens
 **Content**:
-- Project wizard window (1150×550px)
+- Project wizard window (1150x550px)
 - Step 1: Project Information
 - Fields: Project Name, Experiment ID, Description
 - Navigation buttons (Next, Cancel)

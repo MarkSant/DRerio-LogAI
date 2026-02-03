@@ -438,7 +438,7 @@ def test_wizard_to_batch_coordinator_flow(
 
 Create an interactive **"Progresso do Experimento"** tab that:
 
-1. **Visual Grid Layout**: Display Day × Group matrix
+1. **Visual Grid Layout**: Display Day x Group matrix
 2. **Interactive Blocks**: Click blocks to see details/take actions
 3. **Subject Selection**: Choose which cobaia to test next
 4. **Status Tracking**: Show completed vs. pending sessions
@@ -469,7 +469,7 @@ Create an interactive **"Progresso do Experimento"** tab that:
 │  🔍 Legenda:                                                        │
 │  ✅ Completo | ⏳ Em andamento | ⏸️ Pendente | ❌ Com erro          │
 │                                                                     │
-│  [➕ Adicionar Dia]  [📊 Relatório Geral]  [⚙️ Configurações]      │
+│  [+ Adicionar Dia]  [📊 Relatório Geral]  [⚙️ Configurações]      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -524,7 +524,7 @@ Create an interactive **"Progresso do Experimento"** tab that:
 ```python
 """Experiment progress dashboard tab for tracking live sessions.
 
-Displays Day × Group matrix with interactive blocks for session management.
+Displays Day x Group matrix with interactive blocks for session management.
 
 Architecture:
 - Grid layout with clickable Day/Group blocks
@@ -629,7 +629,7 @@ class ExperimentProgressTab(Frame):
 
         Button(
             action_frame,
-            text="➕ Adicionar Dia",
+            text="+ Adicionar Dia",
             command=self.add_day,
         ).pack(side="left", padx=5)
 
@@ -681,7 +681,7 @@ class ExperimentProgressTab(Frame):
                 borderwidth=1,
             ).grid(row=0, column=col, sticky="ew", padx=2, pady=2)
 
-        # Data rows: Day × Group blocks
+        # Data rows: Day x Group blocks
         for row, day in enumerate(days, start=1):
             # Day label
             Label(
@@ -703,7 +703,7 @@ class ExperimentProgressTab(Frame):
             self.grid_frame.columnconfigure(col, weight=1)
 
     def create_day_group_block(self, day: str, group: str) -> Frame:
-        """Create interactive block for Day × Group."""
+        """Create interactive block for Day x Group."""
         # Calculate status
         subjects = self.experiment_data["subjects"].get(group, [])
         completed_count = 0
@@ -755,7 +755,7 @@ class ExperimentProgressTab(Frame):
         return block
 
     def open_block_detail(self, day: str, group: str):
-        """Open detail dialog for Day × Group block."""
+        """Open detail dialog for Day x Group block."""
         from zebtrack.ui.dialogs.block_detail_dialog import BlockDetailDialog
 
         dialog = BlockDetailDialog(
@@ -820,7 +820,7 @@ class ExperimentProgressTab(Frame):
 **New File**: `src/zebtrack/ui/dialogs/block_detail_dialog.py`
 
 ```python
-"""Block detail dialog for Day × Group session management.
+"""Block detail dialog for Day x Group session management.
 
 Shows all subjects (cobaias) in the block with status and quick actions.
 
@@ -840,7 +840,7 @@ log = structlog.get_logger(__name__)
 
 
 class BlockDetailDialog(Toplevel):
-    """Detail dialog for Day × Group block."""
+    """Detail dialog for Day x Group block."""
 
     def __init__(
         self,
@@ -1127,7 +1127,7 @@ main_window = MainWindow(
 **Manual Testing Checklist**:
 1. Launch app: `poetry run python -m zebtrack`
 2. Navigate to "📊 Progresso do Experimento" tab
-3. Verify grid displays with Day × Group blocks
+3. Verify grid displays with Day x Group blocks
 4. Click a block → Detail dialog opens
 5. Click subject "▶️ Iniciar" → Confirmation message
 6. Click "Marcar Lote Como Completo" → Confirmation dialog
@@ -1183,7 +1183,7 @@ def test_grid_refresh_creates_blocks(
 
     tab.refresh_grid()
 
-    # Should have 7 days × 2 groups = 14 blocks (+ header row/col)
+    # Should have 7 days x 2 groups = 14 blocks (+ header row/col)
     grid_widgets = tab.grid_frame.winfo_children()
     assert len(grid_widgets) > 14  # Blocks + labels
 
@@ -1206,7 +1206,7 @@ def test_grid_refresh_creates_blocks(
 
 ### Experiment Progress Dashboard
 - [ ] Tab "📊 Progresso do Experimento" appears in MainWindow
-- [ ] Grid displays Day × Group matrix with status colors
+- [ ] Grid displays Day x Group matrix with status colors
 - [ ] Blocks show correct completion status (✅/⏳/⏸️)
 - [ ] Clicking block opens BlockDetailDialog
 - [ ] Dialog lists all subjects with status

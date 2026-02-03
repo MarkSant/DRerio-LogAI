@@ -6,36 +6,36 @@
 
 ```bash
 poetry install && poetry run zebtrack              # Setup & run
-poetry run pytest                                   # Test (712 tests, fast only)
+poetry run pytest                                   # Test (~3100 tests)
 poetry run ruff check --fix .                       # Lint & auto-fix
 ```
 
-## 🏗️ Architecture (MVVM-S + DI)
+## 🏗️ Architecture (MVVM-S + EDA v4.1)
 
 ```
-# Pre-recorded
-User → EventBus → MainViewModel → StateManager → UI (root.after)
+# Pre-recorded Workflow
+User → EventBus → UI Components → Coordinators → Core Services → Data I/O
                          ↓
-         VideoSource → DetectorService → Recorder → AnalysisService → Reporter
+         ProcessingCoordinator → DetectorService → Recorder → AnalysisService
 
-# Live Camera Analysis (v2.0+)
-User → LiveAnalysisDialog → LiveCameraService → [CaptureThread, ProcessingThread]
+# Live Camera Workflow
+User → SessionCoordinator → LiveCameraService → [CaptureThread, ProcessingThread]
                                     ↓
                     Camera → DetectorService → Recorder + LivePreviewWindow
 ```
 
-**DI Root**: `__main__.py` (lines 140-280) - inject `settings_obj` everywhere
+**DI Root**: `src/zebtrack/__main__.py` (lines 70-500) - inject `settings_obj` everywhere
 
 ## 📁 Critical Files
 
 | Path | Purpose |
 |------|---------|
-| `core/main_view_model.py` | Orchestrator (11+ deps) |
-| `core/state_manager.py` | Thread-safe state |
-| `core/wizard_service.py` | Wizard logic + HW caching (30s TTL) |
+| `coordinators/processing_coordinator.py` | Processing Orchestrator |
+| `core/state_manager.py` | Thread-safe state (Source of Truth) |
+| `core/detector_service.py` | Detector & Zone Management |
+| `analysis/analysis_service.py` | Behavioral calculations |
 | `io/recorder.py` | Parquet schema (IMMUTABLE) |
-| `ui/gui.py` | Main window (10759 lines) |
-| `ui/wizard/models.py` | Pydantic validation |
+| `ui/ui_coordinator.py` | UI Mediator (EventBusV2) |
 | `settings.py` | Config models (Pydantic v2) |
 
 ## 🔒 IMMUTABLE Parquet Schema

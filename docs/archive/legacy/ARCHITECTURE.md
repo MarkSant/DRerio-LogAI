@@ -95,7 +95,7 @@ sequenceDiagram
     User->>CM: Desenha Zona
     CM->>EB: publish(ZONES_UPDATED)
     EB->>UIC: notify(ZONES_UPDATED)
-    
+
     rect rgb(200, 240, 255)
         note right of UIC: Coordenação Centralizada
         UIC->>CM: update_zone_listbox()

@@ -358,7 +358,7 @@ class VideoManager:
             ):
                 value = video_info.get(key)
                 if value is not None and (
-                    value != "" or isinstance(value, (int, float, bool, list))
+                    value != "" or isinstance(value, int | float | bool | list)
                 ):
                     metadata.setdefault(key, value)
 
@@ -367,7 +367,7 @@ class VideoManager:
                 key: value
                 for key, value in metadata.items()
                 if value is not None
-                and (value != "" or isinstance(value, (int, float, bool, list)))
+                and (value != "" or isinstance(value, int | float | bool | list))
             }
 
             video_entry: dict[str, Any] = {

@@ -6,14 +6,14 @@ Tests recording session lifecycle, Arduino integration, timed recording,
 and state management coordination.
 """
 
-from typing import Any, TypeAlias, cast
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import pytest
 
 from zebtrack.core.recording_service import RecordingService
 
-ProjectData: TypeAlias = dict[str, Any]
+type ProjectData = dict[str, Any]
 
 
 @pytest.fixture

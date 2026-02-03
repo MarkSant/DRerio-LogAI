@@ -264,10 +264,10 @@ Each facade has comprehensive unit tests (see `tests/core/test_*_facade.py`):
 ```python
 class TestRecordingFacadeInitialization:
     """Test initialization"""
-    
+
 class TestRecordingFacadeStartRecording:
     """Test start_recording method"""
-    
+
 class TestRecordingFacadeStopRecording:
     """Test stop_recording method"""
 ```
@@ -286,12 +286,12 @@ def test_start_recording_success(self, recording_facade, tmp_path):
     video_path = tmp_path / "test_video.mp4"
     video_path.touch()
     output_dir = tmp_path / "output"
-    
+
     result = recording_facade.start_recording(
         video_path=video_path,
         output_dir=output_dir
     )
-    
+
     assert result is True
     assert output_dir.exists()
 ```
@@ -319,17 +319,17 @@ class MainViewModel:
             state_manager=state_manager,
             event_bus=event_bus
         )
-        
+
         self.zone_facade = ZoneManagementFacade(
             project_manager=project_manager,
             state_manager=state_manager
         )
-        
+
         self.arduino_facade = ArduinoFacade(
             arduino_manager=arduino_manager,
             state_manager=state_manager
         )
-    
+
     def start_recording(self):
         """Delegate to facade"""
         return self.recording_facade.start_recording(...)

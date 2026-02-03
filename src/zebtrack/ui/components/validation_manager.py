@@ -184,7 +184,7 @@ class ValidationManager:
 
         others = sum(count for status, count in counts.items() if status not in PROJECT_STATUS_META)
         if others:
-            parts.append(f"➕ {others}")
+            parts.append(f"+ {others}")
 
         return " • ".join(parts)
 
@@ -602,7 +602,7 @@ class ValidationManager:
 
         others = sum(count for status, count in counts.items() if status not in PROJECT_STATUS_META)
         if others:
-            parts.append(f"➕ {others}")
+            parts.append(f"+ {others}")
 
         return " | ".join(parts) if parts else "-"
 
@@ -759,7 +759,7 @@ class ValidationManager:
         """
         if value in (None, ""):
             return ""
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if isinstance(value, int | float) and not isinstance(value, bool):
             try:
                 return f"{int(value):02d}"
             except (TypeError, ValueError):
@@ -1318,7 +1318,7 @@ class ValidationManager:
                 if text:
                     return text
 
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
+            if isinstance(value, int | float) and not isinstance(value, bool):
                 if float(value).is_integer():
                     return f"{int(value):02d}"
                 return str(value)

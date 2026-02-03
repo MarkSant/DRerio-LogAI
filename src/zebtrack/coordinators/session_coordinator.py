@@ -1719,7 +1719,7 @@ class SessionCoordinator(BaseCoordinator):
             good_polygons = []
             frame_height, frame_width = frames[0].shape[:2] if frames else (0, 0)
 
-            for i, frame in enumerate(frames):
+            for _, frame in enumerate(frames):
                 # Detect aquarium (class 0) with low confidence threshold
                 results = detector.model.predict(frame, verbose=False, classes=[0], conf=0.05)
 

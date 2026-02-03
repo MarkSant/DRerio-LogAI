@@ -696,7 +696,7 @@ class ZoneControlsWidget(BaseWidget):
         # Overlap ratio parameter (Initially hidden)
         self.overlap_frame = ttk.Frame(self.roi_inclusion_frame)
         # self.overlap_frame.pack(fill="x", pady=2) # Logic handles visibility
-        ttk.Label(self.overlap_frame, text="Sobreposição mín (0–1):").pack(side="left", padx=(0, 5))
+        ttk.Label(self.overlap_frame, text="Sobreposição mín (0-1):").pack(side="left", padx=(0, 5))
         ttk.Entry(self.overlap_frame, textvariable=self.roi_overlap_ratio_var, width=10).pack(
             side="left", padx=(0, 10)
         )

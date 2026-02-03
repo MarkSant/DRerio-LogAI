@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 from collections.abc import Sequence
-from typing import Any, TypeAlias, cast
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -15,12 +15,12 @@ from zebtrack.tracker.basetrack import BaseTrack
 class MockDetectorPlugin(DetectorPlugin):
     """A mock plugin for testing the main Detector class."""
 
-    DetectionInput: TypeAlias = (
+    type DetectionInput = (
         tuple[int, int, int, int, float]
         | tuple[int, int, int, int, float, int | None]
         | tuple[int, int, int, int, float, int | None, int]
     )
-    DetectionOutput: TypeAlias = tuple[int, int, int, int, float, int | None, int]
+    type DetectionOutput = tuple[int, int, int, int, float, int | None, int]
 
     def __init__(self, model_path: str = "mock_model"):
         self.model_path = model_path

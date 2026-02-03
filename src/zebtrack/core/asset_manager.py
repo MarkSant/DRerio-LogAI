@@ -16,9 +16,10 @@ import json
 import os
 import re
 import unicodedata
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Callable, ClassVar, Literal, cast
+from typing import Any, ClassVar, Literal, cast
 
 import structlog
 
@@ -545,7 +546,7 @@ class AssetManager:
                 str(value).strip().lower()
                 for value in (
                     expected_values
-                    if isinstance(expected_values, (list, tuple, set))
+                    if isinstance(expected_values, list | tuple | set)
                     else [expected_values]
                 )
                 if value not in (None, "")
@@ -564,7 +565,7 @@ class AssetManager:
                 value = metadata.get(metadata_key)
                 if value in (None, ""):
                     continue
-                if isinstance(value, (list, tuple, set)):
+                if isinstance(value, list | tuple | set):
                     candidates = [str(item).strip().lower() for item in value]
                 else:
                     candidates = [str(value).strip().lower()]

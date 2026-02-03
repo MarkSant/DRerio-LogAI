@@ -229,7 +229,7 @@ class MultiAquariumZoneData:
 - Reuses battle-tested single-aquarium code path
 
 **Trade-offs**:
-- 2× total processing time
+- 2x total processing time
 - Video read twice from disk
 
 ## References

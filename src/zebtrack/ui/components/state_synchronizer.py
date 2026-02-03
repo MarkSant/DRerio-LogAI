@@ -457,7 +457,7 @@ class StateSynchronizer:
                     percentages.items(),
                     key=lambda item: str(item[0]),
                 ):
-                    if isinstance(value, (int, float)):
+                    if isinstance(value, int | float):
                         formatted.append(f"ID {key}: {value:.1f}%")
                 if formatted:
                     if self.gui.analysis_display_widget:

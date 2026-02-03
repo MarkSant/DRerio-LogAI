@@ -701,7 +701,7 @@ class ProjectViewManager:
         # Populate tree
         from zebtrack.ui.gui import STATUS_SYMBOLS
 
-        for group_id, group_data in sorted(
+        for _group_id, group_data in sorted(
             hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
         ):
             group_display = f"🏷️ {group_data['display']}"

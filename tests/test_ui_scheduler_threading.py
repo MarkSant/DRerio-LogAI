@@ -76,7 +76,7 @@ class TestUISchedulerScheduling:
             assert not scheduler.is_alive()
 
         # Verify functions were scheduled
-        assert len(scheduled_functions) == 15  # 3 threads × 5 calls each
+        assert len(scheduled_functions) == 15  # 3 threads x 5 calls each
 
     def test_concurrent_schedule_after_calls(self, ui_scheduler):
         """Test concurrent schedule_after() calls."""
@@ -206,7 +206,7 @@ class TestUISchedulerEventBus:
         # All should complete and functions should execute via fallback
         for worker in workers:
             assert not worker.is_alive()
-        assert len(executed_functions) == 6  # 2 threads × 3 calls each
+        assert len(executed_functions) == 6  # 2 threads x 3 calls each
 
 
 class TestUISchedulerViewUpdates:

@@ -165,7 +165,7 @@ class FrameSourceFactory:
             )
 
         # Handle file path (string or Path)
-        elif isinstance(source, (str, Path)):
+        elif isinstance(source, str | Path):
             return FrameSourceFactory.create_from_path(video_path=source, settings_obj=settings_obj)
 
         else:

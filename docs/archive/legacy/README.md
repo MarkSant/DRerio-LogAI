@@ -5,7 +5,7 @@ This directory contains migration guides for upgrading between major versions of
 ## Available Guides
 
 ### [v2.1 → v3.0](v2.1-to-v3.0.md)
-**Status:** Pre-release (November 2025)  
+**Status:** Pre-release (November 2025)
 **Release Date:** February 2026
 
 Main migration guide covering all breaking changes in v3.0:

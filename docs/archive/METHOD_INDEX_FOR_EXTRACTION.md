@@ -223,7 +223,7 @@ ValidationManager
 ├─ usado por: DialogManager, WidgetFactory, ProjectViewManager
 └─ depende de: nada (clean)
 
-DialogManager  
+DialogManager
 ├─ usado por: WidgetFactory, handlers de UI
 ├─ depende de: ValidationManager (para validações de diálogos)
 └─ depende de: ui/dialogs/* (já existentes)

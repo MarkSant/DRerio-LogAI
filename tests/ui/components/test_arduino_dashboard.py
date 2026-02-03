@@ -9,8 +9,8 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
+
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.event_bus import EventBus
 

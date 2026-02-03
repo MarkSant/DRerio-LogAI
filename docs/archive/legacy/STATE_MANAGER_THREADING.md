@@ -1,7 +1,7 @@
 # StateManager Threading Improvements
 
-**Date:** November 2025  
-**Team:** EQUIPE 1 - Core State & Threading  
+**Date:** November 2025
+**Team:** EQUIPE 1 - Core State & Threading
 **Priority:** CRITICAL
 
 ## Overview
@@ -61,7 +61,7 @@ We restructured all state update methods to:
 def update_project_state(self, source: str = "unknown", **kwargs):
     # Step 1: Collect notifications inside lock
     notifications = []
-    
+
     with self._lock:
         for key, new_value in kwargs.items():
             old_value = getattr(self._state.project, key)
@@ -69,7 +69,7 @@ def update_project_state(self, source: str = "unknown", **kwargs):
                 setattr(self._state.project, key, new_value)
                 # Queue notification instead of sending immediately
                 notifications.append((StateCategory.PROJECT, key, old_value, new_value, source))
-    
+
     # Step 2: Send notifications OUTSIDE lock (prevents deadlock)
     for category, key, old_value, new_value, src in notifications:
         self._notify_observers(category, key, old_value, new_value, src)
@@ -83,7 +83,7 @@ The `_notify_observers` method now manages its own locking:
 def _notify_observers(self, category, key, old_value, new_value, source="unknown"):
     """
     Notify observers with deadlock prevention.
-    
+
     CRITICAL: Observers are called OUTSIDE the lock!
     """
     # Step 1: Snapshot observers INSIDE the lock
@@ -91,11 +91,11 @@ def _notify_observers(self, category, key, old_value, new_value, source="unknown
         # Record history
         if self._enable_history:
             self._history.append(StateChange(...))
-        
+
         # Snapshot observers - create list copies
         category_observers = list(self._observers[category])
         global_observers = list(self._global_observers)
-    
+
     # Step 2: Call observers OUTSIDE the lock
     for observer in category_observers:
         try:
@@ -106,9 +106,9 @@ def _notify_observers(self, category, key, old_value, new_value, source="unknown
 
 ### Benefits
 
-✅ **No Deadlocks**: Observers can safely call any StateManager method  
-✅ **Better Performance**: Lock is released quickly, improving concurrency  
-✅ **Isolation**: Observer failures don't affect other observers  
+✅ **No Deadlocks**: Observers can safely call any StateManager method
+✅ **Better Performance**: Lock is released quickly, improving concurrency
+✅ **Isolation**: Observer failures don't affect other observers
 ✅ **Predictable**: State updates complete before observers are notified
 
 ## Task 1.2: Timeout Protection for Slow Observers
@@ -126,20 +126,20 @@ We added timeout protection using a context manager:
 def timeout(seconds: int):
     """
     Timeout context manager for observer callbacks.
-    
+
     WARNING: Uses signal.SIGALRM (Unix only, main thread only).
     On Windows or in threads, degrades gracefully (no timeout).
     """
     can_use_signal = (
-        platform.system() != "Windows" and 
+        platform.system() != "Windows" and
         hasattr(signal, "SIGALRM") and
         threading.current_thread() is threading.main_thread()
     )
-    
+
     if can_use_signal:
         def timeout_handler(signum, frame):
             raise TimeoutError("Observer callback exceeded timeout")
-        
+
         old_handler = signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(seconds)
         try:
@@ -163,7 +163,7 @@ for observer in category_observers:
         with timeout(observer_timeout):
             observer(category, key, old_value, new_value)
     except TimeoutError:
-        log.error("state.observer.timeout", 
+        log.error("state.observer.timeout",
                   timeout_seconds=observer_timeout,
                   observer=observer)
     except Exception as e:
@@ -284,11 +284,11 @@ def on_recording_changed(category, key, old_value, new_value):
     if key == "is_recording":
         # ❌ Don't do heavy computation
         process_video_analysis()  # Could take seconds!
-        
+
         # ❌ Don't block on I/O
         with open("log.txt", "a") as f:
             f.write(f"Recording: {new_value}\n")
-        
+
         # ❌ Don't sleep
         time.sleep(1)
 ```
@@ -355,6 +355,6 @@ If you encounter issues or have questions about these changes, please:
 
 ---
 
-**Implementation Team**: EQUIPE 1 - Core State & Threading  
-**Sprint**: Sprint 1 (Weeks 1-3)  
+**Implementation Team**: EQUIPE 1 - Core State & Threading
+**Sprint**: Sprint 1 (Weeks 1-3)
 **Status**: ✅ Complete

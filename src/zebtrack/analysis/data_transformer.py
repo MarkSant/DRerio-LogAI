@@ -141,7 +141,7 @@ def _rgb_to_color_name(rgb_tuple):
     Returns:
         str: Closest color name or RGB string if no close match found
     """
-    if not isinstance(rgb_tuple, (tuple, list)) or len(rgb_tuple) != 3:
+    if not isinstance(rgb_tuple, tuple | list) or len(rgb_tuple) != 3:
         return str(rgb_tuple)
 
     # Common color names mapping
@@ -816,7 +816,7 @@ class DataTransformer:
         warped_df["x_center_px"] = warped_df[["x1", "x2"]].mean(axis=1)
         warped_df["y_center_px"] = warped_df[["y1", "y2"]].mean(axis=1)
 
-        # Drop any stale cm columns – they will be recomputed by the analyzer
+        # Drop any stale cm columns - they will be recomputed by the analyzer
         for col in ("x_cm", "y_cm"):
             if col in warped_df.columns:
                 warped_df.drop(columns=col, inplace=True)

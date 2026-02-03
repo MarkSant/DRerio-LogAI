@@ -199,7 +199,7 @@ class DesignEditorDialog(Dialog):
 
         Button(
             add_group_frame,
-            text="➕ Adicionar Grupo",
+            text="+ Adicionar Grupo",
             command=self._add_group,
         ).pack(side="left", padx=5)
 

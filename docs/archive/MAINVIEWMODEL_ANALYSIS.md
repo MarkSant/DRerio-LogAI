@@ -1,8 +1,8 @@
 # MainViewModel Class - Comprehensive Structural Analysis
 
-**File**: `/home/user/ZebTrack-AI/src/zebtrack/core/main_view_model.py`  
-**Total Methods**: ~140 methods (incl. properties, nested functions)  
-**Size**: 5588 lines  
+**File**: `/home/user/ZebTrack-AI/src/zebtrack/core/main_view_model.py`
+**Total Methods**: ~140 methods (incl. properties, nested functions)
+**Size**: 5588 lines
 
 ---
 

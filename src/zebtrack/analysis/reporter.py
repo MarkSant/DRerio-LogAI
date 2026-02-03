@@ -615,7 +615,7 @@ class Reporter:
             value = df[column_name].iloc[0]
             if pd.isna(value):
                 row_cells[1].text = _("N/A")
-            elif isinstance(value, (int, float)):
+            elif isinstance(value, int | float):
                 if column_name.endswith("_s"):
                     row_cells[1].text = _format_time_minutes_seconds(value)
                 else:
