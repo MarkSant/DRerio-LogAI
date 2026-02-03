@@ -6,7 +6,7 @@
 
 **BEFORE making ANY code change**, you MUST:
 
-1. **Read**: [`docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md`](../docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md) - Complete workflow
+1. **Read**: [`docs/guides/developer/impact_analysis.md`](../docs/guides/developer/impact_analysis.md) - Complete workflow
 2. **Run**: `python scripts/impact_analyzer.py <type> <name>` - Trace all affected components
 3. **Consult**: [`.copilot-impact-map.yaml`](../.copilot-impact-map.yaml) - Quick dependency lookup
 4. **Verify**: Update ALL affected components consistently
@@ -104,7 +104,7 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 ## 📋 Core Architecture (Read This Once)
 - **Product**: Desktop Tkinter app branded DRerio LogAI; Python package `zebtrack`.
 - **Runtime**: Python 3.12+, Poetry-managed; launch with `poetry run zebtrack` or `python -m zebtrack`.
-- **Docs first**: Validate changes against `docs/architecture/ARCHITECTURE.md`, `docs/reference/REFERENCE_GUIDE.md`, `docs/architecture/DEPENDENCY_INJECTION_GUIDE.md` before rerouting flows.
+- **Docs first**: Validate changes against `docs/explanation/architecture.md`, `docs/reference/operational_reference.md`, `docs/explanation/dependency_injection.md` before rerouting flows.
 - **Config**: Settings loaded via `load_settings()` in `__main__.py` (Composition Root) and injected as `settings_obj` parameter; precedence `config.yaml` < `config.local.yaml`; Pydantic v2 models enforce `extra="forbid"`. **Never import singleton** `from zebtrack import settings`—use constructor injection instead.
 - **Architecture**: MVVM with DI—`MainViewModel` receives all dependencies via constructor (11 parameters including `settings_obj`); `StateManager` tracks observable state; `EventBus` only enabled when `settings_obj.ui_features.enable_event_queue` is true. Composition Root in `__main__.py` wires all services.
 - **Lifecycle**: `io/video_source.py` feeds frames → `core/detector_service.DetectorService` wraps plugin detectors (`plugins/`) and zone scaling → `core/processing_worker.ProcessingWorker` handles background analysis → `io/recorder.Recorder` persists Parquet/MP4. All services receive `settings_obj` via constructor. **Threading** (v2.1): All worker threads (LiveCameraService, GUI live analysis) are daemon=True to allow Python shutdown.

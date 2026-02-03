@@ -23,7 +23,7 @@ To provide an automated, high-precision tracking and analysis tool for Danio rer
 > - **PowerShell**: `powershell -Command "..."` or simple script executions.
 > - **Impact Analysis**: `python scripts/impact_analyzer.py ...`.
 
-1. **Impact Analysis**: Before *any* change, check `docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md` and `SYSTEM_INTEGRATION_MAP.md`.
+1. **Impact Analysis**: Before *any* change, check `docs/guides/developer/impact_analysis.md` and `docs/reference/system_integration.md`.
 2. **Multi-Aquarium Support**:
    - Track ID format: `aquarium_id * 1000 + local_track_id`.
    - Use `MultiAquariumZoneData` for zone operations.
