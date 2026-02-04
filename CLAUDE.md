@@ -31,7 +31,7 @@ Constraint: If a file is modified, output the ENTIRE changed section with suffic
 
 # CLAUDE.md
 
-**AI Assistant Guidance for ZebTrack-AI Development**
+## AI Assistant Guidance for ZebTrack-AI Development
 
 ---
 
@@ -86,6 +86,30 @@ poetry run pre-commit run --all-files  # Full pre-commit
 
 ---
 
+## 📋 Documentation Standards (MANDATORY)
+
+- **Markdown**: Use `markdownlint` standards. Avoid file-wide disables.
+
+### Markdown Formatting Rules (markdownlint)
+
+The project uses `.markdownlint.json`. Key disabled rules:
+
+- **MD013** (line length): Disabled for code blocks/tables and long URLs.
+- **MD033** (inline HTML): Allowed for badges, callouts, and layout helpers.
+- **MD041** (first line heading): Disabled for files with metadata or XML directives.
+
+Agent requirements:
+
+1. **No file-wide disables** in new documentation.
+2. **Inline disables** must include a justification comment on the same line.
+3. **Prefer fixes** over disables; reformat lists/headings instead of suppressing.
+4. **Headings**: Use ATX style (`#`, `##`) not Setext.
+5. **Lists**: Use `-` for unordered, `1.` for ordered.
+6. **Code fences**: Always specify a language (` ```python `, ` ```yaml `).
+7. **Line length**: Keep prose under 100 characters when reasonable; code blocks/tables exempt.
+
+---
+
 ## 🧩 VS Code Extensions (Installed) — Best Practices
 
 - **Python / Pylance**: Use the Poetry venv interpreter; keep terminal and editor aligned.
@@ -100,7 +124,8 @@ poetry run pre-commit run --all-files  # Full pre-commit
 - **MATLAB / matlab-formatter**: Apply only to `.m` files.
 - **vscode-pdf**: Read-only PDF viewing.
 
-**How to use/configure in VS Code**
+### How to use/configure in VS Code
+
 - Use “Python: Select Interpreter” to pick the Poetry venv; keep terminals aligned.
 - Prefer `python.analysis.typeCheckingMode=basic`; use `strict` only on targeted files.
 - Keep Mypy config in `mypy.ini`/pyproject; prefer `mypy.runUsingActiveInterpreter=true` and use “Mypy: Restart Daemon and Recheck Workspace” when stale.
@@ -118,7 +143,7 @@ poetry run pre-commit run --all-files  # Full pre-commit
 - [ ] YAML/Markdown linters are enabled for config/docs quality.
 - [ ] If any agent instruction changes, update AGENTS.md first and mirror to other agent files.
 
-**Detailed Guides**:
+### Detailed Guides
 
 - `docs/architecture/SYSTEM_INTEGRATION_MAP.md` - **CRITICAL**: Event payloads & Component contracts
 - `docs/guides/developer/CHEATSHEET.md` - Quick developer reference
@@ -133,15 +158,15 @@ poetry run pre-commit run --all-files  # Full pre-commit
 
 ### Core Layers (Phase 3/4 Architecture - Dec 2025)
 
-| Layer | Key Files | Purpose |
-|-------|-----------|---------|
-| **Model** | `core/{state_manager,project_manager,detector_service}.py` | State, project data, detection |
-| **View** | `ui/gui.py`, `ui/wizard/*.py`, `ui/dialogs/*.py` | Tkinter UI (10759 lines gui.py) |
-| **ViewModel** | `core/main_view_model.py` | Orchestrator (11+ injected deps) |
-| **Coordinators** | `coordinators/{processing,hardware,session,project_lifecycle}_coordinator.py` | Super coordinators (Phase 3) |
-| **Services** | `core/{wizard_service,video_processing_service,live_camera_service,recording_service}.py` | Business logic |
-| **I/O** | `io/{recorder,video_source,camera,live_stream_source,recorder_factory}.py` | Persistence, frame sources |
-| **Analysis** | `analysis/{analysis_service,behavior,roi,reporter}.py` | Behavioral metrics, reports |
+| Layer            | Key Files                                                                                 | Purpose                          |
+| ---------------- | ----------------------------------------------------------------------------------------- | -------------------------------- |
+| **Model**        | `core/{state_manager,project_manager,detector_service}.py`                                | State, project data, detection   |
+| **View**         | `ui/gui.py`, `ui/wizard/*.py`, `ui/dialogs/*.py`                                          | Tkinter UI (10759 lines gui.py)  |
+| **ViewModel**    | `core/main_view_model.py`                                                                 | Orchestrator (11+ injected deps) |
+| **Coordinators** | `coordinators/{processing,hardware,session,project_lifecycle}_coordinator.py`             | Super coordinators (Phase 3)     |
+| **Services**     | `core/{wizard_service,video_processing_service,live_camera_service,recording_service}.py` | Business logic                   |
+| **I/O**          | `io/{recorder,video_source,camera,live_stream_source,recorder_factory}.py`                | Persistence, frame sources       |
+| **Analysis**     | `analysis/{analysis_service,behavior,roi,reporter}.py`                                    | Behavioral metrics, reports      |
 
 ### Performance Optimizations (v2.1+)
 
@@ -176,7 +201,7 @@ poetry run pre-commit run --all-files  # Full pre-commit
 
 ### 🔒 Parquet Schema (IMMUTABLE)
 
-```
+```text
 timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_px, x_cm, y_cm]*
 ```
 
@@ -439,7 +464,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **Data Flow (Sequential Mode)**:
 
-```
+```text
 ┌─ Passagem 1: Aquário 0 ─────────────────────────────────────────────┐
 │   AquariumData[0].to_zone_data() → ZoneData → detect() → aquarium_0/│
 └─────────────────────────────────────────────────────────────────────┘
@@ -467,7 +492,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **Output Structure** (identical to parallel mode):
 
-```
+```text
 video_results/
 ├── aquarium_0/
 │   ├── 3_CoordMovimento_{video}.parquet
@@ -556,7 +581,7 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 ### Output Structure (per video)
 
-```
+```text
 <video>_results/
   1_ArenaROI_<video>.parquet          # Arena/ROI definitions
   2_Zones_<video>.parquet             # Zone metadata
@@ -621,20 +646,20 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 ## Quick Navigation
 
-| Task | Document |
-|------|----------|
-| **Quick Reference** | `docs/guides/developer/CHEATSHEET.md`, `docs/guides/developer/QUICK_DEBUG_GUIDE.md` |
-| **Architecture** | `docs/architecture/ARCHITECTURE.md` |
-| **Wizard Development** | `docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md` |
-| **Testing** | `README_TESTS.md` |
-| **Operational Guide** | `docs/reference/REFERENCE_GUIDE.md` |
-| **Coordinates** | `docs/reference/COORDINATE_SYSTEMS.md` |
-| **State Management** | `docs/architecture/STATE_MANAGEMENT_GUIDE.md` |
-| **DI Patterns** | `docs/architecture/DEPENDENCY_INJECTION_GUIDE.md` |
-| **Workflows** | `docs/guides/developer/WORKFLOWS.md` |
-| **Performance** | `docs/performance/PERFORMANCE_TUNING.md` |
-| **Known Issues** | `docs/reference/KNOWN_ISSUES.md` |
-| **Historical Context** | `docs/archive/` |
+| Task                   | Document                                                                            |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| **Quick Reference**    | `docs/guides/developer/CHEATSHEET.md`, `docs/guides/developer/QUICK_DEBUG_GUIDE.md` |
+| **Architecture**       | `docs/architecture/ARCHITECTURE.md`                                                 |
+| **Wizard Development** | `docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md`                                   |
+| **Testing**            | `README_TESTS.md`                                                                   |
+| **Operational Guide**  | `docs/reference/REFERENCE_GUIDE.md`                                                 |
+| **Coordinates**        | `docs/reference/COORDINATE_SYSTEMS.md`                                              |
+| **State Management**   | `docs/architecture/STATE_MANAGEMENT_GUIDE.md`                                       |
+| **DI Patterns**        | `docs/architecture/DEPENDENCY_INJECTION_GUIDE.md`                                   |
+| **Workflows**          | `docs/guides/developer/WORKFLOWS.md`                                                |
+| **Performance**        | `docs/performance/PERFORMANCE_TUNING.md`                                            |
+| **Known Issues**       | `docs/reference/KNOWN_ISSUES.md`                                                    |
+| **Historical Context** | `docs/archive/`                                                                     |
 
 ## Recent Critical Fixes (Dec 2025)
 
@@ -667,6 +692,7 @@ logger.error("recorder.save_parquet.error", error=str(e))
   - Individual dialogs suppressed; consolidated dialog at batch end
 
 **0. Sequential Multi-Aquarium Processing (v3.1):**
+
 - **New Feature**: Toggle in Zone Controls to process aquariums sequentially (2 passes) vs parallel (1 pass)
 - **New Event**: `ZONE_PROCESSING_MODE_CHANGED` emitted when user changes processing mode
 - **New Field**: `MultiAquariumZoneData.sequential_processing: bool` - persisted in project files
@@ -675,24 +701,29 @@ logger.error("recorder.save_parquet.error", error=str(e))
 - **UI**: Radio buttons appear in ZoneControls when multi-aquarium mode is active
 
 **1. Multi-Aquarium Data Flow:**
+
 - **Zone Serialization**: `ProcessingCoordinator` now correctly detects `MultiAquariumZoneData` and serializes it using `ZoneManager.multi_aquarium_zone_data_to_dict`.
 - **Worker Deserialization**: `ProcessingWorker` deserializes using `ZoneManager.multi_aquarium_zone_data_from_dict`.
 - **Partitioned Processing**: The worker automatically switches to `detector.detect_partitioned_optimized()` and `recorder.write_partitioned_detection_data()` when multi-aquarium data is detected.
 
 **2. Video Validation & Persistence:**
+
 - **Parquet Compatibility**: `ProjectManager.save_multi_aquarium_zone_data` now automatically exports the zones of **Aquarium 0** to a standard parquet file (`1_ProcessingArea...`). This ensures that `VideoValidationService` and `VideoClassificationService` (which rely on file scanning) correctly classify the video as "Ready" (`has_arena=True`).
 - **Atomic Saving**: `save_project()` is now called **strictly after** updating the video entry's `parquet_files` map in `ProjectManager`. This prevents the "without_arena" regression on project reload.
 
 **3. UI & Events:**
+
 - **Zone Selection**: `EventDispatcher` now subscribes to `ZONE_AQUARIUM_SELECTED` and delegates to `CanvasManager.update_zone_listbox()`.
-- **Listbox Update**: `update_zone_listbox` handles `MultiAquariumZoneData` by resolving the *active* aquarium's data before display.
+- **Listbox Update**: `update_zone_listbox` handles `MultiAquariumZoneData` by resolving the _active_ aquarium's data before display.
 - **Rendering**: `CanvasRenderer` supports `MultiAquariumZoneData` natively, iterating through all aquariums to draw polygons with distinct labels.
 - **Trajectory Generation**: Added `PROCESSING_GENERATE_TRAJECTORIES` handler in `ProcessingCoordinator` to fix the "no handlers" warning in the Reports tab.
 
 **4. Windows Taskbar Icon:**
+
 - Added `AppUserModelID` setup in `__main__.py` to dissociate the app from the generic Python process icon on Windows.
 
 **5. Multi-Aquarium Report Generation Fix (Dec 2025):**
+
 - **Critical Bug Fixed**: Second aquarium Word reports were using first aquarium's cropped image and had misaligned trajectory/heatmap.
 - **Root Cause**: `generate_project_reports()` called `get_zone_data()` instead of `get_multi_aquarium_zone_data()`. The former returns only first aquarium's polygon for backward compatibility.
 - **Solution**: Changed `processing_coordinator.py:2998` to use `get_multi_aquarium_zone_data()` with fallback to `get_zone_data()` for single-aquarium videos.
@@ -701,12 +732,14 @@ logger.error("recorder.save_parquet.error", error=str(e))
 - **Details**: See `docs/testing/MULTI_AQUARIUM_STATUS.md`
 
 **7. Unified Reports Robustness (v3.3 - Dec 29, 2025):**
+
 - **Deletion Safety:** New **"Apagar Relatórios Unificados"** button with **Retry-with-Unlock** logic. Handles OneDrive sync locks and Read-Only permissions automatically.
 - **Metadata Authority:** Unified Reports enforced to use **Project Structure** metadata (Day/Group/Subject), overriding potentially stale headers in old Parquet files.
 - **Color Normalization:** ROI Colors in Excel converted to **Human Names** (e.g. "Red", "Blue") via Euclidean distance mapping (threshold 2500).
 - **Column Standard:** Redundant `group` column explicitly dropped in favor of standard `group_id`.
 
 **Agent Instructions:**
+
 - When modifying `ProjectManager` or `ZoneManager`, ensure `MultiAquariumZoneData` compatibility is maintained.
 - Do NOT revert the explicit parquet export in `save_multi_aquarium_zone_data`—it is essential for the legacy validation scanner.
 - Ensure `EventDispatcher` subscriptions are kept in sync with `ZoneControls` events.
@@ -718,18 +751,18 @@ When creating or updating documentation, follow these rules to maintain organiza
 
 ### Folder Structure (MANDATORY)
 
-| Folder | Purpose | Naming Convention |
-|--------|---------|-------------------|
-| `docs/architecture/` | System design, patterns, DI, events | `TOPIC.md` |
+| Folder                   | Purpose                                  | Naming Convention              |
+| ------------------------ | ---------------------------------------- | ------------------------------ |
+| `docs/architecture/`     | System design, patterns, DI, events      | `TOPIC.md`                     |
 | `docs/guides/developer/` | Developer workflows, debugging, features | `GUIDE_TOPIC.md` or `TOPIC.md` |
-| `docs/guides/user/` | End-user docs (English) | `TOPIC.md` |
-| `docs/reference/` | API docs, operational reference | `TOPIC.md` or `topic_api.md` |
-| `docs/performance/` | Benchmarks, optimization, threading | `TOPIC.md` |
-| `docs/testing/` | Test patterns, pytest fixes | `TESTING_TOPIC.md` |
-| `docs/decisions/` | Architecture Decision Records | `ADR-NNN-short-title.md` |
-| `docs/migration/` | Version upgrade guides | `vX.Y-to-vX.Z.md` |
-| `docs/wiki/` | User guides (Portuguese) | Numbered: `N_Title.md` |
-| `docs/archive/` | Historical/completed docs | Move here, don't delete |
+| `docs/guides/user/`      | End-user docs (English)                  | `TOPIC.md`                     |
+| `docs/reference/`        | API docs, operational reference          | `TOPIC.md` or `topic_api.md`   |
+| `docs/performance/`      | Benchmarks, optimization, threading      | `TOPIC.md`                     |
+| `docs/testing/`          | Test patterns, pytest fixes              | `TESTING_TOPIC.md`             |
+| `docs/decisions/`        | Architecture Decision Records            | `ADR-NNN-short-title.md`       |
+| `docs/migration/`        | Version upgrade guides                   | `vX.Y-to-vX.Z.md`              |
+| `docs/wiki/`             | User guides (Portuguese)                 | Numbered: `N_Title.md`         |
+| `docs/archive/`          | Historical/completed docs                | Move here, don't delete        |
 
 ### Documentation Rules
 
@@ -754,15 +787,19 @@ When creating or updating documentation, follow these rules to maintain organiza
 # ADR-NNN: Title
 
 ## Status
+
 Accepted | Proposed | Deprecated
 
 ## Context
+
 What is the issue?
 
 ## Decision
+
 What was decided?
 
 ## Consequences
+
 What are the results?
 ```
 
@@ -786,22 +823,27 @@ What are the results?
 ---
 
 <deep_think_protocol>
+
 <!-- Use this protocol for complex multi-file changes or debugging -->
+
 Instruction: Engage in extensive internal reasoning before generating the final answer.
 Plan:
+
 1. Decompose the user's request into atomic sub-tasks.
 2. Run impact analysis to identify ALL affected components.
 3. Explore multiple hypotheses for the solution.
 4. Validate the solution against project constraints (DI, events, threading).
 5. Generate the final output only after validation.
-Use `<thinking>` tags for internal reasoning, `<answer>` for final output.
-</deep_think_protocol>
+   Use `<thinking>` tags for internal reasoning, `<answer>` for final output.
+   </deep_think_protocol>
 
 <instruction_reinforcement>
+
 <!-- REMINDER: Critical rules that MUST be followed in every response -->
+
 - Impact analysis is MANDATORY before ANY code change
 - Use Poetry for all Python commands (auto-approved)
 - Multi-aquarium: ALWAYS use get_multi_aquarium_zone_data()
 - UI updates: ALWAYS use root.after(0, ...) from non-main threads
 - DI: NEVER import singleton `from zebtrack import settings`
-</instruction_reinforcement>
+  </instruction_reinforcement>

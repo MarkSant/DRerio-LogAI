@@ -6,9 +6,12 @@ Tests for analysis pipeline, report generation, and parquet summaries.
 """
 
 import unittest
+from pathlib import Path
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 from zebtrack.core.analysis_coordinator import AnalysisCoordinator
+from zebtrack.core.detector import ZoneData
 
 
 class TestAnalysisCoordinatorInitialization(unittest.TestCase):
@@ -259,11 +262,134 @@ class TestAnalysisCoordinatorProcessSummaryVideo(unittest.TestCase):
 
         state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
 
+    def test_process_video_missing_trajectory(self):
+        video: dict[str, Any] = {"path": "/tmp/video.mp4", "metadata": {}}
+        settings = Mock()
+        self.project_manager.resolve_results_directory.return_value = Path("/tmp/results")
+
+        with patch("os.path.exists", return_value=False):
+            state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
+
         assert state == "skipped"
-        assert msg is not None
-        assert "não definido" in msg
+        assert "trajetória" in (msg or "")
         assert path is None
         assert changed is False
+
+    def test_process_video_empty_trajectory_df(self):
+        import pandas as pd
+
+        video = {"path": "/tmp/video.mp4", "metadata": {}}
+        settings = Mock()
+        self.project_manager.resolve_results_directory.return_value = Path("/tmp/results")
+
+        with patch("os.path.exists", return_value=True), patch(
+            "pandas.read_parquet", return_value=pd.DataFrame()
+        ):
+            state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
+
+        assert state == "skipped"
+        assert "trajetória vazia" in (msg or "")
+        assert path is None
+        assert changed is False
+
+    def test_process_video_missing_dimensions(self):
+        import pandas as pd
+
+        video = {"path": "/tmp/video.mp4", "metadata": {}}
+        settings = Mock()
+        settings.video_processing.fps = 30
+        settings.video_processing.sharp_turn_threshold_deg_s = 90
+        settings.video_processing.freezing_velocity_threshold = 0.5
+        settings.video_processing.freezing_min_duration_s = 1.0
+        settings.trajectory_smoothing.window_length = 5
+        settings.trajectory_smoothing.polyorder = 2
+
+        self.project_manager.resolve_results_directory.return_value = Path("/tmp/results")
+        self.project_manager.project_data = {
+            "calibration": {"aquarium_width_cm": 10, "aquarium_height_cm": 5}
+        }
+        self.project_manager.get_zone_data.return_value = ZoneData(
+            polygon=[], roi_polygons=[], roi_names=[], roi_colors=[]
+        )
+
+        with patch("os.path.exists", return_value=True), patch(
+            "pandas.read_parquet", return_value=pd.DataFrame({"x": [1]})
+        ), patch("zebtrack.utils.video.get_video_dimensions", return_value=None):
+            state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
+
+        assert state == "skipped"
+        assert "não foi possível abrir o vídeo" in (msg or "")
+        assert path is None
+        assert changed is False
+
+    def test_process_video_missing_calibration(self):
+        import pandas as pd
+
+        video = {"path": "/tmp/video.mp4", "metadata": {}}
+        settings = Mock()
+        settings.video_processing.fps = 30
+        settings.video_processing.sharp_turn_threshold_deg_s = 90
+        settings.video_processing.freezing_velocity_threshold = 0.5
+        settings.video_processing.freezing_min_duration_s = 1.0
+        settings.trajectory_smoothing.window_length = 5
+        settings.trajectory_smoothing.polyorder = 2
+
+        self.project_manager.resolve_results_directory.return_value = Path("/tmp/results")
+        self.project_manager.project_data = {"calibration": {}}
+        self.project_manager.get_zone_data.return_value = ZoneData(
+            polygon=[[0, 0], [10, 0], [10, 10], [0, 10]],
+            roi_polygons=[],
+            roi_names=[],
+            roi_colors=[],
+        )
+
+        with patch("os.path.exists", return_value=True), patch(
+            "pandas.read_parquet", return_value=pd.DataFrame({"x": [1]})
+        ):
+            state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
+
+        assert state == "skipped"
+        assert "calibração incompleta" in (msg or "")
+        assert path is None
+        assert changed is False
+
+    def test_process_video_success(self):
+        import pandas as pd
+
+        video = {"path": "/tmp/video.mp4", "metadata": {}}
+        settings = Mock()
+        settings.video_processing.fps = 30
+        settings.video_processing.sharp_turn_threshold_deg_s = 90
+        settings.video_processing.freezing_velocity_threshold = 0.5
+        settings.video_processing.freezing_min_duration_s = 1.0
+        settings.trajectory_smoothing.window_length = 5
+        settings.trajectory_smoothing.polyorder = 2
+
+        self.project_manager.resolve_results_directory.return_value = Path("/tmp/results")
+        self.project_manager.project_data = {
+            "calibration": {"aquarium_width_cm": 10, "aquarium_height_cm": 5}
+        }
+        self.project_manager.get_zone_data.return_value = ZoneData(
+            polygon=[[0, 0], [10, 0], [10, 10], [0, 10]],
+            roi_polygons=[],
+            roi_names=[],
+            roi_colors=[],
+        )
+        self.project_manager.get_metadata_for_experiment.return_value = {"experiment_id": "video"}
+
+        with patch("os.path.exists", return_value=True), patch(
+            "pandas.read_parquet", return_value=pd.DataFrame({"x": [1]})
+        ), patch("zebtrack.core.analysis_coordinator.Reporter") as reporter_mock:
+            reporter_instance = reporter_mock.return_value
+            state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
+
+        assert state == "completed"
+        assert msg == "video"
+        assert path is not None
+        assert changed is True
+        parquet_files = cast(dict[str, str], video["parquet_files"])
+        assert parquet_files["summary"] == path
+        reporter_instance.export_summary_data.assert_called_once()
 
     def test_process_video_no_trajectory(self):
         """Test processing video when trajectory file is missing."""

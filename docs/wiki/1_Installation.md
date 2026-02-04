@@ -80,18 +80,18 @@ Create `config.local.yaml` in the project root to override specific settings (e.
 
 ```yaml
 ui_features:
-  use_wizard_for_project_creation: true  # padrão
+  use_wizard_for_project_creation: true # padrão
 ```
 
 Other overrides (detector thresholds, Arduino port, event bus) are documented in `docs/reference/operational_reference.md` and `docs/guides/developer/wizard.md`.
 
 ## Troubleshooting
 
-| Symptom | Suggested fix |
-|---------|---------------|
+| Symptom                                     | Suggested fix                                                                                                                                |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `poetry install` fails with compiler errors | Ensure you have build tools installed (Visual Studio Build Tools on Windows, `build-essential` on Linux, Xcode Command Line Tools on macOS). |
-| GUI does not open and no error appears | Confirm you ran `poetry run zebtrack` from inside the project folder; check `poetry env info` to ensure the virtual environment is created. |
-| Models are slow on CPU | Convert weights to OpenVINO (`python -m zebtrack.core.weight_manager`) or run on a CUDA-capable GPU. |
-| Wizard disabled unexpectedly | Delete `config.local.yaml` or set `ui_features.use_wizard_for_project_creation: true`. |
+| GUI does not open and no error appears      | Confirm you ran `poetry run zebtrack` from inside the project folder; check `poetry env info` to ensure the virtual environment is created.  |
+| Models are slow on CPU                      | Convert weights to OpenVINO (`python -m zebtrack.core.weight_manager`) or run on a CUDA-capable GPU.                                         |
+| Wizard disabled unexpectedly                | Delete `config.local.yaml` or set `ui_features.use_wizard_for_project_creation: true`.                                                       |
 
 For additional help, open an issue on GitHub or consult the reference documentation in `docs/`.

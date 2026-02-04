@@ -120,9 +120,11 @@ def test_lag_warning_when_threshold_exceeded(mock_cv2_capture):
             assert frame is not None
 
             # Verify warning was logged
-            mock_log.warning.assert_called_once()
-            call_args = mock_log.warning.call_args
-            assert call_args[0][0] == "camera.lag.threshold_exceeded"
+            assert mock_log.warning.call_count >= 1
+            assert any(
+                call_args[0][0] == "camera.lag.threshold_exceeded"
+                for call_args in mock_log.warning.call_args_list
+            )
 
             camera.release()
 

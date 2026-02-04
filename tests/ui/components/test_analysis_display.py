@@ -8,6 +8,7 @@ as required by CLAUDE.md for all public API changes (minimum 70% coverage).
 from unittest.mock import MagicMock
 
 import pytest
+from PIL import Image, ImageTk
 
 from zebtrack.ui.components.analysis_display import AnalysisDisplayWidget
 from zebtrack.ui.event_bus import EventBus
@@ -228,6 +229,23 @@ class TestAnalysisDisplayWidget:
 
         assert widget.video_label.cget("image") == ""
         assert widget.video_label.image is None
+
+    def test_update_frame_with_pil_image(self, widget):
+        """Test update_frame accepts a PIL Image and stores a PhotoImage."""
+        image = Image.new("RGB", (16, 12), color=(120, 10, 10))
+
+        widget.update_frame(image)
+
+        assert isinstance(widget.video_label.image, ImageTk.PhotoImage)
+
+    def test_update_frame_with_photoimage(self, widget):
+        """Test update_frame accepts an ImageTk.PhotoImage directly."""
+        image = Image.new("RGB", (16, 12), color=(10, 120, 10))
+        photo = ImageTk.PhotoImage(image)
+
+        widget.update_frame(photo)
+
+        assert widget.video_label.image is photo
 
     def test_reset_to_defaults(self, widget):
         """Test reset_to_defaults resets all values to initial state."""

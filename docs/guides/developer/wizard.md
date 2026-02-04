@@ -30,6 +30,7 @@ metrics = WizardService.calculate_experiment_structure(groups=2, days=7, subject
 ```
 
 **Métodos Principais**:
+
 - `detect_available_cameras()` - Detecta câmeras com supressão de logs OpenCV
 - `detect_arduino_ports()` - Detecta portas serial com handshake Arduino
 - `validate_live_config(data)` - Valida configuração de projetos live
@@ -40,6 +41,7 @@ metrics = WizardService.calculate_experiment_structure(groups=2, days=7, subject
 - `calculate_experiment_structure(...)` - Calcula métricas do experimento
 
 **Benefícios**:
+
 - ✅ Testável independentemente da UI
 - ✅ Reutilizável em diferentes contextos
 - ✅ Sem dependências de Tkinter
@@ -68,6 +70,7 @@ except ValidationError as e:
 ```
 
 **Modelos Disponíveis**:
+
 - `LiveConfigData` - Configuração de gravação ao vivo
 - `ExperimentalDesignData` - Estrutura do experimento
 - `CalibrationData` - Dados de calibração física
@@ -76,6 +79,7 @@ except ValidationError as e:
 - `WizardData` - Agregação de todos os steps
 
 **Validações Cross-Field**:
+
 ```python
 @field_validator("external_trigger_mode")
 @classmethod
@@ -106,6 +110,7 @@ class LiveConfigStep(WizardStep):
 ```
 
 **Steps Existentes**:
+
 1. `DiscoveryStep` - Seleção do tipo de projeto
 2. `LiveConfigStep` - Configuração de hardware (live only)
 3. `ExperimentalDesignStep` - Estrutura do experimento (live only)
@@ -116,7 +121,7 @@ class LiveConfigStep(WizardStep):
 
 ## Fluxo de Dados
 
-```
+```text
 ┌─────────────┐
 │ User Input  │
 │   (UI)      │

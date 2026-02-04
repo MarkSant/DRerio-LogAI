@@ -10,6 +10,7 @@ from typing import Any, cast
 from unittest.mock import Mock, patch
 
 from zebtrack.core.video_orchestrator import VideoOrchestrator
+from zebtrack.ui.events import Events
 
 
 class TestVideoOrchestratorInitialization(unittest.TestCase):
@@ -119,6 +120,202 @@ class TestVideoOrchestratorCallbacks(unittest.TestCase):
         mock_callback = Mock()
         self.orchestrator.set_publish_processing_mode_callback(mock_callback)
         assert self.orchestrator._publish_processing_mode_callback == mock_callback
+
+
+class TestVideoOrchestratorProjectWorkflow(unittest.TestCase):
+    """Tests for start_project_processing_workflow branches."""
+
+    def setUp(self):
+        self.root = Mock()
+        self.view = Mock()
+        self.state_manager = Mock()
+        self.ui_event_bus = Mock()
+        self.ui_coordinator = Mock()
+        self.settings = Mock()
+        self.project_manager = Mock()
+        self.video_processing_service = Mock()
+        self.analysis_service = Mock()
+        self.recorder = Mock()
+
+        self.orchestrator = VideoOrchestrator(
+            root=self.root,
+            view=self.view,
+            state_manager=self.state_manager,
+            ui_event_bus=self.ui_event_bus,
+            ui_coordinator=self.ui_coordinator,
+            settings_obj=self.settings,
+            project_manager=self.project_manager,
+            video_processing_service=self.video_processing_service,
+            analysis_service=self.analysis_service,
+            recorder=self.recorder,
+        )
+
+    def test_project_workflow_warns_when_processing_active(self):
+        thread = Mock()
+        thread.is_alive.return_value = True
+        self.orchestrator.processing_thread = thread
+
+        self.orchestrator.start_project_processing_workflow()
+
+        self.ui_event_bus.publish_event.assert_called_once()
+        event_name = self.ui_event_bus.publish_event.call_args[0][0]
+        assert event_name == Events.UI_SHOW_WARNING
+
+    def test_project_workflow_errors_when_no_project(self):
+        self.project_manager.project_path = None
+        self.project_manager.get_zone_data.return_value = Mock(polygon=[1])
+
+        self.orchestrator.start_project_processing_workflow()
+
+        self.ui_event_bus.publish_event.assert_called_once()
+        event_name = self.ui_event_bus.publish_event.call_args[0][0]
+        assert event_name == Events.UI_SHOW_ERROR
+
+    def test_project_workflow_prompts_for_zone_definition(self):
+        self.project_manager.project_path = "/project"
+        self.project_manager.get_zone_data.return_value = Mock(polygon=[])
+        self.project_manager.get_next_video.return_value = "/video.mp4"
+        self.view.ask_ok_cancel.return_value = True
+
+        self.orchestrator.start_project_processing_workflow()
+
+        published = [call.args[0] for call in self.ui_event_bus.publish_event.call_args_list]
+        assert Events.UI_SELECT_TAB in published
+        assert Events.UI_DISPLAY_VIDEO_FRAME in published
+        assert Events.UI_SHOW_INFO in published
+
+    def test_project_workflow_declines_default_arena(self):
+        self.project_manager.project_path = "/project"
+        self.project_manager.get_zone_data.return_value = Mock(polygon=[])
+        self.project_manager.get_next_video.return_value = "/video.mp4"
+        self.view.ask_ok_cancel.side_effect = [False, False]
+
+        self.orchestrator.start_project_processing_workflow()
+
+        self.ui_event_bus.publish_event.assert_not_called()
+
+    def test_project_workflow_uses_default_arena(self):
+        self.project_manager.project_path = "/project"
+        self.project_manager.get_zone_data.return_value = Mock(polygon=[])
+        self.project_manager.get_next_video.return_value = "/video.mp4"
+        self.view.ask_ok_cancel.side_effect = [False, True]
+
+        callback = Mock(return_value=True)
+        self.orchestrator.set_arena_callback(callback)
+
+        with patch("zebtrack.utils.video.get_video_dimensions", return_value=(100, 50)):
+            self.orchestrator.start_project_processing_workflow()
+
+        callback.assert_called_once_with([[0, 0], [100, 0], [100, 50], [0, 50]])
+        event_names = [call.args[0] for call in self.ui_event_bus.publish_event.call_args_list]
+        assert Events.UI_SHOW_INFO in event_names
+
+
+class TestVideoOrchestratorProcessPending(unittest.TestCase):
+    """Tests for process_pending_project_videos workflow."""
+
+    def setUp(self):
+        self.orchestrator = VideoOrchestrator(
+            root=Mock(),
+            view=Mock(),
+            state_manager=Mock(),
+            ui_event_bus=Mock(),
+            ui_coordinator=Mock(),
+            settings_obj=Mock(),
+            project_manager=Mock(),
+            video_processing_service=Mock(),
+            analysis_service=Mock(),
+            recorder=Mock(),
+        )
+
+    def test_process_pending_warns_when_processing_active(self):
+        thread = Mock()
+        thread.is_alive.return_value = True
+        self.orchestrator.processing_thread = thread
+
+        self.orchestrator.process_pending_project_videos()
+
+        publish_event = cast(Mock, self.orchestrator.ui_event_bus.publish_event)
+        event_name = publish_event.call_args[0][0]
+        assert event_name == Events.UI_SHOW_WARNING
+
+    def test_process_pending_errors_without_project(self):
+        self.orchestrator.project_manager.project_path = None
+
+        self.orchestrator.process_pending_project_videos()
+
+        publish_event = cast(Mock, self.orchestrator.ui_event_bus.publish_event)
+        event_name = publish_event.call_args[0][0]
+        assert event_name == Events.UI_SHOW_ERROR
+
+    def test_process_pending_shows_info_when_no_videos(self):
+        self.orchestrator.project_manager.project_path = "/project"
+        project_manager = cast(Mock, self.orchestrator.project_manager)
+        project_manager.get_all_videos.return_value = []
+
+        self.orchestrator.process_pending_project_videos()
+
+        publish_event = cast(Mock, self.orchestrator.ui_event_bus.publish_event)
+        event_name = publish_event.call_args[0][0]
+        assert event_name == Events.UI_SHOW_INFO
+
+    def test_process_pending_aborts_on_no_candidates(self):
+        self.orchestrator.project_manager.project_path = "/project"
+        project_manager = cast(Mock, self.orchestrator.project_manager)
+        project_manager.get_all_videos.return_value = [{"path": "v"}]
+        orchestrator = cast(Any, self.orchestrator)
+        orchestrator._gather_candidate_entries = Mock(return_value=None)
+
+        self.orchestrator.process_pending_project_videos()
+
+        cast(Mock, self.orchestrator._gather_candidate_entries).assert_called_once()
+
+    def test_process_pending_aborts_on_scan_failure(self):
+        self.orchestrator.project_manager.project_path = "/project"
+        project_manager = cast(Mock, self.orchestrator.project_manager)
+        project_manager.get_all_videos.return_value = [{"path": "v"}]
+        orchestrator = cast(Any, self.orchestrator)
+        orchestrator._gather_candidate_entries = Mock(return_value=[{"path": "v"}])
+        orchestrator._scan_and_validate_candidate_paths = Mock(return_value=(None, None, None))
+
+        self.orchestrator.process_pending_project_videos()
+
+        cast(Mock, self.orchestrator._scan_and_validate_candidate_paths).assert_called_once()
+
+    def test_process_pending_shows_info_when_no_eligible(self):
+        self.orchestrator.project_manager.project_path = "/project"
+        project_manager = cast(Mock, self.orchestrator.project_manager)
+        project_manager.get_all_videos.return_value = [{"path": "v"}]
+        orchestrator = cast(Any, self.orchestrator)
+        orchestrator._gather_candidate_entries = Mock(return_value=[{"path": "v"}])
+        orchestrator._scan_and_validate_candidate_paths = Mock(return_value=({}, [], []))
+        orchestrator._classify_candidate_videos = Mock(return_value=([], [], [], [], False))
+
+        self.orchestrator.process_pending_project_videos()
+
+        publish_event = cast(Mock, self.orchestrator.ui_event_bus.publish_event)
+        event_name = publish_event.call_args[0][0]
+        assert event_name == Events.UI_SHOW_INFO
+
+    def test_process_pending_starts_batch_processing(self):
+        self.orchestrator.project_manager.project_path = "/project"
+        project_manager = cast(Mock, self.orchestrator.project_manager)
+        project_manager.get_all_videos.return_value = [{"path": "v"}]
+        orchestrator = cast(Any, self.orchestrator)
+        orchestrator._gather_candidate_entries = Mock(return_value=[{"path": "v"}])
+        orchestrator._scan_and_validate_candidate_paths = Mock(return_value=({}, [], []))
+        orchestrator._classify_candidate_videos = Mock(
+            return_value=([], [{"path": "v"}], [], [], False)
+        )
+        orchestrator._select_eligible_videos = Mock(return_value=[{"path": "v"}])
+        orchestrator._load_zones_from_videos = Mock(return_value=False)
+        orchestrator._start_batch_processing = Mock()
+
+        self.orchestrator.process_pending_project_videos()
+
+        cast(Mock, self.orchestrator._start_batch_processing).assert_called_once_with(
+            [{"path": "v"}]
+        )
 
 
 class TestVideoOrchestratorScanValidate(unittest.TestCase):

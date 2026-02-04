@@ -2,10 +2,14 @@
 Tests for ProjectOverviewWidget component.
 """
 
+from types import SimpleNamespace
+
 import pytest
 
 from zebtrack.ui.components.project_overview import ProjectOverviewWidget
 from zebtrack.ui.event_bus import EventBus
+
+pytestmark = pytest.mark.gui
 
 
 @pytest.fixture
@@ -287,3 +291,69 @@ def test_populate_tree_with_empty_hierarchy(overview_widget):
     # Verify tree is empty
     root_children = overview_widget.project_overview_tree.get_children()
     assert len(root_children) == 0
+
+
+def test_on_video_selected_emits_event(overview_widget):
+    """Test selection handler emits event."""
+    overview_widget.add_tree_item("item1", "Video 1", values=("", ""))
+    overview_widget.project_overview_tree.selection_set("item1")
+
+    overview_widget._on_video_selected(SimpleNamespace())
+
+    events = overview_widget.event_bus.drain(max_items=5)
+    assert any(e.payload.event_name == "project.video_selected" for e in events)
+
+
+def test_on_video_double_click_emits_event(overview_widget):
+    """Test double click handler emits event."""
+    overview_widget.add_tree_item("item1", "Video 1", values=("", ""))
+    overview_widget.project_overview_tree.selection_set("item1")
+
+    overview_widget._on_video_double_click(SimpleNamespace())
+
+    events = overview_widget.event_bus.drain(max_items=5)
+    assert any(e.payload.event_name == "project.video_double_click" for e in events)
+
+
+def test_on_video_right_click_emits_event(overview_widget):
+    """Test right click handler emits event with coordinates."""
+    overview_widget.add_tree_item("item1", "Video 1", values=("", ""))
+    overview_widget.project_overview_tree.identify_row = lambda _y: "item1"
+
+    overview_widget._on_video_right_click(SimpleNamespace(y=5, x_root=10, y_root=20))
+
+    events = overview_widget.event_bus.drain(max_items=5)
+    right_click_events = [e for e in events if e.payload.event_name == "project.video_right_click"]
+    assert right_click_events
+    assert right_click_events[0].payload.data["item_id"] == "item1"
+
+
+def test_update_tree_builds_video_index(overview_widget):
+    """Test update_tree builds video index for videos with paths."""
+    overview_widget.update_tree(
+        [
+            {
+                "id": "G1",
+                "display": "G1",
+                "days": [
+                    {
+                        "id": "D1",
+                        "title": "Dia 1",
+                        "status": "",
+                        "data": "",
+                        "videos": [
+                            {
+                                "id": "V1",
+                                "display_name": "Video 1",
+                                "status": "",
+                                "data_badges": "",
+                                "path": "/path/video.mp4",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    )
+
+    assert "/path/video.mp4" in overview_widget._video_index

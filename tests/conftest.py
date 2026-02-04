@@ -12,6 +12,7 @@ os.environ.setdefault("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE", "1")
 os.environ.setdefault("ZEBTRACK_SUPPRESS_WIZARD_DIALOGS", "1")
 # Suppress console logs during tests - this env var is checked by logging_config.py
 os.environ["ZEBTRACK_SUPPRESS_CONSOLE_LOGS"] = "1"
+HEADLESS_TESTS = os.environ.get("ZEBTRACK_HEADLESS_TESTS", "0") == "1"
 
 
 class _NullHandler(logging.Handler):
@@ -53,6 +54,21 @@ def _configure_silent_logging():
         wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=False,  # Don't cache to allow reconfiguration
     )
+
+
+def _create_mock_tk_root():
+    from unittest.mock import MagicMock
+
+    root = MagicMock()
+    root.tk = MagicMock()
+    root.tk.call = MagicMock(return_value=())
+    root.winfo_id = MagicMock(return_value=12345)
+    root.destroy = MagicMock()
+    root.quit = MagicMock()
+    root.update_idletasks = MagicMock()
+    root.after = MagicMock()
+    root.after_cancel = MagicMock()
+    return root
 
 
 # Run IMMEDIATELY at import time, BEFORE any other imports
@@ -170,6 +186,16 @@ def pytest_configure(config):
         category=UserWarning,
         message=".*pkg_resources.*",
     )
+
+
+def pytest_collection_modifyitems(config, items):
+    if not HEADLESS_TESTS:
+        return
+
+    skip_gui = pytest.mark.skip(reason="GUI tests disabled in headless mode")
+    for item in items:
+        if "gui" in item.keywords:
+            item.add_marker(skip_gui)
 
 
 def pytest_sessionfinish(session, exitstatus):
@@ -304,9 +330,10 @@ def tkinter_session_root():
     can corrupt the Tcl/Tk library paths.
     """
     display = None
+    use_mock = HEADLESS_TESTS
 
     # Only use virtual display on Linux/Unix systems
-    if platform.system() == "Linux":
+    if platform.system() == "Linux" and not use_mock:
         try:
             from pyvirtualdisplay import Display  # type: ignore[attr-defined]
 
@@ -318,24 +345,20 @@ def tkinter_session_root():
             warnings.warn(f"Could not start virtual display: {e}", stacklevel=2)
 
     # Create the tkinter root window (once per session)
-    try:
-        root = tk.Tk()
-        root.withdraw()
-        root.update_idletasks()
-    except tk.TclError:
-        from unittest.mock import MagicMock
-
-        warnings.warn("Headless environment detected. Using Mock for Tkinter root.", stacklevel=2)
-        root = MagicMock()
-        root.tk = MagicMock()
-        root.tk.call = MagicMock(return_value=())
-        root.winfo_id = MagicMock(return_value=12345)
-        # Mock destroy/quit to prevent errors during cleanup
-        root.destroy = MagicMock()
-        root.quit = MagicMock()
-        root.update_idletasks = MagicMock()
-        root.after = MagicMock()
-        root.after_cancel = MagicMock()
+    if not use_mock:
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            root.update_idletasks()
+        except tk.TclError:
+            warnings.warn(
+                "Headless environment detected. Using Mock for Tkinter root.",
+                stacklevel=2,
+            )
+            root = _create_mock_tk_root()
+    else:
+        warnings.warn("Headless test mode enabled. Using Mock for Tkinter root.", stacklevel=2)
+        root = _create_mock_tk_root()
 
     yield root
 

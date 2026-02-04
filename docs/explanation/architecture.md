@@ -9,6 +9,7 @@
 ZebTrack-AI has evolved from a monolithic "God Object" architecture (v3.0) to a modular **Event-Driven Architecture (EDA)** utilizing the **Mediator** and **Dependency Injection** patterns. This ensures scalability, testability, and a clear separation of concerns between the User Interface (View) and the Business Logic (ViewModel/Model).
 
 ### 1.1. The Transition
+
 - **v3.0 (Legacy):** `ApplicationGUI` coordinated all workflows. Components were tightly coupled, leading to circular dependencies and difficult maintenance.
 - **v4.1 (Current):** Components are independent agents. They communicate primarily via a central `EventBusV2` or domain-specific `EventBus`. A `UICoordinator` acts as a Mediator to handle complex UI orchestrations.
 
@@ -17,11 +18,13 @@ ZebTrack-AI has evolved from a monolithic "God Object" architecture (v3.0) to a 
 The system is organized into three distinct layers:
 
 ### 2.1. View Layer (Tkinter)
+
 - **Managers:** Specialized components (e.g., `CanvasManager`, `DialogManager`) that handle specific UI regions.
 - **Widgets:** Reusable Tkinter components under `zebtrack.ui.widgets`.
 - **Constraint:** Views must **NEVER** contain business logic or directly call backend services. They publish events or call injected viewmodel methods.
 
 ### 2.2. Coordination Layer (Mediators)
+
 - **UICoordinator:** Listens to `UIEvents` and coordinates responses across multiple Managers.
 - **Super Coordinators (Backend):** Four specific services that manage complex domain logic:
   - **ProcessingCoordinator:** Video loops, analysis, and `ProcessingWorker` lifecycle.
@@ -30,6 +33,7 @@ The system is organized into three distinct layers:
   - **ProjectLifecycleCoordinator:** Project CRUD, calibration, and zone persistence.
 
 ### 2.3. Logic Layer (Coordinators & Services)
+
 - **DetectorService:** Wraps plugins (YOLO/OpenVINO) and handles zone scaling.
 - **ProjectManager:** Handles data persistence and project structure.
 - **Recorder:** Manages Parquet and MP4 output.
@@ -37,10 +41,13 @@ The system is organized into three distinct layers:
 ## 3. Communication Patterns
 
 ### 3.1. Synchronous: Dependency Injection (DI)
+
 All services receive their dependencies via constructor injection. Singleton imports (e.g., `from zebtrack import settings`) are strictly forbidden. Use `settings_obj: Settings` parameter instead.
 
 ### 3.2. Asynchronous/Decoupled: Event Bus
+
 The system uses a Dual Event Bus architecture:
+
 - **EventBus (v1):** String constants for domain-level events (Recording, Analysis).
 - **EventBusV2:** Enum constants for UI-level events (Zones, Refresh, Selection).
 
@@ -55,6 +62,7 @@ The system supports tracking two subjects simultaneously in separate aquariums w
 - **Data Isolation:** Each aquarium has its own `ByteTracker` instance and generates its own output reports in the experimental hierarchy.
 
 ## 5. Life of an Event: "Zones Updated"
+
 1. **Action:** User edits a zone in `DialogManager`.
 2. **Publish:** `DialogManager` publishes `UIEvents.ZONES_UPDATED`.
 3. **Dispatch:** `EventBusV2` notifies all subscribers.
@@ -73,4 +81,5 @@ The system supports tracking two subjects simultaneously in separate aquariums w
 - `src/zebtrack/analysis/`: Behavioral algorithms and Reporting.
 
 ---
+
 **Scientific Verification:** This architecture ensures deterministic data flow, where tracking results are separated from visualization artifacts, facilitating audit trails and reproducibility.

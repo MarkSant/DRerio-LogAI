@@ -7,8 +7,10 @@ This directory contains screenshots referenced in the user documentation guides.
 The following screenshots need to be captured from the running application:
 
 ### 1. Main Window (`main_window.png`)
+
 **Location**: Main application window after launch
 **Content**:
+
 - Menu bar (File, Edit, View, Tools, Help)
 - Toolbar with common actions
 - Video player area
@@ -16,6 +18,7 @@ The following screenshots need to be captured from the running application:
 - Status bar
 
 **How to capture**:
+
 ```bash
 poetry run zebtrack
 # Wait for main window to open
@@ -23,14 +26,17 @@ poetry run zebtrack
 ```
 
 ### 2. Wizard Step 1 (`wizard_step1.png`)
+
 **Location**: File → New Project → Project Wizard opens
 **Content**:
+
 - Project wizard window (1150x550px)
 - Step 1: Project Information
 - Fields: Project Name, Experiment ID, Description
 - Navigation buttons (Next, Cancel)
 
 **How to capture**:
+
 ```bash
 poetry run zebtrack
 # Click File → New Project
@@ -38,14 +44,17 @@ poetry run zebtrack
 ```
 
 ### 3. Wizard Step 2 - Video Source (`wizard_step2_video.png`)
+
 **Location**: Project Wizard → Step 2
 **Content**:
+
 - Video source selection options
 - File browser button
 - Camera selection dropdown
 - Resolution and frame rate settings
 
 **How to capture**:
+
 ```bash
 # Continue from wizard Step 1
 # Click Next to reach Step 2
@@ -53,8 +62,10 @@ poetry run zebtrack
 ```
 
 ### 4. ROI Configuration (`roi_config.png`)
+
 **Location**: Project Wizard → Step 3 (Arena and ROI Configuration)
 **Content**:
+
 - Video frame with drawn ROIs
 - ROI list panel
 - Drawing tools (rectangle, polygon, circle)
@@ -62,6 +73,7 @@ poetry run zebtrack
 - Arena boundary overlay
 
 **How to capture**:
+
 ```bash
 # Continue from wizard Step 2
 # Click Next to reach Step 3
@@ -70,8 +82,10 @@ poetry run zebtrack
 ```
 
 ### 5. Detection Settings (`wizard_step4_detection.png`)
+
 **Location**: Project Wizard → Step 4
 **Content**:
+
 - Model selection (YOLO, OpenVINO)
 - Confidence threshold slider
 - Multi-subject tracking checkbox
@@ -79,6 +93,7 @@ poetry run zebtrack
 - Advanced settings panel
 
 **How to capture**:
+
 ```bash
 # Continue from wizard Step 3
 # Click Next to reach Step 4
@@ -86,8 +101,10 @@ poetry run zebtrack
 ```
 
 ### 6. Analysis Options (`wizard_step5_options.png`)
+
 **Location**: Project Wizard → Step 5 (Final step)
 **Content**:
+
 - Output options checkboxes (annotated video, heatmap, etc.)
 - Export format dropdown
 - Performance options
@@ -95,6 +112,7 @@ poetry run zebtrack
 - Finish button
 
 **How to capture**:
+
 ```bash
 # Continue from wizard Step 4
 # Click Next to reach Step 5
@@ -102,8 +120,10 @@ poetry run zebtrack
 ```
 
 ### 7. Analysis Progress (`analysis_running.png`)
+
 **Location**: During analysis (after clicking Run Analysis)
 **Content**:
+
 - Progress dialog with progress bar
 - Frame count (current/total)
 - Processing speed (FPS)
@@ -112,6 +132,7 @@ poetry run zebtrack
 - Pause/Cancel buttons
 
 **How to capture**:
+
 ```bash
 # Complete wizard and start analysis
 # OR load existing project and click Run Analysis
@@ -119,8 +140,10 @@ poetry run zebtrack
 ```
 
 ### 8. Heatmap Example (`heatmap.png`)
+
 **Location**: Analysis results after completion
 **Content**:
+
 - Heatmap visualization overlaid on video frame
 - Color scale (blue → green → yellow → red)
 - Arena boundary
@@ -128,6 +151,7 @@ poetry run zebtrack
 - Clear movement density patterns
 
 **How to capture**:
+
 ```bash
 # After analysis completes
 # Open annotated video or heatmap output
@@ -135,8 +159,10 @@ poetry run zebtrack
 ```
 
 ### 9. Live Analysis Dialog (`live_analysis_dialog.png`)
+
 **Location**: File → Analisar Câmera ao Vivo...
 **Content**:
+
 - Live Analysis configuration dialog
 - Experiment ID field
 - Session duration settings
@@ -147,6 +173,7 @@ poetry run zebtrack
 - Start Session button
 
 **How to capture**:
+
 ```bash
 poetry run zebtrack
 # Click File → Analisar Câmera ao Vivo...
@@ -154,8 +181,10 @@ poetry run zebtrack
 ```
 
 ### 10. Live Preview Window (`live_preview.png`)
+
 **Location**: During live camera session
 **Content**:
+
 - Real-time video feed from camera
 - Detection overlays (bounding boxes)
 - Frame counter
@@ -164,6 +193,7 @@ poetry run zebtrack
 - Control buttons (Pause, Stop)
 
 **How to capture**:
+
 ```bash
 # From Live Analysis Dialog, click Start Session
 # Take screenshot while session is running
@@ -173,12 +203,14 @@ poetry run zebtrack
 ## Screenshot Guidelines
 
 ### Technical Requirements
+
 - **Format**: PNG (lossless)
 - **Resolution**: Native resolution (don't downscale)
 - **Quality**: Maximum quality, no compression artifacts
 - **Naming**: Use exact filenames as listed above (lowercase, underscores)
 
 ### Content Guidelines
+
 - **Clean UI**: Close unnecessary windows, clean desktop background
 - **Representative Data**: Use realistic example data (not empty/default states)
 - **Visibility**: Ensure all text is readable, no cutoff elements
@@ -187,14 +219,17 @@ poetry run zebtrack
 ### Capture Tools
 
 #### Windows
+
 - **Snipping Tool**: Win+Shift+S → Select area → Save as PNG
 - **Windows + PrtScn**: Captures full screen to Pictures/Screenshots
 
 #### Linux
+
 - **GNOME Screenshot**: gnome-screenshot -a (area selection)
 - **Spectacle**: spectacle -r (rectangular region)
 
 #### macOS
+
 - **Cmd+Shift+4**: Click and drag to capture area
 - **Cmd+Shift+4, then Space**: Capture entire window
 

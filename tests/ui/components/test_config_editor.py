@@ -2,10 +2,14 @@
 Tests for ConfigEditorWidget component.
 """
 
+from unittest.mock import Mock
+
 import pytest
 
 from zebtrack.ui.components.config_editor import ConfigEditorWidget
 from zebtrack.ui.event_bus import EventBus
+
+pytestmark = pytest.mark.gui
 
 
 @pytest.fixture
@@ -183,3 +187,55 @@ def test_widget_without_event_bus(tkinter_root):
     # get_values should still work
     values = widget.get_values()
     assert "video_processing" in values
+
+
+def test_get_values_includes_behavioral_analysis(config_widget):
+    """Test behavioral analysis values are mapped into output."""
+    config_widget.behavioral_config_widget = Mock()
+    config_widget.behavioral_config_widget.get_values.return_value = {
+        "thigmotaxis_distance_cm": 2.5,
+        "geotaxis_distance_cm": 3.0,
+        "geotaxis_num_zones": 4,
+        "geotaxis_bottom_zones": 1,
+        "aquarium_perspective": "top",
+        "geotaxis_mode": "zones",
+    }
+
+    values = config_widget.get_values()
+
+    assert values["behavioral_analysis"]["default_thigmotaxis_distance_cm"] == 2.5
+    assert values["behavioral_analysis"]["default_geotaxis_distance_cm"] == 3.0
+    assert values["behavioral_analysis"]["default_geotaxis_num_zones"] == 4
+    assert values["behavioral_analysis"]["default_geotaxis_bottom_zones"] == 1
+    assert values["behavioral_analysis"]["aquarium_perspective"] == "top"
+    assert values["behavioral_analysis"]["geotaxis_mode"] == "zones"
+
+
+def test_set_values_behavioral_analysis_mapping(config_widget):
+    """Test behavioral analysis values are mapped to widget values."""
+    config_widget.behavioral_config_widget = Mock()
+
+    config_widget.set_values(
+        {
+            "behavioral_analysis": {
+                "default_thigmotaxis_distance_cm": 1.5,
+                "default_geotaxis_distance_cm": 2.5,
+                "default_geotaxis_num_zones": 3,
+                "default_geotaxis_bottom_zones": 2,
+                "aquarium_perspective": "lateral",
+                "geotaxis_mode": "lines",
+            }
+        }
+    )
+
+    config_widget.behavioral_config_widget.set_values.assert_called_once_with(
+        {
+            "thigmotaxis_distance_cm": 1.5,
+            "geotaxis_distance_cm": 2.5,
+            "geotaxis_num_zones": 3,
+            "geotaxis_bottom_zones": 2,
+            "aquarium_perspective": "lateral",
+            "geotaxis_mode": "lines",
+            "geotaxis_enabled": True,
+        }
+    )

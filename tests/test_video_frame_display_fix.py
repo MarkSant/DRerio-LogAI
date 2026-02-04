@@ -7,6 +7,7 @@ This test validates the specific changes made to prevent video frame cropping.
 import os
 import tempfile
 import unittest
+from typing import Any, cast
 
 import cv2
 import numpy as np
@@ -50,7 +51,7 @@ class TestVideoFrameDisplay(unittest.TestCase):
             3,
         )
 
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fourcc = cast(Any, cv2).VideoWriter_fourcc(*"mp4v")
         out = cv2.VideoWriter(filename, fourcc, 1.0, (width, height))
 
         for _ in range(5):  # Write 5 frames

@@ -64,6 +64,7 @@ recovery_info = {
 ```
 
 Este snapshot permite:
+
 - Exibir informações detalhadas ao usuário
 - Registrar estado completo para debugging
 - Implementar lógica de recuperação parcial em versões futuras
@@ -111,7 +112,7 @@ self.context.failed_videos.append({
 
 ### Fluxo de Erro em Lote
 
-```
+```text
 [Vídeo 1] ✅ Sucesso
     ↓
 [Vídeo 2] ❌ Erro → on_error() chamado
@@ -136,6 +137,7 @@ class IntegrityError(Exception):
 ```
 
 **Uso**:
+
 ```python
 from zebtrack.utils import IntegrityError
 
@@ -201,12 +203,12 @@ log.warning(
 
 ### Níveis de Severidade
 
-| Nível | Uso | Exemplo |
-|-------|-----|---------|
-| `ERROR` | Erros que causam falha de operação | Vídeo corrompido, detector falhou |
-| `WARNING` | Problemas que não impedem continuação | Arduino desconectado, cache miss |
-| `INFO` | Eventos normais mas significativos | Worker iniciado, vídeo concluído |
-| `DEBUG` | Detalhes para debugging | Garbage collection, frame skipping |
+| Nível     | Uso                                   | Exemplo                            |
+| --------- | ------------------------------------- | ---------------------------------- |
+| `ERROR`   | Erros que causam falha de operação    | Vídeo corrompido, detector falhou  |
+| `WARNING` | Problemas que não impedem continuação | Arduino desconectado, cache miss   |
+| `INFO`    | Eventos normais mas significativos    | Worker iniciado, vídeo concluído   |
+| `DEBUG`   | Detalhes para debugging               | Garbage collection, frame skipping |
 
 **Configuração**: `src/zebtrack/__main__.py:15-50`
 
@@ -214,7 +216,7 @@ log.warning(
 
 ### 1. Erro Fatal (Interrompe Tudo)
 
-```
+```text
 [ProcessingWorker.run()]
     ↓
 Exception capturada no bloco try externo (linha 301)
@@ -234,7 +236,7 @@ Logging: "worker.processing.fatal_error"
 
 ### 2. Erro Recuperável (Continua)
 
-```
+```text
 [Loop de processamento de vídeos]
     ↓
 Exception em process_single_video_func (linha 272)
@@ -254,7 +256,7 @@ Logging: "worker.processing.video_error"
 
 ### 3. Erro de Validação (Pré-processamento)
 
-```
+```text
 [MainViewModel.validate_project_config()]
     ↓
 Detecta configuração inválida
@@ -273,6 +275,7 @@ Logging: "config.validation.failed"
 ### Regras Críticas
 
 1. **Callbacks são chamados do worker thread**:
+
    ```python
    # ❌ ERRADO - atualiza UI diretamente
    def on_error(exc, context):
@@ -284,12 +287,14 @@ Logging: "config.validation.failed"
    ```
 
 2. **StateManager é thread-safe**: Pode ser atualizado de qualquer thread
+
    ```python
    # OK de qualquer thread
    state_manager.set("processing.status", "error")
    ```
 
 3. **Logging é thread-safe**: `structlog` é configurado para multi-threading
+
    ```python
    # OK de qualquer thread
    log.error("worker.error", thread=threading.current_thread().name)
@@ -306,6 +311,7 @@ Logging: "config.validation.failed"
    - `on_fatal_error`: Para falhas que impedem continuação
 
 2. **Inclua contexto rico em exceções**:
+
    ```python
    raise IntegrityError(
        f"SHA256 mismatch for {path.name}: "
@@ -314,6 +320,7 @@ Logging: "config.validation.failed"
    ```
 
 3. **Registre estado antes de propagar**:
+
    ```python
    try:
        process_video(path)
@@ -329,6 +336,7 @@ Logging: "config.validation.failed"
    ```
 
 4. **Use `exc_info=True` para stack traces**:
+
    ```python
    log.error("fatal.error", exc_info=True)  # Inclui traceback completo
    ```
@@ -341,11 +349,11 @@ Logging: "config.validation.failed"
 
 ## Sumário de Callbacks Esperados
 
-| Callback | Thread | Quando Chamado | Ação Típica da UI |
-|----------|--------|----------------|-------------------|
-| `on_error` | Worker | Erro em vídeo individual | Atualizar status_label, continuar |
+| Callback         | Thread | Quando Chamado              | Ação Típica da UI                      |
+| ---------------- | ------ | --------------------------- | -------------------------------------- |
+| `on_error`       | Worker | Erro em vídeo individual    | Atualizar status_label, continuar      |
 | `on_fatal_error` | Worker | Erro que impede continuação | Exibir messagebox, parar processamento |
-| `on_completed` | Worker | Sempre ao final | Exibir resumo com failed_list |
+| `on_completed`   | Worker | Sempre ao final             | Exibir resumo com failed_list          |
 
 ## Debugging de Erros
 

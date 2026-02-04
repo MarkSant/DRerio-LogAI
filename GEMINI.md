@@ -28,9 +28,11 @@ Constraint: If a file is modified, output the ENTIRE changed section with suffic
 </system_directive>
 
 <instruction_persistence>
+
 <!-- SOFT RECOMMENDATION: Keep this file open in your IDE tab during sessions.
      This ensures GEMINI.md remains in "local codebase context" for Gemini Code Assist.
      If you notice instructions are not being followed, re-reference this file explicitly. -->
+
 </instruction_persistence>
 
 ---
@@ -58,12 +60,12 @@ event-driven architecture with dependency injection.
 
 ## Quick Reference
 
-| Command | Purpose |
-| :--- | :--- |
-| `poetry install` | Setup environment |
-| `poetry run zebtrack` | Run application |
-| `poetry run pytest` | Run tests |
-| `poetry run ruff check . --fix` | Lint and fix |
+| Command                                           | Purpose                 |
+| :------------------------------------------------ | :---------------------- |
+| `poetry install`                                  | Setup environment       |
+| `poetry run zebtrack`                             | Run application         |
+| `poetry run pytest`                               | Run tests               |
+| `poetry run ruff check . --fix`                   | Lint and fix            |
 | `python scripts/impact_analyzer.py <type> <name>` | **Trace change impact** |
 
 ## Architecture Essentials
@@ -93,6 +95,30 @@ event-driven architecture with dependency injection.
 
 ---
 
+## 📋 Documentation Standards (MANDATORY)
+
+- **Markdown**: Use `markdownlint` standards. Avoid file-wide disables.
+
+### Markdown Formatting Rules (markdownlint)
+
+The project uses `.markdownlint.json`. Key disabled rules:
+
+- **MD013** (line length): Disabled for code blocks/tables and long URLs.
+- **MD033** (inline HTML): Allowed for badges, callouts, and layout helpers.
+- **MD041** (first line heading): Disabled for files with metadata or XML directives.
+
+Agent requirements:
+
+1. **No file-wide disables** in new documentation.
+2. **Inline disables** must include a justification comment on the same line.
+3. **Prefer fixes** over disables; reformat lists/headings instead of suppressing.
+4. **Headings**: Use ATX style (`#`, `##`) not Setext.
+5. **Lists**: Use `-` for unordered, `1.` for ordered.
+6. **Code fences**: Always specify a language (` ```python `, ` ```yaml `).
+7. **Line length**: Keep prose under 100 characters when reasonable; code blocks/tables exempt.
+
+---
+
 ## 🧩 VS Code Extensions (Installed) — Best Practices
 
 - **Python / Pylance**: Use the Poetry venv interpreter; keep terminal and editor aligned.
@@ -107,7 +133,8 @@ event-driven architecture with dependency injection.
 - **MATLAB / matlab-formatter**: Apply only to `.m` files.
 - **vscode-pdf**: Read-only PDF viewing.
 
-**How to use/configure in VS Code**
+### How to use/configure in VS Code
+
 - Use “Python: Select Interpreter” to pick the Poetry venv; keep terminals aligned.
 - Prefer `python.analysis.typeCheckingMode=basic`; use `strict` only on targeted files.
 - Keep Mypy config in `mypy.ini`/pyproject; prefer `mypy.runUsingActiveInterpreter=true` and use “Mypy: Restart Daemon and Recheck Workspace” when stale.
@@ -136,14 +163,14 @@ When working with multi-aquarium features:
 
 ## Documentation Structure
 
-| File/Folder | Purpose |
-| :--- | :--- |
-| `docs/architecture/` | System design, events, DI |
-| `docs/guides/developer/` | Developer workflows |
-| `docs/guides/user/` | End-user docs (English) |
-| `docs/wiki/` | User guides (Portuguese) |
-| `docs/archive/` | Historical docs and fixes |
-| `AGENTS.md` | **Context for Google Jules Agent** |
+| File/Folder              | Purpose                            |
+| :----------------------- | :--------------------------------- |
+| `docs/architecture/`     | System design, events, DI          |
+| `docs/guides/developer/` | Developer workflows                |
+| `docs/guides/user/`      | End-user docs (English)            |
+| `docs/wiki/`             | User guides (Portuguese)           |
+| `docs/archive/`          | Historical docs and fixes          |
+| `AGENTS.md`              | **Context for Google Jules Agent** |
 
 ## Agent Protocol
 
@@ -159,27 +186,32 @@ When working with multi-aquarium features:
 
 ---
 
-*Historical fixes archived to `docs/archive/fixes/DEC_2025_CRITICAL_FIXES.md`*
-*Impact Analysis Protocol: `docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md`*
+_Historical fixes archived to `docs/archive/fixes/DEC_2025_CRITICAL_FIXES.md`_
+_Impact Analysis Protocol: `docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md`_
 
 ---
 
 <deep_think_protocol>
+
 <!-- Use this protocol for complex multi-file changes or debugging -->
+
 Instruction: Engage in extensive internal reasoning before generating the final answer.
 Plan:
+
 1. Decompose the user's request into atomic sub-tasks.
 2. Run impact analysis to identify ALL affected components.
 3. Explore multiple hypotheses for the solution.
 4. Validate the solution against project constraints (DI, events, threading).
 5. Generate the final output only after validation.
-</deep_think_protocol>
+   </deep_think_protocol>
 
 <instruction_reinforcement>
+
 <!-- REMINDER: Critical rules that MUST be followed in every response -->
+
 - Impact analysis is MANDATORY before ANY code change
 - Use Poetry for all Python commands (auto-approved)
 - Multi-aquarium: ALWAYS use get_multi_aquarium_zone_data()
 - UI updates: ALWAYS use root.after(0, ...) from non-main threads
 - DI: NEVER import singleton `from zebtrack import settings`
-</instruction_reinforcement>
+  </instruction_reinforcement>

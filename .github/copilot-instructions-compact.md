@@ -1,21 +1,24 @@
 # ZebTrack-AI Agent Playbook - COMPACT VERSION
 
 ## 🎯 Core Facts
+
 - **Product**: Tkinter app (DRerio LogAI); package `zebtrack`
 - **Runtime**: Python 3.12+, Poetry; `poetry run zebtrack` or `python -m zebtrack`
 - **Debug**: `.vscode/launch.json` (F5); breakpoints in `docs/QUICK_DEBUG_GUIDE.md`
 - **Config**: `from zebtrack import settings`; `config.yaml` < `config.local.yaml`
 
 ## 🏗️ Architecture (10 sec)
-```
+
+```text
 VideoSource → DetectorService → ProcessingWorker → Recorder
                 ↓
            StateManager → MainViewModel → UI (root.after only)
 ```
 
 ## 📁 Quick File Map
+
 | Need | File |
-|------|------|
+| --- | --- |
 | Entry | `zebtrack/__main__.py` |
 | Config | `zebtrack/settings.py` |
 | State | `core/state_manager.py` |
@@ -29,6 +32,7 @@ VideoSource → DetectorService → ProcessingWorker → Recorder
 ## ⚡ Token-Efficient Workflow
 
 ### User Reports Issue
+
 1. **Check test first**: `tests/test_<module>.py` shows expected behavior
 2. **Common issues**:
    - UI freeze → `ui_coordinator.py` + `root.after` pattern
@@ -37,17 +41,20 @@ VideoSource → DetectorService → ProcessingWorker → Recorder
    - Data mismatch → `recorder.py` schema + `tests/test_recorder.py`
 
 ### Before Changing Code
+
 1. Read relevant test file
 2. Check existing similar fix
 3. Use semantic_search if unsure
 
 ### After Changes
+
 ```bash
 pytest -q              # Fast suite
 ruff check <file>      # Lint
 ```
 
 ## 🐛 Common Pitfalls
+
 1. ❌ **Zone scaling**: Always call `Detector.set_zones()` with video dimensions
 2. ❌ **UI blocking**: Must use `root.after(0, ...)` for async updates
 3. ❌ **Parquet schema**: Never add columns mid-stream
@@ -55,6 +62,7 @@ ruff check <file>      # Lint
 5. ❌ **Thread safety**: Update via `StateManager`, not direct UI mutation
 
 ## 📝 Key Components (Reference Only)
+
 - **MVVM**: `MainViewModel` orchestrates; `StateManager` thread-safe state
 - **Wizard**: `ui/wizard/` → `ProjectWorkflowService` → 5 steps (1150×550)
 - **Project data**: `ProjectManager` stores ROI/arena/intervals; rescale zones
@@ -66,6 +74,7 @@ ruff check <file>      # Lint
 - **Plugins**: Extend `plugins/base.py`; register in `__init__.py`
 
 ## 🧪 Testing
+
 - Fast: `pytest -q` | GUI: `pytest -m gui -n0` | Slow: `pytest -m slow`
 - Coverage: `pytest --cov=zebtrack --cov-report=html` (CI gate: 40% Linux, 0% Windows)
 - Fixtures: `tests/fixtures/`, `test_scenarios/`
@@ -73,6 +82,7 @@ ruff check <file>      # Lint
 - Pre-commit: `pre-commit run --all-files`
 
 ## 🎓 Strategy Summary
+
 **GOAL**: Minimize token usage while maximizing accuracy
 
 1. **Read test first** → understand contract
@@ -82,6 +92,7 @@ ruff check <file>      # Lint
 5. **Verify with tests** → ensure correctness
 
 ## 📚 Full Docs
+
 - Architecture: `docs/ARCHITECTURE.md`
 - Reference: `docs/REFERENCE_GUIDE.md`
 - Debug Guide: `docs/QUICK_DEBUG_GUIDE.md`

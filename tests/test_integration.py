@@ -1,3 +1,4 @@
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import cv2
@@ -21,7 +22,7 @@ def generate_mock_video(filepath: str, duration_s: int = 5, fps: int = 10):
     This avoids needing a real video file for testing the pipeline.
     """
     width, height = 640, 480
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    fourcc = cast(Any, cv2).VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(filepath, fourcc, fps, (width, height))
 
     if not writer.isOpened():

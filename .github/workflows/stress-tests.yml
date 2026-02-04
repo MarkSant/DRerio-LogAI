@@ -182,3 +182,44 @@ jobs:
               labels: ['stress-test-failure', 'flaky-test', 'needs-investigation'],
               assignees: []
             });
+
+  mutation-testing:
+    name: Mutation Testing (core/)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      - name: Install mutmut
+        run: poetry run pip install mutmut
+
+      - name: Run mutation testing (core/)
+        run: |
+          poetry run mutmut run --paths-to-mutate=src/zebtrack/core \
+            --runner "poetry run pytest -m 'not gui and not slow' -q"
+          poetry run mutmut results --summary > mutmut-summary.txt
+        continue-on-error: true
+
+      - name: Upload mutation results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: mutmut-results
+          path: |
+            .mutmut-cache
+            mutmut-summary.txt

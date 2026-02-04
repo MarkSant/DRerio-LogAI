@@ -10,31 +10,31 @@
 
 ### Completed Orchestrator Removals (7 orchestrators deleted, ~2,500+ lines removed)
 
-| Orchestrator | Lines | Status | Replacement |
-|-------------|-------|--------|-------------|
-| `AnalysisOrchestrator` | ~200 | ❌ DELETED | ProcessingCoordinator |
-| `ZoneArenaOrchestrator` | ~150 | ❌ DELETED | ProjectLifecycleCoordinator |
-| `ProcessingConfigOrchestrator` | ~180 | ❌ DELETED | ProcessingCoordinator |
-| `CalibrationOrchestrator` | ~220 | ❌ DELETED | ProjectLifecycleCoordinator |
-| `ModelDiagnosticsOrchestrator` | ~250 | ❌ DELETED | HardwareCoordinator |
-| `ProjectOrchestrator` | ~300 | ❌ DELETED | ProjectLifecycleCoordinator |
-| `RecordingSessionOrchestrator` | ~633 | ❌ DELETED | SessionCoordinator |
+| Orchestrator                   | Lines | Status     | Replacement                 |
+| ------------------------------ | ----- | ---------- | --------------------------- |
+| `AnalysisOrchestrator`         | ~200  | ❌ DELETED | ProcessingCoordinator       |
+| `ZoneArenaOrchestrator`        | ~150  | ❌ DELETED | ProjectLifecycleCoordinator |
+| `ProcessingConfigOrchestrator` | ~180  | ❌ DELETED | ProcessingCoordinator       |
+| `CalibrationOrchestrator`      | ~220  | ❌ DELETED | ProjectLifecycleCoordinator |
+| `ModelDiagnosticsOrchestrator` | ~250  | ❌ DELETED | HardwareCoordinator         |
+| `ProjectOrchestrator`          | ~300  | ❌ DELETED | ProjectLifecycleCoordinator |
+| `RecordingSessionOrchestrator` | ~633  | ❌ DELETED | SessionCoordinator          |
 
 ### Slim Orchestrators (kept for UI orchestration only)
 
-| Orchestrator | Lines | Status | Notes |
-|-------------|-------|--------|-------|
-| `VideoProcessingOrchestrator` | 140 | ✅ SLIM | Only `start_project_processing_workflow` kept |
-| `UIStateController` | 543 | ✅ ACTIVE | 17 production calls, manages weight/zone UI |
+| Orchestrator                  | Lines | Status    | Notes                                         |
+| ----------------------------- | ----- | --------- | --------------------------------------------- |
+| `VideoProcessingOrchestrator` | 140   | ✅ SLIM   | Only `start_project_processing_workflow` kept |
+| `UIStateController`           | 543   | ✅ ACTIVE | 17 production calls, manages weight/zone UI   |
 
 ### Super Coordinators (Phase 3 replacements)
 
-| Coordinator | Responsibilities |
-|-------------|-----------------|
-| `ProcessingCoordinator` | Video processing, analysis coordination, frame queues |
-| `HardwareCoordinator` | Detector, camera, model service coordination |
-| `SessionCoordinator` | Recording sessions, Arduino integration |
-| `ProjectLifecycleCoordinator` | Project CRUD, calibration, zones, model overrides |
+| Coordinator                   | Responsibilities                                      |
+| ----------------------------- | ----------------------------------------------------- |
+| `ProcessingCoordinator`       | Video processing, analysis coordination, frame queues |
+| `HardwareCoordinator`         | Detector, camera, model service coordination          |
+| `SessionCoordinator`          | Recording sessions, Arduino integration               |
+| `ProjectLifecycleCoordinator` | Project CRUD, calibration, zones, model overrides     |
 
 ---
 
@@ -44,10 +44,10 @@
 
 ### 1.1. Event Bus Overview
 
-| System | Module | Event Type | Primary Use Case |
-|--------|--------|-----------|------------------|
-| **EventBus (v1)** | `zebtrack.ui.event_bus.EventBus` | String constants (`Events` class) | Domain events: recording, project, model, video processing |
-| **EventBusV2** | `zebtrack.ui.event_bus_v2.EventBusV2` | Enum (`UIEvents` enum) | UI component communication: zones, dialogs, canvas updates |
+| System            | Module                                | Event Type                        | Primary Use Case                                           |
+| ----------------- | ------------------------------------- | --------------------------------- | ---------------------------------------------------------- |
+| **EventBus (v1)** | `zebtrack.ui.event_bus.EventBus`      | String constants (`Events` class) | Domain events: recording, project, model, video processing |
+| **EventBusV2**    | `zebtrack.ui.event_bus_v2.EventBusV2` | Enum (`UIEvents` enum)            | UI component communication: zones, dialogs, canvas updates |
 
 ### 1.2. When to Use Each System
 
@@ -68,10 +68,10 @@
 
 ### 1.3. Key Files
 
-| File | Contains |
-|------|----------|
-| `src/zebtrack/ui/events.py` | `Events` class with 90+ string constants |
-| `src/zebtrack/ui/event_bus.py` | `EventBus` class (v1 implementation) |
+| File                              | Contains                                                 |
+| --------------------------------- | -------------------------------------------------------- |
+| `src/zebtrack/ui/events.py`       | `Events` class with 90+ string constants                 |
+| `src/zebtrack/ui/event_bus.py`    | `EventBus` class (v1 implementation)                     |
 | `src/zebtrack/ui/event_bus_v2.py` | `UIEvents` enum + `EventBusV2` class + `Event` dataclass |
 
 ---
@@ -82,24 +82,24 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 
 ### 2.1. UI Updates (Backend -> UI)
 
-| Event Name | Required Payload Keys | Optional Keys | Listener (Component) | Action/Effect |
-| :--- | :--- | :--- | :--- | :--- |
-| `Events.UI_DISPLAY_FRAME` | `frame` (np.ndarray) | `detections` (list), `info` (dict), `experiment_id` (str) | `EventDispatcher` -> `CanvasManager` | Updates the raw video canvas with the provided image. **NOTE:** Only used by `ProcessingWorker` (recorded video). Live Camera uses `LivePreviewWindow` directly. |
-| `Events.UI_DISPLAY_VIDEO_FRAME` | `video_path` (str) | - | `EventDispatcher` -> `CanvasManager` | Loads a video file from disk and displays the first frame/ROI frame. |
-| `Events.UI_UPDATE_DETECTION_OVERLAY` | `detections` (list), `report` (ProcessingReport) | - | `EventDispatcher` -> `ApplicationGUI` | Draws bounding boxes, IDs, and status text over the canvas. |
-| `Events.UI_NAVIGATE_TO_ANALYSIS_VIEW` | - | - | `EventDispatcher` -> `ApplicationGUI` | Switches the notebook tab to the "Analysis" tab. |
-| `Events.UI_UPDATE_PROCESSING_STATS` | `stats` (dict) | - | `EventDispatcher` -> `StateSynchronizer` | Updates FPS, frame counter, and progress bars. `stats` must contain: `fps`, `frame`, `total_frames`. |
-| `Events.UI_SET_STATUS` | `message` (str) | - | `EventDispatcher` -> `ApplicationGUI` | Updates the bottom status bar text. |
-| `Events.UI_UPDATE_PROCESSING_MODE` | `report` (ProcessingReport) | - | `EventDispatcher` -> `StateSynchronizer` | Updates UI mode indicators. All publishers use correct format as of v3.1. |
+| Event Name                            | Required Payload Keys                            | Optional Keys                                             | Listener (Component)                     | Action/Effect                                                                                                                                                    |
+| :------------------------------------ | :----------------------------------------------- | :-------------------------------------------------------- | :--------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Events.UI_DISPLAY_FRAME`             | `frame` (np.ndarray)                             | `detections` (list), `info` (dict), `experiment_id` (str) | `EventDispatcher` -> `CanvasManager`     | Updates the raw video canvas with the provided image. **NOTE:** Only used by `ProcessingWorker` (recorded video). Live Camera uses `LivePreviewWindow` directly. |
+| `Events.UI_DISPLAY_VIDEO_FRAME`       | `video_path` (str)                               | -                                                         | `EventDispatcher` -> `CanvasManager`     | Loads a video file from disk and displays the first frame/ROI frame.                                                                                             |
+| `Events.UI_UPDATE_DETECTION_OVERLAY`  | `detections` (list), `report` (ProcessingReport) | -                                                         | `EventDispatcher` -> `ApplicationGUI`    | Draws bounding boxes, IDs, and status text over the canvas.                                                                                                      |
+| `Events.UI_NAVIGATE_TO_ANALYSIS_VIEW` | -                                                | -                                                         | `EventDispatcher` -> `ApplicationGUI`    | Switches the notebook tab to the "Analysis" tab.                                                                                                                 |
+| `Events.UI_UPDATE_PROCESSING_STATS`   | `stats` (dict)                                   | -                                                         | `EventDispatcher` -> `StateSynchronizer` | Updates FPS, frame counter, and progress bars. `stats` must contain: `fps`, `frame`, `total_frames`.                                                             |
+| `Events.UI_SET_STATUS`                | `message` (str)                                  | -                                                         | `EventDispatcher` -> `ApplicationGUI`    | Updates the bottom status bar text.                                                                                                                              |
+| `Events.UI_UPDATE_PROCESSING_MODE`    | `report` (ProcessingReport)                      | -                                                         | `EventDispatcher` -> `StateSynchronizer` | Updates UI mode indicators. All publishers use correct format as of v3.1.                                                                                        |
 
 ### 2.2. Analysis Control (UI -> Backend)
 
-| Event Name | Required Payload Keys | Optional Keys | Handler (Coordinator/VM) | Action/Effect |
-| :--- | :--- | :--- | :--- | :--- |
-| `Events.VIDEO_ANALYZE_SINGLE` | `video_path` (str), `config` (dict) | - | `AnalysisControlViewModel` | Triggers the start of the single video analysis workflow. |
-| `Events.VIDEO_CANCEL_ANALYSIS` | - | - | `AnalysisControlViewModel` | **Delegates to `ProcessingCoordinator.cancel_processing()`**. Sets flags and stops workers. |
-| `Events.ZONE_AUTO_DETECT` | `video_path` (str or None) | `stabilization_frames` (int) | `ProcessingCoordinator` | Runs `AquariumDetector` to find the tank polygon automatically. |
-| `Events.PROCESSING_GENERATE_TRAJECTORIES` | `video_paths` (list, optional) | - | `ProcessingCoordinator` | Triggers `process_pending_project_videos`. Used by Reports tab to start analysis. |
+| Event Name                                | Required Payload Keys               | Optional Keys                | Handler (Coordinator/VM)   | Action/Effect                                                                               |
+| :---------------------------------------- | :---------------------------------- | :--------------------------- | :------------------------- | :------------------------------------------------------------------------------------------ |
+| `Events.VIDEO_ANALYZE_SINGLE`             | `video_path` (str), `config` (dict) | -                            | `AnalysisControlViewModel` | Triggers the start of the single video analysis workflow.                                   |
+| `Events.VIDEO_CANCEL_ANALYSIS`            | -                                   | -                            | `AnalysisControlViewModel` | **Delegates to `ProcessingCoordinator.cancel_processing()`**. Sets flags and stops workers. |
+| `Events.ZONE_AUTO_DETECT`                 | `video_path` (str or None)          | `stabilization_frames` (int) | `ProcessingCoordinator`    | Runs `AquariumDetector` to find the tank polygon automatically.                             |
+| `Events.PROCESSING_GENERATE_TRAJECTORIES` | `video_paths` (list, optional)      | -                            | `ProcessingCoordinator`    | Triggers `process_pending_project_videos`. Used by Reports tab to start analysis.           |
 
 ---
 
@@ -107,48 +107,48 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 
 ### 3.1. Zone & ROI Events
 
-| Event (UIEvents) | Payload Keys | Publishers | Subscribers |
-|-----------------|--------------|------------|-------------|
-| `ZONES_UPDATED` | `zone_data` (optional) | `DialogManager`, `CanvasManager`, `gui.py` | `UICoordinator`, `CanvasManager` |
-| `ZONE_SELECTED` | `zone_id` | (internal) | `UICoordinator` |
-| `POLYGON_EDIT_REQUESTED` | `polygon` (list of points) | `CanvasManager` | `UICoordinator`, `CanvasManager` |
+| Event (UIEvents)         | Payload Keys               | Publishers                                 | Subscribers                      |
+| ------------------------ | -------------------------- | ------------------------------------------ | -------------------------------- |
+| `ZONES_UPDATED`          | `zone_data` (optional)     | `DialogManager`, `CanvasManager`, `gui.py` | `UICoordinator`, `CanvasManager` |
+| `ZONE_SELECTED`          | `zone_id`                  | (internal)                                 | `UICoordinator`                  |
+| `POLYGON_EDIT_REQUESTED` | `polygon` (list of points) | `CanvasManager`                            | `UICoordinator`, `CanvasManager` |
 
 ### 3.2. Video & Project View Events
 
-| Event (UIEvents) | Payload Keys | Publishers | Subscribers |
-|-----------------|--------------|------------|-------------|
-| `VIDEO_LOADED` | `video_path` | (internal) | `UICoordinator` |
-| `VIDEO_TREE_REFRESH_REQUESTED` | `filter_text` (optional) | `DialogManager`, `ZoneControlBuilder` | `UICoordinator` |
-| `PROJECT_VIEWS_REFRESH_REQUESTED` | `reason`, `append_summary`, `immediate` | `DialogManager`, `CanvasManager` | `UICoordinator` |
-| `VIDEO_HIERARCHY_SNAPSHOT_REQUESTED` | - | (internal) | `UICoordinator` |
-| `VIDEO_HIERARCHY_SNAPSHOT_UPDATED` | `snapshot` (dict) | `gui.py` | (consumers) |
-| `READINESS_SNAPSHOT_UPDATED` | `snapshot` (dict) | `DialogManager` | `UICoordinator` |
+| Event (UIEvents)                     | Payload Keys                            | Publishers                            | Subscribers     |
+| ------------------------------------ | --------------------------------------- | ------------------------------------- | --------------- |
+| `VIDEO_LOADED`                       | `video_path`                            | (internal)                            | `UICoordinator` |
+| `VIDEO_TREE_REFRESH_REQUESTED`       | `filter_text` (optional)                | `DialogManager`, `ZoneControlBuilder` | `UICoordinator` |
+| `PROJECT_VIEWS_REFRESH_REQUESTED`    | `reason`, `append_summary`, `immediate` | `DialogManager`, `CanvasManager`      | `UICoordinator` |
+| `VIDEO_HIERARCHY_SNAPSHOT_REQUESTED` | -                                       | (internal)                            | `UICoordinator` |
+| `VIDEO_HIERARCHY_SNAPSHOT_UPDATED`   | `snapshot` (dict)                       | `gui.py`                              | (consumers)     |
+| `READINESS_SNAPSHOT_UPDATED`         | `snapshot` (dict)                       | `DialogManager`                       | `UICoordinator` |
 
 ### 3.3. Zone Management Events (New - Dec 2025)
 
-| Event (Events class) | Payload Keys | Publishers | Subscribers |
-|---------------------|--------------|------------|-------------|
-| `ZONE_COPY_ZONES` | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.copy_zones_from_video()` |
-| `ZONE_PASTE_ZONES` | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.paste_zones_to_video()` |
-| `ZONE_DELETE_ZONES` | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.delete_zones_from_video()` |
-| `ZONE_FINISH_DRAWING` | - | `ZoneControls` | `EventDispatcher` → `CanvasManager.finish_current_polygon()` |
-| `ZONE_CONCLUDE_VIDEO` | - | `ZoneControls` | `EventDispatcher` → `ZoneControlBuilder._on_conclude_video()` |
+| Event (Events class)  | Payload Keys       | Publishers     | Subscribers                                                   |
+| --------------------- | ------------------ | -------------- | ------------------------------------------------------------- |
+| `ZONE_COPY_ZONES`     | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.copy_zones_from_video()`   |
+| `ZONE_PASTE_ZONES`    | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.paste_zones_to_video()`    |
+| `ZONE_DELETE_ZONES`   | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.delete_zones_from_video()` |
+| `ZONE_FINISH_DRAWING` | -                  | `ZoneControls` | `EventDispatcher` → `CanvasManager.finish_current_polygon()`  |
+| `ZONE_CONCLUDE_VIDEO` | -                  | `ZoneControls` | `EventDispatcher` → `ZoneControlBuilder._on_conclude_video()` |
 
 ### 3.4. Multi-Aquarium Events (Dec 2025)
 
-| Event (Events class) | Payload Keys | Publishers | Subscribers |
-|---------------------|--------------|------------|-------------|
-| `ZONE_MULTI_AUTO_DETECT` | `video_path`, `stabilization_frames`, `expected_count` | `ZoneControls` | `ProcessingCoordinator._handle_multi_auto_detect()` |
-| `ZONE_MULTI_AUTO_DETECT_SUCCESS` | `video_path`, `polygons` (list) | `ProcessingCoordinator` | `ZoneControls`, `CanvasManager` |
-| `ZONE_MULTI_AUTO_DETECT_FAILED` | `video_path`, `reason` (str) | `ProcessingCoordinator` | `ZoneControls` |
-| `ZONE_AQUARIUM_SELECTED` | `aquarium_id` (int) | `ZoneControls`, `AquariumAssignmentDialog` | `EventDispatcher` → `CanvasManager.update_zone_listbox()` |
-| `ZONE_MULTI_DETECT_COMPLETED` | `count` (int), `aquariums` (list) | `AquariumDetector` | `ZoneControlBuilder`, `MultiAquariumConfirmDialog` |
-| `ZONE_AQUARIUM_CONFIG_CONFIRMED` | `configs` (list[AquariumConfig]) | `AquariumAssignmentDialog` | `ProjectManager`, `CanvasManager` |
-| `ZONE_AQUARIUM_CONFIG_UPDATED` | `aquarium_id`, `config`, `video_path` | `AquariumAssignmentDialog` | `ProjectLifecycleCoordinator._handle_aquarium_config_updated()` |
-| `ZONE_AQUARIUM_COUNT_CONFIRMED` | `count` (int) | `MultiAquariumConfirmDialog` | `ZoneControlBuilder` |
-| `ZONE_AQUARIUM_ASSIGNMENT_COMPLETED` | `configs` (list[AquariumConfig]), `apply_to_all` (bool) | `AquariumAssignmentDialog` | `ProjectManager`, `WizardService` |
-| `ZONE_SHOW_AQUARIUM_COUNT_DIALOG` | - | `ZoneControls` | `DialogManager` → `MultiAquariumConfirmDialog` |
-| `ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG` | - | `ZoneControls` | `DialogManager` → `AquariumAssignmentDialog` |
+| Event (Events class)                   | Payload Keys                                            | Publishers                                 | Subscribers                                                     |
+| -------------------------------------- | ------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------- |
+| `ZONE_MULTI_AUTO_DETECT`               | `video_path`, `stabilization_frames`, `expected_count`  | `ZoneControls`                             | `ProcessingCoordinator._handle_multi_auto_detect()`             |
+| `ZONE_MULTI_AUTO_DETECT_SUCCESS`       | `video_path`, `polygons` (list)                         | `ProcessingCoordinator`                    | `ZoneControls`, `CanvasManager`                                 |
+| `ZONE_MULTI_AUTO_DETECT_FAILED`        | `video_path`, `reason` (str)                            | `ProcessingCoordinator`                    | `ZoneControls`                                                  |
+| `ZONE_AQUARIUM_SELECTED`               | `aquarium_id` (int)                                     | `ZoneControls`, `AquariumAssignmentDialog` | `EventDispatcher` → `CanvasManager.update_zone_listbox()`       |
+| `ZONE_MULTI_DETECT_COMPLETED`          | `count` (int), `aquariums` (list)                       | `AquariumDetector`                         | `ZoneControlBuilder`, `MultiAquariumConfirmDialog`              |
+| `ZONE_AQUARIUM_CONFIG_CONFIRMED`       | `configs` (list[AquariumConfig])                        | `AquariumAssignmentDialog`                 | `ProjectManager`, `CanvasManager`                               |
+| `ZONE_AQUARIUM_CONFIG_UPDATED`         | `aquarium_id`, `config`, `video_path`                   | `AquariumAssignmentDialog`                 | `ProjectLifecycleCoordinator._handle_aquarium_config_updated()` |
+| `ZONE_AQUARIUM_COUNT_CONFIRMED`        | `count` (int)                                           | `MultiAquariumConfirmDialog`               | `ZoneControlBuilder`                                            |
+| `ZONE_AQUARIUM_ASSIGNMENT_COMPLETED`   | `configs` (list[AquariumConfig]), `apply_to_all` (bool) | `AquariumAssignmentDialog`                 | `ProjectManager`, `WizardService`                               |
+| `ZONE_SHOW_AQUARIUM_COUNT_DIALOG`      | -                                                       | `ZoneControls`                             | `DialogManager` → `MultiAquariumConfirmDialog`                  |
+| `ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG` | -                                                       | `ZoneControls`                             | `DialogManager` → `AquariumAssignmentDialog`                    |
 
 **Track ID Convention**: Global ID = `aquarium_id * 1000 + local_track_id`. Aquarium 0 tracks: 0-999; Aquarium 1 tracks: 1000-1999; Aquarium 2 tracks: 2000-2999.
 
@@ -166,7 +166,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 
 **Output Structure** (per video with multi-aquarium):
 
-```
+```text
 <video>_aquarium_1/
   1_ArenaROI_<video>.parquet
   3_CoordMovimento_<video>.parquet
@@ -179,18 +179,18 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 
 ### 3.5. Processing & Analysis Events
 
-| Event (UIEvents) | Payload Keys | Publishers | Subscribers |
-|-----------------|--------------|------------|-------------|
-| `PROCESSING_STATS_UPDATED` | `fps`, `frame`, `total_frames` | (via event bridge) | `UICoordinator` |
-| `SOCIAL_SUMMARY_UPDATED` | `summary` (dict) | (via event bridge) | `UICoordinator` |
-| `ANALYSIS_TASK_STATUS_UPDATED` | `status`, `progress` | (via event bridge) | `UICoordinator` |
-| `ANALYSIS_STARTED` | - | (lifecycle) | (consumers) |
-| `ANALYSIS_COMPLETED` | - | (lifecycle) | (consumers) |
+| Event (UIEvents)               | Payload Keys                   | Publishers         | Subscribers     |
+| ------------------------------ | ------------------------------ | ------------------ | --------------- |
+| `PROCESSING_STATS_UPDATED`     | `fps`, `frame`, `total_frames` | (via event bridge) | `UICoordinator` |
+| `SOCIAL_SUMMARY_UPDATED`       | `summary` (dict)               | (via event bridge) | `UICoordinator` |
+| `ANALYSIS_TASK_STATUS_UPDATED` | `status`, `progress`           | (via event bridge) | `UICoordinator` |
+| `ANALYSIS_STARTED`             | -                              | (lifecycle)        | (consumers)     |
+| `ANALYSIS_COMPLETED`           | -                              | (lifecycle)        | (consumers)     |
 
 ### 3.6. Detector & Tracking Events (Dec 2025)
 
-| Event (Domain) | Payload Keys | Publishers | Subscribers |
-|----------------|--------------|------------|-------------|
+| Event (Domain)                | Payload Keys                                                                                                  | Publishers            | Subscribers                 |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------- | --------------------------- |
 | `TRACKING_PARAMETERS_UPDATED` | `track_threshold`, `match_threshold`, `track_buffer`, `use_bytetrack`, `max_center_distance`, `iou_threshold` | `DetectorCoordinator` | UI components, StateManager |
 
 **Notes:**
@@ -203,14 +203,14 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 
 ### 3.7. Notification Events
 
-| Event (UIEvents) | Payload Keys | Publishers | Subscribers |
-|-----------------|--------------|------------|-------------|
-| `SHOW_ERROR` | `title`, `message` | (internal) | `ApplicationGUI` |
-| `SHOW_WARNING` | `title`, `message` | (internal) | `ApplicationGUI` |
-| `SHOW_INFO` | `title`, `message` | (internal) | `ApplicationGUI` |
-| `ERROR_OCCURRED` | `title`, `message` | `VideoProcessingService` | `ApplicationGUI` |
-| `EXTERNAL_TRIGGER_NOTICE` | `context` (dict) | `SessionCoordinator` | `UICoordinator` |
-| `EXTERNAL_TRIGGER_NOTICE_CLEARED` | - | `SessionCoordinator` | `UICoordinator` |
+| Event (UIEvents)                  | Payload Keys       | Publishers               | Subscribers      |
+| --------------------------------- | ------------------ | ------------------------ | ---------------- |
+| `SHOW_ERROR`                      | `title`, `message` | (internal)               | `ApplicationGUI` |
+| `SHOW_WARNING`                    | `title`, `message` | (internal)               | `ApplicationGUI` |
+| `SHOW_INFO`                       | `title`, `message` | (internal)               | `ApplicationGUI` |
+| `ERROR_OCCURRED`                  | `title`, `message` | `VideoProcessingService` | `ApplicationGUI` |
+| `EXTERNAL_TRIGGER_NOTICE`         | `context` (dict)   | `SessionCoordinator`     | `UICoordinator`  |
+| `EXTERNAL_TRIGGER_NOTICE_CLEARED` | -                  | `SessionCoordinator`     | `UICoordinator`  |
 
 ---
 
@@ -252,36 +252,36 @@ Understanding who holds what references prevents "AttributeError" and circular d
 
 ### 3.8. Behavioral Configuration Events (New - Dec 2025)
 
-| Event (EventBus v1) | Payload Keys | Publishers | Subscribers |
-|---------------------|--------------|------------|-------------|
+| Event (EventBus v1)                     | Payload Keys                | Publishers               | Subscribers          |
+| --------------------------------------- | --------------------------- | ------------------------ | -------------------- |
 | `behavioral_config.perspective_changed` | `video_path`, `perspective` | `BehavioralConfigWidget` | (Logging/Suppressed) |
-| `behavioral_config.values_changed` | `config` (dict) | `BehavioralConfigWidget` | (Logging/Suppressed) |
+| `behavioral_config.values_changed`      | `config` (dict)             | `BehavioralConfigWidget` | (Logging/Suppressed) |
 
 > **Note**: These events are currently used primarily for internal component sync or logging. They are suppressed in `EventBus` to avoid "no handlers" warnings since the `SingleVideoConfigDialog` reads the values directly from the widget.
 
 ### 5.1. Single Video Analysis Flow (Enhanced Dec 2025)
 
 1. **User Action:** Clicks "Analyze" in Dialog.
-    - **Config Persistence:** Dialog defaults (`aquarium_perspective`, `geotaxis_*`) are saved to `Settings.behavioral_analysis`.
+   - **Config Persistence:** Dialog defaults (`aquarium_perspective`, `geotaxis_*`) are saved to `Settings.behavioral_analysis`.
 2. **Dispatcher:** Publishes `Events.VIDEO_ANALYZE_SINGLE` with payload `{'video_path': '...', 'config': {...}}`.
 3. **ViewModel:** `AnalysisControlViewModel.start_single_video_workflow` is triggered.
-    - Validates config.
-    - Sets `active_zone_video` in `ProjectManager`.
-    - Publishes `ui:setup_zone_definition_for_single_video` to prepare UI.
+   - Validates config.
+   - Sets `active_zone_video` in `ProjectManager`.
+   - Publishes `ui:setup_zone_definition_for_single_video` to prepare UI.
 4. **Coordinator:** `AnalysisControlViewModel.start_single_video_processing` calls `ProcessingCoordinator`.
-    - **Context:** Collects `behavioral_config` from project/settings.
-    - Validates logic (is project loaded? are zones defined?).
-    - Creates `ProcessingContext` and `ProcessingCallbacks`.
-    - **Spawns `ProcessingWorker`** in a separate thread/process.
-    - Sets `state_manager.is_processing = True`.
+   - **Context:** Collects `behavioral_config` from project/settings.
+   - Validates logic (is project loaded? are zones defined?).
+   - Creates `ProcessingContext` and `ProcessingCallbacks`.
+   - **Spawns `ProcessingWorker`** in a separate thread/process.
+   - Sets `state_manager.is_processing = True`.
 5. **Worker Loop:** `ProcessingWorker` reads frames.
-    - Detects objects.
-    - Sends `result_queue.put({'type': 'frame', 'frame': img, 'detections': [...], 'info': {...}})`.
+   - Detects objects.
+   - Sends `result_queue.put({'type': 'frame', 'frame': img, 'detections': [...], 'info': {...}})`.
 6. **Completion & Reporting:**
-    - `ProcessingCoordinator.on_video_completed` triggers.
-    - Calls `generate_project_reports`.
-    - **CRITICAL:** `behavioral_config` is explicitly passed to `AnalysisService` to ensure Perspective/Geotaxis settings are respected.
-    - `Reporter` uses `DataTransformer.rename_geotaxis_columns` to format labels (e.g., "Fundo (0-5cm)").
+   - `ProcessingCoordinator.on_video_completed` triggers.
+   - Calls `generate_project_reports`.
+   - **CRITICAL:** `behavioral_config` is explicitly passed to `AnalysisService` to ensure Perspective/Geotaxis settings are respected.
+   - `Reporter` uses `DataTransformer.rename_geotaxis_columns` to format labels (e.g., "Fundo (0-5cm)").
 7. **UI Update:** `EventDispatcher` receives events -> updates `CanvasManager`.
 
 ### 5.2. Cancellation Flow (Hardened)
@@ -289,13 +289,13 @@ Understanding who holds what references prevents "AttributeError" and circular d
 1. **User Action:** Clicks "Cancel".
 2. **Dispatcher:** Publishes `Events.VIDEO_CANCEL_ANALYSIS`.
 3. **ViewModel:** `AnalysisControlViewModel` receives event.
-    - **CRITICAL:** Calls `self.processing_coordinator.cancel_processing()`.
+   - **CRITICAL:** Calls `self.processing_coordinator.cancel_processing()`.
 4. **Coordinator:** `ProcessingCoordinator.cancel_processing()`:
-    - Sets `self.cancel_event.set()`.
-    - Calls `self.processing_worker.cancel()`.
+   - Sets `self.cancel_event.set()`.
+   - Calls `self.processing_worker.cancel()`.
 5. **Worker:** `ProcessingWorker` checks `command_queue` or `cancel_event`.
-    - Breaks loop cleanly.
-    - Sends `{'type': 'completed', 'cancelled': True}`.
+   - Breaks loop cleanly.
+   - Sends `{'type': 'completed', 'cancelled': True}`.
 6. **Cleanup:** `monitor_loop` receives completed message -> resets state -> Updates UI to "Ready".
 
 ### 5.3. Live Camera Flow (Intentional Divergence)
@@ -328,14 +328,14 @@ Understanding who holds what references prevents "AttributeError" and circular d
 
 1. **Missing Event Payloads:** Always check the **Event Registry** above. If you publish `UI_DISPLAY_FRAME` without the `frame` key, the UI will crash or show nothing.
 2. **Direct UI Access:** Do not try to access `self.view.canvas` from a Coordinator. Use `self.event_bus.publish(Events.UI_..., data)`.
-3. **Worker Isolation:** The `ProcessingWorker` runs in a separate process (multiprocessing). It cannot access global variables or shared objects (like `self.detector`) modified in the main thread *after* it started. Everything must be passed in `ProcessingContext`.
+3. **Worker Isolation:** The `ProcessingWorker` runs in a separate process (multiprocessing). It cannot access global variables or shared objects (like `self.detector`) modified in the main thread _after_ it started. Everything must be passed in `ProcessingContext`.
 4. **Legacy vs. New:**
-    - **Legacy:** `VideoProcessingOrchestrator`, `AnalysisOrchestrator` (Avoid modifying if possible).
-    - **New (Phase 3):** `ProcessingCoordinator` (Preferred location for logic).
+   - **Legacy:** `VideoProcessingOrchestrator`, `AnalysisOrchestrator` (Avoid modifying if possible).
+   - **New (Phase 3):** `ProcessingCoordinator` (Preferred location for logic).
 5. **UIScheduler (Resolved Naming Conflict):** Phase 2 renamed `zebtrack.core.ui_coordinator.UICoordinator` to `UIScheduler`.
-    - `zebtrack.core.ui_scheduler.UIScheduler`: A scheduler/facade for `root.after`. Used by `ProcessingCoordinator`.
-    - `zebtrack.ui.ui_coordinator.UICoordinator`: A Mediator for EventBus events. Used by `EventDispatcher`.
-    - **Reason:** Eliminated name collision that caused type confusion and import errors.
+   - `zebtrack.core.ui_scheduler.UIScheduler`: A scheduler/facade for `root.after`. Used by `ProcessingCoordinator`.
+   - `zebtrack.ui.ui_coordinator.UICoordinator`: A Mediator for EventBus events. Used by `EventDispatcher`.
+   - **Reason:** Eliminated name collision that caused type confusion and import errors.
 6. **Dual Event Bus:** Use `Events` class with `EventBus` for domain events; use `UIEvents` enum with `EventBusV2` for UI component communication. **Do NOT mix them.**
 7. **ByteTracker Kalman Filter Drift:** The ByteTracker uses a Kalman Filter that can predict track positions OUTSIDE the original polygon boundary. All tracking output MUST be re-filtered by the polygon after `_apply_byte_tracking()`. This was fixed in Dec 2025 - see `detector.py:_apply_byte_tracking()` post-filter logic.
 8. **BBox Overlay Tab Check (Updated Jan 2025):** Detection overlays are drawn ONLY by `canvas_manager.update_video_frame()` which checks the current tab. The `processing_worker` does NOT call `detector.draw_overlay()` anymore - it sends the raw frame, and `canvas_manager` decides whether to draw overlays based on `is_on_analysis_tab`. This prevents bboxes from appearing on the zone drawing tab.
@@ -351,7 +351,7 @@ Understanding who holds what references prevents "AttributeError" and circular d
 13. **Batch Processing Zone Data (Fixed Dec 2025):** When processing multiple videos in batch, each video has its own zone data. The `_load_zones_for_eligible_videos()` method now serializes zone data into each `video_info["zone_data"]` dict, and the worker uses `_get_zone_data_for_video(video_metadata)` to retrieve per-video zones instead of a global default.
 14. **ProcessingCallbacks.on_progress Signature (Updated Dec 2025):** The `on_progress` callback now has signature: `(index: int, total: int, experiment_id: str, fraction: float, message: str, stats: dict | None)`. The worker's `monitor_loop` passes all these fields, and `create_processing_callbacks` now publishes `UI_UPDATE_ANALYSIS_TASK_STATUS` with full video progress info.
 15. **Multi-Aquarium Zone Serialization (Fixed Dec 2025):** When processing multi-aquarium videos, `ProcessingCoordinator` serializes `MultiAquariumZoneData` using `ZoneManager.multi_aquarium_zone_data_to_dict`. The `ProcessingWorker` deserializes this using `ZoneManager.multi_aquarium_zone_data_from_dict`. This ensures the worker receives the complete configuration (aquariums list) instead of just a flattened/partial `ZoneData`.
-16. **Parquet Export for Compatibility (Fixed Dec 2025):** To ensure multi-aquarium videos are correctly classified as 'Ready for Analysis' (`has_arena=True`), `ProjectManager.save_multi_aquarium_zone_data` automatically exports the zones of Aquarium 0 to a standard parquet file (`1_ProcessingArea...`). This satisfies the legacy file scanner while preserving the full multi-aquarium structure in `project_config.json`. Also, `save_project()` is called strictly *after* updating the file paths in the video entry to ensure persistence.
+16. **Parquet Export for Compatibility (Fixed Dec 2025):** To ensure multi-aquarium videos are correctly classified as 'Ready for Analysis' (`has_arena=True`), `ProjectManager.save_multi_aquarium_zone_data` automatically exports the zones of Aquarium 0 to a standard parquet file (`1_ProcessingArea...`). This satisfies the legacy file scanner while preserving the full multi-aquarium structure in `project_config.json`. Also, `save_project()` is called strictly _after_ updating the file paths in the video entry to ensure persistence.
 
 17. **Multi-Aquarium Reporting + Reports Tree Contracts (Fixed Dec 2025):**
     - **Reporting MUST use multi-aquarium zone accessor:** In multi-aquarium report generation, always call `ProjectManager.get_multi_aquarium_zone_data()` (not `get_zone_data()`). The single-aquarium accessor returns only Aquarium 0 for backward compatibility and will corrupt Aquarium 1 crop/overlay alignment.
@@ -362,7 +362,7 @@ Understanding who holds what references prevents "AttributeError" and circular d
     - **Key normalization:** `multi_aquarium_outputs` keys may be mixed (`0` vs `"0"`). Normalize keys to numeric aquarium IDs and merge duplicates to avoid Treeview iid collisions (symptom: only one aquarium visible).
     - **Persistence after generation (Option B):** After generating per-aquarium summaries/reports, re-register updated `multi_aquarium_outputs` via `ProjectManager.register_multi_aquarium_outputs(...)` so `has_summary` and artifact paths persist and the UI updates reliably.
 
-18. **Simultaneous Multi-Aquarium Completion Logic (Fixed Dec 2025):** In the single video workflow, `video_results_dir` is calculated dynamically and may not be preset in the project manager. The `on_video_completed` callback now robustly detects multi-aquarium outputs (`aquarium_0`, `aquarium_1`) by checking the filesystem, even if `video_results_dir` is None in the video entry. This ensures that `register_multi_aquarium_outputs` is called and reports are generated for simultaneous 2-aquarium analyses. The `is_multi_aquarium` flag is now initialized based on the *presence* of these output folders, not just the project configuration.
+18. **Simultaneous Multi-Aquarium Completion Logic (Fixed Dec 2025):** In the single video workflow, `video_results_dir` is calculated dynamically and may not be preset in the project manager. The `on_video_completed` callback now robustly detects multi-aquarium outputs (`aquarium_0`, `aquarium_1`) by checking the filesystem, even if `video_results_dir` is None in the video entry. This ensures that `register_multi_aquarium_outputs` is called and reports are generated for simultaneous 2-aquarium analyses. The `is_multi_aquarium` flag is now initialized based on the _presence_ of these output folders, not just the project configuration.
 
 19. **Unified Report & Analysis Contracts (Fixed Dec 28, 2025 - v3.2):**
     - **Reporter behavioral_config Storage:** The `Reporter` legacy constructor MUST store `self.behavioral_config = behavioral_config if behavioral_config else {}` BEFORE creating `tidy_data`. Previously, the conditional `if not hasattr(self, "behavioral_config")` always triggered because the parameter was never stored, causing geotaxis data to be empty.
@@ -380,10 +380,10 @@ Understanding who holds what references prevents "AttributeError" and circular d
 
 The following events were removed during the integration audit as they had **no subscribers**:
 
-| Event | Previous Location | Reason for Removal |
-|-------|------------------|-------------------|
-| `PROCESSING_MODE_CHANGED` | `session_coordinator.py:1050`, `hardware_coordinator.py:1091` | No subscribers found. Processing mode is handled via `ProcessingCoordinator._publish_processing_mode()` which calls `view.update_processing_mode()` directly. |
-| `PROCESSING_MODE_RESTORE` | `session_coordinator.py:1139`, `hardware_coordinator.py:1163,1490` | No subscribers found. Same as above - orphaned event from earlier refactoring. |
+| Event                     | Previous Location                                                  | Reason for Removal                                                                                                                                            |
+| ------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PROCESSING_MODE_CHANGED` | `session_coordinator.py:1050`, `hardware_coordinator.py:1091`      | No subscribers found. Processing mode is handled via `ProcessingCoordinator._publish_processing_mode()` which calls `view.update_processing_mode()` directly. |
+| `PROCESSING_MODE_RESTORE` | `session_coordinator.py:1139`, `hardware_coordinator.py:1163,1490` | No subscribers found. Same as above - orphaned event from earlier refactoring.                                                                                |
 
 **Impact:** None. These events were never handled by any component.
 
@@ -397,17 +397,17 @@ The following patterns remain in the codebase and should be addressed in future 
 
 Some coordinators still access `self.view` directly instead of publishing events:
 
-| Coordinator | Pattern | Recommended Fix |
-|-------------|---------|-----------------|
-| `SessionCoordinator` | `self.view.camera.get_frame()` | Inject camera service; publish frame events |
+| Coordinator             | Pattern                                                | Recommended Fix                                               |
+| ----------------------- | ------------------------------------------------------ | ------------------------------------------------------------- |
+| `SessionCoordinator`    | `self.view.camera.get_frame()`                         | Inject camera service; publish frame events                   |
 | `ProcessingCoordinator` | `self.view.update_processing_mode()` via `UIScheduler` | Migrate to `EventBusV2` → `UIEvents.PROCESSING_STATS_UPDATED` |
-| `HardwareCoordinator` | Direct `root.after()` calls | Use `UIScheduler` abstraction |
+| `HardwareCoordinator`   | Direct `root.after()` calls                            | Use `UIScheduler` abstraction                                 |
 
 ### 8.2. Hybrid Patterns (Acceptable)
 
 These patterns are intentional trade-offs documented in ADRs:
 
-| Pattern | Location | ADR Reference |
-|---------|----------|---------------|
-| Live Camera direct display | `LiveCameraCoordinator` → `LivePreviewWindow` | ADR-004 |
-| `UIScheduler.update_view()` direct calls | `ProcessingCoordinator` | ADR-003 (Phase 2) |
+| Pattern                                  | Location                                      | ADR Reference     |
+| ---------------------------------------- | --------------------------------------------- | ----------------- |
+| Live Camera direct display               | `LiveCameraCoordinator` → `LivePreviewWindow` | ADR-004           |
+| `UIScheduler.update_view()` direct calls | `ProcessingCoordinator`                       | ADR-003 (Phase 2) |

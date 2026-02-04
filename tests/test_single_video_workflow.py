@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import cv2
@@ -16,7 +17,7 @@ from zebtrack.plugins.base import DetectorPlugin
 def generate_mock_video(filepath: str, duration_s: int = 2, fps: int = 10):
     """Generates a simple dummy video file with a moving square."""
     width, height = 640, 480
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    fourcc = cast(Any, cv2).VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(filepath, fourcc, fps, (width, height))
 
     for i in range(duration_s * fps):

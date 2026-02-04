@@ -37,6 +37,7 @@ docs/
 ## 🛠️ How-To Guides (Goal-Oriented)
 
 ### For Developers
+
 - **[Performance Tuning](guides/developer/performance-tuning.md)** - Troubleshooting bottlenecks and configuring parallel plots.
 - **[Getting Started](guides/developer/getting_started.md)** - Setting up the development environment.
 - **[Debugging Guide](guides/developer/debugging.md)** - Troubleshooting common tracking issues.

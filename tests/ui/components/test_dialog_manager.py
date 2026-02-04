@@ -1,6 +1,7 @@
 """Tests for DialogManager component."""
 
 import sys
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -1087,6 +1088,102 @@ class TestNotificationDialogs:
         config_call = mock_gui.external_trigger_notice_label.config.call_args
         assert "background" in config_call[1]
         assert "foreground" in config_call[1]
+
+
+@pytest.mark.gui
+class TestGridCellClick:
+    """Tests for experimental grid cell click handling."""
+
+    @patch("zebtrack.ui.dialogs.subject_selection_dialog.SubjectSelectionDialog")
+    def test_handle_grid_cell_click_fallback_live(self, mock_dialog, dialog_manager, mock_gui):
+        """Fallback path should start live session when project type is live."""
+        dialog_instance = Mock()
+        dialog_instance.result = 2
+        mock_dialog.return_value = dialog_instance
+
+        mock_gui.controller.live_batch_coordinator = None
+        mock_gui.controller.session_coordinator = None
+        mock_gui.controller.project_manager.get_completed_sessions.return_value = []
+        mock_gui.controller.project_manager.project_data["subjects_per_group"] = 3
+        mock_gui.controller.project_manager.get_project_type.return_value = "live"
+        mock_gui.controller.start_live_project_session = Mock(return_value=True)
+        mock_gui.widget_factory = Mock()
+
+        dialog_manager.handle_grid_cell_click(1, "G1")
+
+        mock_gui.controller.start_live_project_session.assert_called_once_with(
+            day=1, group="G1", subject="2"
+        )
+        mock_gui.widget_factory.render_progress_grid.assert_called_once()
+
+    @patch("zebtrack.ui.dialogs.block_detail_dialog.BlockDetailDialog")
+    def test_handle_grid_cell_click_batch_dialog(self, mock_dialog, dialog_manager, mock_gui):
+        """Batch-aware path should open BlockDetailDialog and refresh grid."""
+        mock_gui.controller.live_batch_coordinator = Mock()
+        mock_gui.controller.session_coordinator = Mock()
+        mock_gui.widget_factory = Mock()
+
+        dialog_manager.handle_grid_cell_click(2, "GroupA")
+
+        mock_dialog.assert_called_once()
+        mock_gui.widget_factory.render_progress_grid.assert_called_once()
+
+
+@pytest.mark.gui
+class TestChangeRoiColor:
+    """Tests for change_roi_color."""
+
+    @patch("zebtrack.ui.dialogs.color_selection_dialog.ColorSelectionDialog")
+    def test_change_roi_color_no_selection(self, mock_dialog, dialog_manager, mock_gui):
+        """No selection should exit early without opening dialog."""
+        listbox = Mock()
+        listbox.selection.return_value = []
+        mock_gui.zone_listbox = listbox
+
+        dialog_manager.change_roi_color()
+
+        mock_dialog.assert_not_called()
+
+    @patch("zebtrack.ui.dialogs.color_selection_dialog.ColorSelectionDialog")
+    def test_change_roi_color_dialog_cancelled(self, mock_dialog, dialog_manager, mock_gui):
+        """Cancelled dialog should not update data."""
+        listbox = Mock()
+        listbox.selection.return_value = ["roi1"]
+        listbox.item.return_value = {"values": ["ROI 1"]}
+        mock_gui.zone_listbox = listbox
+
+        dialog_instance = Mock()
+        dialog_instance.result = None
+        mock_dialog.return_value = dialog_instance
+
+        dialog_manager.change_roi_color()
+
+        mock_gui.controller.project_manager.save_zone_data.assert_not_called()
+
+    @patch("zebtrack.ui.dialogs.color_selection_dialog.ColorSelectionDialog")
+    def test_change_roi_color_success(self, mock_dialog, dialog_manager, mock_gui, mock_event_bus):
+        """Successful color change should update zone data and publish events."""
+        listbox = Mock()
+        listbox.selection.return_value = ["roi1"]
+        listbox.item.return_value = {"values": ["📍 ROI 1"]}
+        mock_gui.zone_listbox = listbox
+
+        dialog_instance = Mock()
+        dialog_instance.result = {"rgb": "#112233", "name": "Azul"}
+        mock_dialog.return_value = dialog_instance
+
+        zone_data = SimpleNamespace(roi_names=["ROI 1"], roi_colors=["#000000"])
+        mock_gui._get_zone_data_for_active_context = Mock(return_value=zone_data)
+
+        dialog_manager.change_roi_color()
+
+        assert zone_data.roi_colors[0] == "#112233"
+        mock_gui.controller.project_manager.save_zone_data.assert_called_once_with(zone_data)
+        mock_gui.set_status.assert_called_once()
+
+        event_types = [call[0][0].type for call in mock_event_bus.publish.call_args_list]
+        assert UIEvents.ZONES_UPDATED in event_types
+        assert UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED in event_types
 
 
 @pytest.mark.gui

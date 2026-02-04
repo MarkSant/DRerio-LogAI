@@ -23,9 +23,9 @@ O Wizard de Criação de Projetos é um assistente inteligente de 5 etapas que a
 
 **Objetivo:** Definir o tipo de projeto e intenções de importação.
 
-#### Configurações:
+#### Configurações
 
-**1.1 Tipo de Projeto**
+##### 1.1 Tipo de Projeto
 
 - **Experimental**: Para estudos com grupos de tratamento, controles, design temporal
   - Exemplo: Comparar efeito de drogas em grupos Control vs Treatment ao longo de 5 dias
@@ -39,7 +39,7 @@ O Wizard de Criação de Projetos é um assistente inteligente de 5 etapas que a
 - **Pastas = Design Experimental**: Pastas representam grupos/dias (ex: `/Control/Day01/`)
 - **Pastas = Organização**: Pastas são apenas organizacionais, sem significado experimental
 
-**1.3 Arquivos Parquet Existentes**
+##### 1.3 Arquivos Parquet Existentes
 
 - **Não possuo arquivos Parquet**: Processar tudo do zero
 - **Importar somente zonas** (arena + ROIs): Gerar apenas trajetórias
@@ -53,31 +53,35 @@ O Wizard de Criação de Projetos é um assistente inteligente de 5 etapas que a
 
 **Objetivo:** Selecionar os vídeos e/ou pastas para o projeto.
 
-#### Opções de Seleção:
+#### Opções de Seleção
 
-**2.1 Adicionar Vídeos Individuais**
+##### 2.1 Adicionar Vídeos Individuais
+
 - Clique em "Adicionar Vídeos..."
 - Selecione arquivos `.mp4`, `.avi`, ou `.mov`
 - Suporta seleção múltipla (Ctrl+Click ou Shift+Click)
 
-**2.2 Adicionar Pastas**
+##### 2.2 Adicionar Pastas
+
 - Clique em "Adicionar Pasta..."
 - Selecione pasta raiz contendo vídeos
 - Scan recursivo: encontra vídeos em subpastas automaticamente
 
-**2.3 Remover Seleções**
+##### 2.3 Remover Seleções
+
 - Selecione item na lista
 - Clique em "Remover Selecionado"
 
-**2.4 Pré-visualização da Estrutura**
+##### 2.4 Pré-visualização da Estrutura
+
 - A árvore "Pré-visualização da Estrutura" mostra as primeiras pastas/arquivos detectados
 - Útil para validar se escolheu a raiz correta antes de avançar
 - Prévia limitada a três níveis e 120 nós para manter a interface responsiva
 - Arquivos soltos aparecem agrupados em "Arquivos Individuais"
 
-#### Exemplo de Estrutura:
+#### Exemplo de Estrutura
 
-```
+```text
 Experimento_Canabidiol/
 ├── Control/
 │   ├── Day01/
@@ -100,27 +104,30 @@ Experimento_Canabidiol/
 
 **Objetivo:** Analisar vídeos e detectar design experimental automaticamente.
 
-#### O que é Detectado:
+#### O que é Detectado
 
 **3.1 Design Experimental** (somente projetos experimentais)
+
 - **Grupos**: Control, Treatment, Dose_Low, Dose_High, etc.
 - **Dias**: Day01, Day02, D1, D2, etc.
 - **Sujeitos**: Subject01, S01, Fish_01, etc.
 - **Confiança**: Percentual de certeza da detecção (0-100%)
 
-**3.2 Análise de Parquets**
+##### 3.2 Análise de Parquets
+
 - **Arena**: `*_arena.parquet` (coordenadas do tanque)
 - **ROIs**: `*_rois.parquet` (regiões de interesse)
 - **Trajetória**: `*_trajectory.parquet` (dados de rastreamento)
 - **Status por Vídeo**: Quais arquivos existem para cada vídeo
 
-**3.3 Regex Personalizado (Pré-visualização ao Vivo)**
+##### 3.3 Regex Personalizado (Pré-visualização ao Vivo)
+
 - Clique em "Regex Customizado" para editar padrões de grupos/dias/sujeitos
 - A tabela de pré-visualização atualiza automaticamente conforme você digita
 - Erros de regex aparecem em linha (sem pop-ups interruptivos)
 - O campo de teste também avalia automaticamente o caminho digitado
 
-#### Padrões de Detecção:
+#### Padrões de Detecção
 
 1. **Grupos como Pastas**: `/Control/Day01/video.mp4`
 2. **Dias como Pastas**: `/Day01/Control/video.mp4`
@@ -144,32 +151,34 @@ Experimento_Canabidiol/
 
 **Objetivo:** Definir estratégia de processamento individual para cada vídeo.
 
-#### Padrões Inteligentes Pré-Configurados:
+#### Padrões Inteligentes Pré-Configurados
 
 O wizard aplica automaticamente uma configuração inicial baseada em suas escolhas da Etapa 1:
 
-| Escolha na Etapa 1         | Vídeo com Arena | Vídeo com ROIs | Vídeo com Trajetória | Ação Sugerida     |
-|----------------------------|-----------------|----------------|----------------------|-------------------|
-| Importar tudo disponível   | ✅              | ✅             | ✅                   | **SKIP** (dados completos) |
-| Importar tudo disponível   | ✅              | ✅             | ❌                   | **IMPORT_ZONES** (rastrear) |
-| Importar tudo disponível   | ✅              | ❌             | ❌                   | **PARTIAL** (importar arena) |
-| Importar somente zonas     | ✅              | ✅             | ❌/✅                | **IMPORT_ZONES** (rastrear) |
-| Não importar Parquets      | ❌/✅           | ❌/✅          | ❌/✅                | **FULL** (do zero) |
+| Escolha na Etapa 1       | Vídeo com Arena | Vídeo com ROIs | Vídeo com Trajetória | Ação Sugerida                |
+| ------------------------ | --------------- | -------------- | -------------------- | ---------------------------- |
+| Importar tudo disponível | ✅              | ✅             | ✅                   | **SKIP** (dados completos)   |
+| Importar tudo disponível | ✅              | ✅             | ❌                   | **IMPORT_ZONES** (rastrear)  |
+| Importar tudo disponível | ✅              | ❌             | ❌                   | **PARTIAL** (importar arena) |
+| Importar somente zonas   | ✅              | ✅             | ❌/✅                | **IMPORT_ZONES** (rastrear)  |
+| Não importar Parquets    | ❌/✅           | ❌/✅          | ❌/✅                | **FULL** (do zero)           |
 
-#### Opções de Importação (por vídeo):
+#### Opções de Importação (por vídeo)
 
-**Colunas Interativas:**
+##### Colunas Interativas
+
 - **Arena**: ✅ Importar coordenadas do tanque de `*_arena.parquet`
 - **ROIs**: ✅ Importar regiões de interesse de `*_rois.parquet`
 - **Trajetória**: ✅ Importar dados de rastreamento de `*_trajectory.parquet`
 
-**Ação Derivada Automaticamente:**
+##### Ação Derivada Automaticamente
+
 - **SKIP**: Todos os dados existem - pular processamento
 - **IMPORT_ZONES**: Importar arena + ROIs, gerar nova trajetória
 - **PARTIAL**: Importar somente arena
 - **FULL**: Processar tudo do zero (sem importação)
 
-#### Como Personalizar:
+#### Como Personalizar
 
 1. **Duplo-clique** na célula da tabela para alternar ✅ ⟷ ❌
 2. A coluna "Ação" atualiza automaticamente
@@ -183,36 +192,42 @@ O wizard aplica automaticamente uma configuração inicial baseada em suas escol
 
 **Objetivo:** Revisar todas as configurações e criar o projeto.
 
-#### Informações Exibidas:
+#### Informações Exibidas
 
-**5.1 Resumo do Design**
+##### 5.1 Resumo do Design
+
 - Tipo de projeto (Experimental / Exploratório)
 - Grupos detectados e confiança
 - Total de vídeos selecionados
 
-**5.2 Plano de Processamento**
+##### 5.2 Plano de Processamento
+
 - Quantidade de vídeos por ação (SKIP, IMPORT_ZONES, PARTIAL, FULL)
 - Estimativa de tempo (5 minutos por vídeo a processar)
 
-**5.3 Parquets Existentes**
+##### 5.3 Parquets Existentes
+
 - Total de arquivos arena, ROIs, trajetória, completos
 
-**5.4 Estratégia de ROIs**
+##### 5.4 Estratégia de ROIs
+
 - Como resolver conflitos entre ROIs existentes e novos (Substituir / Mesclar / Manual)
 
-#### Configurações Finais:
+#### Configurações Finais
 
-**Nome do Projeto**
+##### Nome do Projeto
+
 - Gerado automaticamente com base no design detectado
 - Editável manualmente
 - Regras: Somente letras, números, espaços, `_` e `-`
 
-**Localização**
+##### Localização
+
 - Padrão: `Documentos`
 - Clique em "Procurar..." para alterar
 - Validação: Pasta deve existir e ter permissão de escrita
 
-#### Validações Finais:
+#### Validações Finais
 
 ✅ Nome do projeto não pode estar vazio
 ✅ Nome não pode conter caracteres especiais (`@`, `#`, `$`, `/`, etc.)
@@ -287,6 +302,7 @@ Na versão 1.6, a detecção é automática e não editável. Se a confiança fo
 ### 3. O que é a "confiança" de detecção?
 
 É um percentual calculado com base em:
+
 - **Consistência** do padrão (50%)
 - **Cobertura** dos vídeos (30%)
 - **Ausência de outliers** (20%)
@@ -314,7 +330,8 @@ Estimativa: **~5 minutos por vídeo** para processamento FULL. IMPORT_ZONES é m
 Sim. O wizard busca arquivos com padrão `{video_name}_arena.parquet`, `{video_name}_rois.parquet`, `{video_name}_trajectory.parquet` na mesma pasta do vídeo correspondente.
 
 Exemplo:
-```
+
+```text
 /Videos/
 ├── Subject01.mp4
 ├── Subject01_arena.parquet
@@ -331,6 +348,7 @@ Exemplo:
 **Causa**: Estrutura não segue um dos 4 padrões suportados.
 
 **Solução**:
+
 1. Verifique se pastas/nomes seguem padrões consistentes
 2. Use palavras-chave reconhecidas: Control, Treatment, Day, D, Subject, S
 3. Considere reorganizar pastas ou usar projeto Exploratório
@@ -342,6 +360,7 @@ Exemplo:
 **Causa**: Arquivos não seguem convenção de nomenclatura.
 
 **Solução**:
+
 1. Renomeie Parquets para `{video_name}_arena.parquet`, etc.
 2. Certifique-se de que estão na mesma pasta do vídeo
 3. Verifique extensão: `.parquet` (não `.pq` ou `.parq`)
@@ -353,6 +372,7 @@ Exemplo:
 **Causa**: Inconsistência na estrutura de pastas/nomes.
 
 **Solução**:
+
 1. Revise estrutura e identifique outliers (vídeos fora do padrão)
 2. Renomeie pastas/arquivos para seguir padrão consistente
 3. Ou use projeto Exploratório e configure manualmente
@@ -364,6 +384,7 @@ Exemplo:
 **Causa**: Já existe pasta com mesmo nome na localização.
 
 **Solução**:
+
 1. Escolha nome diferente
 2. Ou selecione localização diferente
 3. Ou remova/renomeie projeto existente
@@ -372,15 +393,15 @@ Exemplo:
 
 ## Atalhos de Teclado
 
-| Atalho       | Ação                            |
-|--------------|---------------------------------|
-| `Enter`      | Avançar para próxima etapa      |
-| `Esc`        | Cancelar wizard                 |
-| `Alt+V`      | Voltar para etapa anterior      |
-| `Alt+P`      | Próxima etapa                   |
-| `Ctrl+A`     | Adicionar vídeos (Etapa 2)      |
-| `Ctrl+F`     | Adicionar pasta (Etapa 2)       |
-| `Delete`     | Remover seleção (Etapa 2)       |
+| Atalho   | Ação                       |
+| -------- | -------------------------- |
+| `Enter`  | Avançar para próxima etapa |
+| `Esc`    | Cancelar wizard            |
+| `Alt+V`  | Voltar para etapa anterior |
+| `Alt+P`  | Próxima etapa              |
+| `Ctrl+A` | Adicionar vídeos (Etapa 2) |
+| `Ctrl+F` | Adicionar pasta (Etapa 2)  |
+| `Delete` | Remover seleção (Etapa 2)  |
 
 ---
 
@@ -402,7 +423,8 @@ Exemplo:
 ## Suporte
 
 Para reportar problemas ou sugerir melhorias:
-- GitHub Issues: https://github.com/anthropics/zebtrack-ai/issues
+
+- GitHub Issues: <https://github.com/anthropics/zebtrack-ai/issues>
 - Documentação técnica complementar: `docs/guides/developer/wizard.md`
 - Arquitetura: `docs/explanation/architecture.md`
 

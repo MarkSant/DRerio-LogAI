@@ -6,6 +6,8 @@ from tkinter import StringVar
 from typing import cast
 from unittest.mock import Mock, patch
 
+import pytest
+
 from zebtrack.ui.builders.panel_builder import PanelBuilder
 
 
@@ -61,3 +63,21 @@ class TestPanelBuilder:
         assert "rois_missing" in cards_data
         assert "ready_for_processing" in cards_data
         assert cards_data["arena_missing"]["value"] == mock_var
+
+
+@pytest.mark.gui
+def test_create_zone_summary_cards_defaults(tkinter_root):
+    frame, cards = PanelBuilder.create_zone_summary_cards(tkinter_root, "Helper")
+
+    assert frame.winfo_exists() == 1
+    assert cards["arena_missing"]["value"].get() == "0"
+    assert cards["arena_missing"]["detail"].get() == "Nenhum vídeo listado"
+    assert cards["rois_missing"]["value"].get() == "0"
+    assert cards["ready_for_processing"]["value"].get() == "0"
+
+
+@pytest.mark.gui
+def test_create_zone_summary_cards_no_helper_text(tkinter_root):
+    frame, _cards = PanelBuilder.create_zone_summary_cards(tkinter_root, "")
+
+    assert len(frame.winfo_children()) == 1

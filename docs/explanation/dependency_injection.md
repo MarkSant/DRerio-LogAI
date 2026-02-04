@@ -13,9 +13,11 @@ ZebTrack-AI uses **constructor injection** throughout the codebase. The Composit
 All services receive configuration via the `settings_obj` parameter. This prevents the "Global Configuration" anti-pattern and allows for easy testing with mocked settings.
 
 ### 2.1. Critical Services (Strict Injection)
+
 Services that **cannot function** without settings raise `RuntimeError`:
 
 **`io/video_source.py`**
+
 ```python
 def __init__(self, settings_obj: Settings):
     if settings_obj is None:
@@ -26,9 +28,11 @@ def __init__(self, settings_obj: Settings):
 **Reason**: Video capture requires specific hardware IDs and resolution profiles defined in settings.
 
 ### 2.2. Functional Services (Graceful Fallback)
+
 Services that can operate with standard defaults use an optional parameter:
 
 **`plugins/yolo_detector.py`**
+
 ```python
 def __init__(self, model_path, settings_obj: Settings | None = None):
     self.conf_threshold = settings_obj.yolo.conf if settings_obj else 0.25
@@ -39,16 +43,19 @@ def __init__(self, model_path, settings_obj: Settings | None = None):
 The primary orchestration happens in `src/zebtrack/__main__.py` (roughly lines 100-500).
 
 ### 3.1. Infrastructure Phase
+
 1. `load_settings()`
 2. `StateManager` initialization.
 3. `UIScheduler` (UI thread management) and `EventBusV2`.
 
 ### 3.2. Service Phase
+
 1. `WeightManager` and `ModelService`.
 2. `ProjectManager` and `AnalysisService`.
 3. `DetectorService`.
 
 ### 3.3. Coordination Phase
+
 1. **Super Coordinators**:
    - `ProcessingCoordinator`
    - `HardwareCoordinator`
@@ -67,107 +74,115 @@ self.project_vm = ProjectViewModel(dependencies, bootstrap_result, self.ui_event
 ```
 
 ---
+
 **Best Practice**: Never import `from zebtrack import settings`. If a class needs a configuration value, it must be passed in via the constructor.
+
+```python
 project_manager = ProjectManager(state_manager=state_manager, settings_obj=settings_obj)
 project_workflow_service = ProjectWorkflowService(
-    project_manager=project_manager,
-    model_service=model_service,
-    state_manager=state_manager,
-    ui_coordinator=ui_coordinator,
-    settings_obj=settings_obj,
+project_manager=project_manager,
+model_service=model_service,
+state_manager=state_manager,
+ui_coordinator=ui_coordinator,
+settings_obj=settings_obj,
 )
 
 # Detector service
+
 detector_service = DetectorService(
-    state_manager=state_manager,
-    project_manager=project_manager,
-    weight_manager=weight_manager,
-    model_service=model_service,
-    settings_obj=settings_obj,
+state_manager=state_manager,
+project_manager=project_manager,
+weight_manager=weight_manager,
+model_service=model_service,
+settings_obj=settings_obj,
 )
 
 # Video processing and analysis services
+
 recorder = Recorder(settings_obj=settings_obj)
 video_processing_service = VideoProcessingService(
-    detector=None,  # Lazy-initialized
-    recorder=recorder,
-    project_manager=project_manager,
-    state_manager=state_manager,
-    ui_coordinator=ui_coordinator,
-    ui_event_bus=event_bus,
-    root=root,
-    view=None,  # Set later
-    cancel_event=cancel_event,
-    settings_obj=settings_obj,
+detector=None, # Lazy-initialized
+recorder=recorder,
+project_manager=project_manager,
+state_manager=state_manager,
+ui_coordinator=ui_coordinator,
+ui_event_bus=event_bus,
+root=root,
+view=None, # Set later
+cancel_event=cancel_event,
+settings_obj=settings_obj,
 )
 analysis_service = AnalysisService(settings_obj=settings_obj)
 
 # ===== COORDINATORS (Phase 2 Refactoring) =====
+
 hardware_coordinator = HardwareCoordinator(
-    state_manager=state_manager,
-    ui_event_bus=event_bus,
-    settings_obj=settings_obj,
-    project_manager=project_manager,
-    detector_service=detector_service,
+state_manager=state_manager,
+ui_event_bus=event_bus,
+settings_obj=settings_obj,
+project_manager=project_manager,
+detector_service=detector_service,
 )
 
 analysis_coordinator = AnalysisCoordinator(
-    root=root,
-    ui_event_bus=event_bus,
-    ui_coordinator=ui_coordinator,
-    settings_obj=settings_obj,
-    project_manager=project_manager,
-    analysis_service=analysis_service,
-    video_processing_service=video_processing_service,
+root=root,
+ui_event_bus=event_bus,
+ui_coordinator=ui_coordinator,
+settings_obj=settings_obj,
+project_manager=project_manager,
+analysis_service=analysis_service,
+video_processing_service=video_processing_service,
 )
 
 video_orchestrator = VideoOrchestrator(
-    root=root,
-    state_manager=state_manager,
-    ui_event_bus=event_bus,
-    ui_coordinator=ui_coordinator,
-    settings_obj=settings_obj,
-    project_manager=project_manager,
-    video_processing_service=video_processing_service,
-    analysis_service=analysis_service,
-    recorder=recorder,
+root=root,
+state_manager=state_manager,
+ui_event_bus=event_bus,
+ui_coordinator=ui_coordinator,
+settings_obj=settings_obj,
+project_manager=project_manager,
+video_processing_service=video_processing_service,
+analysis_service=analysis_service,
+recorder=recorder,
 )
 
 # Live Camera Batch Coordinator (v2.3.0)
+
 live_batch_coordinator = LiveBatchCoordinator(
-    project_manager=project_manager,
-    analysis_service=analysis_service,
-    state_manager=state_manager,
-    settings_obj=settings_obj,
-    event_bus=event_bus if settings_obj.ui_features.enable_event_queue else None,
+project_manager=project_manager,
+analysis_service=analysis_service,
+state_manager=state_manager,
+settings_obj=settings_obj,
+event_bus=event_bus if settings_obj.ui_features.enable_event_queue else None,
 )
 
 session_coordinator = SessionCoordinator(
-    project_manager=project_manager,
-    state_manager=state_manager,
-    ui_event_bus=event_bus,
-    settings_obj=settings_obj,
-    live_batch_coordinator=live_batch_coordinator,  # v2.3.0 integration
+project_manager=project_manager,
+state_manager=state_manager,
+ui_event_bus=event_bus,
+settings_obj=settings_obj,
+live_batch_coordinator=live_batch_coordinator, # v2.3.0 integration
 )
 
 # Wire all dependencies into MainViewModel
+
 controller = MainViewModel(
-    root=root,
-    event_bus=event_bus,
-    state_manager=state_manager,
-    ui_coordinator=ui_coordinator,
-    settings_obj=settings_obj,
-    project_manager=project_manager,
-    project_workflow_service=project_workflow_service,
-    weight_manager=weight_manager,
-    model_service=model_service,
-    detector_service=detector_service,
-    video_processing_service=video_processing_service,
-    analysis_service=analysis_service,
-    recording_service=None,  # Created by MainViewModel
-    hardware_coordinator=hardware_coordinator,  # Phase 2
-    analysis_coordinator=analysis_coordinator,  # Phase 2
-    video_orchestrator=video_orchestrator,  # Phase 2
+root=root,
+event_bus=event_bus,
+state_manager=state_manager,
+ui_coordinator=ui_coordinator,
+settings_obj=settings_obj,
+project_manager=project_manager,
+project_workflow_service=project_workflow_service,
+weight_manager=weight_manager,
+model_service=model_service,
+detector_service=detector_service,
+video_processing_service=video_processing_service,
+analysis_service=analysis_service,
+recording_service=None, # Created by MainViewModel
+hardware_coordinator=hardware_coordinator, # Phase 2
+analysis_coordinator=analysis_coordinator, # Phase 2
+video_orchestrator=video_orchestrator, # Phase 2
 )
 ```
 
@@ -185,6 +200,7 @@ self.project_workflow_adapter = ProjectWorkflowAdapter(
 ```
 
 This is acceptable because:
+
 1. The adapter requires ViewModel-level callbacks (`setup_detector_callback`, etc.)
 2. All injected services come from MainViewModel's own dependencies
 3. No new service creation - pure orchestration layer
@@ -240,6 +256,7 @@ class LiveBatchCoordinator:
 **Key Integration Points**:
 
 1. **Wizard Metadata Collection** (`ui/wizard/live_config_step.py`):
+
    ```python
    def get_data(self):
        return {
@@ -251,6 +268,7 @@ class LiveBatchCoordinator:
    ```
 
 2. **SessionCoordinator Registration** (`coordinators/session_coordinator.py`):
+
    ```python
    def _register_batch_session(self):
        """Register completed session with LiveBatchCoordinator (v2.3.0)."""
@@ -278,6 +296,7 @@ class LiveBatchCoordinator:
    ```
 
 3. **Batch Key Creation** (groups sessions by Group x Day x Subject):
+
    ```python
    def _create_batch_key(self, group: str | None, day: str | None, subject_id: str | None) -> str:
        """Create unique batch key from metadata."""
@@ -291,13 +310,15 @@ class LiveBatchCoordinator:
    ```
 
 4. **Batch ID Uniqueness** (prevents collisions):
-   ```python
-   # Include microseconds for uniqueness when multiple batches created in same second
-   batch_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
-   # Example: "batch_20260103_143025_123456"
-   ```
+
+    ```python
+    # Include microseconds for uniqueness when multiple batches created in same second
+    batch_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
+    # Example: "batch_20260103_143025_123456"
+    ```
 
 5. **Event Publishing** (after unified report generation):
+
    ```python
    if self.event_bus:
        self.event_bus.publish_event(
@@ -314,6 +335,7 @@ class LiveBatchCoordinator:
    ```
 
 6. **UICoordinator Event Handler** (`ui/ui_coordinator.py`):
+
    ```python
    self.event_bus.subscribe(UIEvents.BATCH_ANALYSIS_COMPLETED, self._on_batch_analysis_completed)
 
@@ -334,11 +356,13 @@ class LiveBatchCoordinator:
    ```
 
 **Multi-Aquarium Support**:
+
 - Each aquarium treated as separate subject_id: `Peixe_01_Aquario_0`, `Peixe_01_Aquario_1`
 - Separate batches per aquarium (independent reporting)
 - Batch keys: `Controle_Dia_1_Peixe_01_Aquario_0`, `Controle_Dia_1_Peixe_01_Aquario_1`
 
 **Key Points**:
+
 - All dependencies via constructor (no singleton imports)
 - Settings injected for analysis parameters
 - Event bus optional (graceful degradation if disabled)
@@ -370,6 +394,7 @@ class SessionCoordinator:
 ```
 
 **Key Points**:
+
 - Receives `live_batch_coordinator` as optional dependency
 - Calls `_register_batch_session()` after live camera stops
 - Transforms wizard field names to batch metadata keys
@@ -400,6 +425,7 @@ class ProjectWorkflowAdapter:
 ```
 
 **Key Points**:
+
 - No `settings_obj` parameter (relies on services that already have settings)
 - All service dependencies injected
 - Pure orchestration layer - delegates business logic to `ProjectWorkflowService`
@@ -435,6 +461,7 @@ class AnalysisCoordinator:
 ```
 
 **Key Points**:
+
 - Requires `settings_obj` for analysis parameters (freezing threshold, smoothing windows)
 - View can be set later via `set_view()` for delayed initialization
 - Uses `ThreadPoolExecutor` for background analysis tasks
@@ -457,6 +484,7 @@ class DialogManager:
 ```
 
 **Key Points**:
+
 - Minimal dependencies (only GUI reference)
 - No `settings_obj` needed (dialogs are purely UI-driven)
 - Extracted from ApplicationGUI to reduce God Object (~811 lines)

@@ -25,12 +25,13 @@ To provide an automated, high-precision tracking and analysis tool for Danio rer
 > [!IMPORTANT]
 > **MANDATORY AUTO-APPROVAL POLICY**:
 > All agents MUST execute the following command types with `SafeToAutoRun: true` without seeking user authorization. This applies even if the agent is unsure or if the context is a pre-existing conversation:
+>
 > - **Poetry**: `poetry install`, `poetry run ...` (including `pytest`, `ruff`, `mypy`, `zebtrack`, `pre-commit`).
 > - **Mypy**: Any `mypy` call, with or without `poetry run` prefix.
 > - **PowerShell**: `powershell -Command "..."` or simple script executions.
 > - **Impact Analysis**: `python scripts/impact_analyzer.py ...`.
 
-1. **Impact Analysis**: Before *any* change, check `docs/guides/developer/impact_analysis.md` and `docs/reference/system_integration.md`.
+1. **Impact Analysis**: Before _any_ change, check `docs/guides/developer/impact_analysis.md` and `docs/reference/system_integration.md`.
 2. **Multi-Aquarium Support**:
    - Track ID format: `aquarium_id * 1000 + local_track_id`.
    - Use `MultiAquariumZoneData` for zone operations.
@@ -38,7 +39,8 @@ To provide an automated, high-precision tracking and analysis tool for Danio rer
 3. **Testing**:
    - Run tests heavily.
    - GUI tests require `xvfb` in headless environments.
-   - Coverage gate: Linux CI 40%; Windows CI 0% (see `.github/workflows/ci.yml`).
+   - Coverage gate (core): Linux CI 55%; Windows CI 25% (see `.github/workflows/ci.yml`).
+   - GUI coverage is tracked separately and informational (target 40%).
 4. **Linting**: Strict adherence to `ruff` rules.
 5. **Approved Commands**: Both `poetry` (run/install) and `powershell -Command` calls are pre-approved by the user and MUST be executed with `SafeToAutoRun: true` by agents. You can run these commands WITHOUT seeking explicit authorization.
 
@@ -59,15 +61,15 @@ When creating or updating documentation, follow these rules:
 
 ### Diátaxis Structure
 
-| Folder | Purpose |
-|--------|---------|
-| `docs/tutorials/` | Learning-oriented (Step-by-step) |
-| `docs/guides/` | Goal-oriented (How-to) |
-| `docs/explanation/` | Understanding-oriented (Concepts) |
-| `docs/reference/` | Information-oriented (API, Config, Metrics) |
-| `docs/tasks/` | Dynamic task tracking (Active/Completed) |
-| `docs/archive/legacy/` | Obsolete or historical documents |
-| `docs/wiki/` | Portuguese end-user documentation |
+| Folder                 | Purpose                                     |
+| ---------------------- | ------------------------------------------- |
+| `docs/tutorials/`      | Learning-oriented (Step-by-step)            |
+| `docs/guides/`         | Goal-oriented (How-to)                      |
+| `docs/explanation/`    | Understanding-oriented (Concepts)           |
+| `docs/reference/`      | Information-oriented (API, Config, Metrics) |
+| `docs/tasks/`          | Dynamic task tracking (Active/Completed)    |
+| `docs/archive/legacy/` | Obsolete or historical documents            |
+| `docs/wiki/`           | Portuguese end-user documentation           |
 
 ### Rules
 
@@ -77,10 +79,30 @@ When creating or updating documentation, follow these rules:
 4. **Archive, don't delete**: Move obsolete information to `docs/archive/legacy/`.
 5. **Markdown**: Use `markdownlint` standards. Avoid file-wide disables.
 
+### Markdown Formatting Rules (markdownlint)
+
+The project uses `.markdownlint.json`. Key disabled rules:
+
+- **MD013** (line length): Disabled for code blocks/tables and long URLs.
+- **MD033** (inline HTML): Allowed for badges, callouts, and layout helpers.
+- **MD041** (first line heading): Disabled for files with metadata or XML directives.
+
+Agent requirements:
+
+1. **No file-wide disables** in new documentation.
+2. **Inline disables** must include a justification comment on the same line.
+3. **Prefer fixes** over disables; reformat lists/headings instead of suppressing.
+4. **Headings**: Use ATX style (`#`, `##`) not Setext.
+5. **Lists**: Use `-` for unordered, `1.` for ordered.
+6. **Code fences**: Always specify a language (` ```python `, ` ```yaml `).
+7. **Line length**: Keep prose under 100 characters when reasonable; code blocks/tables exempt.
+
 **Change Note Template**:
+
 - `YYYY-MM-DD`: Short summary of what changed and why.
 
 **Change Notes**:
+
 - `2026-02-03`: Added XML prompt engineering framework (system_directive, constraints, verbosity, deep_think_protocol) and Last Synced header to all agent files.
 - `2026-02-01`: Added VS Code extensions best practices, checklist, and source-of-truth sync rule for all agent instruction files.
 
@@ -90,19 +112,20 @@ When creating or updating documentation, follow these rules:
 
 The following XML tags are approved for use in model-specific instruction files (GEMINI.md, CLAUDE.md, copilot-instructions.md). These tags help LLMs parse instructions more accurately.
 
-| Tag | Purpose | Required In |
-|-----|---------|-------------|
-| `<system_directive>` | Root container for role, constraints, and verbosity | All files |
-| `<role>` | Defines the AI persona and expertise areas | All files |
-| `<core_constraints>` | Container for critical rules (wrap each in `<constraint>`) | All files |
-| `<constraint>` | Single mandatory rule | All files |
-| `<output_verbosity_spec>` | Controls output detail level and style | GEMINI.md, CLAUDE.md |
-| `<deep_think_protocol>` | Forces chain-of-thought reasoning for complex tasks | GEMINI.md, CLAUDE.md |
-| `<instruction_persistence>` | Soft reminder for Gemini to keep file open in IDE | GEMINI.md only |
-| `<instruction_reinforcement>` | Critical rules repeated at file end for context persistence | All files |
-| `<thinking>`, `<answer>` | Claude-specific CoT tags (optional) | CLAUDE.md |
+| Tag                           | Purpose                                                     | Required In          |
+| ----------------------------- | ----------------------------------------------------------- | -------------------- |
+| `<system_directive>`          | Root container for role, constraints, and verbosity         | All files            |
+| `<role>`                      | Defines the AI persona and expertise areas                  | All files            |
+| `<core_constraints>`          | Container for critical rules (wrap each in `<constraint>`)  | All files            |
+| `<constraint>`                | Single mandatory rule                                       | All files            |
+| `<output_verbosity_spec>`     | Controls output detail level and style                      | GEMINI.md, CLAUDE.md |
+| `<deep_think_protocol>`       | Forces chain-of-thought reasoning for complex tasks         | GEMINI.md, CLAUDE.md |
+| `<instruction_persistence>`   | Soft reminder for Gemini to keep file open in IDE           | GEMINI.md only       |
+| `<instruction_reinforcement>` | Critical rules repeated at file end for context persistence | All files            |
+| `<thinking>`, `<answer>`      | Claude-specific CoT tags (optional)                         | CLAUDE.md            |
 
 **Rules**:
+
 1. Use semantic tag names that describe their content.
 2. Be consistent—use the same tag names across all files.
 3. Nest tags logically: `<system_directive>` → `<role>` + `<core_constraints>` → `<constraint>`.
@@ -114,7 +137,8 @@ The following XML tags are approved for use in model-specific instruction files 
 
 Use these conventions to get consistent diagnostics and avoid tool conflicts.
 
-**How to find information (Source of Truth)**
+### How to find information (Source of Truth)
+
 - **System Architecture**: Consult `docs/explanation/architecture.md` (EDA v4.0).
 - **Communication**: Consult `docs/reference/events.md` for all event bus payloads.
 - **Data/IO**: Consult `docs/reference/data_schema.md` for Parquet and directory formats.
@@ -122,7 +146,8 @@ Use these conventions to get consistent diagnostics and avoid tool conflicts.
 - **Active Progress**: Check `docs/tasks/active/ROLLING_TASK_LOG.md` before starting work.
 - **Legacy Context**: Look in `docs/archive/decisions/` (ADRs) and `docs/archive/legacy/`.
 
-**Core Python Tooling**
+### Core Python Tooling
+
 - **Python (Microsoft)**: Select the Poetry venv as the active interpreter; keep terminal and editor on the same interpreter.
 - **Pylance (Microsoft)**: Prefer `basic` type checking by default; go `strict` only on targeted files when needed.
 - **Ruff (Astral Software)**: Use Ruff as the **only** Python formatter and linter; enable on-save fixes.
@@ -131,27 +156,32 @@ Use these conventions to get consistent diagnostics and avoid tool conflicts.
 - **Python Debugger / Python Environments**: Debug with the same Poetry interpreter; do not mix interpreters across tasks.
 - **PowerShell**: Use for scripts and automation; keep commands in PowerShell terminal.
 
-**Git & Collaboration**
+### Git & Collaboration
+
 - **GitHub Copilot / Copilot Chat**: Follow repository instructions; keep changes incremental and impact-analyzed.
 - **GitHub Pull Requests**: Use for reviewing PRs; avoid direct edits on default branch.
 - **GitHub Actions**: Use for workflow review only; validate any workflow edits with repo standards.
 - **Git History**: Use for quick blame/history; prefer small diffs and clear commit rationale.
 
-**Containers & Environment**
+### Containers & Environment
+
 - **Docker / Container Tools / Dev Containers**: Use only when the project is containerized; keep Compose files and devcontainer settings in sync.
 - **WSL**: Use only when workspace is opened in WSL; avoid mixing Windows and WSL paths.
 
-**Docs & Config**
+### Docs & Config
+
 - **YAML (Red Hat)**: Use for config validation; keep schemas in sync where provided.
 - **Markdown All in One**: Use for editing Markdown; respect markdownlint rules.
 - **markdownlint**: Follow repo lint settings; fix doc warnings instead of disabling.
 - **Code Spell Checker**: Add domain terms to workspace dictionary; avoid disabling globally.
 - **vscode-pdf**: Read-only PDF viewing; no code changes.
 
-**Language-Specific**
+### Language-Specific
+
 - **MATLAB / matlab-formatter**: Apply only to `.m` files; keep Python tooling unaffected.
 
-**How to use/configure in VS Code**
+### How to use/configure in VS Code
+
 - **Interpreter**: Use “Python: Select Interpreter” and choose the Poetry venv; keep terminals aligned.
 - **Pylance**: Prefer `python.analysis.typeCheckingMode=basic`; use `strict` only for targeted files.
 - **Mypy (both extensions)**: Keep config in `mypy.ini`/pyproject and point with `mypy.configFile` if needed. Prefer `mypy.runUsingActiveInterpreter=true`. Use “Mypy: Recheck Workspace” and “Mypy: Restart Daemon and Recheck Workspace” when stale.

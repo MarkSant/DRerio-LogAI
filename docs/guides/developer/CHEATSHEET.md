@@ -3,6 +3,7 @@
 ## 🚀 Quick Start
 
 ### Run App
+
 ```bash
 poetry run zebtrack                    # Standard launch
 poetry run python -m zebtrack          # Alternative
@@ -10,6 +11,7 @@ F5 in VS Code                          # Debug mode
 ```
 
 ### Debug Configurations (F5)
+
 - **ZebTrack: Run App** - Standard
 - **ZebTrack: Debug Tests (Fast)** - Quick test suite
 - **ZebTrack: Debug GUI Tests** - GUI-specific
@@ -55,22 +57,23 @@ zebtrack/io/recorder.py:Recorder._write_detection()
 
 ## 📁 File Navigation
 
-| Component | Location |
-|-----------|----------|
-| Entry point | `zebtrack/__main__.py` |
-| Settings | `zebtrack/settings.py` |
-| Main ViewModel | `core/main_view_model.py` |
-| State Manager | `core/state_manager.py` |
-| Detector Service | `core/detector_service.py` |
-| Video Source | `io/video_source.py` |
-| Recorder | `io/recorder.py` |
-| Wizard Manager | `ui/wizard/wizard_manager.py` |
-| Project Manager | `core/project_manager.py` |
-| UI Coordinator | `core/ui_coordinator.py` |
+| Component        | Location                      |
+| ---------------- | ----------------------------- |
+| Entry point      | `zebtrack/__main__.py`        |
+| Settings         | `zebtrack/settings.py`        |
+| Main ViewModel   | `core/main_view_model.py`     |
+| State Manager    | `core/state_manager.py`       |
+| Detector Service | `core/detector_service.py`    |
+| Video Source     | `io/video_source.py`          |
+| Recorder         | `io/recorder.py`              |
+| Wizard Manager   | `ui/wizard/wizard_manager.py` |
+| Project Manager  | `core/project_manager.py`     |
+| UI Coordinator   | `core/ui_coordinator.py`      |
 
 ## 🐛 Common Issues & Fixes
 
 ### UI Freezing
+
 ```python
 # ❌ WRONG: Blocking main thread
 def on_analyze():
@@ -82,6 +85,7 @@ def on_analyze():
 ```
 
 ### Zone Scaling
+
 ```python
 # ❌ WRONG: Using template coords directly
 detector.detect(frame, zones=project.roi_template.zones)
@@ -91,6 +95,7 @@ detector.set_zones(zones, video_width, video_height)
 ```
 
 ### Missing Track IDs
+
 ```python
 # ❌ WRONG: Assuming always present
 track_id = detection["track_id"]
@@ -129,7 +134,7 @@ logger.error("recorder.write.failed", error=str(e), detection=det)
 
 ## 🏗️ Architecture Flow
 
-```
+```text
 ┌─────────────┐
 │ VideoSource │ feeds frames
 └──────┬──────┘
@@ -162,7 +167,8 @@ logger.error("recorder.write.failed", error=str(e), detection=det)
 ## 📊 Data Schema
 
 Parquet output columns:
-```
+
+```text
 timestamp, frame, track_id, x1, y1, x2, y2, confidence
 + derived: center_x, center_y, center_x_cm, center_y_cm
 ```
@@ -170,6 +176,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence
 ## 🐟 Multi-Aquarium Processing
 
 ### Data Structures
+
 ```python
 from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
 
@@ -186,10 +193,12 @@ multi = MultiAquariumZoneData(
 ```
 
 ### Processing Modes
+
 - **Parallel** (default): `sequential_processing=False` - 1 video pass, both aquariums
 - **Sequential**: `sequential_processing=True` - 2 video passes, 1 aquarium each
 
 ### Track ID Convention
+
 ```python
 global_id = aquarium_id * 1000 + local_id
 # Aquarium 0: IDs 0-999
@@ -197,6 +206,7 @@ global_id = aquarium_id * 1000 + local_id
 ```
 
 ### Key Events
+
 ```python
 Events.ZONE_PROCESSING_MODE_CHANGED  # {sequential: bool}
 Events.ZONE_AQUARIUM_SELECTED        # {aquarium_id: int}
@@ -204,7 +214,8 @@ Events.ZONE_MULTI_DETECT_COMPLETED   # {count: int, aquariums: list}
 ```
 
 ### Output Structure
-```
+
+```text
 video_results/
 ├── aquarium_0/
 │   ├── 3_CoordMovimento_{video}.parquet
@@ -251,14 +262,14 @@ poetry run python -X tracemalloc=5 -m zebtrack
 ```yaml
 # config.local.yaml (overrides config.yaml)
 logging:
-  level: DEBUG  # ERROR | WARNING | INFO | DEBUG
+  level: DEBUG # ERROR | WARNING | INFO | DEBUG
   file: logs/debug.log
 
 ui_features:
   enable_event_queue: true
 
 hardware:
-  backend: openvino  # auto | cpu | cuda | openvino
+  backend: openvino # auto | cpu | cuda | openvino
 ```
 
 ## 🎨 UI Guidelines

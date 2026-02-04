@@ -3,23 +3,24 @@
 
 # ZebTrack-AI
 
-  **Plataforma Inteligente de Rastreamento e Análise Comportamental para *Danio rerio* (Zebrafish)**
+**Plataforma Inteligente de Rastreamento e Análise Comportamental para _Danio rerio_ (Zebrafish)**
 
-  ![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)
-  ![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
-  ![Python](https://img.shields.io/badge/python-3.11%2B-yellow.svg)
-  ![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
-  ![Tests](https://img.shields.io/badge/tests-2568%20passing-brightgreen.svg)
-  ![Coverage](https://img.shields.io/badge/coverage-61%25-orange.svg)
+![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)
+![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
+![Python](https://img.shields.io/badge/python-3.11%2B-yellow.svg)
+![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
+![Tests](https://img.shields.io/badge/tests-2568%20passing-brightgreen.svg)
+[![Codecov](https://codecov.io/gh/MarkSant/ZebTrack-AI/branch/main/graph/badge.svg)](https://codecov.io/gh/MarkSant/ZebTrack-AI)
 
-  [Documentação](docs/) | [Guia de Contribuição](docs/guides/developer/DEVELOPER_GUIDE.md) | [Arquitetura](docs/architecture/ARCHITECTURE.md) | [Changelog](docs/changelog.md)
+[Documentação](docs/) | [Guia de Contribuição](docs/guides/developer/DEVELOPER_GUIDE.md) | [Arquitetura](docs/architecture/ARCHITECTURE.md) | [Changelog](docs/changelog.md)
+
 </div>
 
 ---
 
 ## 📋 Sobre o Projeto
 
-O **ZebTrack-AI** é uma solução completa e de código aberto para análise automatizada de comportamento de peixes zebrafish (*Danio rerio*) em experimentos científicos. Desenvolvido com foco em **reprodutibilidade**, **precisão** e **facilidade de uso**, o sistema combina técnicas avançadas de visão computacional com Deep Learning para rastreamento multi-objeto em tempo real.
+O **ZebTrack-AI** é uma solução completa e de código aberto para análise automatizada de comportamento de peixes zebrafish (_Danio rerio_) em experimentos científicos. Desenvolvido com foco em **reprodutibilidade**, **precisão** e **facilidade de uso**, o sistema combina técnicas avançadas de visão computacional com Deep Learning para rastreamento multi-objeto em tempo real.
 
 ### 🎯 Motivação
 
@@ -98,48 +99,48 @@ Suporte avançado para análise simultânea de múltiplos aquários:
 
 ### Requisitos do Sistema
 
-| Componente | Versão Mínima | Recomendado |
-|-----------|---------------|-------------|
-| Python | 3.11 | 3.12+ |
-| RAM | 4 GB | 8 GB+ |
-| CPU | Dual-core | Quad-core+ |
-| GPU | Não requerida | NVIDIA com CUDA (opcional) |
-| SO | Windows 10, Linux, macOS | Ubuntu 22.04+ |
+| Componente | Versão Mínima            | Recomendado                |
+| ---------- | ------------------------ | -------------------------- |
+| Python     | 3.11                     | 3.12+                      |
+| RAM        | 4 GB                     | 8 GB+                      |
+| CPU        | Dual-core                | Quad-core+                 |
+| GPU        | Não requerida            | NVIDIA com CUDA (opcional) |
+| SO         | Windows 10, Linux, macOS | Ubuntu 22.04+              |
 
 ### Instalação Rápida
 
 1. **Pré-requisitos**: Certifique-se de ter Python 3.11+ e Poetry instalados
 
-    ```bash
-    # Verificar versão do Python
-    python --version
+   ```bash
+   # Verificar versão do Python
+   python --version
 
-    # Instalar Poetry (se necessário)
-    curl -sSL https://install.python-poetry.org | python3 -
-    ```
+   # Instalar Poetry (se necessário)
+   curl -sSL https://install.python-poetry.org | python3 -
+   ```
 
 2. **Clone o repositório**:
 
-    ```bash
-    git clone https://github.com/MarkSant/ZebTrack-AI.git
-    cd ZebTrack-AI
-    ```
+   ```bash
+   git clone https://github.com/MarkSant/ZebTrack-AI.git
+   cd ZebTrack-AI
+   ```
 
 3. **Instale as dependências**:
 
-    ```bash
-    poetry install
-    ```
+   ```bash
+   poetry install
+   ```
 
 4. **(Opcional) Configure parâmetros locais**:
 
-    ```bash
-    # Copie o template de configuração local
-    cp config.yaml config.local.yaml
+   ```bash
+   # Copie o template de configuração local
+   cp config.yaml config.local.yaml
 
-    # Edite config.local.yaml com suas preferências
-    # (índice da câmera, porta Arduino, parâmetros de detecção, etc.)
-    ```
+   # Edite config.local.yaml com suas preferências
+   # (índice da câmera, porta Arduino, parâmetros de detecção, etc.)
+   ```
 
 ### Instalação para Desenvolvimento
 
@@ -337,7 +338,8 @@ A documentação técnica está disponível na pasta `docs/`:
 
 ### Guias Essenciais
 
-* 📚 [**CHEATSHEET.md**](docs/guides/developer/CHEATSHEET.md) - Referência rápida de comandos e padrões
+- 📚 [**CHEATSHEET.md**](docs/guides/developer/CHEATSHEET.md) - Referência rápida de comandos e padrões
+
 - 🏗️ [**ARCHITECTURE.md**](docs/architecture/ARCHITECTURE.md) - Arquitetura Event-Driven e Mediator
 - 👨‍💻 [**DEVELOPER_GUIDE.md**](docs/guides/developer/DEVELOPER_GUIDE.md) - Guia completo para contribuidores
 - 🧙 [**DEVELOPER_GUIDE_WIZARD.md**](docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md) - Desenvolvimento do Wizard
@@ -345,7 +347,8 @@ A documentação técnica está disponível na pasta `docs/`:
 
 ### Guias Técnicos
 
-* 🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/architecture/DEPENDENCY_INJECTION_GUIDE.md) - Padrões de DI
+- 🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/architecture/DEPENDENCY_INJECTION_GUIDE.md) - Padrões de DI
+
 - 📡 [**EVENT_BUS_GUIDE.md**](docs/architecture/EVENT_BUS_GUIDE.md) - Sistema de eventos
 - 🗺️ [**COORDINATE_SYSTEMS.md**](docs/reference/COORDINATE_SYSTEMS.md) - Sistemas de coordenadas
 - 🎯 [**STATE_MANAGEMENT_GUIDE.md**](docs/architecture/STATE_MANAGEMENT_GUIDE.md) - Gerenciamento de estado
@@ -353,7 +356,8 @@ A documentação técnica está disponível na pasta `docs/`:
 
 ### Guias Operacionais
 
-* 📋 [**REFERENCE_GUIDE.md**](docs/reference/REFERENCE_GUIDE.md) - Guia operacional completo
+- 📋 [**REFERENCE_GUIDE.md**](docs/reference/REFERENCE_GUIDE.md) - Guia operacional completo
+
 - 🔄 [**WORKFLOWS.md**](docs/guides/developer/WORKFLOWS.md) - Fluxos de trabalho detalhados
 - 🐛 [**QUICK_DEBUG_GUIDE.md**](docs/guides/developer/QUICK_DEBUG_GUIDE.md) - Solução de problemas
 - ⚠️ [**KNOWN_ISSUES.md**](docs/reference/KNOWN_ISSUES.md) - Problemas conhecidos e soluções
@@ -361,13 +365,13 @@ A documentação técnica está disponível na pasta `docs/`:
 
 ### Documentos Históricos
 
-* 📦 [**archive/**](docs/archive/) - Documentação de versões anteriores
+- 📦 [**archive/**](docs/archive/) - Documentação de versões anteriores
 
 ## 🏗️ Estrutura do Projeto
 
 ### Organização de Diretórios
 
-```
+```text
 ZebTrack-AI/
 ├── src/zebtrack/               # Código-fonte principal
 │   ├── __main__.py            # Entry point e Composition Root (DI)
@@ -439,16 +443,16 @@ ZebTrack-AI/
 
 #### Camadas Principais
 
-| Camada | Responsabilidade | Componentes Chave |
-|--------|------------------|-------------------|
-| **Model** | Estado e dados | `StateManager`, `ProjectManager`, `DetectorService` |
-| **View** | Interface Tkinter | `GUI`, `Dialogs`, `Wizard` |
-| **ViewModel** | Orquestração | `MainViewModel`, `UICoordinator` |
-| **Services** | Lógica de negócios | `WizardService`, `AnalysisService`, `LiveCameraService` |
+| Camada        | Responsabilidade   | Componentes Chave                                       |
+| ------------- | ------------------ | ------------------------------------------------------- |
+| **Model**     | Estado e dados     | `StateManager`, `ProjectManager`, `DetectorService`     |
+| **View**      | Interface Tkinter  | `GUI`, `Dialogs`, `Wizard`                              |
+| **ViewModel** | Orquestração       | `MainViewModel`, `UICoordinator`                        |
+| **Services**  | Lógica de negócios | `WizardService`, `AnalysisService`, `LiveCameraService` |
 
 #### Fluxo de Dados (Event-Driven)
 
-```
+```text
 User → UI Event → EventBus → Handler → StateManager → UI Update
                                 ↓
                           Services/Model
@@ -484,14 +488,14 @@ poetry run pytest --cov=src/zebtrack --cov-report=html
 
 ### Estatísticas de Testes
 
-| Categoria | Quantidade | Tempo |
-|-----------|-----------|-------|
-| **Testes Unitários** | 1586 | ~2 min |
-| **Testes de GUI** | 949 | ~3 min |
-| **Testes de Integração** | 33 | ~1 min |
-| **Testes E2E** | 16 | ~30s |
-| **Testes Lentos** | 35 | ~1 min |
-| **TOTAL** | **2568** | **6-7 min** |
+| Categoria                | Quantidade | Tempo       |
+| ------------------------ | ---------- | ----------- |
+| **Testes Unitários**     | 1586       | ~2 min      |
+| **Testes de GUI**        | 949        | ~3 min      |
+| **Testes de Integração** | 33         | ~1 min      |
+| **Testes E2E**           | 16         | ~30s        |
+| **Testes Lentos**        | 35         | ~1 min      |
+| **TOTAL**                | **2568**   | **6-7 min** |
 
 ### Cobertura
 
@@ -582,7 +586,7 @@ Consulte o [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) para diretrizes complet
 
 Este software foi desenvolvido para suportar pesquisas científicas com zebrafish. Se você usar o ZebTrack-AI em suas publicações, por favor cite:
 
-```
+```text
 Santos, M. (2025). ZebTrack-AI: Automated Behavioral Tracking and Analysis
 Platform for Danio rerio. GitHub repository.
 https://github.com/MarkSant/ZebTrack-AI
@@ -629,9 +633,9 @@ Agradecimentos especiais a todos os contribuidores e à comunidade open source q
 
 <div align="center">
 
-**Desenvolvido com ❤️ para pesquisa científica**
+<h4>Desenvolvido com ❤️ para pesquisa científica</h4>
 
-**UNESP - Laboratório de Pesquisa de Canabidiol**
+<h4>UNESP - Laboratório de Pesquisa de Canabidiol</h4>
 
 [⬆ Voltar ao topo](#zebtrack-ai)
 

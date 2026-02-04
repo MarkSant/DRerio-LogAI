@@ -103,3 +103,54 @@ def test_get_zone_data_prefers_video_metadata(worker_config):
     fallback_zone = worker._get_zone_data_for_video(meta_without_zone)
     assert isinstance(fallback_zone, ZoneData)
     assert fallback_zone is worker._default_zone_data
+
+
+def test_sanitize_component_replaces_invalid_chars():
+    assert _WorkerProcess._sanitize_component("A/B:C*") == "A_B_C"
+    assert _WorkerProcess._sanitize_component("  many   spaces ") == "many_spaces"
+    assert _WorkerProcess._sanitize_component("") == "Indefinido"
+
+
+def test_format_day_handles_numeric_and_strings():
+    assert _WorkerProcess._format_day(None) == "Indefinido"
+    assert _WorkerProcess._format_day("2") == "02"
+    assert _WorkerProcess._format_day(3.0) == "03"
+    assert _WorkerProcess._format_day("D7") == "07"
+    assert _WorkerProcess._format_day("Day") == "Day"
+
+
+def test_format_subject_handles_numeric_and_strings():
+    assert _WorkerProcess._format_subject(None) == "Indefinido"
+    assert _WorkerProcess._format_subject("4") == "04"
+    assert _WorkerProcess._format_subject(5.0) == "05"
+    assert _WorkerProcess._format_subject("S9") == "09"
+    assert _WorkerProcess._format_subject("Subject") == "Subject"
+
+
+def test_check_cancellation_sets_flag(worker_config):
+    result_queue: mp.Queue[object] = mp.Queue()
+    command_queue: mp.Queue[str] = mp.Queue()
+    worker = _WorkerProcess(worker_config, result_queue, command_queue)
+
+    assert worker._check_cancellation() is False
+    command_queue.put("cancel")
+    assert worker._check_cancellation() is True
+    assert worker._check_cancellation() is True
+
+
+def test_send_progress_puts_message(worker_config):
+    result_queue: mp.Queue[object] = mp.Queue()
+    command_queue: mp.Queue[object] = mp.Queue()
+    worker = _WorkerProcess(worker_config, result_queue, command_queue)
+
+    worker._send_progress(1, 2, 0.5, "Processing", "exp1", stats={"fps": 30})
+
+    msg = result_queue.get(timeout=1)
+    assert isinstance(msg, dict)
+    assert msg["type"] == "progress"
+    assert msg["index"] == 1
+    assert msg["total"] == 2
+    assert msg["fraction"] == 0.5
+    assert msg["message"] == "Processing"
+    assert msg["experiment_id"] == "exp1"
+    assert msg["stats"] == {"fps": 30}

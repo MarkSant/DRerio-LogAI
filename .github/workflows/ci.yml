@@ -78,6 +78,10 @@ jobs:
           poetry install --no-interaction --no-ansi
         timeout-minutes: 10
 
+      - name: Install security tools
+        run: |
+          poetry run pip install pip-audit bandit
+
       - name: Build wizard template archive
         run: |
           poetry run python scripts/build_templates.py
@@ -99,6 +103,18 @@ jobs:
           key: ${{ runner.os }}-build-${{ hashFiles('src/zebtrack/ui/wizard/templates/*.yaml', 'locale/**/*.po') }}
           restore-keys: |
             ${{ runner.os }}-build-
+
+      - name: Run markdownlint
+        run: |
+          poetry run pre-commit run markdownlint --all-files
+
+      - name: Run pip-audit
+        run: |
+          poetry run pip-audit --strict
+
+      - name: Run bandit
+        run: |
+          poetry run bandit -r src/zebtrack -ll
 
       - name: Run ruff check
         run: |
@@ -232,19 +248,52 @@ jobs:
       - name: "Run tests (Linux - with xvfb)"
         if: runner.os == 'Linux'
         run: |
-          xvfb-run --auto-servernum poetry run pytest --cov=zebtrack --cov-report=xml --cov-fail-under=40 --timeout=300 --timeout-method=thread
+          xvfb-run --auto-servernum poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=55 --timeout=300 --timeout-method=thread
+        timeout-minutes: 45
+
+      - name: "Run GUI tests (Linux - with xvfb)"
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run --auto-servernum poetry run pytest -m gui -n0 --reruns 2 --reruns-delay 1 --cov=zebtrack --cov-report=xml:coverage-gui.xml --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       - name: "Run tests (Windows)"
         if: runner.os == 'Windows'
         run: |
-          poetry run pytest --cov=zebtrack --cov-report=xml --cov-fail-under=0 --timeout=300 --timeout-method=thread
+          $Env:ZEBTRACK_HEADLESS_TESTS = "1"
+          poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=25 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
+
+      - name: Upload Codecov core coverage (Linux)
+        if: runner.os == 'Linux'
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage-core.xml
+          flags: core
+          fail_ci_if_error: true
+
+      - name: Upload Codecov gui coverage (Linux)
+        if: runner.os == 'Linux'
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage-gui.xml
+          flags: gui
+          fail_ci_if_error: false
+
+      - name: Upload Codecov core coverage (Windows)
+        if: runner.os == 'Windows'
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage-core.xml
+          flags: core
+          fail_ci_if_error: true
 
       - name: Archive coverage results
         uses: actions/upload-artifact@v6
         with:
           name: coverage-report-${{ matrix.os }}
           path: |
-            coverage.xml
+            coverage-core.xml
+            coverage-gui.xml
+          if-no-files-found: warn
           retention-days: 30

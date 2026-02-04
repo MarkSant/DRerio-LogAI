@@ -1,4 +1,5 @@
 import os
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import cv2
@@ -16,7 +17,7 @@ def dummy_video_file():
     width, height = 64, 48
     fps = 10
     frame_count = 5
-    fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+    fourcc = cast(Any, cv2).VideoWriter_fourcc(*"MJPG")
 
     writer = cv2.VideoWriter(video_path, fourcc, fps, (width, height))
     if not writer.isOpened():
@@ -154,7 +155,7 @@ def test_camera_init_success(mock_video_capture):
     camera = Camera()
     assert isinstance(camera, FrameSource)
     # Check that the underlying cv2.VideoCapture was called
-    cv2.VideoCapture.assert_called_once()
+    cast(MagicMock, cv2.VideoCapture).assert_called_once()
     camera.release()
 
 

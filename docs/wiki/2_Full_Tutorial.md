@@ -78,13 +78,13 @@ This tutorial walks through the complete ZebTrack-AI workflow: creating a projec
 
 Reports now include enhanced velocity and geotaxis metrics:
 
-| Metric | Description |
-| --- | --- |
-| **Mean Speed (cm/s)** | Average swimming velocity |
-| **Max Speed (cm/s)** | Maximum instantaneous velocity |
-| **Median Speed (cm/s)** | Median velocity (robust to outliers) |
-| **Geotaxis Zona 1 - Fundo (%)** | Time spent in bottom zone |
-| **Geotaxis Zona 2 (%)** | Time spent in middle zone |
+| Metric                          | Description                          |
+| ------------------------------- | ------------------------------------ |
+| **Mean Speed (cm/s)**           | Average swimming velocity            |
+| **Max Speed (cm/s)**            | Maximum instantaneous velocity       |
+| **Median Speed (cm/s)**         | Median velocity (robust to outliers) |
+| **Geotaxis Zona 1 - Fundo (%)** | Time spent in bottom zone            |
+| **Geotaxis Zona 2 (%)**         | Time spent in middle zone            |
 
 > 📝 **Note**: Column names in Word reports now display with proper units (e.g., "Max Speed (cm/s)" instead of "Max Speed Cm S").
 

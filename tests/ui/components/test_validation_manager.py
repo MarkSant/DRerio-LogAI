@@ -1,7 +1,8 @@
 """Tests for ValidationManager component."""
 
 from collections import Counter
-from unittest.mock import Mock, patch
+from types import SimpleNamespace
+from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
@@ -1434,3 +1435,120 @@ class TestEdgeCases:
         result = validation_manager.build_roi_template_identifier(template)
 
         assert result == "project:"  # Default location with empty name
+
+
+@pytest.mark.gui
+class TestSaveGlobalConfigFromWidget:
+    """Tests for save_global_config_from_widget."""
+
+    def test_save_global_config_validation_error(self, mock_gui):
+        """Show validation error for invalid values."""
+        manager = ValidationManager(mock_gui, settings_obj=Mock())
+
+        manager.save_global_config_from_widget(
+            {
+                "video_processing": {
+                    "fps": 0,
+                    "processing_interval": 10,
+                    "display_interval": 10,
+                    "processing_offset": 0,
+                },
+                "recorder": {"flush_interval_seconds": 5.0, "flush_row_threshold": 500},
+                "trajectory_smoothing": {"window_length": 7, "polyorder": 3},
+                "roi_inclusion_rule": "centroid_in",
+                "roi_buffer_radius_value": 0.0,
+                "roi_min_bbox_overlap_ratio": 0.5,
+            }
+        )
+
+        mock_gui.show_error.assert_called_once()
+        assert "Erro de Validação" in mock_gui.show_error.call_args[0][0]
+
+    def test_save_global_config_without_settings(self, mock_gui):
+        """Show error when settings object is missing."""
+        manager = ValidationManager(mock_gui, settings_obj=None)
+
+        manager.save_global_config_from_widget(
+            {
+                "video_processing": {
+                    "fps": 30,
+                    "processing_interval": 10,
+                    "display_interval": 10,
+                    "processing_offset": 0,
+                },
+                "recorder": {"flush_interval_seconds": 5.0, "flush_row_threshold": 500},
+                "trajectory_smoothing": {"window_length": 7, "polyorder": 3},
+                "roi_inclusion_rule": "centroid_in",
+                "roi_buffer_radius_value": 0.0,
+                "roi_min_bbox_overlap_ratio": 0.5,
+            }
+        )
+
+        mock_gui.show_error.assert_called_once()
+        assert "Settings não disponível" in mock_gui.show_error.call_args[0][1]
+
+    @patch("zebtrack.ui.components.validation_manager.Path.exists", return_value=False)
+    @patch("zebtrack.ui.components.validation_manager.yaml.safe_dump")
+    @patch("zebtrack.ui.components.validation_manager.Settings.model_validate")
+    def test_save_global_config_success(
+        self,
+        mock_model_validate,
+        mock_safe_dump,
+        _mock_exists,
+        mock_gui,
+    ):
+        """Persist overrides and update settings object on success."""
+        settings_obj = Mock()
+        settings_obj.model_dump.return_value = {
+            "video_processing": {},
+            "recorder": {},
+            "trajectory_smoothing": {},
+        }
+
+        validated = SimpleNamespace(
+            model_fields={
+                "video_processing": None,
+                "recorder": None,
+                "trajectory_smoothing": None,
+                "roi_inclusion_rule": None,
+                "roi_buffer_radius_value": None,
+                "roi_min_bbox_overlap_ratio": None,
+                "behavioral_analysis": None,
+            },
+            video_processing={"fps": 30},
+            recorder={"flush_interval_seconds": 5.0},
+            trajectory_smoothing={"window_length": 7},
+            roi_inclusion_rule="centroid_in",
+            roi_buffer_radius_value=0.0,
+            roi_min_bbox_overlap_ratio=0.5,
+            behavioral_analysis={},
+        )
+        mock_model_validate.return_value = validated
+
+        manager = ValidationManager(mock_gui, settings_obj=settings_obj)
+
+        with patch("builtins.open", mock_open()):
+            manager.save_global_config_from_widget(
+                {
+                    "video_processing": {
+                        "fps": 30,
+                        "processing_interval": 10,
+                        "display_interval": 10,
+                        "processing_offset": 0,
+                    },
+                    "recorder": {
+                        "flush_interval_seconds": 5.0,
+                        "flush_row_threshold": 500,
+                    },
+                    "trajectory_smoothing": {"window_length": 7, "polyorder": 3},
+                    "roi_inclusion_rule": "centroid_in",
+                    "roi_buffer_radius_value": 0.0,
+                    "roi_min_bbox_overlap_ratio": 0.5,
+                }
+            )
+
+        mock_model_validate.assert_called_once()
+        mock_safe_dump.assert_called_once()
+        mock_gui._reload_config_editor_values_widget.assert_called_once()
+        mock_gui.show_info.assert_called_once()
+        assert settings_obj.video_processing == {"fps": 30}
