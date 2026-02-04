@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import queue
 import typing
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -96,3 +97,19 @@ def test_get_zone_data_prefers_video_metadata(worker_config):
     meta_without_zone = {"path": "/video2.mp4"}
     fallback_zone = worker._get_zone_data_for_video(meta_without_zone)
     assert fallback_zone is worker._default_zone_data
+
+
+def test_check_cancellation_sets_flag(worker_config):
+    """Test cancellation check with queue.Queue for determinism."""
+    result_queue = mp.Queue()
+    # Use standard queue for deterministic unit testing of logic
+    command_queue = queue.Queue()
+
+    worker = _WorkerProcess(worker_config, result_queue, command_queue)
+
+    assert worker._check_cancellation() is False
+
+    command_queue.put("cancel")
+
+    assert worker._check_cancellation() is True
+    assert worker._cancel_requested is True

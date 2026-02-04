@@ -326,6 +326,7 @@ def tkinter_session_root():
 
         warnings.warn("Headless environment detected. Using Mock for Tkinter root.", stacklevel=2)
         root = MagicMock()
+        root._w = "."  # Explicitly set widget path string to satisfy tkinter logic
         root.tk = MagicMock()
         root.tk.call = MagicMock(return_value=())
         root.winfo_id = MagicMock(return_value=12345)
@@ -463,6 +464,7 @@ def tkinter_root(tkinter_session_root):
 
     if isinstance(tkinter_session_root, MagicMock):
         test_window = MagicMock()
+        test_window._w = ".mock_toplevel"  # Explicitly set widget path string
         test_window.master = tkinter_session_root
         test_window.tk = tkinter_session_root.tk
         test_window.winfo_id = MagicMock(return_value=67890)
