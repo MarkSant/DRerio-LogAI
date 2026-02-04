@@ -3,13 +3,14 @@
 ## ✅ Completed Tasks
 
 ### Phase 1: Core Fixes
+
 - [x] **Fix 1: UI Status Clearing**
   - [x] Added `self._publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})` after unified report completion
   - [x] Verified status message set at start and cleared at end
   - [x] Added test: `test_status_clears_after_unified_report_success`
 
 - [x] **Fix 2: Metadata Re-Enrichment**
-  - [x] Added metadata lookup after `pd.read_parquet()` 
+  - [x] Added metadata lookup after `pd.read_parquet()`
   - [x] Implemented selective update for "unassigned" group_id
   - [x] Implemented selective update for "unknown" experiment_id
   - [x] Added tests: `test_metadata_enrichment_updates_unassigned_group_id`, `test_metadata_enrichment_updates_unknown_experiment_id`
@@ -22,6 +23,7 @@
   - [x] Added test: `test_dataframe_alignment_with_mismatched_schemas`
 
 ### Phase 2: User Warnings
+
 - [x] **ROI Mismatch Warning**
   - [x] Added warning dialog when schemas differ
   - [x] Created `suppress_roi_mismatch_warning` setting in `UIFeatureFlags`
@@ -30,6 +32,7 @@
   - [x] Added tests: `test_roi_mismatch_warning_shown_when_schemas_differ`, `test_roi_mismatch_warning_suppressed_by_setting`
 
 ### Phase 3: Proactive Schema Standardization
+
 - [x] **Helper Method**
   - [x] Created `_find_project_roi_names()` method
   - [x] Searches videos for first one with zone data
@@ -53,11 +56,13 @@
   - [x] Updated export call to pass ROI names through pipeline
 
 ### Phase 4: Code Cleanup
+
 - [x] **Dead Code Removal**
   - [x] Removed `self.emit_event("reports.generate_unified", {})` from `processing_reports.py`
   - [x] Verified no event bus warnings in logs
 
 ### Phase 5: Testing
+
 - [x] **Test Suite Creation**
   - [x] Created `tests/coordinators/test_unified_report.py` (11 tests)
   - [x] Added DataTransformer tests to `tests/analysis/test_data_transformer.py` (8 tests)
@@ -65,6 +70,7 @@
   - [x] Verified all syntax is correct
 
 ### Phase 6: Documentation
+
 - [x] **Implementation Summary**
   - [x] Created `IMPLEMENTATION_SUMMARY.md` with technical details
   - [x] Documented all changes and rationale
@@ -79,6 +85,7 @@
 ## 📋 Files Changed
 
 ### Modified Files (6)
+
 1. `src/zebtrack/coordinators/processing_coordinator.py` - Core orchestration logic
 2. `src/zebtrack/analysis/data_transformer.py` - ROI column standardization
 3. `src/zebtrack/analysis/reporter.py` - Export with schema standardization
@@ -87,18 +94,22 @@
 6. `src/zebtrack/ui/components/processing_reports.py` - Dead code removal
 
 ### New Test Files (1)
-7. `tests/coordinators/test_unified_report.py` - 11 comprehensive tests
+
+1. `tests/coordinators/test_unified_report.py` - 11 comprehensive tests
 
 ### Modified Test Files (1)
-8. `tests/analysis/test_data_transformer.py` - 8 new tests added
+
+1. `tests/analysis/test_data_transformer.py` - 8 new tests added
 
 ### Documentation Files (2)
-9. `IMPLEMENTATION_SUMMARY.md` - Technical summary
-10. `IMPLEMENTATION_CHECKLIST.md` (this file) - Task tracking
+
+1. `IMPLEMENTATION_SUMMARY.md` - Technical summary
+2. `IMPLEMENTATION_CHECKLIST.md` (this file) - Task tracking
 
 ## 🧪 Test Coverage
 
 ### Unified Report Tests (11)
+
 - ✅ Status clearing (success case)
 - ✅ Status not cleared (failure case)
 - ✅ Metadata enrichment (group_id)
@@ -112,6 +123,7 @@
 - ✅ Full workflow integration test
 
 ### Data Transformer Tests (8)
+
 - ✅ Pad missing columns
 - ✅ Return unchanged (no expected ROIs)
 - ✅ Handle empty expected list
@@ -124,18 +136,21 @@
 ## ✅ Validation
 
 ### Code Quality
+
 - [x] All Python files compile without syntax errors
 - [x] All imports work correctly
 - [x] No linting errors introduced
 - [x] Follows existing code style
 
 ### Backward Compatibility
+
 - [x] Existing parquets handled by alignment logic
 - [x] New setting has safe default
 - [x] API changes are backward compatible (optional parameters)
 - [x] No breaking changes to existing workflows
 
 ### User Experience
+
 - [x] Status bar updates correctly
 - [x] Metadata appears correctly in unified reports
 - [x] Warning dialog provides clear guidance
@@ -144,6 +159,7 @@
 ## 🚀 Next Steps for User
 
 1. **Test in Development Environment**
+
    ```bash
    # Run fast tests
    poetry run pytest -q
@@ -165,6 +181,7 @@
 
 3. **Optional Configuration**
    - If ROI mismatch warnings become annoying, add to `config.yaml`:
+
      ```yaml
      ui_features:
        suppress_roi_mismatch_warning: true

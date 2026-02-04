@@ -16,10 +16,13 @@
 Implement **two major features** for experimental workflow management:
 
 ### Feature 1: LiveBatchCoordinator Integration
+
 Activate the existing `LiveBatchCoordinator` implementation to enable unified batch reporting across multiple live camera sessions.
 
 ### Feature 2: Experiment Progress Dashboard
+
 Create an interactive UI in the existing "Progresso do Experimento" tab where users can:
+
 - Click on Day/Group blocks to see session details
 - Select subjects (cobaias) for new sessions
 - Track what has been done vs. planned
@@ -56,6 +59,7 @@ Before starting, read these documents in order:
 ### Current State
 
 **✅ Already Implemented**:
+
 - Complete implementation in `src/zebtrack/coordinators/live_batch_coordinator.py` (433 lines)
 - Batch tracking logic with `BatchMetadata` dataclass
 - Unified report generation via `AnalysisService`
@@ -64,6 +68,7 @@ Before starting, read these documents in order:
 - Handler `_on_batch_analysis_completed()` ready in `UICoordinator`
 
 **❌ Not Integrated**:
+
 - Never instantiated in `src/zebtrack/__main__.py` (Composition Root)
 - Wizard doesn't collect batch metadata (`group`, `day`, `subject_id`)
 - No UI to mark batch completion or trigger reports
@@ -76,6 +81,7 @@ Before starting, read these documents in order:
 **File**: `src/zebtrack/ui/wizard/live_config_step.py`
 
 **Add to `__init__()` (around line 85)**:
+
 ```python
 # Experimental design metadata (v2.3.0)
 self.experimental_group_var = StringVar(value="")  # "Controle", "Tratado", etc.
@@ -85,6 +91,7 @@ self.is_batch_last_session_var = BooleanVar(value=False)  # Mark as final sessio
 ```
 
 **Add to `build_ui()` (create new section after recording settings)**:
+
 ```python
 # === Experimental Design Section ===
 experiment_frame = LabelFrame(self, text="Design Experimental (Opcional)",
@@ -129,6 +136,7 @@ experiment_frame.columnconfigure(1, weight=1)
 ```
 
 **Update `gather_data()` to include new fields**:
+
 ```python
 def gather_data(self) -> dict:
     """Gather step data including experimental metadata."""
@@ -145,6 +153,7 @@ def gather_data(self) -> dict:
 ```
 
 **Validation** (optional but recommended):
+
 ```python
 def validate(self) -> tuple[bool, str]:
     """Validate live config settings."""
@@ -171,6 +180,7 @@ def validate(self) -> tuple[bool, str]:
 **Location**: Composition Root (around lines 140-280)
 
 **Add after creating `session_coordinator` (around line 230)**:
+
 ```python
 # ============================================================================
 # LiveBatchCoordinator - Unified batch reporting (v2.3.0)
@@ -192,6 +202,7 @@ log.info(
 ```
 
 **Pass to SessionCoordinator constructor** (around line 240):
+
 ```python
 session_coordinator = SessionCoordinator(
     project_manager=project_manager,
@@ -201,6 +212,7 @@ session_coordinator = SessionCoordinator(
 ```
 
 **Update SessionCoordinator signature** in `src/zebtrack/coordinators/session_coordinator.py`:
+
 ```python
 def __init__(
     self,
@@ -218,6 +230,7 @@ def __init__(
 **File**: `src/zebtrack/coordinators/session_coordinator.py`
 
 **Update `_on_live_session_complete()` method** (around line 150):
+
 ```python
 def _on_live_session_complete(self, output_dir: Path):
     """Handle live session completion - triggers analysis and batch tracking."""
@@ -279,6 +292,7 @@ def _on_live_session_complete(self, output_dir: Path):
 ```
 
 **Add helper method**:
+
 ```python
 def _find_video_in_output_dir(self, output_dir: Path) -> Path:
     """Find video file in output directory."""
@@ -299,6 +313,7 @@ def _find_video_in_output_dir(self, output_dir: Path) -> Path:
 **File**: `src/zebtrack/ui/ui_coordinator.py`
 
 **Update `_on_batch_analysis_completed()` handler** (around line 699):
+
 ```python
 def _on_batch_analysis_completed(self, data: dict):
     """Handle batch analysis completion - show success notification."""
@@ -354,12 +369,14 @@ def _on_batch_analysis_completed(self, data: dict):
 #### Task 1.5: Testing LiveBatchCoordinator Integration
 
 **Run existing tests**:
+
 ```bash
 # Tests should already pass (they're isolated)
 poetry run pytest tests/test_live_camera_workflow_e2e.py::TestLiveBatchCoordinator -xvs
 ```
 
 **Add integration smoke test** in `tests/test_live_batch_integration.py`:
+
 ```python
 """Integration tests for LiveBatchCoordinator with wizard workflow."""
 import pytest
@@ -446,7 +463,7 @@ Create an interactive **"Progresso do Experimento"** tab that:
 
 ### UI Mockup (Text-Based)
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Progresso do Experimento                                      [📊] │
 ├─────────────────────────────────────────────────────────────────────┤
@@ -475,7 +492,7 @@ Create an interactive **"Progresso do Experimento"** tab that:
 
 ### When User Clicks Block (e.g., "Dia 1 - Grupo Tratado")
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Sessões: Dia 1 - Grupo Tratado                            [✖️]     │
 ├─────────────────────────────────────────────────────────────────────┤
@@ -1080,11 +1097,13 @@ class BlockDetailDialog(Toplevel):
 **File**: `src/zebtrack/ui/gui.py`
 
 **Add import** (around line 40):
+
 ```python
 from zebtrack.ui.tabs.experiment_progress_tab import ExperimentProgressTab
 ```
 
 **Update `_create_tabs()` method** (around line 250):
+
 ```python
 def _create_tabs(self):
     """Create notebook tabs."""
@@ -1102,6 +1121,7 @@ def _create_tabs(self):
 ```
 
 **Update MainWindow constructor** to accept `live_batch_coordinator`:
+
 ```python
 def __init__(
     self,
@@ -1113,6 +1133,7 @@ def __init__(
 ```
 
 **Update `__main__.py` to pass coordinator**:
+
 ```python
 main_window = MainWindow(
     # ... existing args ...
@@ -1125,6 +1146,7 @@ main_window = MainWindow(
 #### Task 2.4: Testing Progress Dashboard
 
 **Manual Testing Checklist**:
+
 1. Launch app: `poetry run python -m zebtrack`
 2. Navigate to "📊 Progresso do Experimento" tab
 3. Verify grid displays with Day × Group blocks
@@ -1133,6 +1155,7 @@ main_window = MainWindow(
 6. Click "Marcar Lote Como Completo" → Confirmation dialog
 
 **Unit Tests** in `tests/ui/tabs/test_experiment_progress_tab.py`:
+
 ```python
 """Tests for experiment progress dashboard tab."""
 import pytest
@@ -1195,6 +1218,7 @@ def test_grid_refresh_creates_blocks(
 ## ✅ Success Criteria
 
 ### LiveBatchCoordinator Integration
+
 - [ ] Wizard collects `experimental_group`, `experiment_day`, `subject_id`
 - [ ] LiveBatchCoordinator instantiated in `__main__.py`
 - [ ] SessionCoordinator registers sessions after completion
@@ -1205,6 +1229,7 @@ def test_grid_refresh_creates_blocks(
 - [ ] New integration test passes
 
 ### Experiment Progress Dashboard
+
 - [ ] Tab "📊 Progresso do Experimento" appears in MainWindow
 - [ ] Grid displays Day × Group matrix with status colors
 - [ ] Blocks show correct completion status (✅/⏳/⏸️)
@@ -1219,21 +1244,25 @@ def test_grid_refresh_creates_blocks(
 ## 🏗️ Architecture Considerations
 
 ### Dependency Injection
+
 - All new components receive dependencies via constructor
 - No singleton imports (`from zebtrack import settings`)
 - Follow patterns in `DEPENDENCY_INJECTION_GUIDE.md`
 
 ### Event Flow
+
 - LiveBatchCoordinator publishes `BATCH_ANALYSIS_COMPLETED`
 - UICoordinator handles event and shows notification
 - Progress tab subscribes to session completion events to refresh
 
 ### Thread Safety
+
 - All UI updates use `root.after(0, callback)`
 - Never update widgets directly from background threads
 - Use `StateManager` for cross-thread state updates
 
 ### Testing Strategy
+
 - Unit tests for each component
 - Integration tests for wizard → coordinator flow
 - Manual testing with real camera (if available)
@@ -1296,12 +1325,14 @@ poetry run ruff format . --check
 ## 📚 Reference Files
 
 **Must Read Before Starting**:
+
 - `.github/copilot-instructions.md` - Agent playbook
 - `docs/architecture/ARCHITECTURE.md` - System design
 - `docs/architecture/DEPENDENCY_INJECTION_GUIDE.md` - DI patterns
 - `docs/decisions/ADR-006-live-batch-coordinator-future.md` - Why deferred
 
 **Implementation References**:
+
 - `src/zebtrack/coordinators/live_batch_coordinator.py` - Existing implementation
 - `src/zebtrack/ui/wizard/live_config_step.py` - Wizard step to extend
 - `src/zebtrack/__main__.py` - Composition Root (lines 140-280)
@@ -1309,6 +1340,7 @@ poetry run ruff format . --check
 - `src/zebtrack/ui/gui.py` - MainWindow tabs
 
 **Test References**:
+
 - `tests/test_live_camera_workflow_e2e.py` - E2E patterns
 - `tests/ui/wizard/test_wizard_live_e2e.py` - Wizard test patterns
 - `tests/conftest.py` - Pytest fixtures
@@ -1318,6 +1350,7 @@ poetry run ruff format . --check
 ## 🎯 Final Checklist
 
 Before submitting:
+
 - [ ] All tests pass (`poetry run pytest -q`)
 - [ ] No DI violations (grep check)
 - [ ] Lint passes (`poetry run ruff check .`)

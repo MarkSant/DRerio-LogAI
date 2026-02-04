@@ -3,21 +3,25 @@
 ## 📋 Resumo Executivo
 
 Este documento analisa os **paralelos e diferenças** entre:
+
 - **Projetos Live existentes** (gravação de câmera com projeto estruturado)
 - **Análise de Câmera ao Vivo** (nova funcionalidade para análise rápida sem projeto)
 
 ## 🔍 Componentes Existentes de Projetos Live
 
 ### 1. RecordingService
+
 **Arquivo**: `src/zebtrack/core/recording_service.py`
 
 **Responsabilidades**:
+
 - Orquestrar sessões de gravação
 - Coordenar Recorder, StateManager, ProjectManager
 - Gerenciar Arduino durante ciclo de gravação
 - Agendar gravações com countdown opcional
 
 **Métodos-chave**:
+
 ```python
 def schedule_recording(context, project_data, trigger_source)
 def start_session(context, project_data, trigger_source)
@@ -28,9 +32,11 @@ def start_session(context, project_data, trigger_source)
 ---
 
 ### 2. Loops de Processamento Live (GUI)
+
 **Arquivo**: `src/zebtrack/ui/gui.py`
 
 #### `_live_frame_capture_loop()` (linha 8226)
+
 ```python
 def _live_frame_capture_loop(self):
     """Loop to capture frames from a LIVE source (camera)."""
@@ -48,11 +54,13 @@ def _live_frame_capture_loop(self):
 ```
 
 **Características**:
+
 - Loop contínuo com queues thread-safe
 - Separação entre frames para processamento e gravação
 - Controle via `program_exit_event`
 
 #### `_live_processing_loop()` (linha 8254)
+
 ```python
 def _live_processing_loop(self):
     """Loop to process frames from a LIVE source."""
@@ -82,9 +90,11 @@ def _live_processing_loop(self):
 ---
 
 ### 3. run_live_calibration()
+
 **Arquivo**: `src/zebtrack/core/main_view_model.py` (linha 2321)
 
 **Fluxo**:
+
 1. Verifica se câmera está disponível
 2. Cria vídeo temporário
 3. Grava 5 segundos da câmera
@@ -92,6 +102,7 @@ def _live_processing_loop(self):
 5. Retorna polígono detectado para UI
 
 **Código relevante**:
+
 ```python
 def run_live_calibration(self, temp_aquarium_method: str | None = None):
     # Grava clip temporário
@@ -116,9 +127,11 @@ def run_live_calibration(self, temp_aquarium_method: str | None = None):
 ---
 
 ### 4. Camera Class
+
 **Arquivo**: `src/zebtrack/io/camera.py`
 
 **Recursos**:
+
 - Thread-safe frame buffer
 - Reconexão automática
 - Monitoramento de lag
@@ -131,7 +144,7 @@ def run_live_calibration(self, temp_aquarium_method: str | None = None):
 ## 🆚 Comparação: Live Projects vs Live Analysis
 
 | Aspecto | Projetos Live Existentes | Análise de Câmera ao Vivo (Nova) |
-|---------|-------------------------|-----------------------------------|
+| --------- | ------------------------- | ----------------------------------- |
 | **Propósito** | Gravação estruturada em projetos | Análise rápida sem projeto |
 | **Duração** | Controlada por usuário (start/stop) | Limite de tempo pré-definido |
 | **Estrutura** | Requer projeto com metadata | Independente de projeto |
@@ -147,6 +160,7 @@ def run_live_calibration(self, temp_aquarium_method: str | None = None):
 ## ❌ Problemas Identificados na Minha Implementação
 
 ### 1. Não Reutilizei Loops Existentes
+
 **Problema**: Criei `_process_live_stream()` como thread separada ao invés de usar `_live_processing_loop()`.
 
 **Consequência**: Código duplicado, possível divergência de comportamento.
@@ -156,14 +170,17 @@ def run_live_calibration(self, temp_aquarium_method: str | None = None):
 ---
 
 ### 2. Não Usei RecordingService
+
 **Problema**: Chamei `recorder.start_recording()` diretamente.
 
 **Consequência**:
+
 - Perde funcionalidades de RecordingService (countdown, timed recording, Arduino)
 - Não atualiza StateManager corretamente
 - Não segue padrão arquitetural
 
 **Correção necessária**:
+
 ```python
 # Ao invés de:
 recorder.start_recording(...)
@@ -179,9 +196,11 @@ self.recording_service.start_session(
 ---
 
 ### 3. Método run_live_calibration Já Existe
+
 **Problema**: Não aproveitei que já existe método para capturar clip temporário.
 
 **Oportunidade perdida**: `run_live_calibration()` já faz:
+
 - Captura por tempo limitado ✅
 - Salva em arquivo temporário ✅
 - Limpa recursos automaticamente ✅
@@ -191,9 +210,11 @@ self.recording_service.start_session(
 ---
 
 ### 4. Não Considerei Integração com Arduino
+
 **Problema**: RecordingService já orquestra Arduino durante gravação.
 
 **Funcionalidade perdida**:
+
 - Sincronização com eventos externos
 - Comandos baseados em zonas
 - Modo trigger externo
@@ -201,6 +222,7 @@ self.recording_service.start_session(
 ---
 
 ### 5. Divergência nos Padrões de Threading
+
 **Problema**: Projetos Live usam queues + event-based loops. Minha implementação usa thread direta.
 
 **Consequência**: Dificuldade de integração futura, código menos testável.
@@ -210,15 +232,18 @@ self.recording_service.start_session(
 ## ✅ Acertos da Minha Implementação
 
 ### 1. LiveStreamSource é Útil
+
 **Por quê**: Encapsula lógica de duração limitada de forma reutilizável.
 
 **Usos possíveis**:
+
 - `run_live_calibration()` poderia usar ao invés de loop manual
 - Qualquer cenário que precise "gravar X segundos da câmera"
 
 ---
 
 ### 2. FrameSourceFactory Unifica Interfaces
+
 **Por quê**: Permite tratar vídeos e câmeras de forma intercambiável.
 
 **Valor**: Simplifica código que precisa processar ambos os tipos.
@@ -226,6 +251,7 @@ self.recording_service.start_session(
 ---
 
 ### 3. LiveAnalysisDialog é Independente
+
 **Por quê**: Não depende de projeto existente, permite uso ad-hoc.
 
 **Valor**: Útil para testes rápidos, demos, troubleshooting.
@@ -233,6 +259,7 @@ self.recording_service.start_session(
 ---
 
 ### 4. Settings Bem Estruturadas
+
 **Por quê**: `LiveAnalysisSettings` seguem padrão Pydantic existente.
 
 **Valor**: Consistência com resto do código.
@@ -277,6 +304,7 @@ def start_live_camera_analysis(self):
 ```
 
 **Vantagens**:
+
 - Reutiliza código testado
 - Mantém consistência arquitetural
 - Suporta Arduino automaticamente
@@ -303,6 +331,7 @@ def start_live_camera_analysis(self):
 ```
 
 **Vantagens**:
+
 - Código mais simples
 - Mantém separação de conceitos
 - Ainda aproveita loops testados
@@ -311,14 +340,16 @@ def start_live_camera_analysis(self):
 
 ## 📊 Código Reutilizável vs Código Novo
 
-### Deveria Ter Reutilizado:
+### Deveria Ter Reutilizado
+
 1. ✅ **Camera** - REUTILIZADO corretamente
 2. ❌ **RecordingService** - NÃO usado
 3. ❌ **_live_processing_loop()** - NÃO usado
 4. ❌ **_live_frame_capture_loop()** - NÃO usado
 5. ❌ **run_live_calibration()** lógica - NÃO reutilizada
 
-### Criado Corretamente:
+### Criado Corretamente
+
 1. ✅ **LiveStreamSource** - Útil, mas parcialmente redundante
 2. ✅ **FrameSourceFactory** - Boa abstração
 3. ✅ **LiveAnalysisDialog** - Interface nova necessária
@@ -328,16 +359,19 @@ def start_live_camera_analysis(self):
 
 ## 🧪 Testes
 
-### Testes Criados:
+### Testes Criados
+
 1. ✅ `test_live_stream_source.py` - Cobertura completa de LiveStreamSource
 2. ✅ `test_frame_source_factory.py` - Cobertura completa de FrameSourceFactory
 
-### Testes Que Deveriam Existir:
-3. ❌ `test_live_analysis_dialog.py` - Testar UI dialog
-4. ❌ `test_live_analysis_integration.py` - Teste end-to-end com camera mockada
-5. ❌ Integração com RecordingService
+### Testes Que Deveriam Existir
 
-### Testes Existentes Relacionados:
+1. ❌ `test_live_analysis_dialog.py` - Testar UI dialog
+2. ❌ `test_live_analysis_integration.py` - Teste end-to-end com camera mockada
+3. ❌ Integração com RecordingService
+
+### Testes Existentes Relacionados
+
 - `tests/io/test_camera.py` - Camera já testada ✅
 - `tests/core/test_recording_service.py` - RecordingService já testado ✅
 - `tests/ui/wizard/test_wizard_live_e2e.py` - Wizard Live já testado ✅
@@ -346,27 +380,31 @@ def start_live_camera_analysis(self):
 
 ## 🎯 Conclusões e Recomendações
 
-### O Que Funcionou:
+### O Que Funcionou
+
 1. ✅ Abstração de FrameSource é boa
 2. ✅ LiveStreamSource tem utilidade
 3. ✅ Dialog independente permite uso rápido
 4. ✅ Testes unitários cobrem novas classes
 
-### O Que Precisa Melhorar:
+### O Que Precisa Melhorar
+
 1. ❌ **CRÍTICO**: Integrar com RecordingService
 2. ❌ **IMPORTANTE**: Reutilizar loops existentes ou justificar divergência
 3. ❌ **MÉDIO**: Adicionar testes de integração
 4. ❌ **BAIXO**: Considerar suporte a Arduino
 
-### Ação Recomendada Imediata:
+### Ação Recomendada Imediata
 
 **REFATORAR** `start_live_camera_analysis()` para usar:
+
 1. RecordingService.start_session() ao invés de chamar Recorder diretamente
 2. Loops de processamento existentes (_live_processing_loop) ao invés de thread própria
 3. StateManager para tracking de estado
 4. Mesmo padrão de eventos que projetos Live
 
-### Estimativa de Esforço:
+### Estimativa de Esforço
+
 - **Refatoração completa**: 3-4 horas
 - **Testes de integração**: 2 horas
 - **Documentação**: 1 hora
@@ -376,14 +414,16 @@ def start_live_camera_analysis(self):
 
 ## 📚 Referências de Código
 
-### Arquivos-Chave para Integração:
+### Arquivos-Chave para Integração
+
 1. `src/zebtrack/core/recording_service.py` - Serviço a ser usado
 2. `src/zebtrack/ui/gui.py:8226` - Loops de processamento
 3. `src/zebtrack/core/main_view_model.py:2321` - run_live_calibration()
 4. `src/zebtrack/core/main_view_model.py:2421` - start_recording()
 5. `src/zebtrack/core/main_view_model.py:2709` - stop_recording()
 
-### Testes Existentes para Referência:
+### Testes Existentes para Referência
+
 1. `tests/core/test_recording_service.py` - Como testar RecordingService
 2. `tests/ui/wizard/test_wizard_live_e2e.py` - Fluxo completo Live
 3. `tests/io/test_camera.py` - Como mockar Camera
@@ -419,6 +459,7 @@ def start_live_camera_analysis(self):
 #### 1. `start_live_camera_analysis()` Refatorado
 
 **Antes** (Abordagem Isolada):
+
 ```python
 # Criava LiveStreamSource
 frame_source = FrameSourceFactory.create(...)
@@ -430,6 +471,7 @@ threading.Thread(target=_process_live_stream).start()
 ```
 
 **Depois** (Integrado com RecordingService):
+
 ```python
 # Usa camera diretamente
 self.active_frame_source = self.view.camera
@@ -466,6 +508,7 @@ self.recording_service.start_session(
 ```
 
 **Benefícios Obtidos**:
+
 1. ✅ Reutiliza `RecordingService` para coordenação
 2. ✅ Usa loops existentes `_live_frame_capture_loop()` e `_live_processing_loop()`
 3. ✅ Auto-stop via `use_timed_recording` (já testado em projetos Live)
@@ -480,6 +523,7 @@ self.recording_service.start_session(
 **Arquivo**: `tests/integration/test_live_camera_analysis_integration.py`
 
 **Cobertura** (8 testes, todos passando ✅):
+
 1. `test_live_camera_analysis_uses_recording_service` - Verifica uso de RecordingService
 2. `test_live_camera_analysis_sets_active_frame_source` - Verifica `active_frame_source = camera`
 3. `test_live_camera_analysis_enables_timed_recording` - Verifica timed recording habilitado
@@ -490,7 +534,8 @@ self.recording_service.start_session(
 8. `test_live_camera_analysis_no_arduino` - Verifica Arduino desabilitado
 
 **Resultados**:
-```
+
+```text
 ========================= 8 passed, 4 warnings in 9.78s ===================
 ```
 
@@ -499,7 +544,7 @@ self.recording_service.start_session(
 ### Arquitetura Final: Live Analysis vs Live Projects
 
 | Componente | Live Projects | Live Analysis (Refatorado) |
-|------------|---------------|----------------------------|
+| ------------ | --------------- | ---------------------------- |
 | **RecordingService** | ✅ Usado | ✅ **Usado** (refatorado) |
 | **Loops de Processamento** | ✅ `_live_processing_loop()` | ✅ **Reutilizados** |
 | **Frame Capture Loop** | ✅ `_live_frame_capture_loop()` | ✅ **Reutilizados** |
@@ -516,11 +561,13 @@ self.recording_service.start_session(
 **Decisão Arquitetural**: LiveStreamSource foi **mantido mas não usado** no fluxo principal.
 
 **Por quê?**
+
 - Fluxo refatorado usa `self.view.camera` diretamente
 - Loops existentes já esperam objeto `Camera`
 - RecordingService já gerencia timed recording
 
 **Utilidade Futura**:
+
 1. Pode ser usado em `run_live_calibration()` para consolidar lógica de duração
 2. Útil se futuras features precisarem de duração limitada + FrameSource interface
 3. Serve como wrapper se precisar trocar Camera por outra implementação
@@ -531,14 +578,16 @@ self.recording_service.start_session(
 
 ### Código Consolidado vs Código Removível
 
-#### Manter:
+#### Manter
+
 1. ✅ `LiveStreamSource` - Útil, testado, pode ser usado futuramente
 2. ✅ `FrameSourceFactory` - Abstração válida para vídeos vs câmeras
 3. ✅ `LiveAnalysisDialog` - UI necessária
 4. ✅ `LiveAnalysisSettings` - Configuração necessária
 5. ✅ Testes de `test_live_stream_source.py` e `test_frame_source_factory.py`
 
-#### Remover:
+#### Remover
+
 1. ❌ `process_frame_source()` em VideoProcessingService - **NÃO usado no fluxo refatorado**
 2. ❌ Thread separada `_process_live_stream()` - **Substituída por loops existentes**
 
@@ -571,7 +620,7 @@ self.recording_service.start_session(
 ### Esforço Real vs Estimado
 
 | Tarefa | Estimado | Real | Razão da Diferença |
-|--------|----------|------|--------------------|
+| -------- | ---------- | ------ | -------------------- |
 | Refatoração `start_live_camera_analysis()` | 3-4h | 2h | Código mais simples que esperado |
 | Testes de integração | 2h | 1.5h | Reutilizou fixtures existentes |
 | Documentação | 1h | 0.5h | Decisões ficaram claras rápido |

@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # 🔧 PLANO MASTER DE REFATORAÇÃO - ZebTrack-AI 2025
 
 **Documento:** REFACTOR-MASTER-PLAN-2025
@@ -10,7 +12,8 @@
 
 ## 🎯 PROGRESSO ATUAL
 
-**Sprint 1-2: Preparação e Infraestrutura** ✅ **COMPLETO**
+### Sprint 1-2: Preparação e Infraestrutura**✅**COMPLETO
+
 - ✅ Branch `refactor/master-plan-2025` criada
 - ✅ BaseCoordinator implementado (280 linhas)
 - ✅ BaseUIComponent implementado (325 linhas)
@@ -18,24 +21,27 @@
 - ✅ API v3.0 documentada (850 linhas)
 - ✅ CI/CD quality gates configurados (350 linhas)
 
-**Sprint 3: ProjectCoordinator** ✅ **COMPLETO**
+### Sprint 3: ProjectCoordinator**✅**COMPLETO
+
 - ✅ ProjectCoordinator implementado (650 linhas)
 - ✅ 70+ testes abrangentes (728 linhas)
-- ✅ Integrado no __main__.py (DI)
+- ✅ Integrado no **main**.py (DI)
 - ✅ Wire no MainViewModel
 - ✅ Backward compatibility mantida
 
-**Sprint 4: RecordingCoordinator + LiveCameraCoordinator** ✅ **COMPLETO**
+### Sprint 4: RecordingCoordinator + LiveCameraCoordinator**✅**COMPLETO
+
 - ✅ RecordingCoordinator implementado (350 linhas)
 - ✅ LiveCameraCoordinator implementado (450 linhas)
 - ✅ 110+ testes abrangentes (1200+ linhas)
   - RecordingCoordinator: 40 testes (400 linhas)
   - LiveCameraCoordinator: 70 testes (800 linhas)
 - ✅ Integração via DI no MainViewModel
-- ✅ Exports no coordinators/__init__.py
+- ✅ Exports no coordinators/**init**.py
 - ✅ Documentação atualizada
 
-**Sprint 5: DetectorCoordinator** ✅ **COMPLETO**
+### Sprint 5: DetectorCoordinator**✅**COMPLETO
+
 - ✅ DetectorCoordinator implementado (750 linhas)
 - ✅ 63 testes abrangentes (1190 linhas)
   - Initialization (4 testes)
@@ -48,10 +54,11 @@
   - State queries (4 testes)
   - Integration tests (8 testes)
 - ✅ Integração via DI no MainViewModel
-- ✅ Exports no coordinators/__init__.py
+- ✅ Exports no coordinators/**init**.py
 - ✅ Documentação atualizada
 
-**Sprint 6: ProcessingCoordinator** ✅ **COMPLETO**
+### Sprint 6: ProcessingCoordinator**✅**COMPLETO
+
 - ✅ ProcessingCoordinator implementado (580 linhas)
 - ✅ 76 testes abrangentes (1100+ linhas)
   - Initialization (3 testes)
@@ -63,14 +70,15 @@
   - Processing completion (4 testes)
   - Integration tests (8 testes)
 - ✅ Integração via DI no MainViewModel
-- ✅ Exports no coordinators/__init__.py
+- ✅ Exports no coordinators/**init**.py
 - ✅ Documentação atualizada
 
 **🎉 FASE 1 COMPLETA - Todos os 6 Coordinators Implementados!**
 
-**Sprint 7-8: MainViewModel Simplification - Fase 2** ✅ **COMPLETO**
+### Sprint 7-8: MainViewModel Simplification - Fase 2**✅**COMPLETO
 
-**Sprint 7: Detector Delegation** ✅ **COMPLETO**
+### Sprint 7: Detector Delegation**✅**COMPLETO
+
 - ✅ DetectorCoordinator delegation completa (7 métodos)
   - setup_detector(), setup_detector_zones()
   - get/update/restore detector parameters
@@ -81,7 +89,8 @@
 - 🔴 Recording delegation - ADIADO (RecordingCoordinator incompleto - stubs apenas)
 - **Commits:** 81bef82, 5775dc8, 2b4cb15, 86a0774
 
-**Sprint 8: Cleanup & Validation** ✅ **COMPLETO**
+### Sprint 8: Cleanup & Validation**✅**COMPLETO
+
 - ✅ Análise de código completa (SPRINT_8_CLEANUP_ANALYSIS.md)
 - ✅ Código verificado: LIMPO (sem código comentado ou dead code óbvio)
 - ✅ Identificadas oportunidades futuras (-650 a -1,600 linhas estimadas)
@@ -90,7 +99,8 @@
 - **Impacto Final:** 5,713 linhas (+30 de 5,683 inicial - lógica UI adicionada)
 - **Commits:** fb376e6, b46d5e5
 
-**Sprint 9: Dead Code Analysis** ✅ **COMPLETO**
+### Sprint 9: Dead Code Analysis**✅**COMPLETO
+
 - ✅ Análise completa de métodos privados (77 métodos analisados)
 - ✅ Análise de imports (47 imports verificados)
 - ✅ Verificação de código comentado
@@ -100,7 +110,8 @@
 - **Impacto:** 0 linhas removidas (boa notícia - código limpo)
 - **Commits:** bb45f07, 2cb0cc8
 
-**Sprint 10: Processing Refactoring Analysis** ✅ **COMPLETO**
+### Sprint 10: Processing Refactoring Analysis**✅**COMPLETO
+
 - ✅ Análise detalhada de workflows de processing (~749 linhas em 7 métodos)
 - ✅ Identificação de métodos relacionados (~1,100 linhas total - 19% do MainViewModel)
 - ✅ Análise de complexidade: `start_project_processing_workflow()` - 228 linhas, 60% UI
@@ -110,7 +121,8 @@
 - **Impacto:** 0 linhas (análise apenas - implementação Sprints 11-14)
 - **Commits:** 34bfb50
 
-**Sprint 11: Validation Extraction** ✅ **COMPLETO**
+### Sprint 11: Validation Extraction**✅**COMPLETO
+
 - ✅ Criado `ValidationResult` value object (43 linhas)
 - ✅ Adicionado `validate_can_start_processing()` ao ProcessingCoordinator (120 linhas)
   - Validações: processing_already_active, project_loaded, zones, videos_exist
@@ -126,7 +138,8 @@
 - **Benefícios:** Separação de concerns, testabilidade, structured error handling
 - **Commits:** cb02db4
 
-**Sprint 12: Helper Extraction and Consolidation** ✅ **COMPLETO** (3/3 Parts)
+**Sprint 12: Helper Extraction and Consolidation**✅**COMPLETO** (3/3 Parts)
+
 - ✅ **Part 1: VideoClassificationService** - Extração limpa de lógica pura
   - Criado VideoClassificationService (177 linhas)
   - Método classify_videos() para categorização de vídeos
@@ -149,7 +162,8 @@
 - **Impacto Total Sprint 12:** +611 linhas (3 services: 540 linhas + usage: 125 - replaced: 54)
 - **Benefícios:** Separação de concerns, testabilidade, reusabilidade, foundation para Sprint 13
 
-**Sprint 13: Workflow Simplification** ✅ **COMPLETO**
+### Sprint 13: Workflow Simplification**✅**COMPLETO
+
 - ✅ **Pattern Consolidation** - Extract Method aplicado aos 3 workflows principais
   - Criado `_handle_validation_error()` (48 linhas) - Consolidated ~60-70 lines of duplicated error handling
   - Criado `_validate_zones_with_ui()` (115 linhas) - Extracted complex zone validation logic
@@ -163,7 +177,8 @@
   - **Impacto:** +236 linhas (helpers), -208 linhas (workflows) = +28 linhas net
   - **Benefícios:** Código significativamente mais maintainable, métodos menores e focados, DRY principle
 
-**Sprint 14: Final Consolidation** ✅ **COMPLETO**
+### Sprint 14: Final Consolidation**✅**COMPLETO
+
 - ✅ **Deprecated Code Removal** - Removed 3 deprecated wrapper methods from Sprint 12
   - Removed `_gather_candidate_entries()` (72 linhas) - logic inlined in process_pending_project_videos()
   - Removed `_classify_candidate_videos()` (55 linhas) - completely replaced by VideoClassificationService
@@ -172,10 +187,11 @@
   - MainViewModel: 5913 → 5733 linhas (-3%)
   - process_pending_project_videos() now has direct service calls (clearer intent)
   - **Commit:** 63e837b
-  - **Impacto:** +106 linhas (inline logic), -190 linhas (deprecated methods) = **-84 linhas net**
+  - **Impacto:**+106 linhas (inline logic), -190 linhas (deprecated methods) =**-84 linhas net**
   - **Benefícios:** Removed code duplication, cleaner service usage, no functionality loss
 
-**Sprint 15: Recording Delegation & Simplification** ✅ **COMPLETO**
+### Sprint 15: Recording Delegation & Simplification**✅**COMPLETO
+
 - ✅ **Phase 1: start_recording() Simplification**
   - Extracted `_handle_external_trigger()` helper (~46 lines)
   - Simplified `start_recording()` from 129 → 66 lines (-49%)
@@ -203,7 +219,8 @@
   - `_create_processing_context()`: Appropriately in ViewModel (context builder)
   - RecordingCoordinator: Sprint 4 skeleton now fully implemented
 
-**Sprint 16: Coordinator Init Simplification** ✅ **COMPLETO**
+### Sprint 16: Coordinator Init Simplification**✅**COMPLETO
+
 - ✅ **Phase 1: _init_coordinators() Boilerplate Reduction**
   - Created `_inject_or_create()` helper (12 lines)
   - Applied to 7 coordinators (eliminated repetitive if/else pattern)
@@ -224,7 +241,8 @@
   - No functional changes
   - Following "bem feito" approach
 
-**Sprint 17: Dead Code Removal** ✅ **COMPLETO**
+### Sprint 17: Dead Code Removal**✅**COMPLETO
+
 - ✅ **Phase 1: Remove Unused Wrapper Methods**
   - Removed _schedule_analysis_metadata_update() (7 lines)
   - Removed _notify_task_status_start() (9 lines)
@@ -238,7 +256,8 @@
   - Identified safe-to-remove vs. callbacks/event handlers
   - Focused on genuinely unused code with zero value
 
-**Sprint 18: Dead Code Removal Phase 2** ✅ **COMPLETO**
+### Sprint 18: Dead Code Removal Phase 2**✅**COMPLETO
+
 - ✅ **Phase 1: Remove _is_arduino_connected** (-7 lines)
   - Unused wrapper to hardware_coordinator.is_arduino_connected()
   - **Commit:** 591f605
@@ -253,7 +272,8 @@
 - ✅ **Sprint 18 Total:** -46 lines
 - ✅ **Cumulative Total (Sprints 15-18):** -97 lines (5,733 → 5,636)
 
-**Sprint 19: Dead Code Removal Phase 3** ✅ **COMPLETO**
+### Sprint 19: Dead Code Removal Phase 3**✅**COMPLETO
+
 - ✅ **Phase 1: ROI Placeholder Methods Removal** (-52 lines)
   - Removed 6 ROI placeholder methods (all with only `pass` statements):
     - save_roi_template() (6 lines)
@@ -281,7 +301,8 @@
 - ✅ **Cumulative Total (Sprints 15-19):** -163 lines (5,733 → 5,570, -2.8%)
 - ✅ **Documentação:** docs/SPRINT_19_RESULTS.md
 
-**Sprint 20: Code Quality Improvements** ✅ **COMPLETO**
+### Sprint 20: Code Quality Improvements**✅**COMPLETO
+
 - ✅ **Phase 1: MainViewModel & Coordinators** (-2 lines, 7 issues fixed)
   - Fixed RUF059: unused unpacked variables (3 issues)
   - Fixed F841: unused variable assignments (2 issues)
@@ -300,11 +321,12 @@
 - ✅ **Cumulative Total (Sprints 15-20):** -167 lines (5,733 → 5,568, -2.9%)
 - ✅ **Documentação:** docs/SPRINT_20_RESULTS.md
 
-**Sprint 21: Codebase-wide Code Quality** ✅ **COMPLETO**
+### Sprint 21: Codebase-wide Code Quality**✅**COMPLETO
+
 - ✅ **Phase 1: Linting Fixes** (+11 lines net, 15 issues fixed)
   - Auto-fixed: RUF010 (6), RUF022 (2), I001 (1), W293 (1)
   - Manual fixes: E501 (4 in wizard_service.py), B904 (1 in project_coordinator.py)
-  - Files: __main__.py, coordinators/__init__.py, wizard_service.py, etc.
+  - Files: **main**.py, coordinators/**init**.py, wizard_service.py, etc.
   - **Commit:** 592b6ba
 
 - ✅ **Phase 2: gui.py Analysis**
@@ -320,7 +342,8 @@
 - ✅ **Linting Reduction:** 17 → 1 warnings (94% reduction) 🎯
 - ✅ **Documentação:** docs/SPRINT_21_RESULTS.md
 
-**Sprint 22: project_manager.py Analysis** ✅ **COMPLETO**
+### Sprint 22: project_manager.py Analysis**✅**COMPLETO
+
 - ✅ **Analysis: project_manager.py** (2,170 lines, 73 methods)
   - Linting: Zero issues (F401, F841, RUF059, E501, C901) ✅
   - Long methods identified: 3 (125-146 lines each)
@@ -348,7 +371,8 @@
   - Both files confirmed in excellent state ✨
 - ✅ **Documentação:** docs/SPRINT_22_RESULTS.md
 
-**Próximos Sprints:**
+### Próximos Sprints
+
 - ⏳ Sprint 23: Optional extraction of import operations OR focus on new features
 - ⏳ Sprint 24-25: Continue quality improvements OR archive refactoring as complete
 - ⏳ Sprint 26: Final consolidation and documentation update
@@ -358,17 +382,19 @@
 ## 📊 RESUMO EXECUTIVO
 
 ### Problema Identificado
+
 Análise de código revelou **4 arquivos críticos** que violam princípios SOLID e dificultam manutenção:
 
 | Arquivo | Linhas | Métodos | Variáveis | Severidade | Impacto |
-|---------|--------|---------|-----------|------------|---------|
+| --------- | -------- | --------- | ----------- | ------------ | --------- |
 | **main_view_model.py** | 5,652 | 154 | 164 | 🔴 CRÍTICO | MUITO ALTO |
 | **gui.py** | 3,737 | 232 | 242 | 🔴 CRÍTICO | MUITO ALTO |
 | **project_manager.py** | 2,170 | 73 | 47 | 🟡 ALTO | ALTO |
 | **video_processing_service.py** | 1,788 | 36 | 32 | 🟡 MÉDIO | MÉDIO |
-| **TOTAL** | **13,347** | **495** | **485** | - | - |
+| **TOTAL**|**13,347**|**495**|**485** | - | - |
 
 ### Impacto Atual
+
 - ⚠️ **23% do código** concentrado em apenas 2 arquivos
 - ⚠️ Dificuldade para novos desenvolvedores (onboarding >2 semanas)
 - ⚠️ Testes unitários difíceis de escrever (baixa cobertura em áreas específicas)
@@ -376,6 +402,7 @@ Análise de código revelou **4 arquivos críticos** que violam princípios SOLI
 - ⚠️ Violação do Single Responsibility Principle (SRP)
 
 ### Benefícios da Refatoração
+
 - ✅ Redução de 60-70% no tamanho dos arquivos principais
 - ✅ Aumento da testabilidade (meta: cobertura de 61% → 80%)
 - ✅ Redução do tempo de onboarding (2 semanas → 3-4 dias)
@@ -387,6 +414,7 @@ Análise de código revelou **4 arquivos críticos** que violam princípios SOLI
 ## 🎯 OBJETIVOS DA REFATORAÇÃO
 
 ### Objetivos Primários
+
 1. **Reduzir Complexidade Ciclomática**
    - Meta: Nenhum arquivo >1,500 linhas
    - Meta: Nenhuma classe >100 métodos
@@ -408,6 +436,7 @@ Análise de código revelou **4 arquivos críticos** que violam princípios SOLI
    - Migração gradual (sem "big bang")
 
 ### Objetivos Secundários
+
 - Documentar arquitetura refatorada
 - Criar guias de contribuição específicos
 - Implementar análise de qualidade automatizada
@@ -420,10 +449,11 @@ Análise de código revelou **4 arquivos críticos** que violam princípios SOLI
 ### 1. main_view_model.py - CRÍTICO (5,652 linhas)
 
 #### **Problema Raiz**
+
 Classe `MainViewModel` viola SRP ao assumir **9 responsabilidades distintas**:
 
 ```python
-# Responsabilidades Identificadas:
+# Responsabilidades Identificadas
 1. UI Coordination (bind_events, _schedule_on_ui)
 2. Project Management (create_project, open_project, close_project)
 3. Detector Setup (setup_detector, setup_detector_zones)
@@ -436,7 +466,8 @@ Classe `MainViewModel` viola SRP ao assumir **9 responsabilidades distintas**:
 ```
 
 #### **Análise de Dependências**
-```
+
+```text
 MainViewModel depende de:
   - 16 serviços injetados (alta dependência)
   - 164 variáveis de instância (estado excessivo)
@@ -449,7 +480,8 @@ Manutenibilidade Index: 23/100 (MUITO BAIXA)
 #### **Estratégia de Refatoração**
 
 ##### **Fase 1: Extração de Coordinators (8 semanas)**
-```
+
+```text
 Criar coordinators especializados:
 
 1. ProjectCoordinator (NOVO)
@@ -484,7 +516,8 @@ Criar coordinators especializados:
 ```
 
 ##### **Fase 2: Simplificação do Core (4 semanas)**
-```
+
+```text
 MainViewModel resultante (meta: <800 linhas):
 
 class MainViewModel:
@@ -511,7 +544,8 @@ class MainViewModel:
 ```
 
 ##### **Estrutura de Diretórios Proposta**
-```
+
+```text
 src/zebtrack/coordinators/
 ├── __init__.py
 ├── base.py                 # BaseCoordinator abstract class
@@ -527,10 +561,11 @@ src/zebtrack/coordinators/
 ### 2. gui.py - CRÍTICO (3,737 linhas)
 
 #### **Problema Raiz**
+
 Classe `ApplicationGUI` viola SRP ao gerenciar **7 responsabilidades UI distintas**:
 
 ```python
-# Responsabilidades Identificadas:
+# Responsabilidades Identificadas
 1. Layout Management (frames, grids, packing)
 2. Event Handling (button clicks, keyboard shortcuts)
 3. Video Display (canvas, frame rendering)
@@ -541,7 +576,8 @@ Classe `ApplicationGUI` viola SRP ao gerenciar **7 responsabilidades UI distinta
 ```
 
 #### **Análise de Complexidade**
-```
+
+```text
 ApplicationGUI contém:
   - 232 métodos (70% relacionados a widgets)
   - 242 variáveis de instância (widgets + estado)
@@ -555,7 +591,8 @@ Testabilidade: BAIXA (GUI tests lentos e frágeis)
 #### **Estratégia de Refatoração**
 
 ##### **Fase 1: Extração de Components (6 semanas)**
-```
+
+```text
 Já iniciado! docs/CLAUDE.md menciona:
 "Dialog Extraction: 13 dialogs moved from gui.py to ui/dialogs/ (~20% reduction)"
 
@@ -582,7 +619,8 @@ Expandir para:
 ```
 
 ##### **Fase 2: Refatorar ApplicationGUI (4 semanas)**
-```
+
+```text
 ApplicationGUI resultante (meta: <500 linhas):
 
 class ApplicationGUI:
@@ -613,6 +651,7 @@ class ApplicationGUI:
 ```
 
 ##### **Padrão de Componentes UI**
+
 ```python
 # ui/components/base.py (NOVO)
 from abc import ABC, abstractmethod
@@ -652,10 +691,12 @@ class BaseUIComponent(ABC):
 ### 3. project_manager.py - ALTO (2,170 linhas)
 
 #### **Problema**
+
 Responsabilidades mistas: Dados + Persistência + Validação
 
 #### **Estratégia**
-```
+
+```text
 Separar em 3 classes:
 
 1. ProjectData (model - 300 linhas)
@@ -679,10 +720,12 @@ Separar em 3 classes:
 ### 4. video_processing_service.py - MÉDIO (1,788 linhas)
 
 #### **Problema**
+
 Serviço grande mas **bem estruturado** (36 métodos / 1,788 linhas = ~50 linhas/método)
 
 #### **Estratégia**
-```
+
+```text
 Prioridade: BAIXA (após main_view_model e gui)
 
 Possível split futuro:
@@ -700,7 +743,8 @@ Nota: Apenas se necessário. Atual estrutura aceitável.
 
 ### **Sprint Planning (16 semanas = 4 meses)**
 
-#### **Sprint 1-2: Preparação e Infraestrutura (2 semanas)** ✅ **COMPLETO**
+#### **Sprint 1-2: Preparação e Infraestrutura (2 semanas)**✅**COMPLETO**
+
 - [x] Criar branch `refactor/master-plan-2025`
 - [x] Setup CI/CD para refactorings (testes obrigatórios)
 - [x] Congelar features (apenas bugfixes)
@@ -709,34 +753,36 @@ Nota: Apenas se necessário. Atual estrutura aceitável.
 - [x] Documentar APIs públicas atuais
 
 #### **Sprint 3-6: MainViewModel - Fase 1 (4 semanas)**
+
 **Objetivo:** Extrair 5 coordinators
 
-- **Sprint 3:** ✅ **COMPLETO**
+- **Sprint 3:**✅**COMPLETO**
   - [x] Criar `ProjectCoordinator` (~650 linhas - implementado)
   - [x] Mover métodos de projeto
   - [x] Testes: 70+ testes unitários (728 linhas)
   - [x] Integração com MainViewModel via DI
 
-- **Sprint 4:** ✅ **COMPLETO**
+- **Sprint 4:**✅**COMPLETO**
   - [x] Criar `RecordingCoordinator` (~350 linhas - implementado)
   - [x] Criar `LiveCameraCoordinator` (~450 linhas - implementado)
   - [x] Testes: 110+ testes abrangentes (1200+ linhas)
   - [x] Integração via DI no MainViewModel
 
-- **Sprint 5:** ✅ **COMPLETO**
+- **Sprint 5:**✅**COMPLETO**
   - [x] Criar `DetectorCoordinator` (~750 linhas - implementado)
   - [x] Testes: 63 testes abrangentes (1190 linhas)
   - [x] Integração via DI no MainViewModel
 
-- **Sprint 6:** ✅ **COMPLETO**
+- **Sprint 6:**✅**COMPLETO**
   - [x] Criar `ProcessingCoordinator` (~580 linhas - implementado)
   - [x] Testes: 76 testes abrangentes (1100+ linhas)
   - [x] Integração via DI no MainViewModel
 
-#### **Sprint 7-8: MainViewModel - Fase 2 (2 semanas)** ✅ **COMPLETO**
+#### **Sprint 7-8: MainViewModel - Fase 2 (2 semanas)**✅**COMPLETO**
+
 **Objetivo:** Simplificar MainViewModel (meta ajustada: ~2,500-3,500 linhas)
 
-- **Sprint 7:** ✅ **COMPLETO**
+- **Sprint 7:**✅**COMPLETO**
   - [x] Coordinators já injetados via DI (Sprints 3-6)
   - [x] DetectorCoordinator delegation (7 métodos) - commits 81bef82, 5775dc8
     - setup_detector(), setup_detector_zones()
@@ -747,7 +793,7 @@ Nota: Apenas se necessário. Atual estrutura aceitável.
   - 🔴 Processing delegation - ADIADO (requer refatoração - workflows diferentes)
   - 🔴 Recording delegation - ADIADO (RecordingCoordinator incompleto)
 
-- **Sprint 8:** ✅ **COMPLETO**
+- **Sprint 8:**✅**COMPLETO**
   - [x] Análise de cleanup completa - commit fb376e6
   - [x] Código verificado: LIMPO (sem dead code óbvio)
   - [x] Oportunidades futuras identificadas (-650 a -1,600 linhas estimadas)
@@ -759,6 +805,7 @@ Nota: Apenas se necessário. Atual estrutura aceitável.
 **Descobertas:** Ver docs/MAINVIEWMODEL_SIMPLIFICATION_PLAN.md e docs/SPRINT_8_CLEANUP_ANALYSIS.md
 
 #### **Sprint 9-12: ApplicationGUI - Fase 1 (4 semanas)**
+
 **Objetivo:** Extrair componentes UI restantes
 
 - **Sprint 9:**
@@ -780,6 +827,7 @@ Nota: Apenas se necessário. Atual estrutura aceitável.
   - [ ] Documentação de componentes
 
 #### **Sprint 13-14: ProjectManager (2 semanas)**
+
 **Objetivo:** Separar em ProjectData + ProjectRepository + Manager
 
 - [ ] Criar `ProjectData` (Pydantic models)
@@ -788,6 +836,7 @@ Nota: Apenas se necessário. Atual estrutura aceitável.
 - [ ] Testes: 60 novos testes
 
 #### **Sprint 15-16: Validação e Release (2 semanas)**
+
 **Objetivo:** Garantir qualidade e preparar release
 
 - [ ] Testes de regressão completos (2,674 + novos)
@@ -804,7 +853,7 @@ Nota: Apenas se necessário. Atual estrutura aceitável.
 ### **Métricas Quantitativas**
 
 | Métrica | Antes | Meta | Verificação |
-|---------|-------|------|-------------|
+| --------- | ------- | ------ | ------------- |
 | **main_view_model.py** | 5,652 linhas | <800 linhas | wc -l |
 | **gui.py** | 3,737 linhas | <500 linhas | wc -l |
 | **Cobertura de Testes** | 61% | 80% | pytest --cov |
@@ -825,50 +874,60 @@ Nota: Apenas se necessário. Atual estrutura aceitável.
 ## ⚠️ RISCOS E MITIGAÇÕES
 
 ### **Risco 1: Breaking Changes Acidentais**
+
 **Probabilidade:** MÉDIA
 **Impacto:** ALTO
 
-**Mitigação:**
+### Mitigação
+
 - Testes de integração obrigatórios antes de merge
 - Feature flags para rollback rápido
 - Versionamento semântico (v4.0.0 = breaking allowed)
 - Beta testing com usuários early adopters
 
 ### **Risco 2: Sobrecarga da Equipe**
+
 **Probabilidade:** ALTA
 **Impacto:** MÉDIO
 
-**Mitigação:**
+### Mitigação
+
 - Refatoração gradual (16 sprints)
 - 1 desenvolvedor dedicado 50% do tempo
 - Pausas entre fases para absorção
 - Code reviews em pares
 
 ### **Risco 3: Testes Insuficientes**
+
 **Probabilidade:** MÉDIA
 **Impacto:** ALTO
 
-**Mitigação:**
+### Mitigação
+
 - Meta: +500 testes unitários novos
 - Cobertura obrigatória >75% por módulo
 - Testes de mutação (mutmut) para validar qualidade
 - CI fail se cobertura diminuir
 
 ### **Risco 4: Resistência à Mudança**
+
 **Probabilidade:** BAIXA
 **Impacto:** MÉDIO
 
-**Mitigação:**
+### Mitigação
+
 - Documentação clara das melhorias
 - Demos ao final de cada fase
 - Comunicação constante dos benefícios
 - Envolver stakeholders desde o início
 
 ### **Risco 5: Performance Degradation**
+
 **Probabilidade:** BAIXA
 **Impacto:** ALTO
 
-**Mitigação:**
+### Mitigação
+
 - Benchmarks antes/depois de cada sprint
 - Profiling contínuo (cProfile)
 - Otimizações específicas se necessário
@@ -879,6 +938,7 @@ Nota: Apenas se necessário. Atual estrutura aceitável.
 ## 🔧 FERRAMENTAS E AUTOMAÇÃO
 
 ### **Análise de Código**
+
 ```bash
 # Instalar ferramentas
 poetry add --group dev radon  # Complexidade ciclomática
@@ -893,6 +953,7 @@ poetry add --group dev mypy  # Type checking
 ```
 
 ### **CI/CD Pipeline**
+
 ```yaml
 # .github/workflows/refactoring-quality.yml
 name: Refactoring Quality Gates
@@ -920,6 +981,7 @@ jobs:
 ```
 
 ### **Métricas Contínuas**
+
 ```python
 # scripts/track_metrics.py
 """Track refactoring progress over time."""
@@ -945,6 +1007,7 @@ def collect_metrics():
 ## 📖 DOCUMENTAÇÃO A CRIAR/ATUALIZAR
 
 ### **Novos Documentos**
+
 1. `docs/coordinators/README.md` - Visão geral dos coordinators
 2. `docs/coordinators/PROJECT_COORDINATOR.md` - ProjectCoordinator API
 3. `docs/coordinators/DETECTOR_COORDINATOR.md` - DetectorCoordinator API
@@ -955,6 +1018,7 @@ def collect_metrics():
 8. `docs/MIGRATION_GUIDE_V4.md` - Guia para desenvolvedores
 
 ### **Documentos a Atualizar**
+
 1. `docs/ARCHITECTURE.md` - Nova arquitetura com coordinators
 2. `docs/CLAUDE.md` - Atualizar quick reference
 3. `docs/DEPENDENCY_INJECTION_GUIDE.md` - Novos padrões DI
@@ -966,12 +1030,14 @@ def collect_metrics():
 ## 🎓 TREINAMENTO E CAPACITAÇÃO
 
 ### **Sessões de Alinhamento**
+
 - **Kickoff Meeting (Sprint 1):** Apresentar plano completo
 - **Design Reviews (a cada 2 sprints):** Revisar decisões arquiteturais
 - **Demo Days (final de cada fase):** Demonstrar progresso
 - **Retrospectivas (final de cada sprint):** Lições aprendidas
 
 ### **Materiais de Treinamento**
+
 1. **Video Tutorial:** "Nova Arquitetura ZebTrack v4.0" (30 min)
 2. **Workshop:** "Criando Coordinators" (2h hands-on)
 3. **Guia Rápido:** "Migrando Código Legado" (PDF)
@@ -982,12 +1048,14 @@ def collect_metrics():
 ## 🚀 PRÓXIMOS PASSOS (Ações Imediatas)
 
 ### **Semana 1-2: Aprovação e Preparação**
+
 1. [ ] **Revisão do Plano** - Stakeholders aprovam cronograma
 2. [ ] **Criar Branch** - `refactor/master-plan-2025`
 3. [ ] **Setup Métricas** - Baseline de complexidade e cobertura
 4. [ ] **Congelar Features** - Apenas bugfixes até v4.0
 
 ### **Comandos para Executar**
+
 ```bash
 # 1. Criar branch de refatoração
 git checkout -b refactor/master-plan-2025
@@ -1012,7 +1080,8 @@ cp -r tests tests_refactoring_backup
 ## 📊 DASHBOARD DE PROGRESSO
 
 ### **Criar Dashboard Visual**
-```
+
+```text
 ┌─────────────────────────────────────────────────────────┐
 │ ZebTrack-AI Refactoring Progress - Sprint X/16          │
 ├─────────────────────────────────────────────────────────┤
@@ -1049,7 +1118,7 @@ Antes de iniciar refatoração:
 ## 📞 CONTATOS E RESPONSABILIDADES
 
 | Responsabilidade | Pessoa | Contato |
-|-----------------|--------|---------|
+| ----------------- | -------- | --------- |
 | **Tech Lead** | [Nome] | [email] |
 | **Arquiteto** | [Nome] | [email] |
 | **QA Lead** | [Nome] | [email] |
@@ -1067,6 +1136,7 @@ Antes de iniciar refatoração:
 5. **SRP (Single Responsibility Principle)** - SOLID Principles
 
 ### **Documentação Interna**
+
 - `docs/ARCHITECTURE.md` - Arquitetura atual MVVM-S
 - `docs/DEPENDENCY_INJECTION_GUIDE.md` - Padrões DI
 - `docs/CLAUDE.md` - Guia de desenvolvimento
@@ -1077,7 +1147,7 @@ Antes de iniciar refatoração:
 ## 📝 HISTÓRICO DE VERSÕES
 
 | Versão | Data | Autor | Mudanças |
-|--------|------|-------|----------|
+| -------- | ------ | ------- | ---------- |
 | 1.0 | 2025-01-13 | Claude Code Review | Documento inicial |
 
 ---
@@ -1086,12 +1156,13 @@ Antes de iniciar refatoração:
 
 Esta refatoração é **crítica** para a sustentabilidade do projeto ZebTrack-AI. Com execução disciplinada ao longo de 16 sprints, transformaremos:
 
-- **5,652 linhas** de main_view_model.py em **<800 linhas** coordenadas
-- **3,737 linhas** de gui.py em **<500 linhas** modulares
-- **61% cobertura** em **80% cobertura** com testes robustos
-- **Complexidade 850+** em **<150** gerenciável
+- **5,652 linhas**de main_view_model.py em**<800 linhas** coordenadas
+- **3,737 linhas**de gui.py em**<500 linhas** modulares
+- **61% cobertura**em**80% cobertura** com testes robustos
+- **Complexidade 850+**em**<150** gerenciável
 
-**ROI Estimado:**
+### ROI Estimado
+
 - Redução de 40% no tempo de manutenção
 - Redução de 60% em bugs de regressão
 - Aumento de 200% na velocidade de onboarding
@@ -1117,17 +1188,18 @@ Esta refatoração é **crítica** para a sustentabilidade do projeto ZebTrack-A
 ### **Situação Atual vs. Meta**
 
 | Categoria | Cobertura Atual | Meta Sprint 8 | Meta Final | Testes Novos |
-|-----------|----------------|---------------|------------|--------------|
+| ----------- | ---------------- | --------------- | ------------ | -------------- |
 | **Coordinators** | 0% (não existe) | 70% | 85% | +250 testes |
 | **MainViewModel** | ~40% (difícil testar) | 60% | 80% | +120 testes |
 | **GUI Components** | ~35% (testes lentos) | 55% | 75% | +150 testes |
 | **Services** | 65% | 75% | 85% | +80 testes |
 | **Core Logic** | 70% | 80% | 90% | +100 testes |
-| **TOTAL** | **61%** | **70%** | **80%** | **+700 testes** |
+| **TOTAL**|**61%**|**70%**|**80%**|**+700 testes** |
 
 ### **Por Que Refatoração = Mais Testabilidade?**
 
 #### **Problema Atual: Código Difícil de Testar**
+
 ```python
 # main_view_model.py - ANTES (NÃO TESTÁVEL)
 class MainViewModel:
@@ -1142,7 +1214,7 @@ class MainViewModel:
         # Impossível mockar todas as dependências!
         ...
 
-# Teste resultante:
+# Teste resultante
 def test_setup_detector():
     # Precisa mockar 16 serviços + criar Tkinter root + ...
     # 50+ linhas de setup para 1 teste
@@ -1151,6 +1223,7 @@ def test_setup_detector():
 ```
 
 #### **Solução: Código Testável**
+
 ```python
 # coordinators/detector_coordinator.py - DEPOIS (100% TESTÁVEL)
 class DetectorCoordinator:
@@ -1170,7 +1243,7 @@ class DetectorCoordinator:
             return True
         return False
 
-# Teste resultante:
+# Teste resultante
 def test_setup_detector():
     # Mock apenas 3 objetos
     detector_service = Mock()
@@ -1193,6 +1266,7 @@ def test_setup_detector():
 ### **Breakdown de Testes Novos por Sprint**
 
 #### **Sprint 3: ProjectCoordinator (+80 testes)**
+
 ```python
 # tests/coordinators/test_project_coordinator.py
 
@@ -1232,6 +1306,7 @@ class TestProjectCoordinator:
 ```
 
 #### **Sprint 4: RecordingCoordinator + LiveCameraCoordinator (+60 testes)**
+
 ```python
 # tests/coordinators/test_recording_coordinator.py (30 testes)
 
@@ -1257,6 +1332,7 @@ class TestLiveCameraCoordinator:
 ```
 
 #### **Sprint 5: DetectorCoordinator (+50 testes)**
+
 ```python
 # tests/coordinators/test_detector_coordinator.py
 
@@ -1286,6 +1362,7 @@ class TestDetectorCoordinator:
 ```
 
 #### **Sprint 6: ProcessingCoordinator (+70 testes)**
+
 ```python
 # tests/coordinators/test_processing_coordinator.py
 
@@ -1314,6 +1391,7 @@ class TestProcessingCoordinator:
 ```
 
 #### **Sprint 9-12: UI Components (+150 testes)**
+
 ```python
 # tests/ui/components/test_layout_manager.py (30 testes)
 # tests/ui/components/test_keyboard_manager.py (20 testes)
@@ -1321,7 +1399,7 @@ class TestProcessingCoordinator:
 # tests/ui/components/test_video_display.py (40 testes)
 # tests/ui/components/test_zone_controls.py (35 testes)
 
-# Exemplo:
+# Exemplo
 class TestLayoutManager:
     def test_setup_main_layout(self):...
     def test_switch_to_analysis_layout(self):...
@@ -1333,6 +1411,7 @@ class TestLayoutManager:
 ```
 
 #### **Sprint 13-14: ProjectData + Repository (+60 testes)**
+
 ```python
 # tests/core/test_project_data.py (30 testes)
 class TestProjectData:
@@ -1353,7 +1432,7 @@ class TestProjectRepository:
 
 ### **Testes de Integração (E2E)**
 
-Além dos **700 testes unitários**, adicionar **50 testes E2E**:
+Além dos **700 testes unitários**, adicionar**50 testes E2E**:
 
 ```python
 # tests/integration/test_project_workflow_e2e.py (25 testes)
@@ -1393,6 +1472,7 @@ class TestProjectWorkflowE2E:
 ### **Estratégia de Mocks e Fixtures**
 
 #### **Fixtures Reutilizáveis**
+
 ```python
 # tests/conftest.py - Adicionar fixtures para coordinators
 
@@ -1420,7 +1500,7 @@ def detector_coordinator(mock_detector_service, mock_state_manager):
         state_manager=mock_state_manager,
     )
 
-# Uso em testes:
+# Uso em testes
 def test_something(detector_coordinator):
     # Já vem configurado!
     result = detector_coordinator.setup_detector("yolo11n.pt")
@@ -1521,7 +1601,7 @@ jobs:
 
 ### **Roadmap de Cobertura**
 
-```
+```text
 Sprint  1-2: 61% → 63% (+2%)  - Setup infra de testes
 Sprint  3-4: 63% → 67% (+4%)  - ProjectCoordinator + RecordingCoordinator
 Sprint  5-6: 67% → 72% (+5%)  - DetectorCoordinator + ProcessingCoordinator
@@ -1537,7 +1617,7 @@ Sprint 15-16: 80% → 82% (+2%) - Testes E2E e mutation testing
 ### **Métricas de Sucesso**
 
 | Tipo de Teste | Atual | Meta | Status |
-|---------------|-------|------|--------|
+| --------------- | ------- | ------ | -------- |
 | **Testes Unitários** | 2,674 | 3,374 | +700 novos |
 | **Testes Integração** | ~30 | 80 | +50 novos |
 | **Testes UI (GUI)** | ~949 | 1,100 | +150 novos |

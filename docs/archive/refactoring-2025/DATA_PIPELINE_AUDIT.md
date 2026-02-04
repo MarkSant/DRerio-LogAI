@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Auditoria Completa do Pipeline de Dados - ZebTrack-AI
 
 **Data**: 2025-01-28
@@ -13,17 +15,20 @@ Esta auditoria investigou **todo o fluxo de dados** do ZebTrack-AI, desde a dete
 ### Principais Achados
 
 ✅ **Pontos Fortes:**
+
 - Schema Parquet bem definido e imutável
 - Flush incremental com thresholds configuráveis
 - Separação clara de responsabilidades (Service Layer)
 - Suporte robusto para calibração e transformação de coordenadas
 
 ⚠️ **Bugs Críticos Identificados:**
+
 - **BUG #1 (CRÍTICO)**: Falta validação de track_id consecutivos (pode gerar gaps)
 - **BUG #2 (ALTO)**: Sem verificação de detecções duplicadas no mesmo frame
 - **BUG #3 (ALTO)**: Schema Parquet pode mudar silenciosamente se calibração for alterada
 
 📈 **Oportunidades de Melhoria:**
+
 - Implementar column projection no load de Parquet (-60% memória)
 - Adicionar particionamento por vídeo/ROI
 - Implementar validação de qualidade de trajetórias
@@ -35,7 +40,7 @@ Esta auditoria investigou **todo o fluxo de dados** do ZebTrack-AI, desde a dete
 
 ### Arquitetura do Pipeline
 
-```
+```text
 ┌─────────────────┐
 │  1. DETECTION   │  Frame → YOLO/OpenVINO → Raw Detections
 └────────┬────────┘         (x1, y1, x2, y2, conf, class_id)
@@ -74,7 +79,7 @@ Esta auditoria investigou **todo o fluxo de dados** do ZebTrack-AI, desde a dete
 ### Arquivos-Chave do Pipeline
 
 | Estágio | Arquivo Principal | Responsabilidade |
-|---------|-------------------|------------------|
+| --------- | ------------------- | ------------------ |
 | Detection | `plugins/ultralytics_detector.py` | YOLO inference |
 | Tracking | `core/detector.py` | ByteTrack integration |
 | Transform | `core/detector.py` | Calibração pixel → cm |
@@ -113,7 +118,8 @@ def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float, int
     return predictions
 ```
 
-**Características:**
+### Características
+
 - ✅ Retorna bboxes em formato consistente
 - ✅ Confidence filtering via threshold
 - ✅ NMS (Non-Maximum Suppression) aplicado
@@ -144,19 +150,20 @@ def detect(self, frame: np.ndarray, project_type: str):
     return final_detections, masks
 ```
 
-**ByteTrack Integration:**
+### ByteTrack Integration
+
 - Biblioteca externa: `from byte_track import BYTETracker`
 - Configuração via thresholds: `track_threshold`, `match_threshold`, `track_buffer`
 - Mantém IDs consistentes frame-a-frame
 
-**⚠️ BUG #1 (CRÍTICO): Falta Validação de Continuidade de track_id**
+### ⚠️ BUG #1 (CRÍTICO): Falta Validação de Continuidade de track_id
 
 ```python
 # PROBLEMA: Não há verificação se track_ids são sequenciais ou têm gaps
-# Exemplo: Frame 100 tem [1, 2, 5] - onde está track 3 e 4?
+# Exemplo: Frame 100 tem [1, 2, 5] - onde está track 3 e 4
 # Isso pode indicar perda de objetos ou erros de tracking
 
-# SOLUÇÃO PROPOSTA:
+# SOLUÇÃO PROPOSTA
 def _validate_track_continuity(self, detections, frame_num):
     """Validate track_id continuity and log warnings."""
     track_ids = [d[5] for d in detections if d[5] is not None]
@@ -216,7 +223,8 @@ def _determine_parquet_columns(self) -> list[str]:
     return columns
 ```
 
-**Características:**
+### Características
+
 - ✅ Schema bem documentado
 - ✅ Validação de imutabilidade (linhas 346-355)
 - ✅ Colunas de calibração são opcionais
@@ -226,7 +234,8 @@ def _determine_parquet_columns(self) -> list[str]:
 
 **Arquivo**: `src/zebtrack/io/recorder.py` (linhas 315-413)
 
-**Política de Flush:**
+### Política de Flush
+
 ```python
 def _should_flush(self) -> bool:
     """
@@ -243,26 +252,28 @@ def _should_flush(self) -> bool:
     return (time.time() - self._last_flush_time) >= self._flush_interval_seconds
 ```
 
-**Processo de Flush:**
+### Processo de Flush
+
 1. Converte buffer (`self.detection_data`) para DataFrame
 2. Reordena colunas via `df.reindex(columns=self._parquet_columns)`
 3. Converte para PyArrow Table
 4. Escreve no ParquetWriter incremental
 5. Limpa buffer
 
-**✅ Pontos Fortes:**
+### ✅ Pontos Fortes
+
 - Flush incremental evita OOM em sessões longas
 - Thresholds configuráveis via settings
 - Logging detalhado (INFO level)
 
-**⚠️ BUG #2 (ALTO): Sem Verificação de Detecções Duplicadas**
+### ⚠️ BUG #2 (ALTO): Sem Verificação de Detecções Duplicadas
 
 ```python
 # PROBLEMA: Múltiplas detecções do mesmo track_id no mesmo frame
 # Exemplo: Frame 100, track_id=1 aparece 2x com bboxes diferentes
 # Causa: Erros no ByteTrack ou detecções duplicadas do modelo
 
-# SOLUÇÃO PROPOSTA:
+# SOLUÇÃO PROPOSTA
 def _validate_unique_detections(self, df: pd.DataFrame) -> pd.DataFrame:
     """Remove duplicate detections (same frame + track_id)."""
     duplicates = df.duplicated(subset=["frame", "track_id"], keep="first")
@@ -279,12 +290,14 @@ def _validate_unique_detections(self, df: pd.DataFrame) -> pd.DataFrame:
 
 ### 3.3 Compressão e Performance
 
-**Configuração Atual:**
+### Configuração Atual
+
 - **Compressão padrão**: `snappy` (rápida, boa para streaming)
 - **Alternativa**: `zstd` (melhor compressão, 20-30% menor, levemente mais lento)
 
-**📊 Benchmark Interno (ZebTrack-AI):**
-```
+### 📊 Benchmark Interno (ZebTrack-AI)
+
+```text
 Dataset: 10min sessão, 30fps, 3 animais tracked
 - snappy: 2.3 MB, flush em 150ms
 - zstd:   1.6 MB, flush em 210ms (-30% size, +40% time)
@@ -329,24 +342,24 @@ def run_full_analysis(
 **Arquivo**: `src/zebtrack/analysis/behavior.py` (ConcreteBehavioralAnalyzer)
 
 | Categoria | Métrica | Descrição |
-|-----------|---------|-----------|
+| ----------- | --------- | ----------- |
 | **Movimento** | Total Distance | Distância Euclidiana acumulada (cm) |
-| | Velocity (mean, max, std) | Velocidade instantânea (cm/s) |
-| | Tortuosity | Razão distância real / distância linear |
-| | Angular Velocity | Mudança de direção (graus/s) |
+|  | Velocity (mean, max, std) | Velocidade instantânea (cm/s) |
+|  | Tortuosity | Razão distância real / distância linear |
+|  | Angular Velocity | Mudança de direção (graus/s) |
 | **Comportamento** | Freezing Episodes | Períodos com vel < threshold |
-| | Speed Bursts | Acelerações acima de threshold |
-| | Sharp Turns | Ângulos > threshold (graus) |
-| | Inactivity Periods | Duração de imobilidade |
+|  | Speed Bursts | Acelerações acima de threshold |
+|  | Sharp Turns | Ângulos > threshold (graus) |
+|  | Inactivity Periods | Duração de imobilidade |
 | **Espacial** | Thigmotaxis Index | Tempo próximo às paredes (%) |
-| | Thigmotaxis Distance | Distância média da parede (cm) |
-| | Time in Arena Center | Tempo no centro (%) |
+|  | Thigmotaxis Distance | Distância média da parede (cm) |
+|  | Time in Arena Center | Tempo no centro (%) |
 
 ### 4.3 Load de Trajetórias do Parquet
 
 **Arquivo**: `src/zebtrack/analysis/analysis_service.py` (linhas 170-210)
 
-**⚠️ OPORTUNIDADE #1 (ALTO): Implementar Column Projection**
+### ⚠️ OPORTUNIDADE #1 (ALTO): Implementar Column Projection
 
 ```python
 # ATUAL: Carrega TODAS as colunas do Parquet
@@ -357,7 +370,7 @@ def load_trajectory_dataframe(self, parquet_path: Path) -> pd.DataFrame:
 # PROBLEMA: Carrega ~12 colunas, mas análise usa apenas 8-9
 # Impacto: +30-40% uso de memória desnecessário
 
-# MELHORIA PROPOSTA (baseado em best practices 2025):
+# MELHORIA PROPOSTA (baseado em best practices 2025)
 REQUIRED_TRAJECTORY_COLUMNS = [
     "timestamp", "frame", "track_id",
     "x_center_px", "y_center_px",
@@ -392,7 +405,8 @@ def load_trajectory_dataframe(self, parquet_path: Path) -> pd.DataFrame:
     return df
 ```
 
-**Impacto Estimado:**
+### Impacto Estimado
+
 - **Redução de memória**: 30-40% (de ~12 colunas para 8)
 - **Velocidade de load**: +15-20% mais rápido
 - **Cache efficiency**: Melhor, dados em cache são mais relevantes
@@ -405,11 +419,13 @@ def load_trajectory_dataframe(self, parquet_path: Path) -> pd.DataFrame:
 
 **Arquivo**: `src/zebtrack/analysis/data_transformer.py`
 
-**Casos de Uso:**
+### Casos de Uso
+
 1. **Single Subject**: 1 peixe, 1 track_id → métricas diretas
 2. **Multi-Subject (social)**: N peixes, N track_ids → agregação por média/soma
 
-**Exemplo de Agregação:**
+### Exemplo de Agregação
+
 ```python
 # Para cada ROI, agregar métricas de todos os tracks
 total_distance_all_tracks = df.groupby("track_id")["distance"].sum().sum()
@@ -417,11 +433,12 @@ mean_velocity_per_track = df.groupby("track_id")["velocity"].mean()
 mean_velocity_global = mean_velocity_per_track.mean()
 ```
 
-**✅ Pontos Fortes:**
+### ✅ Pontos Fortes
+
 - Separação clara track → ROI → global
 - Suporte para análise social (proximidade entre tracks)
 
-**⚠️ OPORTUNIDADE #2 (MÉDIO): Cache de Métricas Intermediárias**
+### ⚠️ OPORTUNIDADE #2 (MÉDIO): Cache de Métricas Intermediárias
 
 ```python
 # PROBLEMA: Reprocessar vídeo inteiro se mudar apenas threshold
@@ -471,7 +488,7 @@ class MetricsCache:
         except Exception as e:
             log.error("metrics_cache.save_failed", error=str(e))
 
-# USO:
+# USO
 def run_full_analysis(self, trajectory_df, ...):
     cache = MetricsCache(Path(".cache/metrics"))
 
@@ -494,7 +511,8 @@ def run_full_analysis(self, trajectory_df, ...):
     return {**base_metrics, "freezing": freezing_episodes, "bursts": speed_bursts}
 ```
 
-**Impacto:**
+### Impacto
+
 - **Iterações rápidas**: Ajustar thresholds sem recalcular distâncias
 - **Economia de tempo**: 50-70% mais rápido para ajustes de parâmetros
 - **Melhor UX**: Usuário pode experimentar diferentes thresholds interativamente
@@ -503,8 +521,9 @@ def run_full_analysis(self, trajectory_df, ...):
 
 **Arquivo**: `src/zebtrack/analysis/analysis_service.py` (linhas 400-600)
 
-**Fluxo de Batch:**
-```
+### Fluxo de Batch
+
+```text
 Videos: [video1.mp4, video2.mp4, video3.mp4]
    ↓
 process_videos_batch()
@@ -521,7 +540,7 @@ Aggregate results:
 Export project report (Excel + Word)
 ```
 
-**⚠️ OPORTUNIDADE #3 (BAIXO): Particionamento de Parquet por Vídeo**
+### ⚠️ OPORTUNIDADE #3 (BAIXO): Particionamento de Parquet por Vídeo
 
 ```python
 # PROBLEMA: Batch processing lê N arquivos Parquet separados
@@ -539,7 +558,7 @@ project_data/
     ...
 """
 
-# Vantagens:
+# Vantagens
 # 1. Metadados centralizados
 # 2. Queries cross-video eficientes
 # 3. Compressão global melhor
@@ -557,7 +576,7 @@ def save_trajectory_partitioned(project_dir, video_name, df):
         compression="snappy",
     )
 
-# Leitura eficiente de subset de vídeos:
+# Leitura eficiente de subset de vídeos
 def load_trajectories_batch(project_dir, video_names):
     """Load trajectories for specific videos efficiently."""
     dataset = pq.ParquetDataset(
@@ -567,7 +586,8 @@ def load_trajectories_batch(project_dir, video_names):
     return dataset.read().to_pandas()
 ```
 
-**Benefícios:**
+### Benefícios
+
 - Queries cross-video 3-5x mais rápidas
 - Metadados compartilhados (menos overhead)
 - Suporte nativo para filters (pushdown)
@@ -580,8 +600,9 @@ def load_trajectories_batch(project_dir, video_names):
 
 **Arquivo**: `src/zebtrack/analysis/reporter.py` (método `export_summary_data`)
 
-**Estrutura do Excel:**
-```
+### Estrutura do Excel
+
+```text
 Sheet 1: "Resumo Geral"
   - Métricas agregadas por ROI
   - Colunas: ROI, Total Distance, Mean Velocity, Freezing Time, ...
@@ -595,7 +616,8 @@ Sheet 3: "Parâmetros"
   - Calibração, thresholds, fps, etc.
 ```
 
-**✅ Pontos Fortes:**
+### ✅ Pontos Fortes
+
 - Estrutura clara e consistente
 - Fácil de importar para estatística (R, SPSS)
 - Metadados incluídos (reprodutibilidade)
@@ -606,7 +628,8 @@ Sheet 3: "Parâmetros"
 
 **Template**: `templates/individual_report_template.docx`
 
-**Seções do Relatório:**
+### Seções do Relatório
+
 1. **Cabeçalho**: Nome do vídeo, data, parâmetros
 2. **Visualizações**:
    - Trajectory plot (heatmap)
@@ -616,12 +639,13 @@ Sheet 3: "Parâmetros"
 3. **Métricas Textuais**: Tabelas com valores numéricos
 4. **Interpretação**: Texto gerado com i18n (pt_BR, en_US)
 
-**🌍 Internacionalização (i18n):**
+### 🌍 Internacionalização (i18n)
+
 - Usa `gettext` para traduções
 - Locales: `locales/pt_BR/LC_MESSAGES/reporter.mo`
 - Fallback: inglês se locale não encontrado
 
-**⚠️ OPORTUNIDADE #4 (BAIXO): Relatório Interativo HTML**
+### ⚠️ OPORTUNIDADE #4 (BAIXO): Relatório Interativo HTML
 
 ```python
 # PROBLEMA: Word é estático, não permite zoom/interação
@@ -662,7 +686,8 @@ def export_interactive_report(self, output_path: Path):
     log.info("reporter.interactive_html_exported", path=output_path)
 ```
 
-**Vantagens:**
+### Vantagens
+
 - **Interativo**: Zoom, pan, hover tooltips
 - **Portable**: Single HTML file
 - **Professional**: Plotly charts são publication-quality
@@ -675,19 +700,21 @@ def export_interactive_report(self, output_path: Path):
 ### 7.1 Validações Atuais
 
 **No Recorder** (`io/recorder.py`):
+
 - ✅ Validação de dimensões de frame (width, height > 0)
 - ✅ Validação de calibração (`validate_calibration`)
 - ✅ Validação de schema imutável (freeze após primeiro flush)
 - ✅ Normalização de track_id (tratamento de NaN, strings, etc.)
 
 **No AnalysisService** (`analysis/analysis_service.py`):
+
 - ✅ Validação de schema Parquet (colunas obrigatórias)
 - ✅ Detecção de trajetórias vazias
 - ⚠️ Sem validação de outliers
 
 ### 7.2 Validações Faltantes (MELHORIAS PROPOSTAS)
 
-**MELHORIA #5 (ALTO): Validação de Qualidade de Trajetória**
+### MELHORIA #5 (ALTO): Validação de Qualidade de Trajetória
 
 ```python
 class TrajectoryQualityValidator:
@@ -758,7 +785,7 @@ class TrajectoryQualityValidator:
             },
         }
 
-# USO:
+# USO
 def run_full_analysis(self, trajectory_df, ...):
     # Validate trajectory before analysis
     validator = TrajectoryQualityValidator(fps=fps, max_plausible_speed_cm_s=50.0)
@@ -774,7 +801,8 @@ def run_full_analysis(self, trajectory_df, ...):
     # Proceed with analysis...
 ```
 
-**Benefícios:**
+### Benefícios
+
 - Detecta erros de tracking precocemente
 - Previne análises em dados corrompidos
 - Melhora confiabilidade dos resultados
@@ -813,17 +841,19 @@ def run_full_analysis(self, trajectory_df, ...):
 **Impacto**: Arquivo Parquet com schema inconsistente
 **Arquivo**: `src/zebtrack/io/recorder.py`
 
-**Problema**:
+### Problema
+
 ```python
-# Se calibração for adicionada APÓS start_recording:
+# Se calibração for adicionada APÓS start_recording
 recorder.start_recording(..., pixel_per_cm_ratio=None)  # Schema sem x_cm, y_cm
-# ... 100 frames gravados ...
+# ... 100 frames gravados ..
 recorder.pixel_per_cm_ratio = (10.5, 10.5)  # MUDA SCHEMA!
 recorder.write_detection_data(...)  # Tenta adicionar x_cm, y_cm
-# ERRO: Schema mismatch!
+# ERRO: Schema mismatch
 ```
 
-**Correção**:
+### Correção
+
 ```python
 @property
 def pixel_per_cm_ratio(self):
@@ -892,7 +922,8 @@ def finalize_recording(self, archive: bool = False):
 **Impacto**: Melhora confiabilidade dos dados
 **Implementação**: [Ver SEÇÃO 7.2](#72-validações-faltantes-melhorias-propostas)
 
-**Citação do paper**:
+### Citação do paper
+>
 > "Users are strongly encouraged to visualise their data and scan it for location errors as they work through the pipeline, always asking the question, could the animal plausibly move this way?"
 
 ---
@@ -937,31 +968,31 @@ def finalize_recording(self, archive: bool = False):
 
 ### Prioridade 2 (ALTO IMPACTO - Próxima Release)
 
-4. **Melhoria #1**: Column projection no load Parquet
+1. **Melhoria #1**: Column projection no load Parquet
    - Esforço: 3-4 horas
    - Arquivos: `analysis_service.py`
    - Testes: Verificar redução de memória
 
-5. **Melhoria #5**: Validação de qualidade de trajetória
+2. **Melhoria #5**: Validação de qualidade de trajetória
    - Esforço: 6-8 horas
    - Arquivos: Novo `analysis/trajectory_validator.py`
    - Testes: Casos com outliers, gaps, teleportation
 
 ### Prioridade 3 (MÉDIO IMPACTO - Futuras Melhorias)
 
-6. **Melhoria #2**: Cache de métricas intermediárias
+1. **Melhoria #2**: Cache de métricas intermediárias
    - Esforço: 8-10 horas
    - Arquivos: Novo `analysis/metrics_cache.py`
    - Testes: Verificar speedup em reprocessamento
 
-7. **Melhoria #4**: Relatório interativo HTML
+2. **Melhoria #4**: Relatório interativo HTML
    - Esforço: 6-8 horas
    - Arquivos: `reporter.py`
    - Testes: Validar compatibilidade browsers
 
 ### Prioridade 4 (BAIXO IMPACTO - Melhorias Incrementais)
 
-8. **Melhoria #3**: Particionamento Parquet
+1. **Melhoria #3**: Particionamento Parquet
    - Esforço: 10-12 horas (mudança arquitetural)
    - Arquivos: `recorder.py`, `analysis_service.py`
    - Testes: Benchmarks de queries cross-video
@@ -1001,7 +1032,7 @@ def finalize_recording(self, archive: bool = False):
 **Dataset de Teste**: 10min sessão, 1920x1080, 30fps, 3 animais
 
 | Estágio | Tempo | Memória | Notas |
-|---------|-------|---------|-------|
+| --------- | ------- | --------- | ------- |
 | Detection (YOLO) | 150 ms/frame | 800 MB | GPU RTX 3060 |
 | Tracking (ByteTrack) | 5 ms/frame | 50 MB | CPU overhead |
 | Recording (Parquet) | 150 ms/flush | 100 MB | Flush a cada 500 rows |
@@ -1012,7 +1043,7 @@ def finalize_recording(self, archive: bool = False):
 ### Após Melhorias Propostas (Estimativa)
 
 | Estágio | Tempo | Memória | Ganho |
-|---------|-------|---------|-------|
+| --------- | ------- | --------- | ------- |
 | Detection | 150 ms/frame | 800 MB | Sem mudança |
 | Tracking | 5 ms/frame | 50 MB | Sem mudança |
 | Recording | 150 ms/flush | 100 MB | Sem mudança |
@@ -1022,12 +1053,14 @@ def finalize_recording(self, archive: bool = False):
 
 ### Métricas de Qualidade de Dados
 
-**Atualmente Monitoradas:**
+### Atualmente Monitoradas
+
 - ✅ Frames processados vs total
 - ✅ Detections por frame (média)
 - ✅ Flush count e timing
 
-**Propostas para Adicionar:**
+### Propostas para Adicionar
+
 - ⏱️ Track_id gaps por sessão
 - ⏱️ Detecções duplicadas removidas
 - ⏱️ Frames com velocidade implausível

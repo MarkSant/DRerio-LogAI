@@ -22,7 +22,7 @@ event-driven architecture with dependency injection.
 ## Quick Reference
 
 | Command | Purpose |
-|---------|---------|
+| --------- | --------- |
 | `poetry install` | Setup environment |
 | `poetry run zebtrack` | Run application |
 | `poetry run pytest` | Run tests |
@@ -58,7 +58,7 @@ When working with multi-aquarium features:
 ## Documentation Structure
 
 | File/Folder | Purpose |
-|--------|---------|
+| -------- | --------- |
 | `docs/architecture/` | System design, events, DI |
 | `docs/guides/developer/` | Developer workflows |
 | `docs/guides/user/` | End-user docs (English) |

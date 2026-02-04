@@ -44,19 +44,19 @@ O ZebTrack-AI detecta automaticamente o hardware disponível no startup e seleci
 - Oferece conversão automática ao executar o diagnóstico de pesos
 
 **Log de startup**: A decisão é registrada no log com informações sobre hardware detectado:
-```
+```text
 controller.init.auto_selected_openvino: reason="Hardware detection recommends OpenVINO and model is converted", cuda_available=False, openvino_available=True, intel_gpu=True
 ```
 
 ou (quando modelo não convertido):
 
-```
+```text
 controller.init.openvino_recommended_but_not_converted: reason="OpenVINO recommended by hardware but model not yet converted, using PyTorch", cuda_available=False, openvino_available=True, intel_gpu=True, active_weight="best_oi.pt"
 ```
 
 ou (CUDA disponível):
 
-```
+```text
 controller.init.auto_selected_pytorch: reason="Hardware detection recommends PyTorch", cuda_available=True
 ```
 
@@ -266,7 +266,7 @@ O sistema suporta processamento de múltiplos aquários por vídeo:
 - Aquário 2: IDs 2000-2999
 
 **Estrutura de saída:**
-```
+```text
 video_results/
 ├── aquarium_0/
 │   ├── 3_CoordMovimento_{video}.parquet

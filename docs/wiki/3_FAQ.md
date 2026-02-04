@@ -131,6 +131,7 @@ Zone names are 1-indexed for user display (Zona 1, 2, 3...) but stored as 0-inde
 2. **Re-process summaries** - Go to Reports tab and regenerate the unified report.
 
 Unified reports now include:
+
 - Subject columns (group, subject, day, experiment_id) appearing first
 - All geotaxis zone percentages properly populated
 - Proper column names with units

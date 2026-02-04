@@ -15,7 +15,7 @@
 ## 1. METHOD ANALYSIS TABLE
 
 | Method Name | Lines | Start-End | Complexity | PM Calls | Extract? | Risk |
-|------------|-------|-----------|------------|----------|----------|------|
+| ------------ | ------- | ----------- | ------------ | ---------- | ---------- | ------ |
 | **Lifecycle & Workflow** |
 | close_project | 14 | 1132-1145 | 6 | 1 | ✅ YES | LOW |
 | create_project_workflow | 21 | 1146-1166 | 8 | 0 | ✅ YES | LOW |
@@ -146,7 +146,7 @@ These belong to other domains or are too coupled to MainViewModel:
 ## 4. EXPECTED REDUCTION
 
 | Metric | Value |
-|--------|-------|
+| -------- | ------- |
 | **Current MainViewModel Size** | 4,305 lines |
 | **Lines to Extract** | 385 lines |
 | **Expected After Sprint 27** | ~3,920 lines |

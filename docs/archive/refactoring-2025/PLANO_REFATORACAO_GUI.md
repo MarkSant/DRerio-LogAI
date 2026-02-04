@@ -1,4 +1,7 @@
+<!-- markdownlint-disable MD024 -->
+
 # PLANO DE REFATORAÇÃO: GUI God Object
+
 ## Desacoplamento Completo e Seguro com Testes Robustos
 
 **Versão**: 2.0
@@ -18,7 +21,7 @@
 ### Progresso Atual (Fases 1-2 Completas ✅)
 
 | Componente Extraído | Linhas Salvas | Status |
-|---------------------|---------------|--------|
+| --------------------- | --------------- | -------- |
 | MenuManager | ~200 | ✅ Completo |
 | CanvasManager | ~500 | ✅ Completo |
 | StateSynchronizer | ~150 | ✅ Completo |
@@ -39,7 +42,7 @@
 ### Fases Restantes do Projeto
 
 | Fase | Duração | Redução | Cobertura | Risco |
-|------|---------|---------|-----------|-------|
+| ------ | --------- | --------- | ----------- | ------- |
 | **Fase 3**: Drawing & Canvas State | 4-5 dias | -400 linhas | 75% | 🟢 BAIXO |
 | **Fase 4**: ROI Template Management | 3-4 dias | -300 linhas | 82% | 🟢 BAIXO |
 | **Fase 5**: Tab Creation Delegation | 3-4 dias | -250 linhas | 88% | 🟡 MÉDIO |
@@ -53,7 +56,7 @@
 
 ### 1.1 Métricas Quantitativas
 
-```
+```text
 Arquivo: src/zebtrack/ui/gui.py
 ├─ Total de Linhas: 3.739
 ├─ Total de Métodos: 232
@@ -89,7 +92,7 @@ from zebtrack.ui.components import (
 ### 1.3 Estado Remanescente a Refatorar
 
 | Domínio | Métodos | Linhas | Status Atual |
-|---------|---------|--------|--------------|
+| --------- | --------- | -------- | -------------- |
 | **1. Drawing State** | 15 | ~400 | 🔴 Espalhado entre GUI e CanvasManager |
 | **2. ROI Template Management** | 8 | ~300 | 🔴 Complexo, mistura UI e lógica |
 | **3. Tab Creation** | 6 | ~250 | 🟡 Métodos grandes de criação |
@@ -236,7 +239,8 @@ self.stop_rec_btn = None
 **Localização**: `src/zebtrack/ui/components/drawing_state_manager.py`
 **Responsabilidade**: Centralizar TODO o estado de desenho de polígonos
 
-**Implementação**:
+### Implementação
+
 ```python
 class DrawingStateManager:
     """Gerencia estado de desenho de polígonos e pilhas undo/redo."""
@@ -331,7 +335,8 @@ class DrawingStateManager:
         return len(self.current_points)
 ```
 
-**Migração**:
+### Migração
+
 1. Criar classe `DrawingStateManager`
 2. Mover todas as 15 variáveis de estado de desenho do ApplicationGUI (linhas 938-960)
 3. Atualizar CanvasManager para usar DrawingStateManager
@@ -346,7 +351,8 @@ class DrawingStateManager:
 **Localização**: `src/zebtrack/ui/components/polygon_drawing_service.py`
 **Responsabilidade**: Lidar com lógica de conclusão de polígono (padrão strategy)
 
-**Implementação**:
+### Implementação
+
 ```python
 from abc import ABC, abstractmethod
 
@@ -442,7 +448,8 @@ class PolygonDrawingService:
         return strategy.complete(video_points, gui)
 ```
 
-**Migração**:
+### Migração
+
 1. Extrair lógica `_on_canvas_double_click()` em strategies
 2. Mover lógica específica de arena/ROI para strategies respectivas
 3. Simplificar event handler de GUI para chamada única de serviço
@@ -457,7 +464,8 @@ class PolygonDrawingService:
 **Localização**: `src/zebtrack/utils/geometry_service.py` (NÃO ui/components - é lógica pura)
 **Responsabilidade**: Snapping de polígono, clamping, cálculos de distância
 
-**Implementação**:
+### Implementação
+
 ```python
 import numpy as np
 import cv2
@@ -581,7 +589,8 @@ class GeometryService:
         return {"x": closest_x, "y": closest_y, "distance": dist}
 ```
 
-**Migração**:
+### Migração
+
 1. Mover `_apply_snapping()` de ApplicationGUI → GeometryService
 2. Mover lógica de ponto-para-segmento de CanvasManager
 3. Atualizar `_on_canvas_motion()` para usar GeometryService
@@ -598,7 +607,8 @@ class GeometryService:
 **Localização**: `src/zebtrack/ui/components/roi_template_manager.py`
 **Responsabilidade**: Todas as operações CRUD de templates de ROI
 
-**Implementação**:
+### Implementação
+
 ```python
 from pathlib import Path
 from typing import Any
@@ -826,7 +836,8 @@ class ROITemplateManager:
             self.delete_button['state'] = state
 ```
 
-**Migração**:
+### Migração
+
 1. Extrair `_refresh_roi_templates()` → `ROITemplateManager.refresh_templates()`
 2. Extrair `_on_apply_roi_template()` → `ROITemplateManager.apply_template()`
 3. Extrair `_on_delete_roi_template()` → `ROITemplateManager.delete_template()`
@@ -844,7 +855,8 @@ class ROITemplateManager:
 **Localização**: `src/zebtrack/ui/components/tab_builder.py`
 **Responsabilidade**: Constrói abas de notebook para aplicação principal
 
-**Implementação**:
+### Implementação
+
 ```python
 import tkinter as tk
 from tkinter import ttk
@@ -973,7 +985,8 @@ class TabBuilder:
         # ... mais widgets
 ```
 
-**Migração**:
+### Migração
+
 1. Criar classe `TabBuilder`
 2. Extrair `_create_main_controls_tab()` → `TabBuilder.build_main_controls_tab()`
 3. Extrair lógica de criação de botão de controle
@@ -990,7 +1003,7 @@ class TabBuilder:
 ### 4.1 Objetivos de Cobertura
 
 | Fase | Cobertura Alvo | Tipos de Teste | Testes Novos |
-|------|----------------|----------------|--------------|
+| ------ | ---------------- | ---------------- | -------------- |
 | Fase 3 | 75% | Unit + Integration | 30+ |
 | Fase 4 | 82% | Unit + Integration | 25+ |
 | Fase 5 | 88% | Integration | 15+ |
@@ -1003,6 +1016,7 @@ class TabBuilder:
 #### Fase 3: Testes de Drawing State (Unit + Integration)
 
 **DrawingStateManager** (~15 testes):
+
 ```python
 def test_start_polygon_drawing():
     """Testa inicialização de modo de desenho de polígono."""
@@ -1054,6 +1068,7 @@ def test_undo_when_empty():
 ```
 
 **PolygonDrawingService** (~10 testes):
+
 ```python
 def test_arena_completion_strategy():
     """Testa strategy de conclusão de arena."""
@@ -1091,6 +1106,7 @@ def test_polygon_service_completion():
 ```
 
 **GeometryService** (~15 testes - PURA LÓGICA, SEM GUI!):
+
 ```python
 def test_apply_snapping_to_vertex():
     """Testa snapping para vértice próximo."""
@@ -1146,6 +1162,7 @@ def test_point_to_segment_distance():
 #### Fase 4: Testes de Template Management (Unit + Integration)
 
 **ROITemplateManager** (~20 testes):
+
 ```python
 @pytest.fixture
 def template_manager(mock_project_manager, mock_gui):
@@ -1221,6 +1238,7 @@ def test_delete_template_with_confirmation(template_manager):
 #### Fase 5: Testes de Tab Builder (Integration)
 
 **TabBuilder** (~15 testes):
+
 ```python
 def test_build_main_controls_tab_prerecorded(mock_gui):
     """Testa construção de aba de controles para projeto pré-gravado."""
@@ -1249,6 +1267,7 @@ def test_build_main_controls_tab_live(mock_gui):
 #### Fase 6: Testes E2E e UI (End-to-End)
 
 **Desenho de Polígono E2E** (~5 testes):
+
 ```python
 def test_draw_arena_polygon_end_to_end(gui, mock_controller):
     """Testa workflow completo de desenho de arena."""
@@ -1283,6 +1302,7 @@ def test_template_workflow_end_to_end(gui, mock_controller):
 ```
 
 **Testes de Performance** (~5 testes):
+
 ```python
 def test_drawing_state_performance():
     """Testa que operações de estado de desenho são rápidas."""
@@ -1375,8 +1395,9 @@ def test_template_display_names_match_golden():
 
 ### 4.4 Métricas de Qualidade
 
-**Cobertura por Componente**:
-```
+### Cobertura por Componente
+
+```text
 DrawingStateManager:      95% (meta: 90%)
 PolygonDrawingService:    92% (meta: 85%)
 GeometryService:          98% (meta: 95%)  # Lógica pura, fácil testar!
@@ -1385,8 +1406,9 @@ TabBuilder:               87% (meta: 85%)
 ApplicationGUI (final):   92% (meta: 85%)
 ```
 
-**Complexidade Ciclomática**:
-```
+### Complexidade Ciclomática
+
+```text
 ApplicationGUI (antes):    Média 16, Max 45  ❌
 ApplicationGUI (depois):   Média 6, Max 12   ✅
 Novos Componentes:         Média 4, Max 8    ✅
@@ -1402,7 +1424,8 @@ Novos Componentes:         Média 4, Max 8    ✅
 
 **Objetivo**: Eliminar duplicação de estado de desenho
 
-**Tarefas**:
+### Tarefas
+
 1. ✅ Criar classe `DrawingStateManager`
 2. ✅ Mover 15 variáveis de estado de desenho do ApplicationGUI
 3. ✅ Atualizar CanvasManager para usar DrawingStateManager
@@ -1413,7 +1436,8 @@ Novos Componentes:         Média 4, Max 8    ✅
 8. ✅ Escrever testes abrangentes (sem mocking de GUI para GeometryService!)
 9. ✅ Atualizar event handlers de GUI para delegar
 
-**Testes Requeridos**:
+### Testes Requeridos
+
 - 15+ testes unitários DrawingStateManager
 - 10+ testes PolygonDrawingService (strategies)
 - 15+ testes GeometryService (lógica pura)
@@ -1430,7 +1454,8 @@ Novos Componentes:         Média 4, Max 8    ✅
 
 **Objetivo**: Extrair toda a lógica de templates
 
-**Tarefas**:
+### Tarefas
+
 1. ✅ Criar classe `ROITemplateManager`
 2. ✅ Mover cache de templates e variáveis de estado
 3. ✅ Extrair `_refresh_roi_templates()` → `refresh_templates()`
@@ -1440,7 +1465,8 @@ Novos Componentes:         Média 4, Max 8    ✅
 7. ✅ Atualizar GUI para delegar todas as operações de template
 8. ✅ Escrever testes de integração com mock ProjectManager
 
-**Testes Requeridos**:
+### Testes Requeridos
+
 - 20+ testes de integração
 - Teste de validação de arquivo
 - Teste de cache e atualização
@@ -1458,7 +1484,8 @@ Novos Componentes:         Média 4, Max 8    ✅
 
 **Objetivo**: Delegar criação de abas
 
-**Tarefas**:
+### Tarefas
+
 1. ✅ Criar classe `TabBuilder`
 2. ✅ Extrair `_create_main_controls_tab()` → `build_main_controls_tab()`
 3. ✅ Extrair lógica de criação de botão de controle
@@ -1466,7 +1493,8 @@ Novos Componentes:         Média 4, Max 8    ✅
 5. ✅ Atualizar criação de notebook para usar TabBuilder
 6. ✅ Escrever testes de integração
 
-**Testes Requeridos**:
+### Testes Requeridos
+
 - 15+ testes de integração
 - Teste para tipo de projeto pré-gravado
 - Teste para tipo de projeto ao vivo
@@ -1484,7 +1512,8 @@ Novos Componentes:         Média 4, Max 8    ✅
 
 **Objetivo**: Polir e remover compatibilidade reversa
 
-**Tarefas**:
+### Tarefas
+
 1. ✅ Auditar chamadas `self.controller` restantes
 2. ✅ Remover properties de compatibilidade reversa (linhas 3628-3733)
 3. ✅ Auditar variáveis de estado final
@@ -1492,7 +1521,8 @@ Novos Componentes:         Média 4, Max 8    ✅
 5. ✅ Benchmarking de performance
 6. ✅ Teste de aceitação do usuário
 
-**Testes Requeridos**:
+### Testes Requeridos
+
 - 10+ testes E2E
 - Testes de performance
 - Testes de regressão visual
@@ -1507,15 +1537,16 @@ Novos Componentes:         Média 4, Max 8    ✅
 
 ### 5.2 Oportunidades de Trabalho Paralelo
 
-**Pode ser feito simultaneamente com refatoração de MainViewModel**:
+### Pode ser feito simultaneamente com refatoração de MainViewModel
 
 | Tarefa GUI | Tarefa MainViewModel | Risco de Conflito |
-|------------|----------------------|-------------------|
+| ------------ | ---------------------- | ------------------- |
 | Fase 3 (Drawing State) | Fase 1 (Extração de Serviços) | 🟢 Nenhum |
 | Fase 4 (Templates) | Fase 1 (Extração de Serviços) | 🟢 Nenhum |
 | Fase 5 (Tabs) | Fase 4 (Desacoplamento UI) | 🟡 Baixo |
 
-**Sincronização Diária Necessária**:
+### Sincronização Diária Necessária
+
 - Interface EventBus - manter congelada
 - Mudanças de StateManager - coordenar
 - Mudanças de assinatura de controller - coordenar
@@ -1526,38 +1557,42 @@ Novos Componentes:         Média 4, Max 8    ✅
 
 ### 6.1 Métricas de Sucesso
 
-**Quantitativas**:
+### Quantitativas
 
 | Métrica | Antes | Meta | Medição |
-|---------|-------|------|---------|
+| --------- | ------- | ------ | --------- |
 | **Linhas Totais** | 3.739 | ~2.700 | Contagem de linhas |
 | **Métodos Totais** | 232 | ~160 | Contagem de métodos |
 | **Complexidade Ciclomática (média)** | 16 | < 6 | pylint/radon |
 | **Cobertura de Testes** | 61% | 92% | pytest-cov |
 | **Componentes Extraídos** | 14 | 18+ | Contagem manual |
 
-**Qualitativas**:
+### Qualitativas
 
-**Arquitetura**:
+### Arquitetura
+
 - ✅ Componentes com responsabilidade única
 - ✅ Estado de desenho consolidado
 - ✅ Lógica de negócio separada de UI
 - ✅ Padrões de composição de widget
 
-**Manutenibilidade**:
+### Manutenibilidade
+
 - ✅ Novos componentes < 400 linhas
 - ✅ Localização clara de componentes
 - ✅ Documentação completa
 - ✅ Sem antipadrão God Object
 
-**Performance**:
+### Performance
+
 - ✅ Sem regressão em responsividade de UI
 - ✅ Operações de desenho < 50ms
 - ✅ Sem regressão em uso de memória
 
 ### 6.2 Checklist de Pré-Merge
 
-**Fase 3**:
+### Fase 3
+
 - [ ] DrawingStateManager criado com testes
 - [ ] PolygonDrawingService implementado
 - [ ] GeometryService criado (lógica pura)
@@ -1565,21 +1600,24 @@ Novos Componentes:         Média 4, Max 8    ✅
 - [ ] Estado de desenho removido de ApplicationGUI
 - [ ] Code review aprovado
 
-**Fase 4**:
+### Fase 4
+
 - [ ] ROITemplateManager criado
 - [ ] Toda lógica de template movida
 - [ ] 20+ testes de integração passando
 - [ ] Variáveis de estado removidas
 - [ ] Documentação atualizada
 
-**Fase 5**:
+### Fase 5
+
 - [ ] TabBuilder criado
 - [ ] Métodos de criação de abas delegados
 - [ ] 15+ testes passando
 - [ ] Tipos de projeto testados
 - [ ] Code review aprovado
 
-**Fase 6**:
+### Fase 6
+
 - [ ] Properties de compatibilidade removidas
 - [ ] Auditoria final de estado
 - [ ] Testes E2E passando
@@ -1622,7 +1660,7 @@ else:
 
 ## 8. CRONOGRAMA E MARCOS
 
-```
+```text
 Semana 1: Fase 3 - Drawing & Canvas State
   ├─ Dia 1-2: DrawingStateManager + testes
   ├─ Dia 3: PolygonDrawingService + strategies
@@ -1655,7 +1693,7 @@ TOTAL: 4 semanas (19-23 dias úteis)
 ## 9. RISCOS E MITIGAÇÕES
 
 | Risco | Probabilidade | Impacto | Mitigação |
-|-------|---------------|---------|-----------|
+| ------- | --------------- | --------- | ----------- |
 | **Quebrar funcionalidade de desenho existente** | Baixa | Alto | Testes abrangentes de DrawingStateManager |
 | **Problemas de sincronização de estado** | Média | Médio | Estado consolidado em DrawingStateManager |
 | **Conflitos com refatoração de MainViewModel** | Média | Médio | Sincronização diária, interface EventBus congelada |
@@ -1667,7 +1705,7 @@ TOTAL: 4 semanas (19-23 dias úteis)
 
 ### 10.1 Com Agent 1 (MainViewModel Refactoring)
 
-**Pontos de Sincronização**:
+### Pontos de Sincronização
 
 1. **Interface EventBus** - Manter sincronizada
    - Novos eventos de UI → Notificar Agent 1
@@ -1681,7 +1719,8 @@ TOTAL: 4 semanas (19-23 dias úteis)
    - Métodos públicos de MainViewModel → Documentar e congelar
    - GUI pode assumir interface estável
 
-**Estratégia de Merge**:
+### Estratégia de Merge
+
 1. Completar Fase 3 primeiro (independente)
 2. Completar Fase 4 em paralelo com MainViewModel Fase 1
 3. Fazer merge Fase 3+4 antes de começar Fase 5
@@ -1699,7 +1738,7 @@ TOTAL: 4 semanas (19-23 dias úteis)
 
 ## 11. RESUMO DO ROTEIRO DE IMPLEMENTAÇÃO
 
-```
+```text
 FASE 3: Drawing & Canvas State (4-5 dias)
   ├─ Criar DrawingStateManager
   ├─ Criar PolygonDrawingService
@@ -1728,9 +1767,10 @@ COBERTURA FINAL: 92% (+31 pontos percentuais)
 
 ---
 
-**FIM DO PLANO DE REFATORAÇÃO**
+### FIM DO PLANO DE REFATORAÇÃO
 
 Este plano abrangente fornece:
+
 - Análise completa do estado atual (3.739 linhas, 232 métodos)
 - Reconhecimento do progresso existente (14 componentes já extraídos ✅)
 - Problemas arquiteturais claros identificados (5 antipadrões críticos)

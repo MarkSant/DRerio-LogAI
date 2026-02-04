@@ -3,6 +3,7 @@
 This task tracks the progress of fixing `mypy` type checking errors across the ZebTrack-AI project to ensure code stability and type safety.
 
 ## 📊 Summary
+
 - **Current Status**: In Progress
 - **Total Files with Errors**: ~10
 - **Total Initial Errors**: ~150+
@@ -11,6 +12,7 @@ This task tracks the progress of fixing `mypy` type checking errors across the Z
 ## 🛠 Progress Tracking
 
 ### Phase 1: Core and Basic Scripts (Completed)
+
 - [x] Fix `mypy` errors in `__main__.py` (Type casting for OpenVINO settings, `ui_coordinator` types).
 - [x] Fix `mypy` errors in `main_view_model.py` (Added `view: Any`).
 - [x] Fix `mypy` errors in `extract_dialogs_ast.py` (`None` checks for AST nodes).
@@ -24,17 +26,20 @@ This task tracks the progress of fixing `mypy` type checking errors across the Z
 - [x] Fix errors in extracted dialogs (`template_dialog.py`, `subject_selection_dialog.py`).
 
 ### Phase 2: GUI and Complex Components (In Progress)
+
 - [ ] Resolve 51 errors in `src/zebtrack/ui/gui.py`
-    - [ ] Fix attribute errors (e.g., `analysis_profile_var`, `controls_canvas`).
-    - [ ] Fix duplicate method definitions (e.g., `_filter_video_tree`, `_refresh_video_selector_tree`).
-    - [ ] Fix `CanvasManager` missing `_render_last_analysis_frame` call.
-    - [ ] Add missing type annotations to GUI callbacks.
+  - [ ] Fix attribute errors (e.g., `analysis_profile_var`, `controls_canvas`).
+  - [ ] Fix duplicate method definitions (e.g., `_filter_video_tree`, `_refresh_video_selector_tree`).
+  - [ ] Fix `CanvasManager` missing `_render_last_analysis_frame` call.
+  - [ ] Add missing type annotations to GUI callbacks.
 - [ ] Verify `CanvasManager` and `CanvasRenderer` integration.
 
 ### Phase 3: Validation and Verification
+
 - [ ] Run full project `mypy` scan.
 - [ ] Run regression tests (`pytest -m "not (gui or slow)"`).
 - [ ] Verify GUI functionality manually if possible.
 
 ## 📝 Current Action Item
+
 - Fixing `src/zebtrack/ui/gui.py` attribute errors and duplicate definitions.

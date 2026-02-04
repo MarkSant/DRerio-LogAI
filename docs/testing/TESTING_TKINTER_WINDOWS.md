@@ -4,7 +4,7 @@
 
 When running multiple GUI tests using Tkinter on Windows, tests may fail with errors like:
 
-```
+```text
 _tkinter.TclError: Can't find a usable init.tcl in the following directories:
 _tkinter.TclError: Can't find a usable tk.tcl in the following directories:
 ```
@@ -163,25 +163,28 @@ poetry run pytest tests/ui/components/ -v -n0 -m gui --cov=zebtrack --cov-report
 ## Alternative Approaches (Not Recommended)
 
 ### ❌ Using `pytest-xdist` with `-n1`
+
 - Spawns separate processes which is slower
 - Doesn't solve the root cause
 - Can still fail with certain test patterns
 
 ### ❌ Setting `TCL_LIBRARY` and `TK_LIBRARY` environment variables
+
 - Platform-specific
 - Requires hardcoded paths
 - Doesn't address the underlying bug
 
 ### ❌ Recreating Tk() with delays
+
 - Unreliable
 - Makes tests slower
 - Still fails eventually
 
 ## References
 
-- **Tkinter Bug Report**: https://bugs.python.org/issue37474
-- **Windows Tk Path Issues**: https://github.com/python/cpython/issues/85720
-- **pytest Fixture Scopes**: https://docs.pytest.org/en/stable/fixture.html#scope-sharing-fixtures-across-classes-modules-packages-or-session
+- **Tkinter Bug Report**: <https://bugs.python.org/issue37474>
+- **Windows Tk Path Issues**: <https://github.com/python/cpython/issues/85720>
+- **pytest Fixture Scopes**: <https://docs.pytest.org/en/stable/fixture.html#scope-sharing-fixtures-across-classes-modules-packages-or-session>
 
 ## Related Files
 

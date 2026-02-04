@@ -12,14 +12,14 @@
 ### Redução de Código GUI.py
 
 | Métrica | Antes | Depois | Redução |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | **Linhas** | 9,952 | 8,286 | **1,666 linhas (-16.7%)** |
 | **Métodos** | 328 | 239 | **89 métodos** |
 
 ### Componentes Criados (Fase 1)
 
 | Componente | Linhas | Métodos | Responsabilidade |
-|------------|--------|---------|------------------|
+| ------------ | -------- | --------- | ------------------ |
 | **MenuManager** | 416 | 9 | Menus (barra, contexto, sobre) |
 | **CanvasManager** | 998 | 17 | Desenho, coordenadas, overlays |
 | **StateSynchronizer** | 352 | 23 | Estado, callbacks, resets |
@@ -33,7 +33,7 @@
 ### Estatísticas de Testes
 
 | Arquivo de Teste | Linhas | Testes | Classes | Cobertura |
-|------------------|--------|--------|---------|-----------|
+| ------------------ | -------- | -------- | --------- | ----------- |
 | `test_menu_manager.py` | 575 | 32 | 9 | 9/9 métodos (100%) |
 | `test_canvas_manager.py` | 1,006 | 60 | 8 | 17/17 métodos (100%) |
 | `test_state_synchronizer.py` | 976 | 86 | 13 | 23/23 métodos (100%) |
@@ -57,7 +57,7 @@
 ### Documentos de Análise e Planejamento
 
 | Documento | Linhas | Propósito |
-|-----------|--------|-----------|
+| ----------- | -------- | ----------- |
 | `REFACTOR_SUMMARY.md` | ~100 | Resumo técnico da refatoração |
 | `TASK_2.1_SUMMARY.md` | ~90 | Resumo executivo da task |
 | `EXTRACTION_ANALYSIS_PHASE2.md` | 265 | Análise para próxima fase (4 componentes) |
@@ -70,6 +70,7 @@
 ## 📦 Commits Realizados (Total: 10)
 
 ### Commits de Componentes (5 commits)
+
 1. `bb0445d` - `refactor(gui): extrair MenuManager de gui.py`
 2. `79e9f48` - `refactor(gui): extrair CanvasManager de gui.py`
 3. `80c3af2` - `refactor(gui): extrair StateSynchronizer de gui.py`
@@ -77,15 +78,18 @@
 5. `6202eb6` - `refactor(gui): atualizar exports de components`
 
 ### Commits de Integração (2 commits)
-6. `480cc53` - `refactor(gui): integrar componentes extraídos no ApplicationGUI`
-7. `3849e60` - `fix(canvas_manager): corrigir linting errors`
+
+1. `480cc53` - `refactor(gui): integrar componentes extraídos no ApplicationGUI`
+2. `3849e60` - `fix(canvas_manager): corrigir linting errors`
 
 ### Commits de Documentação (1 commit)
-8. `435d112` - `docs: adicionar resumo completo da Task 2.1`
+
+1. `435d112` - `docs: adicionar resumo completo da Task 2.1`
 
 ### Commits de Testes e Análise (2 commits)
-9. `0802a84` - `test: adicionar testes unitários para 4 componentes extraídos`
-10. `43a8e8d` - `docs: adicionar análise para próxima fase de extração`
+
+1. `0802a84` - `test: adicionar testes unitários para 4 componentes extraídos`
+2. `43a8e8d` - `docs: adicionar análise para próxima fase de extração`
 
 ---
 
@@ -114,22 +118,26 @@
 ## 📁 Arquivos Modificados/Criados
 
 ### Novos Componentes (4 arquivos)
+
 - `src/zebtrack/ui/components/menu_manager.py`
 - `src/zebtrack/ui/components/canvas_manager.py`
 - `src/zebtrack/ui/components/state_synchronizer.py`
 - `src/zebtrack/ui/components/event_dispatcher.py`
 
 ### Arquivos Modificados (2 arquivos)
+
 - `src/zebtrack/ui/components/__init__.py` (exports atualizados)
 - `src/zebtrack/ui/gui.py` (9,952 → 8,286 linhas)
 
 ### Testes Criados (4 arquivos)
+
 - `tests/ui/components/test_menu_manager.py`
 - `tests/ui/components/test_canvas_manager.py`
 - `tests/ui/components/test_state_synchronizer.py`
 - `tests/ui/components/test_event_dispatcher.py`
 
 ### Documentação (5 arquivos)
+
 - `REFACTOR_SUMMARY.md`
 - `TASK_2.1_SUMMARY.md`
 - `docs/EXTRACTION_ANALYSIS_PHASE2.md`
@@ -168,7 +176,7 @@
 ### Redução Estimada (Fase 2)
 
 | Componentes | Linhas a Extrair | GUI.py Final Estimado |
-|-------------|------------------|----------------------|
+| ------------- | ------------------ | ---------------------- |
 | Fase 1 (Atual) | 2,301 | 8,286 |
 | Fase 2 (Planejada) | ~4,012 | **~4,274** |
 | **Redução Total** | **~6,313** | **57% de redução** |
@@ -177,7 +185,7 @@
 
 ## ⚠️ Nota sobre Testes
 
-Os testes não puderam ser executados devido a `ModuleNotFoundError: No module named 'tkinter'` no ambiente de CI. 
+Os testes não puderam ser executados devido a `ModuleNotFoundError: No module named 'tkinter'` no ambiente de CI.
 
 **Isso NÃO indica problema com o código**, apenas limitação do ambiente.
 
@@ -198,7 +206,7 @@ Os testes não puderam ser executados devido a `ModuleNotFoundError: No module n
 
 ### Impacto
 
-A **Task 2.1 foi concluída com sucesso excepcional**! 
+A **Task 2.1 foi concluída com sucesso excepcional**!
 
 O God Object `ApplicationGUI` foi significativamente reduzido, extraindo 2,301 linhas em 4 componentes bem definidos e coesos. Além disso, foram criados testes abrangentes com 100% de cobertura e documentação completa para a próxima fase de refatoração.
 

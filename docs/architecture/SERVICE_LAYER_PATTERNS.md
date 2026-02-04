@@ -11,6 +11,7 @@ A refatoração FASE 3 estabeleceu um padrão claro de **Service Layer** para se
 ## 🎯 Responsabilidades
 
 ### **MainViewModel** (Coordenador)
+
 - ✅ Gerenciar estado da aplicação via `StateManager`
 - ✅ Coordenar UI via `UICoordinator` e `EventBus`
 - ✅ Preparar contexto e injetar dependências
@@ -21,6 +22,7 @@ A refatoração FASE 3 estabeleceu um padrão claro de **Service Layer** para se
 - ❌ NÃO calcular métricas comportamentais
 
 ### **VideoProcessingService** (Worker)
+
 - ✅ Processar vídeos frame-by-frame
 - ✅ Executar análise de trajetórias
 - ✅ Gerar relatórios (Parquet, Excel, DOCX)
@@ -361,6 +363,7 @@ log.info("controller.processing.complete", videos=total)
 ### Quando Refatorar para Service
 
 Refatore lógica para service se:
+
 - ✅ Método tem >100 linhas de processamento
 - ✅ Lê/grava arquivos diretamente
 - ✅ Executa loops intensivos (ex: frames)

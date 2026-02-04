@@ -1,4 +1,7 @@
+<!-- markdownlint-disable MD024 -->
+
 # PLANO DE REFATORAÇÃO: MainViewModel God Object
+
 ## Desacoplamento Completo e Seguro com Testes Robustos
 
 **Versão**: 2.0
@@ -18,7 +21,7 @@
 ### Fases do Projeto
 
 | Fase | Duração | Redução | Cobertura | Risco |
-|------|---------|---------|-----------|-------|
+| ------ | --------- | --------- | ----------- | ------- |
 | **Fase 1**: Extração de Serviços | 5-7 dias | -580 linhas | 72% | 🟢 BAIXO |
 | **Fase 2**: Limpeza de Facades | 3-4 dias | -340 linhas | 75% | 🟡 MÉDIO |
 | **Fase 3**: Consolidação Orchestrator/Coordinator | 6-8 dias | -200 linhas | 78% | 🔴 ALTO |
@@ -33,7 +36,7 @@
 
 ### 1.1 Métricas Quantitativas
 
-```
+```text
 Arquivo: src/zebtrack/core/main_view_model.py
 ├─ Total de Linhas: 2.797
 ├─ Total de Métodos: 155
@@ -85,7 +88,7 @@ class MainViewModelDependencies:
 ### 1.3 Responsabilidades Identificadas (14 Domínios)
 
 | Domínio | Métodos | Linhas | Status Atual |
-|---------|---------|--------|--------------|
+| --------- | --------- | -------- | -------------- |
 | **1. Project Lifecycle** | 15 | ~450 | 🟡 Parcialmente delegado (ProjectOrchestrator) |
 | **2. Video Processing** | 22 | ~680 | 🟡 Parcialmente delegado (VideoProcessingOrchestrator) |
 | **3. Recording/Live Camera** | 18 | ~520 | 🟡 Parcialmente delegado (RecordingSessionOrchestrator) |
@@ -110,12 +113,14 @@ class MainViewModelDependencies:
 #### Problema #1: Muitas Responsabilidades (Violação SRP) 🔴 CRÍTICO
 
 A classe gerencia 14 domínios simultaneamente. Um ViewModel MVVM-S adequado deveria apenas:
+
 - Coordenar serviços
 - Atualizar StateManager
 - Responder a eventos de UI
 - Delegar lógica de domínio
 
 **Exemplo de violação** (linhas 2511-2596):
+
 ```python
 def apply_project_settings_to_batch(self, videos: list):
     """Aplica configurações do projeto a novos vídeos."""
@@ -126,11 +131,13 @@ def apply_project_settings_to_batch(self, videos: list):
 #### Problema #2: Explosão de Facades (85+ Métodos) 🟡 MODERADO
 
 Ter 85+ métodos de delegação de uma linha indica:
+
 - Muitos orchestrators reportando a um único controller
 - Camada de coordenação intermediária faltando
 - Responsabilidades excessivamente fragmentadas
 
 **Padrão** (ao longo do arquivo):
+
 ```python
 def method_name(self, ...):
     """Facade - delegates to SomeOrchestrator (Sprint XX)."""
@@ -188,8 +195,9 @@ self.cancel_event = threading.Event()  # Gerenciado por StateManager?
 
 #### Problema Arquitetural: Hierarquia Desnecessária
 
-**Estado Atual**:
-```
+### Estado Atual
+
+```text
 MainViewModel (God Object)
   ├─> 13 Orchestrators (camada intermediária)
   │   ├─> VideoProcessingOrchestrator
@@ -205,7 +213,7 @@ MainViewModel (God Object)
       └─> ... mais 4
 ```
 
-**Problemas Identificados**:
+### Problemas Identificados
 
 1. **Duplicação Semântica** 🔴
    - `ProcessingCoordinator` (coordinator) vs `VideoProcessingOrchestrator` (orchestrator)
@@ -213,6 +221,7 @@ MainViewModel (God Object)
    - Responsabilidades sobrepostas e confusas
 
 2. **Acoplamento Circular** 🔴
+
    ```python
    # VideoProcessingOrchestrator.py (linha 47)
    def __init__(self, main_view_model: MainViewModel):
@@ -244,9 +253,11 @@ MainViewModel (God Object)
 ### 3.1 Categorização de Métodos por Ação
 
 #### Categoria A: Facades Puros (85 métodos, ~340 linhas)
+
 **Ação**: Remover do MainViewModel, chamar orchestrators diretamente via event handlers
 
-**Exemplos**:
+### Exemplos
+
 ```python
 # REMOVER - Já é delegação perfeita
 def close_project(self) -> None:
@@ -259,10 +270,11 @@ def run_aquarium_detection(self, video_path, stabilization_frames, temp_aquarium
 **Impacto**: -340 linhas, -85 métodos
 
 #### Categoria B: Lógica de Negócio Complexa (12 métodos, ~580 linhas)
+
 **Ação**: Extrair para novas classes de serviço
 
 | Método | Linhas | Serviço Alvo | Prioridade |
-|--------|-------|--------------|------------|
+| -------- | ------- | -------------- | ------------ |
 | `apply_project_settings_to_batch` | 85 | `BatchConfigurationService` | ALTA |
 | `_handle_mixed_data_scenario` | 53 | `VideoValidationService` | ALTA |
 | `_build_metadata_context` | 28 | `MetadataService` | MÉDIA |
@@ -273,9 +285,11 @@ def run_aquarium_detection(self, video_path, stabilization_frames, temp_aquarium
 **Impacto**: -580 linhas, -12 métodos
 
 #### Categoria C: Coordenação de UI (16 métodos, ~410 linhas)
+
 **Ação**: Mover para `UIStateController` ou novo `DialogCoordinator`
 
-**Exemplos**:
+### Exemplos
+
 ```python
 # Mover para DialogCoordinator
 def _handle_mixed_data_scenario(self, scanned_videos: list[dict]) -> list[dict] | None:
@@ -289,9 +303,11 @@ def _show_post_creation_guide(self, wizard_metadata: dict):
 **Impacto**: -410 linhas, -16 métodos
 
 #### Categoria D: Inicialização (9 métodos, ~380 linhas)
+
 **Ação**: Extrair para `ApplicationBootstrapper` service
 
-**Métodos**:
+### Métodos
+
 - `__init__` (linhas 123-158)
 - `_extract_dependencies` (linhas 160-186)
 - `_init_services` (linhas 188-214)
@@ -305,9 +321,11 @@ def _show_post_creation_guide(self, wizard_metadata: dict):
 **Impacto**: -380 linhas, -9 métodos
 
 #### Categoria E: Event Handling (7 métodos, ~220 linhas)
+
 **Ação**: Consolidar em `EventDispatcher` service
 
-**Métodos**:
+### Métodos
+
 - `bind_events()` (linha 667)
 - `_register_event_handlers()` (linhas 1067-1098)
 - `_create_event_dispatcher()` (linhas 1031-1065)
@@ -318,7 +336,8 @@ def _show_post_creation_guide(self, wizard_metadata: dict):
 **Impacto**: -220 linhas, -7 métodos
 
 #### Categoria F: Manter no MainViewModel (26 métodos, ~350 linhas)
-**Estas são as responsabilidades de orquestração central**:
+
+### Estas são as responsabilidades de orquestração central
 
 - `run()` - Loop principal
 - `on_close()` - Shutdown
@@ -338,18 +357,21 @@ def _show_post_creation_guide(self, wizard_metadata: dict):
 **Localização**: `src/zebtrack/core/batch_configuration_service.py`
 **Responsabilidade**: Aplicar configurações de projeto a lotes de vídeos
 
-**Métodos Extraídos**:
+### Métodos Extraídos
+
 - `apply_project_settings_to_batch` (85 linhas)
 - `_prepare_results_directory` (delegado, mas lógica aqui)
 
-**Dependências**:
+### Dependências
+
 - `ProjectManager`
 - `Settings`
 - `VideoProcessingService`
 
 **Tamanho Estimado**: ~180 linhas
 
-**Exemplo de Implementação**:
+### Exemplo de Implementação
+
 ```python
 class BatchConfigurationService:
     """Serviço para aplicar configurações de projeto a lotes de vídeos."""
@@ -404,18 +426,21 @@ class BatchConfigurationService:
 **Localização**: `src/zebtrack/core/application_bootstrapper.py`
 **Responsabilidade**: Inicializar aplicação no startup
 
-**Métodos Extraídos**:
+### Métodos Extraídos
+
 - Todos os 9 métodos `_init_*`
 - Lógica de detecção de hardware
 - Wiring de serviços
 
-**Dependências**:
+### Dependências
+
 - `MainViewModelDependencies`
 - Todos os serviços/coordinators
 
 **Tamanho Estimado**: ~450 linhas
 
-**Resultado de Bootstrap**:
+### Resultado de Bootstrap
+
 ```python
 @dataclass
 class BootstrapResult:
@@ -429,12 +454,14 @@ class BootstrapResult:
     recommended_backend: str
 ```
 
-**Benefícios**:
+### Benefícios
+
 - `MainViewModel.__init__` se torna 15 linhas
 - Sequência de inicialização testável
 - Mais fácil adicionar/remover serviços
 
-**Exemplo de Uso**:
+### Exemplo de Uso
+
 ```python
 def __init__(self, dependencies: MainViewModelDependencies, view=None):
     """Inicializa MainViewModel com injeção de dependência."""
@@ -456,20 +483,23 @@ def __init__(self, dependencies: MainViewModelDependencies, view=None):
 **Localização**: `src/zebtrack/coordinators/dialog_coordinator.py`
 **Responsabilidade**: Coordenar todos os diálogos e confirmações de usuário
 
-**Métodos Extraídos**:
+### Métodos Extraídos
+
 - `_handle_mixed_data_scenario`
 - `_validate_zones_with_ui`
 - `_handle_validation_error`
 - Todas as chamadas `ask_ok_cancel`
 
-**Dependências**:
+### Dependências
+
 - `UICoordinator`
 - `EventBus`
 - `StateManager`
 
 **Tamanho Estimado**: ~350 linhas
 
-**Benefícios**:
+### Benefícios
+
 - Desacopla lógica de UI do MainViewModel
 - Centraliza padrões de diálogo
 - Mais fácil fazer mock em testes
@@ -479,20 +509,23 @@ def __init__(self, dependencies: MainViewModelDependencies, view=None):
 **Localização**: `src/zebtrack/core/event_dispatcher.py`
 **Responsabilidade**: Rotear eventos do EventBus para orchestrators apropriados
 
-**Métodos Extraídos**:
+### Métodos Extraídos
+
 - `bind_events`
 - `_register_event_handlers`
 - `_create_event_dispatcher`
 - Dicionário de mapeamento de eventos
 
-**Dependências**:
+### Dependências
+
 - `EventBus`
 - Todos os orchestrators
 - `MainViewModel` (apenas callbacks)
 
 **Tamanho Estimado**: ~280 linhas
 
-**Mapa de Roteamento**:
+### Mapa de Roteamento
+
 ```python
 EVENT_ROUTING_MAP: ClassVar[dict] = {
     Events.PROJECT_CREATE: ("project_lifecycle", "create_project", "kwargs_all"),
@@ -501,7 +534,8 @@ EVENT_ROUTING_MAP: ClassVar[dict] = {
 }
 ```
 
-**Benefícios**:
+### Benefícios
+
 - Separação de roteamento de eventos de lógica de negócio
 - Registro de eventos mais limpo
 - Mais fácil adicionar/modificar event handlers
@@ -511,12 +545,14 @@ EVENT_ROUTING_MAP: ClassVar[dict] = {
 **Localização**: `src/zebtrack/core/thread_coordinator.py`
 **Responsabilidade**: Gerenciar todas as threads de background
 
-**Métodos Extraídos**:
+### Métodos Extraídos
+
 - `join_threads`
 - Gerenciamento de ciclo de vida de threads
 - Coordenação de eventos de cancelamento
 
-**Dependências**:
+### Dependências
+
 - `StateManager`
 - `ProcessingWorker`
 - `LiveCameraService`
@@ -531,7 +567,7 @@ EVENT_ROUTING_MAP: ClassVar[dict] = {
 
 **13 Orchestrators + 7 Coordinators = 20 camadas de indireção**
 
-```
+```text
 MainViewModel
   ├─> VideoProcessingOrchestrator ──> ProcessingCoordinator
   ├─> AnalysisOrchestrator
@@ -547,21 +583,24 @@ MainViewModel
 
 ### 5.2 Solução Proposta: 4 Super Coordinators
 
-**Reduzir de 20 para 4 componentes centrais**
+### Reduzir de 20 para 4 componentes centrais
 
 #### Super Coordinator #1: ProjectLifecycleCoordinator
 
-**Gerencia**:
+### Gerencia
+
 - `ProjectOrchestrator`
 - `ProjectWorkflowAdapter`
 - `CalibrationOrchestrator`
 
-**Interface única para**:
+### Interface única para
+
 - Criar/Abrir/Fechar projeto
 - Workflows de calibração
 - Gerenciamento de configurações de projeto
 
-**Implementação**:
+### Implementação
+
 ```python
 class ProjectLifecycleCoordinator(BaseCoordinator):
     """Super coordinator para ciclo de vida de projeto."""
@@ -599,17 +638,20 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
 #### Super Coordinator #2: ProcessingCoordinator (Aprimorado)
 
-**Gerencia**:
+### Gerencia
+
 - `VideoProcessingOrchestrator` (absorver)
 - `AnalysisOrchestrator` (absorver)
 - `ProcessingConfigOrchestrator` (absorver)
 
-**Interface única para**:
+### Interface única para
+
 - Processamento em lote de vídeos
 - Análise de vídeo único
 - Configuração de análise
 
-**Implementação**:
+### Implementação
+
 ```python
 class ProcessingCoordinator(BaseCoordinator):
     """Super coordinator para todos os workflows de processamento de vídeo."""
@@ -655,12 +697,14 @@ class ProcessingCoordinator(BaseCoordinator):
 
 #### Super Coordinator #3: HardwareCoordinator (Aprimorado)
 
-**Gerencia**:
+### Gerencia
+
 - `DetectorCoordinator`
 - `ArduinoFacade` (de HardwareCoordinator)
 - `WeightManager`
 
-**Interface única para**:
+### Interface única para
+
 - Configuração de detector
 - Gerenciamento de modelo
 - Controle de Arduino
@@ -669,12 +713,14 @@ class ProcessingCoordinator(BaseCoordinator):
 
 #### Super Coordinator #4: SessionCoordinator (Novo)
 
-**Gerencia**:
+### Gerencia
+
 - `RecordingSessionOrchestrator`
 - `LiveCameraCoordinator`
 - `RecordingCoordinator`
 
-**Interface única para**:
+### Interface única para
+
 - Sessões de gravação ao vivo
 - Análise de câmera
 - Ciclo de vida de sessão
@@ -684,14 +730,16 @@ class ProcessingCoordinator(BaseCoordinator):
 ### 5.3 Comparação Antes/Depois
 
 **ANTES** (20 componentes):
-```
+
+```text
 MainViewModel (2.797 linhas)
   ├─> 13 Orchestrators (mantêm referência a MainViewModel ❌)
   └─> 7 Coordinators (independentes ✅)
 ```
 
 **DEPOIS** (4 componentes):
-```
+
+```text
 MainViewModel (800 linhas)
   ├─> ProjectLifecycleCoordinator (consolida 3)
   ├─> ProcessingCoordinator (consolida 3)
@@ -699,7 +747,8 @@ MainViewModel (800 linhas)
   └─> SessionCoordinator (consolida 3)
 ```
 
-**Benefícios**:
+### Benefícios
+
 - ✅ 75% menos componentes (20 → 4)
 - ✅ Zero dependências de MainViewModel
 - ✅ Interface clara e coesa
@@ -713,7 +762,7 @@ MainViewModel (800 linhas)
 ### 6.1 Objetivos de Cobertura
 
 | Fase | Cobertura Alvo | Tipos de Teste | Testes Novos |
-|------|----------------|----------------|--------------|
+| ------ | ---------------- | ---------------- | -------------- |
 | Fase 1 | 72% | Unit | 25+ |
 | Fase 2 | 75% | Integration | 40+ |
 | Fase 3 | 78% | Integration + E2E | 30+ |
@@ -727,6 +776,7 @@ MainViewModel (800 linhas)
 #### Fase 1: Testes de Serviços (Unit Tests)
 
 **BatchConfigurationService** (~10 testes):
+
 ```python
 def test_apply_settings_success():
     """Testa aplicação bem-sucedida de configurações."""
@@ -758,6 +808,7 @@ def test_build_configuration():
 ```
 
 **ApplicationBootstrapper** (~8 testes):
+
 ```python
 def test_initialize_all_services():
     """Testa que todos os serviços são inicializados."""
@@ -780,6 +831,7 @@ def test_hardware_detection():
 ```
 
 **DialogCoordinator** (~7 testes):
+
 ```python
 def test_handle_mixed_data_scenario_confirm():
     """Testa confirmação de cenário de dados mistos."""
@@ -794,6 +846,7 @@ def test_handle_mixed_data_scenario_confirm():
 #### Fase 2: Testes de Integração (Facade Removal)
 
 **EventDispatcher Integration** (~15 testes):
+
 ```python
 def test_event_routing_to_coordinator():
     """Testa roteamento correto de evento para coordinator."""
@@ -817,6 +870,7 @@ def test_all_events_registered():
 ```
 
 **Facade Removal Regression** (~25 testes):
+
 ```python
 def test_project_create_still_works():
     """Testa que criar projeto ainda funciona após remover facade."""
@@ -834,6 +888,7 @@ def test_project_create_still_works():
 #### Fase 3: Testes de Consolidação (Super Coordinators)
 
 **ProjectLifecycleCoordinator** (~10 testes):
+
 ```python
 def test_create_project_orchestration():
     """Testa orquestração completa de criação de projeto."""
@@ -863,6 +918,7 @@ def test_coordinator_thread_safety():
 ```
 
 **ProcessingCoordinator Consolidation** (~10 testes):
+
 ```python
 def test_process_video_complete_workflow():
     """Testa workflow completo de processamento de vídeo."""
@@ -878,6 +934,7 @@ def test_process_video_complete_workflow():
 ```
 
 **Integration Tests** (~10 testes):
+
 ```python
 def test_all_coordinators_work_together():
     """Testa que todos os coordinators trabalham juntos."""
@@ -896,6 +953,7 @@ def test_all_coordinators_work_together():
 #### Fase 4: Testes de UI (Desacoplamento)
 
 **Event-Based UI Updates** (~10 testes):
+
 ```python
 def test_ui_update_via_event():
     """Testa atualização de UI via evento."""
@@ -914,6 +972,7 @@ def test_ui_update_via_event():
 ```
 
 **UI Decoupling Regression** (~10 testes):
+
 ```python
 def test_no_direct_view_calls():
     """Testa que não há chamadas diretas de view."""
@@ -932,6 +991,7 @@ def test_no_direct_view_calls():
 #### Fase 5: Testes E2E e Performance
 
 **End-to-End Workflow Tests** (~5 testes):
+
 ```python
 def test_complete_project_workflow():
     """Testa workflow completo de projeto."""
@@ -959,6 +1019,7 @@ def test_complete_project_workflow():
 ```
 
 **Performance Tests** (~5 testes):
+
 ```python
 def test_initialization_performance():
     """Testa que inicialização é rápida."""
@@ -993,6 +1054,7 @@ def test_event_routing_performance():
 #### Testes de Regressão Automatizados
 
 **Snapshot Testing** (estado antes/depois):
+
 ```python
 def test_state_consistency_after_refactor():
     """Testa que estado é consistente após refatoração."""
@@ -1012,6 +1074,7 @@ def test_state_consistency_after_refactor():
 ```
 
 **Golden Tests** (saída esperada):
+
 ```python
 def test_output_matches_golden():
     """Testa que saída corresponde ao golden file."""
@@ -1025,6 +1088,7 @@ def test_output_matches_golden():
 ```
 
 **Property-Based Testing** (invariantes):
+
 ```python
 from hypothesis import given, strategies as st
 
@@ -1043,7 +1107,8 @@ def test_batch_processing_invariants(video_paths):
 
 #### Testes de Integração Contínua
 
-**CI Pipeline**:
+### CI Pipeline
+
 ```yaml
 # .github/workflows/test.yml
 name: Test Suite
@@ -1073,6 +1138,7 @@ jobs:
 ```
 
 **Testes de Mutação** (mutation testing):
+
 ```python
 # Usa mutpy ou cosmic-ray para detectar testes fracos
 # Exemplo: Muta código e verifica se testes falham
@@ -1081,8 +1147,9 @@ jobs:
 
 ### 6.4 Métricas de Qualidade
 
-**Cobertura por Componente**:
-```
+### Cobertura por Componente
+
+```text
 BatchConfigurationService:     95% (meta: 90%)
 ApplicationBootstrapper:       92% (meta: 85%)
 DialogCoordinator:             88% (meta: 85%)
@@ -1095,15 +1162,17 @@ SessionCoordinator:            87% (meta: 85%)
 MainViewModel (final):         85% (meta: 85%)
 ```
 
-**Complexidade Ciclomática**:
-```
+### Complexidade Ciclomática
+
+```text
 MainViewModel (antes):    Média 12, Max 35  ❌
 MainViewModel (depois):   Média 4, Max 8    ✅
 Novos Serviços:           Média 3, Max 6    ✅
 ```
 
-**Acoplamento**:
-```
+### Acoplamento
+
+```text
 MainViewModel (antes):    47 dependências diretas  ❌
 MainViewModel (depois):   4 super coordinators     ✅
 ```
@@ -1118,14 +1187,16 @@ MainViewModel (depois):   4 super coordinators     ✅
 
 **Objetivo**: Extrair 5 novas classes de serviço
 
-**Tarefas**:
+### Tarefas
+
 1. ✅ Criar `BatchConfigurationService` (extrair `apply_project_settings_to_batch`)
 2. ✅ Criar `ApplicationBootstrapper` (extrair todos os métodos `_init_*`)
 3. ✅ Criar `DialogCoordinator` (extrair métodos de diálogo)
 4. ✅ Criar `EventDispatcher` (extrair registro de eventos)
 5. ✅ Criar `ThreadCoordinator` (extrair gerenciamento de threads)
 
-**Testes Requeridos**:
+### Testes Requeridos
+
 - Testes unitários para cada novo serviço (25+ testes)
 - Testes de integração para sequência de inicialização
 - Testes de coordenação de threads
@@ -1142,13 +1213,15 @@ MainViewModel (depois):   4 super coordinators     ✅
 
 **Objetivo**: Remover 85 métodos facade
 
-**Tarefas**:
+### Tarefas
+
 1. ✅ Criar `OrchestratorRegistry` para roteamento de eventos
 2. ✅ Atualizar EventBus handlers para chamar orchestrators diretamente
 3. ✅ Remover métodos facade do MainViewModel
 4. ✅ Atualizar todos os callers (GUI, testes)
 
-**Testes Requeridos**:
+### Testes Requeridos
+
 - Atualizar 85+ mocks de teste
 - Testes de integração para roteamento de eventos
 - Testes end-to-end de workflow
@@ -1166,7 +1239,8 @@ MainViewModel (depois):   4 super coordinators     ✅
 
 **Objetivo**: Criar 4 super coordinators, eliminar orchestrators
 
-**Tarefas**:
+### Tarefas
+
 1. ✅ Criar `ProjectLifecycleCoordinator` (consolida 3 components)
 2. ✅ Criar `ProcessingCoordinator` aprimorado (consolida 3 components)
 3. ✅ Criar `HardwareCoordinator` aprimorado (consolida 2 components)
@@ -1176,7 +1250,8 @@ MainViewModel (depois):   4 super coordinators     ✅
 7. ✅ **CRÍTICO**: Eliminar referências a `main_view_model` dos orchestrators
 8. ✅ Refatorar orchestrators para usar injeção de dependência pura
 
-**Testes Requeridos**:
+### Testes Requeridos
+
 - Regressão completa da suite de testes
 - Testes de integração para todos os workflows
 - Testes de segurança de thread
@@ -1188,9 +1263,10 @@ MainViewModel (depois):   4 super coordinators     ✅
 
 **Resultado**: -200 linhas, hierarquia simplificada (20 → 4 componentes)
 
-**Detalhes de Implementação**:
+### Detalhes de Implementação
 
 **Passo 1**: Criar BaseCoordinator unificado
+
 ```python
 # src/zebtrack/coordinators/base_coordinator.py
 class BaseCoordinator(ABC):
@@ -1207,6 +1283,7 @@ class BaseCoordinator(ABC):
 ```
 
 **Passo 2**: Refatorar orchestrators existentes
+
 ```python
 # ANTES (VideoProcessingOrchestrator.py)
 class VideoProcessingOrchestrator:
@@ -1232,7 +1309,8 @@ class ProcessingCoordinator(BaseCoordinator):
         # ✅ Injeção de dependência pura
 ```
 
-**Passo 3**: Atualizar __main__.py (Composition Root)
+**Passo 3**: Atualizar **main**.py (Composition Root)
+
 ```python
 # src/zebtrack/__main__.py
 
@@ -1260,7 +1338,7 @@ project_lifecycle = ProjectLifecycleCoordinator(
 **Passo 4**: Mapear todos os 13 orchestrators para 4 coordinators
 
 | Orchestrator Antigo | Super Coordinator Novo | Ação |
-|---------------------|------------------------|------|
+| --------------------- | ------------------------ | ------ |
 | VideoProcessingOrchestrator | ProcessingCoordinator | Absorver métodos |
 | AnalysisOrchestrator | ProcessingCoordinator | Absorver métodos |
 | ProcessingConfigOrchestrator | ProcessingCoordinator | Absorver métodos |
@@ -1276,6 +1354,7 @@ project_lifecycle = ProjectLifecycleCoordinator(
 | UIStateController | Manter separado | Renomear para UICoordinator |
 
 **Passo 5**: Plano de testes de regressão
+
 ```python
 # tests/integration/test_coordinator_consolidation.py
 
@@ -1301,6 +1380,7 @@ def test_project_lifecycle_still_works():
 ```
 
 **Passo 6**: Eliminar arquivos obsoletos
+
 ```bash
 # Após migração completa e testes passando:
 rm src/zebtrack/orchestrators/video_processing_orchestrator.py
@@ -1315,13 +1395,15 @@ rm src/zebtrack/orchestrators/project_orchestrator.py
 
 **Objetivo**: Remover todas as referências diretas de view
 
-**Tarefas**:
+### Tarefas
+
 1. ✅ Identificar todas as chamadas `self.view.*`
 2. ✅ Migrar para eventos do EventBus
 3. ✅ Atualizar UICoordinator para lidar com novos eventos
 4. ✅ Remover dependência de view do MainViewModel
 
-**Testes Requeridos**:
+### Testes Requeridos
+
 - Testes de eventos de UI
 - Testes de mock view
 - Testes de integração
@@ -1338,14 +1420,16 @@ rm src/zebtrack/orchestrators/project_orchestrator.py
 
 **Objetivo**: Polir e documentar
 
-**Tarefas**:
+### Tarefas
+
 1. ✅ Remover código morto
 2. ✅ Atualizar docs de arquitetura
 3. ✅ Atualizar guia de injeção de dependência
 4. ✅ Criar guia de migração
 5. ✅ Atualizar CLAUDE.md
 
-**Testes Requeridos**:
+### Testes Requeridos
+
 - Análise de cobertura (manter 70%+)
 - Benchmarks de performance
 - Profiling de memória
@@ -1360,21 +1444,22 @@ rm src/zebtrack/orchestrators/project_orchestrator.py
 
 ### 7.2 Oportunidades de Trabalho Paralelo
 
-**Pode ser feito simultaneamente com refatoração de GUI**:
+### Pode ser feito simultaneamente com refatoração de GUI
 
 | Tarefa MainViewModel | Tarefa GUI | Risco de Conflito |
-|---------------------|------------|-------------------|
+| --------------------- | ------------ | ------------------- |
 | Fase 1 (Extração de Serviços) | Extração de diálogos | 🟢 Nenhum |
 | Fase 4 (Desacoplamento UI) | Modularização de widgets | 🟡 Baixo |
 
-**Deve ser sequencial**:
+### Deve ser sequencial
 
 | Tarefa A | Tarefa B | Razão |
-|----------|----------|-------|
+| ---------- | ---------- | ------- |
 | Fase 2 (Limpeza Facade) | Fase 3 (Consolidação) | Consolidação depende de API limpa |
 | Fase 3 (Consolidação) | Fase 4 (Desacoplamento UI) | UI precisa de API estável de coordinator |
 
-**Trabalho paralelo recomendado**:
+### Trabalho paralelo recomendado
+
 - **Agent 1**: MainViewModel Fase 1 + Fase 2
 - **Agent 2**: GUI extração de diálogos + modularização de widgets
 - **Agent 1**: MainViewModel Fase 3 + Fase 4
@@ -1386,10 +1471,10 @@ rm src/zebtrack/orchestrators/project_orchestrator.py
 
 ### 8.1 Métricas de Sucesso
 
-**Quantitativas**:
+### Quantitativas
 
 | Métrica | Antes | Meta | Medição |
-|---------|-------|------|---------|
+| --------- | ------- | ------ | --------- |
 | **Linhas Totais** | 2.797 | < 800 | Contagem de linhas |
 | **Métodos Totais** | 155 | < 40 | Contagem de métodos |
 | **Métodos Públicos** | ~80 | < 25 | Superfície de API |
@@ -1398,56 +1483,64 @@ rm src/zebtrack/orchestrators/project_orchestrator.py
 | **Cobertura de Testes** | 70% | 85% | pytest-cov |
 | **Tamanho de Arquivo (KB)** | ~95 | < 30 | Tamanho de arquivo |
 
-**Qualitativas**:
+### Qualitativas
 
-**Arquitetura**:
+### Arquitetura
+
 - ✅ Conformidade com Princípio de Responsabilidade Única
 - ✅ Separação clara: Orquestração vs Lógica de Negócio
 - ✅ Componentes testáveis (cada serviço < 500 linhas)
 - ✅ Sem acoplamento direto de UI (apenas EventBus)
 
-**Manutenibilidade**:
+### Manutenibilidade
+
 - ✅ Novos recursos requerem < 50 linhas no MainViewModel
 - ✅ Localização de serviço clara (nome de arquivo corresponde à responsabilidade)
 - ✅ Documentação completa para todas as APIs públicas
 - ✅ Sem antipadrão "God Object"
 
-**Performance**:
+### Performance
+
 - ✅ Sem regressão no tempo de startup (< 2.5s)
 - ✅ Sem regressão no throughput de processamento
 - ✅ Sem regressão no uso de memória
 
 ### 8.2 Checklist de Pré-Merge
 
-**Fase 1**:
+### Fase 1
+
 - [ ] 5 novos serviços criados com testes
 - [ ] 100% do código extraído testado
 - [ ] Sem regressão nos testes existentes
 - [ ] Code review aprovado
 - [ ] Documentação atualizada
 
-**Fase 2**:
+### Fase 2
+
 - [ ] 85 métodos facade removidos
 - [ ] EventDispatcher roteando todos os eventos
 - [ ] Todas as chamadas de GUI atualizadas
 - [ ] Testes de integração passando
 - [ ] Avisos de deprecação adicionados
 
-**Fase 3**:
+### Fase 3
+
 - [ ] 4 super coordinators criados
 - [ ] Todos os orchestrators migrados
 - [ ] Grafo de dependências validado
 - [ ] Testes de segurança de thread passando
 - [ ] Benchmarks de performance passando
 
-**Fase 4**:
+### Fase 4
+
 - [ ] Zero referências diretas de view
 - [ ] Todas as atualizações de UI via EventBus
 - [ ] UICoordinator lidando com todos os diálogos
 - [ ] Testes de UI atualizados
 - [ ] Testes de regressão visual passando
 
-**Fase 5**:
+### Fase 5
+
 - [ ] Código morto removido
 - [ ] Docs de arquitetura atualizados
 - [ ] Guia de migração criado
@@ -1492,7 +1585,7 @@ else:
 
 ## 10. CRONOGRAMA E MARCOS
 
-```
+```text
 Semana 1-2: Fase 1 - Extração de Serviços
   ├─ Dia 1-2: BatchConfigurationService + testes
   ├─ Dia 3-4: ApplicationBootstrapper + testes
@@ -1534,7 +1627,7 @@ TOTAL: 6-7 semanas (30-35 dias úteis)
 ## 11. RISCOS E MITIGAÇÕES
 
 | Risco | Probabilidade | Impacto | Mitigação |
-|-------|---------------|---------|-----------|
+| ------- | --------------- | --------- | ----------- |
 | **Quebrar funcionalidade existente** | Média | Alto | Suite de testes completa após cada fase |
 | **Complexidade aumentada de muitos componentes** | Baixa | Médio | Cada componente com responsabilidade única clara |
 | **Conflitos de merge com refatoração de GUI** | Média | Médio | Congelar interface EventBus, sincronização diária |
@@ -1547,7 +1640,7 @@ TOTAL: 6-7 semanas (30-35 dias úteis)
 
 ### 12.1 Com Agent 2 (GUI Refactoring)
 
-**Pontos de Sincronização**:
+### Pontos de Sincronização
 
 1. **Interface EventBus** - Manter sincronizada
    - Novos eventos em GUI → Notificar Agent 1
@@ -1561,7 +1654,8 @@ TOTAL: 6-7 semanas (30-35 dias úteis)
    - API pública do MainViewModel → Documentar e congelar
    - GUI pode assumir interface estável
 
-**Estratégia de Merge**:
+### Estratégia de Merge
+
 1. Completar Fase 3 primeiro (independente)
 2. Completar Fase 4 em paralelo com Fase 3
 3. Fazer merge Fase 3 + 4 antes de começar Fase 5
@@ -1599,7 +1693,7 @@ Ver arquivo separado: `TEST_MIGRATION_GUIDE.md`
 
 ## SUMÁRIO DO ROTEIRO DE IMPLEMENTAÇÃO
 
-```
+```text
 FASE 1: Extração de Serviços (5-7 dias)
   ├─ Criar BatchConfigurationService
   ├─ Criar ApplicationBootstrapper
@@ -1641,9 +1735,10 @@ COBERTURA FINAL: 85% (+15 pontos percentuais)
 
 ---
 
-**FIM DO PLANO DE REFATORAÇÃO**
+### FIM DO PLANO DE REFATORAÇÃO
 
 Este plano abrangente fornece:
+
 - Análise completa do estado atual (2.797 linhas, 155 métodos)
 - Problemas arquiteturais claros identificados (14 antipadrões distintos)
 - Estratégia de refatoração detalhada (5 fases, 5 novos serviços, 4 super coordinators)

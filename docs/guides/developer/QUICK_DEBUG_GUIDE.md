@@ -5,6 +5,7 @@
 Use `F5` or Run & Debug panel to launch:
 
 ### Available Configurations
+
 - **ZebTrack: Run App** - Standard app launch
 - **ZebTrack: Run with Local Config** - Uses `config.local.yaml`
 - **ZebTrack: Debug Tests (Fast)** - Quick test suite
@@ -15,6 +16,7 @@ Use `F5` or Run & Debug panel to launch:
 ## Common Debug Breakpoints
 
 ### Video Processing Issues
+
 ```python
 # Frame acquisition
 zebtrack/io/video_source.py:VideoSource.get_frame()
@@ -25,6 +27,7 @@ zebtrack/plugins/yolov8_detector.py:YOLOv8Detector.detect()
 ```
 
 ### UI Freezing/Responsiveness
+
 ```python
 # Main update loop
 zebtrack/core/main_view_model.py:MainViewModel.update_ui_frame()
@@ -37,6 +40,7 @@ zebtrack/ui/gui.py:MainWindow._on_*()
 ```
 
 ### Wizard Flow Issues
+
 ```python
 # Step management
 zebtrack/ui/wizard/wizard_manager.py:WizardManager._advance_step()
@@ -49,6 +53,7 @@ zebtrack/core/project_manager.py:ProjectManager.get_roi_template()
 ```
 
 ### Recording/Data Issues
+
 ```python
 # Data writing
 zebtrack/io/recorder.py:Recorder._write_detection()
@@ -58,6 +63,7 @@ zebtrack/io/recorder.py:Recorder._validate_schema()
 ```
 
 ### Zone Scaling Problems
+
 ```python
 # Zone rescaling
 zebtrack/core/detector_service.py:DetectorService.set_zones()
@@ -67,33 +73,42 @@ zebtrack/utils/geometry.py:rescale_zones()
 ## Quick Debug Scenarios
 
 ### 1. App Won't Start
+
 **Breakpoint**: `zebtrack/__main__.py:main()`
 **Check**: Config loading, hardware detection, model availability
 
 ### 2. Detection Not Working
+
 **Breakpoint**: `DetectorService.detect()`
 **Inspect**:
+
 - `frame` shape and dtype
 - `zones` coordinates after scaling
 - `plugin` initialization
 
 ### 3. UI Not Updating
+
 **Breakpoint**: `MainViewModel.update_ui_frame()`
 **Check**:
+
 - `root.after()` calls present
 - No blocking operations in main thread
 - `StateManager.update_state()` called
 
 ### 4. Wizard Stuck
+
 **Breakpoint**: `ProjectWorkflowService.validate_step()`
 **Check**:
+
 - Current step data in `project_manager`
 - Required fields populated
 - File paths valid
 
 ### 5. Wrong Data in Parquet
+
 **Breakpoint**: `Recorder._write_detection()`
 **Inspect**:
+
 - `detection` dict keys
 - Match against `self.schema`
 - Column dtypes
@@ -125,7 +140,9 @@ poetry run python -X tracemalloc=5 -m zebtrack
 ## Logging Tips
 
 ### Enable Debug Logging
+
 Edit `config.local.yaml`:
+
 ```yaml
 logging:
   level: DEBUG
@@ -133,6 +150,7 @@ logging:
 ```
 
 ### Key Log Patterns
+
 ```python
 # Domain-based structlog
 logger.debug("detector.scaling.start", zones=zones, frame_dims=(w,h))
@@ -141,6 +159,7 @@ logger.error("recorder.write.failed", error=str(e), detection=det)
 ```
 
 ### Grep for Issues
+
 ```powershell
 # Find errors
 Select-String -Path logs\*.log -Pattern "ERROR"
@@ -152,11 +171,13 @@ Select-String -Path logs\*.log -Pattern "detector\."
 ## Test Debugging
 
 ### Run Single Test
+
 ```powershell
 poetry run pytest tests/test_detector_service.py::test_specific_function -v -s
 ```
 
 ### Debug Test Fixture
+
 ```python
 # In test file, add:
 import pytest
@@ -164,6 +185,7 @@ pytest.set_trace()  # or use breakpoint()
 ```
 
 ### GUI Test Tips
+
 - Always use `-n0` (no parallel)
 - Tests run in separate Tk instance
 - Use `caplog` fixture for log inspection
@@ -171,6 +193,7 @@ pytest.set_trace()  # or use breakpoint()
 ## Common Pitfalls
 
 ### ❌ Forgetting Zone Rescaling
+
 ```python
 # WRONG: Using template coords directly
 detector.detect(frame, zones=project.roi_template.zones)
@@ -180,6 +203,7 @@ detector.set_zones(zones, video_width, video_height)
 ```
 
 ### ❌ Blocking Main Thread
+
 ```python
 # WRONG: Heavy computation in UI callback
 def on_analyze():
@@ -191,6 +215,7 @@ def on_analyze():
 ```
 
 ### ❌ Missing Track IDs
+
 ```python
 # WRONG: Assuming track_id always present
 track_id = detection["track_id"]
@@ -202,6 +227,7 @@ track_id = detection.get("track_id", -1)
 ## VS Code Tasks
 
 Use `Ctrl+Shift+B` to run build tasks:
+
 - **Run ZebTrack** (default)
 - **Run Tests (Fast)**
 - **Run Tests with Coverage**

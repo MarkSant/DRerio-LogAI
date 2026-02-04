@@ -7,14 +7,17 @@
 ## Root Causes
 
 ### 1. PanedWindow vs Grid Conflict (CRITICAL)
+
 **Problem**: The UI was using `PanedWindow` (line 250) for layout management but attempting to apply `grid_configure()` (lines 895-903) to reconfigure child widgets.
 
 **Why it fails**:
+
 - `PanedWindow` uses `.add()` method for child widgets
 - `.grid_configure()` is for Grid geometry manager
 - Mixing these two caused layout conflicts and flickering
 
 **Evidence**:
+
 ```python
 # BEFORE (BROKEN):
 paned_window = PanedWindow(self, orient="horizontal", ...)
@@ -26,14 +29,17 @@ left.grid_configure(row=0, column=0, ...)  # ❌ Conflict!
 ```
 
 ### 2. Excessive Resize Callbacks
+
 **Problem**: The `<Configure>` event callback was firing on every geometry change, causing cascading layout updates.
 
 **Why it caused flickering**:
+
 - Each `_on_resize()` call immediately reconfigured widgets
 - Widget reconfiguration triggered more `<Configure>` events
 - Created a feedback loop of rapid updates
 
 ### 3. Design Detection Warning
+
 **Context**: The warning `wizard.detection.design_not_detected` comes from Detection Step (Step 3), not Model Selection Step (Step 5).
 
 **Not a bug**: This is an informational warning when video filenames don't match experimental design patterns (e.g., `G1_D1_S1.mp4`). It's expected for exploratory or live projects.
@@ -47,6 +53,7 @@ left.grid_configure(row=0, column=0, ...)  # ❌ Conflict!
 **File**: [model_selection_step.py](../../src/zebtrack/ui/wizard/model_selection_step.py#L249-L269)
 
 **Changes**:
+
 ```python
 # BEFORE:
 paned_window = PanedWindow(self, orient="horizontal", ...)
@@ -68,6 +75,7 @@ right_column.grid(row=0, column=1, sticky="nsew")
 ```
 
 **Benefits**:
+
 - Consistent use of Grid geometry manager
 - No mixing of incompatible layout managers
 - Responsive 60%/40% column split (weight=3/weight=2)
@@ -78,6 +86,7 @@ right_column.grid(row=0, column=1, sticky="nsew")
 **File**: [model_selection_step.py](../../src/zebtrack/ui/wizard/model_selection_step.py#L861-L903)
 
 **Changes**:
+
 1. Added `_resize_after_id` attribute to track pending resize updates (line 88)
 2. Modified `_on_resize()` to cancel previous updates and schedule new one (100ms delay)
 3. Created `_apply_resize()` to execute actual layout changes after debounce period
@@ -104,6 +113,7 @@ def _apply_resize(self, width: int) -> None:
 ```
 
 **Benefits**:
+
 - Only one resize update per 100ms window
 - Prevents feedback loops
 - Smooth layout transitions without flickering
@@ -118,6 +128,7 @@ def _apply_resize(self, width: int) -> None:
 **File**: [model_selection_step.py](../../src/zebtrack/ui/wizard/model_selection_step.py)
 
 **Changes**:
+
 ```python
 # 1. Reduced LabelFrame internal padding from padx=15, pady=10 to padx=10, pady=5
 methods_frame = LabelFrame(
@@ -154,6 +165,7 @@ Label(..., font=("TkDefaultFont", 8), ...)  # Was 9
 ```
 
 **Benefits**:
+
 - All elements visible without scrolling
 - Clean, professional appearance
 - No scrollbar UI clutter
@@ -207,6 +219,7 @@ poetry run ruff check src/zebtrack/ui/wizard/model_selection_step.py
 ## Design Pattern Lessons
 
 ### ❌ Don't Mix Geometry Managers
+
 ```python
 # BAD: PanedWindow with grid_configure()
 paned = PanedWindow(parent)
@@ -215,6 +228,7 @@ child.grid_configure(...)  # ❌ Conflict!
 ```
 
 ### ✅ Use One Geometry Manager Consistently
+
 ```python
 # GOOD: Frame with grid throughout
 frame = ttk.Frame(parent)
@@ -223,6 +237,7 @@ child.grid(row=0, column=0)
 ```
 
 ### ❌ Immediate Resize Updates
+
 ```python
 # BAD: Creates feedback loops
 def on_resize(event):
@@ -230,6 +245,7 @@ def on_resize(event):
 ```
 
 ### ✅ Debounced Resize Updates
+
 ```python
 # GOOD: Batches updates
 def on_resize(event):
@@ -249,6 +265,7 @@ def on_resize(event):
 **Context**: Logged when Step 3 cannot detect experimental design patterns in video filenames.
 
 **Not an error**: This is expected for:
+
 - Exploratory projects (no groups/days/subjects structure)
 - Live camera projects
 - Videos with non-standard naming conventions
@@ -259,12 +276,14 @@ def on_resize(event):
 
 ## Performance Impact
 
-### Before Fix:
+### Before Fix
+
 - ~30-50 resize callbacks per second during window resize
 - Cascading layout updates causing visual flickering
 - Geometry manager conflicts causing Tkinter warnings
 
-### After Fix:
+### After Fix
+
 - ~10 resize updates per second (100ms debounce)
 - Single layout update per resize event
 - No geometry manager conflicts

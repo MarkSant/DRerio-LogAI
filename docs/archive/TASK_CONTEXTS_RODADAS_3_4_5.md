@@ -1,4 +1,7 @@
+<!-- markdownlint-disable MD024 -->
+
 # Contextos de Tarefas - Rodadas 3, 4 e 5
+
 ## ZebTrack-AI - Continuação da Refatoração
 
 **Branch**: `claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3`
@@ -7,11 +10,12 @@
 
 ---
 
-# 🔶 RODADA 3 - Refatorações e Testes (5 conversas paralelas)
+## 🔶 RODADA 3 - Refatorações e Testes (5 conversas paralelas)
 
 ---
 
-# Task 2.1: Refatorar GUI.py (Extração de Componentes UI)
+## Task 2.1: Refatorar GUI.py (Extração de Componentes UI)
+
 **ID**: `REFACTOR-GUI-001`
 **Status**: PENDENTE
 **Prioridade**: ALTA
@@ -28,6 +32,7 @@
 ## Objetivo da Task
 
 Refatorar `ApplicationGUI` (ui/gui.py, 9951 linhas) extraindo componentes UI em módulos independentes:
+
 - Extrair gerenciamento de menus para `MenuManager`
 - Extrair desenho e overlay para `CanvasManager`
 - Extrair sincronização de estado para `StateSynchronizer`
@@ -39,6 +44,7 @@ Refatorar `ApplicationGUI` (ui/gui.py, 9951 linhas) extraindo componentes UI em 
 **Arquivo**: `src/zebtrack/ui/gui.py` (9951 linhas, 322 métodos)
 
 **Responsabilidades Identificadas**:
+
 1. Menu management (File, Edit, View, etc.) - ~800 linhas
 2. Canvas drawing e overlay rendering - ~1200 linhas
 3. State synchronization com StateManager - ~600 linhas
@@ -63,6 +69,7 @@ Refatorar `ApplicationGUI` (ui/gui.py, 9951 linhas) extraindo componentes UI em 
 **Responsabilidade**: Gerenciar todos os menus da aplicação
 
 **Métodos a Extrair** (buscar em gui.py):
+
 - `_create_menu_bar()`
 - `_create_file_menu()`
 - `_create_edit_menu()`
@@ -72,6 +79,7 @@ Refatorar `ApplicationGUI` (ui/gui.py, 9951 linhas) extraindo componentes UI em 
 - Todos os handlers de menu items
 
 **Template Inicial**:
+
 ```python
 """Menu management for ApplicationGUI."""
 
@@ -131,6 +139,7 @@ class MenuManager:
 **Responsabilidade**: Gerenciar canvas, desenho e overlays
 
 **Métodos a Extrair**:
+
 - `_draw_detections()`
 - `_draw_zones()`
 - `_draw_arena()`
@@ -141,6 +150,7 @@ class MenuManager:
 - Todos os métodos `_draw_*`
 
 **Template Inicial**:
+
 ```python
 """Canvas drawing and overlay management."""
 
@@ -206,6 +216,7 @@ class CanvasManager:
 **Responsabilidade**: Sincronizar UI com StateManager
 
 **Métodos a Extrair**:
+
 - `_update_ui_from_state()`
 - `_sync_recording_state()`
 - `_sync_processing_state()`
@@ -213,6 +224,7 @@ class CanvasManager:
 - `_on_state_changed()`
 
 **Template Inicial**:
+
 ```python
 """State synchronization between UI and StateManager."""
 
@@ -263,6 +275,7 @@ class StateSynchronizer:
 **Responsabilidade**: Gerenciar event handlers
 
 **Métodos a Extrair**:
+
 - `_on_button_click()`
 - `_on_canvas_click()`
 - `_on_key_press()`
@@ -270,6 +283,7 @@ class StateSynchronizer:
 - Todos os handlers `_on_*`
 
 **Template Inicial**:
+
 ```python
 """Event handling and dispatching."""
 
@@ -315,6 +329,7 @@ class EventDispatcher:
 **Mudanças em gui.py**:
 
 1. **Importar novos componentes**:
+
 ```python
 from zebtrack.ui.components.menu_manager import MenuManager
 from zebtrack.ui.components.canvas_manager import CanvasManager
@@ -322,7 +337,8 @@ from zebtrack.ui.components.state_synchronizer import StateSynchronizer
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
 ```
 
-2. **Atualizar `__init__`**:
+1. **Atualizar `__init__`**:
+
 ```python
 def __init__(self, root, controller):
     # ... inicialização existente ...
@@ -340,14 +356,15 @@ def __init__(self, root, controller):
     self.event_dispatcher.setup_bindings()
 ```
 
-3. **Substituir métodos por delegação**:
+1. **Substituir métodos por delegação**:
+
 ```python
 def draw_frame(self, frame, detections=None, zones=None):
     """Delegate to CanvasManager."""
     self.canvas_manager.draw_frame(frame, detections, zones)
 ```
 
-4. **Remover métodos extraídos**
+1. **Remover métodos extraídos**
 
 ## Implementação Passo-a-Passo
 
@@ -379,35 +396,35 @@ def draw_frame(self, frame, detections=None, zones=None):
 ## Validação
 
 ```bash
-# Verificar sintaxe Python
+## Verificar sintaxe Python
 poetry run ruff check src/zebtrack/ui/
 
-# Testes de GUI (se disponíveis)
+## Testes de GUI (se disponíveis)
 poetry run pytest tests/test_gui.py -v -m gui -n0
 
-# Testes de integração
+## Testes de integração
 poetry run pytest tests/integration/test_gui_integration.py -v -n0
 
-# Suite completa (garantir sem regressão)
+## Suite completa (garantir sem regressão)
 poetry run pytest -q
 ```
 
 ## Commit e Push
 
 ```bash
-# Criar diretório de componentes
+## Criar diretório de componentes
 mkdir -p src/zebtrack/ui/components
 
-# Adicionar novos arquivos
+## Adicionar novos arquivos
 git add src/zebtrack/ui/components/menu_manager.py
 git add src/zebtrack/ui/components/canvas_manager.py
 git add src/zebtrack/ui/components/state_synchronizer.py
 git add src/zebtrack/ui/components/event_dispatcher.py
 
-# Adicionar gui.py modificado
+## Adicionar gui.py modificado
 git add src/zebtrack/ui/gui.py
 
-# Adicionar __init__ no diretório components
+## Adicionar __init__ no diretório components
 git add src/zebtrack/ui/components/__init__.py
 
 git commit -m "refactor: extrair componentes UI de ApplicationGUI
@@ -438,7 +455,8 @@ git push -u origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 
 ---
 
-# Task 2.3: Refatorar ProjectManager (Separação de Responsabilidades)
+## Task 2.3: Refatorar ProjectManager (Separação de Responsabilidades)
+
 **ID**: `REFACTOR-PROJECTMGR-001`
 **Status**: PENDENTE
 **Prioridade**: ALTA
@@ -448,6 +466,7 @@ git push -u origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 ## Objetivo da Task
 
 Refatorar `ProjectManager` (2795 linhas) separando gerenciamento de projetos, vídeos, zonas e assets:
+
 - Extrair gerenciamento de vídeos para `VideoManager`
 - Extrair gerenciamento de zonas para `ZoneManager`
 - Extrair gerenciamento de assets para `AssetManager`
@@ -458,6 +477,7 @@ Refatorar `ProjectManager` (2795 linhas) separando gerenciamento de projetos, v�
 **Arquivo**: `src/zebtrack/core/project_manager.py` (2795 linhas, 79 métodos)
 
 **Responsabilidades Identificadas**:
+
 1. Gerenciamento de projetos (CRUD) - ~700 linhas
 2. Gerenciamento de vídeos - ~500 linhas
 3. Gerenciamento de zonas e ROIs - ~600 linhas
@@ -480,6 +500,7 @@ Refatorar `ProjectManager` (2795 linhas) separando gerenciamento de projetos, v�
 ### Fase 1: Criar VideoManager
 
 **Métodos a Extrair**:
+
 - `add_video()`
 - `remove_video()`
 - `get_video_info()`
@@ -488,6 +509,7 @@ Refatorar `ProjectManager` (2795 linhas) separando gerenciamento de projetos, v�
 - `get_processed_videos()`
 
 **Template Inicial**:
+
 ```python
 """Video management for projects."""
 
@@ -529,6 +551,7 @@ class VideoManager:
 ### Fase 2: Criar ZoneManager
 
 **Métodos a Extrair**:
+
 - `add_zone()`
 - `update_zone()`
 - `remove_zone()`
@@ -539,6 +562,7 @@ class VideoManager:
 ### Fase 3: Criar AssetManager
 
 **Métodos a Extrair**:
+
 - `load_profile()`
 - `save_profile()`
 - `get_available_profiles()`
@@ -548,6 +572,7 @@ class VideoManager:
 ### Fase 4: Refatorar ProjectManager
 
 **Atualizar `__init__`**:
+
 ```python
 def __init__(self, settings):
     self.settings = settings
@@ -596,7 +621,8 @@ git push -u origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 
 ---
 
-# Task 2.4: Refatorar VideoProcessingService (Quebrar Método God)
+## Task 2.4: Refatorar VideoProcessingService (Quebrar Método God)
+
 **ID**: `REFACTOR-VIDEOPROCESSING-001`
 **Status**: PENDENTE
 **Prioridade**: ALTA
@@ -606,6 +632,7 @@ git push -u origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 ## Objetivo da Task
 
 Refatorar `VideoProcessingService` quebrando o método god `_collect_params_from_single_video()`:
+
 - Método atual: 641 linhas, complexidade ciclomática ~40
 - **Meta**: Reduzir para ~90 linhas, CC ~8
 - Extrair 5 métodos especializados
@@ -700,7 +727,8 @@ git push -u origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 
 ---
 
-# Task 3.2: Testes LiveCameraService Thread Safety
+## Task 3.2: Testes LiveCameraService Thread Safety
+
 **ID**: `TEST-LIVECAMERA-001`
 **Status**: PENDENTE
 **Prioridade**: CRÍTICA
@@ -710,6 +738,7 @@ git push -u origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 ## Objetivo da Task
 
 Adicionar testes abrangentes de thread safety para `LiveCameraService`:
+
 - Testar lifecycle de threads
 - Testar operações de queue
 - Testar race conditions
@@ -757,16 +786,16 @@ class TestLiveCameraServiceQueueOperations:
         """Test: Queue full scenario."""
         pass
 
-# ... 6 classes de teste, ~25 métodos total
+## ... 6 classes de teste, ~25 métodos total
 ```
 
 ## Validação
 
 ```bash
-# Rodar testes sequencialmente (threading)
+## Rodar testes sequencialmente (threading)
 poetry run pytest tests/test_live_camera_service_threading.py -v -n0
 
-# Rodar múltiplas vezes para detectar race conditions
+## Rodar múltiplas vezes para detectar race conditions
 poetry run pytest tests/test_live_camera_service_threading.py --repeat 10 -n0
 ```
 
@@ -789,7 +818,8 @@ git push -u origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 
 ---
 
-# Task 3.3: Testes LiveAnalysisDialog e LivePreviewWindow
+## Task 3.3: Testes LiveAnalysisDialog e LivePreviewWindow
+
 **ID**: `TEST-LIVEUI-001`
 **Status**: PENDENTE
 **Prioridade**: ALTA
@@ -799,6 +829,7 @@ git push -u origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 ## Objetivo
 
 Testar UI components de live analysis (v2.0 feature):
+
 - LiveAnalysisDialog (configuração)
 - LivePreviewWindow (preview em tempo real)
 - **Meta**: ~250 linhas, cobertura >80%
@@ -833,11 +864,12 @@ Refs: TEST-LIVEUI-001"
 
 ---
 
-# 🔶 RODADA 4 - Refatoração Final + Testes Dialogs (6 conversas paralelas)
+## 🔶 RODADA 4 - Refatoração Final + Testes Dialogs (6 conversas paralelas)
 
 ---
 
-# Task 2.5: Refatorar Reporter (Separar Transformação/Visualização/Relatório)
+## Task 2.5: Refatorar Reporter (Separar Transformação/Visualização/Relatório)
+
 **ID**: `REFACTOR-REPORTER-001`
 **Status**: PENDENTE
 **Prioridade**: MÉDIA-ALTA
@@ -847,6 +879,7 @@ Refs: TEST-LIVEUI-001"
 ## Objetivo
 
 Refatorar `Reporter` (1412 linhas) separando responsabilidades:
+
 - Extrair transformação de dados para `DataTransformer`
 - Extrair visualização para `VisualizationGenerator`
 - **Meta**: ~600 linhas no Reporter final (redução de 58%)
@@ -870,7 +903,8 @@ Refs: REFACTOR-REPORTER-001"
 
 ---
 
-# Task 3.4: Testes Dialogs - Batch 1 (High Complexity)
+## Task 3.4: Testes Dialogs - Batch 1 (High Complexity)
+
 **ID**: `TEST-DIALOGS-BATCH1-001`
 **Status**: PENDENTE
 **Tempo Estimado**: 2-3 dias
@@ -897,7 +931,8 @@ Refs: TEST-DIALOGS-BATCH1-001"
 
 ---
 
-# Task 3.5: Testes Dialogs - Batch 2 (Medium Complexity)
+## Task 3.5: Testes Dialogs - Batch 2 (Medium Complexity)
+
 **ID**: `TEST-DIALOGS-BATCH2-001`
 
 ## Dialogs (5 dialogs média complexidade)
@@ -914,7 +949,8 @@ Refs: TEST-DIALOGS-BATCH1-001"
 
 ---
 
-# Task 3.6: Testes Dialogs - Batch 3 (Low Complexity)
+## Task 3.6: Testes Dialogs - Batch 3 (Low Complexity)
+
 **ID**: `TEST-DIALOGS-BATCH3-001`
 
 ## Dialogs (5 dialogs baixa complexidade)
@@ -930,12 +966,14 @@ Refs: TEST-DIALOGS-BATCH1-001"
 
 ---
 
-# Task 4.1: Testes Error Handling Paths
+## Task 4.1: Testes Error Handling Paths
+
 **ID**: `TEST-ERRORHANDLING-001`
 
 ## Objetivo
 
 Expandir testes de error handling em 3 módulos:
+
 - `test_detector_service.py` (+150 linhas)
 - `test_recording_service.py` (+200 linhas)
 - `test_project_workflow_service.py` (+200 linhas)
@@ -950,7 +988,8 @@ Expandir testes de error handling em 3 módulos:
 
 ---
 
-# Task 4.2: Testes Thread Safety Modules
+## Task 4.2: Testes Thread Safety Modules
+
 **ID**: `TEST-THREADSAFETY-001`
 
 ## Módulos (4 novos arquivos de teste)
@@ -962,11 +1001,12 @@ Expandir testes de error handling em 3 módulos:
 
 ---
 
-# 🔶 RODADA 5 - Expansão Final (2 conversas paralelas)
+## 🔶 RODADA 5 - Expansão Final (2 conversas paralelas)
 
 ---
 
-# Task 4.3: Testes Wizard Integration
+## Task 4.3: Testes Wizard Integration
+
 **ID**: `TEST-WIZARD-001`
 
 ## Wizard Steps (4 steps com baixa cobertura)
@@ -978,7 +1018,8 @@ Expandir testes de error handling em 3 módulos:
 
 ---
 
-# Task 4.4: Testes Edge Cases e Boundary Conditions
+## Task 4.4: Testes Edge Cases e Boundary Conditions
+
 **ID**: `TEST-EDGECASES-001`
 
 ## Categorias
@@ -1004,7 +1045,7 @@ Expandir testes de error handling em 3 módulos:
 ## 📊 Resumo das Rodadas
 
 | Rodada | Tasks | Conversas | Tipo |
-|--------|-------|-----------|------|
+| -------- | ------- | ----------- | ------ |
 | 1 | 1.1 | 1 | Bugfixes (COMPLETA) |
 | 2 | 2.2, 3.1 | 2 | Refatoração + Testes (EM ANDAMENTO) |
 | 3 | 2.1, 2.3, 2.4, 3.2, 3.3 | 5 | Refatorações + Testes |

@@ -8,6 +8,7 @@
 ## Problem
 
 `LiveBatchCoordinator` (`src/zebtrack/coordinators/live_batch_coordinator.py`) is a 433-line implementation with:
+
 - ✅ Complete batch tracking logic
 - ✅ Unified report generation
 - ✅ E2E test coverage (`tests/test_live_camera_workflow_e2e.py`)
@@ -32,14 +33,18 @@
 ## Consequences
 
 ### Immediate (v2.2.0)
+
 - LiveBatchCoordinator remains dormant code
 - Tests continue passing
 - No production impact (feature unused)
 
 ### Future (v2.3.0+)
+
 When integrating:
+
 1. Add batch metadata to LiveConfigStep wizard
 2. Instantiate in `__main__.py` Composition Root:
+
    ```python
    live_batch_coordinator = LiveBatchCoordinator(
        project_manager=project_manager,
@@ -49,10 +54,13 @@ When integrating:
        settings_obj=settings_obj,
    )
    ```
+
 3. Wire `SessionCoordinator._on_live_session_complete()` to call:
+
    ```python
    live_batch_coordinator.register_session(experiment_id, metadata)
    ```
+
 4. Add UI button in Reports tab: "Generate Batch Report"
 5. Update `UICoordinator._on_batch_analysis_completed` implementation
 
@@ -64,11 +72,12 @@ When integrating:
 
 ## Implementation Summary (v2.3.0)
 
-**Completed January 3, 2026**
+### Completed January 3, 2026
 
 ### What Was Implemented
 
 1. **Composition Root Integration** (`src/zebtrack/__main__.py`)
+
    ```python
    live_batch_coordinator = LiveBatchCoordinator(
        project_manager=project_manager,

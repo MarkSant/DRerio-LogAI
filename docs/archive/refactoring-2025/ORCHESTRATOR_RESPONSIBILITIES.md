@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Orchestrator Responsibilities Guide
 
 **Date**: 2025-01-14
@@ -9,6 +11,7 @@
 ## 🎯 Purpose
 
 This document defines clear responsibilities for each orchestrator in the ZebTrack-AI MVVM-S architecture. Use this guide to:
+
 - ✅ Understand what each orchestrator owns
 - ✅ Know when to delegate vs implement
 - ✅ Decide where to add new features
@@ -19,7 +22,7 @@ This document defines clear responsibilities for each orchestrator in the ZebTra
 ## 📊 Quick Reference Matrix
 
 | Orchestrator | Primary Domain | Key Responsibilities | Delegates To |
-|--------------|----------------|---------------------|--------------|
+| -------------- | ---------------- | --------------------- | -------------- |
 | **ProjectOrchestrator** | Project Lifecycle | Create, open, close projects; asset management | VideoProcessing, Analysis |
 | **VideoProcessingOrchestrator** | Video Processing | Process videos, manage processing workflows | Analysis, Recording |
 | **AnalysisOrchestrator** | Analysis Workflows | Generate summaries, create reports | Reporter, AnalysisService |
@@ -38,7 +41,8 @@ This document defines clear responsibilities for each orchestrator in the ZebTra
 
 **Primary Domain**: Project lifecycle management
 
-#### Owns:
+#### Owns
+
 - ✅ Project creation (wizard workflows, project setup)
 - ✅ Project opening (load data, restore state)
 - ✅ Project closing (save state, cleanup)
@@ -46,17 +50,20 @@ This document defines clear responsibilities for each orchestrator in the ZebTra
 - ✅ Model override management (project-specific settings)
 - ✅ Zone/calibration metadata persistence
 
-#### Delegates To:
+#### Delegates To
+
 - → **VideoProcessingOrchestrator**: Video processing within project context
 - → **AnalysisOrchestrator**: Analysis/reporting within project context
 - → **CalibrationOrchestrator**: Calibration data persistence
 
-#### Does NOT Own:
+#### Does NOT Own
+
 - ❌ Video processing logic (delegates to VideoProcessingOrchestrator)
 - ❌ Analysis algorithms (delegates to AnalysisOrchestrator)
 - ❌ UI updates (delegates to UIStateController)
 
-#### Key Methods:
+#### Key Methods
+
 ```python
 # Lifecycle
 close_project()
@@ -72,7 +79,8 @@ apply_project_model_overrides(overrides)
 save_project_model_overrides(weight, use_openvino)
 ```
 
-#### Delegation Example:
+#### Delegation Example
+
 ```python
 def start_project_processing_workflow(self, *, skip_dialog: bool = False):
     """Delegates to VideoProcessingOrchestrator for video processing."""
@@ -87,23 +95,27 @@ def start_project_processing_workflow(self, *, skip_dialog: bool = False):
 
 **Primary Domain**: Video processing workflows
 
-#### Owns:
+#### Owns
+
 - ✅ Single video processing workflows
 - ✅ Batch video processing (project context)
 - ✅ Processing mode determination
 - ✅ Video state management (processed, pending, failed)
 - ✅ Processing callbacks and progress tracking
 
-#### Delegates To:
+#### Delegates To
+
 - → **AnalysisOrchestrator**: Generate analysis after processing
 - → **RecordingSessionOrchestrator**: Coordinate recording workflows
 
-#### Does NOT Own:
+#### Does NOT Own
+
 - ❌ Project lifecycle (delegates to ProjectOrchestrator)
 - ❌ Analysis generation (delegates to AnalysisOrchestrator)
 - ❌ UI state updates (uses UIStateController)
 
-#### Key Methods:
+#### Key Methods
+
 ```python
 # Single Video
 start_single_video_workflow(video_path, config)
@@ -117,8 +129,9 @@ process_videos_batch(videos, skip_existing)
 cancel_current_analysis()
 ```
 
-#### Decision Tree:
-```
+#### Decision Tree
+
+```text
 Is this about VIDEO PROCESSING logic?
   YES → VideoProcessingOrchestrator
   NO → Is it about project management?
@@ -133,21 +146,25 @@ Is this about VIDEO PROCESSING logic?
 
 **Primary Domain**: Analysis and reporting workflows
 
-#### Owns:
+#### Owns
+
 - ✅ Generate Parquet summaries
 - ✅ Generate Word reports
 - ✅ ROI analysis coordination
 - ✅ Behavioral metric generation
 
-#### Delegates To:
+#### Delegates To
+
 - → **Reporter**: Generate .docx reports
 - → **AnalysisService**: Run analysis algorithms
 
-#### Does NOT Own:
+#### Does NOT Own
+
 - ❌ Video processing (delegates to VideoProcessingOrchestrator)
 - ❌ Data persistence (delegates to Recorder)
 
-#### Key Methods:
+#### Key Methods
+
 ```python
 generate_parquet_summaries(video_paths)
 generate_report(videos, report_type)
@@ -159,21 +176,25 @@ generate_report(videos, report_type)
 
 **Primary Domain**: Recording session lifecycle
 
-#### Owns:
+#### Owns
+
 - ✅ Recording session state (idle, recording, paused)
 - ✅ Recording start/stop/pause/resume
 - ✅ Session coordination with RecordingService
 - ✅ Zone validation before recording
 - ✅ Live calibration workflows
 
-#### Delegates To:
+#### Delegates To
+
 - → **RecordingService**: Actual recording implementation
 
-#### Does NOT Own:
+#### Does NOT Own
+
 - ❌ Live camera management (handled by LiveCameraCoordinator)
 - ❌ Frame capture (handled by Camera)
 
-#### Key Methods:
+#### Key Methods
+
 ```python
 start_recording(day, group, cobaia)
 stop_recording()
@@ -191,22 +212,26 @@ run_live_calibration(temp_aquarium_method)
 
 **Note**: This is a **Controller**, not an Orchestrator - reflects MVC pattern for UI coordination
 
-#### Owns:
+#### Owns
+
 - ✅ UI theme management (dark mode toggle)
 - ✅ Status bar updates
 - ✅ Processing mode UI display
 - ✅ UI state synchronization
 - ✅ Detector parameter UI updates
 
-#### Delegates To:
+#### Delegates To
+
 - → (None - this is the UI coordination layer)
 
-#### Does NOT Own:
+#### Does NOT Own
+
 - ❌ Business logic (only UI state)
 - ❌ Data persistence
 - ❌ Video processing
 
-#### Key Methods:
+#### Key Methods
+
 ```python
 toggle_dark_mode()
 set_status(message)
@@ -214,7 +239,8 @@ update_detector_parameters(params, reset_overrides, scope)
 _schedule_on_ui(callback, *args)  # Threading helper
 ```
 
-#### Threading Pattern:
+#### Threading Pattern
+
 ```python
 def _schedule_on_ui(self, callback, *args):
     """All UI updates must use root.after() for thread safety."""
@@ -228,20 +254,24 @@ def _schedule_on_ui(self, callback, *args):
 
 **Primary Domain**: Model diagnostics and testing
 
-#### Owns:
+#### Owns
+
 - ✅ Run model diagnostics
 - ✅ Test model on sample data
 - ✅ Generate diagnostic reports
 - ✅ Model performance analysis
 
-#### Delegates To:
+#### Delegates To
+
 - → **DetectorService**: Load models, run inference
 
-#### Does NOT Own:
+#### Does NOT Own
+
 - ❌ Model weight management (handled by WeightManager)
 - ❌ Model training/fine-tuning
 
-#### Key Methods:
+#### Key Methods
+
 ```python
 run_model_diagnostic(config)
 _run_diagnostic_thread(config, progress_dialog)
@@ -254,27 +284,32 @@ _finish_diagnostic_and_save_report(config, results)
 
 **Primary Domain**: Zone and arena geometry management
 
-#### Owns:
+#### Owns
+
 - ✅ Add/validate ROI polygons
 - ✅ Set main arena polygon
 - ✅ Validate polygon geometry (contains ROIs)
 - ✅ Manual arena saving
 
-#### Delegates To:
+#### Delegates To
+
 - → **ProjectManager**: Persist zone data
 
-#### Does NOT Own:
+#### Does NOT Own
+
 - ❌ Zone detection algorithms (handled by DetectorService)
 - ❌ Coordinate system conversions
 
-#### Key Methods:
+#### Key Methods
+
 ```python
 add_roi_polygon(label, points, buffered_points)
 set_main_arena_polygon(points)
 save_manual_arena(polygon_points)
 ```
 
-#### Validation Logic:
+#### Validation Logic
+
 ```python
 # Intelligent 3-pixel tolerance adjustment
 for point in roi_points:
@@ -291,19 +326,23 @@ for point in roi_points:
 
 **Primary Domain**: Processing configuration management
 
-#### Owns:
+#### Owns
+
 - ✅ Determine processing mode (SINGLE_SUBJECT vs MULTI_TRACK)
 - ✅ Resolve configuration preferences
 - ✅ Apply processing mode to UI
 - ✅ Context manager for single-animal mode
 
-#### Delegates To:
+#### Delegates To
+
 - → (Settings only - reads configuration)
 
-#### Does NOT Own:
+#### Does NOT Own
+
 - ❌ Video processing execution (handled by VideoProcessingOrchestrator)
 
-#### Key Methods:
+#### Key Methods
+
 ```python
 _determine_processing_mode() -> ProcessingMode
 _publish_processing_mode(source, force, mode_override)
@@ -316,21 +355,25 @@ _temporary_single_animal_mode(config)  # Context manager
 
 **Primary Domain**: Calibration session management
 
-#### Owns:
+#### Owns
+
 - ✅ Global calibration sessions
 - ✅ Calibration context building
 - ✅ Save calibration to project
 - ✅ Calibration scope info
 
-#### Delegates To:
+#### Delegates To
+
 - → **ProjectManager**: Persist calibration data
 - → **ProjectOrchestrator**: Apply model overrides
 
-#### Does NOT Own:
+#### Does NOT Own
+
 - ❌ Calibration algorithms (handled by Calibration class)
 - ❌ Live camera management
 
-#### Key Methods:
+#### Key Methods
+
 ```python
 global_calibration_session()  # Context manager
 get_calibration_scope_info() -> dict
@@ -342,9 +385,11 @@ save_current_calibration_to_project()
 ## 🔄 Delegation Patterns
 
 ### Pattern 1: Cross-Domain Coordination
+
 **When**: Feature spans multiple domains
 
 **Example**: Project processing workflow
+
 ```python
 # ProjectOrchestrator coordinates video processing within project context
 def start_project_processing_workflow(self, skip_dialog: bool):
@@ -360,9 +405,11 @@ def start_project_processing_workflow(self, skip_dialog: bool):
 ```
 
 ### Pattern 2: Service Delegation
+
 **When**: Need specialized service functionality
 
 **Example**: Analysis generation
+
 ```python
 # AnalysisOrchestrator delegates to Reporter service
 def generate_report(self, videos: list, report_type: str):
@@ -371,9 +418,11 @@ def generate_report(self, videos: list, report_type: str):
 ```
 
 ### Pattern 3: UI Coordination
+
 **When**: Need to update UI from business logic
 
 **Example**: Status updates
+
 ```python
 # Any orchestrator can request UI updates via UIStateController
 self.ui_state_controller.set_status("Processing complete")
@@ -385,7 +434,7 @@ self.ui_state_controller.set_status("Processing complete")
 
 ### Question 1: What domain does the feature belong to?
 
-```
+```text
 Is it about PROJECT management?
   → ProjectOrchestrator
 
@@ -419,6 +468,7 @@ Is it about CALIBRATION?
 **YES** → Choose the **primary domain** orchestrator, delegate to others
 
 **Example**: "Export project as ZIP"
+
 - **Primary**: ProjectOrchestrator (project-level feature)
 - **Delegates**: VideoProcessingOrchestrator (gather video outputs)
 
@@ -427,9 +477,11 @@ Is it about CALIBRATION?
 ## ⚠️ Anti-Patterns to Avoid
 
 ### ❌ Anti-Pattern 1: Logic Duplication
+
 **Problem**: Implementing same logic in multiple orchestrators
 
 **Example**:
+
 ```python
 # BAD: Duplicate zone validation in multiple orchestrators
 class ProjectOrchestrator:
@@ -442,6 +494,7 @@ class VideoProcessingOrchestrator:
 ```
 
 **Solution**: Use **ZoneArenaOrchestrator**
+
 ```python
 # GOOD: Single source of truth
 class ZoneArenaOrchestrator:
@@ -455,9 +508,11 @@ self.zone_arena_orchestrator.validate_zones()
 ---
 
 ### ❌ Anti-Pattern 2: Circular Delegation
+
 **Problem**: Orchestrator A calls B calls A
 
 **Example**:
+
 ```python
 # BAD: Circular dependency
 class ProjectOrchestrator:
@@ -470,6 +525,7 @@ class VideoProcessingOrchestrator:
 ```
 
 **Solution**: Use **event bus** or **callbacks**
+
 ```python
 # GOOD: One-way delegation with callbacks
 class ProjectOrchestrator:
@@ -482,6 +538,7 @@ class ProjectOrchestrator:
 ---
 
 ### ❌ Anti-Pattern 3: God Orchestrator
+
 **Problem**: One orchestrator does everything
 
 **Solution**: Split responsibilities into multiple orchestrators (already done in Sprints 24-34!)
@@ -500,9 +557,11 @@ class ProjectOrchestrator:
 ## 🔮 Future Evolution
 
 ### Sprint 36: Test Coverage
+
 Each orchestrator will get dedicated unit tests, validating responsibilities in isolation.
 
 ### Sprint 37+: Decoupling
+
 Orchestrators will transition from receiving `MainViewModel` to explicit dependencies:
 
 ```python

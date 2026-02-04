@@ -52,6 +52,7 @@ def _notify_observers(self, category, key, old_value, new_value):
 ### Task 1.1: Deferred Observer Notification
 
 We restructured all state update methods to:
+
 1. **Collect** notifications to send (inside lock)
 2. **Release** the lock
 3. **Send** notifications (outside lock)
@@ -319,12 +320,14 @@ The improvements are **backward compatible**. Existing observers will work exact
 ### If You Were Working Around Deadlocks
 
 If you were using workarounds like:
+
 ```python
 # Old workaround (no longer needed)
 threading.Timer(0, lambda: state_manager.update_state(...)).start()
 ```
 
 You can now safely call state methods directly:
+
 ```python
 # New way (safe now)
 state_manager.update_recording_state(is_recording=True)
@@ -333,7 +336,7 @@ state_manager.update_recording_state(is_recording=True)
 ## Summary
 
 | Aspect | Before | After |
-|--------|--------|-------|
+| -------- | -------- | ------- |
 | Deadlock Risk | ⚠️ HIGH | ✅ NONE |
 | Lock Duration | Long (with callbacks) | Short (state update only) |
 | Observer Timeout | ❌ None | ✅ 5s default |
@@ -349,6 +352,7 @@ state_manager.update_recording_state(is_recording=True)
 ## Questions?
 
 If you encounter issues or have questions about these changes, please:
+
 1. Review the stress tests for examples
 2. Check the implementation in `state_manager.py`
 3. Consult the team lead for EQUIPE 1

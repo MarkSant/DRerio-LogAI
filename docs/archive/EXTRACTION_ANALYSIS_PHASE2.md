@@ -1,6 +1,9 @@
+<!-- markdownlint-disable MD024 -->
+
 # ANÁLISE DE EXTRAÇÃO: gui.py → 4 COMPONENTES
 
 ## RESUMO EXECUTIVO
+
 - **Arquivo atual**: gui.py (8286 linhas, 254 métodos)
 - **Métodos já extraídos**: MenuManager, CanvasManager, StateSynchronizer, EventDispatcher
 - **Componentes propostos**: DialogManager, ValidationManager, WidgetFactory, ProjectViewManager
@@ -11,12 +14,13 @@
 ## 1. DIALOG MANAGER (~800 linhas)
 
 ### Descrição
+
 Gerencia todos os diálogos, caixas de mensagem e janelas de entrada do usuário.
 
 ### Métodos a Extrair (20 métodos)
 
 | Linha | Método | Descrição | Linhas |
-|-------|--------|-----------|--------|
+| ------- | -------- | ----------- | -------- |
 | 843 | `_open_global_calibration_window()` | Abre diálogo de calibração global | 4 |
 | 847 | `_open_project_calibration_window()` | Abre diálogo de calibração de projeto | 14 |
 | 1749 | `show_external_trigger_notice()` | Exibe aviso de trigger externo | 32 |
@@ -39,7 +43,9 @@ Gerencia todos os diálogos, caixas de mensagem e janelas de entrada do usuário
 | 8172 | `ask_missing_metadata()` | Abre diálogo de metadata faltante | 15 |
 
 ### Métodos Relacionados com Diálogos (ainda em gui.py)
+
 Estes devem ser refatorados para usar DialogManager:
+
 - `_on_save_roi_template()` (linha 5407, ~53 linhas) - abre SaveROITemplateDialog
 - `_on_delete_roi_template()` (linha 5649, ~63 linhas) - usa messagebox.askyesno
 - `_on_import_roi_template()` (linha 5713, ~43 linhas) - abre filedialog.askopenfilename
@@ -49,9 +55,10 @@ Estes devem ser refatorados para usar DialogManager:
 - `_on_analyze_single_video_clicked()` (linha 7172, ~33 linhas) - múltiplos diálogos
 - `_on_start_single_video_processing_clicked()` (linha 7382, ~50 linhas) - messagebox.askyesnocancel
 
-**Total: ~600 linhas de métodos relacionados que chamarão DialogManager**
+### Total: ~600 linhas de métodos relacionados que chamarão DialogManager
 
 ### Estimativa Total para DialogManager
+
 - **20 métodos extraídos**: ~282 linhas
 - **8 métodos refatorados**: ~430 linhas de código que chama DialogManager
 - **Total**: ~712 linhas de código relacionado
@@ -61,12 +68,13 @@ Estes devem ser refatorados para usar DialogManager:
 ## 2. VALIDATION MANAGER (~400 linhas)
 
 ### Descrição
+
 Valida entradas de usuário, verificações de pré-condições, composição de configurações.
 
 ### Métodos a Extrair (5 métodos base + auxiliares)
 
 | Linha | Método | Descrição | Linhas |
-|-------|--------|-----------|--------|
+| ------- | -------- | ----------- | -------- |
 | 1416 | `_compose_overview_status_line()` | Compõe string de status do resumo | 17 |
 | 1490 | `_prepare_overview_hierarchy_for_widget()` | Prepara hierarquia para exibição (COMPLEXO) | 113 |
 | 6803 | `_check_live_project_calibration()` | Valida calibração do projeto ao vivo | 35 |
@@ -74,12 +82,15 @@ Valida entradas de usuário, verificações de pré-condições, composição de
 | 7294 | `_compose_single_video_runtime_config()` | Compõe e valida configuração de tempo de execução | 45 |
 
 ### Métodos que Precisam de Validação (Refatoração)
+
 Estes contêm lógica de validação a extrair:
+
 - `_on_auto_detect_clicked()` (linha 7339, ~42 linhas) - valida stabilization_frames >= 0
 - `_compose_single_video_runtime_config()` (linha 7294, ~45 linhas) - valida inteiros positivos
 - `_get_zone_data_for_active_context()` (linha 5542, ~60 linhas) - valida zona ativa
 
-**Métodos com validações inline (em diálogos):**
+### Métodos com validações inline (em diálogos)
+
 - `_on_save_roi_template()` - valida zone_data/polygon
 - `_on_import_and_apply_roi_template()` - valida video selecionado
 - `_on_delete_roi_template()` - valida template selecionado
@@ -87,6 +98,7 @@ Estes contêm lógica de validação a extrair:
 - `_create_template_rois()` - valida arena_id e polygon
 
 ### Estimativa Total para ValidationManager
+
 - **5 métodos extraídos**: ~250 linhas
 - **~15 métodos refatorados**: ~400 linhas que chamarão ValidationManager
 - **Total**: ~650 linhas
@@ -96,6 +108,7 @@ Estes contêm lógica de validação a extrair:
 ## 3. WIDGET FACTORY (~600 linhas)
 
 ### Descrição
+
 Criação de widgets complexos, frames, abas e painéis da UI.
 
 ### Métodos a Extrair (29 métodos - EXCLUINDO já extraídos)
@@ -104,7 +117,7 @@ Criação de widgets complexos, frames, abas e painéis da UI.
 Estes são métodos restantes que precisam ser reorganizados.
 
 | Linha | Método | Descrição | Linhas |
-|-------|--------|-----------|--------|
+| ------- | -------- | ----------- | -------- |
 | 426 | `_build_status_icon_legend()` | Constrói legenda de status | 14 |
 | 592 | `_create_welcome_frame()` | Cria frame de boas-vindas | 27 |
 | 632 | `_build_project_actions()` | Constrói botões de ações do projeto | 26 |
@@ -137,16 +150,19 @@ Estes são métodos restantes que precisam ser reorganizados.
 | 1012 | `_on_save_global_config_from_widget()` | Handler save de config (PODE IR PARA EVENT DISPATCHER) | 18 |
 
 ### Métodos Auxiliares (Helpers de Layout)
+
 - `_on_pane_configure()` (linha 1860, ~37 linhas) - configuração de pane
 - `_on_frame_configure()` (linha 3035, ~4 linhas) - configuração de frame
 - `_on_canvas_configure()` (linha 1962, ~20 linhas) - configuração de canvas
 - `_on_canvas_configure_scroll()` (linha 3039, ~4 linhas) - configuração de scroll
 
 ### Métodos que Precisam Refatoração
+
 - `_on_roi_rule_change_widget()` (linha 1099) - atualiza UI baseado em mudança
 - `_on_roi_rule_change()` (linha 3083) - handler de mudança de regra
 
 ### Estimativa Total para WidgetFactory
+
 - **27 métodos principais extraídos**: ~1,400 linhas
 - **4-5 métodos auxiliares**: ~100 linhas
 - **Total**: ~1,500 linhas
@@ -156,12 +172,13 @@ Estes são métodos restantes que precisam ser reorganizados.
 ## 4. PROJECT VIEW MANAGER (~500 linhas)
 
 ### Descrição
+
 Gerencia visualizações de projeto, navegação entre views, atualização de árvores e refresh de dados.
 
 ### Métodos a Extrair (28 métodos)
 
 | Linha | Método | Descrição | Linhas |
-|-------|--------|-----------|--------|
+| ------- | -------- | ----------- | -------- |
 | 1274 | `_navigate_to_processing_reports_tab()` | Navega para aba de relatórios | 16 |
 | 1303 | `_request_overview_refresh()` | Solicita refresh de overview (agendado) | 27 |
 | 1330 | `refresh_project_views()` | Atualiza overview, pipeline e reports | 33 |
@@ -192,11 +209,13 @@ Gerencia visualizações de projeto, navegação entre views, atualização de �
 | 1590 | `_build_status_token()` | Constrói token de status (helper) | 10 |
 
 ### Métodos Complexos de Construção de Hierarquias
+
 - `_prepare_overview_hierarchy_for_widget()` (linha 1490, ~113 linhas) - COMPLEXO, pode ir para ValidationManager
 - `_build_video_hierarchy_data()` (linha 3460, ~66 linhas) - já na categoria
 - `_build_report_hierarchy()` (linha 4453, ~50 linhas) - já na categoria
 
 ### Métodos Auxiliares (Formatação de Display)
+
 - `_format_status_label()` (linha 1603) - formata label de status
 - `_format_status_summary()` (linha 1607) - formata sumário de status
 - `_format_status_ratio()` (linha 1622) - formata razão de status
@@ -206,6 +225,7 @@ Gerencia visualizações de projeto, navegação entre views, atualização de �
 - `_format_status_token()` (linha 3585) - formata token de status
 
 ### Estimativa Total para ProjectViewManager
+
 - **28 métodos extraídos**: ~1,000 linhas
 - **7 métodos auxiliares de formatação**: ~150 linhas
 - **Total**: ~1,150 linhas
@@ -215,7 +235,7 @@ Gerencia visualizações de projeto, navegação entre views, atualização de �
 ## RESUMO FINAL
 
 | Componente | Métodos | Linhas Extraídas | Linhas Refatoradas | Total |
-|-----------|---------|------------------|-------------------|-------|
+| ----------- | --------- | ------------------ | ------------------- | ------- |
 | DialogManager | 20 | 282 | ~430 | ~712 |
 | ValidationManager | 5 | 250 | ~400 | ~650 |
 | WidgetFactory | 27 | 1,400 | ~100 | ~1,500 |
@@ -238,18 +258,22 @@ Gerencia visualizações de projeto, navegação entre views, atualização de �
 ## NOTAS IMPORTANTES
 
 ### Métodos NÃO Extrair (Já Extraídos)
+
 - MenuManager: métodos de menu, context menus
 - CanvasManager: métodos de canvas, drawing, transformações
 - StateSynchronizer: methods de sincronização de estado
 - EventDispatcher: métodos de event bus
 
 ### Métodos que Interagem Entre Componentes
+
 - `_on_save_roi_template()` usa DialogManager + ValidationManager
 - `_on_import_and_apply_roi_template()` usa DialogManager + ValidationManager + ProjectViewManager
 - `_create_main_controls_tab()` usa WidgetFactory + ProjectViewManager
 
 ### Dependências de Diálogos Já Extraídos
+
 As seguintes classes de diálogos já existem em `ui/dialogs/`:
+
 - CalibrationDialog
 - SaveROITemplateDialog
 - CenterPeripheryDialog
@@ -262,4 +286,3 @@ As seguintes classes de diálogos já existem em `ui/dialogs/`:
 - SingleVideoConfigDialog
 
 DialogManager deve gerenciar a abertura dessas dialogs.
-

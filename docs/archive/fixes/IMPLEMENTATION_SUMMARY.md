@@ -6,16 +6,19 @@
 ## Problems Fixed
 
 ### 1. **UI Status Stuck on "Gerando relatório unificado"**
+
 - **Symptom**: Status bar showed "Gerando relatório unificado..." indefinitely even after reports were generated
 - **Root Cause**: Missing `Events.UI_SET_STATUS` call to clear status to "Pronto." after completion
 - **Fix**: Added status clearing in `_generate_unified_report` at line 1845 of `processing_coordinator.py`
 
 ### 2. **Metadata Shows "unassigned" and "unknown" in Unified Reports**
+
 - **Symptom**: Excel unified reports showed `group_id="unassigned"` and `experiment_id="unknown"` even though project metadata had correct values
 - **Root Cause**: System read old parquet files directly without re-enriching with current project metadata
 - **Fix**: Added metadata re-enrichment logic after `pd.read_parquet()` that updates only rows with "unassigned"/"unknown" using current project metadata
 
 ### 3. **DataFrame Concatenation Warnings and Schema Mismatches**
+
 - **Symptom**: FutureWarning about DataFrame concatenation, inconsistent columns in unified Excel reports
 - **Root Cause**: Summary parquets had different ROI column schemas (video1: roi1/roi2, video2: roiA/roiB) because columns were generated per-video instead of using project-wide standardization
 - **Fix**: Implemented defensive column alignment before concatenation + user warning dialog + proactive schema standardization for future parquets
@@ -48,7 +51,7 @@
 
 ### Tests Added
 
-7. **`tests/coordinators/test_unified_report.py`** (NEW FILE - 660 lines)
+1. **`tests/coordinators/test_unified_report.py`** (NEW FILE - 660 lines)
    - `test_status_clears_after_unified_report_success`
    - `test_status_not_cleared_on_failure`
    - `test_metadata_enrichment_updates_unassigned_group_id`
@@ -61,7 +64,7 @@
    - `test_find_project_roi_names_returns_none_when_no_zones`
    - `test_unified_report_full_workflow_with_different_rois` (integration test)
 
-8. **`tests/analysis/test_data_transformer.py`** (220 lines added)
+2. **`tests/analysis/test_data_transformer.py`** (220 lines added)
    - `test_standardize_roi_columns_pads_missing_columns`
    - `test_standardize_roi_columns_returns_unchanged_when_no_expected_rois`
    - `test_standardize_roi_columns_handles_empty_expected_list`
@@ -159,6 +162,7 @@ ui_features:
 ## Testing
 
 Run tests with:
+
 ```bash
 # All unified report tests
 poetry run pytest tests/coordinators/test_unified_report.py -v

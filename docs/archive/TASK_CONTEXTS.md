@@ -1,4 +1,7 @@
+<!-- markdownlint-disable MD024 -->
+
 # Contextos de Tarefas para Execução Paralela
+
 ## ZebTrack-AI - Refatoração e Correções
 
 **Branch**: `claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3`
@@ -19,17 +22,21 @@
 ## ⚠️ IMPORTANTE - Ordem de Execução
 
 **PRIMEIRO** (Sequencial):
+
 - Task 1.1 - DEVE ser completada antes de qualquer outra
 
 **DEPOIS** (Paralelo - Rodada 2):
+
 - Task 2.2 + Task 3.1 (podem rodar juntas)
 
 **DEPOIS** (Paralelo - Rodada 3+):
+
 - Todas as outras tasks podem rodar em paralelo
 
 ---
 
-# Task 1.1: Corrigir Bugs Críticos
+## Task 1.1: Corrigir Bugs Críticos
+
 **ID**: `BUGFIX-CRITICAL-001`
 **Status**: PENDENTE
 **Prioridade**: CRÍTICA
@@ -46,6 +53,7 @@
 ## Objetivo da Task
 
 Corrigir 4 bugs críticos/high detectados após refatoração recente:
+
 1. Import incorreto de `DiagnosticProgressDialog`
 2. Callback de completion não registrado em `LiveCameraService`
 3. Violação de thread safety em preview updates
@@ -56,17 +64,19 @@ Estes bugs foram introduzidos durante a extração de dialogs (Phase 4) e integr
 ## Bugs Detalhados
 
 ### BUG #1 (CRITICAL): Import Incorreto
+
 **Arquivo**: `src/zebtrack/core/main_view_model.py:5153`
 **Problema**: `from zebtrack.ui.gui import DiagnosticProgressDialog`
 **Causa**: Dialog foi extraído para módulo separado mas import não foi atualizado
 **Impacto**: ImportError quando diagnostic tool é invocado, feature quebra completamente
 
 **Fix**:
+
 ```python
-# Linha 5153: Trocar
+## Linha 5153: Trocar
 from zebtrack.ui.gui import DiagnosticProgressDialog
 
-# Por:
+## Por:
 from zebtrack.ui.dialogs import DiagnosticProgressDialog
 ```
 
@@ -75,17 +85,19 @@ from zebtrack.ui.dialogs import DiagnosticProgressDialog
 ---
 
 ### BUG #2 (HIGH): Callback Não Registrado
+
 **Arquivo**: `src/zebtrack/core/live_camera_service.py:183-191`
 **Problema**: `on_complete` callback é definido mas nunca passado para `RecordingService`
 **Causa**: Callback criado mas não registrado na chamada de `start_session()`
 **Impacto**: Session completa sem notificar usuário, nenhum feedback sobre onde resultados foram salvos
 
 **Context** (linhas 183-191):
+
 ```python
 def on_complete():
     self._on_session_complete(output_dir)
 
-# Register UI callbacks with RecordingService
+## Register UI callbacks with RecordingService
 self.recording_service.set_ui_callbacks({
     "stop_recording_callback": self.stop_session,
 })
@@ -98,11 +110,12 @@ self.recording_service.start_session(
 ```
 
 **Fix**: Adicionar callback ao dict de UI callbacks:
+
 ```python
 def on_complete():
     self._on_session_complete(output_dir)
 
-# Register UI callbacks with RecordingService
+## Register UI callbacks with RecordingService
 self.recording_service.set_ui_callbacks({
     "stop_recording_callback": self.stop_session,
     "on_complete_callback": on_complete,  # ADICIONAR ESTA LINHA
@@ -120,14 +133,16 @@ self.recording_service.start_session(
 ---
 
 ### BUG #3 (HIGH): Violação Thread Safety
+
 **Arquivo**: `src/zebtrack/core/live_camera_service.py:402-407`
 **Problema**: `preview_window.update_frame()` é chamado diretamente de worker thread
 **Causa**: Update de Tkinter widget sem usar `root.after(0, ...)`
 **Impacto**: Crashes aleatórios, UI congelada, display corrompido (depende de timing)
 
 **Context** (linhas 402-407):
+
 ```python
-# Chamado de _processing_loop() worker thread
+## Chamado de _processing_loop() worker thread
 if self.preview_window and should_display:
     try:
         self.preview_window.update_frame(frame, detections)
@@ -136,6 +151,7 @@ if self.preview_window and should_display:
 ```
 
 **Fix**: Agendar update na main thread:
+
 ```python
 if self.preview_window and should_display:
     try:
@@ -155,6 +171,7 @@ if self.preview_window and should_display:
 ---
 
 ### BUG #4 (MEDIUM): Zone Rescaling Incorreto
+
 **Arquivo**: `src/zebtrack/core/live_camera_service.py:148`
 **Related**: `src/zebtrack/core/detector_service.py:250-256`
 **Problema**: Zones rescaled para `desired_width/height` ao invés de dimensões reais da câmera
@@ -162,12 +179,14 @@ if self.preview_window and should_display:
 **Impacto**: Detection ROI checks incorretos se câmera real tem resolução diferente da configurada
 
 **Exemplo de Problema**:
+
 - Zones definidas para câmera 640×480
 - Live session inicia com câmera 1920×1080
 - Zones são rescaled para desired_width/height (640×480) ao invés de 1920×1080
 - Coordinate transformations e ROI checks ficam errados
 
 **Context** (linhas 145-149):
+
 ```python
 zone_data = self.project_manager.get_zone_data() if self.project_manager else None
 if zone_data and self.camera:
@@ -175,6 +194,7 @@ if zone_data and self.camera:
 ```
 
 **Fix**: Passar dimensões reais da câmera:
+
 ```python
 zone_data = self.project_manager.get_zone_data() if self.project_manager else None
 if zone_data and self.camera:
@@ -201,17 +221,17 @@ if zone_data and self.camera:
 ## Comandos de Setup
 
 ```bash
-# Verificar branch correta
+## Verificar branch correta
 git branch --show-current
-# Deve mostrar: claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
+## Deve mostrar: claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 
-# Se não estiver na branch, fazer checkout
+## Se não estiver na branch, fazer checkout
 git checkout claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 
-# Atualizar branch
+## Atualizar branch
 git pull origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 
-# Verificar status inicial
+## Verificar status inicial
 git status
 ```
 
@@ -228,12 +248,14 @@ git status
    - Fix BUG #4: Pass camera dimensions
 
 3. **Verificar sintaxe**:
+
    ```bash
    poetry run ruff check src/zebtrack/core/main_view_model.py
    poetry run ruff check src/zebtrack/core/live_camera_service.py
    ```
 
 4. **Rodar testes relevantes**:
+
    ```bash
    # Teste de MainViewModel
    poetry run pytest tests/test_main_view_model.py -v
@@ -245,6 +267,7 @@ git status
    ```
 
 5. **Rodar suite completa** (garantir nenhuma regressão):
+
    ```bash
    poetry run pytest -q
    # Todos os 712 testes devem passar
@@ -253,24 +276,24 @@ git status
 ## Validação Final
 
 ```bash
-# Linting (sem erros)
+## Linting (sem erros)
 poetry run ruff check .
 
-# Testes (todos passam)
+## Testes (todos passam)
 poetry run pytest -q
 
-# Verificar mudanças
+## Verificar mudanças
 git diff
 ```
 
 ## Commit e Push
 
 ```bash
-# Adicionar arquivos modificados
+## Adicionar arquivos modificados
 git add src/zebtrack/core/main_view_model.py
 git add src/zebtrack/core/live_camera_service.py
 
-# Commit com mensagem descritiva
+## Commit com mensagem descritiva
 git commit -m "fix: corrigir 4 bugs críticos pós-refatoração
 
 - Fix import de DiagnosticProgressDialog (main_view_model.py:5153)
@@ -281,7 +304,7 @@ git commit -m "fix: corrigir 4 bugs críticos pós-refatoração
 Refs: BUG #1, #2, #3, #4 do relatório de análise
 Closes: BUGFIX-CRITICAL-001"
 
-# Push para branch
+## Push para branch
 git push -u origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 ```
 
@@ -303,12 +326,14 @@ git push -u origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 ## Próximas Tasks
 
 Após completar e fazer push desta task:
+
 - **Task 2.2**: Refatorar MainViewModel (pode iniciar em paralelo com Task 3.1)
 - **Task 3.1**: Testes AquariumDetector (pode iniciar em paralelo com Task 2.2)
 
 ---
 
-# Task 2.2: Refatorar MainViewModel
+## Task 2.2: Refatorar MainViewModel
+
 **ID**: `REFACTOR-VIEWMODEL-001`
 **Status**: PENDENTE
 **Prioridade**: ALTA
@@ -322,6 +347,7 @@ Após completar e fazer push desta task:
 ## Objetivo da Task
 
 Refatorar `MainViewModel` (5588 linhas) extraindo lógica de negócio em serviços especializados:
+
 - Reduzir de 13 dependências para 8
 - Extrair processamento de vídeo para `VideoOrchestrator`
 - Extrair coordenação de hardware para `HardwareCoordinator`
@@ -343,6 +369,7 @@ Refatorar `MainViewModel` (5588 linhas) extraindo lógica de negócio em serviç
 ### Fase 1: Criar VideoOrchestrator
 
 **Métodos a Extrair** (buscar no main_view_model.py):
+
 - `process_single_video()`
 - `process_batch()`
 - `_prepare_video_processing()`
@@ -350,12 +377,14 @@ Refatorar `MainViewModel` (5588 linhas) extraindo lógica de negócio em serviç
 - Outros métodos relacionados a processamento de vídeo
 
 **Dependências do VideoOrchestrator**:
+
 - `video_processing_service: VideoProcessingService`
 - `detector_service: DetectorService`
 - `recorder: Recorder`
 - `state_manager: StateManager`
 
 **Template Inicial**:
+
 ```python
 """Video processing orchestration service."""
 
@@ -393,12 +422,14 @@ class VideoOrchestrator:
 ### Fase 2: Criar HardwareCoordinator
 
 **Métodos a Extrair**:
+
 - `setup_camera()`
 - `send_arduino_command()`
 - `_validate_hardware()`
 - Outros métodos relacionados a hardware
 
 **Dependências do HardwareCoordinator**:
+
 - `camera: Camera`
 - `arduino_facade: ArduinoFacade`
 - `state_manager: StateManager`
@@ -406,12 +437,14 @@ class VideoOrchestrator:
 ### Fase 3: Criar AnalysisCoordinator
 
 **Métodos a Extrair**:
+
 - `run_analysis()`
 - `generate_reports()`
 - `_prepare_analysis()`
 - Outros métodos relacionados a análise
 
 **Dependências do AnalysisCoordinator**:
+
 - `analysis_service: AnalysisService`
 - `reporter: Reporter`
 - `state_manager: StateManager`
@@ -426,6 +459,7 @@ class VideoOrchestrator:
 ## Implementação Passo-a-Passo
 
 1. **Ler arquivo completo**:
+
    ```bash
    # Ler MainViewModel para entender estrutura
    ```
@@ -433,7 +467,7 @@ class VideoOrchestrator:
 2. **Criar VideoOrchestrator**:
    - Criar arquivo `src/zebtrack/core/video_orchestrator.py`
    - Extrair métodos relacionados a vídeo
-   - Implementar __init__ com DI
+   - Implementar **init** com DI
    - Adicionar logging com structlog
 
 3. **Criar HardwareCoordinator**:
@@ -459,16 +493,16 @@ class VideoOrchestrator:
 ## Validação
 
 ```bash
-# Testes de MainViewModel
+## Testes de MainViewModel
 poetry run pytest tests/test_main_view_model.py -v
 
-# Testes de integração
+## Testes de integração
 poetry run pytest tests/integration/ -v -k view_model
 
-# Suite completa
+## Suite completa
 poetry run pytest -q
 
-# Linting
+## Linting
 poetry run ruff check src/zebtrack/core/
 ```
 
@@ -503,7 +537,8 @@ git push -u origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 
 ---
 
-# Task 3.1: Testes AquariumDetector
+## Task 3.1: Testes AquariumDetector
+
 **ID**: `TEST-AQUARIUM-001`
 **Status**: PENDENTE
 **Prioridade**: CRÍTICA
@@ -517,6 +552,7 @@ git push -u origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 ## Objetivo da Task
 
 Adicionar cobertura completa de testes para `AquariumDetector`:
+
 - **Cobertura atual**: 0% (ZERO testes)
 - **Meta**: >90% cobertura
 - **Linhas de teste**: ~200 linhas
@@ -865,6 +901,7 @@ class TestAquariumDetectorStabilization:
 ## Implementação Passo-a-Passo
 
 1. **Ler módulo a testar**:
+
    ```python
    # Ler e entender implementação de AquariumDetector
    ```
@@ -882,11 +919,13 @@ class TestAquariumDetectorStabilization:
    - TestAquariumDetectorStabilization
 
 4. **Rodar testes iterativamente**:
+
    ```bash
    poetry run pytest tests/test_aquarium_detector.py -v
    ```
 
 5. **Verificar cobertura**:
+
    ```bash
    poetry run pytest tests/test_aquarium_detector.py --cov=src/zebtrack/core/aquarium_detector --cov-report=term-missing
    # Meta: >90%
@@ -897,13 +936,13 @@ class TestAquariumDetectorStabilization:
 ## Validação
 
 ```bash
-# Testes do módulo
+## Testes do módulo
 poetry run pytest tests/test_aquarium_detector.py -v
 
-# Cobertura
+## Cobertura
 poetry run pytest tests/test_aquarium_detector.py --cov=src/zebtrack/core/aquarium_detector --cov-report=term-missing
 
-# Suite completa (garantir sem regressão)
+## Suite completa (garantir sem regressão)
 poetry run pytest -q
 ```
 
@@ -926,7 +965,7 @@ git push -u origin claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
 
 ---
 
-# [TEMPLATE PARA OUTRAS TASKS]
+## [TEMPLATE PARA OUTRAS TASKS]
 
 Para as outras tasks (2.1, 2.3, 2.4, 2.5, 3.2, 3.3, etc.), o usuário pode usar a estrutura similar:
 

@@ -46,6 +46,7 @@ def _inject_or_create(self, attr_name: str, injected, factory_fn):
 ### Aplicação
 
 Aplicado a 7 coordinators:
+
 - hardware_coordinator
 - video_orchestrator
 - analysis_coordinator
@@ -57,7 +58,7 @@ Aplicado a 7 coordinators:
 ### Resultados
 
 | Métrica | Antes | Depois | Mudança |
-|---------|-------|-------|---------|
+| --------- | ------- | ------- | --------- |
 | _init_coordinators | 186 linhas | 162 linhas | **-24 linhas (-13%)** |
 | MainViewModel total | 5,729 linhas | 5,719 linhas | **-10 linhas** |
 | Boilerplate eliminado | ~70 linhas | ~10 linhas | **-60 linhas (-86%)** |
@@ -75,6 +76,7 @@ Aplicado a 7 coordinators:
 **Approach:** Extract `_validate_roi_within_arena()` and `_validate_roi_overlap()`
 
 **Result:** ❌ **FAILED** - Added +7 lines instead of reducing
+
 - Original method: 126 linhas
 - After extraction: 133 linhas total (57 + 46 + 30)
 - **Reverted**
@@ -84,6 +86,7 @@ Aplicado a 7 coordinators:
 ### Strategy 2: Dead Code Removal (Explored)
 
 **Analysis:** Found potential dead code candidates:
+
 - Several `_on_*` methods with 0 direct usages
 - BUT: These are often callbacks/subscribers
 - Cannot safely remove without deep analysis
@@ -92,8 +95,9 @@ Aplicado a 7 coordinators:
 
 ### Strategy 3: Comment/Docstring Reduction (Analyzed)
 
-**Findings:**
-```
+### Findings
+
+```text
 Total lines: 5,719
 - Docstrings: 2,054 linhas (35.9%)
 - Comments: 322 linhas (5.6%)
@@ -109,13 +113,16 @@ Non-code: 3,164 linhas (55.3%)
 ## 📊 Sprint 16 Final Impact
 
 ### Commits
+
 - ✅ 4934629 - Phase 1: _init_coordinators simplification (-10 lines)
 
 ### Total Reduction
+
 - MainViewModel: 5,729 → 5,719 linhas (**-10 linhas**)
 - Boilerplate: ~70 → ~10 linhas (**-86% em padrão repetitivo**)
 
 ### Code Quality Improvements
+
 - ✅ DRY principle aplicado (inject-or-create pattern)
 - ✅ Menos código repetitivo
 - ✅ Maintainability melhorada
@@ -126,6 +133,7 @@ Non-code: 3,164 linhas (55.3%)
 ## 🎓 Lessons Learned
 
 ### 1. Extract != Always Better
+
 - Extrair métodos pode adicionar mais linhas (signatures + docstrings)
 - Só vale a pena se:
   - Método usado múltiplas vezes (DRY)
@@ -133,15 +141,18 @@ Non-code: 3,164 linhas (55.3%)
   - Testabilidade significativamente melhorada
 
 ### 2. Focus on Repetitive Patterns
+
 - Maior ROI: eliminar padrões boilerplate repetidos (como inject-or-create)
 - 7 occurrências do mesmo padrão → 1 helper = 60 linhas economizadas
 
 ### 3. Docstrings Are Important
+
 - 36% do arquivo são docstrings
 - São valiosas para documentação
 - NÃO reduzir agressivamente
 
 ### 4. Dead Code is Risky
+
 - Métodos com "0 usages" podem ser callbacks
 - Análise profunda necessária antes de remover
 - Testes podem não cobrir todos os casos
@@ -175,6 +186,7 @@ Non-code: 3,164 linhas (55.3%)
 ### Realistic Goals
 
 **Sprint 17 Target:** -30 to -50 lines
+
 - Focus: Quality over quantity
 - Strategy: Consolidation and inline
 - Avoid: Extractions that add lines
@@ -184,16 +196,20 @@ Non-code: 3,164 linhas (55.3%)
 ## 📝 Observations
 
 ### What Worked
+
 - ✅ Pattern-based simplification (_inject_or_create)
 - ✅ Clear wins with measurable impact
 - ✅ No functional changes
 
 ### What Didn't Work
+
 - ❌ Extract validation logic (added lines)
 - ❌ Aggressive extraction without analysis
 
 ### Key Insight
-**"Bem feito" > "Agressivo"**
+
+### "Bem feito" > "Agressivo"
+
 - User's guidance was correct
 - Quality matters more than line count
 - Each change should add value

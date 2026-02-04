@@ -7,7 +7,7 @@
 - **Config**: `from zebtrack import settings`; `config.yaml` < `config.local.yaml`
 
 ## 🏗️ Architecture (10 sec)
-```
+```text
 VideoSource → DetectorService → ProcessingWorker → Recorder
                 ↓
            StateManager → MainViewModel → UI (root.after only)

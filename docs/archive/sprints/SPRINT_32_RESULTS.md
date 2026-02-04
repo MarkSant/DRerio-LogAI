@@ -13,7 +13,7 @@ Sprint 32 extraiu **3 métodos de gerenciamento de calibração** do MainViewMod
 ### ✅ Objetivos Alcançados
 
 | Objetivo | Status | Resultado |
-|----------|--------|-----------|
+| ---------- | -------- | ----------- |
 | Criar CalibrationOrchestrator | ✅ COMPLETO | 157 linhas criadas |
 | Extrair 3 métodos reais | ✅ COMPLETO | 3 métodos extraídos (100 linhas) |
 | Identificar facade existente | ✅ COMPLETO | `_prepare_calibration_context` já extraído |
@@ -28,7 +28,7 @@ Sprint 32 extraiu **3 métodos de gerenciamento de calibração** do MainViewMod
 ## 📈 Estatísticas
 
 | Métrica | Antes | Depois | Redução |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | **Total linhas** | 2,989 | 2,919 | -70 (-2.40%) |
 | **Métodos** | 63 | 60 | -3 |
 
@@ -59,6 +59,7 @@ Sprint 32 extraiu **3 métodos de gerenciamento de calibração** do MainViewMod
 ## 🎯 Destaques Técnicos
 
 ### Context Manager Pattern
+
 ```python
 @contextmanager
 def global_calibration_session(self):
@@ -81,6 +82,7 @@ def global_calibration_session(self):
 ```
 
 ### Facade Delegation para Context Manager
+
 ```python
 @contextmanager
 def global_calibration_session(self):
@@ -90,6 +92,7 @@ def global_calibration_session(self):
 ```
 
 ### Calibration Scope Logic
+
 ```python
 # Determina scope baseado em flags
 scope = "project" if project_loaded and self._using_project_overrides else "global"
@@ -110,6 +113,7 @@ else:
 ### Método Já Extraído (Não Contado)
 
 **`_prepare_calibration_context`** (25 linhas, lines 2555-2579)
+
 - **Status**: ✅ Já é uma FACADE para VideoProcessingService
 - **Extraído em**: Sprint 24 (VideoProcessingOrchestrator)
 - **Ação**: Mantido como está, NÃO re-extraído
@@ -130,7 +134,7 @@ def _prepare_calibration_context(...) -> tuple[...]:
 ## 📊 Progresso Total (Sprints 24-32)
 
 | Sprint | Redução | MainViewModel Após | % Acumulado |
-|--------|---------|-------------------|-------------|
+| -------- | --------- | ------------------- | ------------- |
 | 24 | -693 | 4,534 | -13.3% |
 | 25 | -275 | 4,259 | -18.5% |
 | 26 | -364 | 3,895 | -25.5% |
@@ -148,6 +152,7 @@ def _prepare_calibration_context(...) -> tuple[...]:
 ## 🔍 Validações
 
 ### Sintaxe Python ✅
+
 ```bash
 python -m py_compile src/zebtrack/orchestrators/calibration_orchestrator.py
 python -m py_compile src/zebtrack/core/main_view_model.py
@@ -155,13 +160,16 @@ python -m py_compile src/zebtrack/core/main_view_model.py
 ```
 
 ### Linting (ruff check) ✅
+
 **Resultado:**
-```
+
+```text
 Found 1 error (1 fixed, 0 remaining).
 All checks passed!
 ```
 
 **Issue Corrigido Automaticamente:**
+
 - ✅ F401: `numpy` imported but unused (removido - movido para CalibrationOrchestrator)
 
 **Status:** ✅ LINTING LIMPO
@@ -180,12 +188,12 @@ All checks passed!
 
 ### Arquivos Modificados
 
-2. **`src/zebtrack/orchestrators/__init__.py`**
+1. **`src/zebtrack/orchestrators/__init__.py`**
    - Export do `CalibrationOrchestrator` adicionado (linha 18)
    - Entrada em `__all__` (linha 29, ordem alfabética)
    - Documentação atualizada (linha 7)
 
-3. **`src/zebtrack/core/main_view_model.py`**
+2. **`src/zebtrack/core/main_view_model.py`**
    - **Import adicionado:** `CalibrationOrchestrator` (linha 61)
    - **Import removido:** `numpy` (não mais usado)
    - **Inicialização adicionada:** `self.calibration_orchestrator = CalibrationOrchestrator(self)` (linhas 608-609)
@@ -199,12 +207,14 @@ All checks passed!
 ## 🔗 Dependências
 
 ### Atributos Cacheados
+
 ```python
 self.project_manager = main_view_model.project_manager
 self.project_orchestrator = main_view_model.project_orchestrator
 ```
 
 ### Acesso Dinâmico via MainViewModel
+
 - `self.main_view_model._using_project_overrides`
 - `self.main_view_model._global_model_defaults`
 - `self.main_view_model.active_weight_name`
@@ -213,6 +223,7 @@ self.project_orchestrator = main_view_model.project_orchestrator
 - `getattr(self.main_view_model, "gui", None)` - Opcional
 
 ### Delegação para Outros Orchestrators
+
 - `self.project_orchestrator.apply_project_model_overrides()` - Em `global_calibration_session`
 
 ---
@@ -260,20 +271,20 @@ self.project_orchestrator = main_view_model.project_orchestrator
 ### Métricas Sprint 32
 
 | Métrica | Valor |
-|---------|-------|
+| --------- | ------- |
 | **Métodos Extraídos** | 3 |
 | **Linhas Extraídas** | 100 (código) + 57 (overhead) = 157 (arquivo) |
 | **Redução MainViewModel** | -70 linhas (-2.40%) |
 | **Context Managers** | 1 (preservado com @contextmanager) |
 | **Facades Descobertas** | 1 (_prepare_calibration_context já extraído) |
 | **Arquivos Criados** | 1 (orchestrator) |
-| **Arquivos Modificados** | 2 (MainViewModel + __init__) |
+| **Arquivos Modificados** | 2 (MainViewModel + **init**) |
 | **Imports Removidos** | 1 (numpy) |
 | **Risco Realizado** | 🟢 LOW (conforme planejado) |
 
 ### Estado Atual do Projeto
 
-```
+```text
 MainViewModel (antes Sprint 32):  2,989 linhas
 MainViewModel (depois Sprint 32): 2,919 linhas
 Redução Sprint 32:               -   70 linhas (-2.40%)
@@ -288,7 +299,7 @@ Restante para extrair:            1,919 linhas
 ## 📊 Comparativo: Planejado vs Realizado
 
 | Aspecto | Planejado | Realizado | Δ |
-|---------|-----------|-----------|---|
+| --------- | ----------- | ----------- | --- |
 | **Métodos** | 4 | 3 | -1 (facade já existente) |
 | **Linhas Reais** | 124 | 100 | -24 (ajustado) |
 | **Redução MainViewModel** | ~120 | -70 | -50 (facades mais verbosas) |

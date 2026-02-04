@@ -20,7 +20,7 @@ Em v3.0, `Reporter` **apenas formata resultados** já calculados.
 
 ### ANTES (v2.1)
 
-```
+```text
 trajectory_df → Reporter.__init__()
                     ↓
                 ConcreteBehavioralAnalyzer (interno)
@@ -36,7 +36,7 @@ trajectory_df → Reporter.__init__()
 
 ### DEPOIS (v3.0)
 
-```
+```text
 trajectory_df → AnalysisService.run_full_analysis_as_dto()
                     ↓
                 AnalysisResult (DTO Pydantic)
@@ -213,6 +213,7 @@ poetry run python scripts/migrate_reporter_v3.py tests/analysis/test_reporter.py
 ### Limitações
 
 O script não pode migrar:
+
 - Código altamente dinâmico (ex: `Reporter(**kwargs)`)
 - Testes com mocks complexos
 - Código que manipula `Reporter` internamente
@@ -236,7 +237,7 @@ Após migração, verifique:
 ## 📊 Performance Comparison
 
 | Métrica | v2.1 (Old) | v3.0 (New) | Melhoria |
-|---------|------------|------------|----------|
+| --------- | ------------ | ------------ | ---------- |
 | Report Generation (1 video) | 2.5s | 1.8s | 28% faster |
 | Report Generation (10 videos) | 25s | 12s | 52% faster |
 | Memory Usage | 450 MB | 280 MB | 38% less |

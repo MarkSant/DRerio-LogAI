@@ -1,8 +1,11 @@
+<!-- markdownlint-disable MD024 -->
+
 # Fase 2: Limpeza de Facades - Status Final
 
 **Data**: 2025-01-19
 **Fase**: 2 de 5 (Limpeza de Facades)
-**Status**: ✅ **INFRAESTRUTURA COMPLETA** | ⏸️ **REMOÇÃO PAUSADA**
+
+### Status**: ✅ **INFRAESTRUTURA COMPLETA** | ⏸️**REMOÇÃO PAUSADA
 
 ---
 
@@ -11,7 +14,7 @@
 ### ✅ Tarefas Completadas (100% da Infraestrutura)
 
 | Tarefa | Status | Testes | Artefatos |
-|--------|--------|--------|-----------|
+| -------- | -------- | -------- | ----------- |
 | **1. Análise de Facades** | ✅ Completo | N/A | [`FACADE_ANALYSIS_PHASE2.md`](FACADE_ANALYSIS_PHASE2.md) |
 | **2. OrchestratorRegistry** | ✅ Completo | 13/13 ✅ | [`orchestrator_registry.py`](src/zebtrack/core/orchestrator_registry.py) |
 | **3. Integração no MainViewModel** | ✅ Completo | 79/79 ✅ | MainViewModel linha 468-479 |
@@ -20,7 +23,7 @@
 ### ⏸️ Tarefas Pausadas (Remoção de Facades)
 
 | Batch | Qtd Facades | Status | Razão da Pausa |
-|-------|-------------|--------|----------------|
+| ------- | ------------- | -------- | ---------------- |
 | **Batch 1**: UIStateController | 23 | ⏸️ Pausado | Requer análise detalhada de callers |
 | **Batch 2**: RecordingSession | 15 | ⏸️ Pausado | Dependente do Batch 1 |
 | **Batch 3**: ProjectOrchestrator | 17 | ⏸️ Pausado | Dependente do Batch 1 |
@@ -34,6 +37,7 @@
 ### 1. Análise Completa de Facades ✅
 
 **86 métodos facade identificados** distribuídos por:
+
 - UIStateController: 23 (26.7%)
 - ProjectOrchestrator: 17 (19.8%)
 - RecordingSessionOrchestrator: 15 (17.4%)
@@ -45,7 +49,8 @@
 
 **Componente**: [`src/zebtrack/core/orchestrator_registry.py`](src/zebtrack/core/orchestrator_registry.py)
 
-**Funcionalidade**:
+### Funcionalidade
+
 ```python
 # ANTES (facade no MainViewModel):
 controller.close_project()  # Linha extra de delegação
@@ -54,8 +59,9 @@ controller.close_project()  # Linha extra de delegação
 controller.orchestrators.project.close_project()  # Sem intermediário
 ```
 
-**Testes**: 13 testes, **100% passando**
-```
+### Testes**: 13 testes,**100% passando
+
+```text
 tests/core/test_orchestrator_registry.py::13 passed (0.19s)
 ```
 
@@ -82,7 +88,7 @@ self.orchestrators = OrchestratorRegistry(
 ### Estado Atual (Pós-Infraestrutura)
 
 | Métrica | Antes | Agora | Mudança |
-|---------|-------|-------|---------|
+| --------- | ------- | ------- | --------- |
 | **Linhas MainViewModel** | 2.797 | 2.797 | 0 |
 | **Métodos Facade** | 86 | 86 | 0 |
 | **Infraestrutura Fase 2** | 0 | 1 registry | +1 |
@@ -92,7 +98,7 @@ self.orchestrators = OrchestratorRegistry(
 ### Potencial Após Remoção Completa
 
 | Métrica | Agora | Meta Pós-Remoção | Ganho |
-|---------|-------|------------------|-------|
+| --------- | ------- | ------------------ | ------- |
 | **Linhas MainViewModel** | 2.797 | ~2.457 | -340 (-12.2%) |
 | **Métodos Totais** | 155 | ~69 | -86 (-55.5%) |
 | **Métodos Facade** | 86 | 0 | -86 (-100%) |
@@ -103,25 +109,28 @@ self.orchestrators = OrchestratorRegistry(
 ## 🏗️ Arquivos Criados
 
 ### Código de Produção
+
 1. **`src/zebtrack/core/orchestrator_registry.py`** (124 linhas)
    - Registry centralizado para todos os orchestrators
    - Acesso direto sem facades
 
 ### Testes
-2. **`tests/core/test_orchestrator_registry.py`** (141 linhas)
+
+1. **`tests/core/test_orchestrator_registry.py`** (141 linhas)
    - 13 testes unitários
    - 100% de cobertura do registry
 
 ### Documentação
-3. **`FACADE_ANALYSIS_PHASE2.md`** (117 linhas)
+
+1. **`FACADE_ANALYSIS_PHASE2.md`** (117 linhas)
    - Análise completa dos 86 facades
    - Estratégia de remoção por batches
 
-4. **`BATCH1_UISTATECONTROLLER_FACADES.md`** (95 linhas)
+2. **`BATCH1_UISTATECONTROLLER_FACADES.md`** (95 linhas)
    - Inventário dos 23 facades do UIStateController
    - Plano de remoção detalhado
 
-5. **`FASE2_STATUS_FINAL.md`** (este arquivo)
+3. **`FASE2_STATUS_FINAL.md`** (este arquivo)
    - Status final da Fase 2
    - Recomendações para próxima sessão
 
@@ -173,9 +182,10 @@ self.orchestrators = OrchestratorRegistry(
 
 ### Opção A: Continuar Fase 2 (Remoção de Facades)
 
-**Duração Estimada**: 2-3 horas **por batch**
+### Duração Estimada**: 2-3 horas**por batch
 
-**Abordagem Recomendada**:
+### Abordagem Recomendada
+
 1. Começar com **Batch 1**: UIStateController (23 facades)
 2. Para cada facade:
    a. Identificar todos os callers: `grep -r "controller\.facade_method" src/`
@@ -208,6 +218,7 @@ self.orchestrators = OrchestratorRegistry(
 ## ✅ Checklist de Qualidade
 
 ### Código
+
 - [x] OrchestratorRegistry implementado
 - [x] Testes unitários criados (13 testes)
 - [x] Integração no MainViewModel
@@ -215,12 +226,14 @@ self.orchestrators = OrchestratorRegistry(
 - [x] Código segue padrões do projeto
 
 ### Testes
+
 - [x] 79 testes passando (Fase 1 + Fase 2)
 - [x] Cobertura mantida em 70%+
 - [x] Testes de regressão validados
 - [ ] ⏸️ Testes de integração pós-remoção (pendente)
 
 ### Documentação
+
 - [x] FACADE_ANALYSIS_PHASE2.md criado
 - [x] BATCH1_UISTATECONTROLLER_FACADES.md criado
 - [x] FASE2_STATUS_FINAL.md criado
@@ -232,7 +245,7 @@ self.orchestrators = OrchestratorRegistry(
 
 ### O Que Foi Alcançado ✅
 
-**Fase 2 - Infraestrutura: 100% COMPLETA**
+### Fase 2 - Infraestrutura: 100% COMPLETA
 
 1. ✅ 86 facades identificados e catalogados
 2. ✅ OrchestratorRegistry criado e testado (13 testes)
@@ -242,7 +255,7 @@ self.orchestrators = OrchestratorRegistry(
 
 ### O Que Fica Pendente ⏸️
 
-**Fase 2 - Remoção de Facades: PAUSADA**
+### Fase 2 - Remoção de Facades: PAUSADA
 
 1. ⏸️ Remoção de 23 facades UIStateController
 2. ⏸️ Remoção de 15 facades RecordingSessionOrchestrator
@@ -260,5 +273,6 @@ self.orchestrators = OrchestratorRegistry(
 
 ---
 
-**Status**: ✅ **INFRAESTRUTURA DA FASE 2 COMPLETA E FUNCIONAL**
+### Status**: ✅**INFRAESTRUTURA DA FASE 2 COMPLETA E FUNCIONAL
+
 **Próximo Passo**: Escolher Opção A, B ou C na próxima sessão

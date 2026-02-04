@@ -18,7 +18,7 @@ clean MVVM-S architecture with dependency injection.
 ### Key Metrics Achieved
 
 | Metric | Before | After | Change |
-|--------|--------|-------|--------|
+| -------- | -------- | ------- | -------- |
 | `gui.py` lines | ~15,000 | ~10,759 | -28% |
 | `main_view_model.py` lines | ~4,500 | ~3,200 | -29% |
 | Test coverage | 45% | 61% | +16pp |

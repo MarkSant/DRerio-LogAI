@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Multi-Subject Wizard Troubleshooting Guide
 
 **Data**: 2024-12-24
@@ -15,7 +17,7 @@ O usuário reporta que ao usar o wizard com projetos multi-aquário (2 aquários
 
 ### Fluxo de Dados Correto
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │ 1. DETECÇÃO (detection_step.py)                            │
 │    _pattern_custom_regex()                                 │
@@ -145,6 +147,7 @@ for video in all_videos:
 ✅ **Solução**: No wizard, usar **"Configuração Personalizada"** e definir regex customizada.
 
 **Como Verificar**:
+
 ```python
 # Verificar no projeto salvo:
 project_data = project_manager.project_data
@@ -161,6 +164,7 @@ print(f"Padrão usado: {pattern_used}")
 ❌ **Problema**: Paths podem estar em formatos diferentes entre detecção e enriquecimento.
 
 **Exemplo**:
+
 - Detecção: `"C:\\Videos\\G1_D1_S1--G1_D1_S2.mp4"` (Windows backslash)
 - Enriquecimento: `"C:/Videos/G1_D1_S1--G1_D1_S2.mp4"` (POSIX forward slash)
 - Lookup falha mesmo com normalização se houver outros problemas
@@ -172,6 +176,7 @@ print(f"Padrão usado: {pattern_used}")
 ❌ **Problema**: O `design_editor_dialog.py` pode não estar preservando `subject_mappings` quando usuário edita design.
 
 **Como Verificar**:
+
 ```python
 # Após o wizard, verificar se subject_mappings está lá:
 detected_design = wizard_data.get("detected_design", {})
@@ -182,6 +187,7 @@ print(f"Subject mappings count: {len(sm)}")
 ```
 
 **Fix Atual**: [design_editor_dialog.py:520-522](../../src/zebtrack/ui/wizard/design_editor_dialog.py#L520-L522)
+
 ```python
 # Preserve subject_mappings from input_design
 if self.input_design.get("subject_mappings"):
@@ -193,6 +199,7 @@ if self.input_design.get("subject_mappings"):
 ❌ **Problema**: Projetos Live NÃO usam enriquecimento de metadados.
 
 **Como Verificar**:
+
 ```python
 project_type = project_data.get("project_type")
 print(f"Project type: {project_type}")
@@ -225,8 +232,9 @@ Este script adiciona logging detalhado em 🔍 **PATCH** messages.
 
 Procure por:
 
-#### ✅ **SUCESSO** - Detecção funcionou:
-```
+#### ✅ **SUCESSO** - Detecção funcionou
+
+```text
 🔍 PATCH: detection_step._pattern_custom_regex completed
   total_files=10
   subject_mappings_count=10
@@ -242,30 +250,34 @@ Procure por:
   ]
 ```
 
-#### ❌ **ERRO** - subject_mappings vazio:
-```
+#### ❌ **ERRO** - subject_mappings vazio
+
+```text
 ⚠️ PATCH: detection_step._pattern_custom_regex NO subject_mappings!
   has_result=True
   result_keys=['groups', 'days', 'subjects_per_group', 'confidence', 'pattern_used']
 ```
 
-#### ✅ **SUCESSO** - Enriquecimento recebeu dados:
-```
+#### ✅ **SUCESSO** - Enriquecimento recebeu dados
+
+```text
 🔍 PATCH: _enrich_videos_with_design_metadata called
   scanned_videos_count=10
   has_subject_mappings=True
   subject_mappings_count=10
 ```
 
-#### ❌ **ERRO** - subject_mappings não chegou:
-```
+#### ❌ **ERRO** - subject_mappings não chegou
+
+```text
 🔍 PATCH: _enrich_videos_with_design_metadata called
   has_subject_mappings=False
   subject_mappings_count=0
 ```
 
-#### ✅ **SUCESSO** - Vídeos marcados como multi-subject:
-```
+#### ✅ **SUCESSO** - Vídeos marcados como multi-subject
+
+```text
 🔍 PATCH: _enrich_videos_with_design_metadata completed
   multi_subject_videos_count=10
   multi_subject_videos=[
@@ -277,14 +289,16 @@ Procure por:
   ]
 ```
 
-#### ❌ **ERRO** - Nenhum vídeo marcado:
-```
+#### ❌ **ERRO** - Nenhum vídeo marcado
+
+```text
 🔍 PATCH: _enrich_videos_with_design_metadata completed
   multi_subject_videos_count=0
 ```
 
-#### ✅ **SUCESSO** - UI recebeu vídeos multi-subject:
-```
+#### ✅ **SUCESSO** - UI recebeu vídeos multi-subject
+
+```text
 🔍 PATCH: _build_video_hierarchy called
   total_videos=10
   multi_subject_videos=[
@@ -296,8 +310,9 @@ Procure por:
   ]
 ```
 
-#### ✅ **SUCESSO** - Hierarquia expandida corretamente:
-```
+#### ✅ **SUCESSO** - Hierarquia expandida corretamente
+
+```text
 🔍 PATCH: _build_video_hierarchy completed
   groups_count=1
   total_tree_entries=20  # ← 10 vídeos × 2 sujeitos = 20 entradas!
@@ -308,6 +323,7 @@ Procure por:
 ### Solução 1: Garantir Uso de Regex Customizada
 
 **NO WIZARD**, certifique-se de:
+
 1. Escolher **"Configuração Personalizada"**
 2. Preencher todos os campos de regex
 3. Testar o padrão antes de finalizar
@@ -329,6 +345,7 @@ log.warning(
 ### Solução 3: Verificar Formato dos Nomes de Arquivo
 
 Os nomes **DEVEM** seguir o padrão:
+
 - Separator `--` entre sujeitos
 - Padrão consistente: `G1_D1_S1--G1_D1_S2.mp4`
 - Regex deve capturar todos os matches
@@ -364,15 +381,18 @@ Antes de reportar como bug, verificar:
 ## Arquivos Relacionados
 
 ### Código Principal
+
 - [detection_step.py](../../src/zebtrack/ui/wizard/detection_step.py) - Linhas 387-575
 - [project_workflow_service.py](../../src/zebtrack/core/project_workflow_service.py) - Linhas 1139-1279
 - [validation_manager.py](../../src/zebtrack/ui/components/validation_manager.py) - Linhas 1000-1030
 - [design_editor_dialog.py](../../src/zebtrack/ui/wizard/design_editor_dialog.py) - Linhas 520-522
 
 ### Testes
+
 - [test_multi_aquarium_regex.py](../../tests/test_multi_aquarium_regex.py) - Testes de extração multi-subject
 
 ### Scripts
+
 - [debug_multi_subject_wizard.py](../../scripts/debug_multi_subject_wizard.py) - Script de diagnóstico
 
 ## Próximos Passos

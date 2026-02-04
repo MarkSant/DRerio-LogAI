@@ -78,7 +78,7 @@ O Wizard de Criação de Projetos é um assistente inteligente de 5 etapas que a
 
 #### Exemplo de Estrutura:
 
-```
+```text
 Experimento_Canabidiol/
 ├── Control/
 │   ├── Day01/
@@ -315,7 +315,7 @@ Estimativa: **~5 minutos por vídeo** para processamento FULL. IMPORT_ZONES é m
 Sim. O wizard busca arquivos com padrão `{video_name}_arena.parquet`, `{video_name}_rois.parquet`, `{video_name}_trajectory.parquet` na mesma pasta do vídeo correspondente.
 
 Exemplo:
-```
+```text
 /Videos/
 ├── Subject01.mp4
 ├── Subject01_arena.parquet

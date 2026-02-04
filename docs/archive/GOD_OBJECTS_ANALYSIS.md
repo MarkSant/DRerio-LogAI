@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # God Objects Analysis Report - ZebTrack-AI Codebase
 
 **Analysis Date:** November 5, 2025  
@@ -12,7 +14,7 @@
 The ZebTrack-AI codebase exhibits **5 critical/high-severity God Objects** that violate the Single Responsibility Principle. These classes have accumulated excessive responsibilities due to feature accumulation and incomplete refactoring efforts. The most severe violations are in the view layer (ApplicationGUI) and the main orchestrator (MainViewModel).
 
 | Severity | Count | Classes |
-|----------|-------|---------|
+| ---------- | ------- | --------- |
 | **CRITICAL** | 2 | ApplicationGUI, MainViewModel |
 | **HIGH** | 2 | ProjectManager, VideoProcessingService |
 | **MEDIUM-HIGH** | 3 | Reporter, StateManager, ProjectWorkflowService |
@@ -24,10 +26,11 @@ The ZebTrack-AI codebase exhibits **5 critical/high-severity God Objects** that 
 **Severity:** CRITICAL (100/100)
 
 ### Metrics
+
 - **File Size:** 9,951 lines
 - **Class Methods:** 322 methods (!)
 - **Dependencies:** 4 major components (controller, event_bus, settings, root)
-- **Cyclomatic Complexity:** 
+- **Cyclomatic Complexity:**
   - `__init__`: ~691 lines with 104 control flow statements (CC ~30)
   - Multiple large drawing/update methods with CC > 10
 
@@ -70,7 +73,7 @@ The ZebTrack-AI codebase exhibits **5 critical/high-severity God Objects** that 
 ### Problems Identified
 
 1. **Massive Initialization**
-   - __init__ is 691 lines long with 104 control statements
+   - **init** is 691 lines long with 104 control statements
    - Creates dozens of UI components inline
    - Initializes 30+ instance variables
 
@@ -91,7 +94,7 @@ The ZebTrack-AI codebase exhibits **5 critical/high-severity God Objects** that 
 
 ### Recommended Splits
 
-```
+```text
 ApplicationGUI (Main Window Manager - 150 methods, 2000 lines)
 ├── CanvasManager (Drawing/Visualization - 29 methods, 800 lines)
 ├── TabManager (Tab Management - 5 methods, 300 lines)
@@ -110,6 +113,7 @@ ApplicationGUI (Main Window Manager - 150 methods, 2000 lines)
 **Severity:** CRITICAL (140/100)
 
 ### Metrics
+
 - **File Size:** 5,588 lines
 - **Class Methods:** 151 methods
 - **Dependencies Injected:** 13 major components
@@ -199,7 +203,7 @@ ApplicationGUI (Main Window Manager - 150 methods, 2000 lines)
 
 The CLAUDE.md documentation already identifies this issue. Suggested refactoring:
 
-```
+```text
 MainViewModel (Core Orchestrator - 60-80 methods, ~1200 lines)
 ├── ProjectWorkflowCoordinator (20 methods, 400 lines) [EXISTING: ProjectWorkflowService]
 ├── VideoProcessingCoordinator (25 methods, 600 lines) [EXTRACT from current code]
@@ -209,6 +213,7 @@ MainViewModel (Core Orchestrator - 60-80 methods, ~1200 lines)
 ```
 
 **Key Actions:**
+
 1. Extract video processing logic → VideoProcessingCoordinator
 2. Extract detector/model setup → DetectorCoordinator  
 3. Extract recording control → RecordingCoordinator
@@ -225,6 +230,7 @@ MainViewModel (Core Orchestrator - 60-80 methods, ~1200 lines)
 **Severity:** HIGH (60/100)
 
 ### Metrics
+
 - **File Size:** 2,795 lines
 - **Class Methods:** 79 methods
 - **Dependencies:** 2 (StateManager, Settings)
@@ -293,7 +299,7 @@ MainViewModel (Core Orchestrator - 60-80 methods, ~1200 lines)
 
 ### Recommended Splits
 
-```
+```text
 ProjectManager (Main - 30 methods, 600 lines) [Facade]
 ├── ProjectFileManager (15 methods, 400 lines) [I/O only]
 ├── VideoInventoryManager (15 methods, 500 lines) [Video CRUD]
@@ -312,6 +318,7 @@ ProjectManager (Main - 30 methods, 600 lines) [Facade]
 **Severity:** HIGH (60/100)
 
 ### Metrics
+
 - **File Size:** 1,513 lines
 - **Class Methods:** 27 methods
 - **Dependencies:** 6 major + 4 positional args (root, view, cancel_event, settings_obj)
@@ -378,7 +385,7 @@ ProjectManager (Main - 30 methods, 600 lines) [Facade]
 
 ### Recommended Splits
 
-```
+```text
 VideoProcessingService (Facade - 8 methods, 250 lines)
 ├── FrameSourceManager (5 methods, 200 lines)
 ├── ProcessingParameterBuilder (10 methods, 400 lines) [Break up the 641-line method]
@@ -387,6 +394,7 @@ VideoProcessingService (Facade - 8 methods, 250 lines)
 ```
 
 **Focus:** Break down `_collect_params_from_single_video` into:
+
 - `_resolve_video_metadata`
 - `_build_detector_params`
 - `_build_calibration_params`
@@ -403,6 +411,7 @@ VideoProcessingService (Facade - 8 methods, 250 lines)
 **Severity:** MEDIUM-HIGH (40/100)
 
 ### Metrics
+
 - **File Size:** 1,412 lines
 - **Class Methods:** 29 methods
 - **Cyclomatic Complexity:**
@@ -460,7 +469,7 @@ VideoProcessingService (Facade - 8 methods, 250 lines)
 
 ### Recommended Splits
 
-```
+```text
 Reporter (Facade - 8 methods, 300 lines)
 ├── TrajectoryCleaner (3 methods, 150 lines) [Warp, coordinate transform]
 ├── MetricsCollector (8 methods, 350 lines) [Tidy data, ROI metrics]
@@ -478,6 +487,7 @@ Reporter (Facade - 8 methods, 300 lines)
 **Severity:** MEDIUM-HIGH (40/100)
 
 ### Metrics
+
 - **File Size:** 1,184 lines
 - **Main Class Methods:** 26 methods
 - **Multiple State Classes:** 9 classes total
@@ -488,16 +498,19 @@ Reporter (Facade - 8 methods, 300 lines)
 ### Assessment
 
 **Note:** StateManager is actually well-designed for its purpose. The apparent size is inflated by:
+
 1. Multiple purpose-specific state classes (justified)
 2. Observer pattern infrastructure (justified)
 3. Comprehensive state synchronization (complex but necessary)
 
 **Unlike the other God Objects, StateManager has good cohesion:**
+
 - All methods relate to state management
 - Clear separation between state classes
 - Each state class manages one domain
 
 **Minor Issues:**
+
 - Could extract observer infrastructure to separate module
 - Could reduce notification complexity
 
@@ -510,6 +523,7 @@ Reporter (Facade - 8 methods, 300 lines)
 **Severity:** MEDIUM-HIGH (20/100)
 
 ### Metrics
+
 - **File Size:** 1,204 lines
 - **Class Methods:** 17 methods
 - **Dependencies:** 5 (ProjectManager, ModelService, StateManager, UICoordinator, Settings)
@@ -517,6 +531,7 @@ Reporter (Facade - 8 methods, 300 lines)
 ### Assessment
 
 This is actually a good refactoring that extracted logic from MainViewModel. The service is well-focused on:
+
 1. Project creation coordination
 2. Project opening/restoration
 3. Model settings application
@@ -529,6 +544,7 @@ This is actually a good refactoring that extracted logic from MainViewModel. The
 ## Summary Recommendations by Priority
 
 ### Phase 1 - CRITICAL (Do First)
+
 1. **Split ApplicationGUI** (~25 days)
    - Extract CanvasManager (drawing logic)
    - Extract EventDispatcher (event routing)
@@ -543,32 +559,35 @@ This is actually a good refactoring that extracted logic from MainViewModel. The
    - Reduce dependencies from 13 to 6
 
 ### Phase 2 - HIGH (Do Next)
-3. **Refactor ProjectManager** (~20 days)
+
+1. **Refactor ProjectManager** (~20 days)
    - Extract ProjectFileManager
    - Extract VideoInventoryManager
    - Extract ZoneManager
    - Reduce from 79 to ~30 methods
 
-4. **Refactor VideoProcessingService** (~15 days)
+2. **Refactor VideoProcessingService** (~15 days)
    - Break down massive `_collect_params_from_single_video` method
    - Extract ProcessingParameterBuilder
    - Reduce from 27 to ~12 methods
 
 ### Phase 3 - MEDIUM (Backlog)
-5. **Refactor Reporter** (~10 days)
+
+1. **Refactor Reporter** (~10 days)
    - Extract PlotGenerator
    - Extract ReportBuilder
    - Break down large export methods
 
 ### Phase 4 - MONITORING
-6. **StateManager** - Monitor only, currently well-designed
+
+1. **StateManager** - Monitor only, currently well-designed
 
 ---
 
 ## Detailed Metrics Table
 
 | Class | Lines | Methods | Deps | CC Max | Severity | Days |
-|-------|-------|---------|------|--------|----------|------|
+| ------- | ------- | --------- | ------ | -------- | ---------- | ------ |
 | ApplicationGUI | 9,951 | 322 | 4 | ~30 | CRITICAL | 25 |
 | MainViewModel | 5,588 | 151 | 13 | ~25 | CRITICAL | 35 |
 | ProjectManager | 2,795 | 79 | 2 | ~40 | HIGH | 20 |
@@ -597,4 +616,3 @@ This is actually a good refactoring that extracted logic from MainViewModel. The
 3. **Single Responsibility Checks:** Code reviews focused on concern separation
 4. **Extract Services Early:** Refactor at 1000 lines, not 5000+
 5. **Component Tests:** Test individual UI components separately from the main window
-

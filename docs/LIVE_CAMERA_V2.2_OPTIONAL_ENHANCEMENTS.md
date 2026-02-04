@@ -26,12 +26,14 @@ Todas as 8 melhorias opcionais propostas foram implementadas com sucesso, expand
 ### 1. Wizard Hardware Detection & Mode Selection
 
 **Arquivos**:
+
 - `src/zebtrack/ui/wizard/live_config_step.py` (+130 linhas)
 - `src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py` (350 linhas - NOVO)
 
 **Funcionalidades**:
 
 #### Hardware Detection no Wizard
+
 - Executa detecção automática ao mostrar `LiveConfigStep`
 - Exibe info-box se hardware for LIMITED ou INSUFFICIENT
 - Armazena `HardwareCapabilityReport` para validação posterior
@@ -48,6 +50,7 @@ def on_show(self):
 ```
 
 #### Mode Selection Dialog
+
 - **Modal dialog** 700x650px
 - **Hardware summary** com cores por tier:
   - 🟢 EXCELLENT / VERY_GOOD
@@ -59,6 +62,7 @@ def on_show(self):
 - **Callback** para retornar modo selecionado
 
 **Workflow**:
+
 1. User configura N aquários no `ZoneConfigStep`
 2. `LiveConfigStep.validate()` chama `_check_mode_compatibility(N)`
 3. Se hardware insuficiente → mostra `LiveCameraModeSelectionDialog`
@@ -66,8 +70,9 @@ def on_show(self):
 5. Modo armazenado em `wizard_data["selected_live_mode"]`
 
 **Modos disponíveis**:
+
 | Modo | Descrição | Aquários | Hardware |
-|------|-----------|----------|----------|
+| ------ | ----------- | ---------- | ---------- |
 | MULTI_AQUARIUM_REALTIME | Paralelo 2-6 | N | GPU + 4+ cores |
 | SINGLE_AQUARIUM_REALTIME | Um de cada vez | 1 | 2+ cores |
 | SEQUENTIAL_AQUARIUM | N sessões manuais | N | 2+ cores |
@@ -82,6 +87,7 @@ def on_show(self):
 **Funcionalidades**:
 
 #### Detecção Automática de Multi-Aquarium
+
 ```python
 # v2.2.0: Check for multi-aquarium zone data
 zone_data = self.project_manager.get_zone_data()
@@ -94,6 +100,7 @@ else:
 ```
 
 #### Método `_run_multi_aquarium_detection()`
+
 1. **Detecção particionada** com fallbacks:
    - Tenta `detect_partitioned_optimized()` (ThreadPoolExecutor)
    - Fallback para `detect_partitioned_parallel()`
@@ -105,7 +112,8 @@ else:
 4. **Logging detalhado** com contagem por aquário
 
 **Exemplo de saída**:
-```
+
+```text
 live_camera_service.multi_aquarium_detection_written
   frame_number=450
   aquariums=3
@@ -121,12 +129,14 @@ live_camera_service.multi_aquarium_detection_written
 **Funcionalidades**:
 
 #### Layout Dinâmico
+
 - **2 colunas** para 2-4 aquários
 - **3 colunas** para 5-6 aquários
 - **360x270px** por aquário
 - **Grid responsivo** com pesos iguais
 
 #### Features por Aquário
+
 ```python
 def update_aquarium_frame(
     self,
@@ -143,12 +153,14 @@ def update_aquarium_frame(
 - Thread-safe updates via `root.after()`
 
 #### Painel de Controle
+
 - Timer com `Elapsed / Remaining`
 - Status label com cores dinâmicas
 - Botão "⏹ Parar Análise"
 - Auto-stop ao atingir duração
 
 **Integração futura**:
+
 ```python
 # Em LiveCameraService
 if is_multi_aquarium and num_aquariums > 1:
@@ -170,6 +182,7 @@ if is_multi_aquarium and num_aquariums > 1:
 **Funcionalidades**:
 
 #### GPU Memory Fields
+
 ```python
 @dataclass
 class HardwareCapabilityReport:
@@ -180,6 +193,7 @@ class HardwareCapabilityReport:
 ```
 
 #### Enhanced `_detect_gpu()`
+
 ```python
 def _detect_gpu(self) -> tuple[bool, str | None, float | None, float | None]:
     """Detect GPU presence and name.
@@ -209,6 +223,7 @@ def _detect_gpu(self) -> tuple[bool, str | None, float | None, float | None]:
 ```
 
 #### Human-Readable Output
+
 ```python
 def __str__(self) -> str:
     gpu_str = "No"
@@ -219,7 +234,8 @@ def __str__(self) -> str:
 ```
 
 **Exemplo**:
-```
+
+```text
 GPU: Yes - NVIDIA GeForce RTX 3060 (10.2GB / 12.0GB free)
 ```
 
@@ -232,6 +248,7 @@ GPU: Yes - NVIDIA GeForce RTX 3060 (10.2GB / 12.0GB free)
 **Funcionalidades**:
 
 #### State Tracking (no `__init__`)
+
 ```python
 # v2.2.0: Dynamic FPS adjustment
 self._target_fps: float = 30.0  # Default target FPS
@@ -242,6 +259,7 @@ self._fps_adjustment_interval: int = 30  # Adjust every N frames
 ```
 
 #### Método `_adjust_fps_dynamically()`
+
 ```python
 def _adjust_fps_dynamically(self, frame_number: int, processing_time: float) -> bool:
     """Adjust FPS dynamically based on processing performance.
@@ -276,6 +294,7 @@ def _adjust_fps_dynamically(self, frame_number: int, processing_time: float) -> 
 ```
 
 #### Integração no Processing Loop
+
 ```python
 if should_analyze:
     # v2.2.0: Start timing
@@ -289,6 +308,7 @@ if should_analyze:
 ```
 
 **Lógica de Skip**:
+
 - `skip_count=0` → Processa todos os frames (30 FPS)
 - `skip_count=1` → Processa 1 a cada 2 frames (15 FPS)
 - `skip_count=2` → Processa 1 a cada 3 frames (10 FPS)
@@ -296,10 +316,12 @@ if should_analyze:
 - `skip_count=4` → Processa 1 a cada 5 frames (6 FPS - mínimo)
 
 **Thresholds**:
+
 - **Increase skip**: FPS < 70% do target (e.g., <21 FPS com target=30)
 - **Decrease skip**: FPS > 120% do target (e.g., >36 FPS)
 
 **Benefícios**:
+
 1. **Auto-tuning** - Ajusta-se automaticamente a carga do sistema
 2. **Graceful degradation** - Mantém análise mesmo em hardware fraco
 3. **Smooth transitions** - Ajustes incrementais (±1 skip por vez)
@@ -313,20 +335,20 @@ if should_analyze:
 ### Novos Arquivos (3)
 
 | Arquivo | Linhas | Descrição |
-|---------|--------|-----------|
+| --------- | -------- | ----------- |
 | `src/zebtrack/ui/dialogs/live_camera_mode_selection_dialog.py` | 350 | Dialog de seleção de modo |
 | `src/zebtrack/ui/dialogs/multi_aquarium_live_preview_window.py` | 290 | Preview multi-aquário |
 | `docs/LIVE_CAMERA_V2.2_OPTIONAL_ENHANCEMENTS.md` | 200 | Este documento |
-| **Total** | **840** | |
+| **Total** | **840** |  |
 
 ### Arquivos Modificados (3)
 
 | Arquivo | +Linhas | Descrição |
-|---------|---------|-----------|
+| --------- | --------- | ----------- |
 | `src/zebtrack/ui/wizard/live_config_step.py` | +130 | Hardware check + mode dialog |
 | `src/zebtrack/core/live_camera_service.py` | +250 | Multi-aquarium + FPS dinâmico |
 | `src/zebtrack/utils/hardware_capability.py` | +60 | GPU memory monitoring |
-| **Total** | **+440** | |
+| **Total** | **+440** |  |
 
 **Grand Total**: 1,280 linhas (840 new + 440 modified)
 
@@ -335,6 +357,7 @@ if should_analyze:
 ## 🧪 Testes Recomendados
 
 ### Teste 1: Wizard Hardware Detection
+
 ```python
 # Navegue até LiveConfigStep
 # Verifique:
@@ -343,6 +366,7 @@ if should_analyze:
 ```
 
 ### Teste 2: Mode Selection Dialog
+
 ```python
 # Configure 4 aquários no ZoneConfigStep
 # Em LiveConfigStep.validate():
@@ -353,6 +377,7 @@ if should_analyze:
 ```
 
 ### Teste 3: Multi-Aquarium Processing
+
 ```python
 # Crie projeto com MultiAquariumZoneData (2+ aquários)
 # Inicie live session
@@ -363,6 +388,7 @@ if should_analyze:
 ```
 
 ### Teste 4: GPU Memory Monitoring
+
 ```python
 from zebtrack.utils.hardware_capability import HardwareCapabilityDetector
 from zebtrack import settings
@@ -375,6 +401,7 @@ print(report)
 ```
 
 ### Teste 5: Dynamic FPS
+
 ```python
 # Inicie live session com hardware limitado
 # Observe logs a cada 30 frames:
@@ -384,6 +411,7 @@ print(report)
 ```
 
 ### Teste 6: Frame Skip
+
 ```python
 # Force alto load (multi-aquarium + GPU desabilitada)
 # Verifique logs:
@@ -397,6 +425,7 @@ print(report)
 ## 🔧 Configuração
 
 ### Ajustar Target FPS
+
 ```python
 # Em LiveCameraService.__init__
 self._target_fps = 25.0  # Reduzir para 25 FPS
@@ -407,18 +436,21 @@ class LiveCameraSettings:
 ```
 
 ### Ajustar Intervalo de Ajuste
+
 ```python
 # Ajustar a cada 60 frames em vez de 30
 self._fps_adjustment_interval = 60
 ```
 
 ### Ajustar Skip Máximo
+
 ```python
 # Permitir até 6 FPS (skip=4) em vez de 5 FPS
 self._frame_skip_count = min(6, self._frame_skip_count + 1)
 ```
 
 ### Ajustar Thresholds
+
 ```python
 # Mais agressivo (aumenta skip mais cedo)
 if self._current_fps < self._target_fps * 0.8:  # 80% em vez de 70%
@@ -432,17 +464,20 @@ elif self._current_fps > self._target_fps * 1.5:  # 150% em vez de 120%
 ## 📈 Benefícios Esperados
 
 ### Performance
+
 - **30-40% speedup** com multi-aquarium parallel detection
 - **Graceful degradation** com FPS dinâmico em hardware fraco
 - **Reduced frame drops** com frame skip adaptativo
 
 ### User Experience
+
 - **Informed decisions** com hardware report no wizard
 - **Fallback options** quando hardware insuficiente
 - **Real-time feedback** com multi-aquarium preview
 - **Smooth analysis** mesmo com carga alta
 
 ### System Reliability
+
 - **No crashes** em hardware insuficiente (auto-ajuste)
 - **Predictable behavior** com modo selecionado explicitamente
 - **Observable** com logs detalhados de FPS e skip
@@ -452,22 +487,26 @@ elif self._current_fps > self._target_fps * 1.5:  # 150% em vez de 120%
 ## 🚀 Próximos Passos (Futuro)
 
 ### Priority 1: Multi-Aquarium Preview Integration
+
 - Detectar `num_aquariums` em `start_session()`
 - Criar `MultiAquariumLivePreviewWindow` quando `> 1`
 - Publicar eventos `AQUARIUM_FRAME_READY` por aquário
 - UICoordinator roteia frames para preview correto
 
 ### Priority 2: FPS Display
+
 - Adicionar label "FPS: 28.5" no preview window
 - Atualizar a cada segundo
 - Cor verde (>25), amarelo (15-25), vermelho (<15)
 
 ### Priority 3: GPU Memory Alerts
+
 - Monitorar GPU memory durante sessão
 - Alertar se <1GB disponível
 - Sugerir reduzir aquários ou parar análise
 
 ### Priority 4: Adaptive Quality
+
 - Reduzir resolução de detecção quando FPS baixo
 - Exemplo: 1280x720 → 640x360 se FPS < 15
 - Restaurar quando FPS > 25

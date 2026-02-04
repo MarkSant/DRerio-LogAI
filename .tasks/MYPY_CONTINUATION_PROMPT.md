@@ -196,7 +196,7 @@ poetry run mypy . --no-error-summary 2>&1 | Select-String "Found 0 errors"
 ```
 
 **Returns:**
-```
+```text
 Success: no issues found in X source files
 ```
 
@@ -229,7 +229,7 @@ Then fix ALL errors in that file before moving to the next.
 
 This is not a request. This is a directive. Work systematically, efficiently, and relentlessly until every single error is resolved. Do not stop. Do not pause. Do not summarize until the counter reads:
 
-```
+```text
 ✅ Found 0 errors in source files
 ```
 

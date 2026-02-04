@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Guia de Gerenciamento de Estado - ZebTrack-AI
 
 ## Visão Geral
@@ -6,7 +8,7 @@ O ZebTrack-AI implementa um **fluxo de dados unidirecional** baseado em **StateM
 
 ## Princípio Fundamental: Fluxo Unidirecional
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────┐
 │                      FLUXO DE DADOS                          │
 │                                                              │
@@ -23,9 +25,10 @@ O ZebTrack-AI implementa um **fluxo de dados unidirecional** baseado em **StateM
 
 ### Regra de Ouro
 
-**❌ A UI NUNCA lê estado diretamente do StateManager ou ProjectManager**
+> **❌ A UI NUNCA lê estado diretamente do StateManager ou ProjectManager**
 
-**✅ A UI apenas:**
+### ✅ A UI apenas
+
 1. Emite eventos via `EventBus`
 2. Recebe atualizações via callbacks registrados no `StateManager`
 
@@ -39,7 +42,7 @@ O `StateManager` (`src/zebtrack/core/state_manager.py`) é responsável por:
 - Notificar observadores quando o estado muda
 - Garantir thread-safety com `threading.RLock()`
 
-**Características principais:**
+### Características principais
 
 ```python
 class StateManager:
@@ -65,7 +68,7 @@ class StateManager:
             return self._state.copy()
 ```
 
-**Imutabilidade Seletiva (FASE 4):**
+### Imutabilidade Seletiva (FASE 4)
 
 - `get_project_state()` retorna uma **cópia superficial** do dicionário de estado
 - `project_data` dentro do estado é uma **cópia profunda** (`copy.deepcopy()`)
@@ -95,7 +98,7 @@ class EventBus:
         self._subscribers.setdefault(event_type, []).append(callback)
 ```
 
-**Uso na UI:**
+### Uso na UI
 
 ```python
 class VideoDisplayWidget(ttk.Frame):
@@ -108,7 +111,7 @@ class VideoDisplayWidget(ttk.Frame):
         self.event_bus.emit("video.play_requested", data=None)
 ```
 
-**Uso no ViewModel:**
+### Uso no ViewModel
 
 ```python
 class MainViewModel:
@@ -135,7 +138,7 @@ O `MainViewModel` (`src/zebtrack/ui/main_viewmodel.py`) atua como um **controlle
 - Atualiza o `StateManager` após operações
 - **NÃO interage diretamente com a UI** (apenas via callbacks do StateManager)
 
-**Exemplo de fluxo completo:**
+### Exemplo de fluxo completo
 
 ```python
 class MainViewModel:
@@ -192,7 +195,7 @@ A `ApplicationGUI` (`src/zebtrack/ui/gui.py`) é o contêiner de componentes que
 - Atualiza a interface quando o estado muda
 - Emite eventos via `EventBus` quando o usuário interage
 
-**Exemplo de callback de estado:**
+### Exemplo de callback de estado
 
 ```python
 class ApplicationGUI:
@@ -230,12 +233,14 @@ class ApplicationGUI:
 ## Fluxo Completo: Exemplo de Carregamento de Projeto
 
 1. **Usuário clica no botão "Abrir Projeto"** na UI
+
    ```python
    # UI emite evento
    self.event_bus.emit("project.load_requested", data="/caminho/projeto.yaml")
    ```
 
 2. **EventBus notifica o ViewModel**
+
    ```python
    # MainViewModel recebe o evento
    def _handle_load_project(self, project_path: str):
@@ -243,12 +248,14 @@ class ApplicationGUI:
    ```
 
 3. **ViewModel coordena serviços**
+
    ```python
    project_data = self.project_manager.load_project(project_path)
    self.detector_service.initialize_detector(...)
    ```
 
 4. **ViewModel atualiza o StateManager**
+
    ```python
    self.state_manager.update_state(
        project_loaded=True,
@@ -257,6 +264,7 @@ class ApplicationGUI:
    ```
 
 5. **StateManager notifica observadores (UI)**
+
    ```python
    # ApplicationGUI recebe notificação via callback
    def _on_state_changed(self):
@@ -272,16 +280,18 @@ class ApplicationGUI:
 ## Vantagens da Arquitetura
 
 ### 1. Previsibilidade
+
 - O estado só muda em um local (`StateManager.update_state()`)
 - A UI sempre reflete o estado atual (via callbacks)
 - Não há estados inconsistentes entre UI e modelo
 
 ### 2. Testabilidade
+
 - ViewModel pode ser testado sem UI (mock do EventBus e StateManager)
 - Serviços podem ser testados isoladamente com DI
 - UI pode ser testada com mock do ViewModel
 
-**Exemplo de teste do ViewModel:**
+### Exemplo de teste do ViewModel
 
 ```python
 def test_load_project_updates_state():
@@ -311,16 +321,18 @@ def test_load_project_updates_state():
 ```
 
 ### 3. Desacoplamento
+
 - UI não conhece a lógica de negócio (apenas emite eventos)
 - ViewModel não conhece a UI (apenas atualiza o estado)
 - Serviços são reutilizáveis em diferentes contextos
 
 ### 4. Thread-Safety
+
 - `StateManager` usa `threading.RLock()` para atualizações atômicas
 - Workers em background podem atualizar o estado de forma segura
 - UI pode ser atualizada via `root.after()` para evitar problemas de threading do Tkinter
 
-**Exemplo de atualização thread-safe:**
+### Exemplo de atualização thread-safe
 
 ```python
 class ProcessingWorker(threading.Thread):
@@ -399,7 +411,7 @@ class VideoDisplayWidget:
         self.label.config(text=project_data["name"])
 ```
 
-**✅ CORRETO:**
+### ✅ CORRETO
 
 ```python
 class VideoDisplayWidget:
@@ -419,7 +431,7 @@ class MainViewModel:
         self.app_gui.status_bar.set_text("Projeto carregado")
 ```
 
-**✅ CORRETO:**
+### ✅ CORRETO
 
 ```python
 class MainViewModel:
@@ -444,7 +456,7 @@ class MainViewModel:
         self.current_frame += 1  # UI não será notificada
 ```
 
-**✅ CORRETO:**
+### ✅ CORRETO
 
 ```python
 class MainViewModel:

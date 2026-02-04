@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Sprint 9 - Dead Code Analysis Results
 
 **Data:** 2025-01-13
@@ -20,23 +22,25 @@ Identificar e remover código não utilizado (dead code) no MainViewModel para r
 
 **Total de métodos privados:** 77
 
-**Metodologia:**
+### Metodologia
+
 - Script automatizado para verificar uso de cada método privado
 - Verificação de uso dentro do MainViewModel
 - Verificação de uso em outros arquivos do projeto
 - Análise de callbacks e métodos registrados
 
-**Resultado:**
+### Resultado
+
 - ✅ **TODOS os 77 métodos privados são utilizados**
 - Métodos são usados de 3 formas:
   1. Chamados diretamente no MainViewModel
   2. Chamados por outros arquivos (delegates, adapters)
   3. Registrados como callbacks (ex: StateManager, EventBus)
 
-**Exemplos de Métodos Analisados:**
+### Exemplos de Métodos Analisados
 
 | Método | Uso no MainViewModel | Uso em Outros Arquivos | Status |
-|--------|---------------------|------------------------|--------|
+| -------- | --------------------- | ------------------------ | -------- |
 | `_safe_get_default_weight` | 5 vezes | 0 | ✅ Usado |
 | `_get_project_data_dict` | 3 vezes | 0 | ✅ Usado |
 | `_persist_project_model_settings` | 3 vezes | 1 vez | ✅ Usado |
@@ -52,14 +56,17 @@ Identificar e remover código não utilizado (dead code) no MainViewModel para r
 
 **Total de linhas de import:** 47
 
-**Metodologia:**
+### Metodologia
+
 - Verificação manual de imports principais
 - Contagem de uso de cada import no arquivo
 
-**Resultado:**
+### Resultado
+
 - ✅ **Todos os imports analisados são utilizados**
 
-**Exemplos:**
+### Exemplos
+
 - `cv2`: 18 usos (processamento de vídeo)
 - `pandas`: Múltiplos usos (análise de dados)
 - `numpy`: Múltiplos usos (arrays)
@@ -72,11 +79,13 @@ Identificar e remover código não utilizado (dead code) no MainViewModel para r
 
 ### 3. Análise de Código Comentado
 
-**Metodologia:**
+### Metodologia
+
 - Busca por padrões de código comentado (`# def`, `# return`, `# if`)
 - Revisão manual de comentários
 
-**Resultado:**
+### Resultado
+
 - ✅ **Nenhum código comentado encontrado**
 
 **Conclusão:** Código está limpo, sem código comentado.
@@ -92,7 +101,7 @@ Identificar e remover código não utilizado (dead code) no MainViewModel para r
 3. **Código Comentado:** Nenhum encontrado
 4. **Qualidade:** Código está bem mantido e limpo
 
-### 🔍 Por Que Não Há Dead Code Óbvio?
+### 🔍 Por Que Não Há Dead Code Óbvio
 
 1. **Refatorações Anteriores Foram Cuidadosas**
    - Sprints 1-8 removeram código não utilizado incrementalmente
@@ -115,40 +124,49 @@ Identificar e remover código não utilizado (dead code) no MainViewModel para r
 As oportunidades de redução NÃO são dead code, mas sim:
 
 ### 1. Refatoração de Workflows (Sprint 10)
+
 **Estimativa:** -300 a -800 linhas
 
-**Descrição:**
+### Descrição
+
 - Processing workflows têm lógica complexa e duplicada
 - Métodos como `_process_videos()`, `_create_processing_context()` são grandes
 - Separação de UI orchestration vs business logic
 
-**Não é dead code porque:**
+### Não é dead code porque
+
 - Métodos são ativamente usados
 - Código funciona corretamente
 - Redução virá de REFATORAÇÃO, não REMOÇÃO
 
 ### 2. Consolidação de Helpers (Sprint 12)
+
 **Estimativa:** -100 a -200 linhas
 
-**Descrição:**
+### Descrição
+
 - Métodos helper como `_build_calibration_context()`, `_prepare_zone_data_for_tracking()`
 - Podem ser movidos para módulos de utilidade
 - Reduziriam MainViewModel sem perder funcionalidade
 
-**Não é dead code porque:**
+### Não é dead code porque
+
 - Métodos são usados por outros arquivos
 - São bem definidos e testados
 - Redução virá de MOVIMENTAÇÃO, não REMOÇÃO
 
 ### 3. Simplificação de Lógica (Sprints Futuros)
+
 **Estimativa:** -150 a -300 linhas
 
-**Descrição:**
+### Descrição
+
 - Algumas validações são duplicadas
 - Lógica de state management pode ser simplificada
 - Alguns métodos podem ser consolidados
 
-**Não é dead code porque:**
+### Não é dead code porque
+
 - Código está ativo e funcionando
 - Reduções requerem análise cuidadosa
 - Redução virá de SIMPLIFICAÇÃO, não REMOÇÃO
@@ -160,7 +178,7 @@ As oportunidades de redução NÃO são dead code, mas sim:
 ### Estimativa Original (Sprint 8)
 
 | Categoria | Estimativa Original | Tipo |
-|-----------|-------------------|------|
+| ----------- | ------------------- | ------ |
 | Dead code removal | -200 a -500 linhas | REMOÇÃO |
 | Processing refactoring | -300 a -800 linhas | REFATORAÇÃO |
 | RecordingCoordinator completion | -50 a -100 linhas | DELEGAÇÃO |
@@ -170,7 +188,7 @@ As oportunidades de redução NÃO são dead code, mas sim:
 ### Estimativa Atualizada (Pós Sprint 9)
 
 | Categoria | Estimativa Atualizada | Tipo | Sprint |
-|-----------|---------------------|------|--------|
+| ----------- | --------------------- | ------ | -------- |
 | Dead code removal | ❌ **0 linhas** | N/A | 9 (completo) |
 | Processing refactoring | -300 a -800 linhas | REFATORAÇÃO | 10 |
 | RecordingCoordinator completion | -50 a -100 linhas | DELEGAÇÃO | 11 |
@@ -195,23 +213,27 @@ As oportunidades de redução NÃO são dead code, mas sim:
 
 **Sprint 9:** ✅ **COMPLETO** - Nenhuma remoção necessária
 
-**Sprint 10: Processing Refactoring (Alta Prioridade)**
+### Sprint 10: Processing Refactoring (Alta Prioridade)
+
 - Separar UI orchestration de business logic
 - Simplificar workflows de processing
 - Completar delegação para ProcessingCoordinator
 - **Impacto Estimado:** -300 a -800 linhas
 
-**Sprint 11: RecordingCoordinator Completion**
+### Sprint 11: RecordingCoordinator Completion
+
 - Completar RecordingCoordinator (remover stubs)
 - Adicionar delegação para RecordingService
 - **Impacto Estimado:** -50 a -100 linhas
 
-**Sprint 12: Helper Consolidation**
+### Sprint 12: Helper Consolidation
+
 - Mover métodos helper para módulos de utilidade
 - Reduzir responsabilidades do MainViewModel
 - **Impacto Estimado:** -100 a -200 linhas
 
-**Sprint 13+: Logic Simplification**
+### Sprint 13+: Logic Simplification
+
 - Consolidar validações duplicadas
 - Simplificar state management
 - Consolidar métodos similares
@@ -243,7 +265,8 @@ As oportunidades de redução NÃO são dead code, mas sim:
 **Original:** 5,713 → <800 linhas (-86%)
 **Realista:** 5,713 → ~3,000-3,500 linhas (-42% a -47%)
 
-**Raciocínio:**
+### Raciocínio
+
 - Código está bem mantido e funcional
 - Reduções virão de refatoração, não remoção
 - Qualidade > Quantidade de linhas removidas
@@ -252,7 +275,7 @@ As oportunidades de redução NÃO são dead code, mas sim:
 
 ## ✨ Conclusão Final
 
-**Sprint 9: SUCESSO! ✅**
+### Sprint 9: SUCESSO! ✅
 
 - ✅ Análise completa executada
 - ✅ Código verificado como limpo e bem mantido

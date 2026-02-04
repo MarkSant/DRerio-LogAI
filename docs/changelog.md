@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Changelog
 
 ## 2025-12-21 (v3.1: Sequential Multi-Aquarium Processing)
@@ -13,12 +15,14 @@ Added option to process multi-aquarium videos sequentially (2 complete video pas
 **Modified**: `src/zebtrack/ui/components/zone_controls.py`
 
 **New UI Elements**:
+
 - Radio buttons for processing mode selection:
   - "Simultâneo (1 passagem, mais rápido)" - Parallel mode (default)
   - "Sequencial (2 passagens, 1 aquário por vez)" - Sequential mode
 - Toggle only visible when multi-aquarium mode is active
 
 **New State Variable**:
+
 - `sequential_processing_var: tk.BooleanVar` - Tracks selected mode
 
 #### 2. Sequential Processing Logic
@@ -26,11 +30,13 @@ Added option to process multi-aquarium videos sequentially (2 complete video pas
 **Modified**: `src/zebtrack/coordinators/processing_coordinator.py`
 
 **New Methods**:
+
 - `_start_sequential_multi_aquarium_processing()` - Initializes sequential context
 - `_process_next_aquarium_in_sequence()` - Advances to next aquarium or generates reports
 - `_start_single_aquarium_for_sequential()` - Runs single-aquarium flow for each
 
 **Key Features**:
+
 - Automatic transition between aquariums (no user intervention needed)
 - Reuses battle-tested single-aquarium code path via `AquariumData.to_zone_data()`
 - Generates Word, Excel, and Parquet summary reports after all aquariums complete
@@ -41,6 +47,7 @@ Added option to process multi-aquarium videos sequentially (2 complete video pas
 **Modified**: `src/zebtrack/core/detector.py`
 
 **New Field**:
+
 ```python
 @dataclass
 class MultiAquariumZoneData:
@@ -52,6 +59,7 @@ class MultiAquariumZoneData:
 **Modified**: `src/zebtrack/core/zone_manager.py`
 
 **Updated Methods**:
+
 - `multi_aquarium_zone_data_to_dict()` - Includes `sequential_processing` field
 - `multi_aquarium_zone_data_from_dict()` - Reads `sequential_processing` with fallback to `False`
 
@@ -60,18 +68,21 @@ class MultiAquariumZoneData:
 **Modified**: `src/zebtrack/ui/events.py`
 
 **New Event**:
+
 ```python
 ZONE_PROCESSING_MODE_CHANGED = "zone:processing_mode_changed"
 # Payload: {sequential: bool}
 ```
 
 **Subscribers**:
+
 - `EventDispatcher` → `CanvasManager.update_processing_mode()`
 
 ### Output Structure
 
 Both modes produce identical output structure:
-```
+
+```text
 video_results/
 ├── aquarium_0/
 │   ├── 3_CoordMovimento_{video}.parquet
@@ -88,7 +99,7 @@ video_results/
 ### Trade-offs
 
 | Mode | Speed | Memory | Resources | Debugging |
-|------|-------|--------|-----------|-----------|
+| ------ | ------- | -------- | ----------- | ----------- |
 | Parallel | 1× | Higher | Split | More complex |
 | Sequential | 2× | Lower | 100% per aquarium | Easier |
 
@@ -113,6 +124,7 @@ Enhanced weight management system with clear separation between segmentation (ze
 **Modified**: `src/zebtrack/ui/gui.py` (ManageWeightsDialog class)
 
 **UI Improvements**:
+
 - Added "Tipo" column showing "Segmentação" or "Detecção"
 - Split "Padrão" into two columns:
   - "Padrão Segmentação" - Shows ✓ for segmentation default
@@ -123,11 +135,13 @@ Enhanced weight management system with clear separation between segmentation (ze
   - Users can have different defaults for each type
 
 **New Action Buttons**:
+
 - `Padrão para Segmentação`: Sets selected weight as default for segmentation
 - `Padrão para Detecção`: Sets selected weight as default for detection
 - Type validation: Prevents setting wrong type as default with clear error messages
 
 **User Feedback**:
+
 - Type mismatch warnings explain which type is expected
 - Success confirmations specify which default was updated
 - Visual indicators (✓) clearly show active defaults per type
@@ -137,6 +151,7 @@ Enhanced weight management system with clear separation between segmentation (ze
 **Modified**: `src/zebtrack/core/weight_manager.py` (convert_to_openvino method)
 
 **Segmentation Models** (`*_seg.pt`):
+
 ```json
 {
   "model_type": "instance_segmentation",
@@ -149,6 +164,7 @@ Enhanced weight management system with clear separation between segmentation (ze
 ```
 
 **Detection Models** (`*_oi.pt`):
+
 ```json
 {
   "model_type": "object_detection",
@@ -166,6 +182,7 @@ Enhanced weight management system with clear separation between segmentation (ze
 #### 3. OpenVINO Conversion Confirmation
 
 **Verified Behavior**:
+
 - Each model converts to its **own separate directory**:
   - `best_seg.pt` → `openvino_model_cache/best_seg_openvino_model/`
   - `best_oi.pt` → `openvino_model_cache/best_oi_openvino_model/`
@@ -175,16 +192,19 @@ Enhanced weight management system with clear separation between segmentation (ze
 ### User Experience Improvements
 
 **Scenario 1**: User managing multiple weight types
+
 - Clearly sees which weights are for segmentation vs detection
 - Can set independent defaults for each type
 - Understands purpose of each model type
 
 **Scenario 2**: User attempts incompatible default assignment
+
 - System prevents setting segmentation model as detection default
 - Clear error message explains the mismatch
 - Guides user to select correct weight type
 
 **Scenario 3**: OpenVINO conversion
+
 - Metadata accurately reflects model capabilities
 - Type information preserved through conversion
 - Proper task and class configuration per type
@@ -211,12 +231,14 @@ Enhanced weight management system with clear separation between segmentation (ze
 ### Developer Impact
 
 **Before**:
+
 - Unclear which weight was for which task
 - Single "default" concept confused users
 - OpenVINO metadata always said "segmentation"
 - No visual indication of model purpose
 
 **After**:
+
 - Clear type labels (Segmentação/Detecção)
 - Independent defaults per type
 - Accurate OpenVINO metadata
@@ -236,6 +258,7 @@ Implemented comprehensive hardware detection system with automatic backend selec
 #### 1. Hardware Auto-Detection System
 
 **New Module**: `src/zebtrack/utils/hardware_detection.py`
+
 - **`is_cuda_available()`**: Detects NVIDIA CUDA availability via PyTorch
 - **`is_openvino_available()`**: Checks OpenVINO installation
 - **`get_openvino_devices()`**: Lists available OpenVINO devices (CPU, GPU, etc.)
@@ -244,6 +267,7 @@ Implemented comprehensive hardware detection system with automatic backend selec
 - **`get_hardware_summary()`**: Comprehensive dict with all detection results
 
 **Priority Logic**:
+
 1. NVIDIA CUDA available → PyTorch (best for NVIDIA GPUs)
 2. OpenVINO + Intel GPU → OpenVINO with GPU acceleration
 3. OpenVINO CPU-only → OpenVINO optimized for CPU
@@ -254,6 +278,7 @@ Implemented comprehensive hardware detection system with automatic backend selec
 #### 2. OpenVINO Model Validation and Fallback
 
 **Enhanced**: `src/zebtrack/core/main_view_model.py` (lines 157-202)
+
 - Validates OpenVINO model conversion at startup using `_is_valid_openvino_directory()`
 - Checks for presence of `.xml` files in model directory
 - **Fallback behavior**: If OpenVINO recommended but model not converted:
@@ -262,6 +287,7 @@ Implemented comprehensive hardware detection system with automatic backend selec
   - Updates UI with helpful message
 
 **Protection Points**:
+
 - Startup auto-selection (lines 157-202)
 - Diagnostic flow pre-flight checks (existing, lines 5057+)
 - User-initiated model test/diagnostic
@@ -271,6 +297,7 @@ Implemented comprehensive hardware detection system with automatic backend selec
 #### 3. GPU Hardware Display in Main Window
 
 **Enhanced**: `src/zebtrack/ui/gui.py`
+
 - New `_gpu_hardware_display_var` StringVar (line 1823)
 - New Label in "Estado do Modelo de Detecção" section (lines 2796-2811)
 - **`update_gpu_hardware_display()`** method (lines 9196-9222):
@@ -285,6 +312,7 @@ Implemented comprehensive hardware detection system with automatic backend selec
 #### 4. Diagnostic Progress Dialog
 
 **Enhanced**: `src/zebtrack/ui/gui.py` (DiagnosticProgressDialog class, lines 90-181)
+
 - Modal dialog with real-time progress updates
 - Frame-by-frame progress bar
 - Status label showing current operation
@@ -292,7 +320,8 @@ Implemented comprehensive hardware detection system with automatic backend selec
 - Cancel button for user abort
 - Thread-safe updates via `root.after(0, ...)`
 
-**Integration**: 
+**Integration**:
+
 - Created in `MainViewModel.run_model_diagnostic` (line ~5045)
 - Updated by `_diagnostic_processing_thread` frame-by-frame
 - Replaced silent wait with visual feedback
@@ -300,12 +329,14 @@ Implemented comprehensive hardware detection system with automatic backend selec
 #### 5. UI Status Messages
 
 **Enhanced**: OpenVINO status display
+
 - When recommended but not converted: "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
 - Updated via `view.update_openvino_status_display()` at startup (lines 278-282)
 
 ### Logging Enhancements
 
 **New log events**:
+
 ```python
 # Successful OpenVINO auto-selection
 "controller.init.auto_selected_openvino"
@@ -326,16 +357,19 @@ Implemented comprehensive hardware detection system with automatic backend selec
 ### User Experience Improvements
 
 **Scenario 1**: User with NVIDIA GPU
+
 - System detects CUDA → Auto-selects PyTorch
 - UI shows: "Hardware: NVIDIA GeForce RTX 3080 (recomendado: PyTorch)"
 - OpenVINO: Desativado
 
 **Scenario 2**: User with Intel GPU/EVO platform, model already converted
+
 - System detects Intel GPU + OpenVINO → Auto-selects OpenVINO
 - UI shows: "Hardware: Intel GPU (recomendado: OpenVINO)"
 - OpenVINO: Ativado
 
 **Scenario 3**: User with Intel GPU/EVO platform, model NOT converted
+
 - System detects Intel GPU + OpenVINO → Recommends OpenVINO
 - Validates model → NOT converted
 - Falls back to PyTorch temporarily
@@ -345,6 +379,7 @@ Implemented comprehensive hardware detection system with automatic backend selec
 - Next startup → OpenVINO activated automatically
 
 **Scenario 4**: User runs diagnostic/test weights
+
 - Opens diagnostic dialog
 - Selects model and video
 - Clicks "Iniciar"
@@ -394,6 +429,7 @@ Implemented comprehensive hardware detection system with automatic backend selec
 ### Developer Impact
 
 **Before**:
+
 - Manual backend selection required
 - No validation if model was converted
 - Silent waiting during diagnostics
@@ -401,6 +437,7 @@ Implemented comprehensive hardware detection system with automatic backend selec
 - Users with Intel GPUs didn't know OpenVINO could help
 
 **After**:
+
 - Automatic optimal backend selection
 - Graceful fallback if model not ready
 - Real-time diagnostic progress with cancel option
@@ -472,16 +509,18 @@ Resolved TclError failures in GUI tests caused by pytest-xdist parallel executio
 - ✅ GUI tests with serial execution: `poetry run pytest -m gui -n0` (82 tests)
 - ✅ Helper script works: `.\scripts\run_gui_tests.ps1` (colorized output, enforces -n0)
 - ✅ CI already correct: `.github/workflows/ci.yml` uses `-m "not (gui or slow)"`
-- ✅ Tkinter installation verified: `poetry run python -c "import tkinter; ..." ` (OK)
+- ✅ Tkinter installation verified: `poetry run python -c "import tkinter; ..."` (OK)
 
 ### Developer Impact
 
 **Before**:
+
 - Running `pytest` would attempt GUI tests in parallel → TclError failures
 - Unclear error messages, looked like Tkinter installation problem
 - No clear guidance on correct execution
 
 **After**:
+
 - Running `pytest` excludes GUI tests by default → fast, reliable
 - Explicit `-m gui -n0` required for GUI tests → prevents mistakes
 - Helper script for easy GUI test execution
@@ -551,6 +590,7 @@ Comprehensive documentation overhaul, test infrastructure improvements, and Wind
 ### Testing (Phase 5.2.2)
 
 **Test Fixes (Windows Compatibility)**:
+
 - **13 recorder tests fixed**: PermissionError resolution
   - Migrated from hardcoded `temp_recorder_test_dir` to pytest's `tmp_path` fixture (thread-safe)
   - Added proper cleanup: `del recorder` + `gc.collect()` + `time.sleep(0.2)`
@@ -560,6 +600,7 @@ Comprehensive documentation overhaul, test infrastructure improvements, and Wind
 - **3 OSError fixes**: Added `time.sleep(0.1)` after `recorder.stop_recording()` in tests
 
 **New Test Coverage** (+33 tests):
+
 - **`tests/test_utils.py`** (21 tests):
   - `calculate_sha256`: Correct hash verification, path types, nonexistent files, large files
   - `set_seed`: NumPy/Python random determinism, different seeds produce different results
@@ -571,6 +612,7 @@ Comprehensive documentation overhaul, test infrastructure improvements, and Wind
   - `snap_point_to_axes`: Anchor/center snapping, empty iterables
 
 **Test Results**:
+
 - ✅ **659 tests passing** (up from 621, +38 new tests)
 - ⚠️ **12 tests failing** (integration tests with old Recorder API - documented, not blocking)
 - ⚠️ **2 errors** (ttkbootstrap wizard singleton issues - documented workaround)
@@ -579,12 +621,14 @@ Comprehensive documentation overhaul, test infrastructure improvements, and Wind
 ### Code Quality
 
 **Cleanup** (9 files removed):
+
 - Debug artifacts: `debug/` directory, `layout_demo.html`, `path_audit_report.txt`
 - Temporary scripts: `fix_venv.ps1`, `sitecustomize.py`, `_ul`
 - Obsolete audit scripts: `scripts/audit_path_usage.py`, `scripts/check_path_consistency.py`
 - Old backups: `.git_backup_20251018140102/`
 
 **Linting Fixes** (5 errors):
+
 - `src/zebtrack/__main__.py`: Moved argparse import to top
 - `src/zebtrack/io/video_source.py`: Added missing `import os`
 - `tests/integration/test_critical_integrations.py`: Fixed long comment line
@@ -592,6 +636,7 @@ Comprehensive documentation overhaul, test infrastructure improvements, and Wind
 - All files formatted with `ruff format` (13 files)
 
 **Configuration Updates**:
+
 - **`.gitignore`**: Added local config patterns (`config.local.yaml`, `*.local.yaml`)
 - **`.github/workflows/ci.yml`**: Fixed coverage threshold (35% → 70%)
 - **`README.md`**: Fixed line-length documentation (88 → 100)
@@ -610,16 +655,19 @@ Comprehensive documentation overhaul, test infrastructure improvements, and Wind
 ### Known Limitations
 
 **Coverage Target (70% vs 43.59%)**:
+
 - **Reality**: 40% of codebase is Tkinter UI (`gui.py`: 5442 lines at 13% coverage)
 - **Strategy**: Prioritize core module coverage (StateManager: 97%, Camera: 100%, Recorder: 80%)
 - **Recommendation**: Focus on business logic coverage rather than pursuing 70% global
 
 **Integration Tests (12 failures)**:
+
 - Tests use old Recorder API: `recorder.start(output_folder=..., base_name=...)`
 - Production code uses new API: `recorder.start_recording(output_folder=..., frame_width=..., zones=...)`
 - **Status**: Documented as known issue; not affecting production functionality
 
 **ttkbootstrap Singleton (2-4 errors)**:
+
 - `ttkbootstrap.Style` maintains global references to old Tk instances
 - **Workaround**: Run wizard tests sequentially with `-n0` flag
 - 22 tests marked with `@pytest.mark.ttkbootstrap_singleton` and excluded from default run
@@ -627,6 +675,7 @@ Comprehensive documentation overhaul, test infrastructure improvements, and Wind
 ### Testing
 
 **Validation Commands**:
+
 ```powershell
 # Fast tests (default)
 poetry run pytest  # 540 tests in ~55s
@@ -644,6 +693,7 @@ poetry run pytest --cov-report=html
 ```
 
 **CI/CD Status**:
+
 - ✅ Ruff checks passing: `poetry run ruff check .`
 - ✅ Core tests passing: 659/671 (98.2%)
 - ⚠️ Coverage below 70% target (documented reasoning in README_TESTS.md)

@@ -9,7 +9,7 @@
 ## 📊 Estado Atual do MainViewModel
 
 | Métrica | Valor | Observação |
-|---------|-------|------------|
+| --------- | ------- | ------------ |
 | **Total de linhas** | 5,713 | Meta: <800 (86% redução) |
 | **Total de métodos** | 154 | Meta: <40 (74% redução) |
 | **Métodos privados** | 77 | 50% do total |
@@ -40,12 +40,14 @@ return self.detector_service._resolve_single_subject_tracker_preference(project_
 ```
 
 **Ação Recomendada:**
+
 - ✅ MANTER properties (necessário para backward compatibility)
 - 🔄 CONSIDERAR adicionar `resolve_single_subject_tracker_preference()` ao DetectorCoordinator
 
 ### 2. Usos de hardware_coordinator (8 total)
 
 Todos são apropriados - relacionados a Arduino:
+
 - `set_recording_callbacks()` - callbacks para recording
 - `log_arduino_event()`, `on_arduino_status_change()`, `on_arduino_command_sent()` - eventos Arduino
 - `is_arduino_connected()`, `setup_arduino()` - setup Arduino
@@ -60,6 +62,7 @@ Todos são apropriados - relacionados a Arduino:
 ### Categoria A: Delegação Pendente (Baixo Risco)
 
 #### A1. _resolve_single_subject_tracker_preference()
+
 **Status:** Chama `detector_service` diretamente
 **Complexidade:** Baixa
 **Impacto:** +1 método no DetectorCoordinator, -0 linhas no MainViewModel (método usa service)
@@ -70,12 +73,14 @@ Todos são apropriados - relacionados a Arduino:
 ### Categoria B: Documentação e Comentários (Zero Risco)
 
 #### B1. Consolidar Comentários Phase/Task/Sprint
+
 **Status:** 29 comentários de refatorações anteriores
 **Complexidade:** Baixa
 **Impacto:** Melhor legibilidade, -0 linhas funcionais
 **Decisão:** FUTURO - Não prioridade para Sprint 8
 
 **Exemplo:**
+
 ```python
 # Antes:
 # Phase 2, Step 4: Integrated with centralized StateManager
@@ -90,6 +95,7 @@ Todos são apropriados - relacionados a Arduino:
 ### Categoria C: Código Comentado (Zero Risco)
 
 #### C1. Código Comentado
+
 **Status:** Nenhum código comentado encontrado
 **Ação:** ✅ NENHUMA - Código limpo
 
@@ -169,7 +175,7 @@ Todos são apropriados - relacionados a Arduino:
 ### 📊 Estimativa de Redução Total
 
 | Ação | Impacto Estimado | Complexidade | Sprint |
-|------|------------------|--------------|--------|
+| ------ | ------------------ | -------------- | -------- |
 | Dead Code Removal | -200 a -500 linhas | Alta | 9+ |
 | Processing Refactoring | -300 a -800 linhas | Alta | 9+ |
 | Recording Completion | -50 a -100 linhas | Média | 9+ |
@@ -182,11 +188,13 @@ Todos são apropriados - relacionados a Arduino:
 ### 🎯 Recomendação
 
 **Para Sprint 8:**
+
 - ✅ Focar em validação (testes + performance)
 - ✅ Documentar aprendizados
 - ❌ NÃO fazer mais refatorações (risco de regressão)
 
 **Para Sprints Futuros:**
+
 - Meta ajustada: ~2,500-3,500 linhas (mais realista que <800)
 - Foco em dead code removal e processing refactoring
 - Continuar abordagem incremental

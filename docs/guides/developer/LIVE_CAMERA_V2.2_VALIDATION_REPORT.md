@@ -28,7 +28,7 @@ Live Camera v2.2.0 implementation has been **comprehensively validated** across 
 ### Automated Test Suites
 
 | Test Suite | Tests | Passed | Failed | Status |
-|------------|-------|--------|--------|--------|
+| ------------ | ------- | -------- | -------- | -------- |
 | Fast Suite (Full) | 2382 | 2382 | 0 | ✅ PASS |
 | Live Tests (All) | 116 | 116 | 0 | ✅ PASS |
 | Wizard Live E2E | 16 | 16 | 0 | ✅ PASS |
@@ -47,6 +47,7 @@ Live Camera v2.2.0 implementation has been **comprehensively validated** across 
 **Status**: ✅ PASS (16/16 tests)
 
 **Validated**:
+
 - ✅ LiveConfigStep receives `settings_obj` via constructor (line 65)
 - ✅ No singleton imports (`from zebtrack import settings`) in wizard codebase
 - ✅ Hardware capability detector instantiated correctly with settings
@@ -54,6 +55,7 @@ Live Camera v2.2.0 implementation has been **comprehensively validated** across 
 - ✅ Complete wizard data integration works end-to-end
 
 **Code Location**:
+
 ```python
 # src/zebtrack/ui/wizard/live_config_step.py:65
 def __init__(self, parent, wizard_data: dict, settings_obj: "Settings | None" = None):
@@ -62,6 +64,7 @@ def __init__(self, parent, wizard_data: dict, settings_obj: "Settings | None" = 
 ```
 
 **Evidence**:
+
 ```bash
 $ poetry run pytest tests/ui/wizard/test_wizard_live_e2e.py -xvs
 ======================================== 16 passed in 0.69s =========================================
@@ -75,6 +78,7 @@ $ poetry run pytest tests/ui/wizard/test_wizard_live_e2e.py -xvs
 **Status**: ✅ VALIDATED
 
 **Logic Flow**:
+
 ```python
 def _create_preview_window(self, camera_index: int, duration_s: float):
     zone_data = self.project_manager.get_zone_data()
@@ -95,12 +99,14 @@ def _create_preview_window(self, camera_index: int, duration_s: float):
 ```
 
 **Validated Scenarios**:
+
 - ✅ Single aquarium: Creates `LivePreviewWindow`
 - ✅ Multi-aquarium (2+): Creates `MultiAquariumLivePreviewWindow`
 - ✅ Correct `num_aquariums` parameter passed
 - ✅ Zone data type check uses `isinstance()` (not duck typing)
 
 **Test Coverage**:
+
 - Integration tested through live workflow E2E tests
 - Type detection verified in multiple test scenarios
 
@@ -112,6 +118,7 @@ def _create_preview_window(self, camera_index: int, duration_s: float):
 **Status**: ✅ VALIDATED
 
 **Implementation**:
+
 ```python
 # Line 1216: Return value correctly captured
 frame_processing_time = time.time() - frame_start_time
@@ -127,6 +134,7 @@ if not should_continue_processing:
 ```
 
 **Method Implementation** (line 2101):
+
 ```python
 def _adjust_fps_dynamically(self, frame_number: int, processing_time: float) -> bool:
     """Adjust FPS dynamically based on processing performance.
@@ -147,6 +155,7 @@ def _adjust_fps_dynamically(self, frame_number: int, processing_time: float) -> 
 ```
 
 **Validated**:
+
 - ✅ Return value captured (not ignored)
 - ✅ Skip logic uses return value for frame analysis
 - ✅ Exponentially weighted moving average implemented
@@ -154,6 +163,7 @@ def _adjust_fps_dynamically(self, frame_number: int, processing_time: float) -> 
 - ✅ Expected performance gain: 20-40% under heavy load
 
 **Grep Verification**:
+
 ```bash
 $ grep -n "should_continue_processing.*=.*_adjust_fps" src/zebtrack/core/live_camera_service.py
 1216:    should_continue_processing = self._adjust_fps_dynamically(frame_number, frame_processing_time)
@@ -167,7 +177,8 @@ $ grep -n "should_continue_processing.*=.*_adjust_fps" src/zebtrack/core/live_ca
 **Status**: ✅ PASS (3/3 tests)
 
 **Test Results**:
-```
+
+```text
 test_excellent_hardware PASSED
   - Capability: excellent
   - Can Process Realtime: True
@@ -185,6 +196,7 @@ test_insufficient_hardware PASSED
 ```
 
 **Validated**:
+
 - ✅ `_detect_gpu()` returns 4 values: `(has_gpu, name, total_mem_gb, free_mem_gb)`
 - ✅ All capability tiers calculate correctly
 - ✅ Recommendations align with hardware specs
@@ -193,6 +205,7 @@ test_insufficient_hardware PASSED
 
 **Mock Correctness** (audit fix):
 All hardware capability test mocks updated to return 4 values instead of 2:
+
 ```python
 # Before (BROKEN):
 mock_detect_gpu.return_value = (True, "NVIDIA RTX 4090")
@@ -214,6 +227,7 @@ mock_detect_gpu.return_value = (
 **Status**: ✅ VALIDATED
 
 **UIEvents Enum Members** (Live Camera):
+
 ```python
 class UIEvents(Enum):
     # ... other events ...
@@ -224,6 +238,7 @@ class UIEvents(Enum):
 ```
 
 **UICoordinator Subscriptions**:
+
 ```python
 # src/zebtrack/ui/ui_coordinator.py:156-159
 self.event_bus.subscribe(UIEvents.CAMERA_DISCONNECT_DETECTED, self._on_camera_disconnect)
@@ -233,6 +248,7 @@ self.event_bus.subscribe(UIEvents.BATCH_ANALYSIS_COMPLETED, self._on_batch_analy
 ```
 
 **Validation**:
+
 ```bash
 $ poetry run python -c "from zebtrack.ui.event_bus_v2 import UIEvents; \
   print([e.name for e in UIEvents if 'CAMERA' in e.name or 'AQUARIUM' in e.name])"
@@ -240,12 +256,14 @@ $ poetry run python -c "from zebtrack.ui.event_bus_v2 import UIEvents; \
 ```
 
 **Validated**:
+
 - ✅ All Live Camera events added to `UIEvents` enum
 - ✅ No string literals in subscriptions (all use `UIEvents.*`)
 - ✅ Fixes startup `AttributeError: 'str' object has no attribute 'name'`
 - ✅ Event handlers properly registered in UICoordinator
 
 **String Literal Check**:
+
 ```bash
 $ grep -n "subscribe.*\".*\"" src/zebtrack/ui/ui_coordinator.py
 # Returns: NO MATCHES (all use UIEvents enum) ✅
@@ -259,12 +277,14 @@ $ grep -n "subscribe.*\".*\"" src/zebtrack/ui/ui_coordinator.py
 **Status**: ✅ VALIDATED
 
 **Search Results**:
+
 ```bash
 $ grep -r "from zebtrack import settings" src/zebtrack/ui/wizard/
 # Returns: No matches found ✅
 ```
 
 **DI Pattern Verified In**:
+
 - ✅ `LiveConfigStep.__init__(settings_obj)` - Line 65
 - ✅ `HardwareCapabilityDetector.__init__(settings_obj)`
 - ✅ `LiveCameraModeSelector.__init__(settings_obj)`
@@ -272,6 +292,7 @@ $ grep -r "from zebtrack import settings" src/zebtrack/ui/wizard/
 
 **Architecture Compliance**:
 All services follow constructor injection pattern per [DEPENDENCY_INJECTION_GUIDE.md](../../architecture/DEPENDENCY_INJECTION_GUIDE.md):
+
 ```python
 # ✅ CORRECT: Constructor injection
 class MyService:
@@ -289,9 +310,11 @@ from zebtrack import settings
 ### Minor Warnings (Non-Blocking)
 
 1. **PyTorch Distributed Warning**:
-   ```
+
+   ```text
    tests\conftest.py:157: FutureWarning: `torch.distributed.reduce_op` is deprecated
    ```
+
    - **Impact**: None (deprecation warning in test fixtures)
    - **Action**: Will be addressed in future torch upgrade
 
@@ -310,18 +333,20 @@ from zebtrack import settings
 ### Audit Fix Summary (from commit `fcd843d`)
 
 | Finding | Severity | Status | Resolution |
-|---------|----------|--------|------------|
+| --------- | ---------- | -------- | ------------ |
 | DI violation in LiveConfigStep | BLOCKER | ✅ FIXED | Added `settings_obj` parameter to constructor |
 | MultiAquariumLivePreviewWindow not wired | HIGH | ✅ FIXED | Added type detection in `_create_preview_window()` |
 | FPS skip return value ignored | MEDIUM | ✅ FIXED | Captured return value, applied skip logic |
 | LiveBatchCoordinator deferral | MEDIUM | ✅ DOCUMENTED | ADR-006 created for v2.3.0 plan |
 
 **Additional Fixes** (pre-existing test bugs):
+
 - ✅ Hardware capability mocks returning 2 values instead of 4
 - ✅ Zone control builder undefined variable (`controls_container` → `video_selector_frame`)
 - ✅ GUI state observer assertion flexibility (`assert_any_call` vs `assert_called_with`)
 
 **Results**:
+
 - All 16 wizard live tests passing
 - All 2 batch coordinator tests passing
 - All 5 previously failing tests now passing
@@ -339,7 +364,8 @@ from zebtrack import settings
 **Moving Average Window**: 30 samples
 
 **Expected Behavior**:
-```
+
+```text
 Processing Time    | Measured FPS | Frame Skip | Result
 -------------------|--------------|------------|------------------
 < 20ms/frame       | >30 FPS      | 0          | Process all frames
@@ -349,6 +375,7 @@ Processing Time    | Measured FPS | Frame Skip | Result
 ```
 
 **Projected Gains**:
+
 - Light load (excellent hardware): 0% skip, full analysis
 - Medium load (limited hardware): 20-40% skip, 60-80% coverage
 - Heavy load (insufficient hardware): 80% skip, 20% coverage (record-only mode recommended)
@@ -378,6 +405,7 @@ Processing Time    | Measured FPS | Frame Skip | Result
 ### End-to-End Smoke Tests
 
 **Live Session Workflow** (simulated):
+
 ```python
 1. Open wizard → Select "Live Analysis"
 2. LiveConfigStep: Select camera, duration=300s
@@ -396,17 +424,20 @@ Processing Time    | Measured FPS | Frame Skip | Result
 ## 🔬 Code Quality Metrics
 
 ### Test Coverage
+
 - **Fast Suite**: 2382 tests, 100% pass rate
 - **Live Suite**: 116 tests, 100% pass rate
 - **Total Coverage**: ~70% (tracked in CI)
 
 ### Lint & Format
+
 ```bash
 $ poetry run ruff check .
 # Result: No violations (line length 100)
 ```
 
 ### Pre-commit Hooks
+
 ```bash
 $ poetry run pre-commit run --all-files
 # Result: All checks pass ✅
@@ -417,16 +448,19 @@ $ poetry run pre-commit run --all-files
 ## 📚 Documentation References
 
 ### Architecture Documents
+
 - [ARCHITECTURE.md](../../architecture/ARCHITECTURE.md) - System overview
 - [DEPENDENCY_INJECTION_GUIDE.md](../../architecture/DEPENDENCY_INJECTION_GUIDE.md) - DI patterns
 - [REFERENCE_GUIDE.md](../../reference/REFERENCE_GUIDE.md) - API reference
 
 ### Implementation Guides
+
 - [LIVE_CAMERA_V2.2_COMPLETE.md](../../LIVE_CAMERA_V2.2_COMPLETE.md) - Feature spec
 - [LIVE_CAMERA_AUDIT_FIXES_REPORT.md](LIVE_CAMERA_AUDIT_FIXES_REPORT.md) - Audit resolutions
 - [ADR-006-live-batch-coordinator.md](../../decisions/ADR-006-live-batch-coordinator.md) - v2.3.0 deferral
 
 ### Test Documentation
+
 - [PYTEST_FIXES_V2.1.md](../../testing/PYTEST_FIXES_V2.1.md) - Test infrastructure
 - Wizard tests: `tests/ui/wizard/test_wizard_live_e2e.py`
 - Live tests: `tests/test_live_camera_workflow_e2e.py`
@@ -436,6 +470,7 @@ $ poetry run pre-commit run --all-files
 ## 🎯 Validation Conclusion
 
 ### Summary
+
 **Live Camera v2.2.0 is PRODUCTION READY** with all critical workflows validated:
 
 1. ✅ **Wizard Flow** - DI compliant, no singleton violations
@@ -448,17 +483,20 @@ $ poetry run pre-commit run --all-files
 ### Recommendations
 
 **Immediate Actions**:
+
 - ✅ Merge to main (all validations pass)
 - ✅ Update CHANGELOG.md with v2.2.0 release notes
 - ✅ Tag release: `git tag -a v2.2.0 -m "Live Camera v2.2.0: Multi-aquarium + FPS adjustment"`
 
 **Future Enhancements** (v2.3.0):
+
 - [ ] Implement `LiveBatchCoordinator` (deferred per ADR-006)
 - [ ] Add GPU memory monitoring during live sessions
 - [ ] Implement real-time performance metrics dashboard
 - [ ] Add automated camera reconnection recovery
 
 **Monitoring**:
+
 - Watch for slow event handlers (>100ms threshold)
 - Monitor FPS adjustment effectiveness in production
 - Track multi-aquarium session performance
@@ -468,22 +506,26 @@ $ poetry run pre-commit run --all-files
 ## 📊 Appendix: Test Output Excerpts
 
 ### Fast Test Suite
-```
+
+```text
 2382 passed, 12 skipped, 758 deselected, 52 warnings in 225.63s (0:03:45)
 ```
 
 ### Live Test Suite
-```
+
+```text
 116 passed, 3036 deselected, 1 warning in 22.76s
 ```
 
 ### Wizard Live E2E
-```
+
+```text
 16 passed in 0.69s
 ```
 
 ### Hardware Capability
-```
+
+```text
 test_excellent_hardware PASSED
 test_limited_hardware PASSED
 test_insufficient_hardware PASSED

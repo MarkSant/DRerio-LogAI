@@ -47,7 +47,7 @@ start docs/api/build/html/index.html
 
 ## Structure
 
-```
+```text
 docs/api/
 ├── source/                 # Source RST files
 │   ├── conf.py            # Sphinx configuration
@@ -81,6 +81,7 @@ The documentation uses the [Read the Docs theme](https://sphinx-rtd-theme.readth
 ### Extensions
 
 Current extensions:
+
 - `sphinx.ext.autodoc` - Auto-generate documentation from docstrings
 - `sphinx.ext.napoleon` - Support Google/NumPy docstring styles
 - `sphinx.ext.viewcode` - Add links to source code

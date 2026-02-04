@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # ✅ Sprint 23 Results - Análise de Dependências do MainViewModel
 
 **Document:** SPRINT_23_RESULTS.md
@@ -16,7 +18,7 @@ Sprint 23 realizou uma **análise completa e profunda** do MainViewModel (5,642 
 ### ✅ Objetivos Atingidos
 
 | Objetivo | Status | Deliverable |
-|----------|--------|-------------|
+| ---------- | -------- | ------------- |
 | Mapear todos os 141 métodos | ✅ COMPLETO | mainviewmodel_analysis.json |
 | Identificar dependências (quem chama quem) | ✅ COMPLETO | MAINVIEWMODEL_DEPENDENCY_MAP.md |
 | Classificar métodos por categoria | ✅ COMPLETO | MAINVIEWMODEL_METHOD_CLASSIFICATION.md |
@@ -39,7 +41,7 @@ Sprint 23 realizou uma **análise completa e profunda** do MainViewModel (5,642 
 ### Análise Geral do MainViewModel
 
 | Métrica | Valor | Observação |
-|---------|-------|------------|
+| --------- | ------- | ------------ |
 | **Total de linhas** | 5,642 | Arquivo completo (inclui imports, docstrings) |
 | **Linhas em métodos** | 5,227 | Código efetivo dos métodos |
 | **Total de métodos** | 141 | Classes, properties, methods |
@@ -53,7 +55,7 @@ Sprint 23 realizou uma **análise completa e profunda** do MainViewModel (5,642 
 ### Distribuição por Categoria
 
 | Categoria | Métodos | Linhas | % Total | Avg Linhas |
-|-----------|---------|--------|---------|------------|
+| ----------- | --------- | -------- | --------- | ------------ |
 | Utility Internal | 38 | 1,550 | 29.7% | 40.8 |
 | Orchestration | 15 | 1,225 | 23.4% | 81.7 |
 | Orchestration Internal | 15 | 713 | 13.6% | 47.5 |
@@ -70,7 +72,7 @@ Sprint 23 realizou uma **análise completa e profunda** do MainViewModel (5,642 
 ### Dependências
 
 | Métrica | Valor | Método |
-|---------|-------|--------|
+| --------- | ------- | -------- |
 | **Método mais chamado** | 11× | `_publish_processing_mode` (núcleo) |
 | **2º mais chamado** | 9× | `refresh_project_views` (UI) |
 | **Maior fan-out** | 7 chamadas | `start_recording` (orchestration) |
@@ -84,7 +86,8 @@ Sprint 23 realizou uma **análise completa e profunda** do MainViewModel (5,642 
 
 ### 1. MAINVIEWMODEL_DEPENDENCY_MAP.md (130 KB)
 
-**Conteúdo:**
+### Conteúdo
+
 - Mapa completo de dependências (quem chama quem)
 - Top 30 métodos mais chamados (alto acoplamento)
 - Top 30 métodos que mais chamam outros (alto fan-out)
@@ -93,28 +96,32 @@ Sprint 23 realizou uma **análise completa e profunda** do MainViewModel (5,642 
 - Pontos de atenção (circular dependencies - nenhuma encontrada ✅)
 - Recomendações para extração
 
-**Principais Insights:**
+### Principais Insights
+
 - `_publish_processing_mode` é o método mais crítico (11 dependentes)
 - 6 cadeias de dependências identificadas (maior: 565 linhas)
 - Nenhuma dependência circular detectada
 
 ### 2. MAINVIEWMODEL_METHOD_CLASSIFICATION.md (115 KB)
 
-**Conteúdo:**
+### Conteúdo
+
 - Classificação dos 141 métodos em 12 categorias
 - Estatísticas detalhadas por categoria
 - Lista completa de métodos por categoria
 - Destino de extração sugerido para cada categoria
 - Métodos que devem permanecer no MainViewModel (34 métodos)
 
-**Principais Insights:**
+### Principais Insights
+
 - Orchestration + Orchestration Internal = 37.1% do código
 - Utility Internal é a maior categoria (38 métodos)
 - 34 métodos devem permanecer (DI, lifecycle, properties)
 
 ### 3. EXTRACTION_CANDIDATES.md (135 KB)
 
-**Conteúdo:**
+### Conteúdo
+
 - Análise profunda dos Top 28 candidatos (>50 linhas)
 - Localização exata (linha início/fim)
 - Dependências detalhadas de cada método
@@ -123,14 +130,16 @@ Sprint 23 realizou uma **análise completa e profunda** do MainViewModel (5,642 
 - Estratégia de extração específica
 - Ordem de extração recomendada
 
-**Principais Insights:**
+### Principais Insights
+
 - 26 métodos extraíveis (2 são DI root)
 - Total de 2,693 linhas (51.5% do MainViewModel)
 - Ordem de extração otimizada definida
 
 ### 4. mainviewmodel_analysis.json (55 KB)
 
-**Conteúdo:**
+### Conteúdo
+
 - Dados brutos da análise em formato JSON
 - Informações de todos os 141 métodos
 - Dependências mapeadas
@@ -142,7 +151,7 @@ Sprint 23 realizou uma **análise completa e profunda** do MainViewModel (5,642 
 ## 🎯 Top 10 Candidatos Prioritários
 
 | # | Método | Linhas | Sprint | Risco | ROI |
-|---|--------|--------|--------|-------|-----|
+| --- | -------- | -------- | -------- | ------- | ----- |
 | 1 | `process_pending_project_videos` | 239 | 24 | 🔴 | ⭐⭐⭐⭐⭐ |
 | 2 | `_init_coordinators` | 162 | ⚠️ NÃO | ❌ | ❌ |
 | 3 | `start_single_video_processing` | 153 | 24 | 🟡 | ⭐⭐⭐⭐⭐ |
@@ -163,7 +172,7 @@ Sprint 23 realizou uma **análise completa e profunda** do MainViewModel (5,642 
 ### Resumo por Sprint
 
 | Sprint | Foco | Métodos | Linhas | % MVM | Status |
-|--------|------|---------|--------|-------|--------|
+| -------- | ------ | --------- | -------- | ------- | -------- |
 | **23** | Análise | - | - | - | ✅ COMPLETO |
 | **24** | VideoProcessingOrchestrator | 6 | ~815 | 15.6% | 📋 PLANEJADO |
 | **25** | AnalysisOrchestrator | 3 | ~322 | 6.2% | 📋 PLANEJADO |
@@ -180,7 +189,7 @@ Sprint 23 realizou uma **análise completa e profunda** do MainViewModel (5,642 
 
 ### Projeção de Redução
 
-```
+```text
 MainViewModel Atual:    5,227 linhas (em métodos)
 Sprint 24:             -  815 linhas → 4,412 linhas (-15.6%)
 Sprint 25:             -  322 linhas → 4,090 linhas (-21.8%)
@@ -209,41 +218,48 @@ REDUÇÃO TOTAL:         -81% ✅ META SUPERADA!
 
 ### 2. 🔴 Pontos de Atenção
 
-**Método com Complexidade Alta:**
+### Método com Complexidade Alta
+
 - `process_pending_project_videos` (239 linhas, C901 warning)
 - Requer refatoração cuidadosa em submétodos
 
-**Métodos Núcleo (NÃO extrair):**
+### Métodos Núcleo (NÃO extrair)
+
 - `__init__` (280 linhas) - Composition Root
 - `_init_coordinators` (162 linhas) - DI wiring
 - `_publish_processing_mode` (18 linhas) - 11 dependentes
 - `_schedule_on_ui` (8 linhas) - Thread safety
 
-**Alto Acoplamento:**
+### Alto Acoplamento
+
 - `_publish_processing_mode` (11 dependentes)
 - `refresh_project_views` (9 dependentes)
 - `update_openvino_status` (4 dependentes)
 
 ### 3. 🟢 Oportunidades
 
-**Métodos Isolados (fáceis de extrair):**
+### Métodos Isolados (fáceis de extrair)
+
 - ~95 métodos sem dependências internas
 - Extração direta, sem refatoração
 - Baixo risco de regressão
 
-**Cadeias de Dependências:**
+### Cadeias de Dependências
+
 - 6 cadeias identificadas (565 a 235 linhas cada)
 - Podem ser extraídas em bloco
 - Mantém coesão funcional
 
 ### 4. 📊 Distribuição Desbalanceada
 
-**Concentração de Código:**
+### Concentração de Código
+
 - Top 10 métodos = 1,485 linhas (28.4%)
 - Top 28 métodos = 3,368 linhas (64.4%)
 - Top 50 métodos = 4,200 linhas (80.4%)
 
-**Implicação:**
+### Implicação
+
 - Extrair Top 28 = 64.4% de redução
 - Extrair restantes = 23.6% adicional
 - Total possível = -88% (limite prático)
@@ -255,7 +271,7 @@ REDUÇÃO TOTAL:         -81% ✅ META SUPERADA!
 ### 🔴 Riscos ALTOS
 
 | Risco | Método Afetado | Mitigação |
-|-------|----------------|-----------|
+| ------- | ---------------- | ----------- |
 | Complexidade Ciclomática | `process_pending_project_videos` | Testes exaustivos (>30 casos), refatoração em submétodos |
 | Alto Acoplamento | `_create_processing_callbacks` | Testar todos os 3 fluxos que o usam |
 | Hardware Integration | `start_recording` | Testes com/sem Arduino, mocks robustos |
@@ -264,7 +280,7 @@ REDUÇÃO TOTAL:         -81% ✅ META SUPERADA!
 ### 🟡 Riscos MÉDIOS
 
 | Risco | Métodos Afetados | Mitigação |
-|-------|------------------|-----------|
+| ------- | ------------------ | ----------- |
 | Context Managers | `_temporary_single_animal_mode`, `global_calibration_session` | Testar setup/teardown, exceções |
 | Thread Workers | `_diagnostic_processing_thread`, `_generate_parquet_summaries_worker` | Testes de concorrência |
 | UI Modals | `_validate_zones_with_ui` | Testar todos os caminhos (OK, Cancel, Close) |
@@ -289,13 +305,15 @@ REDUÇÃO TOTAL:         -81% ✅ META SUPERADA!
 
 ### 📋 Checklist para Sprint 24
 
-**Antes de iniciar:**
+### Antes de iniciar
+
 - [ ] Ler `docs/EXTRACTION_CANDIDATES.md` (métodos #2, #3, #4, #6, #15, #18)
 - [ ] Ler `docs/MAINVIEWMODEL_DEPENDENCY_MAP.md` (cadeias de dependências)
 - [ ] Criar backup: `git tag backup-pre-sprint-24`
 - [ ] Verificar testes: `poetry run pytest` (baseline)
 
-**Durante Sprint 24:**
+### Durante Sprint 24
+
 - [ ] Criar `src/zebtrack/orchestrators/video_processing_orchestrator.py`
 - [ ] Extrair 6 métodos (~815 linhas)
 - [ ] Criar facades no MainViewModel
@@ -305,7 +323,8 @@ REDUÇÃO TOTAL:         -81% ✅ META SUPERADA!
 - [ ] Verificar linting: `poetry run ruff check .`
 - [ ] Atualizar `docs/SPRINT_24_RESULTS.md`
 
-**Após Sprint 24:**
+### Após Sprint 24
+
 - [ ] Code review
 - [ ] Performance benchmark
 - [ ] Commit e push
@@ -352,7 +371,7 @@ REDUÇÃO TOTAL:         -81% ✅ META SUPERADA!
 ### Métricas Sprint 23
 
 | Métrica | Valor |
-|---------|-------|
+| --------- | ------- |
 | **Duração** | 1 dia (conforme planejado) |
 | **Métodos Analisados** | 141 |
 | **Linhas Analisadas** | 5,227 |
@@ -362,7 +381,7 @@ REDUÇÃO TOTAL:         -81% ✅ META SUPERADA!
 
 ### Estado Atual do Projeto
 
-```
+```text
 MainViewModel:          5,227 linhas (em métodos)
 Métodos Extraíveis:       107 métodos, 4,550 linhas (87%)
 Métodos a Manter:          34 métodos,   677 linhas (13%)
@@ -372,7 +391,8 @@ Redução Projetada:      -4,227 linhas (-81%) ✅ META SUPERADA!
 
 ### Próximo Sprint
 
-**Sprint 24: VideoProcessingOrchestrator**
+### Sprint 24: VideoProcessingOrchestrator
+
 - **Objetivos:** Extrair 6 métodos (~815 linhas)
 - **Duração Estimada:** 2-3 dias
 - **Risco:** 🔴 ALTO (método complexo com C901 warning)

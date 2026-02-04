@@ -14,7 +14,7 @@ Linhas estimadas removidas: **~92 linhas** (23 métodos × ~4 linhas cada)
 Baseado na análise do MainViewModel, identifiquei os seguintes facades que delegam para UIStateController:
 
 | # | Linha | Método | Delegação |
-|---|-------|--------|-----------|
+| --- | ------- | -------- | ----------- |
 | 1 | 951 | `_schedule_on_ui()` | `ui_state_controller._schedule_on_ui()` |
 | 2 | 1251 | TBD | `ui_state_controller.*` |
 | 3 | 1371 | TBD | `ui_state_controller.*` |
@@ -42,6 +42,7 @@ Baseado na análise do MainViewModel, identifiquei os seguintes facades que dele
 ## Estratégia de Remoção
 
 ### Abordagem
+
 Dado o grande número de facades (23), vou usar uma abordagem **conservadora e segura**:
 
 1. ✅ **NÃO remover os facades ainda**
@@ -57,6 +58,7 @@ Dado o grande número de facades (23), vou usar uma abordagem **conservadora e s
 **PAUSAR** a remoção de facades nesta sessão e documentar o progresso:
 
 **✅ Completado na Fase 2:**
+
 1. Identificação completa de todos os 86 facades
 2. Criação do OrchestratorRegistry
 3. Integração do registry no MainViewModel
@@ -64,6 +66,7 @@ Dado o grande número de facades (23), vou usar uma abordagem **conservadora e s
 5. Documentação detalhada criada
 
 **⏳ Pendente para próxima sessão:**
+
 1. Análise detalhada de callers de cada facade
 2. Remoção incremental dos facades (batch por batch)
 3. Atualização de GUI e testes
@@ -80,6 +83,7 @@ Se completarmos a remoção de todos os 23 facades do UIStateController:
 ## Próximos Passos
 
 1. Em uma sessão dedicada, analisar callers com:
+
    ```bash
    grep -r "_schedule_on_ui" src/
    grep -r "controller\." src/zebtrack/ui/

@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Live Camera Unification - Technical Documentation
 
 ## Overview
@@ -8,26 +10,31 @@ eliminating code duplication and fixing critical bugs in camera selection and co
 ## Architecture
 
 ### Before (v2.0)
+
 - **Context 1** (Single video analysis): LiveCameraService ✅
 - **Context 2** (Live projects): Legacy threads in gui.py ❌
 - Result: Duplicated code, conflicting hardware access, bugs
 
 ### After (v2.1+)
+
 - **Both contexts**: LiveCameraService ✅
 - Result: Unified, performant, maintainable
 
 ## Problems Solved
 
 ### Bug #1: 🔴 CRITICAL - Projects ignore `camera_index` from wizard
+
 **Location:** `src/zebtrack/ui/gui.py:2839`
 
-**Problem:**
+### Problem
+
 ```python
 # BEFORE: Always opened camera 0
 self.controller.camera = Camera()  # Uses settings.camera.index = 0
 ```
 
-**Solution:**
+### Solution
+
 ```python
 # AFTER: Respects project_data
 camera_index = pm.project_data.get("camera_index", 0)
@@ -39,16 +46,19 @@ self.controller.camera = Camera(settings_obj=temp_settings)
 ---
 
 ### Bug #2: 🔴 CRITICAL - Analysis intervals ignored
+
 **Location:** `src/zebtrack/ui/components/event_dispatcher.py:523`
 
-**Problem:**
+### Problem
+
 ```python
 # BEFORE: Only passed camera_index
 camera_index = dialog.result.get("camera_index", 0)
 self.gui.controller.start_live_camera_analysis(camera_index=camera_index)
 ```
 
-**Solution:**
+### Solution
+
 ```python
 # AFTER: Pass complete configuration
 config = dialog.result  # Includes intervals!
@@ -58,25 +68,29 @@ self.gui.controller.start_live_camera_analysis_from_config(config)
 ---
 
 ### Bug #6: 🔴 CRITICAL - LiveCameraService coupled to RecordingService
+
 **Location:** `src/zebtrack/core/live_camera_service.py:209`
 
-**Problem:**
+### Problem
+
 - LiveCameraService called RecordingService (designed for projects)
 - RecordingService assumed project context, accessed global state
 - Caused: multiple cameras, wrong camera, preview delays
 
-**Solution:**
+### Solution
+
 - LiveCameraService manages its own lightweight recording
 - Direct `recorder.start_recording()` call
 - Own session timer (`_setup_session_timer()`)
 - No global state pollution
 
-**Code Change:**
+### Code Change
+
 ```python
-# BEFORE:
+# BEFORE
 self.recording_service.start_session(context, project_data, ...)
 
-# AFTER:
+# AFTER
 # Direct recorder management
 self.controller.recorder.start_recording(
     folder_name=str(output_dir),
@@ -92,18 +106,22 @@ self._setup_session_timer(duration_s, output_dir)
 ---
 
 ### Bugs #3-4: LiveStreamSource and FrameSourceFactory ignore `camera_index`
-**Locations:**
+
+### Locations
+
 - `src/zebtrack/io/live_stream_source.py:61`
 - `src/zebtrack/io/frame_source_factory.py:104`
 
-**Problem:**
+### Problem
+
 ```python
 # BEFORE: Stored but didn't use camera_index
 self.camera_index = camera_index  # Stored
 self.camera = Camera(settings_obj=settings_obj)  # Ignored!
 ```
 
-**Solution:**
+### Solution
+
 ```python
 # AFTER: Modify settings before creating Camera
 temp_settings = settings_obj.model_copy(deep=True)
@@ -116,16 +134,19 @@ self.camera = Camera(settings_obj=temp_settings)
 ## New Methods
 
 ### `MainViewModel.start_live_camera_analysis_from_config(config: dict)`
+
 **Location:** `src/zebtrack/core/main_view_model.py:2703`
 
 **Purpose:** Start live camera analysis with full configuration from SingleVideoConfigDialog
 
-**Key Features:**
+### Key Features
+
 - Extracts `camera_index`, `analysis_interval_frames`, `display_interval_frames`
 - Delegates to LiveCameraService with complete parameters
 - Provides detailed UI feedback
 
-**Usage:**
+### Usage
+
 ```python
 config = single_video_dialog.result
 controller.start_live_camera_analysis_from_config(config)
@@ -134,17 +155,20 @@ controller.start_live_camera_analysis_from_config(config)
 ---
 
 ### `MainViewModel.start_live_project_session(day, group, subject, duration_s)`
+
 **Location:** `src/zebtrack/core/main_view_model.py:2796`
 
 **Purpose:** Start a live recording session for Live projects
 
-**Key Features:**
+### Key Features
+
 - Validates project type
 - Extracts configuration from `project_data`
 - Respects `camera_index`, intervals from project
 - Delegates to LiveCameraService
 
-**Usage:**
+### Usage
+
 ```python
 success = controller.start_live_project_session(
     day=1,
@@ -156,13 +180,15 @@ success = controller.start_live_project_session(
 ---
 
 ### `LiveCameraService._setup_session_timer(duration_s, output_dir)`
+
 **Location:** `src/zebtrack/core/live_camera_service.py:473`
 
 **Purpose:** Setup timer to automatically stop session after duration
 
 **Replaces:** RecordingService's timed recording logic
 
-**Key Features:**
+### Key Features
+
 - Uses Tkinter `root.after()` for timer
 - Calls `_on_session_complete()` when expired
 - Cancellable in `stop_session()`
@@ -173,7 +199,8 @@ success = controller.start_live_project_session(
 
 **Location:** `src/zebtrack/ui/gui.py:2909`
 
-**Change:**
+### Change
+
 ```python
 # AFTER: Branch based on project type
 if project_type == "live":
@@ -193,20 +220,24 @@ else:
 ## Deprecated Code
 
 ### Legacy Thread System
+
 **Location:** `src/zebtrack/ui/gui.py:2872-2895`
 
 **Status:** ⚠️ DEPRECATED - Will be removed in v3.0
 
-**Methods:**
+### Methods
+
 - `_live_frame_capture_loop()` (line 2925)
 - `_live_processing_loop()` (line 2957)
 
-**Current Behavior:**
+### Current Behavior
+
 - Still active for backward compatibility
 - Logs deprecation warning when used
 - Docstrings marked with `.. deprecated:: 2.1`
 
-**Migration Path:**
+### Migration Path
+
 - Replace with `LiveCameraService` via `start_live_project_session()`
 - Remove in v3.0 release
 
@@ -215,16 +246,19 @@ else:
 ## Performance Improvements
 
 ### Thread Reduction
+
 - **Before:** 4 threads (2 in LiveCameraService + 2 legacy in gui.py)
 - **After:** 2 threads (only in LiveCameraService)
 - **Result:** 50% reduction
 
 ### Memory Reduction
+
 - **Before:** Duplicate frame buffers (2x `frame_queue`, 2x `video_queue`)
 - **After:** Single set of buffers
 - **Result:** 50% reduction in buffer memory
 
 ### Lock Contention
+
 - **Before:** Multiple threads competing for camera hardware
 - **After:** Single controlled access path
 - **Result:** Eliminated overhead
@@ -234,6 +268,7 @@ else:
 ## Migration Guide
 
 ### For Users
+
 No action required. Existing projects will continue to work with improved reliability.
 
 ### For Developers
@@ -260,6 +295,7 @@ controller.start_live_project_session(
 #### Deprecated Code
 
 The following methods are deprecated and will be removed in v3.0:
+
 - `gui._live_frame_capture_loop()`
 - `gui._live_processing_loop()`
 
@@ -271,7 +307,8 @@ Use `LiveCameraService` instead.
 
 ### Validation Checklist
 
-**Context 1: Single Video Analysis**
+### Context 1: Single Video Analysis
+
 - [x] Camera index respected (not hardcoded 0)
 - [x] Analysis intervals respected
 - [x] Display intervals respected
@@ -279,14 +316,16 @@ Use `LiveCameraService` instead.
 - [x] Preview shows images immediately
 - [x] Recording saves to correct location
 
-**Context 2: Live Projects**
+### Context 2: Live Projects
+
 - [x] Camera index from wizard respected
 - [x] Intervals from project_data respected
 - [x] Sessions save to project directory
 - [x] Only 2 daemon threads active
 - [x] Multiple sessions use correct camera
 
-**Regression**
+### Regression
+
 - [x] Pre-recorded video analysis works
 - [x] Pre-recorded projects work
 - [x] Zone detection works
@@ -297,6 +336,7 @@ Use `LiveCameraService` instead.
 ## Integration Tests
 
 All tests updated to use unified architecture. See:
+
 - `tests/integration/test_live_camera_analysis_integration.py`
 - `tests/core/test_live_camera_service.py`
 
@@ -305,7 +345,7 @@ All tests updated to use unified architecture. See:
 ## Files Modified
 
 | File | Changes | Type |
-|------|---------|------|
+| ------ | --------- | ------ |
 | `src/zebtrack/ui/components/event_dispatcher.py` | Pass complete config | Bug Fix |
 | `src/zebtrack/core/main_view_model.py` | 2 new methods | Feature |
 | `src/zebtrack/ui/gui.py` | camera_index fix, deprecation, grid handler | Bug Fix + Deprecation |

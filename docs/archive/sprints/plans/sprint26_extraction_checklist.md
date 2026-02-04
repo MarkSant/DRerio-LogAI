@@ -10,7 +10,9 @@
 ## Phase 1: State Management Methods (87 lines)
 
 ### ✅ Step 1.1: is_recording Property (11 lines)
+
 **Location:** Lines 617-627
+
 ```python
 @property
 def is_recording(self) -> bool:
@@ -25,6 +27,7 @@ def is_recording(self, value: bool) -> None:
         is_recording=value,
     )
 ```
+
 **Dependencies:** StateManager
 **Risk:** LOW
 **Tests:** test_main_view_model.py (recording state tests)
@@ -32,6 +35,7 @@ def is_recording(self, value: bool) -> None:
 ---
 
 ### ✅ Step 1.2: _on_recording_state_changed (20 lines)
+
 **Location:** Lines 721-740
 **Purpose:** UI event publisher for recording state changes
 **Dependencies:** ui_event_bus, state_manager
@@ -41,6 +45,7 @@ def is_recording(self, value: bool) -> None:
 ---
 
 ### ✅ Step 1.3: _setup_recording_service_callbacks (20 lines)
+
 **Location:** Lines 822-841
 **Purpose:** Inject UI callbacks into RecordingService
 **Dependencies:** recording_service, ui_event_bus
@@ -50,6 +55,7 @@ def is_recording(self, value: bool) -> None:
 ---
 
 ### ✅ Step 1.4: _init_recording_service (36 lines)
+
 **Location:** Lines 843-878
 **Purpose:** Initialize RecordingService and LiveCameraService
 **Dependencies:** RecordingService, LiveCameraService
@@ -57,6 +63,7 @@ def is_recording(self, value: bool) -> None:
 **Tests:** test_main_view_model.py (initialization tests)
 
 **Phase 1 Checkpoint:**
+
 - [ ] All 4 methods extracted
 - [ ] Run: `poetry run pytest tests/test_main_view_model.py -k "recording" -v`
 - [ ] All tests pass
@@ -66,6 +73,7 @@ def is_recording(self, value: bool) -> None:
 ## Phase 2: Helper Methods (37 lines)
 
 ### ✅ Step 2.1: _clear_external_trigger_wait (13 lines)
+
 **Location:** Lines 1129-1141
 **Purpose:** Clear pending external trigger state
 **Dependencies:** ui_event_bus, _pending_external_trigger
@@ -75,6 +83,7 @@ def is_recording(self, value: bool) -> None:
 ---
 
 ### ✅ Step 2.2: _schedule_recording (24 lines)
+
 **Location:** Lines 1195-1218
 **Purpose:** Schedule recording via RecordingCoordinator
 **Dependencies:** recording_coordinator, view.camera (for dimensions)
@@ -82,6 +91,7 @@ def is_recording(self, value: bool) -> None:
 **Tests:** test_main_view_model.py (recording flow tests)
 
 **Phase 2 Checkpoint:**
+
 - [ ] All 2 methods extracted
 - [ ] Run: `poetry run pytest tests/test_main_view_model.py -k "trigger or schedule" -v`
 - [ ] All tests pass
@@ -91,24 +101,27 @@ def is_recording(self, value: bool) -> None:
 ## Phase 3: External Trigger Methods (84 lines)
 
 ### ✅ Step 3.1: _handle_external_trigger (46 lines)
+
 **Location:** Lines 2509-2554
 **Purpose:** Handle external trigger setup for recording
-**Dependencies:** project_manager, ui_event_bus, _pending_external_trigger
+**Dependencies:** project_manager, ui_event_bus,_pending_external_trigger
 **Risk:** MEDIUM (Arduino interaction)
 **Tests:** test_main_view_model.py (external trigger flow)
 
 ---
 
 ### ✅ Step 3.2: trigger_recording (17 lines)
+
 **Location:** Lines 1177-1193
 **Purpose:** Trigger pending recording from Arduino event
-**Dependencies:** _pending_external_trigger, _schedule_recording
+**Dependencies:** _pending_external_trigger,_schedule_recording
 **Risk:** MEDIUM (Arduino interaction)
 **Tests:** test_main_view_model.py (trigger tests)
 
 ---
 
 ### ✅ Step 3.3: on_arduino_event (21 lines)
+
 **Location:** Lines 1155-1175
 **Purpose:** Handle Arduino event signals (start/stop)
 **Dependencies:** trigger_recording, stop_recording, is_recording
@@ -116,6 +129,7 @@ def is_recording(self, value: bool) -> None:
 **Tests:** test_main_view_model.py (Arduino event handling)
 
 **Phase 3 Checkpoint:**
+
 - [ ] All 3 methods extracted
 - [ ] Run: `poetry run pytest tests/test_main_view_model.py -k "arduino" -v`
 - [ ] All tests pass
@@ -125,9 +139,11 @@ def is_recording(self, value: bool) -> None:
 ## Phase 4: Core Recording Methods (150 lines)
 
 ### ✅ Step 4.1: start_recording (66 lines)
+
 **Location:** Lines 2556-2621
 **Purpose:** Start recording session (live mode)
 **Dependencies:**
+
 - project_manager.set_active_zone_video()
 - _clear_external_trigger_wait()
 - _ensure_zones_before_recording() [⚠️ NOT EXTRACTED - stays in MainViewModel]
@@ -146,9 +162,11 @@ The orchestrator will need to call back to MainViewModel for this method.
 ---
 
 ### ✅ Step 4.2: stop_recording (21 lines)
+
 **Location:** Lines 2838-2858
 **Purpose:** Stop current recording session
 **Dependencies:**
+
 - _clear_external_trigger_wait()
 - recording_coordinator.stop_recording()
 - ui_event_bus (button state updates)
@@ -158,15 +176,18 @@ The orchestrator will need to call back to MainViewModel for this method.
 ---
 
 ### ✅ Step 4.3: start_live_project_session (63 lines)
+
 **Location:** Lines 2860-2922
 **Purpose:** Start live recording session for Live projects
 **Dependencies:**
+
 - project_manager (project type, data, camera_index)
 - live_camera_service.start_session()
 **Risk:** MEDIUM (Live project coordination)
 **Tests:** test_main_view_model.py (live project tests)
 
 **Phase 4 Checkpoint:**
+
 - [ ] All 3 methods extracted
 - [ ] Run: `poetry run pytest tests/test_main_view_model.py -k "start_recording or stop_recording or live_project" -v`
 - [ ] All tests pass
@@ -176,9 +197,11 @@ The orchestrator will need to call back to MainViewModel for this method.
 ## Phase 5: Live Camera Methods (164 lines)
 
 ### ✅ Step 5.1: start_live_camera_analysis (65 lines)
+
 **Location:** Lines 2623-2687
 **Purpose:** Start live camera analysis with dialog
 **Dependencies:**
+
 - settings (live_analysis config)
 - LiveAnalysisDialog (UI dialog)
 - live_camera_service.start_session()
@@ -189,9 +212,11 @@ The orchestrator will need to call back to MainViewModel for this method.
 ---
 
 ### ✅ Step 5.2: run_live_calibration (99 lines)
+
 **Location:** Lines 2409-2507
 **Purpose:** Record short clip and run aquarium detection
 **Dependencies:**
+
 - view.camera (direct camera access) ⚠️
 - _publish_processing_mode() [stays in MainViewModel]
 - settings (fps)
@@ -207,6 +232,7 @@ The orchestrator will need to call back to MainViewModel for this method.
 capture loop. Ensure camera resource management is correct.
 
 **Phase 5 Checkpoint:**
+
 - [ ] All 2 methods extracted
 - [ ] Run: `poetry run pytest tests/test_main_view_model.py -k "live_camera or calibration" -v`
 - [ ] All tests pass
@@ -218,6 +244,7 @@ capture loop. Ensure camera resource management is correct.
 ### ✅ All Phases Complete (488 lines extracted)
 
 **Full Test Suite:**
+
 ```bash
 # 1. Fast tests (excludes GUI/slow)
 poetry run pytest -v
@@ -233,6 +260,7 @@ poetry run pytest --cov=src/zebtrack/core/main_view_model --cov-report=term-miss
 ```
 
 **Expected Results:**
+
 - [ ] All tests pass (2568 tests)
 - [ ] Coverage maintained (>70%)
 - [ ] MainViewModel reduced to ~4,184 lines
@@ -251,6 +279,7 @@ self._cancel_feedback_displayed = False  # Used by _show_cancel_feedback (not ex
 ```
 
 **Action:**
+
 - [ ] Move `_pending_external_trigger` to RecordingSessionOrchestrator
 - [ ] Keep `_cancel_feedback_displayed` in MainViewModel (used by other methods)
 
@@ -350,6 +379,7 @@ Events.RECORDING_TRIGGER: ("recording_session_orchestrator.trigger_recording", [
 After extraction, perform manual smoke tests:
 
 ### Recording Flow Tests
+
 - [ ] Start live project recording (with Arduino)
 - [ ] Start live project recording (without Arduino)
 - [ ] External trigger recording (Arduino event start)
@@ -357,12 +387,14 @@ After extraction, perform manual smoke tests:
 - [ ] Stop recording (Arduino event stop)
 
 ### Live Camera Tests
+
 - [ ] Live camera analysis (via dialog)
 - [ ] Live camera analysis (from config)
 - [ ] Live project session start
 - [ ] Live calibration (auto aquarium detection)
 
 ### Edge Cases
+
 - [ ] Cancel recording during external trigger wait
 - [ ] Start recording with no zones (should validate)
 - [ ] Live camera analysis with no zones (creates default arena)
@@ -433,14 +465,17 @@ Sprint 26 is complete when:
 ## Next Sprint Preview (Sprint 27)
 
 **Deferred Items (252 lines):**
+
 1. `start_live_camera_analysis_from_config` (148 lines)
 2. `_ensure_zones_before_recording` (93 lines)
 
 **Prerequisites:**
+
 - Create `ArenaCreationOrchestrator`
 - Create `ZoneValidationOrchestrator`
 
 **Expected Reduction:**
+
 - Sprint 27: 4,184 → ~3,932 lines (252 lines, 6.0%)
 - Cumulative: 5,224 → 3,932 lines (1,292 lines, 24.7%)
 

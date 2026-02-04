@@ -14,7 +14,7 @@ Sprint 29 extraiu **7 métodos de diagnóstico de modelo** do MainViewModel para
 ### ✅ Objetivos Alcançados
 
 | Objetivo | Status | Resultado |
-|----------|--------|-----------|
+| ---------- | -------- | ----------- |
 | Criar ModelDiagnosticsOrchestrator | ✅ COMPLETO | 608 linhas criadas |
 | Extrair 7 métodos | ✅ COMPLETO | 7 métodos extraídos |
 | Criar facades | ✅ COMPLETO | 7 facades criadas |
@@ -28,7 +28,7 @@ Sprint 29 extraiu **7 métodos de diagnóstico de modelo** do MainViewModel para
 ## 📈 Estatísticas
 
 | Métrica | Antes | Depois | Redução |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | **Total linhas** | 3,709 | 3,323 | -386 (-10.41%) |
 | **Métodos** | 80 | 73 | -7 |
 
@@ -57,7 +57,7 @@ Sprint 29 extraiu **7 métodos de diagnóstico de modelo** do MainViewModel para
 ## 📊 Progresso Total (Sprints 24-29)
 
 | Sprint | Redução | MainViewModel Após | % Acumulado |
-|--------|---------|-------------------|-------------|
+| -------- | --------- | ------------------- | ------------- |
 | 24 | -693 | 4,534 | -13.3% |
 | 25 | -275 | 4,259 | -18.5% |
 | 26 | -364 | 3,895 | -25.5% |

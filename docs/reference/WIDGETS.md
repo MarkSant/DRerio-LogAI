@@ -1,8 +1,11 @@
+<!-- markdownlint-disable MD024 -->
+
 # ZebTrack UI Widgets Catalog
 
 This document catalogs reusable UI widgets in ZebTrack-AI, providing API documentation and usage examples.
 
 ## Table of Contents
+
 - [CollapsibleFrame](#collapsibleframe)
 - [NumberInput](#numberinput)
 - [Standard Widgets](#standard-widgets)
@@ -16,6 +19,7 @@ This document catalogs reusable UI widgets in ZebTrack-AI, providing API documen
 **Purpose**: Expandable/collapsible section with clickable header
 
 ### Features
+
 - ✅ Click-to-toggle: Entire header area is clickable
 - ✅ Visual indicator: ▼ (expanded) / ▶ (collapsed)
 - ✅ Hover effect: Header highlights on mouse-over
@@ -53,6 +57,7 @@ if frame.is_collapsed:
 ### Usage Example
 
 **CalibrationDialog** (gui.py:298-320):
+
 ```python
 # Calibration section
 calibration_collapsible = CollapsibleFrame(
@@ -70,23 +75,27 @@ Label(calibration_section, text="Calibration controls...").pack()
 ### Styling
 
 **Colors**:
+
 - Header default: SystemButtonFace (matches OS)
 - Header hover: `#e8e8e8` (light gray)
 - Header border: raised, borderwidth=1
 
 **Fonts**:
+
 - Indicator: Segoe UI, 10pt
 - Title: Segoe UI, 10pt bold
 
 ### Best Practices
 
 ✅ **Do**:
+
 - Use for logically grouped settings
 - Start with most important section expanded
 - Keep titles concise (< 40 characters)
 - Use emojis for visual categorization (📐, ⚙️, 🎯)
 
 ❌ **Don't**:
+
 - Nest CollapsibleFrames (causes layout issues)
 - Use for single widgets (overhead not justified)
 - Change state programmatically during user interaction
@@ -100,6 +109,7 @@ Label(calibration_section, text="Calibration controls...").pack()
 **Purpose**: Numeric input with direct typing + increment/decrement buttons
 
 ### Features
+
 - ✅ Direct keyboard input (faster than Scale)
 - ✅ Mouse increment/decrement buttons (− / +)
 - ✅ Automatic validation and clamping to range
@@ -135,6 +145,7 @@ current = var.get()
 ### Usage Example
 
 **ExperimentalDesignStep** (experimental_design_step.py:188-197):
+
 ```python
 # Days input (1-30)
 days_input = NumberInput(
@@ -150,7 +161,7 @@ Label(days_frame, text="dias", fg="gray").pack(side="left", padx=5)
 
 ### Internal Structure
 
-```
+```text
 ┌─────────────────────────────┐
 │ [−]  [ 15 ]  [+]           │  ← NumberInput
 │  ↑     ↑      ↑            │
@@ -175,12 +186,14 @@ Label(days_frame, text="dias", fg="gray").pack(side="left", padx=5)
 ### Best Practices
 
 ✅ **Do**:
+
 - Use for numeric settings with clear min/max
 - Provide visual label explaining unit (e.g., "dias", "animais/grupo")
 - Set reasonable ranges (avoid 1-1000)
 - Combine with ToolTip for guidance
 
 ❌ **Don't**:
+
 - Use for unbounded ranges (Entry alone is better)
 - Set max_val > 1000 (too many clicks)
 - Forget validation in parent form
@@ -225,6 +238,7 @@ ToolTip(
 ```
 
 **Best Practices**:
+
 - Start with brief description
 - Use blank line before details
 - Use emojis for emphasis: 📏, ⚠️, 💡
@@ -237,7 +251,7 @@ ToolTip(
 ### When to Use Each
 
 | Widget | Use Case | Example |
-|--------|----------|---------|
+| -------- | ---------- | --------- |
 | **NumberInput** | Bounded numeric input (1-100) | Days, groups, counts |
 | **Entry** | Text or unbounded numbers | Names, file paths |
 | **Scale** | Visual range selection | Opacity (0.0-1.0) |
@@ -248,6 +262,7 @@ ToolTip(
 ### Migration Guide
 
 **Scale → NumberInput**:
+
 ```python
 # OLD (Scale)
 scale = Scale(parent, from_=1, to=30, variable=var, orient="horizontal")
@@ -262,6 +277,7 @@ Label(parent, text="units", fg="gray").pack(side="left", padx=5)
 ```
 
 **Benefits**:
+
 - ✅ 50% less code
 - ✅ Direct keyboard input
 - ✅ No separate label needed
@@ -342,7 +358,7 @@ class MyWidget(Frame):
 
 Visual reference of common widgets:
 
-```
+```text
 CollapsibleFrame (expanded):
 ┌─────────────────────────────┐
 │ ▼ Section Title             │ ← Clickable header

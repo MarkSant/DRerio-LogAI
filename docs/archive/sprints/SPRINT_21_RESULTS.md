@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Sprint 21: Codebase-wide Code Quality - Results
 
 **Status**: ✅ COMPLETO  
@@ -13,16 +15,20 @@ Sprint 21 focused on fixing remaining linting issues across the entire codebase 
 ### Auto-fixed Issues (10 total)
 
 **RUF010 - explicit-f-string-type-conversion** (6 issues):
+
 - Automatic conversion of string formatting
 
 **RUF022 - unsorted-dunder-all** (2 issues):
+
 - `src/zebtrack/coordinators/__init__.py`
 - `src/zebtrack/ui/components/__init__.py`
 
 **I001 - unsorted-imports** (1 issue):
+
 - `src/zebtrack/__main__.py`
 
 **W293 - blank-line-with-whitespace** (1 issue):
+
 - Automatic whitespace cleanup
 
 ### Manually Fixed Issues (5 total)
@@ -30,6 +36,7 @@ Sprint 21 focused on fixing remaining linting issues across the entire codebase 
 **E501 - line-too-long** (4 issues in `wizard_service.py`):
 
 1. **Line 190-192**: Long comment split across 3 lines
+
 ```python
 # Before:
 # NOTE: Windows PnP camera name mapping disabled due to unreliable index correlation
@@ -41,7 +48,8 @@ Sprint 21 focused on fixing remaining linting issues across the entire codebase 
 # Using resolution-based descriptions instead.
 ```
 
-2. **Line 210-216**: Function signature split across multiple lines
+1. **Line 210-216**: Function signature split across multiple lines
+
 ```python
 # Before:
 def try_read(capture=cap, result=test_result, camera_index=i, lock=result_lock, event=read_event):
@@ -57,6 +65,7 @@ def try_read(
 ```
 
 3-4. **Lines 245, 262**: Split log.info() calls (2 occurrences)
+
 ```python
 # Before:
 log.info("wizard_service.max_consecutive_failures_reached", index=i)
@@ -69,7 +78,9 @@ log.info(
 ```
 
 **B904 - raise-without-from-inside-except** (1 issue):
+
 - `src/zebtrack/coordinators/project_coordinator.py` line 203
+
 ```python
 # Before:
 except KeyError as e:
@@ -83,17 +94,17 @@ except KeyError as e:
 ### Files Modified
 
 1. `src/zebtrack/__main__.py` (imports sorted)
-2. `src/zebtrack/coordinators/__init__.py` (__all__ sorted)
+2. `src/zebtrack/coordinators/__init__.py` (**all** sorted)
 3. `src/zebtrack/coordinators/live_camera_coordinator.py` (auto-fix)
 4. `src/zebtrack/coordinators/project_coordinator.py` (raise from e)
 5. `src/zebtrack/coordinators/recording_coordinator.py` (auto-fix)
 6. `src/zebtrack/core/live_camera_service.py` (auto-fix)
 7. `src/zebtrack/core/wizard_service.py` (line length fixes)
-8. `src/zebtrack/ui/components/__init__.py` (__all__ sorted)
+8. `src/zebtrack/ui/components/__init__.py` (**all** sorted)
 
 ### Impact
 
-```
+```text
 Files Modified:  8
 Issues Fixed:    15 of 16
 Lines Changed:   +34 insertions, -23 deletions (+11 net)
@@ -102,6 +113,7 @@ Lines Changed:   +34 insertions, -23 deletions (+11 net)
 ### Remaining Issues
 
 **C901 - complex-structure** (1 issue):
+
 - `main_view_model.py::process_pending_project_videos` (complexity 23 > 20)
 - **Status**: Already simplified in Sprint 13 (175 → 149 lines)
 - **Decision**: Deferred to future sprint - requires major refactoring
@@ -111,7 +123,8 @@ Lines Changed:   +34 insertions, -23 deletions (+11 net)
 ### Current State
 
 **File**: `src/zebtrack/ui/gui.py`
-```
+
+```text
 Lines:    3,737
 Methods:  239
 Classes:  2 (ApplicationGUI, _VideoPathResolverContext)
@@ -122,6 +135,7 @@ Classes:  2 (ApplicationGUI, _VideoPathResolverContext)
 The codebase already has **significant componentization**:
 
 **UI Components** (19 files, ~11,926 lines):
+
 - `analysis_controls.py` (8,490 lines)
 - `analysis_display.py` (13,883 lines)
 - `arduino_dashboard.py` (12,455 lines)
@@ -140,6 +154,7 @@ The codebase already has **significant componentization**:
 - Others...
 
 **Dialogs** (16 files, ~4,432 lines):
+
 - `calibration_dialog.py` (38,382 lines) 🔴 Largest dialog
 - `create_project_dialog.py` (21,365 lines)
 - `live_analysis_dialog.py` (13,753 lines)
@@ -154,6 +169,7 @@ The codebase already has **significant componentization**:
 ### Code Patterns Found
 
 **Frequently Repeated Patterns**:
+
 1. `self.set_status()` - 18 occurrences
 2. `self._request_overview_refresh()` - 8 occurrences
 3. `zone_data = self._get_zone_data_for_active_context()` - 6 occurrences
@@ -176,6 +192,7 @@ The codebase already has **significant componentization**:
 ```
 
 **Backward Compatibility Layer** (lines 3636-3728):
+
 - `_add_compatibility_properties_to_application_gui()` function
 - Provides property mappings for gradual migration
 - Maps old attributes to new component APIs
@@ -184,6 +201,7 @@ The codebase already has **significant componentization**:
 ### Very Short Methods (Delegation Candidates)
 
 Found 8 methods with 1-3 lines of code:
+
 1. `_deep_merge_dicts` - 3 lines (utility)
 2. `_update_window_title` - 1 line (delegates to project_view_manager)
 3. `_open_global_calibration_window` - 2 lines
@@ -291,6 +309,7 @@ No F401, F841, RUF059, E501, or other linting issues in gui.py.
 ### Alternative: Focus on Other Files
 
 **project_manager.py** (2,170 lines, 73 methods):
+
 - Some very long methods (146 lines!)
 - `_process_single_parquet_import` - 146 lines
 - `create_new_project` - 127 lines
@@ -311,13 +330,15 @@ No F401, F841, RUF059, E501, or other linting issues in gui.py.
 ### Code Quality Metrics
 
 **Before Sprint 21**:
-```
+
+```text
 Linting Issues:  16
 gui.py:          3,737 lines (unchanged)
 ```
 
 **After Sprint 21**:
-```
+
+```text
 Linting Issues:  1 (known, deferred)
 gui.py:          3,737 lines (no changes needed)
 Components:      ~16,358 lines extracted
@@ -325,7 +346,7 @@ Components:      ~16,358 lines extracted
 
 ### Impact
 
-```
+```text
 Files Modified:     8
 Linting Fixed:      15 issues
 Lines Changed:      +11 net (formatting)
@@ -339,6 +360,7 @@ Analysis Complete:  gui.py + components
 - Sprint 18: Dead Code Removal Phase 2 (-46 lines)
 
 **Cumulative Progress (Sprints 15-21)**:
+
 - MainViewModel: 5,733 → 5,568 lines (-165 lines)
 - Quality issues fixed: 32 (15 in Sprint 20, 15 in Sprint 21, 2 in other files)
 - Linting warnings: 17 → 1 (94% reduction)

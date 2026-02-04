@@ -18,6 +18,7 @@ Este documento descreve 6 melhorias implementadas no sistema de gerenciamento de
 ### MELHORIA #1: Eliminação de Cópia Duplicada de Frames (HIGH PRIORITY)
 
 **Problema Identificado:**
+
 - Frames eram copiados duas vezes no loop de captura (linhas 728 e 732)
 - Primeira cópia para `frame_queue` (processamento)
 - Segunda cópia para `video_queue` (gravação)
@@ -25,6 +26,7 @@ Este documento descreve 6 melhorias implementadas no sistema de gerenciamento de
 - **Taxa de alocação**: 162 MB/s @ 30fps (desperdiçando 81 MB/s)
 
 **Solução Implementada:**
+
 ```python
 # ANTES (2 cópias):
 self.frame_queue.put((frame_count, frame.copy()))  # Cópia 1
@@ -37,6 +39,7 @@ self.video_queue.put(frame_copy)
 ```
 
 **Resultados:**
+
 - ✅ Redução de 50% no uso de memória (5.4MB → 2.7MB por frame)
 - ✅ Redução de 50% na taxa de alocação (162 MB/s → 81 MB/s @ 30fps)
 - ✅ Menor pressão no garbage collector
@@ -49,11 +52,13 @@ self.video_queue.put(frame_copy)
 ### MELHORIA #2: Flag `_preview_window_destroyed` (MEDIUM PRIORITY)
 
 **Problema Identificado:**
+
 - Race condition quando preview window é destruída enquanto threads tentam atualizá-la
 - Thread de processamento pode chamar `preview_window.update_frame()` após `destroy()`
 - **Impacto**: Exceções intermitentes, crashes em shutdown
 
 **Solução Implementada:**
+
 1. Adicionado flag `_preview_window_destroyed: bool = False` no `__init__`
 2. Flag setada para `True` antes de destruir a janela
 3. Verificação do flag antes de chamar `root.after(0, preview_window.update_frame, ...)`
@@ -73,6 +78,7 @@ if self.preview_window and self.root and not self._preview_window_destroyed:
 ```
 
 **Resultados:**
+
 - ✅ Eliminação de race conditions no shutdown
 - ✅ Código mais robusto e confiável
 - ✅ Menos exceções em logs
@@ -84,6 +90,7 @@ if self.preview_window and self.root and not self._preview_window_destroyed:
 ### MELHORIA #3: Context Manager para Detector Context (MEDIUM PRIORITY)
 
 **Problema Identificado:**
+
 - Detector context precisa ser restaurado mesmo quando exceções ocorrem
 - Implementação manual de save/restore é propensa a erros
 - Sem garantia de restauração em caso de falha
@@ -122,6 +129,7 @@ class DetectorContextManager:
 ```
 
 **Resultados:**
+
 - ✅ Garantia de restauração de context mesmo com exceções
 - ✅ Código mais pythônico e idiomático
 - ✅ Facilita operações temporárias de mudança de contexto
@@ -134,6 +142,7 @@ class DetectorContextManager:
 ### MELHORIA #4: Limpeza Explícita de Frames (LOW PRIORITY)
 
 **Problema Identificado:**
+
 - Frames são objetos NumPy grandes (2.7MB cada)
 - Garbage collector pode demorar para liberar memória
 - Sem hints explícitos de quando frames não são mais necessários
@@ -158,6 +167,7 @@ except Exception as e:
 ```
 
 **Resultados:**
+
 - ✅ Hints explícitos para garbage collector
 - ✅ Menor latência na liberação de memória
 - ✅ Melhor previsibilidade de uso de memória
@@ -170,19 +180,23 @@ except Exception as e:
 ### MELHORIA #5: Métricas de Frames Descartados (MEDIUM PRIORITY)
 
 **Problema Identificado:**
+
 - Frames são silenciosamente descartados quando queues estão cheias
 - Sem visibilidade sobre frequência de drops
 - Dificulta diagnóstico de problemas de performance
 - Impossível otimizar sem dados
 
 **Solução Implementada:**
+
 1. Adicionados contadores de frames descartados:
+
    ```python
    self._dropped_frames_processing: int = 0  # Frames dropped from frame_queue
    self._dropped_frames_video: int = 0       # Frames dropped from video_queue
    ```
 
 2. Incremento dos contadores quando queues estão cheias:
+
    ```python
    if not self.frame_queue.full():
        self.frame_queue.put((frame_count, frame_copy))
@@ -197,6 +211,7 @@ except Exception as e:
    ```
 
 3. Logging de estatísticas finais:
+
    ```python
    drop_rate_proc = (self._dropped_frames_processing / max(frame_count, 1)) * 100
    drop_rate_vid = (self._dropped_frames_video / max(frame_count, 1)) * 100
@@ -211,6 +226,7 @@ except Exception as e:
    ```
 
 **Resultados:**
+
 - ✅ Visibilidade completa sobre frames descartados
 - ✅ Métricas separadas para processamento vs vídeo
 - ✅ Logging periódico (a cada 10 drops) para evitar spam
@@ -224,6 +240,7 @@ except Exception as e:
 ### MELHORIA #6: Gerenciamento Atômico de Timer ID (LOW PRIORITY)
 
 **Problema Identificado:**
+
 - `_timer_id` pode ser acessado por múltiplas threads
 - Potencial race condition sem sincronização adequada
 - Leituras/escritas concorrentes podem causar comportamento indefinido
@@ -256,6 +273,7 @@ def timer_id(self, value: str | None) -> None:
 ```
 
 **Resultados:**
+
 - ✅ Acesso atômico garantido via lock
 - ✅ Documentação explícita da intenção
 - ✅ Prevenção de race conditions
@@ -268,19 +286,22 @@ def timer_id(self, value: str | None) -> None:
 ## Resumo de Impactos
 
 ### Performance
+
 | Métrica | Antes | Depois | Melhoria |
-|---------|-------|--------|----------|
+| --------- | ------- | -------- | ---------- |
 | Memória por frame | 5.4 MB | 2.7 MB | **-50%** |
 | Taxa de alocação @ 30fps | 162 MB/s | 81 MB/s | **-50%** |
 | Pressão no GC | Alta | Média | **Reduzida** |
 
 ### Confiabilidade
+
 - ✅ Eliminação de race condition no preview window
 - ✅ Garantia de restauração de detector context
 - ✅ Cleanup de frames mesmo em exceções
 - ✅ Acesso thread-safe a timer_id
 
 ### Observabilidade
+
 - ✅ Métricas de frames descartados (processing + video)
 - ✅ Taxa de descarte ao final da sessão
 - ✅ Logging periódico de drops
@@ -289,6 +310,7 @@ def timer_id(self, value: str | None) -> None:
 ## Validação
 
 ### Testes Executados
+
 ```bash
 # Todos os testes de live_camera passaram
 poetry run pytest tests/ -k "live_camera" -v
@@ -296,6 +318,7 @@ poetry run pytest tests/ -k "live_camera" -v
 ```
 
 ### Qualidade de Código
+
 ```bash
 # Verificação de estilo
 poetry run ruff check src/zebtrack/core/live_camera_service.py
@@ -336,7 +359,7 @@ poetry run ruff check src/zebtrack/core/live_camera_service.py
 ## Histórico de Mudanças
 
 | Data | Versão | Mudanças |
-|------|--------|----------|
+| ------ | -------- | ---------- |
 | 2025-01-28 | v3.1 | Implementação de todas as 6 melhorias |
 | 2025-01-28 | - | Auditoria inicial do sistema de frames |
 

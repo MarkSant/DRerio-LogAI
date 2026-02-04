@@ -13,7 +13,8 @@ Sprint 22 focused on analyzing `project_manager.py` for code quality issues, lon
 ### Current State
 
 **File**: `src/zebtrack/core/project_manager.py`
-```
+
+```text
 Lines:    2,170
 Methods:  73
 Classes:  2 (ProjectInvalidError, ProjectManager)
@@ -44,6 +45,7 @@ As noted in Sprint 21 recommendations, project_manager.py contains three notably
 **Purpose**: Process a single video import configuration for parquet files
 
 **Structure**:
+
 ```python
 def _process_single_parquet_import(self, config, video_parquet_map, roi_merge_strategy):
     # Setup and validation (lines 672-700): ~28 lines
@@ -67,6 +69,7 @@ def _process_single_parquet_import(self, config, video_parquet_map, roi_merge_st
 ```
 
 **Analysis**:
+
 - Well-structured with clear sections
 - Each section handles a distinct import type
 - Heavy logging throughout (good practice)
@@ -74,6 +77,7 @@ def _process_single_parquet_import(self, config, video_parquet_map, roi_merge_st
 
 **Potential Refactoring**:
 Could extract three helper methods:
+
 - `_import_arena_from_parquet(parquet_files, zone_data, video_path) -> bool`
 - `_import_rois_from_parquet(parquet_files, zone_data, video_path, merge_strategy) -> int`
 - `_import_trajectory_from_parquet(parquet_files, video_path) -> bool`
@@ -86,6 +90,7 @@ This would reduce main method from 146 → ~40 lines.
 **Purpose**: Load zone data (arena and ROIs) from existing parquet files
 
 **Structure**:
+
 ```python
 @staticmethod
 def load_zones_from_parquet(video_info: dict) -> ZoneData | None:
@@ -115,6 +120,7 @@ def load_zones_from_parquet(video_info: dict) -> ZoneData | None:
 ```
 
 **Analysis**:
+
 - Static method with clear separation of concerns
 - Extensive error handling (3 exception handlers)
 - Proper logging at each step
@@ -128,6 +134,7 @@ def load_zones_from_parquet(video_info: dict) -> ZoneData | None:
 **Purpose**: Initialize a new project, creating directory and config file
 
 **Structure**:
+
 ```python
 def create_new_project(self, project_path, project_type, **kwargs):
     # Parameter normalization (lines 855-900): ~46 lines
@@ -154,6 +161,7 @@ def create_new_project(self, project_path, project_type, **kwargs):
 ```
 
 **Analysis**:
+
 - Mostly data initialization
 - Large `project_data` dictionary is expected for project configuration
 - Clean flow: validate → create directory → build config → save
@@ -167,6 +175,7 @@ Could extract `_build_project_data_dict(**kwargs) -> dict`, but this would not s
 **Total Methods**: 73
 
 **By Category** (estimated):
+
 - Zone management: ~20 methods (save/load/clear zone data)
 - Project CRUD: ~15 methods (create/load/save/delete projects)
 - Video management: ~12 methods (scan/add/remove videos)
@@ -175,6 +184,7 @@ Could extract `_build_project_data_dict(**kwargs) -> dict`, but this would not s
 - Utility: ~13 methods (path normalization, validation, helpers)
 
 **Observations**:
+
 - Well-organized into logical groups
 - Most methods are short and focused (average ~30 lines)
 - Only 3 methods exceed 100 lines
@@ -183,6 +193,7 @@ Could extract `_build_project_data_dict(**kwargs) -> dict`, but this would not s
 ### Dependency Analysis
 
 **Direct Dependencies**:
+
 ```python
 from zebtrack.core.asset_manager import AssetManager
 from zebtrack.core.detector import ZoneData
@@ -195,6 +206,7 @@ from zebtrack.utils import IntegrityError, calculate_sha256
 ```
 
 **Analysis**:
+
 - All imports are used (verified by ruff)
 - Clean dependency graph
 - Proper separation: delegates to VideoManager, ZoneManager, AssetManager
@@ -203,6 +215,7 @@ from zebtrack.utils import IntegrityError, calculate_sha256
 ### Code Patterns
 
 **Lazy Imports** (Performance Optimization):
+
 ```python
 # In load_zones_from_parquet (line 451)
 import pandas as pd  # Lazy import to avoid loading pandas during startup
@@ -214,6 +227,7 @@ import pandas as pd  # Lazy import to avoid loading pandas during startup
 **Pattern**: Defers pandas import until actually needed for data loading.
 
 **Logging Pattern**:
+
 - Uses structlog with bound context
 - Consistent naming: `"project_manager.operation.result"`
 - Examples:
@@ -224,12 +238,14 @@ import pandas as pd  # Lazy import to avoid loading pandas during startup
 ### Testing Coverage
 
 **Test Files**:
+
 1. `tests/test_project_manager.py` - Main test suite
 2. `tests/test_project_manager_threading.py` - Threading tests
 3. `tests/test_parquet_import.py` - Parquet import tests
 4. `tests/core/test_project_workflow_service.py` - Workflow integration tests
 
 **Key Tests Found**:
+
 - `test_create_new_project_initial_model_overrides`
 - `test_load_zones_from_parquet_arena_only`
 - `test_load_zones_from_parquet_with_rois`
@@ -278,6 +294,7 @@ import pandas as pd  # Lazy import to avoid loading pandas during startup
 **Method**: `_process_single_parquet_import` (146 lines)
 
 **Potential Extraction**:
+
 ```python
 def _process_single_parquet_import(self, config, video_parquet_map, roi_merge_strategy):
     counts = {"arena": 0, "rois": 0, "trajectory": 0}
@@ -298,12 +315,14 @@ def _process_single_parquet_import(self, config, video_parquet_map, roi_merge_st
 ```
 
 **Benefits**:
+
 - Each import type becomes independently testable
 - Main method reduced from 146 → ~40 lines
 - Follows Single Responsibility Principle
 - Easier to add new import types
 
 **Effort**: Medium (2-3 hours)
+
 - Extract 3 methods
 - Update tests to cover new methods
 - Verify no regressions
@@ -313,6 +332,7 @@ def _process_single_parquet_import(self, config, video_parquet_map, roi_merge_st
 #### 2. Other Long Methods
 
 **`load_zones_from_parquet`** (125 lines):
+
 - **Assessment**: Length is justified
 - Extensive error handling (3 exception blocks)
 - Heavy logging (good practice)
@@ -320,6 +340,7 @@ def _process_single_parquet_import(self, config, video_parquet_map, roi_merge_st
 - **Recommendation**: No change needed
 
 **`create_new_project`** (127 lines):
+
 - **Assessment**: Length is appropriate
 - Mostly data initialization
 - Large configuration dictionary is expected
@@ -339,7 +360,8 @@ def _process_single_parquet_import(self, config, video_parquet_map, roi_merge_st
 ### Code Quality Metrics
 
 **project_manager.py**:
-```
+
+```text
 Lines:              2,170
 Methods:            73
 Linting Issues:     0
@@ -356,6 +378,7 @@ Following the "bem feito" philosophy from Sprint 21:
 > **"Refactor for clarity and maintainability, not for arbitrary line count targets."**
 
 **Reasoning**:
+
 1. Zero linting issues (already clean)
 2. Zero complexity warnings (methods are not complex)
 3. Long methods are well-structured with clear sections
@@ -365,13 +388,14 @@ Following the "bem feito" philosophy from Sprint 21:
 7. Follows established patterns (lazy imports, logging)
 
 **Philosophy**:
+
 - Sprint 21 established the precedent: analyze thoroughly, only change if there's clear benefit
 - gui.py was analyzed but not changed (excellent existing structure)
 - project_manager.py follows the same pattern
 
 ### Impact
 
-```
+```text
 Files Analyzed:     1
 Files Modified:     0
 Linting Issues:     0 (already clean)
@@ -387,6 +411,7 @@ Recommendations:    1 (optional future extraction)
 **Complexity**: Medium
 
 **Scope**:
+
 1. Extract `_import_arena_from_parquet()` from `_process_single_parquet_import`
 2. Extract `_import_rois_from_parquet()` from `_process_single_parquet_import`
 3. Extract `_import_trajectory_from_parquet()` from `_process_single_parquet_import`
@@ -394,11 +419,13 @@ Recommendations:    1 (optional future extraction)
 5. Verify no regressions with full test suite
 
 **Expected Impact**:
+
 - Main method: 146 → ~40 lines (-106 lines)
 - New methods: 3 × ~30-50 lines (+120 lines)
 - Net change: +14 lines (more methods, better organization)
 
 **Benefits**:
+
 - Improved testability
 - Better modularity
 - Easier to extend with new import types
@@ -406,12 +433,14 @@ Recommendations:    1 (optional future extraction)
 ### Alternative: Focus on Other Files
 
 Based on cumulative progress (Sprints 15-22), the refactoring project has successfully:
+
 - Reduced MainViewModel from 5,733 → 5,568 lines (-165 lines, -2.9%)
 - Fixed 32 linting issues (17 in Sprint 20, 15 in Sprint 21)
 - Analyzed gui.py (3,737 lines, excellent componentization)
 - Analyzed project_manager.py (2,170 lines, excellent structure)
 
 **Recommendation**: Sprint 23 could focus on:
+
 1. **Complete refactoring project** - Archive Sprints 15-22 as v4.0 complete
 2. **New features** - Return to feature development
 3. **Documentation** - Update architecture docs with v4.0 changes
@@ -425,6 +454,7 @@ Based on cumulative progress (Sprints 15-22), the refactoring project has succes
 - Sprint 18: Dead Code Removal Phase 2 (-46 lines)
 
 **Cumulative Progress (Sprints 15-22)**:
+
 - MainViewModel: 5,733 → 5,568 lines (-165 lines, -2.9%)
 - Quality issues fixed: 32 (17 in Sprint 20, 15 in Sprint 21)
 - Linting warnings: 17 → 1 (94% reduction)
@@ -433,6 +463,7 @@ Based on cumulative progress (Sprints 15-22), the refactoring project has succes
 ## Conclusion
 
 Sprint 22 confirms that **project_manager.py is already in excellent state**. The file has:
+
 - ✅ Zero linting issues
 - ✅ Zero complexity warnings
 - ✅ Well-structured code with clear organization
@@ -440,6 +471,7 @@ Sprint 22 confirms that **project_manager.py is already in excellent state**. Th
 - ✅ Good test coverage
 
 The three long methods (125-146 lines) are long for valid reasons:
+
 - Proper error handling
 - Extensive logging
 - Clear logical structure

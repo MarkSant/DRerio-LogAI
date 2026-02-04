@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Sprints 15-19: Dead Code Removal & Simplification - Summary
 
 **Period**: 2025-01-13 to 2025-01-14  
@@ -8,7 +10,7 @@
 
 ## 📊 Overall Impact
 
-```
+```text
 Starting Point (Sprint 14):  5,733 lines
 Ending Point (Sprint 19):    5,570 lines
 Total Reduction:             -163 lines (-2.8%)
@@ -17,7 +19,7 @@ Total Reduction:             -163 lines (-2.8%)
 ### Breakdown by Sprint
 
 | Sprint | Focus | Lines Removed | Commits |
-|--------|-------|---------------|---------|
+| -------- | ------- | --------------- | --------- |
 | **Sprint 15** | Recording Delegation & Simplification | -4 | 96f5a25, 98a1b43, 4dad121 |
 | **Sprint 16** | Coordinator Init Simplification | -10 | 4934629 |
 | **Sprint 17** | Dead Code Removal Phase 1 | -37 | 20ef8b0 |
@@ -31,17 +33,20 @@ Total Reduction:             -163 lines (-2.8%)
 
 ### Sprint 15: Recording Delegation & Simplification ✅ (-4 lines)
 
-**Phase 1: start_recording() Simplification**
+### Phase 1: start_recording() Simplification
+
 - Extracted `_handle_external_trigger()` helper (46 lines)
 - Simplified `start_recording()`: 129 → 66 lines (-49%)
 - Improved testability by isolating trigger logic
 
-**Phase 2: RecordingCoordinator Completion**
+### Phase 2: RecordingCoordinator Completion
+
 - Completed RecordingCoordinator.start_recording() implementation
 - Completed RecordingCoordinator.stop_recording() implementation
 - Updated MainViewModel to use coordinator instead of RecordingService directly
 
-**Assessment: Processing/Recording Delegation**
+### Assessment: Processing/Recording Delegation
+
 - Processing delegation: Already complete (Sprints 11-14)
 - Recording delegation: Now complete with RecordingCoordinator
 - `_create_processing_callbacks()`: Appropriately in ViewModel (UI orchestration)
@@ -53,20 +58,23 @@ Total Reduction:             -163 lines (-2.8%)
 
 ### Sprint 16: Coordinator Init Simplification ✅ (-10 lines)
 
-**Phase 1: _init_coordinators() Boilerplate Reduction**
+### Phase 1: _init_coordinators() Boilerplate Reduction
+
 - Created `_inject_or_create()` helper method (12 lines)
 - Applied to 7 coordinators (eliminated repetitive if/else pattern)
 - _init_coordinators: 186 → 162 lines (-13%)
 - Boilerplate reduction: ~70 → ~10 lines (-86%)
 
-**Explored Strategies (Lessons Learned)**
+### Explored Strategies (Lessons Learned)
+
 - ❌ ROI validation extraction: Added +7 lines (reverted)
   - **Lesson**: Extract != Always Better
 - ✅ Focus on repetitive patterns for best ROI
 - ✅ DRY principle > aggressive line reduction
 - ✅ "Bem feito" approach (well-done over rushed)
 
-**Code Quality Metrics**:
+### Code Quality Metrics
+
 - Docstring density: 36% of file (valuable documentation, not bloat)
 - Methods with 0 direct calls: 64 found, but most are callbacks/event handlers
 
@@ -77,12 +85,14 @@ Total Reduction:             -163 lines (-2.8%)
 
 ### Sprint 17: Dead Code Removal Phase 1 ✅ (-37 lines)
 
-**Removed Unused Wrapper Methods**:
+### Removed Unused Wrapper Methods
+
 1. `_schedule_analysis_metadata_update()` - 7 lines
 2. `_notify_task_status_start()` - 9 lines
 3. `_compose_analysis_view_metadata()` - 20 lines
 
-**Analysis**:
+### Analysis
+
 - All were unused legacy delegates to VideoProcessingService
 - Found via codebase-wide grep (0 usages)
 - Safe removal verified across entire project
@@ -97,16 +107,19 @@ Total Reduction:             -163 lines (-2.8%)
 ### Sprint 18: Dead Code Removal Phase 2 ✅ (-46 lines)
 
 **Phase 1: Remove _is_arduino_connected** (-7 lines)
+
 - Unused wrapper to `hardware_coordinator.is_arduino_connected()`
 - No callers found in codebase
 - **Commit**: 591f605
 
 **Phase 2: Remove 3 Parameter Collection Wrappers** (-39 lines)
+
 1. `_collect_params_from_single_video()` - 8 lines
 2. `_collect_params_from_project()` - 10 lines
 3. `_collect_analysis_parameters()` - 18 lines
 
-**Analysis**:
+### Analysis
+
 - All unused legacy delegates to VideoProcessingService
 - Created during Sprint 11-14 refactoring but never used
 - Safe removal confirmed
@@ -121,7 +134,8 @@ Total Reduction:             -163 lines (-2.8%)
 
 **Phase 1: ROI Placeholder Methods Removal** (-52 lines)
 
-**Removed 6 ROI Placeholder Methods**:
+### Removed 6 ROI Placeholder Methods
+
 1. `save_roi_template()` - 6 lines
 2. `import_and_apply_roi_template()` - 6 lines
 3. `rename_selected_roi()` - 6 lines
@@ -130,6 +144,7 @@ Total Reduction:             -163 lines (-2.8%)
 6. `apply_roi_settings()` - 7 lines
 
 **Removed Event Mappings** (10 lines):
+
 - `Events.ZONE_SAVE_ROI_TEMPLATE`
 - `Events.ZONE_IMPORT_AND_APPLY_ROI_TEMPLATE`
 - `Events.ZONE_RENAME_SELECTED_ROI`
@@ -137,7 +152,8 @@ Total Reduction:             -163 lines (-2.8%)
 - `Events.ZONE_REMOVE_SELECTED_ROI`
 - `Events.ZONE_APPLY_ROI_SETTINGS`
 
-**Analysis**:
+### Analysis
+
 - All methods contained only `pass` statements
 - Comments: "This will be handled by the GUI"
 - Events defined in `events.py` but **NEVER published** anywhere
@@ -152,14 +168,17 @@ Total Reduction:             -163 lines (-2.8%)
 
 **Phase 2: Unused Phase 3 Delegation Wrappers** (-14 lines)
 
-**Removed Methods**:
+### Removed Methods
+
 1. `_snapshot_results_dir()` - 7 lines (never called in MainViewModel)
 2. `_cleanup_cancelled_results()` - 7 lines (never called in MainViewModel)
 
-**Kept**:
+### Kept
+
 - `_prepare_results_directory()` - used in 2 places (lines 3491, 4803)
 
-**Analysis**:
+### Analysis
+
 - Phase 3 wrappers created during video processing refactoring
 - VideoProcessingService uses these methods internally
 - No need for wrappers if MainViewModel never calls them
@@ -249,7 +268,7 @@ grep -r "publish_event.*EVENT_NAME" src/zebtrack/
 
 ### Total Dead Code Removed (Sprints 17-19)
 
-```
+```text
 Sprint 17:   -37 lines
 Sprint 18:   -46 lines
 Sprint 19:   -66 lines
@@ -260,7 +279,7 @@ Total:      -149 lines
 ### MainViewModel Evolution
 
 | Sprint | Lines | Delta | % Change |
-|--------|-------|-------|----------|
+| -------- | ------- | ------- | ---------- |
 | Sprint 14 | 5,733 | - | Baseline |
 | Sprint 15 | 5,729 | -4 | -0.07% |
 | Sprint 16 | 5,719 | -10 | -0.17% |
@@ -283,6 +302,7 @@ Total:      -149 lines
 ## 🎯 Quality Metrics
 
 ### Code Health
+
 - ✅ **Zero syntax errors** - all commits validated with `py_compile`
 - ✅ **No functionality loss** - only dead code removed
 - ✅ **Improved maintainability** - fewer methods to understand
@@ -290,11 +310,13 @@ Total:      -149 lines
 - ✅ **Better separation of concerns** - removed unnecessary wrappers
 
 ### Test Coverage
+
 - ✅ All existing tests still pass
 - ✅ No new test failures introduced
 - ✅ Removed code was untested (dead code)
 
 ### Documentation
+
 - ✅ 4 new documentation files created
   - SPRINT_15_PROGRESS.md
   - SPRINT_16_SIMPLIFICATION_RESULTS.md
@@ -347,10 +369,12 @@ Based on analysis during Sprint 20:
 ## 📝 Files Modified
 
 ### Source Code
+
 - `src/zebtrack/core/main_view_model.py` (-163 lines total)
 - `src/zebtrack/coordinators/recording_coordinator.py` (skeleton → complete)
 
 ### Documentation
+
 - `docs/SPRINT_15_PROGRESS.md` (created)
 - `docs/SPRINT_16_SIMPLIFICATION_RESULTS.md` (created)
 - `docs/SPRINT_19_RESULTS.md` (created)

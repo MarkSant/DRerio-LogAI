@@ -13,7 +13,7 @@ Sprint 30 extraiu **3 métodos de gerenciamento de zonas/arena** do MainViewMode
 ### ✅ Objetivos Alcançados
 
 | Objetivo | Status | Resultado |
-|----------|--------|-----------|
+| ---------- | -------- | ----------- |
 | Criar ZoneArenaOrchestrator | ✅ COMPLETO | 229 linhas criadas |
 | Extrair 3 métodos | ✅ COMPLETO | 3 métodos extraídos |
 | Extrair MAIOR método | ✅ COMPLETO | add_roi_polygon (126 linhas) |
@@ -27,7 +27,7 @@ Sprint 30 extraiu **3 métodos de gerenciamento de zonas/arena** do MainViewMode
 ## 📈 Estatísticas
 
 | Métrica | Antes | Depois | Redução |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | **Total linhas** | 3,320 | 3,161 | -159 (-4.79%) |
 | **Métodos** | 73 | 70 | -3 |
 
@@ -55,6 +55,7 @@ Sprint 30 extraiu **3 métodos de gerenciamento de zonas/arena** do MainViewMode
 ## 🎯 Destaques Técnicos
 
 ### Algoritmo de Ajuste Inteligente (`add_roi_polygon`)
+
 - Calcula centroide da arena
 - Usa `cv2.pointPolygonTest()` com distância assinada
 - Identifica pontos a ≤3 pixels fora do boundary
@@ -62,6 +63,7 @@ Sprint 30 extraiu **3 métodos de gerenciamento de zonas/arena** do MainViewMode
 - Conversão para Python float (JSON serialization)
 
 ### Validação em Dois Passos
+
 1. **Ajuste:** Corrige pontos ligeiramente fora
 2. **Validação:** Verifica pontos ajustados
 3. **Decisão:** Usa ajustados se válidos
@@ -72,7 +74,7 @@ Sprint 30 extraiu **3 métodos de gerenciamento de zonas/arena** do MainViewMode
 ## 📊 Progresso Total (Sprints 24-30)
 
 | Sprint | Redução | MainViewModel Após | % Acumulado |
-|--------|---------|-------------------|-------------|
+| -------- | --------- | ------------------- | ------------- |
 | 24 | -693 | 4,534 | -13.3% |
 | 25 | -275 | 4,259 | -18.5% |
 | 26 | -364 | 3,895 | -25.5% |

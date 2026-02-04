@@ -61,6 +61,7 @@ class ApplicationGUI:
 ### EXEMPLO 1: Extrair Método Completo (DialogManager)
 
 **Antes (em gui.py):**
+
 ```python
 def show_error(self, title, message):
     """Shows an error message box."""
@@ -68,6 +69,7 @@ def show_error(self, title, message):
 ```
 
 **Depois (em dialog_manager.py):**
+
 ```python
 def show_error(self, title, message):
     """Shows an error message box."""
@@ -75,6 +77,7 @@ def show_error(self, title, message):
 ```
 
 **Depois (em gui.py - update call):**
+
 ```python
 # OLD: messagebox.showerror(title, message)
 # NEW:
@@ -84,6 +87,7 @@ self.dialog_manager.show_error(title, message)
 ### EXEMPLO 2: Extrair Lógica Parcial (ValidationManager)
 
 **Antes (em gui.py):**
+
 ```python
 def _on_auto_detect_clicked(self, stabilization_frames: int | str | None = None):
     """Handler for the auto-detect button."""
@@ -105,6 +109,7 @@ def _on_auto_detect_clicked(self, stabilization_frames: int | str | None = None)
 ```
 
 **Depois (em validation_manager.py - extract validation):**
+
 ```python
 def validate_positive_integer(self, value: int | str | None, 
                              field_name: str) -> int | None:
@@ -127,6 +132,7 @@ def validate_positive_integer(self, value: int | str | None,
 ```
 
 **Depois (em gui.py - simplified call):**
+
 ```python
 def _on_auto_detect_clicked(self, stabilization_frames: int | str | None = None):
     """Handler for the auto-detect button."""
@@ -150,6 +156,7 @@ def _on_auto_detect_clicked(self, stabilization_frames: int | str | None = None)
 ### EXEMPLO 3: Extrair Método com Dependências (WidgetFactory)
 
 **Antes (em gui.py):**
+
 ```python
 def _create_main_controls_tab(self):
     """Creates the tab with the main project controls."""
@@ -168,6 +175,7 @@ def _create_main_controls_tab(self):
 ```
 
 **Depois (em widget_factory.py):**
+
 ```python
 def create_main_controls_tab(self):
     """Creates the tab with the main project controls."""
@@ -185,7 +193,8 @@ def create_main_controls_tab(self):
         self._create_pre_recorded_controls(controls_container)
 ```
 
-**Depois (em gui.py - call in __init__ or setup):**
+**Depois (em gui.py - call in **init** or setup):**
+
 ```python
 # In _create_main_control_frame() or wherever it's called:
 self.widget_factory.create_main_controls_tab()
@@ -227,15 +236,15 @@ class TestDialogManager:
 1. **ValidationManager** (PRIMEIRO)
    - Sem dependências
    - Base para outros componentes
-   
+
 2. **DialogManager** (SEGUNDO)
    - Usa ValidationManager
    - Padrão direto (wrapper para tkinter)
-   
+
 3. **WidgetFactory** (TERCEIRO)
    - Usa ValidationManager e DialogManager
    - Maior volume de código
-   
+
 4. **ProjectViewManager** (QUARTO)
    - Usa ValidationManager
    - Bastante independente
@@ -307,4 +316,3 @@ def handle_roi_import_workflow(self, file_path: str) -> dict | None:
     
     return data
 ```
-

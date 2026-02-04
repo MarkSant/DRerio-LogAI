@@ -9,6 +9,7 @@
 ## 🎯 Summary
 
 The `apply_project_model_overrides` method exists in **two locations** with **different signatures** and **purposes**. This is **NOT duplication** - it's an intentional architectural separation between:
+
 1. **Stateless service layer** (ProjectWorkflowService) - uses dependency injection callbacks
 2. **Stateful orchestrator layer** (ProjectOrchestrator) - has direct MainViewModel reference
 
@@ -21,6 +22,7 @@ The `apply_project_model_overrides` method exists in **two locations** with **di
 **Location**: `src/zebtrack/core/project_workflow_service.py:284-340`
 
 **Signature**:
+
 ```python
 def apply_project_model_overrides(
     self,
@@ -33,16 +35,19 @@ def apply_project_model_overrides(
 **Purpose**: Stateless service method for project workflows (create/open)
 
 **Key Characteristics**:
+
 - ✅ **Stateless** - no MainViewModel reference
 - ✅ **Pure DI** - receives callbacks to apply settings
 - ✅ **Used in workflows** - `create_project()` and `open_project()`
 - ✅ **Flexible** - caller controls how settings are applied
 
 **Call Sites** (2 internal):
+
 1. `ProjectWorkflowService.create_project()` (line 570)
 2. `ProjectWorkflowService.open_project()` (line 676)
 
 **Example Usage**:
+
 ```python
 # In create_project()
 self.apply_project_model_overrides(
@@ -59,6 +64,7 @@ self.apply_project_model_overrides(
 **Location**: `src/zebtrack/orchestrators/project_orchestrator.py:468-502`
 
 **Signature**:
+
 ```python
 def apply_project_model_overrides(
     self,
@@ -69,18 +75,21 @@ def apply_project_model_overrides(
 **Purpose**: Orchestrator method with direct MainViewModel access
 
 **Key Characteristics**:
+
 - ✅ **Stateful** - has `self.main_view_model` reference
 - ✅ **Direct calls** - calls `self._apply_model_settings()` directly
 - ✅ **Simpler API** - no callbacks needed
 - ✅ **Used by other orchestrators** - CalibrationOrchestrator, etc
 
 **Call Sites** (4 total):
+
 1. `ProjectOrchestrator.save_current_calibration_to_project()` (line 407)
 2. `ProjectOrchestrator.save_project_model_overrides()` (line 532)
 3. `CalibrationOrchestrator.global_calibration_session()` (line 156 - via project_orchestrator)
 4. `MainViewModel.apply_project_model_overrides()` (line 1514 - facade)
 
 **Example Usage**:
+
 ```python
 # In save_current_calibration_to_project()
 self.apply_project_model_overrides(overrides)  # No callbacks needed
@@ -93,12 +102,14 @@ self.apply_project_model_overrides(overrides)  # No callbacks needed
 ### Why Two Implementations?
 
 #### **Service Layer (ProjectWorkflowService)** 🔄
+
 - **Role**: Stateless orchestration of complex workflows
 - **Constraint**: Cannot depend on MainViewModel directly
 - **Solution**: Accept callbacks for applying settings
 - **Benefit**: Testable without MainViewModel, reusable in different contexts
 
 #### **Orchestrator Layer (ProjectOrchestrator)** 🎯
+
 - **Role**: Stateful coordination with MainViewModel reference
 - **Constraint**: Already has MainViewModel access via `__init__`
 - **Solution**: Call MainViewModel methods directly
@@ -109,9 +120,9 @@ self.apply_project_model_overrides(overrides)  # No callbacks needed
 ## 📊 Comparison Table
 
 | Aspect | ProjectWorkflowService | ProjectOrchestrator |
-|--------|------------------------|---------------------|
+| -------- | ------------------------ | --------------------- |
 | **Layer** | Service (stateless) | Orchestrator (stateful) |
-| **MainViewModel Reference** | ❌ NO | ✅ YES (via __init__) |
+| **MainViewModel Reference** | ❌ NO | ✅ YES (via **init**) |
 | **Callbacks Required** | ✅ YES (2 callbacks) | ❌ NO |
 | **Used In** | Project create/open workflows | Model override save/restore |
 | **Call Sites** | 2 (internal) | 4 (internal + external) |
@@ -124,7 +135,8 @@ self.apply_project_model_overrides(overrides)  # No callbacks needed
 ## 🔍 Code Flow Comparison
 
 ### Flow 1: ProjectWorkflowService (Create Project)
-```
+
+```text
 User creates project
   → ProjectWorkflowAdapter.create_project_workflow()
     → ProjectWorkflowService.create_project(
@@ -137,7 +149,8 @@ User creates project
 ```
 
 ### Flow 2: ProjectOrchestrator (Save Calibration)
-```
+
+```text
 User saves calibration
   → CalibrationDialog.on_save()
     → controller.save_current_calibration_to_project()
@@ -152,14 +165,16 @@ User saves calibration
 
 ## ✅ Validation: Not True Duplication
 
-### Evidence:
+### Evidence
+
 1. ✅ **Different purposes** - workflows vs model override management
 2. ✅ **Different coupling** - stateless vs stateful
 3. ✅ **Different call sites** - no overlap
 4. ✅ **Different constraints** - DI callbacks vs direct access
 5. ✅ **Both are used** - 2 call sites vs 4 call sites
 
-### Conclusion:
+### Conclusion
+
 This is **intentional architectural separation**, not accidental duplication.
 
 ---
@@ -169,6 +184,7 @@ This is **intentional architectural separation**, not accidental duplication.
 While not true duplication, there IS code similarity that could be DRY'd:
 
 ### Option A: Extract Common Logic ✨
+
 ```python
 # In ProjectOrchestrator
 def apply_project_model_overrides(self, overrides: dict | None = None):
@@ -181,27 +197,32 @@ def apply_project_model_overrides(self, overrides: dict | None = None):
 ```
 
 **Benefits**:
+
 - ✅ Single source of truth for override logic
 - ✅ Eliminates code similarity
 - ✅ Maintains separate interfaces
 
 **Risks**:
+
 - ⚠️ Adds slight indirection
 - ⚠️ ProjectOrchestrator now depends on ProjectWorkflowService
 - ⚠️ Requires careful testing of callback passing
 
 ### Option B: Keep As-Is (RECOMMENDED) ✅
+
 ```python
 # Current state - both implementations remain
 ```
 
 **Benefits**:
+
 - ✅ Clear separation of concerns
 - ✅ No new dependencies
 - ✅ Already working correctly
 - ✅ Easy to understand
 
 **Trade-off**:
+
 - ⚠️ ~30 lines of similar logic maintained separately
 - ✅ Worth it for clarity and independence
 
@@ -212,6 +233,7 @@ def apply_project_model_overrides(self, overrides: dict | None = None):
 **KEEP AS-IS** ✅
 
 **Rationale**:
+
 1. The duplication is **intentional and justified**
 2. The code similarity (~30 lines) is **acceptable** for architectural clarity
 3. Consolidation would add **dependency coupling** without significant benefit
@@ -227,10 +249,12 @@ def apply_project_model_overrides(self, overrides: dict | None = None):
 Both implementations are tested independently:
 
 ### ProjectWorkflowService Tests
+
 - ✅ `tests/core/test_project_workflow_service.py` - workflow scenarios
 - ✅ Callbacks mocked and verified
 
 ### ProjectOrchestrator Tests
+
 - ✅ `tests/orchestrators/test_project_orchestrator.py` - override management
 - ✅ MainViewModel integration verified
 

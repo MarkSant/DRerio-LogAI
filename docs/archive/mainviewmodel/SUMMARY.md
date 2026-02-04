@@ -34,7 +34,7 @@ to dedicated services and coordinators.
 ### To Coordinators
 
 | Coordinator | Responsibilities Moved |
-|-------------|----------------------|
+| ------------- | ---------------------- |
 | `ProcessingCoordinator` | Video processing, frame analysis, overlay rendering |
 | `HardwareCoordinator` | Camera initialization, Arduino management |
 | `SessionCoordinator` | Analysis session lifecycle, recording control |
@@ -43,7 +43,7 @@ to dedicated services and coordinators.
 ### To Services
 
 | Service | Responsibilities Moved |
-|---------|----------------------|
+| --------- | ---------------------- |
 | `WizardService` | Project creation workflow, hardware detection cache |
 | `LiveCameraService` | Live camera analysis, real-time preview |
 | `RecordingService` | Recording coordination, session timing |
@@ -84,7 +84,7 @@ class MainViewModel:
 ## Metrics
 
 | Metric | Before | After | Change |
-|--------|--------|-------|--------|
+| -------- | -------- | ------- | -------- |
 | Lines of code | ~4,500 | ~3,200 | -29% |
 | Methods | 150+ | ~80 | -47% |
 | Dependencies | 8 | 11 | +3 (explicit) |

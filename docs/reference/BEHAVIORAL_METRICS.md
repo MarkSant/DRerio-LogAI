@@ -70,6 +70,7 @@ For lateral-view aquariums (`aquarium_perspective: lateral`), geotaxis analysis 
 Zone names in reports display as 1-indexed: "Zona 1 - Fundo" (Zone 0), "Zona 2" (Zone 1), etc.
 
 **Configuration** (in `behavioral_config` or project settings):
+
 - `geotaxis_enabled`: Enable/disable geotaxis calculation
 - `geotaxis_distance_cm`: Threshold for "near bottom" classification
 - `geotaxis_num_zones`: Number of vertical zones (default: 3)

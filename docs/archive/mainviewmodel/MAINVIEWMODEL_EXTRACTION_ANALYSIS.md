@@ -1,4 +1,7 @@
+<!-- markdownlint-disable MD024 -->
+
 # MainViewModel Extraction Analysis Report (UPDATED)
+
 **Date**: 2025-11-14 (Updated after Sprints 29-34)
 **Current Size**: 2,659 lines
 **Previous Extractions**: Sprints 24-34 (11 orchestrator extractions)
@@ -8,12 +11,14 @@
 ## Executive Summary
 
 After completing Sprints 29-34, MainViewModel has been significantly reduced:
+
 - **144 total methods** (up 1 from previous count - proper accounting)
 - **100 facade methods** (~400 lines) - simple delegation to orchestrators
 - **44 real methods** (~1,450 lines estimated) - actual implementation logic
 - **809 lines** overhead (imports, class definition, comments, docstrings)
 
 **Completed Sprints 29-34**: Successfully extracted 1,262 lines across 27 methods
+
 - Sprint 29: ModelDiagnosticsOrchestrator (7 methods)
 - Sprint 30: ZoneArenaOrchestrator (3 methods)
 - Sprint 31: ProcessingConfigOrchestrator (7 methods)
@@ -28,23 +33,26 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 ## 1. Summary Statistics
 
 ### Method Breakdown (CURRENT STATE - After Sprint 34)
+
 | Category | Count | Lines | Percentage |
-|----------|-------|-------|------------|
+| ---------- | ------- | ------- | ------------ |
 | **Facade Methods** | 100 | ~400 | 15% |
 | **Real Methods** | 44 | ~1,450 | 55% |
 | **Overhead** | N/A | ~809 | 30% |
 | **TOTAL** | 144 | 2,659 | 100% |
 
 ### Real Method Size Distribution
+
 | Size Category | Count | Total Lines |
-|---------------|-------|-------------|
+| --------------- | ------- | ------------- |
 | Large (>50 lines) | 3 | ~333 lines |
 | Medium (20-50 lines) | 13 | ~390 lines |
 | Small (<20 lines) | 33 | ~400 lines |
 
 ### Progress Tracking
+
 | Sprint | Status | Methods | Lines Extracted | New Orchestrator |
-|--------|--------|---------|-----------------|------------------|
+| -------- | -------- | --------- | ----------------- | ------------------ |
 | **Sprint 24** | ✅ DONE | 15 | ~380 | VideoProcessingOrchestrator |
 | **Sprint 25** | ✅ DONE | 4 | ~80 | AnalysisOrchestrator |
 | **Sprint 26** | ✅ DONE | 3 | ~70 | RecordingSessionOrchestrator |
@@ -65,10 +73,11 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 ## 2. Completed Extractions (Sprints 29-33) ✅
 
 ### Sprint 29: Model Diagnostics Orchestrator ✅ **COMPLETED**
-**Extracted: 7 methods, ~499 lines**
+
+### Extracted: 7 methods, ~499 lines
 
 | Method | Lines | Status |
-|--------|-------|--------|
+| -------- | ------- | -------- |
 | `run_model_diagnostic` | 103 | ✅ Extracted |
 | `_format_diagnostic_report` | 107 | ✅ Extracted |
 | `_run_diagnostic_frame_loop` | 88 | ✅ Extracted |
@@ -82,10 +91,11 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 ---
 
 ### Sprint 30: Zone & Arena Orchestrator ✅ **COMPLETED**
-**Extracted: 3 methods, ~186 lines**
+
+### Extracted: 3 methods, ~186 lines
 
 | Method | Lines | Status |
-|--------|-------|--------|
+| -------- | ------- | -------- |
 | `add_roi_polygon` | 126 | ✅ Extracted |
 | `set_main_arena_polygon` | 50 | ✅ Extracted |
 | `save_manual_arena` | 10 | ✅ Extracted |
@@ -97,10 +107,11 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 ---
 
 ### Sprint 31: Processing Configuration Orchestrator ✅ **COMPLETED**
-**Extracted: 7 methods, ~245 lines**
+
+### Extracted: 7 methods, ~245 lines
 
 | Method | Lines | Status |
-|--------|-------|--------|
+| -------- | ------- | -------- |
 | `_temporary_single_animal_mode` | 65 | ✅ Extracted |
 | `_resolve_single_subject_tracker_preference` | 55 | ✅ Extracted |
 | `_resolve_single_animal_mode` | 36 | ✅ Extracted |
@@ -114,10 +125,11 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 ---
 
 ### Sprint 32: Calibration Orchestrator ✅ **COMPLETED**
-**Extracted: 3 methods, ~70 lines net reduction**
+
+### Extracted: 3 methods, ~70 lines net reduction
 
 | Method | Lines | Status |
-|--------|-------|--------|
+| -------- | ------- | -------- |
 | `get_calibration_scope_info` | 56 | ✅ Extracted |
 | `_build_calibration_context` | 24 | ✅ Extracted |
 | `global_calibration_session` | 19 | ✅ Extracted |
@@ -126,7 +138,8 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 
 **Verification**: All methods successfully extracted and replaced with thin facades ✅
 
-**Impact**:
+### Impact
+
 - Isolated all calibration scope and context management logic
 - MainViewModel reduced from 2,989 to 2,919 lines (-70 lines)
 - Improved testability of calibration workflows
@@ -135,27 +148,31 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 ---
 
 ### Sprint 33: Live Camera Enhancement ✅ **COMPLETED**
-**Extracted: 2 methods, ~220 lines net reduction**
+
+### Extracted: 2 methods, ~220 lines net reduction
 
 | Method | Lines | Destination | Status |
-|--------|-------|-------------|--------|
+| -------- | ------- | ------------- | -------- |
 | `start_live_camera_analysis_from_config` | 148 | LiveCameraCoordinator.start_session_from_config | ✅ Extracted |
 | `_ensure_zones_before_recording` | 93 | RecordingSessionOrchestrator._ensure_zones_before_recording | ✅ Extracted |
 
-**Enhanced Files**:
+### Enhanced Files
+
 - `src/zebtrack/coordinators/live_camera_coordinator.py` (+160 lines)
 - `src/zebtrack/orchestrators/recording_session_orchestrator.py` (+90 lines)
 
 **Verification**: All methods successfully extracted and replaced with thin facades ✅
 
-**Impact**:
+### Impact
+
 - Removed two of the largest remaining real methods from MainViewModel
 - Consolidated live camera configuration logic into dedicated coordinator
 - Enhanced zone validation for live projects in recording orchestrator
 - MainViewModel reduced from 2,919 to 2,699 lines (-220 lines)
 - Improved testability of live camera and recording workflows
 
-**Critical Fixes**:
+### Critical Fixes
+
 - ✅ Fixed camera_index configuration respect in single video analysis
 - ✅ Fixed analysis_interval_frames and display_interval_frames being ignored
 - ✅ Fixed zone validation for live projects vs. regular projects
@@ -166,7 +183,7 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 ## 3. Top 15 Largest Real Methods (Current State - After Sprint 33)
 
 | Rank | Method | Lines | Range | Description | Status |
-|------|--------|-------|-------|-------------|--------|
+| ------ | -------- | ------- | ------- | ------------- | -------- |
 | 1 | `__init__` | ~280 | 127-406 | Dependency injection setup | ⚠️ KEEP (core initialization) |
 | 2 | `_init_coordinators` | ~192 | 420-606 | Initialize all coordinators | ⚠️ KEEP (core initialization) |
 | 3 | `apply_project_settings_to_batch` | ~87 | 2413-2499 | Apply settings to multiple videos | 🔍 Sprint 34 candidate |
@@ -183,7 +200,8 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 | 14 | `_persist_project_model_settings` | ~26 | 1449-1474 | Persist model settings to project | 🔍 Sprint 34 candidate |
 | 15 | `_process_videos` | ~26 | 2533-2558 | Process multiple videos | ✅ Coordination wrapper |
 
-**Current Assessment:**
+### Current Assessment
+
 - ✅ **Extracted (Sprints 32-33)**: All planned methods successfully removed
 - ⚠️ **KEEP**: Core initialization, complex coordination, high coupling
 - ✅ **Facade**: Thin wrappers that delegate to services (minimal logic)
@@ -197,7 +215,7 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 
 **Goal**: Optimize remaining code structure and remove minor inefficiencies
 
-**Specific Tasks**:
+### Specific Tasks
 
 1. **Consolidate Project Model Override Methods** (~50 lines potential reduction)
    - `apply_project_model_overrides` (32 lines)
@@ -233,7 +251,7 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 
 **Goal**: Comprehensive documentation update to reflect final refactored architecture
 
-**Documentation Tasks**:
+### Documentation Tasks
 
 1. **Update Core Architecture Docs** (Priority: HIGH)
    - `docs/ARCHITECTURE.md`: Add final orchestrator list (10 orchestrators)
@@ -264,7 +282,8 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
    - Update "Phase" annotations to "Sprint" annotations
    - Add consistent logging patterns
 
-**Expected Impact**:
+### Expected Impact
+
 - ~30 lines code cleanup (improved docstrings, type hints)
 - Comprehensive architecture documentation
 - Improved developer onboarding
@@ -279,7 +298,7 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 ## 5. Projected Final State (After Sprints 34-35)
 
 | Metric | Sprint 24 Start | After Sprint 31 | After Sprint 33 | After Sprint 34 (Est) | After Sprint 35 (Est) |
-|--------|-----------------|-----------------|-----------------|----------------------|----------------------|
+| -------- | ----------------- | ----------------- | ----------------- | ---------------------- | ---------------------- |
 | **Total Lines** | 3,709 | 2,989 | 2,701 | 2,600-2,650 | 2,570-2,620 |
 | **Real Methods** | ~90 | 64 | 49 | 45-47 | 45-47 |
 | **Facade Methods** | ~50 | 79 | 95 | 95-97 | 95-97 |
@@ -289,7 +308,8 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 
 **Projected Total Reduction**: **3,709 → ~2,600 lines** (30% reduction, ~1,100 lines total)
 
-**Final Architecture (After Sprint 35)**:
+### Final Architecture (After Sprint 35)
+
 - **10 orchestrators** handling specialized domains:
   1. VideoProcessingOrchestrator
   2. AnalysisOrchestrator
@@ -314,6 +334,7 @@ After completing Sprints 29-34, MainViewModel has been significantly reduced:
 After completing Sprints 32-35, MainViewModel should achieve:
 
 ### Primary Goals (Sprints 24-33) - ✅ **ACHIEVED**
+
 - ✅ Be under 2,700 lines → **Achieved: 2,701 lines** (27% reduction from 3,709)
 - ✅ Have <50 real methods → **Achieved: 49 real methods**
 - ✅ Have 10+ orchestrators → **Achieved: 10 orchestrators created/enhanced**
@@ -321,6 +342,7 @@ After completing Sprints 32-35, MainViewModel should achieve:
 - ✅ No regression in functionality → **Achieved: No bugs reported**
 
 ### Secondary Goals (Sprints 34-35) - 📋 **IN PLANNING**
+
 - 📋 Reach ~2,600 lines (additional 3-4% reduction)
 - 📋 Optimize remaining 45-47 real methods
 - 📋 Complete comprehensive documentation
@@ -333,7 +355,8 @@ After completing Sprints 32-35, MainViewModel should achieve:
 
 ## 8. Risk Mitigation Strategy
 
-### For Each Sprint:
+### For Each Sprint
+
 1. **Before Extraction**:
    - ✅ Read all related tests
    - ✅ Document all dependencies
@@ -351,6 +374,7 @@ After completing Sprints 32-35, MainViewModel should achieve:
    - ✅ Update documentation (CLAUDE.md, ARCHITECTURE.md)
 
 **Sprints 29-33 Results**: ✅ ALL CHECKS PASSED
+
 - ✅ All 2,568 tests passing
 - ✅ No regressions detected
 - ✅ Code quality maintained (ruff clean)
@@ -362,11 +386,13 @@ After completing Sprints 32-35, MainViewModel should achieve:
 ## 7. Completed Extraction Roadmap (Sprints 32-33) ✅
 
 ### Sprint 32: Calibration Orchestrator ✅ **COMPLETED**
+
 **Timeline**: Completed in 1 day
 **Complexity**: MEDIUM
 **Value**: MEDIUM
 
-**Actual Results**:
+### Actual Results
+
 - ✅ Created `src/zebtrack/orchestrators/calibration_orchestrator.py` (156 lines)
 - ✅ Extracted 3 methods:
   - `get_calibration_scope_info` (56 lines)
@@ -377,7 +403,8 @@ After completing Sprints 32-35, MainViewModel should achieve:
 - ✅ All tests passing: `poetry run pytest -q`
 - ✅ Committed: "refactor: Extract CalibrationOrchestrator (Sprint 32)"
 
-**Actual Output**:
+### Actual Output
+
 - New file: `orchestrators/calibration_orchestrator.py` (156 lines)
 - MainViewModel: -70 lines net reduction (2,989 → 2,919)
 - 3 new facade methods added
@@ -385,11 +412,13 @@ After completing Sprints 32-35, MainViewModel should achieve:
 ---
 
 ### Sprint 33: Live Camera Enhancement ✅ **COMPLETED**
+
 **Timeline**: Completed in 2 days
 **Complexity**: HIGH
 **Value**: HIGH
 
-**Actual Results**:
+### Actual Results
+
 - ✅ Enhanced `coordinators/live_camera_coordinator.py`
 - ✅ Moved `start_live_camera_analysis_from_config` → `start_session_from_config` (160 lines)
 - ✅ Moved `_ensure_zones_before_recording` to `RecordingSessionOrchestrator` (90 lines)
@@ -398,7 +427,8 @@ After completing Sprints 32-35, MainViewModel should achieve:
 - ✅ All 2,568 tests passing
 - ✅ Committed: "refactor: Extract live camera methods (Sprint 33)"
 
-**Actual Output**:
+### Actual Output
+
 - Enhanced: `coordinators/live_camera_coordinator.py` (+160 lines)
 - Enhanced: `orchestrators/recording_session_orchestrator.py` (+90 lines)
 - MainViewModel: -220 lines net reduction (2,919 → 2,699)
@@ -408,12 +438,14 @@ After completing Sprints 32-35, MainViewModel should achieve:
 ---
 
 ### Sprint 34: Model Settings Consolidation ✅ **COMPLETED**
+
 **Date**: 2025-01-14
 **Timeline**: 1 day (faster than planned)
 **Complexity**: LOW
 **Value**: MEDIUM
 
-**Completed Steps**:
+### Completed Steps
+
 1. ✅ **Phase 1: Analysis** - Analyzed cleanup opportunities
    - Identified 5 model settings methods (~98 lines logic)
    - Discovered duplication in ProjectWorkflowService (documented)
@@ -444,11 +476,13 @@ After completing Sprints 32-35, MainViewModel should achieve:
 ---
 
 ### Sprint 35: Documentation & Polish 📋 **RECOMMENDED FINAL**
+
 **Timeline**: 1-2 days
 **Complexity**: LOW
 **Value**: HIGH (long-term maintainability)
 
-**Recommended Steps**:
+### Recommended Steps
+
 1. **Phase 1: Core Docs Update** (Day 1 morning)
    - Update `docs/ARCHITECTURE.md` with 10 orchestrators
    - Update `docs/CLAUDE.md` Core Layers section
@@ -484,10 +518,11 @@ After completing Sprints 32-35, MainViewModel should achieve:
 MainViewModel refactoring has achieved **exceptional success**:
 
 ### **Completed Extractions (Sprints 24-33)** ✅
+
 **10 orchestrators created/enhanced**, **1,008 lines extracted** (27.2% reduction)
 
 | Sprint | Orchestrator | Status |
-|--------|--------------|--------|
+| -------- | -------------- | -------- |
 | 24 | VideoProcessingOrchestrator | ✅ Complete |
 | 25 | AnalysisOrchestrator | ✅ Complete |
 | 26 | RecordingSessionOrchestrator | ✅ Complete |
@@ -500,6 +535,7 @@ MainViewModel refactoring has achieved **exceptional success**:
 | 33 | LiveCameraCoordinator (enhanced) | ✅ Complete |
 
 ### **Metrics Achieved** 🎯
+
 - **Starting Point (Sprint 28)**: 3,709 lines, ~90 real methods, ~50 facades
 - **Current State (Sprint 34)**: 2,659 lines, 44 real methods, 100 facades
 - **Reduction**: 1,050 lines (28.3%)
@@ -507,6 +543,7 @@ MainViewModel refactoring has achieved **exceptional success**:
 - **Code Quality**: Ruff clean, no regressions ✅
 
 ### **Architectural Improvements** 🏗️
+
 - ✅ **Clear Separation of Concerns**: Each orchestrator handles a specific domain
 - ✅ **Improved Testability**: Orchestrators can be tested in isolation
 - ✅ **Reduced Coupling**: MainViewModel now delegates to specialized components
@@ -514,11 +551,13 @@ MainViewModel refactoring has achieved **exceptional success**:
 - ✅ **Facade Pattern**: 95 thin delegation methods provide clean API
 
 ### **Remaining Work (Optional Sprints 34-35)** 📋
+
 - 📋 **Sprint 34**: Code cleanup and optimization (~50-100 lines)
 - 📋 **Sprint 35**: Comprehensive documentation update (~30 lines polish)
 - 📋 **Final Target**: ~2,600 lines (30% total reduction)
 
 ### **Key Success Factors** 🌟
+
 1. **Incremental Approach**: One sprint at a time, full testing after each
 2. **Facade Pattern**: Preserved API compatibility while extracting logic
 3. **Comprehensive Testing**: 2,568 tests caught all regressions
@@ -526,12 +565,14 @@ MainViewModel refactoring has achieved **exceptional success**:
 5. **Bug Fixes**: Sprint 33 fixed 4 critical live camera bugs as bonus
 
 ### **Final Assessment** ✨
+
 The MainViewModel refactoring has successfully transformed a monolithic 3,709-line class into a well-architected coordinator with clear responsibilities. The extraction of 10 orchestrators has **dramatically improved code maintainability** while preserving 100% test coverage and functionality.
 
 **The refactoring goals have been met and exceeded.** Sprints 34-35 are recommended for polish but are optional - the core refactoring work is complete.
 
 ---
 
-**End of Updated Report (Post-Sprint 33)**
+### End of Updated Report (Post-Sprint 33)
+
 **Last Updated**: 2025-11-14
 **Status**: ✅ Primary goals achieved, optional polish remaining

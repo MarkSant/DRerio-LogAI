@@ -15,7 +15,7 @@ Criado o arquivo `src/zebtrack/ui/components/dialog_manager.py` com 711 linhas e
 Métodos que encapsulam `tkinter.messagebox`:
 
 | Método | Descrição | Retorno |
-|--------|-----------|---------|
+| -------- | ----------- | --------- |
 | `show_error(title, message)` | Exibe messagebox de erro | None |
 | `show_warning(title, message)` | Exibe messagebox de aviso | None |
 | `show_info(title, message)` | Exibe messagebox de informação | None |
@@ -28,7 +28,7 @@ Métodos que encapsulam `tkinter.messagebox`:
 Métodos que encapsulam `tkinter.filedialog`:
 
 | Método | Descrição | Retorno |
-|--------|-----------|---------|
+| -------- | ----------- | --------- |
 | `ask_directory(title, initial_dir)` | Seleciona diretório | str |
 | `ask_open_filename(title, filetypes, initial_dir)` | Seleciona arquivo único | str |
 | `ask_open_filenames(title, filetypes, initial_dir)` | Seleciona múltiplos arquivos | tuple[str, ...] |
@@ -38,14 +38,14 @@ Métodos que encapsulam `tkinter.filedialog`:
 ### 3. Custom Dialogs - Calibration (2 métodos)
 
 | Método | Descrição |
-|--------|-----------|
+| -------- | ----------- |
 | `open_global_calibration_window()` | Abre CalibrationDialog para calibração global |
 | `open_project_calibration_window()` | Abre CalibrationDialog para projeto específico |
 
 ### 4. Custom Dialogs - ROI Templates (3 métodos)
 
 | Método | Descrição | Retorno |
-|--------|-----------|---------|
+| -------- | ----------- | --------- |
 | `show_template_save_dialog(...)` | Abre SaveROITemplateDialog | dict \| None |
 | `import_roi_template()` | Importa template para biblioteca | None |
 | `import_and_apply_roi_template()` | Importa e aplica template ao vídeo | None |
@@ -53,7 +53,7 @@ Métodos que encapsulam `tkinter.filedialog`:
 ### 5. Custom Dialogs - Analysis (3 métodos)
 
 | Método | Descrição | Retorno |
-|--------|-----------|---------|
+| -------- | ----------- | --------- |
 | `open_center_periphery_dialog()` | Abre CenterPeripheryDialog | dict \| None |
 | `open_template_rois_dialog()` | Abre TemplateDialog | dict \| None |
 | `open_single_video_config_dialog()` | Abre SingleVideoConfigDialog | dict \| None |
@@ -61,7 +61,7 @@ Métodos que encapsulam `tkinter.filedialog`:
 ### 6. Custom Dialogs - Project & Recording (4 métodos)
 
 | Método | Descrição | Retorno |
-|--------|-----------|---------|
+| -------- | ----------- | --------- |
 | `show_pending_videos_dialog(...)` | Exibe diálogo hierárquico de vídeos pendentes | dict \| None |
 | `ask_recording_details_unified()` | Solicita detalhes de gravação (dia/grupo/sujeito) | dict \| None |
 | `ask_missing_metadata(experiment_id)` | Solicita metadata faltante | dict \| None |
@@ -72,7 +72,7 @@ Métodos que encapsulam `tkinter.filedialog`:
 Métodos especializados para confirmações específicas:
 
 | Método | Descrição | Retorno |
-|--------|-----------|---------|
+| -------- | ----------- | --------- |
 | `confirm_delete_roi_template(...)` | Confirma deleção de template | bool |
 | `confirm_remove_roi(roi_name)` | Confirma remoção de ROI | bool |
 | `confirm_save_polygon_before_analysis()` | Confirma salvar polígono antes de análise | bool \| None |
@@ -81,14 +81,14 @@ Métodos especializados para confirmações específicas:
 ### 8. Notification Dialogs (2 métodos)
 
 | Método | Descrição |
-|--------|-----------|
+| -------- | ----------- |
 | `show_external_trigger_notice(session_label, **details)` | Exibe aviso de trigger externo |
 | `clear_external_trigger_notice()` | Limpa aviso de trigger |
 
 ### 9. Utility Methods (2 métodos)
 
 | Método | Descrição |
-|--------|-----------|
+| -------- | ----------- |
 | `show_progress_bar()` | Exibe barra de progresso |
 | `open_path_in_explorer(target_path)` | Abre path no explorador de arquivos |
 
@@ -102,22 +102,29 @@ Métodos especializados para confirmações específicas:
 ## Padrões de Design
 
 ### 1. Encapsulamento
+
 Todos os diálogos são acessados através do DialogManager, evitando chamadas diretas a `messagebox`, `filedialog`, etc. em `gui.py`.
 
 ### 2. Type Hints
+
 Todos os métodos possuem type hints completos para parâmetros e retornos.
 
 ### 3. Docstrings
+
 Cada método possui docstring detalhado no formato Google-style com:
+
 - Descrição clara
 - Args documentados
 - Returns documentados
 
 ### 4. Organização por Categoria
+
 Métodos agrupados por funcionalidade com separadores visuais para facilitar navegação.
 
 ### 5. Delegação
+
 DialogManager mantém referência ao `gui` para:
+
 - Acessar `gui.root` (parent de dialogs)
 - Acessar `gui.controller` (acesso a serviços)
 - Chamar métodos de refresh de UI após operações
@@ -125,6 +132,7 @@ DialogManager mantém referência ao `gui` para:
 ## Dependências
 
 ### Imports Externos
+
 - `os`, `subprocess`, `sys`: Utilitários do sistema
 - `pathlib.Path`: Manipulação de paths
 - `tkinter.{filedialog, messagebox, simpledialog}`: Diálogos nativos
@@ -132,6 +140,7 @@ DialogManager mantém referência ao `gui` para:
 - `structlog`: Logging estruturado
 
 ### Imports Internos
+
 - `zebtrack.ui.dialogs.*`: 8 classes de dialogs customizados
   - CalibrationDialog
   - CenterPeripheryDialog
@@ -149,12 +158,14 @@ DialogManager mantém referência ao `gui` para:
 Após criar DialogManager, o próximo passo é **refatorar gui.py** para usar este manager:
 
 1. **Adicionar DialogManager ao gui.py**:
+
    ```python
    # Em ApplicationGUI.__init__():
    self.dialog_manager = DialogManager(self)
    ```
 
 2. **Substituir chamadas diretas** por delegação:
+
    ```python
    # ANTES:
    messagebox.showerror("Erro", "Mensagem")
@@ -178,6 +189,7 @@ Após criar DialogManager, o próximo passo é **refatorar gui.py** para usar es
 
 4. **Backward Compatibility Properties**:
    Adicionar properties ao gui.py para manter compatibilidade:
+
    ```python
    @property
    def show_error(self):
@@ -192,11 +204,13 @@ Após criar DialogManager, o próximo passo é **refatorar gui.py** para usar es
 ## Testes
 
 ### Verificações Realizadas
+
 - ✅ Linting: `poetry run ruff check` passou sem erros
 - ✅ Import: Módulo adicionado ao `__init__.py`
 - ✅ Estrutura: 711 linhas, 32 métodos conforme planejado
 
 ### Testes Pendentes
+
 - ⏳ Unit tests para DialogManager
 - ⏳ Integration tests após refatoração de gui.py
 - ⏳ Verificação de coverage

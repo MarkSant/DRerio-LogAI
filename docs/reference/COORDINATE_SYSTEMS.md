@@ -11,20 +11,24 @@ Este documento detalha como o ZebTrack-AI gerencia diferentes espaços de coorde
 O sistema opera em três espaços de coordenadas distintos:
 
 ### 1. Espaço Original do Vídeo
+
 **Dimensões:** Resolução do vídeo capturado (ex: 1920x1080 pixels)
 
 **Usado para:**
+
 - Frames brutos da câmera/vídeo
 - Arena desenhada pelo usuário na interface
 - ROIs desenhadas pelo usuário
 - Detecções brutas do modelo YOLO/OpenVINO
 
 **Características:**
+
 - Pode conter distorção de perspectiva
 - Arena pode ser um polígono irregular
 - Coordenadas absolutas em pixels
 
 **Exemplo:**
+
 ```python
 arena_polygon_original = [
     [150, 200],     # Canto superior esquerdo
@@ -37,19 +41,23 @@ arena_polygon_original = [
 ---
 
 ### 2. Espaço Warped (Corrigido por Perspectiva)
+
 **Dimensões:** Sempre 600×N pixels, onde N é calculado mantendo o aspect ratio real do aquário
 
 **Usado para:**
+
 - Armazenamento de trajetórias no Parquet
 - Cálculos intermediários
 - Normalização de coordenadas
 
 **Características:**
+
 - Arena se torna um retângulo perfeito `[(0,0), (600,0), (600,N), (0,N)]`
 - Correção de perspectiva aplicada via homografia
 - Escala uniforme facilita conversão para centímetros
 
 **Cálculo das dimensões:**
+
 ```python
 target_width_px = 600  # Fixo
 aspect_ratio = aquarium_height_cm / aquarium_width_cm
@@ -63,14 +71,17 @@ target_height_px = 600 * 0.444 = 266 pixels
 ---
 
 ### 3. Espaço em Centímetros (Real)
+
 **Dimensões:** Dimensões físicas informadas pelo usuário (ex: 54×24 cm)
 
 **Usado para:**
+
 - Todas as métricas comportamentais
 - Análise de ROIs
 - Geração de relatórios e gráficos
 
 **Características:**
+
 - Unidades do mundo real
 - Eixo Y invertido (origem no canto inferior esquerdo)
 - Arena sempre é um retângulo `[(0,0), (width_cm,0), (width_cm,height_cm), (0,height_cm)]`
@@ -79,7 +90,7 @@ target_height_px = 600 * 0.444 = 266 pixels
 
 ## Pipeline de Transformações
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │ 1. ESPAÇO ORIGINAL (1920×1080 px)                               │
 │    - Frames capturados                                           │
@@ -116,6 +127,7 @@ target_height_px = 600 * 0.444 = 266 pixels
 ## Fase 1: Captura e Configuração
 
 ### Captura do Vídeo
+
 **Arquivo:** `controller.py:1511-1512`
 
 ```python
@@ -125,6 +137,7 @@ frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) # Ex: 1080
 ```
 
 ### Desenho da Arena
+
 **Interface:** `gui.py`
 
 O usuário desenha um polígono sobre o primeiro frame do vídeo delimitando a área do aquário.
@@ -137,6 +150,7 @@ arena_polygon_px = [[150, 200], [1750, 180], [1800, 920], [100, 950]]
 **Importante:** Estas coordenadas estão em pixels do **vídeo original**.
 
 ### Informação das Dimensões Reais
+
 **Interface:** Dialog na GUI
 
 ```python
@@ -151,9 +165,11 @@ aquarium_height_cm = 24  # Altura FÍSICA do aquário
 ## Fase 2: Calibração
 
 ### Classe Calibration
+
 **Arquivo:** `calibration.py`
 
 A classe `Calibration` é responsável por:
+
 1. Calcular a matriz de homografia
 2. Definir as dimensões do espaço warped
 3. Calcular as razões pixel/cm
@@ -162,6 +178,7 @@ A classe `Calibration` é responsável por:
 ### Processo Interno
 
 #### 1. Encontrar Cantos da Arena
+
 ```python
 # _find_corners() usa cv2.minAreaRect
 corners = cv2.boxPoints(cv2.minAreaRect(arena_polygon_px))
@@ -169,6 +186,7 @@ corners = cv2.boxPoints(cv2.minAreaRect(arena_polygon_px))
 ```
 
 #### 2. Calcular Dimensões Warped
+
 ```python
 target_width_px = 600  # Constante fixa
 aspect_ratio = aquarium_height_cm / aquarium_width_cm
@@ -177,11 +195,13 @@ target_dims_px = (target_width_px, target_height_px)
 ```
 
 **Exemplo:**
+
 - Aquário: 54cm × 24cm
 - Aspect ratio: 24/54 = 0.444
 - Dimensões warped: 600px × 266px
 
 #### 3. Calcular Matriz de Homografia
+
 ```python
 # Pontos de origem (arena no vídeo original)
 source_points = ordered_corners  # 4 cantos encontrados
@@ -204,6 +224,7 @@ homography_matrix = cv2.getPerspectiveTransform(
 Esta matriz permite transformar qualquer ponto do espaço original → warped.
 
 #### 4. Calcular Razões Pixel/CM
+
 ```python
 px_per_cm_x = target_width_px / aquarium_width_cm   # 600 / 54 = 11.11
 px_per_cm_y = target_height_px / aquarium_height_cm # 266 / 24 = 11.08
@@ -215,6 +236,7 @@ pixel_per_cm_ratio = (px_per_cm_x, px_per_cm_y)
 ### Métodos de Transformação
 
 #### transform_point()
+
 ```python
 def transform_point(self, x: float, y: float) -> tuple[float, float]:
     """Transforma um ponto: original → warped"""
@@ -224,6 +246,7 @@ def transform_point(self, x: float, y: float) -> tuple[float, float]:
 ```
 
 #### transform_bbox()
+
 ```python
 def transform_bbox(self, x1, y1, x2, y2) -> tuple:
     """Transforma bounding box: original → warped"""
@@ -242,6 +265,7 @@ def transform_bbox(self, x1, y1, x2, y2) -> tuple:
 ## Fase 3: Detecção e Gravação
 
 ### Loop de Processamento
+
 **Arquivo:** `controller.py:1568-1582`
 
 ```python
@@ -258,6 +282,7 @@ while not self.cancel_event.is_set():
 ```
 
 ### Transformação e Gravação
+
 **Arquivo:** `recorder.py:119-156`
 
 ```python
@@ -294,7 +319,7 @@ def write_detection_data(self, timestamp, frame_number, detections):
 
 ### Exemplo Numérico Completo
 
-```
+```text
 ENTRADA (espaço original 1920×1080):
   Detecção: bbox = (500, 300, 550, 350)
 
@@ -322,6 +347,7 @@ GRAVADO NO PARQUET:
 ## Fase 4: Análise
 
 ### BehavioralAnalyzer
+
 **Arquivo:** `behavior.py:67-81, 140-142`
 
 O `BehavioralAnalyzer` recebe dados já transformados:
@@ -333,6 +359,7 @@ df["y_cm"] = (video_height_px - df["y_center_px"]) / self._pixelcm_y
 ```
 
 **Parâmetros:**
+
 - `video_height_px` = 266 (altura warped)
 - `x_center_px`, `y_center_px` = coordenadas warped (já transformadas)
 - `pixelcm_x` = 11.11, `pixelcm_y` = 11.08
@@ -340,6 +367,7 @@ df["y_cm"] = (video_height_px - df["y_center_px"]) / self._pixelcm_y
 **Inversão do eixo Y:** A subtração `(video_height_px - y)` inverte o eixo Y para que a origem fique no canto **inferior** esquerdo (convenção cartesiana).
 
 ### Arena em Centímetros
+
 **Arquivo:** `controller.py:1950-1955`
 
 ```python
@@ -365,6 +393,7 @@ arena_coords_cm = [
 ```
 
 ### ROIs em Centímetros
+
 **Arquivo:** `controller.py:1958-1972`
 
 ```python
@@ -390,6 +419,7 @@ for i, roi_polygon_original in enumerate(zone_data.roi_polygons):
 ## Fase 5: Geração de Relatórios
 
 ### Gráficos
+
 **Arquivo:** `reporter.py`
 
 Todos os gráficos trabalham diretamente em centímetros:
@@ -417,6 +447,7 @@ ax.set_aspect("equal", adjustable="box")
 ```
 
 ### Exemplo de Saída
+
 - **Eixo X:** 0 a 54 cm (largura do aquário)
 - **Eixo Y:** 0 a 24 cm (altura do aquário)
 - **Arena:** Retângulo perfeito cobrindo toda a área
@@ -430,12 +461,14 @@ ax.set_aspect("equal", adjustable="box")
 ### Teste de Dimensões
 
 **Entrada:**
+
 ```python
 video_resolution = (1920, 1080)  # pixels
 aquarium_real_size = (54, 24)    # cm
 ```
 
 **Saída esperada:**
+
 ```python
 # Espaço warped
 warped_dimensions = (600, 266)  # pixels
@@ -454,11 +487,13 @@ y_axis_range = (0, 24)          # cm
 ### Teste de Transformação
 
 **Ponto no centro da arena (espaço original):**
+
 ```python
 center_original = (960, 540)  # Centro do frame 1920×1080
 ```
 
 **Após transformação:**
+
 ```python
 center_warped = cal.transform_point(960, 540)
 # ≈ (300, 133) - Centro do warped 600×266
@@ -496,6 +531,7 @@ center_cm = (300/11.11, (266-133)/11.08)
 ### ❌ Evite
 
 1. **Não** dividir coordenadas originais por `pixel_per_cm_ratio`
+
    ```python
    # ❌ ERRADO
    x_cm = x_original / pixel_per_cm_ratio[0]
@@ -506,6 +542,7 @@ center_cm = (300/11.11, (266-133)/11.08)
    ```
 
 2. **Não** assumir que arena é retângulo no espaço original
+
    ```python
    # ❌ ERRADO - arena pode ser polígono irregular
    arena_original = [(0,0), (width,0), (width,height), (0,height)]
@@ -515,6 +552,7 @@ center_cm = (300/11.11, (266-133)/11.08)
    ```
 
 3. **Não** usar dimensões do vídeo original para cálculos de CM
+
    ```python
    # ❌ ERRADO
    y_cm = (1080 - y_original) / pixel_per_cm_y
@@ -529,19 +567,24 @@ center_cm = (300/11.11, (266-133)/11.08)
 ## Arquivos Principais
 
 ### Calibração
+
 - `src/zebtrack/core/calibration.py`: Classe `Calibration` com métodos de transformação
 
 ### Gravação
+
 - `src/zebtrack/io/recorder.py`: Método `write_detection_data()` aplica transformação
 
 ### Análise
+
 - `src/zebtrack/analysis/behavior.py`: `BehavioralAnalyzer` converte para CM
 - `src/zebtrack/analysis/roi.py`: `ROIAnalyzer` trabalha em espaço CM
 
 ### Controle
+
 - `src/zebtrack/core/controller.py`: Orquestra todo o pipeline
 
 ### Relatórios
+
 - `src/zebtrack/analysis/reporter.py`: Gera gráficos e relatórios em CM
 
 ---

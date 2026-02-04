@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Auditoria da Refatoração GUI - Branch refactor-gui-completion-1
 
 **Data:** 2025-01-21
@@ -16,7 +18,7 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 ### Métricas Principais
 
 | Métrica | Meta | Atual | % Atingido | Gap |
-|---------|------|-------|------------|-----|
+| --------- | ------ | ------- | ------------ | ----- |
 | **Linhas gui.py** | 2.700 | 3.000 | 90% | +300 linhas ⚠️ |
 | **Redução Total** | -1.039 | -739 | 71% | -300 linhas ⚠️ |
 | **Componentes** | ~18 | **24** | 133% | +6 (excedeu!) ✅ |
@@ -34,7 +36,8 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 **Linhas Extraídas:** ~3.580 linhas
 **Status:** ✅ Totalmente implementadas
 
-**Principais Componentes:**
+### Principais Componentes
+
 - `MenuManager` (422 linhas)
 - `CanvasManager` (1.445 linhas)
 - `StateSynchronizer` (524 linhas)
@@ -58,18 +61,21 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 
 **Objetivo:** Eliminar TODO o estado de desenho do ApplicationGUI
 
-**Componentes Criados:**
+### Componentes Criados
+
 1. `DrawingStateManager` (91 linhas) ✅ Tamanho exemplar
 2. `PolygonDrawingService` (100 linhas) ✅ Tamanho exemplar
 3. `GeometryService` (153 linhas em `utils/`) ✅
 
-**Testes Criados:**
+### Testes Criados
+
 - `test_drawing_state_manager.py` (69 linhas)
 - `test_polygon_drawing_service.py` (93 linhas)
 - `test_geometry_service.py` (100 linhas)
 - **Total:** 262 linhas de testes
 
-**Resultado:**
+### Resultado
+
 - ✅ Estado de desenho consolidado
 - ✅ Testabilidade muito melhorada
 - ✅ Componentes pequenos e focados (91-100 linhas)
@@ -84,18 +90,22 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 
 **Objetivo:** Extrair toda a lógica de templates ROI
 
-**Componente Criado:**
+### Componente Criado
+
 1. `ROITemplateManager` (408 linhas)
 
-**Linhas Removidas:**
+### Linhas Removidas
+
 - De `gui.py`: -435 linhas
 - De `widget_factory.py`: -305 linhas
 - **Total:** -740 linhas (criou +408)
 
-**Testes Criados:**
+### Testes Criados
+
 - `test_roi_template_manager.py` (89 linhas)
 
-**Resultado:**
+### Resultado
+
 - ✅ Lógica de templates consolidada
 - ✅ Separação clara de responsabilidades
 - **Redução líquida:** -332 linhas vs -300 planejadas (110% da meta!)
@@ -109,13 +119,16 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 
 **Objetivo:** Delegar criação de abas do notebook
 
-**Componente Criado:**
+### Componente Criado
+
 1. `TabBuilder` (172 linhas)
 
-**Testes Criados:**
+### Testes Criados
+
 - `test_tab_builder.py` (78 linhas)
 
-**Resultado:**
+### Resultado
+
 - ✅ Criação de abas simplificada
 - ✅ Separação de tipos de projeto (live vs pre-recorded)
 - **Redução:** -116 linhas de -250 planejadas (46% da meta)
@@ -127,7 +140,8 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 
 ### ❌ Fase 6: Final Cleanup (0% - NÃO INICIADA)
 
-**Objetivo Planejado:**
+### Objetivo Planejado
+
 - Remover properties de compatibilidade reversa (~105 linhas)
 - Auditoria final de estado
 - Testes E2E de workflows completos
@@ -151,7 +165,7 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 ⚠️ **ATENÇÃO:** Potenciais candidatos para subdivisão futura
 
 | Arquivo | Linhas | Observação |
-|---------|--------|------------|
+| --------- | -------- | ------------ |
 | `widget_factory.py` | 1.685 | Viola SRP? Subdividir em 2-3 factories |
 | `canvas_manager.py` | 1.445 | Separar desenho vs rendering |
 | `validation_manager.py` | 1.190 | Criar validadores específicos |
@@ -162,7 +176,7 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 #### 🟡 Componentes Médios (400-1.000 linhas) - 9 arquivos
 
 | Arquivo | Linhas |
-|---------|--------|
+| --------- | -------- |
 | `dialog_manager.py` | 810 |
 | `zone_controls.py` | 717 |
 | `state_synchronizer.py` | 524 |
@@ -180,7 +194,7 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 ✅ **Tamanho exemplar** - Focados, testáveis, mantíveis
 
 | Arquivo | Linhas |
-|---------|--------|
+| --------- | -------- |
 | `base_component.py` | 323 |
 | `video_display.py` | 318 |
 | `project_overview.py` | 288 |
@@ -202,18 +216,18 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 ### Cobertura por Fase
 
 | Fase | Arquivos de Teste | Linhas | Cobertura Estimada |
-|------|-------------------|--------|---------------------|
+| ------ | ------------------- | -------- | --------------------- |
 | Fases 1-2 | 13 arquivos | ~1.500 | ~70% |
 | Fase 3 | 3 arquivos | 262 | ~85% |
 | Fase 4 | 1 arquivo | 89 | ~75% |
 | Fase 5 | 1 arquivo | 78 | ~70% |
 | **Total** | **18 arquivos** | **~1.929** | **~70-75%** |
 
-**Gap:** Meta de 92% vs ~70-75% atual = **-17-22% faltantes**
+**Gap:**Meta de 92% vs ~70-75% atual =**-17-22% faltantes**
 
 ### Testes Criados (tests/ui/components/)
 
-```
+```text
 ✅ test_analysis_display.py
 ✅ test_arduino_dashboard.py
 ✅ test_base_ui_component.py
@@ -257,24 +271,24 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 
 ### 🟡 ALTA PRIORIDADE
 
-4. **4 componentes muito grandes** (5.418 linhas = 45% do total)
+1. **4 componentes muito grandes** (5.418 linhas = 45% do total)
    - `widget_factory.py` (1.685 linhas) → subdividir
    - `canvas_manager.py` (1.445 linhas) → subdividir
    - `validation_manager.py` (1.190 linhas) → subdividir
    - `project_view_manager.py` (1.098 linhas) → subdividir
 
-5. **Cobertura de testes 17-22% abaixo da meta**
+2. **Cobertura de testes 17-22% abaixo da meta**
    - Meta: 92%
    - Atual: ~70-75%
    - Gap: -17-22%
 
 ### 🟢 MÉDIA PRIORIDADE
 
-6. **1 método enorme ainda em gui.py**
+1. **1 método enorme ainda em gui.py**
    - `_create_zone_control_widgets` (385 linhas!)
    - Candidato para `ZoneControlBuilder`
 
-7. **Documentação de Fase 6 ausente**
+2. **Documentação de Fase 6 ausente**
    - Guias de uso de componentes
    - Exemplos de migração
    - Benchmarks e métricas
@@ -313,7 +327,8 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 
 ### 🏆 Componentes Não Planejados (Extras)
 
-**Componentes criados mas NÃO no plano original:**
+### Componentes criados mas NÃO no plano original
+
 1. `processing_reports.py` (489 linhas)
 2. `control_panel.py` (179 linhas)
 3. `analysis_controls.py` (216 linhas)
@@ -327,7 +342,7 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 
 ### Estado Atual (3.000 linhas)
 
-**Baseado em METODOS_GUI_ANALYSIS.md:**
+### Baseado em METODOS_GUI_ANALYSIS.md
 
 - **Total analisado:** 34 métodos
 - **Distribuição de Complexidade:**
@@ -339,9 +354,10 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 
 ### 🔴 Método Crítico Identificado
 
-**`_create_zone_control_widgets`** - **385 linhas!!!**
+### `_create_zone_control_widgets`**-**385 linhas!!
 
-**Análise:**
+### Análise
+
 - Maior método em gui.py
 - Cria controles de zona/ROI
 - Forte candidato para extração
@@ -365,6 +381,7 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 ### 🔴 URGENTE (Fase 6 + Complemento Fase 5)
 
 #### 1. Completar Fase 6 (2-3 dias)
+
 - [ ] Remover properties de compatibilidade reversa (~105 linhas)
 - [ ] Extrair métodos auxiliares identificados (~500-600 linhas)
 - [ ] Auditar variáveis de estado restantes
@@ -372,6 +389,7 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 - [ ] Gerar benchmarks de performance
 
 #### 2. Completar Fase 5 (1-2 dias)
+
 - [ ] Extrair mais ~134 linhas de criação de abas
 - [ ] Possível novo componente: `ButtonFactory` ou `PanelBuilder`
 - [ ] Extrair `_create_zone_control_widgets` (385 linhas) → `ZoneControlBuilder`
@@ -385,19 +403,23 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 
 #### 3. Subdividir Componentes Grandes (4-5 dias)
 
-**a) `widget_factory.py` (1.685 linhas)**
+### a) `widget_factory.py` (1.685 linhas)
+
 - Subdividir em: `BasicWidgetFactory`, `ComplexWidgetFactory`, `ChartWidgetFactory`
 - Meta: 3 arquivos de ~500-600 linhas cada
 
-**b) `canvas_manager.py` (1.445 linhas)**
+### b) `canvas_manager.py` (1.445 linhas)
+
 - Separar: `CanvasRenderer` + `CanvasEventHandler` + `CanvasStateManager`
 - Meta: 3 arquivos de ~400-500 linhas cada
 
-**c) `validation_manager.py` (1.190 linhas)**
+### c) `validation_manager.py` (1.190 linhas)
+
 - Criar validadores específicos: `ProjectValidator`, `ZoneValidator`, `VideoValidator`
 - Meta: 3-4 arquivos de ~300-400 linhas cada
 
-**d) `project_view_manager.py` (1.098 linhas)**
+### d) `project_view_manager.py` (1.098 linhas)
+
 - Separar por tipo: `LiveProjectView`, `PreRecordedProjectView`, `ProjectViewCoordinator`
 - Meta: 3 arquivos de ~350-400 linhas cada
 
@@ -443,26 +465,29 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 ### Roadmap Sugerido
 
 | Atividade | Duração | Prioridade | Impacto |
-|-----------|---------|------------|---------|
+| ----------- | --------- | ------------ | --------- |
 | **Completar Fase 6** | 2-3 dias | 🔴 Urgente | -100 linhas gui.py |
 | **Completar Fase 5** | 1-2 dias | 🔴 Urgente | -134 linhas gui.py |
 | **Subdividir 4 componentes grandes** | 4-5 dias | 🟡 Alta | Arquitetura limpa |
 | **Aumentar testes para 92%** | 2-3 dias | 🟡 Alta | Qualidade |
 | **Completar documentação** | 1-2 dias | 🟢 Média | Manutenibilidade |
-| **Total** | **10-15 dias** | | **2-3 semanas** |
+| **Total** | **10-15 dias** |  | **2-3 semanas** |
 
 ### Milestones Sugeridos
 
-**M1: Finalização Básica (3-5 dias)**
+### M1: Finalização Básica (3-5 dias)
+
 - ✅ Fase 6 completa
 - ✅ Fase 5 completa
 - ✅ gui.py ≤ 2.700 linhas
 
-**M2: Arquitetura Otimizada (8-10 dias)**
+### M2: Arquitetura Otimizada (8-10 dias)
+
 - ✅ 4 componentes grandes subdivididos
 - ✅ Todos componentes ≤ 800 linhas
 
-**M3: Qualidade & Documentação (10-15 dias)**
+### M3: Qualidade & Documentação (10-15 dias)
+
 - ✅ Cobertura de testes ≥ 92%
 - ✅ Documentação completa
 - ✅ Benchmarks publicados
@@ -474,6 +499,7 @@ A refatoração da GUI foi **85% bem-sucedida**, com 4,5 de 6 fases implementada
 ### Status: **APROVADO COM RESSALVAS** ✅⚠️
 
 A refatoração da GUI estabeleceu uma **base arquitetural excelente** com:
+
 - ✅ 24 componentes bem separados
 - ✅ 11.980 linhas modularizadas
 - ✅ Testes abrangentes (18 arquivos)
@@ -498,7 +524,7 @@ A refatoração da GUI estabeleceu uma **base arquitetural excelente** com:
 
 ### Veredicto
 
-**85% de sucesso na implementação do plano.**
+### 85% de sucesso na implementação do plano
 
 O trabalho restante (Fases 5-6 + subdivisões) é primariamente **polish e otimização**, não mudanças arquiteturais fundamentais. A base criada é sólida e permite evolução incremental.
 
@@ -506,9 +532,10 @@ O trabalho restante (Fases 5-6 + subdivisões) é primariamente **polish e otimi
 
 ---
 
-**FIM DA AUDITORIA**
+### FIM DA AUDITORIA
 
-**Documentos Relacionados:**
+### Documentos Relacionados
+
 - `PLANO_REFATORACAO_GUI.md` - Plano original v2.0
 - `docs/refactoring/METODOS_GUI_ANALYSIS.md` - Análise de métodos
 - `docs/refactoring/REFACTOR_SUMMARY.md` - Resumo da refatoração

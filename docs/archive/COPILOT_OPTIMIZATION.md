@@ -7,7 +7,9 @@ Este documento descreve o sistema completo de otimização criado para maximizar
 ## 📁 Arquivos Criados/Atualizados
 
 ### 1. **`.copilot-context.yaml`** (Auto-gerado)
+
 Arquivo de navegação rápida com:
+
 - Índice de arquivos principais
 - Árvores de decisão para tarefas comuns
 - Comandos copy-paste prontos
@@ -17,57 +19,73 @@ Arquivo de navegação rápida com:
 **Regenerar**: `poetry run python scripts/generate_copilot_context.py`
 
 ### 2. **`scripts/generate_copilot_context.py`** (Novo)
+
 Script que analisa o codebase e gera automaticamente:
+
 - Mapa arquitetural
 - Índice de classes e métodos principais
 - Árvores de decisão personalizadas
 - Referências rápidas
 
 ### 3. **`scripts/validate_docs.py`** (Novo)
+
 Validador de consistência que verifica:
+
 - ✅ Settings documentados no REFERENCE_GUIDE
 - ✅ Ausência de imports singleton proibidos
 - ✅ Docstrings em classes principais
 - ✅ Atualização do `.copilot-context.yaml`
 
 ### 4. **`.github/copilot-instructions.md`** (Atualizado)
+
 Playbook otimizado com:
+
 - 🎯 Quick Navigation Index
 - ⚡ Fast Decision Trees
 - 📋 Arquivo único de referência
 - Instruções de leitura única
 
 ### 5. **`.pre-commit-config.yaml`** (Atualizado)
+
 Hooks automáticos:
+
 - `validate-docs`: Roda em cada commit
 - `update-copilot-context`: Roda em cada push
 
 ### 6. **`.github/workflows/ci.yml`** (Atualizado)
+
 CI com validação automática:
+
 - Valida consistência de docs
 - Regenera `.copilot-context.yaml`
 - Falha se contexto estiver desatualizado
 
 ### 7. **`.vscode/launch.json`** (Atualizado)
+
 Debug profiles especializados:
+
 - **Wizard Debug**: Debug do wizard de 5 etapas
 - **Processing Debug**: Debug do pipeline de processamento
 - **Smoke Tests**: Testes rápidos (< 30s)
 - **GUI Tests**: Testes Tkinter single-threaded
 
 ### 8. **`tests/test_smoke.py`** (Novo)
+
 Suite de smoke tests para feedback rápido:
+
 - Valida imports principais
 - Verifica inicialização de serviços
 - Detecta anti-padrões (singleton imports)
 - Executa em < 30 segundos
 
 ### 9. **`pytest.ini`** (Atualizado)
+
 Novo marker: `smoke` para testes rápidos
 
 ## 🔄 Workflow Automatizado
 
 ### Pre-commit (Local)
+
 ```bash
 # Instalar hooks
 poetry run pre-commit install
@@ -77,17 +95,21 @@ poetry run pre-commit run --all-files
 ```
 
 **O que acontece:**
+
 1. Ruff lint + format
 2. Validação de docs (`validate_docs.py`)
 3. Atualização do contexto (push only)
 
 ### CI (GitHub Actions)
+
 **No lint job:**
+
 1. Valida documentação
 2. Regenera `.copilot-context.yaml`
 3. Verifica se o arquivo está atualizado
 
 **Falha se:**
+
 - Settings não documentados
 - Import singleton encontrado
 - Classes sem docstrings
@@ -96,6 +118,7 @@ poetry run pre-commit run --all-files
 ## 📊 Comandos Rápidos
 
 ### Desenvolvimento
+
 ```powershell
 # Feedback imediato (< 30s)
 poetry run pytest -m smoke
@@ -114,7 +137,9 @@ poetry run python scripts/validate_docs.py
 ```
 
 ### Debug
+
 Use profiles do VS Code:
+
 - `F5` → "ZebTrack: Run Application"
 - `F5` → "ZebTrack: Debug Wizard Flow"
 - `F5` → "ZebTrack: Smoke Test"
@@ -122,13 +147,17 @@ Use profiles do VS Code:
 ## 🎯 Como o Copilot Usa Isso
 
 ### 1. **Primeira Consulta**
+
 Copilot lê `.copilot-context.yaml` para:
+
 - Encontrar arquivos rapidamente
 - Decidir o que ler
 - Evitar buscas desnecessárias
 
 ### 2. **Decision Trees**
+
 Exemplo: "Adicionar nova feature de UI"
+
 ```yaml
 adding_ui_feature:
   - "1. Check ui/widgets/ for reusable components"
@@ -138,7 +167,9 @@ adding_ui_feature:
 ```
 
 ### 3. **Anti-padrões**
+
 Copilot evita automaticamente:
+
 ```yaml
 forbidden:
   - "from zebtrack import settings  # Use constructor injection"
@@ -149,12 +180,14 @@ forbidden:
 ## 📈 Métricas de Otimização
 
 ### Antes
+
 - ❌ Múltiplas leituras de arquivos
 - ❌ Buscas exploratórias
 - ❌ Contexto impreciso
 - ❌ Tokens desperdiçados
 
 ### Depois
+
 - ✅ Leitura direta via índice
 - ✅ Decision trees guiam ações
 - ✅ Contexto sempre atualizado
@@ -163,19 +196,25 @@ forbidden:
 ## 🔧 Manutenção
 
 ### Quando Atualizar Manualmente
+
 Rode após mudanças arquiteturais significativas:
+
 ```powershell
 poetry run python scripts/generate_copilot_context.py
 ```
 
 ### Automático
+
 O sistema atualiza automaticamente:
+
 - ✅ Em cada `git push` (pre-commit hook)
 - ✅ No CI (GitHub Actions)
 - ✅ Valida em cada commit
 
 ### Adicionar Novos Padrões
+
 Edite `scripts/generate_copilot_context.py`:
+
 ```python
 def build_decision_trees() -> dict[str, Any]:
     return {
@@ -190,12 +229,14 @@ def build_decision_trees() -> dict[str, Any]:
 ## 🎓 Boas Práticas
 
 ### Para Desenvolvedores
+
 1. **Sempre rode smoke tests** antes de commit
 2. **Use debug profiles** do VS Code
 3. **Consulte decision trees** no `.copilot-context.yaml`
 4. **Não ignore warnings** do `validate_docs.py`
 
 ### Para o Copilot
+
 1. **Leia `.copilot-context.yaml` primeiro**
 2. **Use índices de arquivo** para navegação direta
 3. **Siga decision trees** para tarefas padrão
@@ -204,12 +245,14 @@ def build_decision_trees() -> dict[str, Any]:
 ## 📚 Referências Rápidas
 
 ### Arquivos Principais
+
 - Entry Point: `src/zebtrack/__main__.py:140-280`
 - Main UI: `src/zebtrack/ui/gui.py`
 - Settings: `src/zebtrack/settings.py`
 - Detector: `src/zebtrack/core/detector_service.py`
 
 ### Documentação Crítica
+
 - `docs/ARCHITECTURE.md` - Visão geral
 - `docs/DEPENDENCY_INJECTION_GUIDE.md` - Padrões DI
 - `.github/copilot-instructions.md` - Playbook completo
@@ -218,6 +261,7 @@ def build_decision_trees() -> dict[str, Any]:
 ## 🚦 Status de Saúde
 
 Execute para verificar:
+
 ```powershell
 # Validação completa
 poetry run python scripts/validate_docs.py
@@ -230,6 +274,7 @@ poetry run pre-commit run --all-files
 ```
 
 **Sistema saudável se:**
+
 - ✅ Nenhum erro no validate_docs
 - ✅ Smoke tests passam
 - ✅ Pre-commit limpo
@@ -238,6 +283,7 @@ poetry run pre-commit run --all-files
 ## 🎉 Resultado Final
 
 Um sistema que:
+
 1. ✅ **Auto-documenta** a arquitetura
 2. ✅ **Valida automaticamente** consistência
 3. ✅ **Atualiza-se sozinho** via hooks

@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Análise Completa dos 34 Métodos de gui.py
 
 ## Importações e Dependências Globais
@@ -60,6 +62,7 @@ from zebtrack.utils import polygon_centroid, snap_point_to_axes
 **Complexidade:** Baixa (5 linhas lógicas)
 
 ### Código Completo
+
 ```python
 def _build_status_icon_legend(self, *, include_summary: bool = False) -> str:
     """Compose a compact legend string for the status glyphs."""
@@ -75,6 +78,7 @@ def _build_status_icon_legend(self, *, include_summary: bool = False) -> str:
 ```
 
 ### Dependências
+
 - `STATUS_SYMBOLS` (dicionário global definido em topo do arquivo)
 
 ---
@@ -87,6 +91,7 @@ def _build_status_icon_legend(self, *, include_summary: bool = False) -> str:
 **Complexidade:** Média (10 linhas)
 
 ### Código Completo
+
 ```python
 def _create_welcome_frame(self):
     """Creates the initial UI for project selection and model configuration."""
@@ -117,6 +122,7 @@ def _create_welcome_frame(self):
 ```
 
 ### Dependências
+
 - Chama: `_update_window_title()`, `_cleanup_single_analysis_button()`, `_reset_analysis_widgets()`, `_display_welcome_logo()`, `_build_project_actions()`, `_build_model_status()`
 - Usa: `self.root`, `self.welcome_frame`
 - Import: `reset_geometry_if_not_maximized` (zebtrack.ui.window_utils)
@@ -131,6 +137,7 @@ def _create_welcome_frame(self):
 **Complexidade:** Baixa (4 botões)
 
 ### Código Completo
+
 ```python
 def _build_project_actions(self, parent) -> None:
     """Create the project actions controls in the welcome frame."""
@@ -160,6 +167,7 @@ def _build_project_actions(self, parent) -> None:
 ```
 
 ### Dependências
+
 - Parâmetro `parent`: ttk.Frame ou similar
 - Chama: `_open_global_calibration_window()`, `_on_analyze_single_video_clicked()`, `_create_project_workflow()`, `_open_project_workflow()`
 
@@ -173,6 +181,7 @@ def _build_project_actions(self, parent) -> None:
 **Complexidade:** Baixa (3 labels)
 
 ### Código Completo
+
 ```python
 def _build_model_status(self, parent) -> None:
     """Create the model status display in the welcome frame."""
@@ -194,6 +203,7 @@ def _build_model_status(self, parent) -> None:
 ```
 
 ### Dependências
+
 - Parâmetro `parent`: ttk.Frame ou similar
 - Usa: `self._active_weight_display_var`, `self._openvino_display_var`, `self._gpu_hardware_display_var`
 
@@ -207,6 +217,7 @@ def _build_model_status(self, parent) -> None:
 **Complexidade:** Média-Alta (41 linhas)
 
 ### Código Completo
+
 ```python
 def _create_main_control_frame(self):
     """Creates the main UI with tabs for controlling the app."""
@@ -252,6 +263,7 @@ def _create_main_control_frame(self):
 ```
 
 ### Dependências
+
 - Chama: `reset_geometry_if_not_maximized()`, `_on_tab_changed()`, `_create_main_controls_tab()`, `_create_progress_grid_tab()`, `_create_roi_analysis_tab()`, `_create_processing_reports_tab()`, `_create_analysis_tab_widget()`, `_create_configuration_tab_widget()`, `hide_progress_bar()`
 - Usa: `self.welcome_frame`, `self.notebook`, `self.root`, `self.controller`, `self.status_var`
 
@@ -265,6 +277,7 @@ def _create_main_control_frame(self):
 **Complexidade:** Média (28 linhas)
 
 ### Código Completo
+
 ```python
 def _create_configuration_tab_widget(self) -> None:
     """Creates the configuration tab using ConfigEditorWidget."""
@@ -297,6 +310,7 @@ def _create_configuration_tab_widget(self) -> None:
 ```
 
 ### Dependências
+
 - Usa: `self.notebook`, `self.event_bus`, `self._event_bus_handlers`
 - Chama: `_reload_config_editor_values_widget()`
 - Callbacks: `_on_save_global_config_from_widget()`, `_on_reset_global_config_form_widget()`, `_on_roi_rule_change_widget()`
@@ -312,6 +326,7 @@ def _create_configuration_tab_widget(self) -> None:
 **Complexidade:** Média-Alta (50 linhas)
 
 ### Código Completo
+
 ```python
 def _reload_config_editor_values_widget(self) -> None:
     """Load current settings into ConfigEditorWidget."""
@@ -366,6 +381,7 @@ def _reload_config_editor_values_widget(self) -> None:
 ```
 
 ### Dependências
+
 - Chama: `_extract_setting()`, `show_error()`
 - Usa: `settings_module`, `self.config_editor_widget`
 - Import: `settings_module` (zebtrack.settings)
@@ -380,6 +396,7 @@ def _reload_config_editor_values_widget(self) -> None:
 **Complexidade:** Baixa (3 linhas)
 
 ### Código Completo
+
 ```python
 def _on_reset_global_config_form_widget(self) -> None:
     """Reset ConfigEditorWidget form fields to reflect current settings object."""
@@ -391,6 +408,7 @@ def _on_reset_global_config_form_widget(self) -> None:
 ```
 
 ### Dependências
+
 - Chama: `_reload_config_editor_values_widget()`, `show_info()`
 
 ---
@@ -403,6 +421,7 @@ def _on_reset_global_config_form_widget(self) -> None:
 **Complexidade:** Alta (85 linhas)
 
 ### Código Completo (Parcial - muito grande)
+
 ```python
 def _on_save_global_config_from_widget(self, values: dict) -> None:
     """Validate and save config from ConfigEditorWidget values."""
@@ -440,6 +459,7 @@ def _on_save_global_config_from_widget(self, values: dict) -> None:
 ```
 
 ### Dependências
+
 - Chama: `_reload_config_editor_values_widget()`, `show_error()`, `show_info()`
 - Usa: `settings_module`, `self.settings`, `Path`
 - Import: `yaml`, `Path` (pathlib), `ValidationError` (pydantic)
@@ -454,7 +474,9 @@ def _on_save_global_config_from_widget(self, values: dict) -> None:
 **Complexidade:** Alta (117 linhas)
 
 ### Resumo
+
 Cria a aba de controle principal com:
+
 - Botões de ação (iniciar/parar gravação ou processar vídeos)
 - Configurações de intervalos (pré-gravado)
 - Status do modelo de detecção
@@ -462,6 +484,7 @@ Cria a aba de controle principal com:
 - ProjectOverviewWidget
 
 ### Principais Dependências
+
 - Chama: `_create_project_overview_panel()`, `_request_overview_refresh()`
 - Usa: `self.notebook`, `self.main_controls_frame`, `self.controller`, `self.event_dispatcher`
 - Import: `ArduinoDashboardWidget`, `Button` (tkinter)
@@ -476,6 +499,7 @@ Cria a aba de controle principal com:
 **Complexidade:** Média-Alta (50 linhas)
 
 ### Código Completo (Parcial)
+
 ```python
 def _create_project_overview_panel(self, parent: ttk.Frame) -> None:
     """Create the project overview panel using ProjectOverviewWidget."""
@@ -512,6 +536,7 @@ def _create_project_overview_panel(self, parent: ttk.Frame) -> None:
 ```
 
 ### Dependências
+
 - Parâmetro `parent`: ttk.Frame
 - Usa: `self.event_bus`, `self.project_overview_frame`
 - Chama: `_navigate_to_processing_reports_tab()`
@@ -527,7 +552,8 @@ def _create_project_overview_panel(self, parent: ttk.Frame) -> None:
 **Complexidade:** MUITO ALTA (109 linhas)
 
 ### Resumo Estrutural
-```
+
+```text
 1. Inicializa estado de desenho (_drawing_mode, _poly_pts_*, etc)
 2. Cria frame principal (self.zone_tab_frame)
 3. Cria PanedWindow para layout lado-a-lado
@@ -541,6 +567,7 @@ def _create_project_overview_panel(self, parent: ttk.Frame) -> None:
 ```
 
 ### Principais Dependências
+
 - Chama: `_subscribe_zone_component_events()`, `menu_manager.create_roi_context_menu()`
 - Usa: `self.notebook`, `self.zone_controls`, `self.video_display`, `self.event_bus`
 - Import: `ZoneControlsWidget`, `VideoDisplayWidget` (zebtrack.ui.components)
@@ -555,6 +582,7 @@ def _create_project_overview_panel(self, parent: ttk.Frame) -> None:
 **Complexidade:** Baixa
 
 ### Código Completo
+
 ```python
 def _on_pane_configure(event=None):
     try:
@@ -567,6 +595,7 @@ def _on_pane_configure(event=None):
 ```
 
 ### Características
+
 - Função local (closure) dentro de `_create_roi_analysis_tab`
 - Captura `main_pane` do escopo externo
 - Handler para evento `<Configure>` do PanedWindow
@@ -581,6 +610,7 @@ def _on_pane_configure(event=None):
 **Complexidade:** Média
 
 ### Código Completo
+
 ```python
 def _on_canvas_configure(self, event=None):
     """Handle canvas resize events to properly scale and center the image."""
@@ -612,6 +642,7 @@ def _on_canvas_configure(self, event=None):
 ```
 
 ### Dependências
+
 - Usa: `self.roi_canvas`, `self.canvas_manager`, `self.controller`
 - Chama: `canvas_manager._draw_bg_image_to_canvas()`, `canvas_manager.redraw_zones_from_project_data()`
 
@@ -625,7 +656,8 @@ def _on_canvas_configure(self, event=None):
 **Complexidade:** MUITO ALTA
 
 ### Estrutura Geral
-```
+
+```text
 1. _create_zone_summary_cards_section() (indicadores)
 2. Ações de Desenho (4 botões)
    - Detectar Aquário (Auto)
@@ -648,6 +680,7 @@ def _on_canvas_configure(self, event=None):
 ```
 
 ### Nota Importante
+
 Método é chamado via componente ZoneControlsWidget - o código antigo é mantido para referência mas não está sendo usado!
 
 ---
@@ -660,6 +693,7 @@ Método é chamado via componente ZoneControlsWidget - o código antigo é manti
 **Complexidade:** Média-Alta
 
 ### Código Completo (Parcial)
+
 ```python
 def _create_zone_summary_cards_section(self) -> None:
     """Renderiza os cartões com indicadores numéricos da etapa de zonas."""
@@ -700,6 +734,7 @@ def _create_zone_summary_cards_section(self) -> None:
 ```
 
 ### Dependências
+
 - Usa: `self.zone_controls_frame`, `self.zone_summary_cards`, `STATUS_SYMBOLS`
 - Chama: `_update_zone_summary_cards()`, `_get_zone_summary_helper_text()`
 
@@ -713,6 +748,7 @@ def _create_zone_summary_cards_section(self) -> None:
 **Complexidade:** Alta
 
 ### Nota
+
 **Este método é LEGADO** - substituído por `_create_processing_reports_tab()`. Mantido para referência.
 
 ---
@@ -725,6 +761,7 @@ def _create_zone_summary_cards_section(self) -> None:
 **Complexidade:** Média
 
 ### Código Completo
+
 ```python
 def _create_analysis_tab_widget(self):
     """Creates the analysis tab using the AnalysisDisplayWidget."""
@@ -764,6 +801,7 @@ def _create_analysis_tab_widget(self):
 ```
 
 ### Dependências
+
 - Usa: `self.notebook`, `self.event_bus`, `self.event_dispatcher`
 - Import: `AnalysisDisplayWidget` (zebtrack.ui.components)
 - Callbacks: `_on_track_selection_changed()`
@@ -778,6 +816,7 @@ def _create_analysis_tab_widget(self):
 **Complexidade:** Média
 
 ### Código Completo
+
 ```python
 def _create_scrollable_controls_frame(self, parent):
     """Create a scrollable frame for the zone controls."""
@@ -813,6 +852,7 @@ def _create_scrollable_controls_frame(self, parent):
 ```
 
 ### Dependências
+
 - Parâmetro `parent`: Frame
 - Chama: `_on_frame_configure()`, `_on_canvas_configure_scroll()`, `_bind_mousewheel()`
 - Usa: `self.controls_canvas`, `self.controls_scrollbar`, `self.zone_controls_frame`
@@ -827,6 +867,7 @@ def _create_scrollable_controls_frame(self, parent):
 **Complexidade:** Muito Baixa (1 linha)
 
 ### Código Completo
+
 ```python
 def _on_frame_configure(self, event=None):
     """Update scroll region when frame size changes."""
@@ -843,6 +884,7 @@ def _on_frame_configure(self, event=None):
 **Complexidade:** Baixa (2 linhas)
 
 ### Código Completo
+
 ```python
 def _on_canvas_configure_scroll(self, event=None):
     """Update frame width when canvas size changes."""
@@ -860,6 +902,7 @@ def _on_canvas_configure_scroll(self, event=None):
 **Complexidade:** Média
 
 ### Código Completo
+
 ```python
 def _build_day_title(self, day_value, metadata: dict | None = None) -> str:
     metadata = metadata or {}
@@ -880,6 +923,7 @@ def _build_day_title(self, day_value, metadata: dict | None = None) -> str:
 ```
 
 ### Dependências
+
 - Chama: `_format_day_display()`
 - Parâmetros: `day_value` (int/str/None), `metadata` (dict|None)
 
@@ -893,7 +937,8 @@ def _build_day_title(self, day_value, metadata: dict | None = None) -> str:
 **Complexidade:** Média-Alta (65 linhas)
 
 ### Estrutura
-```
+
+```text
 Entrada: lista de vídeos + texto de busca
 Processamento:
   1. Normaliza texto de busca
@@ -906,6 +951,7 @@ Saída: dict[group_id -> {display, days: dict[day_id -> [videos]]}]
 ```
 
 ### Principais Dependências
+
 - Chama: `_format_day_display()`
 - Usa: `os.path.basename()`
 
@@ -919,7 +965,8 @@ Saída: dict[group_id -> {display, days: dict[day_id -> [videos]]}]
 **Complexidade:** Média-Alta (57 linhas)
 
 ### Estrutura
-```
+
+```text
 Cria snapshot hierárquico para exibição em árvore:
   - Grupos (🏷️ label)
     - Dias (📅 Dia N)
@@ -930,6 +977,7 @@ Retorno: lista de estruturas dict com labels e children
 ```
 
 ### Dependências
+
 - Chama: `_build_video_hierarchy_data()`, `_build_day_title()`, `_format_subject_label()`, `_format_status_token()`, `_video_sort_key()`
 - Usa: `self.controller`
 
@@ -943,6 +991,7 @@ Retorno: lista de estruturas dict com labels e children
 **Complexidade:** Alta
 
 ### Nota
+
 **LEGADO** - Substituído por `_create_processing_reports_tab()`. Mantido para referência histórica.
 
 ---
@@ -955,6 +1004,7 @@ Retorno: lista de estruturas dict com labels e children
 **Complexidade:** Média
 
 ### Código Completo
+
 ```python
 def _create_processing_reports_tab(self) -> None:
     """
@@ -1002,6 +1052,7 @@ def _create_processing_reports_tab(self) -> None:
 ```
 
 ### Dependências
+
 - Usa: `self.notebook`, `self.event_bus`
 - Chama: `_refresh_processing_reports_tab()`
 - Import: `ProcessingReportsWidget` (zebtrack.ui.components.processing_reports)
@@ -1016,6 +1067,7 @@ def _create_processing_reports_tab(self) -> None:
 **Complexidade:** Baixa
 
 ### Código Completo
+
 ```python
 def _build_processing_report_artifact_id(self, parent_id: str, artifact_path: str) -> str:
     """Create a stable item id for report artifacts while avoiding duplicates."""
@@ -1025,6 +1077,7 @@ def _build_processing_report_artifact_id(self, parent_id: str, artifact_path: st
 ```
 
 ### Dependências
+
 - Import: `hashlib`
 
 ---
@@ -1037,7 +1090,8 @@ def _build_processing_report_artifact_id(self, parent_id: str, artifact_path: st
 **Complexidade:** Média-Alta (49 linhas)
 
 ### Estrutura
-```
+
+```text
 Similar a _build_video_hierarchy_data, mas com dados adicionais:
   - results_dir
   - parquet_files
@@ -1046,6 +1100,7 @@ Similar a _build_video_hierarchy_data, mas com dados adicionais:
 ```
 
 ### Dependências
+
 - Parâmetro `pm`: ProjectManager
 - Chama: (nenhum método local)
 - Usa: `os.path.basename()`, `os.path.splitext()`
@@ -1060,6 +1115,7 @@ Similar a _build_video_hierarchy_data, mas com dados adicionais:
 **Complexidade:** Baixa-Média
 
 ### Código Completo
+
 ```python
 def _create_drawing_buttons(self):
     """Creates floating undo/redo buttons over the canvas."""
@@ -1092,6 +1148,7 @@ def _create_drawing_buttons(self):
 ```
 
 ### Dependências
+
 - Usa: `self.viz_frame`, `self._drawing_buttons_frame`
 - Chama: `_on_drawing_undo()`, `_on_drawing_redo()`
 
@@ -1105,6 +1162,7 @@ def _create_drawing_buttons(self):
 **Complexidade:** Baixa
 
 ### Código Completo
+
 ```python
 def _build_roi_template_identifier(self, template: dict[str, Any]) -> str:
     location = template.get("location", "project")
@@ -1121,6 +1179,7 @@ def _build_roi_template_identifier(self, template: dict[str, Any]) -> str:
 ```
 
 ### Dependências
+
 - Nenhuma (método puro)
 
 ---
@@ -1133,7 +1192,8 @@ def _build_roi_template_identifier(self, template: dict[str, Any]) -> str:
 **Complexidade:** Média-Alta (61 linhas)
 
 ### Estrutura
-```
+
+```text
 1. Abre TemplateDialog para escolher tipo de layout
 2. Calcula dimensões da arena
 3. Gera ROIs baseado no template:
@@ -1145,6 +1205,7 @@ def _build_roi_template_identifier(self, template: dict[str, Any]) -> str:
 ```
 
 ### Dependências
+
 - Import: `numpy`
 - Usa: `self.arena_selector_var`, `self.roi_data`, `self.controller`
 - Chama: `_on_arena_select()`
@@ -1160,6 +1221,7 @@ def _build_roi_template_identifier(self, template: dict[str, Any]) -> str:
 **Complexidade:** Baixa-Média
 
 ### Código Completo
+
 ```python
 def _create_progress_grid_tab(self):
     """Creates the tab for viewing the experimental progress grid."""
@@ -1180,6 +1242,7 @@ def _create_progress_grid_tab(self):
 ```
 
 ### Dependências
+
 - Usa: `self.notebook`, `self.progress_grid_frame`, `self.grid_container`
 - Chama: `_render_progress_grid()`
 
@@ -1193,6 +1256,7 @@ def _create_progress_grid_tab(self):
 **Complexidade:** Média
 
 ### Código Completo
+
 ```python
 def _create_project_workflow(self):
     """
@@ -1221,6 +1285,7 @@ def _create_project_workflow(self):
 ```
 
 ### Dependências
+
 - Import: `WizardDialog` (zebtrack.ui.wizard.wizard_dialog)
 - Usa: `self.root`, `self.controller`, `self.event_dispatcher`
 - Chama: `show_error()`
@@ -1235,6 +1300,7 @@ def _create_project_workflow(self):
 **Complexidade:** Baixa-Média
 
 ### Código Completo
+
 ```python
 def _build_track_options(self, detections: list[tuple]) -> list[str]:
     observed: set[str] = set()
@@ -1253,7 +1319,8 @@ def _build_track_options(self, detections: list[tuple]) -> list[str]:
 ```
 
 ### Estrutura de Detecção
-```
+
+```text
 det[0] = ?
 det[1] = ?
 det[2] = ?
@@ -1263,13 +1330,15 @@ det[5] = track_id  (este é o único campo usado)
 ```
 
 ### Dependências
+
 - Nenhuma (método puro)
 
 ---
 
-# RESUMO DE PADRÕES ENCONTRADOS
+## RESUMO DE PADRÕES ENCONTRADOS
 
 ## Padrões de Complexidade
+
 - **Muito Simples (< 5 linhas):** 1, 8, 20, 21, 27, 30, 34
 - **Simples (5-20 linhas):** 3, 4, 22, 29, 32, 33
 - **Médio (20-60 linhas):** 2, 6, 7, 9, 11, 14, 18, 19, 23, 24, 26, 28, 31
@@ -1277,13 +1346,16 @@ det[5] = track_id  (este é o único campo usado)
 - **Muito Alto (> 120 linhas):** 15 (385 linhas!)
 
 ## Padrões de Dependências
+
 - **Alto acoplamento com self:** Maioria dos métodos (15, 19, 25, 26, 28 especialmente)
 - **Baixo acoplamento (métodos puros):** 1, 22, 27, 30, 34
 - **Delegação a componentes:** 12, 18, 19, 26 (novos padrões MVVM-S)
 - **Processadores de dados:** 23, 24, 28, 34
 
 ## Oportunidades para WidgetFactory
+
 Métodos que poderiam ser refatorados para um WidgetFactory:
+
 1. `_build_project_actions` - Fácil, 4 botões
 2. `_build_model_status` - Fácil, 3 labels
 3. `_create_zone_summary_cards_section` - Médio, cards genéricos
@@ -1292,7 +1364,7 @@ Métodos que poderiam ser refatorados para um WidgetFactory:
 6. `_create_drawing_buttons` - Baixo, 2 botões
 
 ## Métodos que NÃO deveriam ser refatorados
+
 - Processadores de dados (23, 24, 28, 34)
 - Builders complexos de hierarquia (15, 16, 17, 25)
 - Handlers de eventos especializados (2, 5, 12, 26)
-

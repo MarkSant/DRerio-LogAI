@@ -24,28 +24,33 @@ This guide provides solutions to common issues encountered when using DRerio Log
 **Solutions**:
 
 1. **Ensure Python 3.12+**:
+
    ```bash
    python --version  # Should show 3.12 or higher
    ```
 
 2. **Update Poetry**:
+
    ```bash
    poetry self update
    ```
 
 3. **Clear Poetry cache**:
+
    ```bash
    poetry cache clear pypi --all
    poetry install
    ```
 
 4. **Force reinstall**:
+
    ```bash
    rm -rf .venv
    poetry install
    ```
 
 5. **Check setuptools version** (must be <81):
+
    ```bash
    poetry run pip list | grep setuptools
    # Should show setuptools < 81
@@ -58,22 +63,27 @@ This guide provides solutions to common issues encountered when using DRerio Log
 **Solutions**:
 
 1. **Activate Poetry environment**:
+
    ```bash
    poetry shell
    zebtrack
    ```
+
    OR use:
+
    ```bash
    poetry run zebtrack
    ```
 
 2. **Verify installation**:
+
    ```bash
    poetry show zebtrack
    # Should display package info
    ```
 
 3. **Reinstall in editable mode**:
+
    ```bash
    poetry install
    ```
@@ -89,12 +99,14 @@ This guide provides solutions to common issues encountered when using DRerio Log
    - Install and restart computer
 
 2. **Reinstall Pillow**:
+
    ```bash
    poetry run pip uninstall Pillow
    poetry run pip install Pillow
    ```
 
 3. **Check Python architecture**:
+
    ```bash
    python -c "import struct; print(struct.calcsize('P') * 8)"
    # Should show 64 (not 32)
@@ -111,17 +123,20 @@ This guide provides solutions to common issues encountered when using DRerio Log
 **Step-by-Step Solutions**:
 
 #### 1. Verify Camera Connection
+
 - Check USB cable is fully inserted
 - Try different USB port (prefer USB 3.0)
 - Test camera in other applications (Zoom, Skype)
 
 #### 2. Check Camera Permissions (Windows)
+
 1. Open **Settings** → **Privacy & Security** → **Camera**
 2. Enable "Let apps access your camera"
 3. Enable "Let desktop apps access your camera"
 4. Restart application
 
 #### 3. Check Camera Permissions (Linux)
+
 ```bash
 # Check if user is in video group
 groups $USER
@@ -135,18 +150,21 @@ ls -l /dev/video*
 ```
 
 #### 4. Try Different Camera ID
+
 1. Open **File** → **Settings**
 2. Navigate to **Camera** section
 3. Try camera IDs: 0, 1, 2, 3
 4. Click **Test Camera** for each ID
 
 #### 5. Check Camera Driver (Windows)
+
 1. Open **Device Manager** (Win+X → Device Manager)
 2. Expand **Cameras** or **Imaging devices**
 3. Right-click camera → **Update driver**
 4. If yellow warning icon: **Uninstall device** → Restart computer
 
 #### 6. Restart Camera Service (Windows)
+
 ```powershell
 # Run as Administrator
 Get-PnpDevice | Where-Object {$_.FriendlyName -like '*camera*'} | Disable-PnpDevice -Confirm:$false
@@ -165,6 +183,7 @@ Get-PnpDevice | Where-Object {$_.FriendlyName -like '*camera*'} | Enable-PnpDevi
    - Use VLC or FFmpeg to verify file integrity
 
 2. **Try re-encoding**:
+
    ```bash
    # Using FFmpeg
    ffmpeg -i input.mp4 -c:v libx264 -preset medium -crf 23 output.mp4
@@ -176,6 +195,7 @@ Get-PnpDevice | Where-Object {$_.FriendlyName -like '*camera*'} | Enable-PnpDevi
    - Use absolute paths, not relative
 
 4. **Verify codec**:
+
    ```bash
    ffmpeg -i video.mp4
    # Look for Video: h264 or Video: hevc
@@ -199,6 +219,7 @@ Get-PnpDevice | Where-Object {$_.FriendlyName -like '*camera*'} | Enable-PnpDevi
    - Avoid pointing camera at bright light source
 
 3. **Test camera externally**:
+
    ```python
    import cv2
    cap = cv2.VideoCapture(0)
@@ -282,6 +303,7 @@ Get-PnpDevice | Where-Object {$_.FriendlyName -like '*camera*'} | Enable-PnpDevi
 
 **Understanding the Issue**:
 Track ID changes (re-identification failures) occur when:
+
 - Subjects occlude each other (multi-subject tracking)
 - Subject exits and re-enters frame
 - Detection gaps (subject temporarily not detected)
@@ -349,6 +371,7 @@ Track ID changes (re-identification failures) occur when:
 **Quick Diagnostics**:
 
 Check current performance:
+
 - During analysis, note "Processing Speed" (FPS)
 - Compare to expected: GPU 25-60 FPS, CPU 5-15 FPS
 
@@ -357,19 +380,23 @@ Check current performance:
 #### 1. GPU Not Being Used
 
 **Check GPU status**:
+
 ```bash
 poetry run python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
 ```
 
 **If False**:
+
 - Install CUDA Toolkit: [NVIDIA CUDA Downloads](https://developer.nvidia.com/cuda-downloads)
 - Install cuDNN: [NVIDIA cuDNN](https://developer.nvidia.com/cudnn)
 - Reinstall PyTorch with CUDA:
+
   ```bash
   poetry run pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
   ```
 
 **If True but still slow**:
+
 - Check GPU memory usage: `nvidia-smi`
 - Close other GPU applications
 - Reduce batch size in settings
@@ -377,6 +404,7 @@ poetry run python -c "import torch; print(f'CUDA available: {torch.cuda.is_avail
 #### 2. Video Resolution Too High
 
 **Solution**: Reduce resolution
+
 ```python
 # In config.local.yaml
 camera:
@@ -385,6 +413,7 @@ camera:
 ```
 
 Or pre-process video:
+
 ```bash
 ffmpeg -i input_4k.mp4 -vf scale=1920:1080 output_1080p.mp4
 ```
@@ -392,10 +421,12 @@ ffmpeg -i input_4k.mp4 -vf scale=1920:1080 output_1080p.mp4
 #### 3. Insufficient RAM
 
 **Check RAM usage**:
+
 - Windows: Task Manager → Performance → Memory
 - Linux: `htop` or `free -h`
 
 **Solutions**:
+
 - Close other applications (browsers, etc.)
 - Increase virtual memory (Windows: System → Advanced → Performance Settings)
 - Reduce `performance.max_parallel_videos` in settings
@@ -404,17 +435,21 @@ ffmpeg -i input_4k.mp4 -vf scale=1920:1080 output_1080p.mp4
 #### 4. Hard Drive Bottleneck
 
 **Solutions**:
+
 - Use SSD instead of HDD for temporary files
 - Set temporary directory to SSD:
+
   ```bash
   export TMPDIR=/path/to/ssd/tmp  # Linux
   set TMP=D:\tmp  # Windows
   ```
+
 - Disable real-time antivirus scanning on output directory
 
 #### 5. CPU Throttling (Laptops)
 
 **Solutions**:
+
 - Plug in power adapter (don't use battery)
 - Check CPU throttling: Windows → Power Options → High Performance
 - Ensure adequate cooling (use laptop cooling pad)
@@ -440,6 +475,7 @@ ffmpeg -i input_4k.mp4 -vf scale=1920:1080 output_1080p.mp4
    - Intel: [Intel Driver Updates](https://www.intel.com/content/www/us/en/support/detect.html)
 
 4. **Disable real-time previews**:
+
    ```yaml
    # In config.local.yaml
    ui_features:
@@ -447,6 +483,7 @@ ffmpeg -i input_4k.mp4 -vf scale=1920:1080 output_1080p.mp4
    ```
 
 5. **Run in terminal mode** (bypass GUI):
+
    ```bash
    poetry run zebtrack --no-gui --video input.mp4 --output results/
    ```
@@ -462,6 +499,7 @@ ffmpeg -i input_4k.mp4 -vf scale=1920:1080 output_1080p.mp4
 **Step-by-Step Fix**:
 
 #### 1. Verify GPU is Working
+
 ```bash
 # Windows: Open Device Manager
 Win+X → Device Manager → Display adapters
@@ -472,40 +510,48 @@ lspci | grep -i nvidia
 ```
 
 #### 2. Check NVIDIA Drivers
+
 ```bash
 nvidia-smi
 # Should display GPU info, driver version, CUDA version
 ```
 
 **If command not found**:
-- Install/update NVIDIA drivers: https://www.nvidia.com/Download/index.aspx
+
+- Install/update NVIDIA drivers: <https://www.nvidia.com/Download/index.aspx>
 - Restart computer after installation
 
 #### 3. Verify CUDA Installation
+
 ```bash
 nvcc --version
 # Should show CUDA compiler version
 ```
 
 **If command not found**:
-- Install CUDA Toolkit: https://developer.nvidia.com/cuda-downloads
+
+- Install CUDA Toolkit: <https://developer.nvidia.com/cuda-downloads>
 - Add to PATH (installer option or manual)
 
 #### 4. Check PyTorch CUDA Support
+
 ```bash
 poetry run python -c "import torch; print(torch.version.cuda)"
 # Should show CUDA version (e.g., 11.8)
 ```
 
 **If None**:
+
 - PyTorch is CPU-only version
 - Reinstall with CUDA support:
+
   ```bash
   poetry run pip uninstall torch torchvision
   poetry run pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
   ```
 
 #### 5. Restart Application
+
 ```bash
 # Fully close application
 # Reopen
@@ -520,6 +566,7 @@ poetry run zebtrack
 **Solutions**:
 
 1. **Reduce batch size**:
+
    ```yaml
    # In config.local.yaml
    performance:
@@ -529,6 +576,7 @@ poetry run zebtrack
 2. **Lower video resolution** (see [Slow Performance](#slow-performance))
 
 3. **Close other GPU applications**:
+
    ```bash
    # Check GPU memory usage
    nvidia-smi
@@ -538,6 +586,7 @@ poetry run zebtrack
    ```
 
 4. **Enable GPU memory growth** (automatic in TensorFlow, manual in PyTorch):
+
    ```python
    # Advanced users: modify src/zebtrack/plugins/yolo_plugin.py
    import torch
@@ -563,22 +612,26 @@ poetry run zebtrack
    - Device Manager → Ports (COM & LPT)
    - Note COM port number (e.g., COM3)
    - Update in config:
+
      ```yaml
      arduino:
        port: "COM3"  # Adjust to your port
      ```
 
 3. **Check device path** (Linux):
+
    ```bash
    ls -l /dev/ttyUSB* /dev/ttyACM*
    # Note device (e.g., /dev/ttyUSB0)
    ```
+
    ```yaml
    arduino:
      port: "/dev/ttyUSB0"
    ```
 
 4. **Verify permissions** (Linux):
+
    ```bash
    sudo usermod -a -G dialout $USER
    # Log out and log back in
@@ -590,6 +643,7 @@ poetry run zebtrack
    - Verify working before using with ZebTrack-AI
 
 6. **Check baud rate**:
+
    ```yaml
    arduino:
      baud_rate: 9600  # Match Arduino sketch
@@ -606,6 +660,7 @@ poetry run zebtrack
 **Solutions**:
 
 1. **Check output directory**:
+
    ```bash
    # Look for <video_name>_results/ directory
    ls -la *_results/
@@ -620,6 +675,7 @@ poetry run zebtrack
    - "Save Annotated Video", "Generate Heatmap", etc.
 
 4. **Disk space**:
+
    ```bash
    # Check available space
    df -h .  # Linux
@@ -627,6 +683,7 @@ poetry run zebtrack
    ```
 
 5. **File permissions**:
+
    ```bash
    # Ensure write permissions in output directory
    chmod -R u+w *_results/  # Linux
@@ -639,6 +696,7 @@ poetry run zebtrack
 **Solutions**:
 
 1. **Verify file integrity**:
+
    ```python
    import pandas as pd
    try:
@@ -649,13 +707,16 @@ poetry run zebtrack
    ```
 
 2. **Check file size**:
+
    ```bash
    ls -lh file.parquet
    # Should be >0 bytes
    ```
+
    - If 0 bytes: File was not written (analysis may have crashed)
 
 3. **Try recovery**:
+
    ```python
    import pyarrow.parquet as pq
    table = pq.read_table("file.parquet")
@@ -684,6 +745,7 @@ poetry run zebtrack
 3. **Track filtering**:
    - Short, erroneous tracks may skew heatmap
    - Filter tracks by minimum duration:
+
      ```python
      df = df.groupby('track_id').filter(lambda x: len(x) > 100)  # At least 100 frames
      ```
@@ -699,6 +761,7 @@ poetry run zebtrack
 **Debugging Steps**:
 
 1. **Check calibration**:
+
    ```python
    import pandas as pd
    df = pd.read_parquet("3_CoordMovimento_video.parquet")
@@ -715,6 +778,7 @@ poetry run zebtrack
    - Check ROI coordinates match visual expectations
 
 3. **Check for track ID swaps**:
+
    ```python
    # Count unique track IDs
    num_tracks = df['track_id'].nunique()
@@ -742,6 +806,7 @@ poetry run zebtrack
 **Solutions**:
 
 1. **Check model path**:
+
    ```yaml
    # In config.local.yaml
    detector:
@@ -749,6 +814,7 @@ poetry run zebtrack
    ```
 
 2. **Download model manually**:
+
    ```bash
    # YOLOv8
    wget https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.pt -O models/yolov8n.pt
@@ -772,21 +838,28 @@ poetry run zebtrack
 
 **Solutions**:
 
-#### Windows:
+#### Windows
+
 1. Run as Administrator (right-click → Run as Administrator)
 2. Check folder permissions (Properties → Security)
 3. Disable "Controlled folder access" (Windows Security → Virus & threat protection → Ransomware protection)
 
-#### Linux:
+#### Linux
+
 1. Check file ownership:
+
    ```bash
    ls -la /path/to/file
    ```
+
 2. Fix ownership if needed:
+
    ```bash
    sudo chown -R $USER:$USER /path/to/directory
    ```
+
 3. Fix permissions:
+
    ```bash
    chmod -R u+rw /path/to/directory
    ```
@@ -798,12 +871,14 @@ poetry run zebtrack
 **Solutions**:
 
 1. **Ensure in correct directory**:
+
    ```bash
    pwd  # Should be ZebTrack-AI root directory
    ls config.yaml  # Should exist
    ```
 
 2. **Create default config**:
+
    ```bash
    # Config should be created automatically
    # If missing, copy from repository
@@ -811,6 +886,7 @@ poetry run zebtrack
    ```
 
 3. **Specify config path**:
+
    ```bash
    poetry run zebtrack --config /path/to/config.yaml
    ```
@@ -822,33 +898,39 @@ poetry run zebtrack
 **Debugging**:
 
 1. **Check Python version**:
+
    ```bash
    python --version  # Must be 3.12+
    ```
 
 2. **Run with verbose logging**:
+
    ```bash
    poetry run zebtrack --verbose --debug
    ```
 
 3. **Check logs**:
+
    ```bash
    cat logs/zebtrack.log
    # Look for last ERROR message
    ```
 
 4. **Test imports**:
+
    ```bash
    poetry run python -c "import zebtrack; print('Success')"
    ```
 
 5. **Verify dependencies**:
+
    ```bash
    poetry check  # Verify lock file
    poetry show   # List installed packages
    ```
 
 6. **Clean reinstall**:
+
    ```bash
    rm -rf .venv
    rm poetry.lock
@@ -866,18 +948,21 @@ poetry run zebtrack
 **Solutions**:
 
 1. **Check for config.local.yaml**:
+
    ```bash
    ls -la config.local.yaml
    # If exists, settings are saved here
    ```
 
 2. **Verify write permissions**:
+
    ```bash
    # Should be writable
    ls -la config*.yaml
    ```
 
 3. **Check for syntax errors**:
+
    ```bash
    # Validate YAML syntax
    poetry run python -c "import yaml; yaml.safe_load(open('config.local.yaml'))"
@@ -903,6 +988,7 @@ poetry run zebtrack
    - Fully close and reopen application
 
 3. **Check setting path**:
+
    ```yaml
    # Correct structure
    camera:
@@ -917,6 +1003,7 @@ poetry run zebtrack
    - Check logs for validation errors
 
 5. **Test with minimal config**:
+
    ```bash
    # Temporarily rename config.local.yaml
    mv config.local.yaml config.local.yaml.bak
@@ -941,11 +1028,13 @@ When reporting bugs, include:
    - GPU model (if applicable)
 
 2. **Application version**:
+
    ```bash
    poetry run zebtrack --version
    ```
 
 3. **Error logs**:
+
    ```bash
    cat logs/zebtrack.log  # Last 50 lines
    ```
@@ -959,9 +1048,9 @@ When reporting bugs, include:
 
 ### Community Support
 
-- **GitHub Issues**: https://github.com/MarkSant/ZebTrack-AI/issues
-- **Discussions**: https://github.com/MarkSant/ZebTrack-AI/discussions
-- **Email**: support@zebtrack.ai
+- **GitHub Issues**: <https://github.com/MarkSant/ZebTrack-AI/issues>
+- **Discussions**: <https://github.com/MarkSant/ZebTrack-AI/discussions>
+- **Email**: <support@zebtrack.ai>
 
 ### Documentation
 

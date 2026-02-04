@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # 🎯 Plano de Ação: Correção e Unificação dos Fluxos de Câmera ao Vivo
 
 **Data:** 2025-01-11 (Atualizado)
@@ -5,7 +7,8 @@
 **Status:** Pendente Implementação
 **Prioridade:** 🔴 CRÍTICA
 
-**Changelog v1.1:**
+## Changelog v1.1
+
 - ✅ Adicionado **Bug #6 (CRÍTICO)**: Acoplamento LiveCameraService → RecordingService
 - ✅ Adicionada **Fase 2.6**: Desacoplamento completo com código detalhado
 - ✅ Explicação de como o acoplamento causa os sintomas reportados
@@ -15,18 +18,18 @@
 
 ## 📋 Índice
 
-1. [Contexto e Motivação](#contexto-e-motivação)
-2. [Problemas Identificados](#problemas-identificados)
-3. [Objetivos](#objetivos)
-4. [Arquitetura Alvo](#arquitetura-alvo)
+1. [Contexto e Motivação](#-contexto-e-motivação)
+2. [Problemas Identificados](#-problemas-identificados)
+3. [Objetivos](#-objetivos)
+4. [Arquitetura Alvo](#%EF%B8%8F-arquitetura-alvo)
 5. [Plano de Implementação](#plano-de-implementação)
-6. [Validação e Testes](#validação-e-testes)
-7. [Rollback Plan](#rollback-plan)
-8. [Referências](#referências)
+6. [Validação e Testes](#-validação-e-testes)
+7. [Rollback Plan](#-rollback-plan)
+8. [Referências](#-referências)
 
 ---
 
-## 🎯 Contexto e Motivação
+## Contexto e Motivação
 
 ### Situação Atual
 
@@ -37,12 +40,14 @@ O ZebTrack-AI possui **DOIS sistemas paralelos** para gerenciar câmeras ao vivo
 
 ### Dois Contextos de Uso
 
-**Contexto 1: Análise de Vídeo Único com Câmera**
+## Contexto 1: Análise de Vídeo Único com Câmera
+
 - Menu: "Analisar Vídeo Único" → RadioButton "Câmera ao Vivo"
 - Status: ✅ Usa sistema NOVO (LiveCameraService)
 - Problema: ❌ Ignora intervalos de análise/exibição configurados
 
-**Contexto 2: Projetos Live (Gravação de Sessões)**
+## Contexto 2: Projetos Live (Gravação de Sessões)
+
 - Menu: "Novo Projeto" → Wizard → Tipo "Live"
 - Status: ❌ Usa sistema LEGADO (threads em gui.py)
 - Problema: ❌ Ignora `camera_index` selecionado no wizard (sempre abre câmera 0)
@@ -55,7 +60,8 @@ O ZebTrack-AI possui **DOIS sistemas paralelos** para gerenciar câmeras ao vivo
 
 **Localização:** `src/zebtrack/ui/gui.py:2822-2840`
 
-**Código problemático:**
+### Código problemático
+
 ```python
 if project_type == "live":
     # ❌ USA settings global (camera.index = 0 default)
@@ -64,7 +70,8 @@ if project_type == "live":
     # ❌ IGNORA project_data["camera_index"] salvo pelo wizard!
 ```
 
-**Impacto:**
+### Impacto
+
 - Usuário seleciona câmera 1 no wizard
 - Sistema abre câmera 0
 - Dados gravados da câmera errada
@@ -75,7 +82,8 @@ if project_type == "live":
 
 **Localização:** `src/zebtrack/ui/components/event_dispatcher.py:520-524`
 
-**Código problemático:**
+### Código problemático
+
 ```python
 if source_type == "camera":
     camera_index = dialog.result.get("camera_index", 0)
@@ -83,7 +91,8 @@ if source_type == "camera":
     self.gui.controller.start_live_camera_analysis(camera_index=camera_index)
 ```
 
-**Impacto:**
+### Impacto
+
 - Usuário configura `analysis_interval=10`, `display_interval=10`
 - Sistema usa `interval=1` (padrão hardcoded)
 - Desempenho degradado, processa todos os frames
@@ -94,14 +103,16 @@ if source_type == "camera":
 
 **Localização:** `src/zebtrack/io/live_stream_source.py:60-61`
 
-**Código problemático:**
+### Código problemático
+
 ```python
 def __init__(self, camera_index: int = 0, ...):
     self.camera_index = camera_index  # ← Armazena mas não usa
     self.camera = Camera(settings_obj=settings_obj)  # ← USA settings.camera.index!
 ```
 
-**Impacto:**
+### Impacto
+
 - Atualmente não usado (LiveCameraService usa Camera diretamente)
 - Bug latente para uso futuro
 
@@ -111,12 +122,14 @@ def __init__(self, camera_index: int = 0, ...):
 
 **Localização:** `src/zebtrack/io/frame_source_factory.py:104`
 
-**Código problemático:**
+### Código problemático
+
 ```python
 return Camera(settings_obj=settings_obj)  # ❌ Não modifica camera.index
 ```
 
-**Impacto:**
+### Impacto
+
 - Similar ao Bug 3
 - Bug latente
 
@@ -126,11 +139,13 @@ return Camera(settings_obj=settings_obj)  # ❌ Não modifica camera.index
 
 **Localização:** `src/zebtrack/ui/gui.py:2856-2916`
 
-**Threads legados:**
+### Threads legados
+
 - `_live_frame_capture_loop()` (linha 2897)
 - `_live_processing_loop()` (linha 2923)
 
-**Impacto:**
+### Impacto
+
 - Duplicação de threads (4 threads ao invés de 2)
 - Duplicação de frame buffers (2x memória)
 - Competição por hardware (múltiplos `cv2.VideoCapture`)
@@ -143,7 +158,8 @@ return Camera(settings_obj=settings_obj)  # ❌ Não modifica camera.index
 
 **Localização:** `src/zebtrack/core/live_camera_service.py:178-213`
 
-**Código problemático:**
+### Código problemático
+
 ```python
 def start_session(self, ...):
     # ... setup camera, detector, preview window ...
@@ -175,16 +191,17 @@ def start_session(self, ...):
     )
 ```
 
-**Por que isso é problemático:**
+#### Por que isso é problemático
 
 `RecordingService` foi projetado para **contexto de PROJETO** e assume:
+
 1. Existe um projeto carregado (`ProjectManager`)
 2. Pode acessar `project_manager.get_zone_data()` (linha ~150 em recording_service.py)
 3. Atualiza estado global via `StateManager.update_recording_state()`
 4. Chama callbacks de UI (`_update_button_state()`) que modificam controles do projeto
 5. Pode interagir com Arduino via projeto
 
-**Impacto CRÍTICO - Como causa os sintomas reportados:**
+### Impacto CRÍTICO - Como causa os sintomas reportados
 
 1. **Múltiplas câmeras ativando (LEDs acendem):**
    - RecordingService pode chamar `setup_detector()` que recarrega zonas
@@ -206,19 +223,21 @@ def start_session(self, ...):
    - Pode disparar callbacks de Arduino
    - Polui logs com eventos de "recording_started" quando é só análise
 
-**Impacto:**
+### Impacto
+
 - ❌ LiveCameraService (análise standalone) **DEPENDE** de RecordingService (orientado a projetos)
 - ❌ Acoplamento tight = código frágil, difícil de manter
 - ❌ Viola princípio de responsabilidade única (SRP)
 - ❌ Análise standalone não deveria modificar estado global
 - ❌ Causa os bugs principais: múltiplas câmeras, câmera errada, preview quebrado
 
-**Solução necessária (Fase 2.6):**
+### Solução necessária (Fase 2.6)
+
 - Desacoplar: LiveCameraService deve ter gravação própria e leve
 - RecordingService continua servindo projetos
 - Separação clara de responsabilidades
 
-**UPDATE 2025-11-11:** ✅ **CORRIGIDO - TypeError em LiveCameraService.start_session()**
+### UPDATE 2025-11-11:**✅**CORRIGIDO - TypeError em LiveCameraService.start_session()
 
 - **Problema:** Após refatoração parcial do Bug 6, a chamada ao `Recorder.start_recording()`
   estava usando parâmetros incorretos, causando `TypeError: Recorder.start_recording() got
@@ -245,10 +264,10 @@ def start_session(self, ...):
 
 ### Secundários
 
-5. ✅ **Código limpo**: -200 linhas de código legado
-6. ✅ **Manutenibilidade**: Um caminho de código = menos bugs
-7. ✅ **Escalabilidade**: Fácil adicionar multi-câmera no futuro
-8. ✅ **Alinhamento arquitetural**: Seguir MVVM-S rigorosamente
+1. ✅ **Código limpo**: -200 linhas de código legado
+2. ✅ **Manutenibilidade**: Um caminho de código = menos bugs
+3. ✅ **Escalabilidade**: Fácil adicionar multi-câmera no futuro
+4. ✅ **Alinhamento arquitetural**: Seguir MVVM-S rigorosamente
 
 ---
 
@@ -256,7 +275,7 @@ def start_session(self, ...):
 
 ### Diagrama de Fluxo Unificado
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    ENTRY POINTS (GUI)                        │
 ├─────────────────────────────────────────────────────────────┤
@@ -328,7 +347,7 @@ def start_session(self, ...):
 
 ---
 
-## 🛠️ Plano de Implementação
+## Plano de Implementação
 
 ### Fase 1: Correções Críticas e Urgentes
 
@@ -338,7 +357,8 @@ def start_session(self, ...):
 
 **Localização:** Linhas 509-538
 
-**Mudança:**
+### Mudança
+
 ```python
 def handle_analyze_single_video_clicked(self) -> None:
     """Handle the UI part of the single video workflow."""
@@ -386,7 +406,8 @@ def handle_analyze_single_video_clicked(self) -> None:
 
 **Localização:** Adicionar após linha 2702
 
-**Código:**
+### Código
+
 ```python
 def start_live_camera_analysis_from_config(self, config: dict):
     """
@@ -472,7 +493,8 @@ def start_live_camera_analysis_from_config(self, config: dict):
 
 **Localização:** Linhas 2822-2840
 
-**Mudança:**
+### Mudança
+
 ```python
 if project_type == "live":
     try:
@@ -518,7 +540,8 @@ if project_type == "live":
 
 **Localização:** Linhas 2856-2867
 
-**Mudança:**
+### Mudança
+
 ```python
 if project_type == "live":
     # ⚠️ DEPRECATED: Legacy thread system for Live projects
@@ -546,7 +569,7 @@ if project_type == "live":
     self.root.after(1000, self._check_live_project_calibration)
 ```
 
-**Adicionar docstrings de deprecation:**
+### Adicionar docstrings de deprecation
 
 ```python
 def _live_frame_capture_loop(self):
@@ -578,7 +601,8 @@ def _live_processing_loop(self):
 
 **Localização:** Adicionar novo método
 
-**Código:**
+### Código
+
 ```python
 def start_live_project_session(
     self,
@@ -653,7 +677,8 @@ def start_live_project_session(
 
 **Localização:** Método `start_session()`, linhas 96-216
 
-**Mudança no output_dir:**
+### Mudança no output_dir
+
 ```python
 def start_session(
     self,
@@ -708,7 +733,8 @@ def start_session(
 
 **Localização:** Método `_on_grid_cell_clicked()` e relacionados
 
-**Mudança:**
+### Mudança
+
 ```python
 def _start_recording_session(self, day: int, group: str, subject: str):
     """
@@ -753,12 +779,12 @@ def _start_recording_session(self, day: int, group: str, subject: str):
 # ========================================================================
 # DEPRECATED CODE - SCHEDULED FOR REMOVAL IN v3.0
 # ========================================================================
-# This legacy thread system has been replaced by LiveCameraService.
-# Kept commented for reference during migration period.
-# Remove after all tests pass and user validation is complete.
+# This legacy thread system has been replaced by LiveCameraService
+# Kept commented for reference during migration period
+# Remove after all tests pass and user validation is complete
 # ========================================================================
 
-# if project_type == "live":
+# if project_type == "live"
 #     self.controller.capture_thread = threading.Thread(
 #         target=self._live_frame_capture_loop, name="CaptureThread", daemon=True
 #     )
@@ -769,20 +795,21 @@ def _start_recording_session(self, day: int, group: str, subject: str):
 #     self.controller.processing_thread.start()
 #     self.root.after(1000, self._check_live_project_calibration)
 
-# def _live_frame_capture_loop(self):
+# def _live_frame_capture_loop(self)
 #     """DEPRECATED - Use LiveCameraService instead."""
-#     # ... existing code commented out ...
+#     # ... existing code commented out ..
 
-# def _live_processing_loop(self):
+# def _live_processing_loop(self)
 #     """DEPRECATED - Use LiveCameraService instead."""
-#     # ... existing code commented out ...
+#     # ... existing code commented out ..
 ```
 
 ---
 
 #### 2.6. 🔥 CRÍTICO - Desacoplar LiveCameraService do RecordingService
 
-**Contexto:**
+## Contexto
+
 Atualmente, `LiveCameraService.start_session()` chama `RecordingService.start_session()` na linha 209.
 Isso cria acoplamento tight e causa múltiplos bugs (câmera errada, múltiplas câmeras, preview quebrado).
 
@@ -794,7 +821,7 @@ Isso cria acoplamento tight e causa múltiplos bugs (câmera errada, múltiplas 
 
 **Localização:** Método `start_session()`, linhas 178-216
 
-**Mudança Completa:**
+### Mudança Completa
 
 ```python
 def start_session(
@@ -937,7 +964,7 @@ def start_session(
 
 ---
 
-**Adicionar novo método auxiliar:**
+### Adicionar novo método auxiliar
 
 ```python
 def _setup_session_timer(self, duration_s: float, output_dir: Path):
@@ -972,7 +999,7 @@ def _setup_session_timer(self, duration_s: float, output_dir: Path):
 
 ---
 
-**Modificar `stop_session()` para limpar timer:**
+### Modificar `stop_session()` para limpar timer
 
 ```python
 def stop_session(self):
@@ -1032,7 +1059,7 @@ def stop_session(self):
 
 ---
 
-**Adicionar campo de instância no `__init__()`:**
+### Adicionar campo de instância no `__init__()`
 
 ```python
 def __init__(
@@ -1080,7 +1107,8 @@ def __init__(
 
 ---
 
-**Resultado:**
+### Resultado
+
 - ✅ LiveCameraService **NÃO** chama RecordingService
 - ✅ Gravação leve e autossuficiente
 - ✅ Não polui estado global
@@ -1099,7 +1127,8 @@ def __init__(
 
 **Localização:** Linhas 36-75
 
-**Mudança:**
+### Mudança
+
 ```python
 def __init__(
     self,
@@ -1145,7 +1174,8 @@ def __init__(
 
 **Localização:** Linhas 58-104
 
-**Mudança:**
+### Mudança
+
 ```python
 @staticmethod
 def create_from_camera(
@@ -1205,7 +1235,8 @@ def create_from_camera(
 
 **Arquivo:** `CHANGELOG.md`
 
-**Adicionar:**
+### Adicionar
+
 ```markdown
 ## [2.1.0] - 2025-01-XX
 
@@ -1271,7 +1302,8 @@ def create_from_camera(
 
 **Arquivo:** `docs/LIVE_CAMERA_UNIFICATION.md`
 
-**Criar novo arquivo:**
+### Criar novo arquivo
+
 ```markdown
 # Live Camera Unification - Technical Documentation
 
@@ -1311,11 +1343,12 @@ controller.start_live_project_session(
     group="control",
     subject="fish01"
 )
-```
+```text
 
 #### Deprecated Code
 
 The following methods are deprecated and will be removed in v3.0:
+
 - `gui._live_frame_capture_loop()`
 - `gui._live_processing_loop()`
 
@@ -1324,8 +1357,10 @@ Use `LiveCameraService` instead.
 ## Testing
 
 All tests updated to use unified architecture. See:
+
 - `tests/integration/test_live_camera_analysis_integration.py`
 - `tests/core/test_live_camera_service.py`
+
 ```
 
 ---
@@ -1334,18 +1369,18 @@ All tests updated to use unified architecture. See:
 
 ### Checklist de Validação Funcional
 
-#### Contexto 1: Análise de Vídeo Único
+## Contexto 1: Análise de Vídeo Único
 
 - [ ] **Teste 1.1**: Selecionar câmera 1, verificar que câmera 1 abre (não 0)
 - [ ] **Teste 1.2**: Configurar `analysis_interval=15`, verificar logs mostram interval=15
 - [ ] **Teste 1.3**: Configurar `display_interval=20`, verificar preview atualiza a cada 20 frames
-- [ ] **Teste 1.4**: Apenas câmera selecionada acende LED (não outras câmeras) ✅ **Fix Bug #6**
-- [ ] **Teste 1.5**: Preview mostra imagens dentro de 2 segundos ✅ **Fix Bug #6**
+- [ ] **Teste 1.4**: Apenas câmera selecionada acende LED (não outras câmeras) ✅**Fix Bug #6**
+- [ ] **Teste 1.5**: Preview mostra imagens dentro de 2 segundos ✅**Fix Bug #6**
 - [ ] **Teste 1.6**: Gravação salva em `live_analysis_sessions/` com Parquet correto
-- [ ] **Teste 1.7**: Verificar logs NÃO mostram "recording_service.start_session" ✅ **Fix Bug #6**
-- [ ] **Teste 1.8**: Verificar que botões de projeto não mudam de estado ✅ **Fix Bug #6**
+- [ ] **Teste 1.7**: Verificar logs NÃO mostram "recording_service.start_session" ✅**Fix Bug #6**
+- [ ] **Teste 1.8**: Verificar que botões de projeto não mudam de estado ✅**Fix Bug #6**
 
-#### Contexto 2: Projetos Live
+## Contexto 2: Projetos Live
 
 - [ ] **Teste 2.1**: Criar projeto, wizard seleciona câmera 1, salvar
 - [ ] **Teste 2.2**: Abrir projeto, verificar câmera 1 abre (não 0)
@@ -1446,7 +1481,7 @@ def test_live_project_opens_correct_camera(tkinter_root, tmp_path):
 
 ### Performance Benchmarks
 
-**Executar antes e depois:**
+### Executar antes e depois
 
 ```bash
 # Contar threads ativas
@@ -1465,7 +1500,8 @@ poetry run python -m memory_profiler scripts/benchmark_live_camera.py
 poetry run pytest tests/performance/test_live_camera_latency.py -v
 ```
 
-**Métricas esperadas:**
+### Métricas esperadas
+
 - Threads: 4 → 2 (-50%)
 - Memória: ~60MB → ~30MB (-50%)
 - Latência: 0-5ms → 0-2ms (mais consistente)
@@ -1474,21 +1510,24 @@ poetry run pytest tests/performance/test_live_camera_latency.py -v
 
 ## 🔄 Rollback Plan
 
-### Se bugs críticos forem encontrados:
+### Se bugs críticos forem encontrados
 
-**Etapa 1: Reverter mudanças da Fase 2**
+### Etapa 1: Reverter mudanças da Fase 2
+
 ```bash
 git revert <commit-fase-2>
 # Reativa threads legados, mantém fix de intervalos
 ```
 
-**Etapa 2: Manter apenas Fase 1 (fixes críticos)**
+### Etapa 2: Manter apenas Fase 1 (fixes críticos)
+
 ```bash
 # Fase 1 é segura, apenas corrige bugs óbvios
 # Pode ser mantida independentemente
 ```
 
-**Etapa 3: Hotfix se necessário**
+### Etapa 3: Hotfix se necessário
+
 ```bash
 # Se Fase 1 causar problemas, reverter apenas event_dispatcher.py
 git checkout HEAD~1 -- src/zebtrack/ui/components/event_dispatcher.py
@@ -1501,7 +1540,7 @@ git checkout HEAD~1 -- src/zebtrack/ui/components/event_dispatcher.py
 ### Arquivos Principais Modificados
 
 | Arquivo | Linhas | Tipo de Mudança |
-|---------|--------|-----------------|
+| --------- | -------- | ----------------- |
 | `src/zebtrack/ui/components/event_dispatcher.py` | 509-538 | Modificação |
 | `src/zebtrack/core/main_view_model.py` | +novo método | Adição |
 | `src/zebtrack/ui/gui.py` | 2822-2840 | Modificação |
@@ -1547,24 +1586,26 @@ git commit -m "test: add integration tests for unified camera workflows"
 ### Estimativa de Tempo
 
 | Fase | Tempo Estimado | Risco |
-|------|----------------|-------|
+| ------ | ---------------- | ------- |
 | Fase 1 | 2-3 horas | Baixo |
 | Fase 2 | 4-6 horas | Médio |
 | Fase 3 | 1-2 horas | Baixo |
 | Fase 4 | 2-3 horas | Baixo |
-| **Total** | **9-14 horas** | - |
+| **Total**|**9-14 horas** | - |
 
 ---
 
 ## ✅ Checklist de Implementação
 
 ### Antes de Começar
+
 - [ ] Criar branch: `fix/unify-live-camera-flows`
 - [ ] Fazer backup do projeto atual
 - [ ] Rodar todos os testes: `poetry run pytest -m "" -n0`
 - [ ] Verificar que todos passam (baseline)
 
 ### Fase 1: Fixes Críticos
+
 - [ ] Modificar `event_dispatcher.py` (passar config completo)
 - [ ] Criar `start_live_camera_analysis_from_config()` em `main_view_model.py`
 - [ ] Modificar `gui.py` linha 2840 (usar camera_index do project_data)
@@ -1573,6 +1614,7 @@ git commit -m "test: add integration tests for unified camera workflows"
 - [ ] Commit: "fix(camera): critical bugs in camera selection and intervals"
 
 ### Fase 2: Migração Arquitetural
+
 - [ ] **2.6 CRÍTICO**: Desacoplar LiveCameraService do RecordingService
   - [ ] Remover chamada a `recording_service.start_session()` (linha 209)
   - [ ] Implementar gravação leve diretamente no LiveCameraService
@@ -1592,12 +1634,14 @@ git commit -m "test: add integration tests for unified camera workflows"
 - [ ] Commit: "refactor(camera): migrate to unified LiveCameraService"
 
 ### Fase 3: Fixes Preventivos
+
 - [ ] Modificar `LiveStreamSource.__init__()`
 - [ ] Modificar `FrameSourceFactory.create_from_camera()`
 - [ ] Rodar testes unitários
 - [ ] Commit: "fix(camera): preventive fixes for latent bugs"
 
 ### Fase 4: Documentação
+
 - [ ] Atualizar `CHANGELOG.md`
 - [ ] Atualizar `CLAUDE.md`
 - [ ] Criar `docs/LIVE_CAMERA_UNIFICATION.md`
@@ -1605,6 +1649,7 @@ git commit -m "test: add integration tests for unified camera workflows"
 - [ ] Commit: "docs: document live camera unification"
 
 ### Finalização
+
 - [ ] Rodar suite completa de testes: `poetry run pytest -m "" -n0`
 - [ ] Rodar linter: `poetry run ruff check .`
 - [ ] Validação manual completa (Checklist acima)
@@ -1621,24 +1666,28 @@ git commit -m "test: add integration tests for unified camera workflows"
 Após implementação completa:
 
 ✅ **Funcionalidade**
+
 - Contexto 1 e 2 usam sistema unificado
 - Camera_index sempre respeitado
 - Intervalos sempre respeitados
 - Preview funciona consistentemente
 
 ✅ **Performance**
+
 - 50% menos threads (4 → 2)
 - 50% menos memória (buffers duplicados eliminados)
 - Latência mais consistente
 - Zero overhead de locks
 
 ✅ **Código**
+
 - 200 linhas de código legado removido
 - Um caminho de código = menos bugs
 - Arquitetura MVVM-S consistente
 - Fácil manter e estender
 
 ✅ **Documentação**
+
 - Changelog atualizado
 - Guia técnico completo
 - Deprecation warnings claros
@@ -1646,6 +1695,6 @@ Após implementação completa:
 
 ---
 
-**FIM DO PLANO DE AÇÃO**
+### FIM DO PLANO DE AÇÃO
 
 *Este documento será atualizado conforme a implementação progride.*

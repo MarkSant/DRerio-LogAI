@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # 🎯 Extraction Candidates - Top Métodos para Extração
 
 **Document:** EXTRACTION_CANDIDATES.md
@@ -11,12 +13,14 @@
 ## 📊 Overview
 
 Este documento identifica e analisa em profundidade os **Top 28 métodos candidatos** para extração do MainViewModel, priorizados por:
+
 1. **Tamanho** (>50 linhas)
 2. **Impacto** (número de dependências)
 3. **Complexidade** (fan-out, linting warnings)
 4. **Retorno** (redução de linhas vs risco)
 
 **Objetivo:** Guiar os Sprints 24-35 com análise detalhada de cada candidato, incluindo:
+
 - Localização exata (linha início/fim)
 - Dependências (chama/é chamado por)
 - Destino de extração sugerido
@@ -30,7 +34,7 @@ Este documento identifica e analisa em profundidade os **Top 28 métodos candida
 Total: **3,368 linhas** (64.4% do MainViewModel)
 
 | # | Método | Linhas | Linha | Categoria | Sprint | Risco |
-|---|--------|--------|-------|-----------|--------|-------|
+| --- | -------- | -------- | ------- | ----------- | -------- | ------- |
 | 1 | `__init__` | 280 | 128 | utility_internal | ⚠️ NÃO EXTRAIR | ❌ |
 | 2 | `process_pending_project_videos` | 239 | 3695 | orchestration | 24 | 🔴 |
 | 3 | `_init_coordinators` | 162 | 422 | utility_internal | ⚠️ NÃO EXTRAIR | ❌ |
@@ -70,7 +74,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** orchestration
 **Complexidade:** 🔴 MUITO ALTA (C901 cyclomatic complexity warning)
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - _select_eligible_videos (81 linhas)
@@ -85,11 +90,13 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 
 **Cadeia de dependências:** 565 linhas total
 **Risco:** 🔴 ALTO
+
 - Método muito complexo com warning de complexidade ciclomática
 - Múltiplas condicionais e loops aninhados
 - Lógica de validação crítica
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Criar `VideoProcessingOrchestrator.process_pending_videos()`
 2. Extrair métodos auxiliares junto: `_select_eligible_videos`, `_create_processing_callbacks`, `_create_processing_context`
 3. Manter facade mínima no MainViewModel
@@ -105,7 +112,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** orchestration
 **Complexidade:** 🟡 ALTA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - refresh_project_views (21 linhas)
@@ -121,10 +129,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 
 **Cadeia de dependências:** 386 linhas total
 **Risco:** 🟡 MÉDIO
+
 - Workflow bem definido
 - Depende de helpers compartilhados com #2
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Criar `VideoProcessingOrchestrator.process_single_video()`
 2. Reutilizar helpers já extraídos de #2
 3. Garantir callbacks de progresso funcionam
@@ -139,7 +149,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** orchestration_internal
 **Complexidade:** 🔴 ALTA (3 dependentes)
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - _publish_processing_mode (18 linhas) [⚠️ MANTER]
@@ -152,11 +163,13 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🔴 ALTO
+
 - Usado por 3 métodos principais
 - Cria closures complexas
 - Essencial para feedback de progresso
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Extrair para `VideoProcessingOrchestrator._create_callbacks()`
 2. Injetar `_publish_processing_mode` via callback
 3. Testar todos os 3 fluxos que o usam
@@ -171,7 +184,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** orchestration
 **Complexidade:** 🔴 ALTA (6 chamadas)
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - _handle_mixed_data_scenario (53 linhas)
@@ -187,10 +201,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 
 **Cadeia de dependências:** 466 linhas total
 **Risco:** 🔴 ALTO
+
 - Validação complexa de zonas
 - Cenário de dados mistos (tracking + vídeos novos)
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Criar `VideoProcessingOrchestrator.start_project_workflow()`
 2. Extrair `_validate_zones_with_ui` para UIStateController separadamente
 3. Testar fluxo de dados mistos cuidadosamente
@@ -205,7 +221,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** utility_internal
 **Complexidade:** 🟢 BAIXA (isolado)
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA: Nenhum
 
@@ -214,10 +231,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟢 BAIXO
+
 - Método isolado, sem dependências internas
 - Lógica de filtragem simples
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `VideoProcessingOrchestrator._select_videos()`
 2. Extração direta, sem refatoração
 
@@ -231,7 +250,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** utility_internal
 **Complexidade:** 🟡 MÉDIA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - _publish_processing_mode (18 linhas) [⚠️ MANTER]
@@ -241,10 +261,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - Usado via closures em callbacks
 - Atualiza progresso em tempo real
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `VideoProcessingOrchestrator._make_callback()`
 2. Injetar `_publish_processing_mode` via dependency
 
@@ -264,7 +286,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** orchestration_internal
 **Complexidade:** 🟡 MÉDIA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA: Nenhum (isolado)
 
@@ -273,10 +296,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - Lógica de análise complexa
 - Gera sumários Parquet
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Criar `AnalysisOrchestrator.process_summary()`
 2. Extração direta (sem dependências internas)
 
@@ -290,7 +315,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** orchestration
 **Complexidade:** 🟢 BAIXA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - _publish_processing_mode (18 linhas) [⚠️ MANTER]
@@ -300,10 +326,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟢 BAIXO
+
 - Workflow bem isolado
 - Única dependência: _publish_processing_mode
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Criar `AnalysisOrchestrator.detect_aquarium()`
 2. Injetar `_publish_processing_mode` via callback
 
@@ -317,7 +345,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** utility_internal
 **Complexidade:** 🟡 MÉDIA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - refresh_project_views (21 linhas)
@@ -328,10 +357,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - Worker thread separado
 - Coordena geração de sumários
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `AnalysisOrchestrator._summary_worker()`
 2. Extrair junto com `_process_summary_video`
 
@@ -351,7 +382,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** orchestration
 **Complexidade:** 🟡 MÉDIA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA: Nenhum (isolado)
 
@@ -360,10 +392,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - Workflow de câmera ao vivo
 - Integração com hardware
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Criar `RecordingSessionOrchestrator.start_live_from_config()`
 2. Testar com câmera real e mock
 
@@ -377,7 +411,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** orchestration
 **Complexidade:** 🟡 MÉDIA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - _publish_processing_mode (18 linhas) [⚠️ MANTER]
@@ -387,10 +422,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - Calibração ao vivo crítica
 - Dependência: _ensure_zones_before_recording
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Criar `RecordingSessionOrchestrator.calibrate_live()`
 2. Extrair junto com `_ensure_zones_before_recording`
 
@@ -404,7 +441,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** utility_internal
 **Complexidade:** 🔴 ALTA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - run_live_calibration (99 linhas)
@@ -414,10 +452,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🔴 ALTO
+
 - Validação crítica antes de gravação
 - Pode iniciar calibração (modal dialog)
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `RecordingSessionOrchestrator._ensure_zones()`
 2. Extrair junto com `run_live_calibration`
 3. Testar todos os cenários de validação
@@ -432,7 +472,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** orchestration
 **Complexidade:** 🔴 MUITO ALTA (chama 7 métodos)
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - _clear_external_trigger_wait (13 linhas)
@@ -449,11 +490,13 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 
 **Cadeia de dependências:** 304 linhas total
 **Risco:** 🔴 MUITO ALTO
+
 - Método mais complexo de recording
 - Integração com Arduino (hardware)
 - Validação crítica de zonas
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Criar `RecordingSessionOrchestrator.start()`
 2. Extrair helpers: `_schedule_recording`, `_clear_external_trigger_wait`, `_handle_external_trigger`
 3. `setup_arduino` permanece no MainViewModel (hardware)
@@ -469,7 +512,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** orchestration
 **Complexidade:** 🟡 MÉDIA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA: Nenhum (isolado)
 
@@ -478,10 +522,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - Workflow de análise ao vivo
 - Similar a `start_live_camera_analysis_from_config`
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Criar `RecordingSessionOrchestrator.start_live_analysis()`
 2. Consolidar com método #6
 
@@ -495,7 +541,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** orchestration
 **Complexidade:** 🟡 MÉDIA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA: Nenhum (isolado)
 
@@ -504,10 +551,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - Sessão de projeto ao vivo
 - Coordena múltiplos vídeos
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Criar `RecordingSessionOrchestrator.start_project_session()`
 2. Extração direta
 
@@ -527,7 +576,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** mutator
 **Complexidade:** 🟡 MÉDIA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - setup_detector_zones (36 linhas)
@@ -537,10 +587,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - Lógica de ROI complexa
 - Validação de polígonos
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `ProjectOrchestrator.add_roi()`
 2. Extrair junto com `setup_detector_zones`
 
@@ -554,7 +606,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** orchestration
 **Complexidade:** 🟡 MÉDIA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - _publish_processing_mode (18 linhas) [⚠️ MANTER]
@@ -565,10 +618,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - Workflow de diagnóstico
 - Thread worker separado
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Criar `DiagnosticOrchestrator.run_diagnostic()`
 2. Extrair cadeia de helpers de diagnostic junto
 
@@ -582,7 +637,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** utility_internal
 **Complexidade:** 🟢 BAIXA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA: Nenhum (isolado)
 
@@ -591,10 +647,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟢 BAIXO
+
 - Formatação de texto pura
 - Sem lógica de negócio
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `DiagnosticOrchestrator._format_report()`
 2. Extração direta
 
@@ -608,7 +666,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** orchestration_internal
 **Complexidade:** 🟡 MÉDIA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - _finish_progress_dialog (4 linhas)
@@ -619,10 +678,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - Loop de processamento
 - Atualização de progresso
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `DiagnosticOrchestrator._frame_loop()`
 2. Extrair junto com outros métodos diagnostic
 
@@ -636,7 +697,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** state_management
 **Complexidade:** 🟡 MÉDIA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - _prepare_results_directory (6 linhas)
@@ -646,10 +708,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - Aplica configurações em lote
 - Coordena múltiplos vídeos
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `ProjectOrchestrator.apply_batch_settings()`
 2. Extração direta
 
@@ -663,7 +727,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** utility_internal
 **Complexidade:** 🟢 BAIXA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - _finish_progress_dialog (4 linhas)
@@ -673,10 +738,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟢 BAIXO
+
 - Inicialização de modelo
 - Sem lógica complexa
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `DiagnosticOrchestrator._init_openvino()`
 2. Extração junto com outros métodos diagnostic
 
@@ -690,7 +757,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** utility_internal
 **Complexidade:** 🟡 MÉDIA (context manager)
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - _resolve_single_animal_mode (35 linhas)
@@ -704,10 +772,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - Context manager (@contextmanager)
 - Usado por 2 métodos
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `DetectorOrchestrator.single_animal_mode()`
 2. Extrair helpers junto: `_resolve_single_animal_mode`, `_resolve_single_subject_tracker_preference`
 
@@ -721,7 +791,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** other
 **Complexidade:** 🟡 MÉDIA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - _safe_get_default_weight (18 linhas)
@@ -732,10 +803,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - Lógica de configuração de modelo
 - Usado por overrides
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `ProjectOrchestrator.resolve_settings()`
 2. Extrair junto com `apply_project_model_overrides`
 
@@ -749,7 +822,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** query
 **Complexidade:** 🟢 BAIXA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - has_project_override_settings (10 linhas)
@@ -759,10 +833,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟢 BAIXO
+
 - Query read-only
 - Sem side effects
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `ProjectOrchestrator.get_calibration_info()`
 2. Extração direta
 
@@ -776,7 +852,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** utility_internal
 **Complexidade:** 🟢 BAIXA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA: Nenhum (isolado)
 
@@ -785,10 +862,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟢 BAIXO
+
 - Helper puro
 - Sem dependências
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `DetectorOrchestrator._resolve_tracker()`
 2. Extrair junto com `_temporary_single_animal_mode`
 
@@ -808,7 +887,8 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 **Categoria:** ui_internal
 **Complexidade:** 🟡 MÉDIA
 
-**Dependências:**
+### Dependências
+
 ```python
 # CHAMA:
 - set_main_arena_polygon (49 linhas)
@@ -818,10 +898,12 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ```
 
 **Risco:** 🟡 MÉDIO
+
 - UI modal complexa
 - Validação interativa
 
-**Estratégia de Extração:**
+### Estratégia de Extração
+
 1. Mover para `UIStateController.validate_zones()`
 2. Testar interação com usuário
 
@@ -836,7 +918,7 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ## 📊 Resumo de Extração Projetada
 
 | Sprint | Orchestrator | Métodos | Linhas | % Total | Risco |
-|--------|--------------|---------|--------|---------|-------|
+| -------- | -------------- | --------- | -------- | --------- | ------- |
 | **24** | VideoProcessing | 6 | ~815 | 15.6% | 🔴 |
 | **25** | Analysis | 3 | ~322 | 6.2% | 🟡 |
 | **26** | RecordingSession | 6 | ~534 | 10.2% | 🔴 |
@@ -851,6 +933,7 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 ## 🎯 Ordem de Extração Recomendada
 
 ### Fase 1: Orchestrators de Processamento (Sprints 24-25)
+
 1. ✅ `_select_eligible_videos` (isolado, sem dependências)
 2. ✅ `_create_processing_context` (usado por 3 métodos)
 3. ✅ `_create_processing_callbacks` (usado por 3 métodos)
@@ -862,27 +945,30 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 9. ✅ `_generate_parquet_summaries_worker` (usa #7)
 
 ### Fase 2: Recording & Live Camera (Sprint 26)
-10. ✅ `run_live_calibration` (isolado)
-11. ✅ `_ensure_zones_before_recording` (usa #10)
-12. ✅ `start_recording` (usa #11, mais crítico)
-13. ✅ `start_live_camera_analysis` (isolado)
-14. ✅ `start_live_camera_analysis_from_config` (isolado)
-15. ✅ `start_live_project_session` (isolado)
+
+1. ✅ `run_live_calibration` (isolado)
+2. ✅ `_ensure_zones_before_recording` (usa #10)
+3. ✅ `start_recording` (usa #11, mais crítico)
+4. ✅ `start_live_camera_analysis` (isolado)
+5. ✅ `start_live_camera_analysis_from_config` (isolado)
+6. ✅ `start_live_project_session` (isolado)
 
 ### Fase 3: Project, Detector, Diagnostic (Sprint 27)
-16. ✅ `get_calibration_scope_info` (isolado query)
-17. ✅ `_resolve_single_subject_tracker_preference` (isolado)
-18. ✅ `_temporary_single_animal_mode` (usa #17)
-19. ✅ `resolve_project_model_settings` (isolado)
-20. ✅ `add_roi_polygon` (mutator)
-21. ✅ `apply_project_settings_to_batch` (state)
-22. ✅ `_format_diagnostic_report` (isolado)
-23. ✅ `_initialize_diagnostic_openvino_model` (isolado)
-24. ✅ `_run_diagnostic_frame_loop` (usa #22, #23)
-25. ✅ `run_model_diagnostic` (usa #24)
+
+1. ✅ `get_calibration_scope_info` (isolado query)
+2. ✅ `_resolve_single_subject_tracker_preference` (isolado)
+3. ✅ `_temporary_single_animal_mode` (usa #17)
+4. ✅ `resolve_project_model_settings` (isolado)
+5. ✅ `add_roi_polygon` (mutator)
+6. ✅ `apply_project_settings_to_batch` (state)
+7. ✅ `_format_diagnostic_report` (isolado)
+8. ✅ `_initialize_diagnostic_openvino_model` (isolado)
+9. ✅ `_run_diagnostic_frame_loop` (usa #22, #23)
+10. ✅ `run_model_diagnostic` (usa #24)
 
 ### Fase 4: UI (Sprint 28)
-26. ✅ `_validate_zones_with_ui` (UI complexa)
+
+1. ✅ `_validate_zones_with_ui` (UI complexa)
 
 ---
 
@@ -890,39 +976,46 @@ Total: **3,368 linhas** (64.4% do MainViewModel)
 
 ### 🔴 Riscos ALTOS
 
-**1. Complexidade Ciclomática (#2 - `process_pending_project_videos`)**
+### 1. Complexidade Ciclomática (#2 - `process_pending_project_videos`)
+
 - C901 warning indica lógica muito complexa
 - Múltiplas condicionais aninhadas
 - **Mitigação:** Testes exaustivos (>30 casos), refatoração em submétodos
 
-**2. Alto Acoplamento (#7 - `_create_processing_callbacks`)**
+### 2. Alto Acoplamento (#7 - `_create_processing_callbacks`)
+
 - Usado por 3 workflows críticos
 - Cria closures complexas
 - **Mitigação:** Testar todos os 3 fluxos, validar callbacks
 
-**3. Hardware Integration (#21 - `start_recording`)**
+### 3. Hardware Integration (#21 - `start_recording`)
+
 - Integração com Arduino
 - Validação de zonas crítica
 - **Mitigação:** Testes com/sem hardware, mocks robustos
 
-**4. Validação UI (#14 - `_ensure_zones_before_recording`)**
+### 4. Validação UI (#14 - `_ensure_zones_before_recording`)
+
 - Pode abrir dialogs modais
 - Bloqueia fluxo até usuário responder
 - **Mitigação:** Testar todos os cenários de validação
 
 ### 🟡 Riscos MÉDIOS
 
-**1. Context Managers (#23 - `_temporary_single_animal_mode`)**
+### 1. Context Managers (#23 - `_temporary_single_animal_mode`)
+
 - Decorator @contextmanager
 - Gerenciamento de estado temporário
 - **Mitigação:** Testar setup/teardown, exceções
 
-**2. Thread Workers (#11, #26)**
+### 2. Thread Workers (#11, #26)
+
 - Executam em threads separados
 - Coordenação de progresso
 - **Mitigação:** Testes de concorrência
 
-**3. UI Modals (#9 - `_validate_zones_with_ui`)**
+### 3. UI Modals (#9 - `_validate_zones_with_ui`)
+
 - Interação com usuário
 - Pode cancelar operação
 - **Mitigação:** Testar todos os caminhos (OK, Cancel, Close)
@@ -936,6 +1029,7 @@ Métodos isolados sem dependências internas: #5, #10, #13, #18, #19, #22, #27, 
 ## ✅ Critérios de Sucesso
 
 Para cada extração:
+
 - [ ] ✅ Método extraído para novo orchestrator
 - [ ] ✅ Facade mínima criada no MainViewModel (1-3 linhas)
 - [ ] ✅ Testes criados (>80% coverage do novo método)
@@ -950,7 +1044,8 @@ Para cada extração:
 **Total de linhas extraíveis (Top 28):** ~2,693 linhas (51.5% do MainViewModel)
 **Linhas remanescentes após Sprints 24-28:** ~2,534 linhas
 
-**Para atingir meta de ~1,000 linhas:**
+### Para atingir meta de ~1,000 linhas
+
 - Sprints 29-33: Extrair mais ~1,534 linhas (métodos <50 linhas)
 - Total final projetado: ~1,000 linhas (-81%)
 

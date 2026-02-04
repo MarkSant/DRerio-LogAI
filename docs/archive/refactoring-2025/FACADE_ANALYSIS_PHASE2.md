@@ -11,7 +11,7 @@ Total de facades identificados: **86 métodos**
 ### Distribuição por Orchestrator
 
 | Orchestrator | Qtd Facades | % Total |
-|--------------|-------------|---------|
+| -------------- | ------------- | --------- |
 | UIStateController | 23 | 26.7% |
 | ProjectOrchestrator | 17 | 19.8% |
 | RecordingSessionOrchestrator | 15 | 17.4% |
@@ -50,6 +50,7 @@ class OrchestratorRegistry:
 ### Fase 2.2: Padrão de Substituição
 
 **ANTES (Facade):**
+
 ```python
 # MainViewModel
 def close_project(self) -> None:
@@ -61,6 +62,7 @@ self.controller.close_project()
 ```
 
 **DEPOIS (Direto):**
+
 ```python
 # MainViewModel - método removido!
 
@@ -73,6 +75,7 @@ self.controller.orchestrators.project.close_project()
 ### Fase 2.3: Atualização de Callers
 
 **Locais a atualizar:**
+
 1. `src/zebtrack/ui/gui.py` - Chamadas diretas da GUI
 2. Event handlers em `MainViewModel.bind_events()`
 3. Testes em `tests/`
@@ -116,6 +119,7 @@ Remover facades em ordem crescente de complexidade:
 ### Checklist de Segurança
 
 Antes de remover cada facade:
+
 - [ ] Identificar TODOS os callers (grep no codebase)
 - [ ] Atualizar cada caller para chamar orchestrator diretamente
 - [ ] Executar testes relacionados
@@ -125,10 +129,12 @@ Antes de remover cada facade:
 ## Métricas de Sucesso
 
 **Antes:**
+
 - MainViewModel: 2.797 linhas, 155 métodos
 - 86 métodos facade (~340 linhas)
 
 **Meta Após Fase 2:**
+
 - MainViewModel: ~2.457 linhas, ~69 métodos
 - 0 métodos facade
 - Cobertura de testes: mantida em 70%+

@@ -14,13 +14,13 @@ Este documento serve como a fonte única de verdade para a arquitetura, parâmet
 1. [Visão Geral da Arquitetura](#1-visão-geral-da-arquitetura)
 2. [Pipeline de Processamento](#2-pipeline-de-processamento)
 3. [Parâmetros Detalhados](#3-parâmetros-detalhados)
-    *   [3.1 Detecção (YOLO)](#31-detecção-yolo)
-    *   [3.2 Rastreamento (ByteTrack)](#32-rastreamento-bytetrack)
-    *   [3.3 Predição (Kalman Filter)](#33-predição-kalman-filter)
+    * [3.1 Detecção (YOLO)](#31-detecção-yolo)
+    * [3.2 Rastreamento (ByteTrack)](#32-rastreamento-bytetrack)
+    * [3.3 Predição (Kalman Filter)](#33-predição-kalman-filter)
 4. [Mecanismos Avançados](#4-mecanismos-avançados)
-    *   [4.1 Correção do Threshold de Associação (Critical Fix)](#41-correção-do-threshold-de-associação-critical-fix)
-    *   [4.2 Matching Híbrido (IoU + Distância)](#42-matching-híbrido-iou--distância)
-    *   [4.3 Processamento Esparso e Escalonamento Temporal](#43-processamento-esparso-e-escalonamento-temporal)
+    * [4.1 Correção do Threshold de Associação (Critical Fix)](#41-correção-do-threshold-de-associação-critical-fix)
+    * [4.2 Matching Híbrido (IoU + Distância)](#42-matching-híbrido-iou--distância)
+    * [4.3 Processamento Esparso e Escalonamento Temporal](#43-processamento-esparso-e-escalonamento-temporal)
 5. [Guia de Configuração e Tuning](#5-guia-de-configuração-e-tuning)
 6. [Troubleshooting](#6-troubleshooting)
 
@@ -32,11 +32,11 @@ O sistema de tracking do ZebTrack-AI é projetado para rastrear zebrafish (adult
 
 ### Componentes Chave
 
-*   **DetectorService**: Orquestrador principal.
-*   **DetectorPlugin**: Abstração para modelos de IA (Ultralytics YOLO / OpenVINO).
-*   **BYTETracker**: Algoritmo de rastreamento multi-objeto (MOT) modificado.
-*   **KalmanFilter**: Estimador de estado para prever movimento.
-*   **ProcessingWorker**: Processo isolado que executa o pipeline.
+* **DetectorService**: Orquestrador principal.
+* **DetectorPlugin**: Abstração para modelos de IA (Ultralytics YOLO / OpenVINO).
+* **BYTETracker**: Algoritmo de rastreamento multi-objeto (MOT) modificado.
+* **KalmanFilter**: Estimador de estado para prever movimento.
+* **ProcessingWorker**: Processo isolado que executa o pipeline.
 
 ---
 
@@ -71,7 +71,7 @@ graph TD
 Responsável por encontrar os animais em cada frame processado.
 
 | Parâmetro | Default | Localização (`config.yaml`) | Descrição |
-|-----------|---------|-----------------------------|-----------|
+| ----------- | --------- | ----------------------------- | ----------- |
 | `confidence_threshold` | `0.05` | `yolo_model.confidence_threshold` | Confiança mínima para aceitar uma detecção. Valor baixo evita perder animais difíceis. |
 | `nms_threshold` | `0.50` | `yolo_model.nms_threshold` | Non-Maximum Suppression. Controla a sobreposição permitida entre bboxes. |
 
@@ -80,7 +80,7 @@ Responsável por encontrar os animais em cada frame processado.
 Responsável por manter a identidade dos animais ao longo do tempo.
 
 | Parâmetro | Default | Localização (`config.yaml`) | Descrição |
-|-----------|---------|-----------------------------|-----------|
+| ----------- | --------- | ----------------------------- | ----------- |
 | `track_threshold` | `0.25` | `bytetrack.track_threshold` | Confiança mínima para considerar uma detecção como "alta confiança" (1ª passagem). |
 | `match_threshold` | `0.95` | `bytetrack.match_threshold` | **CRÍTICO.** Custo máximo aceitável para associação. Valores altos (0.95) são mais permissivos. |
 | `max_center_distance` | `400.0` | `bytetrack.max_center_distance` | Distância máxima (pixels) para matching quando IoU falha. Essencial para movimentos rápidos. |
@@ -91,9 +91,9 @@ Responsável por manter a identidade dos animais ao longo do tempo.
 
 Modelo matemático que prevê onde o animal estará no próximo frame.
 
-*   **`dt` (Delta Time):** Definido dinamicamente pelo `processing_interval`. Se processar a cada 10 frames, `dt=10`.
-*   **Incerteza de Posição:** Escala com `sqrt(dt)`.
-*   **Incerteza de Velocidade:** Escala com `sqrt(dt) * 2` (fator extra para movimentos erráticos de peixes).
+* **`dt` (Delta Time):** Definido dinamicamente pelo `processing_interval`. Se processar a cada 10 frames, `dt=10`.
+* **Incerteza de Posição:** Escala com `sqrt(dt)`.
+* **Incerteza de Velocidade:** Escala com `sqrt(dt) * 2` (fator extra para movimentos erráticos de peixes).
 
 ---
 
@@ -120,24 +120,26 @@ Isso garante que a permissividade configurada pelo usuário seja respeitada em t
 
 Para animais pequenos que se movem rápido, a sobreposição de caixas (IoU) entre frames consecutivos é frequentemente zero. O ZebTrack implementa um matching híbrido:
 
-1.  Calcula IoU.
-2.  Se `IoU > iou_threshold` (0.05), usa o custo de IoU (1 - IoU).
-3.  Se `IoU <= iou_threshold`, usa o custo de **Distância de Centro Normalizada** (distância / `max_center_distance`).
+1. Calcula IoU.
+2. Se `IoU > iou_threshold` (0.05), usa o custo de IoU (1 - IoU).
+3. Se `IoU <= iou_threshold`, usa o custo de **Distância de Centro Normalizada** (distância / `max_center_distance`).
 
 Isso permite que o tracker "salte" espaços vazios onde o IoU falharia.
 
 ### 4.3 Processamento Esparso e Escalonamento Temporal
 
 Ao processar 1 frame a cada N (ex: N=10):
-1.  **Kalman Filter:** Recebe `dt=10`. Prevê um deslocamento 10x maior.
-2.  **Track Buffer:** Se configurado para 150 frames, e N=10, o buffer interno é ajustado para manter a memória pelo tempo equivalente em segundos reais.
-    *   Fórmula: `buffer_size = (fps / 30) * track_buffer * processing_interval`
+
+1. **Kalman Filter:** Recebe `dt=10`. Prevê um deslocamento 10x maior.
+2. **Track Buffer:** Se configurado para 150 frames, e N=10, o buffer interno é ajustado para manter a memória pelo tempo equivalente em segundos reais.
+    * Fórmula: `buffer_size = (fps / 30) * track_buffer * processing_interval`
 
 ---
 
 ## 5. Guia de Configuração e Tuning
 
 ### Cenário A: Zebrafish Adulto (Padrão)
+
 Animais rápidos, tamanho médio (~30-50px).
 
 ```yaml
@@ -151,6 +153,7 @@ bytetrack:
 ```
 
 ### Cenário B: Larvas (Lentas e Pequenas)
+
 Movimento quase imperceptível, tamanho muito pequeno (~10px).
 
 ```yaml
@@ -164,6 +167,7 @@ bytetrack:
 ```
 
 ### Cenário C: Alta Densidade (Muitos Animais)
+
 Risco de troca de identidade (ID Switch).
 
 ```yaml
@@ -178,7 +182,7 @@ bytetrack:
 ## 6. Troubleshooting
 
 | Sintoma | Causa Provável | Solução |
-|---------|----------------|---------|
+| --------- | ---------------- | --------- |
 | **IDs trocando a cada poucos frames** | `match_threshold` baixo ou hardcoded (corrigido na v5.0) | Verificar se `match_threshold >= 0.90`. |
 | **Animal perde ID ao parar** | Detecção falhando (confiança baixa) | Reduzir `confidence_threshold` (YOLO) ou aumentar `track_buffer`. |
 | **Animal "salta" para outro peixe** | `max_center_distance` muito alto | Reduzir para 200-300px. |
@@ -188,7 +192,7 @@ bytetrack:
 
 ## 7. Referência de Código
 
-*   **Tracker:** `src/zebtrack/tracker/byte_tracker.py`
-*   **Settings:** `src/zebtrack/settings.py`
-*   **Detector:** `src/zebtrack/core/detector.py`
-*   **Worker:** `src/zebtrack/core/processing_worker.py`
+* **Tracker:** `src/zebtrack/tracker/byte_tracker.py`
+* **Settings:** `src/zebtrack/settings.py`
+* **Detector:** `src/zebtrack/core/detector.py`
+* **Worker:** `src/zebtrack/core/processing_worker.py`

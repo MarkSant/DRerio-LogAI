@@ -1,6 +1,7 @@
 # Test Fixes Documentation - November 2025
 
 ## Summary
+
 Fixed all **15 failing tests** across two phases to achieve **100% test success rate (1022/1022 tests passing)** with **36.81% code coverage**.
 
 ### Phase 1: Initial Test Fixes (12 tests)
@@ -20,6 +21,7 @@ Fixed in commit `9aaae29` - November 2025, addressing failures discovered by Git
 **Problem:** The production code uses `self.recorder.__class__(settings_obj=self.settings)` to instantiate a new Recorder instance dynamically. Python does not allow assigning to `__class__` on Mock objects, making it impossible to mock this pattern directly.
 
 **Root Cause:**
+
 - The video processing service creates a new recorder instance via `self.recorder.__class__()` instead of using a factory
 - Attempting to assign `Mock().__class__ = MockClass` raises `TypeError: Cannot assign to attribute '__class__'`
 - Using `return_value` on patches doesn't work because the class itself is being called, not a method
@@ -69,6 +71,7 @@ def setup_mock_recorder_for_service(video_processing_service):
 **Additional Fix:** Added `calibration_data={"aquarium_width_cm": 10.0, "aquarium_height_cm": 5.0}` to all tests to prevent division of Mock/Mock which was causing "unsupported operand type(s) for /: 'Mock' and 'Mock'" errors in calibration calculations.
 
 **Tests Fixed:**
+
 - `test_processes_video_frames` - Now properly tracks detector.detect calls (3) and recorder.write_detection_data calls (3)
 - `test_respects_analysis_interval` - Correctly processes frames at specified interval
 - `test_handles_cancellation` - Properly cancels tracking and calls stop_recording with force_stop=True
@@ -84,6 +87,7 @@ def setup_mock_recorder_for_service(video_processing_service):
 **Problem:** Mock Document structure didn't support subscripting `table.add_row().cells[0]`.
 
 **Error:**
+
 ```python
 TypeError: 'Mock' object is not subscriptable
 ```
@@ -104,6 +108,7 @@ mock_document.return_value = mock_document_instance
 ```
 
 **Test Fixed:**
+
 - `test_export_individual_report_creates_docx` - DOCX report generation with metadata table
 
 ---
@@ -113,22 +118,27 @@ mock_document.return_value = mock_document_instance
 **File:** `tests/core/test_recording_service.py`
 
 **Problems:**
+
 1. Division by Mock when calculating window position: `TypeError: unsupported operand type(s) for /: 'Mock' and 'int'`
 2. Recording state not configured to return `is_recording=True`
 
 **Solutions:**
+
 1. Added screen dimension mocks:
+
 ```python
 mock_root.winfo_screenwidth.return_value = 1920
 mock_root.winfo_screenheight.return_value = 1080
 ```
 
-2. Fixed recording state mock:
+1. Fixed recording state mock:
+
 ```python
 mock_state_manager.get_recording_state.return_value = Mock(is_recording=True)
 ```
 
 **Tests Fixed:**
+
 - `test_stop_timed_recording_calls_stop_session` - Countdown window creation
 - `test_stop_session_stops_recorder` - Recording state validation
 
@@ -154,6 +164,7 @@ assert main_view_model.processing_thread is None
 ```
 
 **Test Fixed:**
+
 - `test_join_threads` - Thread cleanup validation
 
 ---
@@ -165,6 +176,7 @@ assert main_view_model.processing_thread is None
 **Problem:** `structlog.get_logger()` internally calls `logging.getLogger()`, causing logger name conflicts when only `logging.getLogger` is mocked.
 
 **Error:**
+
 ```python
 AssertionError: assert 'zebtrack' == 'zebtrack.test_module'
 ```
@@ -180,6 +192,7 @@ def test_configure_logging_sets_module_levels(self, mock_get_logger, mock_struct
 ```
 
 **Test Fixed:**
+
 - `test_configure_logging_sets_module_levels` - Module-specific log level configuration
 
 ---
@@ -189,11 +202,14 @@ def test_configure_logging_sets_module_levels(self, mock_get_logger, mock_struct
 **File:** `tests/core/test_main_entry_point.py`
 
 **Problems:**
+
 1. Test expected `SystemExit` but `main()` doesn't raise it - it calls `controller.run()` instead
 2. Settings mock structure missing `logging.levels` dictionary
 
 **Solutions:**
+
 1. Removed incorrect `pytest.raises(SystemExit)`:
+
 ```python
 # Old (incorrect):
 with pytest.raises(SystemExit):
@@ -207,7 +223,8 @@ except:  # noqa: E722
     pass
 ```
 
-2. Added logging structure to settings mock:
+1. Added logging structure to settings mock:
+
 ```python
 mock_settings_obj = Mock()
 mock_settings_obj.logging = Mock()
@@ -215,6 +232,7 @@ mock_settings_obj.logging.levels = {}  # Required for log level overrides
 ```
 
 **Tests Fixed:**
+
 - `test_main_sets_reproducibility_seed` - Seed configuration without SystemExit
 - `test_main_applies_cli_log_level_overrides` - CLI log level processing
 
@@ -223,24 +241,29 @@ mock_settings_obj.logging.levels = {}  # Required for log level overrides
 ## Key Lessons Learned
 
 ### 1. Python's `__class__` Attribute is Read-Only on Mocks
+
 - **Problem:** Cannot assign to `__class__` on Mock objects
 - **Solution:** Use real classes that delegate to Mocks instead of trying to replace `__class__`
 - **Alternative:** Create factory functions instead of using `instance.__class__()` pattern in production code
 
 ### 2. Mock Object Arithmetic Operations
+
 - **Problem:** Mocks don't support arithmetic operations (division, multiplication, etc.)
 - **Solution:** Always provide concrete values for variables used in calculations
 - **Example:** Screen dimensions, calibration data, frame dimensions must be real numbers
 
 ### 3. Nested Mock Structures Require Explicit Construction
+
 - **Problem:** Auto-generated nested Mocks may not behave as expected (e.g., subscripting)
 - **Solution:** Build mock hierarchies explicitly with real Python types where needed
 - **Example:** Use real lists `[Mock(), Mock()]` instead of `Mock()` for iterable/subscriptable data
 
 ### 4. Patch Decorator Order Matters
+
 - **Decorators applied:** Bottom to top
 - **Parameters injected:** Left to right
 - **Example:**
+
 ```python
 @patch('module.C')  # Third decorator, first parameter
 @patch('module.B')  # Second decorator, second parameter
@@ -250,14 +273,17 @@ def test_func(self, mock_a, mock_b, mock_c):  # Left to right matches decoration
 ```
 
 ### 5. Import-Time Side Effects in Mocks
+
 - **Problem:** Some libraries (like structlog) have side effects when imported/called
 - **Solution:** Mock all entry points, not just the direct calls
 - **Example:** Mock both `structlog.get_logger` and `logging.getLogger` when they interact
 
 ### 6. Thread-Safe Testing Patterns
+
 - **Problem:** Tests setting cancel events in threads can have race conditions
 - **Solution:** Use deterministic side effects instead of threading
 - **Example:**
+
 ```python
 # Instead of:
 threading.Thread(target=lambda: event.set()).start()
@@ -272,6 +298,7 @@ def side_effect():
 ```
 
 ### 7. State vs Behavior Testing
+
 - **State Testing:** Assert on attributes/data (`assert obj.value == 5`)
 - **Behavior Testing:** Assert on method calls (`assert mock.method.call_count == 3`)
 - **Best Practice:** Test behavior when validating service interactions, test state for data transformations
@@ -281,6 +308,7 @@ def side_effect():
 **Final Coverage:** 36.81% (exceeds minimum 30% requirement)
 
 **High Coverage Areas (>70%):**
+
 - `tracker/basetrack.py` - 86%
 - `analysis/models.py` - 100%
 - `plugins/base.py` - 100%
@@ -290,12 +318,14 @@ def side_effect():
 - `core/calibration.py` - 70%
 
 **Low Coverage Areas (<30%):**
+
 - UI components and dialogs (0% - GUI tests require special setup)
 - Main application entry points (0% - integration tests)
 - Settings and configuration (0% - loaded at startup)
 - Hardware detection (95% but small module)
 
 **Why Low Coverage in UI:**
+
 - GUI tests disabled in CI (require display server)
 - Tkinter components need `pytest-tkinter` markers
 - Integration tests cover UI flows but don't count towards unit test coverage
@@ -312,18 +342,21 @@ def side_effect():
 ## Recommendations for Future Development
 
 ### Production Code Improvements
+
 1. **Replace `__class__()` pattern** with factory methods for better testability
 2. **Add type hints** to all service constructors for better IDE support
 3. **Validate numeric inputs** early to prevent Mock arithmetic errors
 4. **Use dependency injection** consistently (already mostly done)
 
 ### Testing Improvements
+
 1. **Increase GUI test coverage** by running them in CI with xvfb (virtual display)
 2. **Add integration tests** for wizard workflow and project creation
 3. **Mock hardware APIs** at system boundary (serial ports, cameras, GPIO)
 4. **Add property-based tests** for data transformation logic (using hypothesis)
 
 ### Tooling
+
 1. **Pre-commit hooks:** Already installed, enforces ruff, pytest before commits
 2. **Coverage reports:** Generate HTML reports with `pytest --cov --cov-report=html`
 3. **Mutation testing:** Consider using `mutmut` to validate test effectiveness

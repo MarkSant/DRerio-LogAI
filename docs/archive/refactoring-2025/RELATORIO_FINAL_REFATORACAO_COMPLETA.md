@@ -2,13 +2,15 @@
 
 **Data**: 2025-01-22
 **Versão**: 3.0
-**Status**: ✅ **COMPLETO E DOCUMENTADO**
+
+## Status: ✅ COMPLETO E DOCUMENTADO
 
 ---
 
 ## Resumo Executivo
 
 Refatoração completa do GUI e MainViewModel com foco em:
+
 1. ✅ Remoção de wrappers desnecessários
 2. ✅ Documentação de API pública
 3. ✅ Mapeamento de dependências arquiteturais
@@ -22,7 +24,7 @@ Refatoração completa do GUI e MainViewModel com foco em:
 **Objetivo**: Reduzir métodos wrapper que apenas delegam para componentes
 
 | Batch | Wrappers Removidos | Linhas Reduzidas | Status |
-|-------|-------------------|------------------|---------|
+| ------- | ------------------- | ------------------ | --------- |
 | BATCH 2 | 10 | -47 | ✅ Completo |
 | BATCH 3 | 12 | -48 | ✅ Completo |
 | BATCH 4 | 15 | -60 | ✅ Completo |
@@ -31,7 +33,7 @@ Refatoração completa do GUI e MainViewModel com foco em:
 | BATCH 7 | 4 | -16 | ✅ Completo |
 | **TOTAL** | **55** | **-228** | **✅** |
 
-**Nota**: Inicialmente identificamos ~89 wrappers. Após análise, descobrimos que 37 são **API pública** e NÃO podem ser removidos.
+**Nota**: Inicialmente identificamos ~89 wrappers. Após análise, descobrimos que 37 são**API pública** e NÃO podem ser removidos.
 
 ---
 
@@ -40,6 +42,7 @@ Refatoração completa do GUI e MainViewModel com foco em:
 **Objetivo**: Marcar e documentar métodos que são chamados externamente
 
 #### 1. Decorator `@public_api` Criado
+
 **Arquivo**: `src/zebtrack/ui/decorators.py`
 
 ```python
@@ -52,7 +55,8 @@ def refresh_project_views(self, reason: str | None = None) -> None:
     ...
 ```
 
-**Funcionalidades**:
+### Funcionalidades
+
 - Marca métodos como API pública estável
 - Adiciona metadados para geração de docs
 - Ajuda a identificar breaking changes
@@ -62,7 +66,7 @@ def refresh_project_views(self, reason: str | None = None) -> None:
 **Total**: 10 métodos críticos marcados
 
 | Método | Callers | Propósito |
-|--------|---------|-----------|
+| -------- | --------- | ----------- |
 | `refresh_project_views()` | 3 (Orchestrators) | Atualiza painéis de overview |
 | `update_zone_listbox()` | 5 (Components) | **Mais chamado** - Atualiza lista de zonas |
 | `setup_interactive_polygon()` | 1 (CanvasManager) | Habilita edição de polígonos |
@@ -79,14 +83,16 @@ def refresh_project_views(self, reason: str | None = None) -> None:
 
 **Arquivo**: `docs/API_STABILITY.md`
 
-**Conteúdo**:
+### Conteúdo
+
 - Lista completa dos 37 métodos públicos
 - Categorizados por funcionalidade
 - Mapeamento de callers
 - Política de breaking changes
 - Processo de deprecação
 
-**Exemplo de documentação**:
+### Exemplo de documentação
+
 ```markdown
 ### update_zone_listbox()
 **Signature**: `(zone_data: ZoneData | None) -> None`
@@ -144,23 +150,23 @@ def refresh_project_views(self, reason: str | None = None) -> None:
 ### GUI (`src/zebtrack/ui/gui.py`)
 
 | Métrica | Antes (Início) | Depois (Final) | Redução | Meta Original |
-|---------|----------------|----------------|---------|---------------|
+| --------- | ---------------- | ---------------- | --------- | --------------- |
 | **Linhas** | 2.881 | **2.691** | **-190 (-6.6%)** | ~2.700 ✅ |
 | **Métodos** | 221 | **166** | **-55 (-24.9%)** | ~160 ✅ |
 | **Wrappers Removidos** | 89 | **34** | **-55** | N/A |
 | **Wrappers Restantes (API)** | 0 | **37** | - | N/A |
 | **@public_api Marcados** | 0 | **10** | +10 | N/A |
 
-**Status**: ✅ **ABAIXO das metas** em linhas e métodos!
+**Status**: ✅**ABAIXO das metas** em linhas e métodos!
 
 ### MainViewModel (`src/zebtrack/core/main_view_model.py`)
 
 | Métrica | Antes | Depois | Status |
-|---------|--------|--------|--------|
+| --------- | -------- | -------- | -------- |
 | **Linhas** | 523 | 523 | Sem alterações |
 | **Métodos** | 44 | 44 | ✅ Próximo da meta (< 40) |
 
-**Status**: ✅ **BEM ABAIXO** da meta (< 800 linhas)
+**Status**: ✅**BEM ABAIXO** da meta (< 800 linhas)
 
 ---
 
@@ -169,7 +175,7 @@ def refresh_project_views(self, reason: str | None = None) -> None:
 ### Linters & Testes
 
 | Verificação | Status | Detalhes |
-|-------------|--------|----------|
+| ------------- | -------- | ---------- |
 | **Ruff** | ✅ PASSOU | `All checks passed!` |
 | **Testes** | ✅ 98.5% | 477/484 passando |
 | **Sintaxe** | ✅ OK | Sem erros de compilação |
@@ -204,7 +210,8 @@ def refresh_project_views(self, reason: str | None = None) -> None:
 
 ### 1. Por Que Não Remover Todos os Wrappers?
 
-**Resposta**: 37 wrappers são **API pública** usada por:
+**Resposta**: 37 wrappers são**API pública** usada por:
+
 - 3 Orchestrators
 - 3 Services
 - 7 Components
@@ -213,7 +220,8 @@ def refresh_project_views(self, reason: str | None = None) -> None:
 
 ### 2. Por Que Existem Dependências Bidirecionais?
 
-**Resposta**: GUI atua como **hub de coordenação**:
+### Resposta**: GUI atua como**hub de coordenação
+
 - Components precisam notificar GUI sobre mudanças
 - GUI coordena atualizações entre múltiplos components
 - Padrão "Mediator" não foi implementado ainda
@@ -222,7 +230,8 @@ def refresh_project_views(self, reason: str | None = None) -> None:
 
 ### 3. Por Que 166 Métodos é Aceitável?
 
-**Resposta**:
+### Resposta
+
 - ✅ Abaixo da meta ajustada (~160 métodos)
 - ✅ Muitos métodos são event handlers (prefixo `_on_`)
 - ✅ Delegações são thin wrappers (2-3 linhas)
@@ -277,7 +286,7 @@ def refresh_project_views(self, reason: str | None = None) -> None:
 2. ⚠️ GUI ainda é "God Object" (coordenação centralizada)
 3. ⚠️ 27 métodos públicos sem @public_api (73% não marcados)
 
-**Status do Débito**: 🟡 **DOCUMENTADO** e planejado para v4.0
+**Status do Débito**: 🟡**DOCUMENTADO** e planejado para v4.0
 
 ---
 
@@ -286,7 +295,7 @@ def refresh_project_views(self, reason: str | None = None) -> None:
 ### Objetivos Alcançados ✅
 
 | Objetivo | Status | Evidência |
-|----------|--------|-----------|
+| ---------- | -------- | ----------- |
 | Reduzir linhas GUI | ✅ | 2.881 → 2.691 (-190, abaixo da meta) |
 | Reduzir métodos GUI | ✅ | 221 → 166 (-55, abaixo da meta) |
 | Documentar API pública | ✅ | 37 métodos identificados, 10 marcados |
@@ -297,12 +306,12 @@ def refresh_project_views(self, reason: str | None = None) -> None:
 ### Métricas vs Metas
 
 | Componente | Meta | Alcançado | Status |
-|------------|------|-----------|--------|
-| GUI Linhas | ~2.700 | **2.691** | ✅ **9 linhas abaixo** |
-| GUI Métodos | ~160 | **166** | ✅ **6 métodos acima** (3.8%) |
-| MainViewModel | < 800L | **523L** | ✅ **277 linhas abaixo** (65% da meta) |
+| ------------ | ------ | ----------- | -------- |
+| GUI Linhas | ~2.700 | **2.691** | ✅**9 linhas abaixo** |
+| GUI Métodos | ~160 | **166** | ✅**6 métodos acima** (3.8%) |
+| MainViewModel | < 800L | **523L** | ✅**277 linhas abaixo** (65% da meta) |
 
-**Veredicto**: 🟢 **OBJETIVOS SUPERADOS**
+### Veredicto**: 🟢**OBJETIVOS SUPERADOS
 
 ### Estado Final
 
@@ -337,13 +346,15 @@ def refresh_project_views(self, reason: str | None = None) -> None:
 
 ## Agradecimentos
 
-**Ferramentas Utilizadas**:
+### Ferramentas Utilizadas
+
 - Ruff (linting)
 - Poetry (dependency management)
 - Pytest (testing)
 - Mermaid (diagramas)
 
-**Metodologia**:
+### Metodologia
+
 - Incremental refactoring (batches)
 - Test-Driven Safety (validar após cada batch)
 - Documentation-First (API_STABILITY.md)
@@ -352,7 +363,9 @@ def refresh_project_views(self, reason: str | None = None) -> None:
 
 **Gerado**: 2025-01-22
 **Versão**: 3.0 (Final)
-**Status**: 🟢 **PRODUÇÃO-READY**
+
+## Status: 🟢 PRODUÇÃO-READY
+
 **Próxima Revisão**: 2025-07-22 (6 meses)
 
 ---
@@ -361,7 +374,7 @@ def refresh_project_views(self, reason: str | None = None) -> None:
 
 ### A. Estrutura de Arquivos Criados
 
-```
+```text
 ZebTrack-AI/
 ├── src/zebtrack/ui/
 │   ├── decorators.py              # NEW: @public_api decorator
@@ -397,7 +410,7 @@ grep -c "@public_api" src/zebtrack/ui/gui.py
 
 ### C. Métricas de Redução
 
-```
+```text
 Total Reduction:
   - Lines: -190 (-6.6%)
   - Methods: -55 (-24.9%)
@@ -411,4 +424,4 @@ Public API Identified:
 
 ---
 
-**FIM DO RELATÓRIO**
+### FIM DO RELATÓRIO

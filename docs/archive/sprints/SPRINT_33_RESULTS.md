@@ -13,7 +13,7 @@ Sprint 33 extraiu **2 métodos de live camera** (242 linhas) do MainViewModel, r
 ### ✅ Objetivos Alcançados
 
 | Objetivo | Status | Resultado |
-|----------|--------|-----------|
+| ---------- | -------- | ----------- |
 | Analisar métodos live camera | ✅ COMPLETO | 2 métodos identificados (242 linhas) |
 | Identificar dependência circular | ✅ COMPLETO | Circular dependency evitada |
 | Extrair `start_live_camera_analysis_from_config` | ✅ COMPLETO | → LiveCameraCoordinator |
@@ -29,7 +29,7 @@ Sprint 33 extraiu **2 métodos de live camera** (242 linhas) do MainViewModel, r
 ## 📈 Estatísticas
 
 | Métrica | Antes | Depois | Redução |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | **Total linhas** | 2,919 | 2,699 | -220 (-7.54%) |
 | **Métodos** | 60 | 58 | -2 |
 
@@ -44,6 +44,7 @@ Sprint 33 extraiu **2 métodos de live camera** (242 linhas) do MainViewModel, r
 **Propósito**: Inicia análise de câmera live com configuração completa do `SingleVideoConfigDialog`.
 
 **Lógica Principal**:
+
 ```python
 1. Extrai camera_index, duration_s, experiment_id do config
 2. Extrai analysis_interval_frames, display_interval_frames (Bug #2 fix) ⚠️ CRITICAL
@@ -57,10 +58,12 @@ Sprint 33 extraiu **2 métodos de live camera** (242 linhas) do MainViewModel, r
 ```
 
 **Dependências Adicionadas ao LiveCameraCoordinator**:
+
 - `project_manager: ProjectManager`
 - `settings: Settings`
 
 **Call Site Atualizado**:
+
 - **Arquivo**: `src/zebtrack/ui/components/event_dispatcher.py:524`
 - **Antes**: `self.gui.controller.start_live_camera_analysis_from_config(config)`
 - **Depois**: `self.gui.controller.live_camera_coordinator.start_session_from_config(config)`
@@ -76,6 +79,7 @@ Sprint 33 extraiu **2 métodos de live camera** (242 linhas) do MainViewModel, r
 **Propósito**: Valida que zonas do projeto estão definidas antes de iniciar gravação. Para projetos Live, oferece calibração automática.
 
 **Lógica Principal**:
+
 ```python
 1. Verifica se projeto existe (project_manager.project_path)
 2. Obtém project_type e zone_data
@@ -91,6 +95,7 @@ Sprint 33 extraiu **2 métodos de live camera** (242 linhas) do MainViewModel, r
 ```
 
 **Call Site Atualizado**:
+
 - **Arquivo**: `src/zebtrack/orchestrators/recording_session_orchestrator.py:396`
 - **Antes**: `if not self.main_view_model._ensure_zones_before_recording():`
 - **Depois**: `if not self._ensure_zones_before_recording():`
@@ -105,7 +110,7 @@ Sprint 33 extraiu **2 métodos de live camera** (242 linhas) do MainViewModel, r
 
 O plano original sugeria mover `_ensure_zones_before_recording` para **RecordingCoordinator**, mas isso criaria **dependência circular**:
 
-```
+```text
 RecordingSessionOrchestrator.start_recording()
     ↓ chama
 RecordingCoordinator._ensure_zones_before_recording()
@@ -119,7 +124,7 @@ RecordingSessionOrchestrator.run_live_calibration()
 ### Opções Avaliadas
 
 | Opção | Destino | Pros | Cons | Decisão |
-|-------|---------|------|------|---------|
+| ------- | --------- | ------ | ------ | --------- |
 | **A** | RecordingCoordinator | Segue plano original | ❌ Circular dependency | ❌ Rejeitado |
 | **B** | RecordingSessionOrchestrator | ✅ Sem circular dependency<br>✅ Já tem todas dependências<br>✅ Simples | ⚠️ Não segue plano | ✅ **ESCOLHIDO** |
 | **C** | Refatorar calibração primeiro | ✅ Arquitetura mais limpa | ❌ Muito mais trabalho<br>❌ Complexo | ⏸️ Futuro |
@@ -127,6 +132,7 @@ RecordingSessionOrchestrator.run_live_calibration()
 ### Decisão Final: Opção B
 
 **Rationale**:
+
 1. **Zero circular dependencies** - método já é chamado de RecordingSessionOrchestrator
 2. **Todas dependências já existem** - project_manager, view, ui_event_bus, run_live_calibration()
 3. **Simples e seguro** - sem refatorações adicionais necessárias
@@ -137,7 +143,7 @@ RecordingSessionOrchestrator.run_live_calibration()
 ## 📊 Progresso Total (Sprints 24-33)
 
 | Sprint | Redução | MainViewModel Após | % Acumulado |
-|--------|---------|-------------------|-------------|
+| -------- | --------- | ------------------- | ------------- |
 | 24 | -693 | 4,534 | -13.3% |
 | 25 | -275 | 4,259 | -18.5% |
 | 26 | -364 | 3,895 | -25.5% |
@@ -156,6 +162,7 @@ RecordingSessionOrchestrator.run_live_calibration()
 ## 🔍 Validações
 
 ### Sintaxe Python ✅
+
 ```bash
 python -m py_compile src/zebtrack/coordinators/live_camera_coordinator.py
 python -m py_compile src/zebtrack/orchestrators/recording_session_orchestrator.py
@@ -165,8 +172,10 @@ python -m py_compile src/zebtrack/ui/components/event_dispatcher.py
 ```
 
 ### Linting (ruff check) ✅
+
 **Resultado:**
-```
+
+```text
 All checks passed!
 ```
 
@@ -179,11 +188,13 @@ All checks passed!
 ### 1. **`src/zebtrack/coordinators/live_camera_coordinator.py`** (+172 linhas)
 
 **Mudanças:**
+
 - **Lines 32-38**: Adicionado imports TYPE_CHECKING (ProjectManager, Settings)
 - **Lines 67-133**: Atualizado `__init__` com `project_manager` e `settings` parameters
 - **Lines 507-667**: Adicionado método `start_session_from_config` (149 linhas)
 
 **Dependências Adicionadas:**
+
 ```python
 def __init__(
     self,
@@ -200,8 +211,9 @@ def __init__(
 ### 2. **`src/zebtrack/orchestrators/recording_session_orchestrator.py`** (+93 linhas)
 
 **Mudanças:**
+
 - **Lines 286-378**: Adicionado método `_ensure_zones_before_recording` (93 linhas)
-- **Line 396**: Atualizado call site (self.main_view_model._ → self._)
+- **Line 396**: Atualizado call site (self.main_view_model._→ self._)
 
 **Nenhuma dependência adicional** - todas já existiam!
 
@@ -210,11 +222,13 @@ def __init__(
 ### 3. **`src/zebtrack/core/main_view_model.py`** (-220 linhas)
 
 **Mudanças:**
+
 - **Lines 519-530**: Atualizado inicialização do LiveCameraCoordinator com novos parâmetros
 - **Lines 1733-1748**: Método `start_live_camera_analysis_from_config` reduzido para facade (16 linhas)
 - **Lines 1783-1788**: Método `_ensure_zones_before_recording` reduzido para facade (6 linhas)
 
 **Facades Criadas:**
+
 ```python
 def start_live_camera_analysis_from_config(self, config: dict) -> bool:
     """Facade - delegates to LiveCameraCoordinator (Sprint 33)."""
@@ -230,14 +244,17 @@ def _ensure_zones_before_recording(self) -> bool:
 ### 4. **`src/zebtrack/ui/components/event_dispatcher.py`** (1 linha)
 
 **Mudanças:**
+
 - **Line 524**: Call site atualizado para acesso direto ao coordinator
 
 **Antes:**
+
 ```python
 self.gui.controller.start_live_camera_analysis_from_config(config)
 ```
 
 **Depois:**
+
 ```python
 self.gui.controller.live_camera_coordinator.start_session_from_config(config)
 ```
@@ -306,7 +323,7 @@ self.gui.controller.live_camera_coordinator.start_session_from_config(config)
 ### Métricas Sprint 33
 
 | Métrica | Valor |
-|---------|-------|
+| --------- | ------- |
 | **Métodos Extraídos** | 2 |
 | **Linhas Extraídas** | 242 (código real) |
 | **Redução MainViewModel** | -220 linhas (-7.54%) |
@@ -317,7 +334,7 @@ self.gui.controller.live_camera_coordinator.start_session_from_config(config)
 
 ### Estado Atual do Projeto
 
-```
+```text
 MainViewModel (antes Sprint 33):  2,919 linhas
 MainViewModel (depois Sprint 33): 2,699 linhas
 Redução Sprint 33:               -  220 linhas (-7.54%)

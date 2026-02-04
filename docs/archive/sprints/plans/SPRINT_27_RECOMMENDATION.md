@@ -18,7 +18,7 @@
 ## Quick Decision Matrix
 
 | Factor | Assessment | Notes |
-|--------|------------|-------|
+| -------- | ------------ | ------- |
 | **Size Target** | ✅ ON TARGET | 385 lines vs. ~400 planned |
 | **Risk Level** | ✅ ACCEPTABLE | 53% low-risk, 47% medium-risk |
 | **Logical Cohesion** | ✅ STRONG | Clear project lifecycle theme |

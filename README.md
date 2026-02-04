@@ -99,7 +99,7 @@ Suporte avançado para análise simultânea de múltiplos aquários:
 ### Requisitos do Sistema
 
 | Componente | Versão Mínima | Recomendado |
-|-----------|---------------|-------------|
+| ----------- | --------------- | ------------- |
 | Python | 3.11 | 3.12+ |
 | RAM | 4 GB | 8 GB+ |
 | CPU | Dual-core | Quad-core+ |
@@ -304,7 +304,8 @@ A documentação técnica está disponível na pasta `docs/`:
 
 ### Guias Essenciais
 
-* 📚 [**CHEATSHEET.md**](docs/guides/developer/CHEATSHEET.md) - Referência rápida de comandos e padrões
+- 📚 [**CHEATSHEET.md**](docs/guides/developer/CHEATSHEET.md) - Referência rápida de comandos e padrões
+
 - 🏗️ [**ARCHITECTURE.md**](docs/architecture/ARCHITECTURE.md) - Arquitetura Event-Driven e Mediator
 - 👨‍💻 [**DEVELOPER_GUIDE.md**](docs/guides/developer/DEVELOPER_GUIDE.md) - Guia completo para contribuidores
 - 🧙 [**DEVELOPER_GUIDE_WIZARD.md**](docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md) - Desenvolvimento do Wizard
@@ -312,7 +313,8 @@ A documentação técnica está disponível na pasta `docs/`:
 
 ### Guias Técnicos
 
-* 🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/architecture/DEPENDENCY_INJECTION_GUIDE.md) - Padrões de DI
+- 🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/architecture/DEPENDENCY_INJECTION_GUIDE.md) - Padrões de DI
+
 - 📡 [**EVENT_BUS_GUIDE.md**](docs/architecture/EVENT_BUS_GUIDE.md) - Sistema de eventos
 - 🗺️ [**COORDINATE_SYSTEMS.md**](docs/reference/COORDINATE_SYSTEMS.md) - Sistemas de coordenadas
 - 🎯 [**STATE_MANAGEMENT_GUIDE.md**](docs/architecture/STATE_MANAGEMENT_GUIDE.md) - Gerenciamento de estado
@@ -320,7 +322,8 @@ A documentação técnica está disponível na pasta `docs/`:
 
 ### Guias Operacionais
 
-* 📋 [**REFERENCE_GUIDE.md**](docs/reference/REFERENCE_GUIDE.md) - Guia operacional completo
+- 📋 [**REFERENCE_GUIDE.md**](docs/reference/REFERENCE_GUIDE.md) - Guia operacional completo
+
 - 🔄 [**WORKFLOWS.md**](docs/guides/developer/WORKFLOWS.md) - Fluxos de trabalho detalhados
 - 🐛 [**QUICK_DEBUG_GUIDE.md**](docs/guides/developer/QUICK_DEBUG_GUIDE.md) - Solução de problemas
 - ⚠️ [**KNOWN_ISSUES.md**](docs/reference/KNOWN_ISSUES.md) - Problemas conhecidos e soluções
@@ -328,13 +331,13 @@ A documentação técnica está disponível na pasta `docs/`:
 
 ### Documentos Históricos
 
-* 📦 [**archive/**](docs/archive/) - Documentação de versões anteriores
+- 📦 [**archive/**](docs/archive/) - Documentação de versões anteriores
 
 ## 🏗️ Estrutura do Projeto
 
 ### Organização de Diretórios
 
-```
+```text
 ZebTrack-AI/
 ├── src/zebtrack/               # Código-fonte principal
 │   ├── __main__.py            # Entry point e Composition Root (DI)
@@ -407,7 +410,7 @@ ZebTrack-AI/
 #### Camadas Principais
 
 | Camada | Responsabilidade | Componentes Chave |
-|--------|------------------|-------------------|
+| -------- | ------------------ | ------------------- |
 | **Model** | Estado e dados | `StateManager`, `ProjectManager`, `DetectorService` |
 | **View** | Interface Tkinter | `GUI`, `Dialogs`, `Wizard` |
 | **ViewModel** | Orquestração | `MainViewModel`, `UICoordinator` |
@@ -415,13 +418,13 @@ ZebTrack-AI/
 
 #### Fluxo de Dados (Event-Driven)
 
-```
+```text
 User → UI Event → EventBus → Handler → StateManager → UI Update
                                 ↓
                           Services/Model
 ```
 
-**Benefícios**:
+### Benefícios
 
 - ✅ Desacoplamento total entre componentes
 - ✅ Testabilidade (injeção de dependências)
@@ -452,7 +455,7 @@ poetry run pytest --cov=src/zebtrack --cov-report=html
 ### Estatísticas de Testes
 
 | Categoria | Quantidade | Tempo |
-|-----------|-----------|-------|
+| ----------- | ----------- | ------- |
 | **Testes Unitários** | 1586 | ~2 min |
 | **Testes de GUI** | 949 | ~3 min |
 | **Testes de Integração** | 33 | ~1 min |
@@ -549,7 +552,7 @@ Consulte o [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) para diretrizes complet
 
 Este software foi desenvolvido para suportar pesquisas científicas com zebrafish. Se você usar o ZebTrack-AI em suas publicações, por favor cite:
 
-```
+```text
 Santos, M. (2025). ZebTrack-AI: Automated Behavioral Tracking and Analysis
 Platform for Danio rerio. GitHub repository.
 https://github.com/MarkSant/ZebTrack-AI
@@ -566,7 +569,7 @@ Este projeto está licenciado sob a **MIT License** - veja o arquivo [LICENSE](L
 - ✅ Distribuir
 - ✅ Uso privado
 
-**Condições**:
+### Condições
 
 - 📋 Manter a licença e copyright
 - ⚠️ Sem garantias
@@ -596,9 +599,9 @@ Agradecimentos especiais a todos os contribuidores e à comunidade open source q
 
 <div align="center">
 
-**Desenvolvido com ❤️ para pesquisa científica**
+### Desenvolvido com ❤️ para pesquisa científica
 
-**UNESP - Laboratório de Pesquisa de Canabidiol**
+### UNESP - Laboratório de Pesquisa de Canabidiol
 
 [⬆ Voltar ao topo](#zebtrack-ai)
 

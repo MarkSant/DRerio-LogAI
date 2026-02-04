@@ -11,8 +11,8 @@ This document details the architectural changes introduced in v4.0, specifically
 
 The core goal of v4.0 is to decouple the User Interface (View) from the Business Logic (ViewModel/Model) and to decouple UI components from each other.
 
-*   **Before (v3.0)**: `ApplicationGUI` acted as a "God Object," coordinating everything. Components had direct references to `ApplicationGUI` and called its methods directly.
-*   **After (v4.0)**: Components communicate via a central `EventBusV2`. A new `UICoordinator` acts as a Mediator, listening to events and coordinating responses.
+* **Before (v3.0)**: `ApplicationGUI` acted as a "God Object," coordinating everything. Components had direct references to `ApplicationGUI` and called its methods directly.
+* **After (v4.0)**: Components communicate via a central `EventBusV2`. A new `UICoordinator` acts as a Mediator, listening to events and coordinating responses.
 
 ---
 
@@ -133,20 +133,20 @@ classDiagram
 
 ### Key Workflows managed by UICoordinator
 
-1.  **Zone Management** (`ZONES_UPDATED`)
-    *   Updates the visual overlay (`CanvasManager`).
-    *   Updates the control panel list (`ZoneControlBuilder`).
-    *   Triggers readiness checks (`ValidationManager`).
+1. **Zone Management** (`ZONES_UPDATED`)
+    * Updates the visual overlay (`CanvasManager`).
+    * Updates the control panel list (`ZoneControlBuilder`).
+    * Triggers readiness checks (`ValidationManager`).
 
-2.  **Project Navigation** (`VIDEO_LOADED`)
-    *   Loads the frame into the canvas.
-    *   Updates the window title.
-    *   Checks if the video has existing results to display.
+2. **Project Navigation** (`VIDEO_LOADED`)
+    * Loads the frame into the canvas.
+    * Updates the window title.
+    * Checks if the video has existing results to display.
 
-3.  **Analysis Feedback** (`PROCESSING_STATS_UPDATED`)
-    *   Updates the progress bar.
-    *   Updates the estimated time remaining (ETA).
-    *   Refreshes the active tracking overlay.
+3. **Analysis Feedback** (`PROCESSING_STATS_UPDATED`)
+    * Updates the progress bar.
+    * Updates the estimated time remaining (ETA).
+    * Refreshes the active tracking overlay.
 
 ---
 
@@ -156,12 +156,12 @@ While Phase 2 focused on UI decoupling, Phase 3 (current state) consolidated bac
 
 **The 4 Super Coordinators:**
 
-1.  **ProcessingCoordinator**: Consolidates video processing, analysis, zone management, and configuration.
-    *   **Responsibilities**: Managing the `ProcessingWorker`, `ZoneData`, and Analysis workflows.
-    *   **Replaces**: `VideoProcessingOrchestrator`, `AnalysisOrchestrator`, `ZoneArenaOrchestrator`, `ProcessingConfigOrchestrator`.
-2.  **HardwareCoordinator**: Manages detector setup, model weights, and model diagnostics.
-3.  **SessionCoordinator**: Handles recording sessions, live camera, and Arduino integration.
-4.  **ProjectLifecycleCoordinator**: Manages project creation, opening, closing, and calibration workflows.
+1. **ProcessingCoordinator**: Consolidates video processing, analysis, zone management, and configuration.
+    * **Responsibilities**: Managing the `ProcessingWorker`, `ZoneData`, and Analysis workflows.
+    * **Replaces**: `VideoProcessingOrchestrator`, `AnalysisOrchestrator`, `ZoneArenaOrchestrator`, `ProcessingConfigOrchestrator`.
+2. **HardwareCoordinator**: Manages detector setup, model weights, and model diagnostics.
+3. **SessionCoordinator**: Handles recording sessions, live camera, and Arduino integration.
+4. **ProjectLifecycleCoordinator**: Manages project creation, opening, closing, and calibration workflows.
 
 **Dependency Injection:**
 These coordinators are initialized in `ApplicationBootstrapper` (or `__main__.py`) and injected into `MainViewModelDependencies`. They do **not** depend on `MainViewModel` (except for legacy bridges), adhering to a strict hierarchy.
@@ -173,11 +173,11 @@ They subscribe to domain events (e.g., `VIDEO_START_SINGLE_PROCESSING`, `VIDEO_C
 
 The cancellation workflow has been hardened to ensure reliability:
 
-1.  **Trigger**: User clicks "Cancel" in UI -> `Events.VIDEO_CANCEL_ANALYSIS` published.
-2.  **Handler**: `AnalysisControlViewModel.cancel_current_analysis()` is called.
-3.  **Delegation**: Logic is delegated to `ProcessingCoordinator.cancel_processing()`.
-4.  **Execution**:
-    *   `cancel_event` (threading.Event) is set.
-    *   `ProcessingWorker.cancel()` is called explicitly if running.
-    *   `ProcessingWorker` signals the background `_WorkerProcess` via `command_queue`.
-5.  **Cleanup**: Background threads are joined to ensure clean shutdown.
+1. **Trigger**: User clicks "Cancel" in UI -> `Events.VIDEO_CANCEL_ANALYSIS` published.
+2. **Handler**: `AnalysisControlViewModel.cancel_current_analysis()` is called.
+3. **Delegation**: Logic is delegated to `ProcessingCoordinator.cancel_processing()`.
+4. **Execution**:
+    * `cancel_event` (threading.Event) is set.
+    * `ProcessingWorker.cancel()` is called explicitly if running.
+    * `ProcessingWorker` signals the background `_WorkerProcess` via `command_queue`.
+5. **Cleanup**: Background threads are joined to ensure clean shutdown.

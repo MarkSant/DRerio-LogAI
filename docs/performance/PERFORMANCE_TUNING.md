@@ -1,6 +1,8 @@
+<!-- markdownlint-disable MD024 -->
+
 # ZebTrack-AI Performance Tuning Guide
 
-**Phase 8: Performance & Parallelization**
+## Phase 8: Performance & Parallelization
 
 Este guia documenta as otimizações de performance implementadas na Fase 8 e fornece orientações práticas para configuração e troubleshooting.
 
@@ -22,6 +24,7 @@ Este guia documenta as otimizações de performance implementadas na Fase 8 e fo
 ## Visão Geral
 
 A Fase 8 introduz otimizações de performance focadas em:
+
 - **Paralelização de I/O-bound tasks** (geração de plots, escrita de Parquet)
 - **Compressão otimizada** de arquivos Parquet
 - **Configuração flexível** via `config.yaml`
@@ -41,14 +44,16 @@ A Fase 8 introduz otimizações de performance focadas em:
 
 **Arquivo**: `src/zebtrack/analysis/reporter.py`
 
-**O que mudou:**
+### O que mudou
+
 - Geração de plots matplotlib agora usa `ThreadPoolExecutor`
 - 5 plots gerados em paralelo: trajectory, heatmap, position vs time, cumulative distance, angular velocity
 - Configurável via `performance.max_parallel_plots`
 
 **Ganho estimado**: 40-60% mais rápido na geração de relatórios
 
-**Antes (sequencial)**:
+### Antes (sequencial)
+
 ```python
 for plot_func, name in plot_configs:
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -56,13 +61,15 @@ for plot_func, name in plot_configs:
     # ...salva plot...
 ```
 
-**Depois (paralelo)**:
+### Depois (paralelo)
+
 ```python
 plot_results = self._generate_plots_parallel(plot_configs)
 # Todos os plots gerados concorrentemente
 ```
 
-**Thread Safety**:
+### Thread Safety
+
 - Backend matplotlib configurado para `Agg` (non-interactive)
 - Cada plot cria sua própria figura independente
 - Timeout de 60s por plot para evitar travamentos
@@ -73,7 +80,8 @@ plot_results = self._generate_plots_parallel(plot_configs)
 
 **Arquivo**: `src/zebtrack/io/recorder.py`
 
-**O que mudou:**
+### O que mudou
+
 - Compressão explícita configurável via `performance.parquet_compression`
 - Opções: `snappy` (padrão), `gzip`, `none`
 - Aplicado a todos os arquivos Parquet:
@@ -83,22 +91,23 @@ plot_results = self._generate_plots_parallel(plot_configs)
 
 **Ganho estimado**: 10-20% redução em I/O overhead
 
-**Trade-offs por codec**:
+### Trade-offs por codec
 
 | Codec | Velocidade Escrita | Velocidade Leitura | Taxa de Compressão | Recomendação |
-|-------|-------------------|-------------------|-------------------|--------------|
+| ------- | ------------------- | ------------------- | ------------------- | -------------- |
 | `snappy` | **Rápida** | **Rápida** | Boa (~60%) | ✅ **Default** |
 | `gzip` | Lenta | Média | Excelente (~75%) | Armazenamento longo |
 | `none` | Muito Rápida | Muito Rápida | Nenhuma | Debug/testes |
 
-**Implementação**:
+### Implementação
+
 ```python
-# No recorder.py:
+# No recorder.py
 self._parquet_compression = getattr(
     performance_settings, "parquet_compression", "snappy"
 )
 
-# Ao escrever:
+# Ao escrever
 pq.write_table(table, path, compression=self._parquet_compression)
 ```
 
@@ -108,7 +117,8 @@ pq.write_table(table, path, compression=self._parquet_compression)
 
 **Arquivo**: `src/zebtrack/settings.py`
 
-**Nova classe `PerformanceSettings`**:
+### Nova classe `PerformanceSettings`
+
 ```python
 class PerformanceSettings(BaseModel):
     max_parallel_videos: int = 2      # [1-4] (futuro)
@@ -117,7 +127,8 @@ class PerformanceSettings(BaseModel):
     enable_parallel_analysis: bool = True  # (futuro)
 ```
 
-**Validação automática**:
+### Validação automática
+
 - Limites aplicados via Pydantic
 - Valores inválidos geram erro na inicialização
 - Type-safe access: `settings.performance.max_parallel_plots`
@@ -176,7 +187,8 @@ performance:
 
 #### 1. Máquina com Muitos Núcleos (8+ cores)
 
-**Configuração recomendada**:
+### Configuração recomendada
+
 ```yaml
 performance:
   max_parallel_plots: 5  # Aproveitar mais cores
@@ -189,7 +201,8 @@ performance:
 
 #### 2. Máquina com Pouca RAM (<8GB)
 
-**Configuração recomendada**:
+### Configuração recomendada
+
 ```yaml
 performance:
   max_parallel_plots: 2  # Reduzir consumo de memória
@@ -202,7 +215,8 @@ performance:
 
 #### 3. Armazenamento Longo (Arquivamento)
 
-**Configuração recomendada**:
+### Configuração recomendada
+
 ```yaml
 performance:
   max_parallel_plots: 3
@@ -215,7 +229,8 @@ performance:
 
 #### 4. Debug/Testes Rápidos
 
-**Configuração recomendada**:
+### Configuração recomendada
+
 ```yaml
 performance:
   max_parallel_plots: 1  # Sequencial para debugging
@@ -238,10 +253,11 @@ performance:
    - Uso de memória
 4. **Identificar ponto de diminishing returns** (geralmente 3-4)
 
-**Exemplo de teste**:
+### Exemplo de teste
+
 ```bash
 # Editar config.yaml com valores diferentes
-# Rodar:
+# Rodar
 poetry run pytest tests/performance/test_reporter_parallel.py -v
 
 # Comparar tempos no log
@@ -251,7 +267,7 @@ poetry run pytest tests/performance/test_reporter_parallel.py -v
 
 #### Escolher Codec de Compressão
 
-**Critérios de decisão**:
+### Critérios de decisão
 
 ```mermaid
 graph TD
@@ -268,7 +284,7 @@ graph TD
 **Benchmark exemplo** (100MB de trajetórias):
 
 | Codec | Tempo Escrita | Tempo Leitura | Tamanho | Recomendação |
-|-------|--------------|---------------|---------|--------------|
+| ------- | -------------- | --------------- | --------- | -------------- |
 | `none` | 1.0s | 0.5s | 100MB | Debug only |
 | `snappy` | 1.3s | 0.7s | 38MB | ✅ Prod |
 | `gzip` | 2.5s | 1.2s | 28MB | Arquivamento |
@@ -282,7 +298,7 @@ graph TD
 **Cenário**: Relatório individual com 5 plots
 
 | Config | Tempo (sequencial) | Tempo (paralelo) | Speedup |
-|--------|-------------------|------------------|---------|
+| -------- | ------------------- | ------------------ | --------- |
 | `max_parallel_plots: 1` | 15s | 15s | 1.0x |
 | `max_parallel_plots: 2` | 15s | 9s | 1.7x |
 | `max_parallel_plots: 3` | 15s | 6s | **2.5x** ⭐ |
@@ -297,7 +313,7 @@ graph TD
 **Cenário**: 10 vídeos, 5min cada, análise completa
 
 | Componente | Antes | Depois | Ganho |
-|-----------|-------|---------|-------|
+| ----------- | ------- | --------- | ------- |
 | Processamento (detector) | 50min | 50min | - |
 | Gravação Parquet | 2min | 1.5min | 25% |
 | Geração de relatórios | 8min | 3min | **62%** ⭐ |
@@ -312,7 +328,7 @@ graph TD
 **Impacto da compressão em trajetórias de 1 hora (30 FPS)**:
 
 | Codec | Tamanho | vs. None | vs. Snappy |
-|-------|---------|----------|------------|
+| ------- | --------- | ---------- | ------------ |
 | `none` | 250 MB | - | +158% |
 | `snappy` | **97 MB** | -61% | - |
 | `gzip` | 72 MB | -71% | -26% |
@@ -325,25 +341,29 @@ graph TD
 
 ### Problema: Plots não são gerados corretamente
 
-**Sintomas**:
+### Sintomas
+
 - Relatórios com plots vazios
 - Erros de matplotlib no log
 
-**Soluções**:
+### Soluções
 
 1. **Verificar backend matplotlib**:
+
    ```python
    import matplotlib
    print(matplotlib.get_backend())  # Deve ser 'Agg'
    ```
 
 2. **Reduzir paralelismo**:
+
    ```yaml
    performance:
      max_parallel_plots: 1  # Desabilitar paralelismo temporariamente
    ```
 
 3. **Verificar logs**:
+
    ```bash
    # Buscar por erros de plot:
    grep "reporter.plot.failed" logs/zebtrack.log
@@ -353,19 +373,22 @@ graph TD
 
 ### Problema: Alto uso de memória
 
-**Sintomas**:
+### Sintomas
+
 - RAM usage > 80%
 - Sistema trava durante geração de plots
 
-**Soluções**:
+### Soluções
 
 1. **Reduzir workers**:
+
    ```yaml
    performance:
      max_parallel_plots: 2  # Menos concorrência
    ```
 
 2. **Monitor por processo**:
+
    ```bash
    # Linux/Mac:
    ps aux | grep python
@@ -375,6 +398,7 @@ graph TD
    ```
 
 3. **Profile de memória** (avançado):
+
    ```python
    from memory_profiler import profile
 
@@ -387,19 +411,22 @@ graph TD
 
 ### Problema: Parquet corrupto
 
-**Sintomas**:
+### Sintomas
+
 - Erro ao ler Parquet
 - "File is corrupted" no log
 
-**Soluções**:
+### Soluções
 
 1. **Desabilitar compressão temporariamente**:
+
    ```yaml
    performance:
      parquet_compression: "none"
    ```
 
 2. **Validar arquivo**:
+
    ```python
    import pyarrow.parquet as pq
 
@@ -413,17 +440,19 @@ graph TD
 
 ### Problema: Timeout em plots
 
-**Sintomas**:
+### Sintomas
+
 - "Plot generation timed out" no log
 - Plots não aparecem no relatório
 
-**Soluções**:
+### Soluções
 
 1. **Verificar complexidade dos dados**:
    - Trajetórias muito longas (>100k pontos) podem demorar
    - Heatmaps com muitos bins
 
 2. **Aumentar timeout** (editar `reporter.py`):
+
    ```python
    result = future.result(timeout=120)  # 2 min
    ```
@@ -440,7 +469,8 @@ graph TD
 
 **Impacto**: CPU-bound tasks não se beneficiam de paralelismo real
 
-**Mitigação**:
+### Mitigação
+
 - Focamos em I/O-bound tasks (matplotlib, Parquet)
 - Detector e análise já usam libraries nativas (NumPy, PyArrow)
 
@@ -450,7 +480,8 @@ graph TD
 
 **Impacto**: Backend não é completamente thread-safe
 
-**Mitigação**:
+### Mitigação
+
 - Uso forçado de backend `Agg` (non-interactive)
 - Cada thread cria figura independente
 - Testes extensivos de race conditions
@@ -463,7 +494,8 @@ graph TD
 
 **Status**: Não implementado ProcessingWorkerPool ainda (futuro)
 
-**Mitigação planejada**:
+### Mitigação planejada
+
 - Limitar workers a 2-3
 - Buffers independentes por worker
 - Coordenação via queue
@@ -475,7 +507,7 @@ graph TD
 ### Arquivos Modificados
 
 | Arquivo | Linhas Alteradas | Descrição |
-|---------|-----------------|-----------|
+| --------- | ----------------- | ----------- |
 | `src/zebtrack/settings.py` | +52 | Nova classe `PerformanceSettings` |
 | `src/zebtrack/io/recorder.py` | +15 | Compressão configurável |
 | `src/zebtrack/analysis/reporter.py` | +90 | Paralelização de plots |
@@ -495,6 +527,7 @@ graph TD
 ### Dependências
 
 Nenhuma nova dependência adicionada. Usa stdlib:
+
 - `concurrent.futures.ThreadPoolExecutor` (Python 3.12+)
 - `threading.RLock` (já usado no StateManager)
 
@@ -514,7 +547,8 @@ log.error("reporter.plot.failed", name="Heatmap", error=str(e))
 log.error("reporter.plot.executor_failed", name="Angular Velocity")
 ```
 
-**Buscar logs de performance**:
+### Buscar logs de performance
+
 ```bash
 grep "reporter.plots.parallel" logs/zebtrack.log
 grep "recorder.flush" logs/zebtrack.log
@@ -527,16 +561,19 @@ grep "recorder.flush" logs/zebtrack.log
 As seguintes otimizações foram planejadas mas não implementadas na Fase 8:
 
 ### 1. ProcessingWorkerPool
+
 - **Impacto**: 2-3x speedup em batch de vídeos
 - **Complexidade**: Alta
 - **Estimativa**: 3-4 horas
 
 ### 2. Pipeline Paralelo no AnalysisService
+
 - **Impacto**: 15-30% speedup em análises com ROI
 - **Complexidade**: Média
 - **Estimativa**: 2-3 horas
 
 ### 3. Detector Batch Processing
+
 - **Impacto**: 20-40% speedup em detecção
 - **Complexidade**: Alta (depende do modelo)
 - **Estimativa**: 4-6 horas
@@ -545,19 +582,22 @@ As seguintes otimizações foram planejadas mas não implementadas na Fase 8:
 
 ## Changelog da Fase 8
 
-**v1.9.0 (Fase 8) - Performance & Parallelization**
+### v1.9.0 (Fase 8) - Performance & Parallelization
 
 ### Adicionado
+
 - ✅ `PerformanceSettings` em `settings.py`
 - ✅ Paralelização de plots no Reporter (ThreadPoolExecutor)
 - ✅ Compressão configurável de Parquet (snappy/gzip/none)
 - ✅ Documentação completa de performance tuning
 
 ### Modificado
+
 - ✅ `Recorder` agora usa compressão explícita
 - ✅ `Reporter.export_individual_report_step_by_step` usa geração paralela
 
 ### Performance
+
 - ⚡ Geração de relatórios: 40-60% mais rápida
 - 💾 Arquivos Parquet: 60% menores (com snappy)
 - 📊 Overhead de paralelização: <5%
@@ -567,11 +607,13 @@ As seguintes otimizações foram planejadas mas não implementadas na Fase 8:
 ## Contato e Suporte
 
 Para questões sobre performance tuning:
+
 1. Consultar este guia primeiro
 2. Verificar logs com `grep "performance" logs/zebtrack.log`
 3. Reportar issues no GitHub com métricas detalhadas
 
-**Métricas úteis para reportar**:
+### Métricas úteis para reportar
+
 - Hardware (CPU, RAM)
 - Configuração (`performance` section)
 - Tempo de processamento (antes/depois)

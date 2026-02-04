@@ -88,7 +88,7 @@ Other overrides (detector thresholds, Arduino port, event bus) are documented in
 ## Troubleshooting
 
 | Symptom | Suggested fix |
-|---------|---------------|
+| --------- | --------------- |
 | `poetry install` fails with compiler errors | Ensure you have build tools installed (Visual Studio Build Tools on Windows, `build-essential` on Linux, Xcode Command Line Tools on macOS). |
 | GUI does not open and no error appears | Confirm you ran `poetry run zebtrack` from inside the project folder; check `poetry env info` to ensure the virtual environment is created. |
 | Models are slow on CPU | Convert weights to OpenVINO (`python -m zebtrack.core.weight_manager`) or run on a CUDA-capable GPU. |

@@ -7,6 +7,7 @@ This document explains the Facade Pattern implementation in ZebTrack-AI, specifi
 ## Purpose
 
 The facade classes were created to address the following goals:
+
 1. **Reduce MainViewModel complexity** - Extract specialized logic into dedicated facades
 2. **Improve testability** - Each facade can be tested independently with mocked dependencies
 3. **Enhance maintainability** - Changes to specific domains (recording, zones, Arduino) are isolated
@@ -21,22 +22,26 @@ Three facade classes encapsulate distinct domains of functionality:
 #### 1. RecordingFacade (`src/zebtrack/core/recording_facade.py`)
 
 **Responsibilities:**
+
 - Managing recording lifecycle (start/stop)
 - Coordinating Recorder with StateManager
 - Publishing recording events via EventBus
 
 **Dependencies:**
+
 - `Recorder` - Low-level recording operations
 - `StateManager` - State tracking and observation
 - `EventBus` - Event publishing for UI updates
 
 **Key Methods:**
+
 - `start_recording(video_path, output_dir, fps, record_video)` - Start recording session
 - `stop_recording()` - Stop current recording
 - `is_recording()` - Check recording status
 - `get_output_files()` - Retrieve output file paths
 
 **Example Usage:**
+
 ```python
 from zebtrack.core.recording_facade import RecordingFacade
 
@@ -72,16 +77,19 @@ parquet_file = files.get("parquet")
 #### 2. ZoneManagementFacade (`src/zebtrack/core/zone_management_facade.py`)
 
 **Responsibilities:**
+
 - Drawing and saving arena polygons
 - Managing ROI templates (load/apply/list)
 - Coordinate validation and scaling
 - Integration with ProjectManager for persistence
 
 **Dependencies:**
+
 - `ProjectManager` - Zone and ROI persistence
 - `StateManager` - UI state tracking (drawing mode)
 
 **Key Methods:**
+
 - `start_arena_drawing(video_path)` - Initiate arena drawing mode
 - `save_arena(polygon, video_path)` - Save arena polygon
 - `load_roi_template(template_name)` - Load ROI template from library
@@ -93,6 +101,7 @@ parquet_file = files.get("parquet")
 - `list_available_templates()` - List available ROI templates
 
 **Example Usage:**
+
 ```python
 from zebtrack.core.zone_management_facade import ZoneManagementFacade
 
@@ -129,16 +138,19 @@ arena = facade.get_arena_for_video(video_path=Path("/path/to/video.mp4"))
 #### 3. ArduinoFacade (`src/zebtrack/core/arduino_facade.py`)
 
 **Responsibilities:**
+
 - Scanning for available Arduino ports
 - Managing Arduino connection/disconnection
 - Sending commands to Arduino
 - Tracking connection status
 
 **Dependencies:**
+
 - `ArduinoManager` - Low-level Arduino communication
 - `StateManager` - Connection state tracking
 
 **Key Methods:**
+
 - `scan_ports()` - Scan for available Arduino ports
 - `connect(port, baudrate)` - Connect to Arduino
 - `disconnect()` - Disconnect from Arduino
@@ -148,6 +160,7 @@ arena = facade.get_arena_for_video(video_path=Path("/path/to/video.mp4"))
 - `get_status()` - Get connection status dictionary
 
 **Example Usage:**
+
 ```python
 from zebtrack.core.arduino_facade import ArduinoFacade
 
@@ -184,13 +197,17 @@ facade.disconnect()
 ## Design Principles
 
 ### 1. Single Responsibility Principle
+
 Each facade handles one domain:
+
 - Recording operations
 - Zone/ROI management
 - Arduino communication
 
 ### 2. Dependency Injection
+
 All dependencies are passed via constructor:
+
 ```python
 def __init__(
     self,
@@ -201,18 +218,22 @@ def __init__(
 ```
 
 This enables:
+
 - Easy testing with mocks
 - Flexible composition
 - Clear dependency graph
 
 ### 3. Error Handling
+
 All public methods:
+
 - Return `bool` for success/failure operations
 - Log errors with structured logging
 - Never raise exceptions to callers
 - Return empty/safe defaults on error
 
 Example:
+
 ```python
 def start_recording(...) -> bool:
     try:
@@ -224,7 +245,9 @@ def start_recording(...) -> bool:
 ```
 
 ### 4. State Coordination
+
 Facades coordinate state updates:
+
 ```python
 # Update state
 self.state_manager.update_recording_state(
@@ -241,7 +264,9 @@ self.event_bus.publish_event(
 ```
 
 ### 5. Logging
+
 Structured logging with domain.action.result pattern:
+
 ```python
 log.info("recording_facade.start.success", video=str(video_path))
 log.error("recording_facade.start.failed", error=str(e))
@@ -255,12 +280,14 @@ log.warning("recording_facade.stop.not_recording")
 Each facade has comprehensive unit tests (see `tests/core/test_*_facade.py`):
 
 ### Test Coverage
+
 - **RecordingFacade**: 17 tests
 - **ZoneManagementFacade**: 21 tests
 - **ArduinoFacade**: 21 tests
 - **Total**: 59 tests
 
 ### Test Structure
+
 ```python
 class TestRecordingFacadeInitialization:
     """Test initialization"""
@@ -273,6 +300,7 @@ class TestRecordingFacadeStopRecording:
 ```
 
 ### Test Patterns
+
 1. **Mock all dependencies** - No real I/O in unit tests
 2. **Test success paths** - Verify expected behavior
 3. **Test failure paths** - Exception handling, invalid inputs
@@ -280,6 +308,7 @@ class TestRecordingFacadeStopRecording:
 5. **Test event publishing** - Verify EventBus calls
 
 Example test:
+
 ```python
 def test_start_recording_success(self, recording_facade, tmp_path):
     """Test successful start of recording."""
@@ -340,12 +369,14 @@ class MainViewModel:
 ## Benefits
 
 ### Before Facades
+
 - MainViewModel had 1000+ lines
 - Mixed concerns (recording, zones, Arduino, UI)
 - Difficult to test
 - High coupling
 
 ### After Facades
+
 - Logic extracted to 3 focused classes
 - Each facade < 300 lines
 - 59 comprehensive tests
@@ -357,6 +388,7 @@ class MainViewModel:
 ## Future Enhancements
 
 Potential improvements:
+
 1. **ROI Scaling Logic** - Implement proper coordinate scaling in `_scale_rois_to_arena`
 2. **Validation** - Add more input validation for polygons and coordinates
 3. **Events** - Expand event publishing for fine-grained UI updates
@@ -381,6 +413,7 @@ Potential improvements:
 ## Contact
 
 For questions or suggestions regarding the facade pattern implementation:
+
 - Review the test files for usage examples
 - Check existing facade implementations for patterns
 - Consult `docs/ARCHITECTURE.md` for broader context

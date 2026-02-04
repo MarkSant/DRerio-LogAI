@@ -123,7 +123,7 @@ batch_coordinator.mark_batch_complete(batch_id)
 
 ## Architecture Overview
 
-```
+```text
 User Workflow
     ↓
 Wizard (LiveConfigStep)
@@ -152,15 +152,18 @@ UnifiedReport.xlsx
 ## Key Components
 
 ### HardwareCapabilityDetector
+
 **File:** `src/zebtrack/utils/hardware_capability.py`
 
 **Methods:**
+
 - `assess_capability()` → `HardwareCapabilityReport`
   - Checks CPU cores, RAM, GPU, system load
   - Returns tier: EXCELLENT | GOOD | MODERATE | LIMITED | INSUFFICIENT
   - Recommends max aquariums (0-6)
 
 **Usage:**
+
 ```python
 detector = HardwareCapabilityDetector(settings_obj)
 report = detector.assess_capability()
@@ -169,15 +172,18 @@ if report.capability == MultiAquariumCapability.INSUFFICIENT:
 ```
 
 ### LiveCameraModeSelector
+
 **File:** `src/zebtrack/core/live_camera_mode.py`
 
 **Methods:**
+
 - `recommend_mode(requested, hardware_report)` → `LiveCameraModeRecommendation`
   - Compares requested vs supported aquariums
   - Returns recommended mode + alternatives
   - Includes warnings if insufficient
 
 **Modes:**
+
 ```python
 class LiveCameraMode(Enum):
     MULTI_AQUARIUM_REALTIME = "multi_aquarium_realtime"
@@ -187,9 +193,11 @@ class LiveCameraMode(Enum):
 ```
 
 ### LiveCameraService Extensions
+
 **File:** `src/zebtrack/core/live_camera_service.py`
 
 **New Variables:**
+
 ```python
 self._last_valid_frame_time: float | None  # Disconnect detection
 self._camera_disconnect_threshold_s: float = 2.0
@@ -198,6 +206,7 @@ self._recording_paused: bool  # Recorder pause state
 ```
 
 **New Methods:**
+
 ```python
 def _check_camera_disconnect() -> None
     """Detect camera loss (gap > threshold)."""
@@ -207,14 +216,17 @@ def _on_camera_reconnected() -> None
 ```
 
 **Events Published:**
+
 - `CAMERA_DISCONNECT_DETECTED` - When gap > threshold
 - `CAMERA_RECONNECTED` - When valid frames resume
 - `AQUARIUM_DETECTION_PROGRESS` - During arena detection phase
 
 ### Recorder Pause/Resume
+
 **File:** `src/zebtrack/io/recorder.py`
 
 **New Methods:**
+
 ```python
 def pause_recording() -> bool
     """Pause recording during disconnect."""
@@ -230,14 +242,17 @@ def get_pause_metadata() -> dict
 ```
 
 **Behavior:**
+
 - `write_detection_data()` skips if paused
 - `write_video_frame()` skips if paused
 - Tracks total paused duration
 
 ### LiveBatchCoordinator
+
 **File:** `src/zebtrack/coordinators/live_batch_coordinator.py`
 
 **Methods:**
+
 ```python
 def register_session(experiment_id, video_path, metadata) -> str
     """Register session to batch (group/day/subject_id)."""
@@ -250,6 +265,7 @@ def get_active_batches() -> list[BatchMetadata]
 ```
 
 **Batch Detection:**
+
 - Groups sessions by `(group, day, subject_id)` tuple
 - Auto-generates unified Excel when marked complete
 - Aggregates individual summary files
@@ -257,15 +273,18 @@ def get_active_batches() -> list[BatchMetadata]
 ## UI Dialogs
 
 ### CameraDisconnectRecoveryDialog
+
 **File:** `src/zebtrack/ui/dialogs/camera_disconnect_recovery_dialog.py`
 
 **Features:**
+
 - 30s countdown with auto-reconnect
 - 3 buttons: Wait | Resume | Stop
 - Modal dialog, non-blocking callback
 - Progress bar visualization
 
 **Integration:**
+
 ```python
 # Subscribe to disconnect event
 event_bus.subscribe("CAMERA_DISCONNECT_DETECTED", show_recovery_dialog)
@@ -280,15 +299,18 @@ def show_recovery_dialog(event_data):
 ```
 
 ### AquariumDetectionProgressDialog
+
 **File:** `src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py`
 
 **Features:**
+
 - Frame counter (0/100)
 - Progress bar
 - Thumbnail with detected bbox
 - Valid/invalid detection counts
 
 **Integration:**
+
 ```python
 # Show during aquarium detection phase
 dialog = AquariumDetectionProgressDialog(
@@ -312,6 +334,7 @@ dialog.show_completion(success=True, message="Aquário detectado!")
 ## Testing
 
 ### Unit Tests
+
 ```bash
 # Hardware detection
 pytest tests/test_hardware_capability.py -v
@@ -324,6 +347,7 @@ pytest tests/test_recorder_pause_resume.py -v
 ```
 
 ### Integration Tests
+
 ```bash
 # End-to-end live workflow
 pytest tests/test_live_camera_workflow_e2e.py -v
@@ -333,6 +357,7 @@ pytest tests/test_camera_disconnect_recovery.py -v
 ```
 
 ### Manual Testing
+
 ```bash
 # Test hardware detection
 poetry run python -m zebtrack.utils.hardware_capability
@@ -344,6 +369,7 @@ poetry run python scripts/test_live_camera_modes.py
 ## Common Patterns
 
 ### Pattern 1: Wizard Integration
+
 ```python
 # In LiveConfigStep
 def on_aquarium_count_changed(self, count: int):
@@ -360,6 +386,7 @@ def on_aquarium_count_changed(self, count: int):
 ```
 
 ### Pattern 2: Event-Driven Disconnect Recovery
+
 ```python
 # In UICoordinator.__init__
 self.event_bus.subscribe("CAMERA_DISCONNECT_DETECTED", self._on_camera_disconnect)
@@ -369,6 +396,7 @@ def _on_camera_disconnect(self, event_data):
 ```
 
 ### Pattern 3: Batch Report Monitoring
+
 ```python
 # In ProjectViewManager
 def on_session_complete(self, experiment_id):
@@ -382,6 +410,7 @@ def on_session_complete(self, experiment_id):
 
 **Issue:** Hardware detector always returns LIMITED
 **Fix:** Check `psutil` installation; verify CPU/RAM detection:
+
 ```python
 import psutil
 print(f"CPU: {psutil.cpu_count()}, RAM: {psutil.virtual_memory().available / 1e9}GB")

@@ -9,6 +9,7 @@
 ## 🎯 Objetivo
 
 Refatorar workflows de processing no MainViewModel para:
+
 1. Separar UI orchestration de business logic
 2. Completar delegação para ProcessingCoordinator
 3. Reduzir complexidade e linhas de código
@@ -22,7 +23,7 @@ Refatorar workflows de processing no MainViewModel para:
 ### Métodos de Processing Identificados
 
 | Método | Linhas | Complexidade | Tipo |
-|--------|--------|--------------|------|
+| -------- | -------- | -------------- | ------ |
 | `start_project_processing_workflow()` | 228 | 🔴 ALTA | Workflow principal |
 | `process_pending_project_videos()` | 156 | 🔴 ALTA | Workflow |
 | `start_single_video_processing()` | 138 | 🟡 MÉDIA | Workflow |
@@ -35,7 +36,7 @@ Refatorar workflows de processing no MainViewModel para:
 ### Métodos Adicionais Relacionados
 
 | Método | Linhas (aprox) | Descrição |
-|--------|---------------|-----------|
+| -------- | --------------- | ----------- |
 | `_prepare_processing_ui()` | ~10 | Preparação UI |
 | `_finalize_processing()` | ~25 | Finalização |
 | `_activate_analysis_view_mode()` | ~7 | UI mode |
@@ -57,7 +58,7 @@ Refatorar workflows de processing no MainViewModel para:
 
 ### Estrutura do Método
 
-```
+```text
 Line 3352-3365 (14 linhas): Validação de processamento ativo
 ├─ Check processing_thread.is_alive()
 └─ Publish UI_SHOW_WARNING
@@ -133,6 +134,7 @@ Line 3541-3580 (40 linhas): Adicionar vídeos e processar
 **Objetivo:** Entender código antes de refatorar
 
 **Tarefas:**
+
 - ✅ Identificar todos os métodos de processing
 - ✅ Medir tamanho e complexidade
 - ✅ Documentar estrutura e problemas
@@ -143,6 +145,7 @@ Line 3541-3580 (40 linhas): Adicionar vídeos e processar
 **Objetivo:** Separar lógica de validação de UI
 
 **Exemplo:**
+
 ```python
 # ANTES (MainViewModel)
 def start_project_processing_workflow(self):
@@ -176,6 +179,7 @@ def start_project_processing_workflow(self):
 **Objetivo:** Mover helpers para módulos apropriados
 
 **Candidates:**
+
 - `_gather_candidate_entries()` → VideoSelectionService
 - `_classify_candidate_videos()` → VideoClassificationService
 - `_scan_and_validate_candidate_paths()` → VideoValidationService
@@ -188,11 +192,13 @@ def start_project_processing_workflow(self):
 **Objetivo:** Reduzir complexidade dos métodos principais
 
 **Estratégias:**
+
 1. **Extract Method** - Quebrar métodos grandes em menores
 2. **Template Method** - Padrão para workflows similares
 3. **Strategy Pattern** - Para diferentes tipos de processing
 
 **Exemplo:**
+
 ```python
 # ANTES: 228 linhas em um método
 def start_project_processing_workflow(self):
@@ -230,7 +236,7 @@ def start_project_processing_workflow(self):
 ## 📈 Impacto Total Estimado
 
 | Fase | Sprint | Redução Estimada | Tipo de Trabalho |
-|------|--------|------------------|------------------|
+| ------ | -------- | ------------------ | ------------------ |
 | 1. Análise | 10 (atual) | 0 linhas | Documentação |
 | 2. Validações | 11 | -50 a -100 | Extração |
 | 3. Helpers | 12 | -150 a -250 | Movimentação |
@@ -259,18 +265,18 @@ def start_project_processing_workflow(self):
 
 ### 🟡 Médio Risco
 
-3. **Duplicação de Código**
+1. **Duplicação de Código**
    - VideoOrchestrator tem lógica similar
    - Pode criar mais duplicação ao refatorar
    - **Mitigação:** Refatorar ambos simultaneamente
 
-4. **Complexidade do ProcessingCoordinator**
+2. **Complexidade do ProcessingCoordinator**
    - Pode ficar muito grande se receber toda lógica
    - **Mitigação:** Criar services especializados (VideoSelectionService, etc.)
 
 ### 🟢 Baixo Risco
 
-5. **Performance**
+1. **Performance**
    - Refatoração não deve impactar performance
    - **Mitigação:** Manter delegação leve
 
@@ -337,6 +343,7 @@ def start_project_processing_workflow(self):
 ### Sprint 12: Extração de Helpers ✅ **COMPLETO** (3/3 Parts)
 
 **Part 1: VideoClassificationService** ✅ **COMPLETO**
+
 - [x] Criar `VideoClassificationService`
 - [x] Extrair `_classify_candidate_videos()` para VideoClassificationService
 - [x] Atualizar MainViewModel para usar VideoClassificationService
@@ -352,6 +359,7 @@ def start_project_processing_workflow(self):
   - Método antigo mantido como deprecated para safety
 
 **Parts 2-3: VideoValidationService & VideoSelectionService** ✅ **COMPLETO**
+
 - [x] Criar `VideoValidationService` (partial extraction)
 - [x] Criar `VideoSelectionService` (partial extraction)
 - [x] Extrair scan logic de _scan_and_validate_candidate_paths()
@@ -369,6 +377,7 @@ def start_project_processing_workflow(self):
   - UI orchestration apropriadamente mantida no ViewModel
 
 **Impacto Total Sprint 12:**
+
 - 3 novos services criados (540 linhas total)
 - MainViewModel: +125 linhas (service usage), -54 linhas (replaced logic)
 - **Net Total:** +611 linhas (extraction infrastructure)
@@ -377,6 +386,7 @@ def start_project_processing_workflow(self):
 ### Sprint 13: Simplificação de Workflows ✅ **COMPLETO** (Part 1/1)
 
 **Part 1: Pattern Consolidation** ✅ **COMPLETO**
+
 - [x] Aplicar Extract Method em start_project_processing_workflow()
 - [x] Aplicar Extract Method em process_pending_project_videos()
 - [x] Aplicar Extract Method em start_single_video_processing()
@@ -455,12 +465,14 @@ def start_project_processing_workflow(self):
 **Status:** ✅ Análise Completa
 
 **Descobertas Principais:**
+
 1. ~749 linhas em métodos de processing principais
 2. ~1,100 linhas incluindo métodos relacionados (19% do MainViewModel)
 3. 60% da lógica é UI (diálogos, eventos)
 4. Alta duplicação com VideoOrchestrator
 
 **Plano Criado:**
+
 - Fase 1-5 documentadas
 - Riscos identificados
 - Decisões de design definidas

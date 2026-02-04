@@ -9,14 +9,14 @@
 ### Redução de Código
 
 | Métrica | Antes | Depois | Redução |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | **Linhas** | 9,952 | 8,286 | 1,666 linhas (16.7%) |
 | **Métodos** | 328 | 239 | 89 métodos |
 
 ### Componentes Criados
 
 | Componente | Linhas | Métodos | Responsabilidade |
-|------------|--------|---------|------------------|
+| ------------ | -------- | --------- | ------------------ |
 | **MenuManager** | 416 | 9 | Menus (barra, contexto, sobre) |
 | **CanvasManager** | 998 | 17 | Desenho, coordenadas, overlays |
 | **StateSynchronizer** | 352 | 23 | Estado, callbacks, resets |
@@ -81,6 +81,6 @@ Os testes deverão ser executados em ambiente com tkinter instalado antes do mer
 
 **TASK 2.1 CONCLUÍDA COM SUCESSO** ✅
 
-A refatoração reduziu significativamente a complexidade do God Object `ApplicationGUI`, 
-extraindo 2,301 linhas em 4 componentes bem definidos, mantendo 100% da funcionalidade 
+A refatoração reduziu significativamente a complexidade do God Object `ApplicationGUI`,
+extraindo 2,301 linhas em 4 componentes bem definidos, mantendo 100% da funcionalidade
 e qualidade do código.

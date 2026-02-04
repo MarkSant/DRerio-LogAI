@@ -10,6 +10,7 @@ ZebTrack-AI is a desktop application for tracking zebrafish in laboratory video 
 The original architecture supported only single-aquarium videos (one fish per video).
 
 Research requirements now include:
+
 1. Recording two aquariums side-by-side in a single video
 2. Each aquarium contains exactly one animal
 3. Aquariums may belong to different experimental groups (e.g., Control vs CBD treatment)
@@ -25,6 +26,7 @@ We will implement multi-aquarium support with the following design decisions:
 **Decision**: Support exactly 2 aquariums (not N generic aquariums).
 
 **Rationale**:
+
 - Matches current experimental setup (side-by-side dual tanks)
 - Simplifies UI design (left/right assignment)
 - Reduces complexity in tracking coordination
@@ -35,6 +37,7 @@ We will implement multi-aquarium support with the following design decisions:
 **Decision**: Each aquarium gets its own ByteTracker instance.
 
 **Rationale**:
+
 - Prevents ID collision between aquariums
 - Isolates tracking state (no cross-contamination)
 - Simplifies trajectory storage
@@ -45,12 +48,14 @@ We will implement multi-aquarium support with the following design decisions:
 **Decision**: Global track IDs use formula `aquarium_id * 1000 + local_id`.
 
 **Example**:
+
 - Aquarium 0, Track 1 → ID 1
 - Aquarium 0, Track 2 → ID 2
 - Aquarium 1, Track 1 → ID 1001
 - Aquarium 1, Track 2 → ID 1002
 
 **Rationale**:
+
 - Unique IDs across entire video
 - Easy to recover aquarium ID from global ID
 - Compatible with existing Recorder schema
@@ -61,7 +66,8 @@ We will implement multi-aquarium support with the following design decisions:
 **Decision**: Each subject (aquarium) gets its own output directory with tracking and analysis files.
 
 **Structure**:
-```
+
+```text
 project/
 ├── Grupo_Controle/
 │   └── Dia_01/
@@ -78,6 +84,7 @@ project/
 ```
 
 **Rationale**:
+
 - Matches experimental organization
 - Enables independent analysis per subject
 - Simplifies data management
@@ -88,6 +95,7 @@ project/
 **Decision**: Auto-detect aquariums using contour analysis on first frame.
 
 **Algorithm**:
+
 1. Convert frame to grayscale
 2. Apply adaptive thresholding
 3. Find external contours
@@ -96,6 +104,7 @@ project/
 6. Generate rectangular bounding polygons
 
 **Rationale**:
+
 - Works with typical lab setups (bright tanks on dark background)
 - No ML model required
 - User can adjust manually after detection
@@ -125,6 +134,7 @@ class MultiAquariumZoneData:
 ```
 
 **Rationale**:
+
 - Clear separation of per-aquarium configuration
 - Backward compatible (single aquarium = list with 1 element)
 - Includes all metadata for output organization
@@ -149,7 +159,7 @@ class MultiAquariumZoneData:
 ### Risks and Mitigations
 
 | Risk | Mitigation |
-|------|------------|
+| ------ | ------------ |
 | Auto-detection fails on unusual setups | Manual polygon editing always available |
 | Track ID collision at 1000 boundary | Assert local_id < 1000 at runtime |
 | Overlapping aquarium polygons | Validation in WizardService |
@@ -169,6 +179,7 @@ class MultiAquariumZoneData:
 ## Multi-Aquarium v2 Enhancements (January 2025)
 
 ### Phase 1: Foundation
+
 - **ROI Cropping**: `_crop_aquarium_region()` for per-aquarium frame extraction
 - **Uncertainty Metrics**: Added `uncertainty` (1 - confidence) column to Parquet
 - **Export Scripts**: `export_r_script()` and `export_python_script()` for statistical analysis
@@ -176,21 +187,25 @@ class MultiAquariumZoneData:
 - **Feather Export**: `export_feather()` for R integration
 
 ### Phase 2: Performance
+
 - **Parallel Detection**: `detect_partitioned_parallel()` with ThreadPoolExecutor (~30-40% speedup)
 - **Batch Inference**: `detect_batch()` for offline processing optimization
 - **Metrics Cache**: Caching for frequently-accessed detection metrics
 
 ### Phase 3: UI/UX
+
 - **Side-by-Side Preview**: `create_side_by_side_preview()` for visual comparison
 - **Enhanced Validation**: `validate_multi_aquarium_config()` returns (is_valid, errors, warnings)
 
 ### Phase 4: Robustness
+
 - **Per-Aquarium Tracking Validation**: `_validate_multi_aquarium_ids()` in TrajectoryQualityValidator
 - **Gap Detection**: `_detect_per_aquarium_gaps()` for missing frame detection per aquarium
 - **Error Recovery**: Fallback mechanism when detection fails for individual aquariums
 - **IoU Tracking**: `bbox_iou` column for tracking stability analysis
 
 ### Phase 5: Event System
+
 - **New Events**:
   - `ZONE_MULTI_AUTO_DETECT_SUCCESS` - Detection succeeded with polygons
   - `ZONE_MULTI_AUTO_DETECT_FAILED` - Detection failed with reason
@@ -200,6 +215,7 @@ class MultiAquariumZoneData:
   - `ProjectLifecycleCoordinator._handle_aquarium_config_updated()`
 
 ### Phase 6: Sequential Processing (December 2025)
+
 **Feature**: Option to process each aquarium separately with 2 complete video passes.
 
 - **New Field**: `MultiAquariumZoneData.sequential_processing: bool`
@@ -224,11 +240,13 @@ class MultiAquariumZoneData:
 - **Serialization**: `ZoneManager.multi_aquarium_zone_data_to_dict/from_dict()` updated
 
 **Advantages**:
+
 - 100% resources per aquarium (no splitting)
 - Lower memory (1 ByteTracker at a time)
 - Reuses battle-tested single-aquarium code path
 
 **Trade-offs**:
+
 - 2× total processing time
 - Video read twice from disk
 
@@ -241,7 +259,7 @@ class MultiAquariumZoneData:
 ## Revision History
 
 | Date | Version | Author | Changes |
-|------|---------|--------|---------|
+| ------ | --------- | -------- | --------- |
 | 2024-12 | 1.0 | Development Team | Initial ADR |
 | 2025-01 | 2.0 | Development Team | Multi-Aquarium v2 (Phases 1-5) |
 | 2025-12 | 2.1 | Development Team | Phase 6: Sequential Processing |

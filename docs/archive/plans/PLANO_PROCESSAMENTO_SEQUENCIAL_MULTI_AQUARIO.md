@@ -18,14 +18,14 @@ Adicionar opção para processar aquários sequencialmente (2 passagens pelo ví
 
 Reutilizar o fluxo single-aquarium existente, chamando-o 2 vezes:
 
-```
+```text
 MultiAquariumZoneData → AquariumData[0].to_zone_data() → ZoneData → detect() → resultados aquário 0
                       → AquariumData[1].to_zone_data() → ZoneData → detect() → resultados aquário 1
 ```
 
 ### Fluxo de Dados
 
-```
+```text
 ┌─ Modo Paralelo (atual) ─────────────────────────────────────────────┐
 │ 1 passagem pelo vídeo                                               │
 │ detect_partitioned_optimized() → dict[aq_id, detections]            │
@@ -62,7 +62,8 @@ MultiAquariumZoneData → AquariumData[0].to_zone_data() → ZoneData → detect
 ## Estrutura de Output
 
 ### Modo Paralelo (atual)
-```
+
+```text
 video_results/
 ├── aquarium_0/
 │   └── 3_CoordMovimento_video.parquet
@@ -70,8 +71,9 @@ video_results/
     └── 3_CoordMovimento_video.parquet
 ```
 
-### Modo Sequencial (novo) - Mesma estrutura!
-```
+### Modo Sequencial (novo) - Mesma estrutura
+
+```text
 video_results/
 ├── aquarium_0/
 │   ├── 3_CoordMovimento_video.parquet  (passagem 1)
@@ -90,16 +92,19 @@ video_results/
 ## Considerações
 
 ### Vantagens do Modo Sequencial
+
 - Usa 100% dos recursos para cada aquário
 - Menor uso de memória (1 ByteTracker por vez)
 - Mais fácil de debugar (1 fluxo por vez)
 - Reutiliza código existente (single-aquarium)
 
 ### Desvantagens
+
 - 2x tempo total de processamento
 - Lê o vídeo 2 vezes do disco
 
 ### Compatibilidade
+
 - Default: `sequential_processing=False` (comportamento atual mantido)
 - Projetos existentes não são afetados
 - Toggle só aparece quando multi-aquarium está ativo

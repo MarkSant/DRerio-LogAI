@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Future Optimization Opportunities
 
 **Date**: 2025-01-14
@@ -18,10 +20,12 @@ After completing Sprints 24-34 (reducing MainViewModel by **49.1%**), we've docu
 ## 📋 Opportunity #1: Calibration Refactoring (Sprint 33 Discovery)
 
 ### Context
+
 During Sprint 33, we extracted `_ensure_zones_before_recording` to `RecordingSessionOrchestrator` instead of `RecordingCoordinator` due to a potential circular dependency with `run_live_calibration`.
 
 ### Current State (Option B - Pragmatic) ✅
-```
+
+```text
 RecordingSessionOrchestrator
 ├── _ensure_zones_before_recording()  # Lives here
 │   └── calls run_live_calibration()  # From RecordingService
@@ -29,11 +33,13 @@ RecordingSessionOrchestrator
 ```
 
 **Why it works**:
+
 - ✅ No circular dependencies
 - ✅ All logic in one orchestrator
 - ✅ Simple and easy to understand
 
 **Trade-off**:
+
 - ⚠️ Calibration logic split between CalibrationOrchestrator and RecordingSessionOrchestrator
 
 ---
@@ -43,18 +49,21 @@ RecordingSessionOrchestrator
 **Goal**: Consolidate all calibration logic in `CalibrationOrchestrator`
 
 **Proposed Refactoring**:
-```
+
+```text
 1. Move run_live_calibration() from RecordingSessionOrchestrator → CalibrationOrchestrator
 2. Move _ensure_zones_before_recording() → RecordingCoordinator (original plan)
 3. RecordingCoordinator calls CalibrationOrchestrator when needed
 ```
 
 **Benefits**:
+
 - ✅ Better separation of concerns (calibration in one place)
 - ✅ RecordingCoordinator focuses only on recording
 - ✅ Cleaner domain boundaries
 
 **Challenges**:
+
 - ⚠️ Requires careful dependency management
 - ⚠️ Need to ensure no new circular dependencies
 - ⚠️ More complex refactoring (~3-4 hours)
@@ -92,6 +101,7 @@ RecordingSessionOrchestrator
 **Total Effort**: 3.5 hours
 
 **When to Consider**:
+
 - ✅ When adding new calibration features
 - ✅ When refactoring RecordingSessionOrchestrator for other reasons
 - ❌ Not needed for bug fixes or routine maintenance
@@ -101,10 +111,12 @@ RecordingSessionOrchestrator
 ## 📋 Opportunity #2: Model Overrides Consolidation (Sprint 34 Discovery)
 
 ### Context
+
 `apply_project_model_overrides` exists in both `ProjectWorkflowService` and `ProjectOrchestrator` with different signatures and purposes. While this is **intentional and justified** (see `ARCHITECTURAL_DECISION_MODEL_OVERRIDES_DUPLICATION.md`), there's an optional DRY opportunity.
 
 ### Current State ✅
-```
+
+```text
 ProjectWorkflowService.apply_project_model_overrides(overrides, callbacks)
   ↑ Used in: create_project(), open_project()
 
@@ -113,11 +125,13 @@ ProjectOrchestrator.apply_project_model_overrides(overrides)
 ```
 
 **Why it works**:
+
 - ✅ Clear separation: stateless service vs stateful orchestrator
 - ✅ No overlap in call sites
 - ✅ Both implementations tested
 
 **Trade-off**:
+
 - ⚠️ ~30 lines of similar logic in two places
 
 ---
@@ -127,6 +141,7 @@ ProjectOrchestrator.apply_project_model_overrides(overrides)
 **Goal**: Eliminate code duplication while preserving separate interfaces
 
 **Proposed Change**:
+
 ```python
 # In ProjectOrchestrator
 def apply_project_model_overrides(self, overrides: dict | None = None):
@@ -139,11 +154,13 @@ def apply_project_model_overrides(self, overrides: dict | None = None):
 ```
 
 **Benefits**:
+
 - ✅ Single source of truth for override logic
 - ✅ Eliminates ~30 lines of duplication
 - ✅ Maintains existing interfaces
 
 **Challenges**:
+
 - ⚠️ ProjectOrchestrator now depends on ProjectWorkflowService (new dependency)
 - ⚠️ Slight indirection adds complexity
 - ⚠️ Need to inject ProjectWorkflowService into ProjectOrchestrator
@@ -180,6 +197,7 @@ def apply_project_model_overrides(self, overrides: dict | None = None):
 **Total Effort**: 3 hours
 
 **When to Consider**:
+
 - ✅ When refactoring ProjectOrchestrator for other reasons
 - ✅ When override logic needs significant changes
 - ❌ Not a priority - current state is acceptable
@@ -189,16 +207,19 @@ def apply_project_model_overrides(self, overrides: dict | None = None):
 ## 🚫 Non-Opportunities (Already Addressed)
 
 ### ✅ Model Settings Duplication
+
 - **Status**: RESOLVED in Sprint 34
 - **Action**: Extracted 5 methods to ProjectOrchestrator
 - **Result**: -42 lines reduction
 
 ### ✅ Live Camera Threading
+
 - **Status**: RESOLVED in v2.0 (Nov 2025)
 - **Action**: Daemon threads + pytest cleanup hooks
 - **Result**: No more test hangs
 
 ### ✅ Legacy Thread System
+
 - **Status**: REMOVED in v3.0 (Jan 2025)
 - **Action**: Deleted ~90 lines of deprecated code
 - **Result**: Cleaner codebase, no regressions
@@ -208,11 +229,12 @@ def apply_project_model_overrides(self, overrides: dict | None = None):
 ## 📊 Priority Matrix
 
 | Opportunity | Value | Effort | Risk | Priority |
-|-------------|-------|--------|------|----------|
+| ------------- | ------- | -------- | ------ | ---------- |
 | **#1: Calibration Refactoring** | LOW-MED | 3.5h | 🟡 MED | 🟡 OPTIONAL |
 | **#2: Model Overrides DRY** | LOW | 3h | 🟢 LOW | 🟢 OPTIONAL |
 
 **Recommendation**: ✅ Both are **OPTIONAL** - address only if:
+
 1. You're already refactoring nearby code
 2. You need to add related features
 3. You want to improve your understanding of the architecture
@@ -222,18 +244,21 @@ def apply_project_model_overrides(self, overrides: dict | None = None):
 ## ✅ What's Already Excellent
 
 ### ✅ Architecture Quality
+
 - Clean separation of concerns (MVVM-S)
 - Dependency injection throughout
 - 11 orchestrators with clear domains
 - 100 well-documented facades
 
 ### ✅ Code Quality
+
 - 2,568 tests passing (61% coverage)
 - Ruff linting clean
 - Pydantic validation everywhere
 - Structured logging (structlog)
 
 ### ✅ Documentation
+
 - 15+ architecture docs
 - Sprint results for all 11 sprints
 - ADRs for key decisions
@@ -246,11 +271,13 @@ def apply_project_model_overrides(self, overrides: dict | None = None):
 If you want to practice refactoring skills, these opportunities are **excellent exercises**:
 
 ### Exercise 1: Calibration Refactoring
+
 **Skills**: Dependency management, circular dependency avoidance, domain separation
 **Difficulty**: ⭐⭐⭐ (Medium)
 **Time**: Half day
 
 ### Exercise 2: Model Overrides DRY
+
 **Skills**: Delegation patterns, callback design, DI principles
 **Difficulty**: ⭐⭐ (Easy-Medium)
 **Time**: 3 hours
@@ -276,6 +303,7 @@ If you want to practice refactoring skills, these opportunities are **excellent 
 **Future Optimizations**: 📋 Optional - nice-to-have, not need-to-have
 
 **Recommendation**:
+
 - ✅ Focus on new features and bug fixes
 - ✅ Revisit these only if convenient
 - ✅ Current architecture is production-ready

@@ -1,6 +1,8 @@
+<!-- markdownlint-disable MD024 -->
+
 # CLAUDE.md
 
-**AI Assistant Guidance for ZebTrack-AI Development**
+## AI Assistant Guidance for ZebTrack-AI Development
 
 ---
 
@@ -43,7 +45,7 @@ poetry run ruff check --fix .     # Auto-fix
 poetry run pre-commit run --all-files  # Full pre-commit
 ```
 
-**Detailed Guides**:
+### Detailed Guides
 
 - `docs/architecture/SYSTEM_INTEGRATION_MAP.md` - **CRITICAL**: Event payloads & Component contracts
 - `docs/guides/developer/CHEATSHEET.md` - Quick developer reference
@@ -59,7 +61,7 @@ poetry run pre-commit run --all-files  # Full pre-commit
 ### Core Layers (Phase 3/4 Architecture - Dec 2025)
 
 | Layer | Key Files | Purpose |
-|-------|-----------|---------|
+| ------- | ----------- | --------- |
 | **Model** | `core/{state_manager,project_manager,detector_service}.py` | State, project data, detection |
 | **View** | `ui/gui.py`, `ui/wizard/*.py`, `ui/dialogs/*.py` | Tkinter UI (10759 lines gui.py) |
 | **ViewModel** | `core/main_view_model.py` | Orchestrator (11+ injected deps) |
@@ -101,7 +103,7 @@ poetry run pre-commit run --all-files  # Full pre-commit
 
 ### 🔒 Parquet Schema (IMMUTABLE)
 
-```
+```text
 timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_px, x_cm, y_cm]*
 ```
 
@@ -169,7 +171,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **PROBLEM RESOLVED**: Tests completed successfully but pytest hung indefinitely, causing VSCode and system freezes requiring manual restart.
 
-**ROOT CAUSES**:
+### ROOT CAUSES
 
 1. Non-daemon threads in `LiveCameraService` and `GUI` blocked Python shutdown
 2. Tkinter `root.after()` callbacks persisted after `root.destroy()` (30+ locations)
@@ -182,7 +184,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - ✅ Enhanced fixture cleanup: `tkinter_session_root`, `tkinter_root`, `cleanup_threads` (autouse)
 - ✅ Added `pytest-timeout` plugin (300s per test, thread-based)
 
-**VALIDATION**:
+### VALIDATION
 
 - ✅ 2568 tests pass (8 skip, 1 xfail) in 6min40s - **no hang**
 - ✅ Coverage: 61% measured successfully
@@ -197,7 +199,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **PROBLEM RESOLVED**: Dual parallel systems for live camera management caused critical bugs: wrong camera selection, multiple cameras activating, preview failures, and ignored configuration settings.
 
-**ROOT CAUSES**:
+### ROOT CAUSES
 
 1. **Bug #1 (CRITICAL)**: Live projects ignored `camera_index` from wizard (always opened camera 0)
 2. **Bug #2 (CRITICAL)**: Analysis intervals ignored in single video workflow
@@ -216,13 +218,13 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - ✅ **Respect All Settings**: `camera_index`, `analysis_interval_frames`, `display_interval_frames` properly passed and used
 - ✅ **Deprecated Legacy**: Thread system in `gui.py` marked for v3.0 removal
 
-**PERFORMANCE IMPROVEMENTS**:
+### PERFORMANCE IMPROVEMENTS
 
 - 50% reduction in threads (4 → 2)
 - 50% reduction in memory (eliminated duplicate buffers)
 - Eliminated lock contention overhead
 
-**FILES MODIFIED**:
+### FILES MODIFIED
 
 - `src/zebtrack/ui/components/event_dispatcher.py`
 - `src/zebtrack/core/main_view_model.py` (2 new methods)
@@ -237,14 +239,14 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **BREAKING CHANGE**: Removed all deprecated legacy thread system code from Live camera workflows.
 
-**REMOVED CODE**:
+### REMOVED CODE
 
 - ❌ `_live_frame_capture_loop()` method (~30 lines) - replaced by LiveCameraService
 - ❌ `_live_processing_loop()` method (~60 lines) - replaced by LiveCameraService
 - ❌ `capture_thread` initialization and cleanup in `gui.py` - no longer needed
 - ❌ Legacy thread join logic in `main_view_model.py` - simplified
 
-**IMPACT**:
+### IMPACT
 
 - 🧹 Removed ~90 lines of deprecated code
 - ✅ Simplified project loading flow for Live projects
@@ -262,26 +264,26 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 ### Phase 11: Multi-Aquarium Reporting + Reports Tree (Dec 2025)
 
-**Problems Resolved**:
+### Problems Resolved
 
 - Aquarium 1 report using Aquarium 0 cropped background
 - Aquarium 1 trajectory/heatmap misaligned
 - Reports tab showing only one aquarium
 - Summary indicator not persisting reliably after generation
 
-**Root Causes**:
+### Root Causes
 
 1. `get_zone_data()` returns only Aquarium 0 in multi-mode (backward compatibility)
 2. Reports tree sometimes receives simplified hierarchy entries without `multi_aquarium_outputs`
 3. `multi_aquarium_outputs` keys can be mixed (`0` vs `"0"`), causing Treeview iid collisions
 
-**Fixes / Guard Rails**:
+### Fixes / Guard Rails
 
 - Reporting: always prefer `ProjectManager.get_multi_aquarium_zone_data()` with safe fallback
 - Persistence: after summary/report generation, re-register outputs via `register_multi_aquarium_outputs(...)`
 - UI: in Reports tree, fall back to `ProjectManager.find_video_entry(video_path)` and normalize aquarium keys
 
-**Regression Tests**:
+### Regression Tests
 
 - `tests/ui/components/test_project_view_manager_reports_tree_multi_aquarium.py`
 - `tests/analysis/test_visualization_generator_background_image.py`
@@ -291,7 +293,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - `AquariumData`: Holds `id`, `polygon`, `roi_mode`, `roi_data` for each aquarium
 - `MultiAquariumZoneData`: Container with `aquariums: list[AquariumData]`, `calibration`, `active_aquarium_id`, `sequential_processing`
 
-**Key Methods**:
+### Key Methods
 
 - `Detector.set_multi_aquarium_zones(zone_data: MultiAquariumZoneData)` - Configure multi-aquarium mode
 - `Detector.detect_partitioned(frame)` - Returns `dict[aquarium_id, list[detections]]`
@@ -303,14 +305,14 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - `TrajectoryQualityValidator._validate_multi_aquarium_ids()` - Validates track IDs per aquarium
 - `TrajectoryQualityValidator._detect_per_aquarium_gaps()` - Detects missing frames per aquarium
 
-**Track ID Convention**:
+### Track ID Convention
 
 - Global ID = `aquarium_id * 1000 + local_track_id`
 - Example: Aquarium 0, track 5 → ID 5; Aquarium 1, track 3 → ID 1003
 - Aquarium 0: IDs 0-999; Aquarium 1: IDs 1000-1999; Aquarium 2: IDs 2000-2999
 - **CRITICAL**: `local_track_id` MUST be < 1000 to prevent overflow collisions
 
-**Parquet Schema Extensions**:
+### Parquet Schema Extensions
 
 - `uncertainty`: Detection confidence uncertainty (1 - confidence)
 - `bbox_iou`: Bounding box IoU with previous frame (tracking stability)
@@ -334,7 +336,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - `ProcessingCoordinator._handle_multi_auto_detect()` - Handles ZONE_MULTI_AUTO_DETECT
 - `ProjectLifecycleCoordinator._handle_aquarium_config_updated()` - Handles ZONE_AQUARIUM_CONFIG_UPDATED
 
-**UI Components**:
+### UI Components
 
 - `CanvasManager.create_side_by_side_preview()` - Side-by-side aquarium comparison
 - `WizardService.validate_multi_aquarium_config()` - Returns (is_valid, errors, warnings)
@@ -357,14 +359,14 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **Feature**: Option to process each aquarium separately with 2 complete video passes instead of simultaneously.
 
-**Processing Modes**:
+### Processing Modes
 
 - **Parallel (default)**: `sequential_processing=False` - Both aquariums processed in 1 video pass
 - **Sequential**: `sequential_processing=True` - Complete video for aquarium 0, then complete video for aquarium 1
 
-**Data Flow (Sequential Mode)**:
+### Data Flow (Sequential Mode)
 
-```
+```text
 ┌─ Passagem 1: Aquário 0 ─────────────────────────────────────────────┐
 │   AquariumData[0].to_zone_data() → ZoneData → detect() → aquarium_0/│
 └─────────────────────────────────────────────────────────────────────┘
@@ -392,7 +394,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **Output Structure** (identical to parallel mode):
 
-```
+```text
 video_results/
 ├── aquarium_0/
 │   ├── 3_CoordMovimento_{video}.parquet
@@ -406,14 +408,14 @@ video_results/
     └── {video}_aq1_summary.parquet
 ```
 
-**Advantages of Sequential Mode**:
+### Advantages of Sequential Mode
 
 - Uses 100% resources per aquarium (no resource splitting)
 - Lower memory usage (1 ByteTracker at a time)
 - Easier debugging (1 flow at a time)
 - Reuses battle-tested single-aquarium code path
 
-**Trade-offs**:
+### Trade-offs
 
 - 2× total processing time
 - Video read twice from disk
@@ -481,7 +483,7 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 ### Output Structure (per video)
 
-```
+```text
 <video>_results/
   1_ArenaROI_<video>.parquet          # Arena/ROI definitions
   2_Zones_<video>.parquet             # Zone metadata
@@ -547,7 +549,7 @@ logger.error("recorder.save_parquet.error", error=str(e))
 ## Quick Navigation
 
 | Task | Document |
-|------|----------|
+| ------ | ---------- |
 | **Quick Reference** | `docs/guides/developer/CHEATSHEET.md`, `docs/guides/developer/QUICK_DEBUG_GUIDE.md` |
 | **Architecture** | `docs/architecture/ARCHITECTURE.md` |
 | **Wizard Development** | `docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md` |
@@ -591,7 +593,8 @@ logger.error("recorder.save_parquet.error", error=str(e))
   - `_finalize_report_generation()` checks `_is_batch_processing()` before showing dialogs
   - Individual dialogs suppressed; consolidated dialog at batch end
 
-**0. Sequential Multi-Aquarium Processing (v3.1):**
+### 0. Sequential Multi-Aquarium Processing (v3.1)
+
 - **New Feature**: Toggle in Zone Controls to process aquariums sequentially (2 passes) vs parallel (1 pass)
 - **New Event**: `ZONE_PROCESSING_MODE_CHANGED` emitted when user changes processing mode
 - **New Field**: `MultiAquariumZoneData.sequential_processing: bool` - persisted in project files
@@ -599,25 +602,30 @@ logger.error("recorder.save_parquet.error", error=str(e))
 - **Automatic Reports**: Word, Excel, and Parquet summary files generated for each aquarium after all complete
 - **UI**: Radio buttons appear in ZoneControls when multi-aquarium mode is active
 
-**1. Multi-Aquarium Data Flow:**
+### 1. Multi-Aquarium Data Flow
+
 - **Zone Serialization**: `ProcessingCoordinator` now correctly detects `MultiAquariumZoneData` and serializes it using `ZoneManager.multi_aquarium_zone_data_to_dict`.
 - **Worker Deserialization**: `ProcessingWorker` deserializes using `ZoneManager.multi_aquarium_zone_data_from_dict`.
 - **Partitioned Processing**: The worker automatically switches to `detector.detect_partitioned_optimized()` and `recorder.write_partitioned_detection_data()` when multi-aquarium data is detected.
 
-**2. Video Validation & Persistence:**
+### 2. Video Validation & Persistence
+
 - **Parquet Compatibility**: `ProjectManager.save_multi_aquarium_zone_data` now automatically exports the zones of **Aquarium 0** to a standard parquet file (`1_ProcessingArea...`). This ensures that `VideoValidationService` and `VideoClassificationService` (which rely on file scanning) correctly classify the video as "Ready" (`has_arena=True`).
 - **Atomic Saving**: `save_project()` is now called **strictly after** updating the video entry's `parquet_files` map in `ProjectManager`. This prevents the "without_arena" regression on project reload.
 
-**3. UI & Events:**
+### 3. UI & Events
+
 - **Zone Selection**: `EventDispatcher` now subscribes to `ZONE_AQUARIUM_SELECTED` and delegates to `CanvasManager.update_zone_listbox()`.
 - **Listbox Update**: `update_zone_listbox` handles `MultiAquariumZoneData` by resolving the *active* aquarium's data before display.
 - **Rendering**: `CanvasRenderer` supports `MultiAquariumZoneData` natively, iterating through all aquariums to draw polygons with distinct labels.
 - **Trajectory Generation**: Added `PROCESSING_GENERATE_TRAJECTORIES` handler in `ProcessingCoordinator` to fix the "no handlers" warning in the Reports tab.
 
-**4. Windows Taskbar Icon:**
+### 4. Windows Taskbar Icon
+
 - Added `AppUserModelID` setup in `__main__.py` to dissociate the app from the generic Python process icon on Windows.
 
-**5. Multi-Aquarium Report Generation Fix (Dec 2025):**
+### 5. Multi-Aquarium Report Generation Fix (Dec 2025)
+
 - **Critical Bug Fixed**: Second aquarium Word reports were using first aquarium's cropped image and had misaligned trajectory/heatmap.
 - **Root Cause**: `generate_project_reports()` called `get_zone_data()` instead of `get_multi_aquarium_zone_data()`. The former returns only first aquarium's polygon for backward compatibility.
 - **Solution**: Changed `processing_coordinator.py:2998` to use `get_multi_aquarium_zone_data()` with fallback to `get_zone_data()` for single-aquarium videos.
@@ -625,13 +633,15 @@ logger.error("recorder.save_parquet.error", error=str(e))
 - **Files Modified**: `processing_coordinator.py` (line 2998), `project_view_manager.py` (lines 1443-1501, 1110-1127)
 - **Details**: See `docs/testing/MULTI_AQUARIUM_STATUS.md`
 
-**7. Unified Reports Robustness (v3.3 - Dec 29, 2025):**
+### 7. Unified Reports Robustness (v3.3 - Dec 29, 2025)
+
 - **Deletion Safety:** New **"Apagar Relatórios Unificados"** button with **Retry-with-Unlock** logic. Handles OneDrive sync locks and Read-Only permissions automatically.
 - **Metadata Authority:** Unified Reports enforced to use **Project Structure** metadata (Day/Group/Subject), overriding potentially stale headers in old Parquet files.
 - **Color Normalization:** ROI Colors in Excel converted to **Human Names** (e.g. "Red", "Blue") via Euclidean distance mapping (threshold 2500).
 - **Column Standard:** Redundant `group` column explicitly dropped in favor of standard `group_id`.
 
-**Agent Instructions:**
+### Agent Instructions
+
 - When modifying `ProjectManager` or `ZoneManager`, ensure `MultiAquariumZoneData` compatibility is maintained.
 - Do NOT revert the explicit parquet export in `save_multi_aquarium_zone_data`—it is essential for the legacy validation scanner.
 - Ensure `EventDispatcher` subscriptions are kept in sync with `ZoneControls` events.
@@ -644,7 +654,7 @@ When creating or updating documentation, follow these rules to maintain organiza
 ### Folder Structure (MANDATORY)
 
 | Folder | Purpose | Naming Convention |
-|--------|---------|-------------------|
+| -------- | --------- | ------------------- |
 | `docs/architecture/` | System design, patterns, DI, events | `TOPIC.md` |
 | `docs/guides/developer/` | Developer workflows, debugging, features | `GUIDE_TOPIC.md` or `TOPIC.md` |
 | `docs/guides/user/` | End-user docs (English) | `TOPIC.md` |

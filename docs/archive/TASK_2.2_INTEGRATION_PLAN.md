@@ -9,6 +9,7 @@
 ## Progress Summary
 
 ### ✅ Completed
+
 1. **HardwareCoordinator** (~350 lines)
    - Location: `src/zebtrack/core/hardware_coordinator.py`
    - Methods: 10 (detector setup, Arduino management, events)
@@ -33,14 +34,15 @@
 ### Approach: Internal Coordinator Creation
 
 **Rationale**:
+
 - Coordinators are internal to MainViewModel (not external services)
-- All required dependencies already available in MainViewModel.__init__
-- Avoids increasing __init__ parameter count (already 13+ params)
+- All required dependencies already available in MainViewModel.**init**
+- Avoids increasing **init** parameter count (already 13+ params)
 - Simpler initial integration and testing
 
 ### Integration Strategy
 
-#### 1. Create Coordinators in __init__ (after line 265)
+#### 1. Create Coordinators in **init** (after line 265)
 
 ```python
 # Create coordinators (Task 2.2: REFACTOR-VIEWMODEL-001)
@@ -67,7 +69,7 @@ self.analysis_coordinator = AnalysisCoordinator(
 )
 ```
 
-**Issue**: `self.view` not available yet at __init__ time
+**Issue**: `self.view` not available yet at **init** time
 **Solution**: Create coordinators in a separate `_init_coordinators(view)` method called after view is set
 
 #### 2. Add Method to Initialize Coordinators
@@ -119,6 +121,7 @@ def _init_coordinators(self, view: ApplicationGUI) -> None:
 #### 3. Delegate Methods to Coordinators
 
 **Hardware Methods** → `self.hardware_coordinator.*`
+
 - `setup_detector()` → `hardware_coordinator.setup_detector()`
 - `setup_arduino()` → `hardware_coordinator.setup_arduino()`
 - `setup_detector_zones()` → `hardware_coordinator.setup_detector_zones()`
@@ -126,11 +129,13 @@ def _init_coordinators(self, view: ApplicationGUI) -> None:
 - `log_arduino_event()` → `hardware_coordinator.log_arduino_event()`
 
 **Video Processing Methods** → `self.video_orchestrator.*`
+
 - `start_project_processing_workflow()` → `video_orchestrator.start_project_processing_workflow()`
 - `process_pending_project_videos()` → `video_orchestrator.process_pending_project_videos()`
 - `cancel_current_analysis()` → `video_orchestrator.cancel_current_analysis()`
 
 **Analysis Methods** → `self.analysis_coordinator.*`
+
 - `generate_report()` → `analysis_coordinator.generate_report()`
 - `generate_parquet_summaries()` → `analysis_coordinator.generate_parquet_summaries()`
 - `_run_analysis_pipeline()` → `analysis_coordinator.run_analysis_pipeline()`
@@ -138,6 +143,7 @@ def _init_coordinators(self, view: ApplicationGUI) -> None:
 #### 4. Update Arduino Management
 
 Move arduino/arduino_manager initialization to HardwareCoordinator:
+
 - Lines 262-264: Keep references but delegate actual management
 - Update shutdown logic to call `hardware_coordinator.shutdown_arduino()`
 
@@ -146,16 +152,19 @@ Move arduino/arduino_manager initialization to HardwareCoordinator:
 ## Testing Strategy
 
 ### Phase 1: Verify No Regressions
+
 ```bash
 poetry run pytest tests/test_main_view_model.py -v
 ```
 
 ### Phase 2: Integration Tests
+
 ```bash
 poetry run pytest tests/integration/ -v -k view_model
 ```
 
 ### Phase 3: Full Suite
+
 ```bash
 poetry run pytest -q
 ```
@@ -165,6 +174,7 @@ poetry run pytest -q
 ## Rollback Plan
 
 If tests fail critically:
+
 1. Revert MainViewModel changes
 2. Keep coordinators (they're standalone)
 3. Document issues in this file
@@ -189,15 +199,18 @@ If tests fail critically:
 ## Expected Impact
 
 ### Before
+
 - MainViewModel: 5588 lines
 - Dependencies: 13+
 
 ### After
+
 - MainViewModel: ~3000-3500 lines (target: ~2500)
 - Dependencies: 13+ (same, coordinators created internally)
 - New Files: 3 coordinators (~1400 lines)
 
 ### Reduction
+
 - ~2000-2500 lines removed from MainViewModel
 - Responsibility better distributed
 - Easier to test individual coordinators

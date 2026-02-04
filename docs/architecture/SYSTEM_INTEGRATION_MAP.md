@@ -11,7 +11,7 @@
 ### Completed Orchestrator Removals (7 orchestrators deleted, ~2,500+ lines removed)
 
 | Orchestrator | Lines | Status | Replacement |
-|-------------|-------|--------|-------------|
+| ------------- | ------- | -------- | ------------- |
 | `AnalysisOrchestrator` | ~200 | ❌ DELETED | ProcessingCoordinator |
 | `ZoneArenaOrchestrator` | ~150 | ❌ DELETED | ProjectLifecycleCoordinator |
 | `ProcessingConfigOrchestrator` | ~180 | ❌ DELETED | ProcessingCoordinator |
@@ -23,14 +23,14 @@
 ### Slim Orchestrators (kept for UI orchestration only)
 
 | Orchestrator | Lines | Status | Notes |
-|-------------|-------|--------|-------|
+| ------------- | ------- | -------- | ------- |
 | `VideoProcessingOrchestrator` | 140 | ✅ SLIM | Only `start_project_processing_workflow` kept |
 | `UIStateController` | 543 | ✅ ACTIVE | 17 production calls, manages weight/zone UI |
 
 ### Super Coordinators (Phase 3 replacements)
 
 | Coordinator | Responsibilities |
-|-------------|-----------------|
+| ------------- | ----------------- |
 | `ProcessingCoordinator` | Video processing, analysis coordination, frame queues |
 | `HardwareCoordinator` | Detector, camera, model service coordination |
 | `SessionCoordinator` | Recording sessions, Arduino integration |
@@ -45,7 +45,7 @@
 ### 1.1. Event Bus Overview
 
 | System | Module | Event Type | Primary Use Case |
-|--------|--------|-----------|------------------|
+| -------- | -------- | ----------- | ------------------ |
 | **EventBus (v1)** | `zebtrack.ui.event_bus.EventBus` | String constants (`Events` class) | Domain events: recording, project, model, video processing |
 | **EventBusV2** | `zebtrack.ui.event_bus_v2.EventBusV2` | Enum (`UIEvents` enum) | UI component communication: zones, dialogs, canvas updates |
 
@@ -69,7 +69,7 @@
 ### 1.3. Key Files
 
 | File | Contains |
-|------|----------|
+| ------ | ---------- |
 | `src/zebtrack/ui/events.py` | `Events` class with 90+ string constants |
 | `src/zebtrack/ui/event_bus.py` | `EventBus` class (v1 implementation) |
 | `src/zebtrack/ui/event_bus_v2.py` | `UIEvents` enum + `EventBusV2` class + `Event` dataclass |
@@ -108,7 +108,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 ### 3.1. Zone & ROI Events
 
 | Event (UIEvents) | Payload Keys | Publishers | Subscribers |
-|-----------------|--------------|------------|-------------|
+| ----------------- | -------------- | ------------ | ------------- |
 | `ZONES_UPDATED` | `zone_data` (optional) | `DialogManager`, `CanvasManager`, `gui.py` | `UICoordinator`, `CanvasManager` |
 | `ZONE_SELECTED` | `zone_id` | (internal) | `UICoordinator` |
 | `POLYGON_EDIT_REQUESTED` | `polygon` (list of points) | `CanvasManager` | `UICoordinator`, `CanvasManager` |
@@ -116,7 +116,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 ### 3.2. Video & Project View Events
 
 | Event (UIEvents) | Payload Keys | Publishers | Subscribers |
-|-----------------|--------------|------------|-------------|
+| ----------------- | -------------- | ------------ | ------------- |
 | `VIDEO_LOADED` | `video_path` | (internal) | `UICoordinator` |
 | `VIDEO_TREE_REFRESH_REQUESTED` | `filter_text` (optional) | `DialogManager`, `ZoneControlBuilder` | `UICoordinator` |
 | `PROJECT_VIEWS_REFRESH_REQUESTED` | `reason`, `append_summary`, `immediate` | `DialogManager`, `CanvasManager` | `UICoordinator` |
@@ -127,7 +127,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 ### 3.3. Zone Management Events (New - Dec 2025)
 
 | Event (Events class) | Payload Keys | Publishers | Subscribers |
-|---------------------|--------------|------------|-------------|
+| --------------------- | -------------- | ------------ | ------------- |
 | `ZONE_COPY_ZONES` | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.copy_zones_from_video()` |
 | `ZONE_PASTE_ZONES` | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.paste_zones_to_video()` |
 | `ZONE_DELETE_ZONES` | `video_path` (str) | `ZoneControls` | `EventDispatcher` → `CanvasManager.delete_zones_from_video()` |
@@ -137,7 +137,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 ### 3.4. Multi-Aquarium Events (Dec 2025)
 
 | Event (Events class) | Payload Keys | Publishers | Subscribers |
-|---------------------|--------------|------------|-------------|
+| --------------------- | -------------- | ------------ | ------------- |
 | `ZONE_MULTI_AUTO_DETECT` | `video_path`, `stabilization_frames`, `expected_count` | `ZoneControls` | `ProcessingCoordinator._handle_multi_auto_detect()` |
 | `ZONE_MULTI_AUTO_DETECT_SUCCESS` | `video_path`, `polygons` (list) | `ProcessingCoordinator` | `ZoneControls`, `CanvasManager` |
 | `ZONE_MULTI_AUTO_DETECT_FAILED` | `video_path`, `reason` (str) | `ProcessingCoordinator` | `ZoneControls` |
@@ -166,7 +166,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 
 **Output Structure** (per video with multi-aquarium):
 
-```
+```text
 <video>_aquarium_1/
   1_ArenaROI_<video>.parquet
   3_CoordMovimento_<video>.parquet
@@ -180,7 +180,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 ### 3.5. Processing & Analysis Events
 
 | Event (UIEvents) | Payload Keys | Publishers | Subscribers |
-|-----------------|--------------|------------|-------------|
+| ----------------- | -------------- | ------------ | ------------- |
 | `PROCESSING_STATS_UPDATED` | `fps`, `frame`, `total_frames` | (via event bridge) | `UICoordinator` |
 | `SOCIAL_SUMMARY_UPDATED` | `summary` (dict) | (via event bridge) | `UICoordinator` |
 | `ANALYSIS_TASK_STATUS_UPDATED` | `status`, `progress` | (via event bridge) | `UICoordinator` |
@@ -190,7 +190,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 ### 3.6. Detector & Tracking Events (Dec 2025)
 
 | Event (Domain) | Payload Keys | Publishers | Subscribers |
-|----------------|--------------|------------|-------------|
+| ---------------- | -------------- | ------------ | ------------- |
 | `TRACKING_PARAMETERS_UPDATED` | `track_threshold`, `match_threshold`, `track_buffer`, `use_bytetrack`, `max_center_distance`, `iou_threshold` | `DetectorCoordinator` | UI components, StateManager |
 
 **Notes:**
@@ -204,7 +204,7 @@ This section defines the contract for `EventBus` messages. Agents **MUST** adher
 ### 3.7. Notification Events
 
 | Event (UIEvents) | Payload Keys | Publishers | Subscribers |
-|-----------------|--------------|------------|-------------|
+| ----------------- | -------------- | ------------ | ------------- |
 | `SHOW_ERROR` | `title`, `message` | (internal) | `ApplicationGUI` |
 | `SHOW_WARNING` | `title`, `message` | (internal) | `ApplicationGUI` |
 | `SHOW_INFO` | `title`, `message` | (internal) | `ApplicationGUI` |
@@ -253,7 +253,7 @@ Understanding who holds what references prevents "AttributeError" and circular d
 ### 3.8. Behavioral Configuration Events (New - Dec 2025)
 
 | Event (EventBus v1) | Payload Keys | Publishers | Subscribers |
-|---------------------|--------------|------------|-------------|
+| --------------------- | -------------- | ------------ | ------------- |
 | `behavioral_config.perspective_changed` | `video_path`, `perspective` | `BehavioralConfigWidget` | (Logging/Suppressed) |
 | `behavioral_config.values_changed` | `config` (dict) | `BehavioralConfigWidget` | (Logging/Suppressed) |
 
@@ -381,7 +381,7 @@ Understanding who holds what references prevents "AttributeError" and circular d
 The following events were removed during the integration audit as they had **no subscribers**:
 
 | Event | Previous Location | Reason for Removal |
-|-------|------------------|-------------------|
+| ------- | ------------------ | ------------------- |
 | `PROCESSING_MODE_CHANGED` | `session_coordinator.py:1050`, `hardware_coordinator.py:1091` | No subscribers found. Processing mode is handled via `ProcessingCoordinator._publish_processing_mode()` which calls `view.update_processing_mode()` directly. |
 | `PROCESSING_MODE_RESTORE` | `session_coordinator.py:1139`, `hardware_coordinator.py:1163,1490` | No subscribers found. Same as above - orphaned event from earlier refactoring. |
 
@@ -398,7 +398,7 @@ The following patterns remain in the codebase and should be addressed in future 
 Some coordinators still access `self.view` directly instead of publishing events:
 
 | Coordinator | Pattern | Recommended Fix |
-|-------------|---------|-----------------|
+| ------------- | --------- | ----------------- |
 | `SessionCoordinator` | `self.view.camera.get_frame()` | Inject camera service; publish frame events |
 | `ProcessingCoordinator` | `self.view.update_processing_mode()` via `UIScheduler` | Migrate to `EventBusV2` → `UIEvents.PROCESSING_STATS_UPDATED` |
 | `HardwareCoordinator` | Direct `root.after()` calls | Use `UIScheduler` abstraction |
@@ -408,6 +408,6 @@ Some coordinators still access `self.view` directly instead of publishing events
 These patterns are intentional trade-offs documented in ADRs:
 
 | Pattern | Location | ADR Reference |
-|---------|----------|---------------|
+| --------- | ---------- | --------------- |
 | Live Camera direct display | `LiveCameraCoordinator` → `LivePreviewWindow` | ADR-004 |
 | `UIScheduler.update_view()` direct calls | `ProcessingCoordinator` | ADR-003 (Phase 2) |

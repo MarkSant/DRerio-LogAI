@@ -4,9 +4,9 @@ Este guia consolida as instruções para desenvolvedores migrarem código legado
 
 ## Principais Mudanças
 
-1.  **GUI mais leve:** Métodos de lógica de negócios foram removidos de `ApplicationGUI`.
-2.  **Event Bus:** Comunicação via eventos em vez de chamadas diretas.
-3.  **Managers:** Funcionalidades agrupadas em `CanvasManager`, `DialogManager`, etc.
+1. **GUI mais leve:** Métodos de lógica de negócios foram removidos de `ApplicationGUI`.
+2. **Event Bus:** Comunicação via eventos em vez de chamadas diretas.
+3. **Managers:** Funcionalidades agrupadas em `CanvasManager`, `DialogManager`, etc.
 
 ## Check-list de Migração
 
@@ -19,7 +19,7 @@ Ao adicionar ou modificar código:
 ## Mapeamento de Métodos (De -> Para)
 
 | Código Antigo (v3) | Código Novo (v4) |
-|--------------------|------------------|
+| -------------------- | ------------------ |
 | `gui.update_zone_listbox(data)` | `event_bus.publish(Event(UIEvents.ZONES_UPDATED, ...))` |
 | `gui.refresh_project_views()` | `event_bus.publish(Event(UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED, ...))` |
 | `gui._refresh_video_selector_tree()` | `event_bus.publish(Event(UIEvents.VIDEO_TREE_REFRESH_REQUESTED, ...))` |
@@ -28,6 +28,7 @@ Ao adicionar ou modificar código:
 ## Exemplo Prático: Adicionando um Botão
 
 **Antes (v3):**
+
 ```python
 # gui.py
 def _on_click(self):
@@ -36,6 +37,7 @@ def _on_click(self):
 ```
 
 **Depois (v4):**
+
 ```python
 # component.py
 def _on_click(self):

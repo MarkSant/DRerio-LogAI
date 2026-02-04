@@ -21,11 +21,13 @@ Permitir que o ZebTrack-AI analise streams de webcam em tempo real, não apenas 
 ### Estado Atual
 
 ✅ **O que funciona:**
+
 - Projetos ao vivo podem GRAVAR de webcam
 - Detecção em tempo real durante gravação
 - Salvamento de dados durante gravação
 
 ❌ **O que faltava:**
+
 - Processar stream de câmera diretamente sem gravar primeiro
 - Analisar múltiplas sessões de câmera em lote
 - Interface UI para análise rápida de câmera
@@ -33,9 +35,11 @@ Permitir que o ZebTrack-AI analise streams de webcam em tempo real, não apenas 
 ## ✅ Implementações Realizadas
 
 ### 1. LiveStreamSource (CONCLUÍDO)
+
 **Arquivo**: `src/zebtrack/io/live_stream_source.py`
 
 Wrapper ao redor de `Camera` que adiciona:
+
 - Limite de duração (segundos)
 - Contagem de frames estimada para progresso
 - Interface compatível com pipeline de vídeos
@@ -49,11 +53,13 @@ stream = LiveStreamSource(
 ```
 
 **Características:**
+
 - Retorna `(False, None)` quando limite de duração atingido
 - Calcula frame count estimado baseado em FPS × duração
 - Mantém propriedades compatíveis com `VideoFileSource`
 
 ### 2. FrameSourceFactory (CONCLUÍDO)
+
 **Arquivo**: `src/zebtrack/io/frame_source_factory.py`
 
 Factory para criar `FrameSource` de diferentes tipos:
@@ -74,6 +80,7 @@ source = FrameSourceFactory.create({
 ```
 
 ### 3. Configurações (CONCLUÍDO)
+
 **Arquivo**: `src/zebtrack/settings.py`
 
 Nova classe `LiveAnalysisSettings`:
@@ -90,9 +97,11 @@ live_analysis:
 Adicionado ao `config.yaml` com valores padrão.
 
 ### 4. UI Dialog (CONCLUÍDO)
+
 **Arquivo**: `src/zebtrack/ui/dialogs/live_analysis_dialog.py`
 
 Dialog completo com:
+
 - Detecção automática de câmeras
 - Configuração de duração (botões rápidos: 1min, 5min, 10min, 30min)
 - Intervalos de análise e exibição
@@ -101,16 +110,20 @@ Dialog completo com:
 - Validação de inputs
 
 ### 5. Menu e Controller (PARCIAL)
-**Arquivos**: 
+
+**Arquivos**:
+
 - `src/zebtrack/ui/gui.py` - Menu "Arquivo" adicionado ✅
 - `src/zebtrack/core/main_view_model.py` - Método `start_live_camera_analysis()` ✅
 
 **Adições:**
+
 - Menu "Arquivo" → "Analisar Câmera ao Vivo..." (Ctrl+L)
 - Método controller para orquestrar análise ao vivo
 - Thread dedicada para processamento
 
 ### 6. VideoProcessingService (PARCIAL)
+
 **Arquivo**: `src/zebtrack/core/video_processing_service.py`
 
 Novo método `process_frame_source()` adicionado para aceitar `FrameSource`.
@@ -122,7 +135,8 @@ Novo método `process_frame_source()` adicionado para aceitar `FrameSource`.
 1. **Adaptar `run_tracking_if_needed` para FrameSource**
    - **Local**: `video_processing_service.py:312`
    - **Mudança**: Aceitar `FrameSource` ou `Path` em `video_path`
-   - **Lógica**: 
+   - **Lógica**:
+
      ```python
      if isinstance(video_path, FrameSource):
          cap = video_path  # Use frame source directly
@@ -145,25 +159,25 @@ Novo método `process_frame_source()` adicionado para aceitar `FrameSource`.
 
 ### Desejável (Melhorias)
 
-4. **Teste de integração**
+1. **Teste de integração**
    - **Local**: `tests/test_live_analysis_integration.py` (criar)
    - **Conteúdo**: Teste end-to-end com câmera mockada
-   
-5. **Tratamento de erros de câmera**
+
+2. **Tratamento de erros de câmera**
    - Reconexão automática se câmera desconectar
    - Feedback visual de status da câmera
-   
-6. **Preview antes de iniciar**
+
+3. **Preview antes de iniciar**
    - Mostrar frame da câmera antes de começar análise
    - Permitir ajuste de zonas ao vivo
 
-7. **Análise pós-captura opcional**
+4. **Análise pós-captura opcional**
    - Permitir análise imediata ou adiar
    - Batch analysis de múltiplas sessões ao vivo
 
 ## 📁 Estrutura de Arquivos Criados/Modificados
 
-```
+```text
 src/zebtrack/
 ├── io/
 │   ├── frame_source_factory.py     ✅ NOVO
@@ -192,7 +206,7 @@ src/zebtrack/
    - Cria `LiveStreamSource` via `FrameSourceFactory`
    - Prepara diretório de saída
    - Chama `video_processing_service.process_frame_source()`
-4. **Processing**: 
+4. **Processing**:
    - `process_frame_source()` → `run_tracking_if_needed()`
    - Loop de detecção com `frame_source.get_frame()`
    - Recorder salva dados (Parquet + vídeo opcional)
@@ -265,25 +279,29 @@ stream.release()
 ## 🚀 Próximos Passos
 
 ### Prioridade 1 (Funcionalidade básica)
+
 1. Completar adaptação de `run_tracking_if_needed` para FrameSource
 2. Testar fluxo completo com câmera real
 3. Corrigir bugs encontrados
 
 ### Prioridade 2 (Robustez)
-4. Adicionar tratamento de erros
-5. Melhorar feedback visual
-6. Teste de integração automatizado
+
+1. Adicionar tratamento de erros
+2. Melhorar feedback visual
+3. Teste de integração automatizado
 
 ### Prioridade 3 (Recursos avançados)
-7. Preview antes de iniciar
-8. Ajuste de zonas ao vivo
-9. Análise batch de sessões ao vivo
+
+1. Preview antes de iniciar
+2. Ajuste de zonas ao vivo
+3. Análise batch de sessões ao vivo
 
 ## 💡 Notas de Implementação
 
 ### Compatibilidade com Recorder
 
 O `Recorder` já suporta tanto vídeos quanto streams ao vivo:
+
 - `is_video_file=True`: Não grava vídeo, apenas Parquet
 - `is_video_file=False`: Grava vídeo MP4 + Parquet
 
@@ -297,6 +315,7 @@ Controller usa `root.after()` para updates de UI - OK.
 ### Cleanup de Recursos
 
 Sempre chamar `frame_source.release()` em bloco `finally`:
+
 ```python
 try:
     frame_source = FrameSourceFactory.create(...)

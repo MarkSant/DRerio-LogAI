@@ -11,6 +11,7 @@
 ## 📊 Overview
 
 Este documento mapeia todas as dependências entre os 141 métodos do MainViewModel, identificando:
+
 - **Métodos mais chamados** (alto acoplamento - "dependers")
 - **Métodos que mais chamam outros** (alto fan-out - "callers")
 - **Cadeias de dependências** críticas
@@ -24,7 +25,7 @@ Este documento mapeia todas as dependências entre os 141 métodos do MainViewMo
 ## 🎯 Estatísticas Gerais
 
 | Métrica | Valor |
-|---------|-------|
+| --------- | ------- |
 | **Total de métodos** | 141 |
 | **Total de linhas** | 5,227 |
 | **Média linhas/método** | 37.1 |
@@ -40,7 +41,7 @@ Este documento mapeia todas as dependências entre os 141 métodos do MainViewMo
 Estes métodos são **críticos** - muitos outros dependem deles. Devem ser extraídos COM CUIDADO.
 
 | # | Método | Chamado por | Categoria | Estratégia |
-|---|--------|-------------|-----------|------------|
+| --- | -------- | ------------- | ----------- | ------------ |
 | 1 | `_publish_processing_mode` | 11× | orchestration_internal | ⚠️ MANTER no MainViewModel (núcleo) |
 | 2 | `refresh_project_views` | 9× | ui_method | ✅ Extrair para UIStateController |
 | 3 | `update_openvino_status` | 4× | ui_method | ✅ Extrair para UIStateController |
@@ -75,6 +76,7 @@ Estes métodos são **críticos** - muitos outros dependem deles. Devem ser extr
 ### 🔑 Métodos Núcleo (NÃO extrair)
 
 Estes métodos são fundamentais e devem permanecer no MainViewModel:
+
 - `_publish_processing_mode` (11 dependentes)
 - `_schedule_on_ui` (2 dependentes)
 - `_init_coordinators` (inicialização DI)
@@ -88,7 +90,7 @@ Estes métodos são fundamentais e devem permanecer no MainViewModel:
 Estes métodos têm **alta complexidade de orquestração** - bons candidatos para extração.
 
 | # | Método | Chama | Linhas | Categoria | Prioridade Extração |
-|---|--------|-------|--------|-----------|---------------------|
+| --- | -------- | ------- | -------- | ----------- | --------------------- |
 | 1 | `start_recording` | 7 | 66 | orchestration | 🔴 ALTA (Sprint 26) |
 | 2 | `start_single_video_processing` | 6 | 153 | orchestration | 🔴 ALTA (Sprint 24) |
 | 3 | `start_project_processing_workflow` | 6 | 91 | orchestration | 🔴 ALTA (Sprint 24) |
@@ -126,7 +128,7 @@ Estes métodos têm **alta complexidade de orquestração** - bons candidatos pa
 
 ### 1. **Video Processing Chain** (Maior cadeia - 239 linhas)
 
-```
+```text
 process_pending_project_videos (239 linhas) →
   ├─ _select_eligible_videos (81 linhas)
   ├─ _create_processing_callbacks (132 linhas) →
@@ -143,7 +145,7 @@ process_pending_project_videos (239 linhas) →
 
 ### 2. **Single Video Processing Chain** (153 linhas)
 
-```
+```text
 start_single_video_processing (153 linhas) →
   ├─ refresh_project_views (21 linhas)
   ├─ _prepare_results_directory (6 linhas)
@@ -159,7 +161,7 @@ start_single_video_processing (153 linhas) →
 
 ### 3. **Recording Chain** (66 linhas)
 
-```
+```text
 start_recording (66 linhas) →
   ├─ _clear_external_trigger_wait (13 linhas)
   ├─ setup_detector_zones (36 linhas)
@@ -177,7 +179,7 @@ start_recording (66 linhas) →
 
 ### 4. **Detector Configuration Chain** (162 linhas)
 
-```
+```text
 _init_coordinators (162 linhas) →
   └─ _inject_or_create (12 linhas)
 ```
@@ -188,7 +190,7 @@ _init_coordinators (162 linhas) →
 
 ### 5. **Model Settings Chain** (63 linhas)
 
-```
+```text
 resolve_project_model_settings (63 linhas) →
   ├─ _safe_get_default_weight (18 linhas)
   └─ get_all_weight_names (7 linhas)
@@ -206,7 +208,7 @@ apply_project_model_overrides (31 linhas) →
 
 ### 6. **Diagnostic Chain** (102 linhas)
 
-```
+```text
 run_model_diagnostic (102 linhas) →
   ├─ _publish_processing_mode (18 linhas)
   └─ convert_active_weight_to_openvino (41 linhas)
@@ -232,9 +234,10 @@ _diagnostic_processing_thread (52 linhas) →
 
 Total: ~95 métodos sem chamadas a outros métodos do MainViewModel.
 
-### Por Categoria:
+### Por Categoria
 
 **Orchestration (sem dependências internas):**
+
 - `run` (7 linhas)
 - `generate_parquet_summaries` (8 linhas)
 - `start_live_camera_analysis` (65 linhas)
@@ -243,6 +246,7 @@ Total: ~95 métodos sem chamadas a outros métodos do MainViewModel.
 - `generate_report` (6 linhas)
 
 **Query (getters):**
+
 - `get_all_weight_names` (7 linhas)
 - `get_global_model_defaults` (10 linhas)
 - `get_current_detector_parameters` (13 linhas)
@@ -251,10 +255,12 @@ Total: ~95 métodos sem chamadas a outros métodos do MainViewModel.
 - `can_remove_project_asset` (17 linhas)
 
 **Mutators:**
+
 - `set_main_arena_polygon` (49 linhas)
 - `delete_project_asset` (34 linhas)
 
 **Utilities:**
+
 - `_safe_get_default_weight` (18 linhas)
 - `_get_project_data_dict` (6 linhas)
 - `_clear_external_trigger_wait` (13 linhas)
@@ -278,7 +284,9 @@ Nenhuma dependência circular detectada! ✅
 ### Orchestration Methods
 
 #### `process_pending_project_videos` (linha 3695, 239 linhas)
+
 **Chama:**
+
 - `_select_eligible_videos`
 - `_create_processing_callbacks`
 - `_create_processing_context`
@@ -290,7 +298,9 @@ Nenhuma dependência circular detectada! ✅
 ---
 
 #### `start_single_video_processing` (linha 3449, 153 linhas)
+
 **Chama:**
+
 - `refresh_project_views`
 - `_prepare_results_directory`
 - `_create_processing_callbacks`
@@ -303,7 +313,9 @@ Nenhuma dependência circular detectada! ✅
 ---
 
 #### `start_project_processing_workflow` (linha 3603, 91 linhas)
+
 **Chama:**
+
 - `_handle_mixed_data_scenario`
 - `_create_processing_callbacks`
 - `_create_processing_context`
@@ -316,7 +328,9 @@ Nenhuma dependência circular detectada! ✅
 ---
 
 #### `start_recording` (linha 2638, 66 linhas)
+
 **Chama:**
+
 - `_clear_external_trigger_wait`
 - `setup_detector_zones`
 - `_handle_external_trigger`
@@ -326,12 +340,15 @@ Nenhuma dependência circular detectada! ✅
 - `setup_arduino`
 
 **É chamado por:**
+
 - `on_arduino_event`
 
 ---
 
 #### `run_model_diagnostic` (linha 5122, 102 linhas)
+
 **Chama:**
+
 - `_publish_processing_mode`
 - `convert_active_weight_to_openvino`
 
@@ -340,7 +357,9 @@ Nenhuma dependência circular detectada! ✅
 ---
 
 #### `run_aquarium_detection` (linha 2073, 108 linhas)
+
 **Chama:**
+
 - `_publish_processing_mode`
 
 **É chamado por:** Nenhum método interno (ponto de entrada público)
@@ -348,10 +367,13 @@ Nenhuma dependência circular detectada! ✅
 ---
 
 #### `run_live_calibration` (linha 2491, 99 linhas)
+
 **Chama:**
+
 - `_publish_processing_mode`
 
 **É chamado por:**
+
 - `_ensure_zones_before_recording`
 
 ---
@@ -359,11 +381,14 @@ Nenhuma dependência circular detectada! ✅
 ### Orchestration Internal Methods
 
 #### `_create_processing_callbacks` (linha 4936, 132 linhas)
+
 **Chama:**
+
 - `_publish_processing_mode`
 - `refresh_project_views`
 
 **É chamado por:**
+
 - `start_single_video_processing`
 - `start_project_processing_workflow`
 - `process_pending_project_videos`
@@ -371,15 +396,19 @@ Nenhuma dependência circular detectada! ✅
 ---
 
 #### `_process_summary_video` (linha 4451, 151 linhas)
+
 **Chama:** Nenhum
 
 **É chamado por:**
+
 - `_generate_parquet_summaries_worker`
 
 ---
 
 #### `_diagnostic_processing_thread` (linha 5225, 52 linhas)
+
 **Chama:**
+
 - `_update_diagnostic_progress`
 - `_initialize_diagnostic_yolo_model`
 - `_initialize_diagnostic_openvino_model`
@@ -394,7 +423,9 @@ Nenhuma dependência circular detectada! ✅
 ### Utility Internal Methods
 
 #### `__init__` (linha 128, 280 linhas)
+
 **Chama:**
+
 - `_safe_get_default_weight`
 - `_publish_processing_mode`
 - `_init_coordinators`
@@ -406,32 +437,41 @@ Nenhuma dependência circular detectada! ✅
 ---
 
 #### `_init_coordinators` (linha 422, 162 linhas)
+
 **Chama:**
+
 - `_inject_or_create`
 
 **É chamado por:**
+
 - `__init__`
 
 ---
 
 #### `_temporary_single_animal_mode` (linha 4169, 64 linhas)
+
 **Chama:**
+
 - `_resolve_single_animal_mode`
 - `_resolve_single_subject_tracker_preference`
 - `_configure_single_subject_tracker`
 - `_publish_processing_mode`
 
 **É chamado por:**
+
 - `_process_videos`
 - `_process_single_video`
 
 ---
 
 #### `_ensure_zones_before_recording` (linha 3006, 93 linhas)
+
 **Chama:**
+
 - `run_live_calibration`
 
 **É chamado por:**
+
 - `start_recording`
 
 ---
@@ -439,10 +479,13 @@ Nenhuma dependência circular detectada! ✅
 ### UI Methods
 
 #### `refresh_project_views` (linha 1102, 21 linhas)
+
 **Chama:**
+
 - `_schedule_on_ui`
 
 **É chamado por:**
+
 - `copy_global_model_settings_to_project`
 - `save_current_calibration_to_project`
 - `start_single_video_processing`
@@ -456,10 +499,13 @@ Nenhuma dependência circular detectada! ✅
 ---
 
 #### `update_openvino_status` (linha 1635, 6 linhas)
+
 **Chama:**
+
 - `get_openvino_status`
 
 **É chamado por:**
+
 - `_on_detector_state_changed`
 - `set_active_weight`
 - `set_openvino_usage`
@@ -470,9 +516,11 @@ Nenhuma dependência circular detectada! ✅
 ### State Management Methods
 
 #### `setup_detector_zones` (linha 1388, 36 linhas)
+
 **Chama:** Nenhum
 
 **É chamado por:**
+
 - `apply_roi_template`
 - `update_main_arena`
 - `add_roi_polygon`
@@ -481,11 +529,14 @@ Nenhuma dependência circular detectada! ✅
 ---
 
 #### `apply_project_model_overrides` (linha 1964, 31 linhas)
+
 **Chama:**
+
 - `resolve_project_model_settings`
 - `_apply_model_settings`
 
 **É chamado por:**
+
 - `save_current_calibration_to_project`
 - `save_project_model_overrides`
 - `global_calibration_session`
@@ -499,6 +550,7 @@ Nenhuma dependência circular detectada! ✅
 ### Prioridade 1: Orchestrators (Sprints 24-27)
 
 **VideoProcessingOrchestrator:**
+
 - `process_pending_project_videos` + cadeia (565 linhas)
 - `start_single_video_processing` + cadeia (386 linhas)
 - `start_project_processing_workflow` + cadeia (277 linhas)
@@ -511,6 +563,7 @@ Nenhuma dependência circular detectada! ✅
 ---
 
 **RecordingSessionOrchestrator:**
+
 - `start_recording` + cadeia (403 linhas)
 - `_schedule_recording` (24 linhas)
 - `_clear_external_trigger_wait` (13 linhas)
@@ -521,6 +574,7 @@ Nenhuma dependência circular detectada! ✅
 ---
 
 **ProjectOrchestrator:**
+
 - `resolve_project_model_settings` + cadeia (235 linhas)
 - `apply_project_model_overrides` (31 linhas)
 - `_persist_project_model_settings` (25 linhas)
@@ -532,6 +586,7 @@ Nenhuma dependência circular detectada! ✅
 ---
 
 **DetectorOrchestrator:**
+
 - `setup_detector_zones` (36 linhas)
 - `setup_detector` (16 linhas)
 - `_apply_model_settings` (8 linhas)
@@ -546,6 +601,7 @@ Nenhuma dependência circular detectada! ✅
 ### Prioridade 2: UI Controllers (Sprints 28-30)
 
 **UIStateController:**
+
 - `refresh_project_views` (21 linhas)
 - `update_openvino_status` (6 linhas)
 - `_activate_analysis_view_mode` (6 linhas)
@@ -562,6 +618,7 @@ Nenhuma dependência circular detectada! ✅
 ### Prioridade 3: Event Handlers (Sprints 31-32)
 
 **EventHandlers:**
+
 - `_handle_validation_error` (49 linhas)
 - `_handle_mixed_data_scenario` (53 linhas)
 - `_handle_external_trigger` (46 linhas)
@@ -607,7 +664,7 @@ Estes métodos devem **permanecer** no MainViewModel:
 ## 📊 Resumo de Extração Estimada
 
 | Alvo | Linhas | % do Total |
-|------|--------|------------|
+| ------ | -------- | ------------ |
 | **VideoProcessingOrchestrator** | ~1,530 | 29.3% |
 | **RecordingSessionOrchestrator** | ~533 | 10.2% |
 | **ProjectOrchestrator** | ~304 | 5.8% |

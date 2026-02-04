@@ -11,6 +11,7 @@ Este documento detalha 34 métodos extraídos de `/src/zebtrack/ui/gui.py` para 
 ## Métodos Extraídos (34 total)
 
 ### 1. update_tree_selection
+
 **Linhas**: 170-176  
 **Tipo**: Método de instância  
 **Classe**: `_VideoHierarchyHelper` (não é ApplicationGUI)
@@ -26,6 +27,7 @@ def update_tree_selection(self) -> None:
 ```
 
 **Dependências**:
+
 - `self.had_hierarchy_nodes` (atributo)
 - `self.resolved_video_nodes` (atributo)
 - `self.tree` (atributo ttk.Treeview)
@@ -35,6 +37,7 @@ def update_tree_selection(self) -> None:
 ---
 
 ### 2. _update_window_title
+
 **Linhas**: 539-549  
 **Tipo**: Método de instância
 
@@ -53,6 +56,7 @@ def _update_window_title(self, project_name: str | None = None):
 ```
 
 **Dependências**:
+
 - `self.root` (Tk widget)
 - Parâmetro `project_name` (opcional)
 
@@ -61,6 +65,7 @@ def _update_window_title(self, project_name: str | None = None):
 ---
 
 ### 3. _navigate_to_processing_reports_tab
+
 **Linhas**: 1274-1287  
 **Tipo**: Método de instância
 
@@ -82,6 +87,7 @@ def _navigate_to_processing_reports_tab(self) -> None:
 ```
 
 **Dependências**:
+
 - `self.notebook` (ttk.Notebook widget)
 - `log` (structlog logger)
 
@@ -90,6 +96,7 @@ def _navigate_to_processing_reports_tab(self) -> None:
 ---
 
 ### 4. _request_overview_refresh
+
 **Linhas**: 1303-1328  
 **Tipo**: Método de instância
 
@@ -123,6 +130,7 @@ def _request_overview_refresh(
 ```
 
 **Dependências**:
+
 - `self._pending_overview_status` (atributo)
 - `self._overview_status_append` (atributo)
 - `self._overview_refresh_job` (atributo - agendador)
@@ -136,6 +144,7 @@ def _request_overview_refresh(
 ---
 
 ### 5. refresh_project_views
+
 **Linhas**: 1330-1361  
 **Tipo**: Método de instância
 
@@ -175,6 +184,7 @@ def refresh_project_views(
 ```
 
 **Dependências**:
+
 - `log` (structlog logger)
 - `self._request_overview_refresh()` (método local)
 - `self.processing_reports_widget` (widget)
@@ -191,6 +201,7 @@ def refresh_project_views(
 ---
 
 ### 6. _refresh_project_overview
+
 **Linhas**: 1363-1414  
 **Tipo**: Método de instância
 
@@ -250,6 +261,7 @@ def _refresh_project_overview(self) -> None:
 ```
 
 **Dependências**:
+
 - `self._overview_refresh_job` (atributo)
 - `self.controller` (ApplicationController)
 - `self.controller.project_manager` (ProjectManager)
@@ -271,6 +283,7 @@ def _refresh_project_overview(self) -> None:
 ---
 
 ### 7. _update_project_overview_summary
+
 **Linhas**: 1433-1466  
 **Tipo**: Método de instância
 
@@ -312,6 +325,7 @@ def _update_project_overview_summary(
 ```
 
 **Dependências**:
+
 - `self.project_overview_widget` (ProjectOverviewWidget)
 - `PROJECT_STATUS_META` (constante global)
 - `Counter` (collections)
@@ -322,6 +336,7 @@ def _update_project_overview_summary(
 ---
 
 ### 8. _update_project_overview_tree
+
 **Linhas**: 1468-1488  
 **Tipo**: Método de instância
 
@@ -350,6 +365,7 @@ def _update_project_overview_tree(self, project_manager, all_videos: list[dict])
 ```
 
 **Dependências**:
+
 - `self.project_overview_widget` (ProjectOverviewWidget)
 - `self._overview_video_index` (atributo - dict)
 - `self._prepare_overview_hierarchy_for_widget()` (método local)
@@ -360,6 +376,7 @@ def _update_project_overview_tree(self, project_manager, all_videos: list[dict])
 ---
 
 ### 9. _format_status_label
+
 **Linhas**: 1603-1605  
 **Tipo**: Método de instância
 
@@ -370,6 +387,7 @@ def _format_status_label(self, status_key: str) -> str:
 ```
 
 **Dependências**:
+
 - `self._get_status_meta()` (método estático local)
 
 **Complexidade**: Muito baixa - formatação simples
@@ -377,6 +395,7 @@ def _format_status_label(self, status_key: str) -> str:
 ---
 
 ### 10. _format_status_summary
+
 **Linhas**: 1607-1619  
 **Tipo**: Método de instância
 
@@ -397,6 +416,7 @@ def _format_status_summary(self, counts: Counter) -> str:
 ```
 
 **Dependências**:
+
 - `Counter` (collections)
 - `PROJECT_STATUS_META` (constante global)
 - Parâmetro: `counts`
@@ -406,6 +426,7 @@ def _format_status_summary(self, counts: Counter) -> str:
 ---
 
 ### 11. _format_status_ratio
+
 **Linhas**: 1622-1628  
 **Tipo**: Método estático
 
@@ -421,6 +442,7 @@ def _format_status_ratio(symbol_key: str, completed: int, total: int) -> str:
 ```
 
 **Dependências**:
+
 - `STATUS_SYMBOLS` (constante global)
 
 **Complexidade**: Baixa - validação e formatação numérica
@@ -428,6 +450,7 @@ def _format_status_ratio(symbol_key: str, completed: int, total: int) -> str:
 ---
 
 ### 12. _summarize_batch_data
+
 **Linhas**: 1630-1650  
 **Tipo**: Método de instância
 
@@ -456,6 +479,7 @@ def _summarize_batch_data(self, videos: list[dict]) -> str:
 ```
 
 **Dependências**:
+
 - `self._format_status_ratio()` (método estático local)
 - Parâmetro: `videos`
 
@@ -464,6 +488,7 @@ def _summarize_batch_data(self, videos: list[dict]) -> str:
 ---
 
 ### 13. _format_data_badges
+
 **Linhas**: 1652-1666  
 **Tipo**: Método de instância
 
@@ -486,6 +511,7 @@ def _format_data_badges(self, video: dict) -> str:
 ```
 
 **Dependências**:
+
 - `self._format_status_token()` (método estático local)
 - Parâmetro: `video`
 
@@ -494,6 +520,7 @@ def _format_data_badges(self, video: dict) -> str:
 ---
 
 ### 14. _format_video_metadata
+
 **Linhas**: 1668-1686  
 **Tipo**: Método de instância
 
@@ -520,6 +547,7 @@ def _format_video_metadata(self, metadata: dict) -> str:
 ```
 
 **Dependências**:
+
 - `self._format_day_display()` (método local)
 - `self._format_subject_label()` (método local)
 - Parâmetro: `metadata`
@@ -529,6 +557,7 @@ def _format_video_metadata(self, metadata: dict) -> str:
 ---
 
 ### 15. _on_project_overview_tree_double_click
+
 **Linhas**: 1688-1697  
 **Tipo**: Método de instância
 
@@ -546,6 +575,7 @@ def _on_project_overview_tree_double_click(self, event) -> None:
 ```
 
 **Dependências**:
+
 - `self.project_overview_tree` (ttk.Treeview)
 - `self._on_project_overview_tree_double_click_impl()` (método local)
 - Parâmetro: `event`
@@ -555,6 +585,7 @@ def _on_project_overview_tree_double_click(self, event) -> None:
 ---
 
 ### 16. _on_project_overview_tree_double_click_impl
+
 **Linhas**: 1699-1730  
 **Tipo**: Método de instância
 
@@ -594,6 +625,7 @@ def _on_project_overview_tree_double_click_impl(self, item_id: str) -> None:
 ```
 
 **Dependências**:
+
 - `self.project_overview_tree` (ttk.Treeview)
 - `self.canvas_manager` (CanvasManager)
 - `self.show_warning()` (método local)
@@ -608,6 +640,7 @@ def _on_project_overview_tree_double_click_impl(self, item_id: str) -> None:
 ---
 
 ### 17. _on_project_overview_right_click
+
 **Linhas**: 1732-1742  
 **Tipo**: Método de instância
 
@@ -626,6 +659,7 @@ def _on_project_overview_right_click(self, event) -> None:
 ```
 
 **Dependências**:
+
 - `self.project_overview_tree` (ttk.Treeview)
 - `self.menu_manager` (MenuManager)
 - Parâmetro: `event`
@@ -635,6 +669,7 @@ def _on_project_overview_right_click(self, event) -> None:
 ---
 
 ### 18. _refresh_pipeline_video_table
+
 **Linhas**: 2633-2800+  
 **Tipo**: Método de instância
 
@@ -732,6 +767,7 @@ def _refresh_pipeline_video_table(self, all_videos=None) -> None:
 ```
 
 **Dependências**:
+
 - `self.pipeline_video_tree` (ttk.Treeview)
 - `self.pipeline_tab_frame` (Frame)
 - `self.controller` (ApplicationController)
@@ -748,6 +784,7 @@ def _refresh_pipeline_video_table(self, all_videos=None) -> None:
 ---
 
 ### 19. _resolve_processing_reports_video_paths
+
 **Linhas**: 2856-2875  
 **Tipo**: Método de instância
 
@@ -775,6 +812,7 @@ def _resolve_processing_reports_video_paths(self, selection: Iterable[str] | Non
 ```
 
 **Dependências**:
+
 - `self.processing_reports_widget` (ProcessingReportsWidget)
 - `self._processing_reports_tree_metadata` (dict)
 - `_VideoPathResolverContext` (classe local)
@@ -785,6 +823,7 @@ def _resolve_processing_reports_video_paths(self, selection: Iterable[str] | Non
 ---
 
 ### 20. _update_pipeline_buttons_state
+
 **Linhas**: 2894-2911  
 **Tipo**: Método de instância
 
@@ -810,6 +849,7 @@ def _update_pipeline_buttons_state(self, selections=None) -> None:
 ```
 
 **Dependências**:
+
 - `self.pipeline_action_buttons` (dict de buttons)
 - `self.pipeline_video_vars` (dict)
 - `self._get_selected_pipeline_video_paths()` (método local)
@@ -820,6 +860,7 @@ def _update_pipeline_buttons_state(self, selections=None) -> None:
 ---
 
 ### 21. _populate_video_selector_tree
+
 **Linhas**: 3589-3718  
 **Tipo**: Método de instância
 
@@ -957,6 +998,7 @@ def _populate_video_selector_tree(self, filter_text: str | None = None):
 ```
 
 **Dependências**:
+
 - `self.video_selector_tree` (ttk.Treeview)
 - `self.video_search_var` (StringVar)
 - `self._video_selector_filter` (atributo)
@@ -978,6 +1020,7 @@ def _populate_video_selector_tree(self, filter_text: str | None = None):
 ---
 
 ### 22. _format_status_token
+
 **Linhas**: 3585-3587  
 **Tipo**: Método estático
 
@@ -989,6 +1032,7 @@ def _format_status_token(has_parquet: bool, symbol_key: str) -> str:
 ```
 
 **Dependências**:
+
 - `STATUS_SYMBOLS` (constante global)
 
 **Complexidade**: Muito baixa - formatação condicional
@@ -996,6 +1040,7 @@ def _format_status_token(has_parquet: bool, symbol_key: str) -> str:
 ---
 
 ### 23. _refresh_video_selector_tree
+
 **Linhas**: 3720-3740  
 **Tipo**: Método de instância
 
@@ -1024,6 +1069,7 @@ def _refresh_video_selector_tree(self) -> None:
 ```
 
 **Dependências**:
+
 - `self.video_selector_tree` (ttk.Treeview)
 - `self._video_selector_filter` (atributo)
 - `self._populate_video_selector_tree()` (método local)
@@ -1034,6 +1080,7 @@ def _refresh_video_selector_tree(self) -> None:
 ---
 
 ### 24. _on_processing_reports_item_double_click
+
 **Linhas**: 4011-4054  
 **Tipo**: Método de instância
 
@@ -1085,6 +1132,7 @@ def _on_processing_reports_item_double_click(self, event=None) -> None:
 ```
 
 **Dependências**:
+
 - `self.processing_reports_widget` (ProcessingReportsWidget)
 - `self._processing_reports_tree_metadata` (dict)
 - `self._handle_report_file_node()` (método local)
@@ -1098,6 +1146,7 @@ def _on_processing_reports_item_double_click(self, event=None) -> None:
 ---
 
 ### 25. _on_processing_reports_generate_partial
+
 **Linhas**: 4056-4085  
 **Tipo**: Método de instância
 
@@ -1135,6 +1184,7 @@ def _on_processing_reports_generate_partial(self) -> None:
 ```
 
 **Dependências**:
+
 - `self.processing_reports_widget` (ProcessingReportsWidget)
 - `self.controller` (ApplicationController)
 - `self.controller.project_manager` (ProjectManager)
@@ -1147,6 +1197,7 @@ def _on_processing_reports_generate_partial(self) -> None:
 ---
 
 ### 26. _refresh_processing_reports_tab
+
 **Linhas**: 4087-4240+  
 **Tipo**: Método de instância
 
@@ -1255,6 +1306,7 @@ def _refresh_processing_reports_tab(self) -> None:
 ```
 
 **Dependências**:
+
 - `self.processing_reports_widget` (ProcessingReportsWidget)
 - `self.controller` (ApplicationController)
 - `self.controller.project_manager` (ProjectManager)
@@ -1273,6 +1325,7 @@ def _refresh_processing_reports_tab(self) -> None:
 ---
 
 ### 27. _append_processing_reports_artifacts
+
 **Linhas**: 4313-4377  
 **Tipo**: Método de instância
 
@@ -1345,6 +1398,7 @@ def _append_processing_reports_artifacts(
 ```
 
 **Dependências**:
+
 - `Path` (pathlib)
 - `self._build_processing_report_artifact_id()` (método local)
 - `self._processing_reports_tree_metadata` (dict)
@@ -1355,6 +1409,7 @@ def _append_processing_reports_artifacts(
 ---
 
 ### 28. update_reports_tree
+
 **Linhas**: 4379-4427  
 **Tipo**: Método de instância
 
@@ -1411,6 +1466,7 @@ def update_reports_tree(self):
 ```
 
 **Dependências**:
+
 - `self.reports_tree` (ttk.Treeview)
 - `self._report_tree_metadata` (dict)
 - `self.controller` (ApplicationController)
@@ -1426,6 +1482,7 @@ def update_reports_tree(self):
 ---
 
 ### 29. _populate_reports_tree_from_hierarchy
+
 **Linhas**: 4503-4612  
 **Tipo**: Método de instância
 
@@ -1543,6 +1600,7 @@ def _populate_reports_tree_from_hierarchy(self, hierarchy: dict, pm) -> None:
 ```
 
 **Dependências**:
+
 - `self.reports_tree` (ttk.Treeview)
 - `self._report_tree_metadata` (dict)
 - `self._format_status_ratio()` (método estático local)
@@ -1558,6 +1616,7 @@ def _populate_reports_tree_from_hierarchy(self, hierarchy: dict, pm) -> None:
 ---
 
 ### 30. _append_report_artifacts
+
 **Linhas**: 4614-4668  
 **Tipo**: Método de instância
 
@@ -1620,6 +1679,7 @@ def _append_report_artifacts(self, parent_id: str, entry: dict) -> None:
 ```
 
 **Dependências**:
+
 - `self.reports_tree` (ttk.Treeview)
 - `self._report_tree_metadata` (dict)
 - `Path` (pathlib)
@@ -1630,6 +1690,7 @@ def _append_report_artifacts(self, parent_id: str, entry: dict) -> None:
 ---
 
 ### 31. _on_report_item_select
+
 **Linhas**: 4670-4684  
 **Tipo**: Método de instância
 
@@ -1652,6 +1713,7 @@ def _on_report_item_select(self, event=None):
 ```
 
 **Dependências**:
+
 - `self.reports_tree` (ttk.Treeview)
 - `self._report_tree_metadata` (dict)
 - `self.generate_partial_report_btn` (Button)
@@ -1662,6 +1724,7 @@ def _on_report_item_select(self, event=None):
 ---
 
 ### 32. _on_report_item_double_click
+
 **Linhas**: 4686-4716  
 **Tipo**: Método de instância
 
@@ -1700,6 +1763,7 @@ def _on_report_item_double_click(self, event=None):
 ```
 
 **Dependências**:
+
 - `self.reports_tree` (ttk.Treeview)
 - `self._report_tree_metadata` (dict)
 - `self._handle_report_file_node()` (método local)
@@ -1711,6 +1775,7 @@ def _on_report_item_double_click(self, event=None):
 ---
 
 ### 33. _update_delete_template_button_state
+
 **Linhas**: 5853-5862  
 **Tipo**: Método de instância
 
@@ -1728,6 +1793,7 @@ def _update_delete_template_button_state(self) -> None:
 ```
 
 **Dependências**:
+
 - `self.delete_template_btn` (Button)
 - `self.roi_template_var` (StringVar)
 - `self._get_selected_roi_template()` (método local)
@@ -1737,6 +1803,7 @@ def _update_delete_template_button_state(self) -> None:
 ---
 
 ### 34. _refresh_openvino_summary
+
 **Linhas**: 7095-7101  
 **Tipo**: Método de instância
 
@@ -1751,6 +1818,7 @@ def _refresh_openvino_summary(self):
 ```
 
 **Dependências**:
+
 - `self._openvino_enabled` (atributo bool)
 - `self._openvino_status_message` (atributo str)
 - `self._openvino_display_var` (StringVar)
@@ -1761,14 +1829,16 @@ def _refresh_openvino_summary(self):
 
 ## Resumo de Categorias
 
-### Por Complexidade:
+### Por Complexidade
+
 - **Muito Baixa** (10): `_update_window_title`, `_format_status_label`, `_format_status_ratio`, `_format_status_token`, `_on_report_item_select`, `_update_delete_template_button_state`, `_refresh_openvino_summary`
 - **Baixa** (8): `_navigate_to_processing_reports_tab`, `_format_status_summary`, `_format_data_badges`, `_format_video_metadata`, `_on_project_overview_tree_double_click`, `_on_project_overview_right_click`, `_refresh_video_selector_tree`, `_on_processing_reports_item_double_click`
 - **Média** (9): `_request_overview_refresh`, `_update_project_overview_summary`, `_update_project_overview_tree`, `_summarize_batch_data`, `_resolve_processing_reports_video_paths`, `_update_pipeline_buttons_state`, `_on_processing_reports_generate_partial`, `_append_processing_reports_artifacts`, `update_reports_tree`, `_append_report_artifacts`, `_on_report_item_double_click`
 - **Alta** (2): `_refresh_project_overview`, `_on_project_overview_tree_double_click_impl`
 - **Muito Alta** (4): `refresh_project_views`, `_refresh_pipeline_video_table`, `_populate_video_selector_tree`, `_refresh_processing_reports_tab`, `_populate_reports_tree_from_hierarchy`
 
-### Por Padrão:
+### Por Padrão
+
 - **Debouncer**: `_request_overview_refresh`
 - **Facade**: `refresh_project_views`, `update_reports_tree`
 - **Orchestrator**: `_refresh_project_overview`, `_refresh_processing_reports_tab`
@@ -1778,7 +1848,8 @@ def _refresh_openvino_summary(self):
 - **Tree Builder**: `_refresh_pipeline_video_table`, `_populate_video_selector_tree`, `_populate_reports_tree_from_hierarchy`
 - **Event Handler**: `_on_project_overview_tree_double_click_impl`, `_on_processing_reports_item_double_click`, `_on_processing_reports_generate_partial`, `_on_report_item_select`, `_on_report_item_double_click`
 
-### Por Status:
+### Por Status
+
 - **LEGACY** (2): `_refresh_pipeline_video_table`, `update_reports_tree`
 - **Ativo** (32): Todos os outros
 
@@ -1787,6 +1858,7 @@ def _refresh_openvino_summary(self):
 ## Nota Importante: Método Não Encontrado
 
 O método `_build_status_token` mencionado na linha 1590 **não foi encontrado**. A linha 1590 contém apenas dados estruturais de um dicionário. Possivelmente o usuário quis referir-se a:
+
 - `_format_status_token` (linha 3585) - método estático
 - `_build_status_icon_legend` (linha 426)
 - `_build_day_title` (linha 3443)
@@ -1835,4 +1907,3 @@ Estes 34 métodos formam o núcleo da lógica de visualização e atualização 
 5. **Utilitários diversos** (8 métodos)
 
 Um novo componente `ProjectViewManager` consolidaria estes métodos em um único ponto de controle, reduzindo o tamanho da classe `ApplicationGUI` e melhorando a manutenibilidade.
-

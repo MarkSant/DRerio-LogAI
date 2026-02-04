@@ -13,7 +13,7 @@ Sprint 31 extraiu **7 métodos de configuração de processamento** do MainViewM
 ### ✅ Objetivos Alcançados
 
 | Objetivo | Status | Resultado |
-|----------|--------|-----------|
+| ---------- | -------- | ----------- |
 | Criar ProcessingConfigOrchestrator | ✅ COMPLETO | 298 linhas criadas |
 | Extrair 7 métodos | ✅ COMPLETO | 7 métodos extraídos |
 | Preservar context manager | ✅ COMPLETO | @contextmanager mantido |
@@ -27,7 +27,7 @@ Sprint 31 extraiu **7 métodos de configuração de processamento** do MainViewM
 ## 📈 Estatísticas
 
 | Métrica | Antes | Depois | Redução |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | **Total linhas** | 3,161 | 2,989 | -172 (-5.44%) |
 | **Métodos** | 70 | 63 | -7 |
 
@@ -74,6 +74,7 @@ Sprint 31 extraiu **7 métodos de configuração de processamento** do MainViewM
 ## 🎯 Destaques Técnicos
 
 ### Context Manager Pattern
+
 ```python
 @contextmanager
 def _temporary_single_animal_mode(self, single_video_config: dict | None) -> Iterator[bool]:
@@ -100,6 +101,7 @@ def _temporary_single_animal_mode(self, single_video_config: dict | None) -> Ite
 ```
 
 ### Facade Delegation para Context Manager
+
 ```python
 @contextmanager
 def _temporary_single_animal_mode(self, single_video_config: dict | None) -> Iterator[bool]:
@@ -111,6 +113,7 @@ def _temporary_single_animal_mode(self, single_video_config: dict | None) -> Ite
 ```
 
 ### Prioridade de Configuração
+
 1. **Explicit**: `use_single_subject_tracker` em config
 2. **Derived**: `animals_per_aquarium == 1` em config
 3. **Project Type**: Delegação para detector_service
@@ -120,7 +123,7 @@ def _temporary_single_animal_mode(self, single_video_config: dict | None) -> Ite
 ## 📊 Progresso Total (Sprints 24-31)
 
 | Sprint | Redução | MainViewModel Após | % Acumulado |
-|--------|---------|-------------------|-------------|
+| -------- | --------- | ------------------- | ------------- |
 | 24 | -693 | 4,534 | -13.3% |
 | 25 | -275 | 4,259 | -18.5% |
 | 26 | -364 | 3,895 | -25.5% |
@@ -139,6 +142,7 @@ def _temporary_single_animal_mode(self, single_video_config: dict | None) -> Ite
 ## 🔍 Validações
 
 ### Sintaxe Python ✅
+
 ```bash
 python -m py_compile src/zebtrack/orchestrators/processing_config_orchestrator.py
 python -m py_compile src/zebtrack/core/main_view_model.py
@@ -146,13 +150,16 @@ python -m py_compile src/zebtrack/core/main_view_model.py
 ```
 
 ### Linting (ruff check) ✅
+
 **Resultado:**
-```
+
+```text
 Found 2 errors (2 fixed, 0 remaining).
 All checks passed!
 ```
 
 **Issues Corrigidos Automaticamente:**
+
 - ✅ UP035: Import `Iterator` from `collections.abc` instead of `typing`
 - ✅ Ordenação de imports corrigida
 
@@ -172,12 +179,12 @@ All checks passed!
 
 ### Arquivos Modificados
 
-2. **`src/zebtrack/orchestrators/__init__.py`**
+1. **`src/zebtrack/orchestrators/__init__.py`**
    - Export do `ProcessingConfigOrchestrator` adicionado (linha 18)
    - Entrada em `__all__` (linha 28, ordem alfabética)
    - Documentação atualizada (linha 8)
 
-3. **`src/zebtrack/core/main_view_model.py`**
+2. **`src/zebtrack/core/main_view_model.py`**
    - **Import adicionado:** `ProcessingConfigOrchestrator` (linha 62)
    - **Inicialização adicionada:** `self.processing_config_orchestrator = ProcessingConfigOrchestrator(self)` (linhas 604-605)
    - **7 métodos convertidos em facades:**
@@ -194,6 +201,7 @@ All checks passed!
 ## 🔗 Dependências
 
 ### Atributos Cacheados
+
 ```python
 self.settings = main_view_model.settings
 self.project_manager = main_view_model.project_manager
@@ -203,11 +211,13 @@ self.ui_state_controller = main_view_model.ui_state_controller
 ```
 
 ### Estado Interno
+
 ```python
 self._active_processing_mode = ProcessingMode.MULTI_TRACK
 ```
 
 ### Acesso Dinâmico
+
 - `getattr(self.main_view_model, "detector", None)` - Detector probe
 - `getattr(self.main_view_model, "view", None)` - View para UI updates
 
@@ -254,18 +264,18 @@ self._active_processing_mode = ProcessingMode.MULTI_TRACK
 ### Métricas Sprint 31
 
 | Métrica | Valor |
-|---------|-------|
+| --------- | ------- |
 | **Métodos Extraídos** | 7 |
 | **Linhas Extraídas** | 238 (código) + 60 (overhead) = 298 (arquivo) |
 | **Redução MainViewModel** | -172 linhas (-5.44%) |
 | **Context Managers** | 1 (preservado com @contextmanager) |
 | **Arquivos Criados** | 1 (orchestrator) |
-| **Arquivos Modificados** | 2 (MainViewModel + __init__) |
+| **Arquivos Modificados** | 2 (MainViewModel + **init**) |
 | **Risco Realizado** | 🟢 LOW (conforme planejado) |
 
 ### Estado Atual do Projeto
 
-```
+```text
 MainViewModel (antes Sprint 31):  3,161 linhas
 MainViewModel (depois Sprint 31): 2,989 linhas
 Redução Sprint 31:               -  172 linhas (-5.44%)

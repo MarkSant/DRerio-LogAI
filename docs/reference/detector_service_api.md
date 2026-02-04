@@ -1,6 +1,8 @@
+<!-- markdownlint-disable MD024 -->
+
 # DetectorService API Documentation
 
-**Phase 6: Detector Management Service**
+## Phase 6: Detector Management System
 
 The `DetectorService` is a service layer component that encapsulates all detector initialization, zone configuration, and tracking parameter management logic. It was extracted from the controller in Phase 6 to improve separation of concerns and testability.
 
@@ -10,7 +12,8 @@ The `DetectorService` is a service layer component that encapsulates all detecto
 
 **Purpose**: Manage detector lifecycle, zones, and tracking parameters independently from UI and workflow orchestration.
 
-**Dependencies**:
+### Dependencies
+
 - `StateManager`: Centralized state tracking
 - `ProjectManager`: Zone data and configuration persistence
 - `WeightManager`: Model path resolution
@@ -30,13 +33,15 @@ def __init__(
 )
 ```
 
-**Parameters**:
+### Parameters
+
 - `state_manager`: StateManager instance for centralized state tracking
 - `project_manager`: ProjectManager for zone data and config persistence
 - `weight_manager`: WeightManager for model path resolution
 - `model_service`: ModelService for weight details and OpenVINO paths
 
-**Example**:
+### Example
+
 ```python
 detector_service = DetectorService(
     state_manager=state_manager,
@@ -64,25 +69,29 @@ def initialize_detector(
 ) -> tuple[bool, str | None]
 ```
 
-**Parameters**:
+### Parameters
+
 - `animal_method`: Detection method ('det' or 'seg'). If None, uses global settings
 - `use_openvino`: Whether to use OpenVINO plugin (default: False)
 - `active_weight_name`: Current active weight name for state tracking
 - `detector_plugins`: Dict mapping plugin names to plugin classes (optional)
 
-**Returns**:
+### Returns
+
 - `tuple[bool, str | None]`: (success, error_message)
   - `success`: True if detector initialized successfully
   - `error_message`: Error description if initialization failed, None otherwise
 
-**Side Effects**:
+### Side Effects
+
 - Creates `self.detector` instance
 - Updates StateManager detector state
 - Saves detector configuration to project
 - Configures single-subject tracker preference
 - Sets plugin context to "tracking"
 
-**Example**:
+### Example
+
 ```python
 success, error = detector_service.initialize_detector(
     animal_method="seg",
@@ -96,7 +105,8 @@ else:
     print(f"Initialization failed: {error}")
 ```
 
-**Exceptions**:
+### Exceptions
+
 - `ValueError`: Invalid model path or plugin configuration
 - `FileNotFoundError`: Model file not found
 - `IntegrityError`: OpenVINO model integrity check failed
@@ -116,19 +126,23 @@ def configure_zones(
 ) -> bool
 ```
 
-**Parameters**:
+### Parameters
+
 - `zone_data`: Zone configuration. If None, loads from project
 - `width`: Frame width. If None, uses camera settings
 - `height`: Frame height. If None, uses camera settings
 
-**Returns**:
+### Returns
+
 - `bool`: True if zones were configured successfully
 
-**Side Effects**:
+### Side Effects
+
 - Sets zones on detector with scaling
 - Notifies plugin about aquarium region status
 
-**Example**:
+### Example
+
 ```python
 zone_data = ZoneData(
     polygon=[[0, 0], [800, 0], [800, 600], [0, 600]],
@@ -163,7 +177,8 @@ def update_tracking_parameters(
 ) -> bool
 ```
 
-**Parameters**:
+### Parameters
+
 - `params`: Dict of parameters to update (accepts both long and short form names)
 - `conf_threshold`: Confidence threshold (0.0-1.0)
 - `nms_threshold`: NMS threshold (0.0-1.0)
@@ -171,23 +186,28 @@ def update_tracking_parameters(
 - `match_threshold`: ByteTrack match threshold (0.0-1.0)
 - `reset_overrides`: If True, reset to factory defaults
 
-**Returns**:
+### Returns
+
 - `bool`: True if parameters were updated successfully
 
-**Side Effects**:
+### Side Effects
+
 - Updates plugin parameters if detector exists
 - Persists to global settings
 - Saves to project configuration
 
-**Parameter Name Normalization**:
+### Parameter Name Normalization
+
 - Accepts both `confidence_threshold` (long form) and `conf_threshold` (short form)
 - Internally uses short form for consistency
 
-**Validation**:
+### Validation
+
 - All threshold values must be between 0.0 and 1.0
 - Raises `ValueError` if validation fails
 
-**Example**:
+### Example
+
 ```python
 # Using params dict
 success = detector_service.update_tracking_parameters(
@@ -222,10 +242,12 @@ Resets tracker state between videos.
 def reset_tracking_state(self) -> None
 ```
 
-**Side Effects**:
+### Side Effects
+
 - Calls `detector.reset_tracking_state()` to clear tracker memory
 
-**Example**:
+### Example
+
 ```python
 # Before processing a new video
 detector_service.reset_tracking_state()
@@ -241,13 +263,16 @@ Configures single-subject tracking mode.
 def set_single_subject_mode(self, enabled: bool) -> None
 ```
 
-**Parameters**:
+### Parameters
+
 - `enabled`: True to enable single-subject mode, False for multi-subject
 
-**Side Effects**:
+### Side Effects
+
 - Updates detector's single-subject mode setting
 
-**Example**:
+### Example
+
 ```python
 # Enable single-subject tracking
 detector_service.set_single_subject_mode(True)
@@ -266,18 +291,21 @@ Gets current detector thresholds, falling back to saved or default values.
 def get_detector_parameters(self) -> dict[str, float]
 ```
 
-**Returns**:
+### Returns
+
 - `dict[str, float]`: Current detector parameters with short-form names:
   - `conf_threshold`: Confidence threshold
   - `nms_threshold`: NMS threshold
   - `track_threshold`: ByteTrack track threshold
   - `match_threshold`: ByteTrack match threshold
 
-**Behavior**:
+### Behavior
+
 - If detector with plugin exists: Returns current plugin values
 - Otherwise: Returns values from settings and project data
 
-**Example**:
+### Example
+
 ```python
 params = detector_service.get_detector_parameters()
 print(f"Confidence: {params['conf_threshold']}")
@@ -296,10 +324,12 @@ Gets factory default detector thresholds without any overrides.
 def get_factory_detector_parameters(self) -> dict[str, float]
 ```
 
-**Returns**:
+### Returns
+
 - `dict[str, float]`: Factory default parameters with short-form names
 
-**Example**:
+### Example
+
 ```python
 factory_params = detector_service.get_factory_detector_parameters()
 # Reset to factory defaults
@@ -319,14 +349,17 @@ Restores detector settings from saved configuration.
 def restore_detector_settings(self, saved_detector_config: dict) -> None
 ```
 
-**Parameters**:
+### Parameters
+
 - `saved_detector_config`: Saved detector configuration from project
 
-**Side Effects**:
+### Side Effects
+
 - Updates plugin thresholds from saved config
 - Logs restoration progress
 
-**Example**:
+### Example
+
 ```python
 # After loading a project
 saved_config = project_manager.get_detector_state()
@@ -347,10 +380,12 @@ The current detector instance managed by this service.
 def detector(self) -> Detector | None
 ```
 
-**Returns**:
+### Returns
+
 - `Detector | None`: Current detector instance or None if not initialized
 
-**Example**:
+### Example
+
 ```python
 if detector_service.detector:
     print(f"Detector plugin: {detector_service.detector.plugin.get_name()}")
@@ -393,6 +428,7 @@ def setup_detector(self, temp_animal_method=None):
 ## Parameter Name Conventions
 
 DetectorService uses **short-form parameter names** internally:
+
 - `conf_threshold` (not `confidence_threshold`)
 - `nms_threshold`
 - `track_threshold`
@@ -401,6 +437,7 @@ DetectorService uses **short-form parameter names** internally:
 However, `update_tracking_parameters()` **accepts both forms** for backward compatibility.
 
 For public API compatibility, the Controller normalizes these to long-form names:
+
 ```python
 # Controller normalizes to long form for backward compatibility
 def get_current_detector_parameters(self) -> dict[str, float]:
@@ -480,18 +517,23 @@ detector_service.update_tracking_parameters(
 ## Testing
 
 ### Unit Tests
+
 Located in `tests/core/test_detector_service.py`:
+
 - 28 test cases covering all methods
 - Comprehensive error handling validation
 - Parameter validation checks
 
 ### Integration Tests
+
 Located in `tests/test_detector_service_integration.py`:
+
 - 8 integration tests with Controller
 - Full workflow verification
 - State synchronization checks
 
 Run tests:
+
 ```bash
 # Unit tests
 poetry run pytest tests/core/test_detector_service.py -v
@@ -510,6 +552,7 @@ poetry run pytest tests -k detector -v
 ### From Phase 5 (Before DetectorService)
 
 **Before** (Controller handled everything):
+
 ```python
 # In controller
 self.detector = Detector(plugin=plugin_instance, ...)
@@ -518,6 +561,7 @@ self._resolve_single_subject_tracker_preference()
 ```
 
 **After** (DetectorService handles detector logic):
+
 ```python
 # In controller
 success, error = self.detector_service.initialize_detector(...)
@@ -551,6 +595,7 @@ log.error("detector_service.initialize.failed", error=str(e), exc_info=True)
 ```
 
 Common error scenarios:
+
 1. **Model Not Found**: Check weight path configuration
 2. **OpenVINO Not Ready**: Convert model to OpenVINO first
 3. **Invalid Parameters**: Ensure thresholds are between 0.0 and 1.0
@@ -561,6 +606,7 @@ Common error scenarios:
 ## Future Enhancements
 
 Potential improvements for future phases:
+
 - Support for multiple detector types simultaneously
 - Hot-swapping detector plugins without reinitialization
 - Parameter profiles/presets

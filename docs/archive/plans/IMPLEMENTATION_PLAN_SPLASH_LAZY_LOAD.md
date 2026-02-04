@@ -1,6 +1,9 @@
+<!-- markdownlint-disable MD024 -->
+
 # Plano de Execução: Splash Screen + Lazy-Loading do Recorder
 
 **Objetivo:** Melhorar UX na inicialização do ZebTrack-AI implementando:
+
 1. ✅ Splash screen com logo e indicador de progresso
 2. ✅ Lazy-loading do Recorder (economiza ~2.3 segundos)
 3. ✅ Esconder janela principal até estar completamente carregada
@@ -15,7 +18,7 @@
 
 **Arquivo:** `src/zebtrack/ui/splash_screen.py`
 
-**Código completo:**
+### Código completo
 
 ```python
 """Splash screen for ZebTrack-AI startup."""
@@ -214,7 +217,7 @@ def create_splash() -> SplashScreen:
 
 **Arquivo:** `src/zebtrack/io/recorder_factory.py`
 
-**Código completo:**
+### Código completo
 
 ```python
 """Factory for lazy-loading Recorder with heavy dependencies."""
@@ -280,13 +283,14 @@ class RecorderFactory:
 
 **Validação:** Arquivo criado com `RecorderFactory` delegando métodos ✅
 
-### Tarefa 2.2: Modificar __main__.py para usar RecorderFactory
+### Tarefa 2.2: Modificar **main**.py para usar RecorderFactory
 
 **Arquivo:** `src/zebtrack/__main__.py`
 
 **Localização:** Linha ~265 (seção de Video processing service)
 
-**Buscar por:**
+### Buscar por
+
 ```python
         # Video processing service
         _t0 = time.perf_counter()
@@ -298,7 +302,8 @@ class RecorderFactory:
         log.info("timing.recorder_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 ```
 
-**Substituir por:**
+### Substituir por
+
 ```python
         # Video processing service
         _t0 = time.perf_counter()
@@ -312,14 +317,16 @@ class RecorderFactory:
 
 **Localização 2:** Linha ~280 (passando recorder para video_processing_service)
 
-**Buscar por:**
+### Buscar por
+
 ```python
         video_processing_service = VideoProcessingService(
             detector=None,  # Lazy-initialized by detector_service.initialize_detector()
             recorder=recorder,
 ```
 
-**Substituir por:**
+### Substituir por
+
 ```python
         video_processing_service = VideoProcessingService(
             detector=None,  # Lazy-initialized by detector_service.initialize_detector()
@@ -328,24 +335,27 @@ class RecorderFactory:
 
 **Localização 3:** Linha ~320 (passando para outros coordinators)
 
-**Buscar todas ocorrências de:**
+### Buscar todas ocorrências de
+
 ```python
 recorder=recorder,
 ```
 
-**Substituir por:**
+### Substituir por
+
 ```python
 recorder=recorder_factory,
 ```
 
-**Validação:**
+### Validação
+
 - RecorderFactory usado no lugar de Recorder direto ✅
 - Import de recorder.py removido do topo ✅
 - Tempo de init cai de ~2300ms para <5ms ✅
 
 ---
 
-## 📋 FASE 3: Integrar Splash Screen no __main__.py
+## 📋 FASE 3: Integrar Splash Screen no **main**.py
 
 ### Tarefa 3.1: Modificar main() para usar splash
 
@@ -353,7 +363,8 @@ recorder=recorder_factory,
 
 **Localização:** Linha ~189 (logo após `try:`)
 
-**Buscar por:**
+### Buscar por
+
 ```python
     try:
         # Create Tkinter root
@@ -366,7 +377,8 @@ recorder=recorder_factory,
         maximize_window(root)
 ```
 
-**Substituir por:**
+### Substituir por
+
 ```python
     try:
         # Create splash screen FIRST (lightweight, shows immediately)
@@ -387,9 +399,10 @@ recorder=recorder_factory,
 
 ### Tarefa 3.2: Adicionar atualizações de status no splash
 
-**Inserir após cada etapa principal:**
+### Inserir após cada etapa principal
 
-**Após StateManager (linha ~201):**
+### Após StateManager (linha ~201)
+
 ```python
         state_manager = StateManager(enable_history=True, max_history_size=100)
         ui_coordinator = UICoordinator(root=root, event_bus=event_bus)
@@ -397,7 +410,8 @@ recorder=recorder_factory,
         splash.update_status("Carregando sistema de modelos...")
 ```
 
-**Após ModelService (linha ~211):**
+### Após ModelService (linha ~211)
+
 ```python
         model_service = ModelService(weight_manager)
         log.info("timing.model_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
@@ -405,7 +419,8 @@ recorder=recorder_factory,
         splash.update_status("Inicializando gerenciador de projetos...")
 ```
 
-**Após ProjectManager (linha ~226):**
+### Após ProjectManager (linha ~226)
+
 ```python
         project_manager = ProjectManager(state_manager=state_manager, settings_obj=settings_obj)
         log.info("timing.project_manager_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
@@ -413,7 +428,8 @@ recorder=recorder_factory,
         splash.update_status("Configurando detector...")
 ```
 
-**Após DetectorService (linha ~250):**
+### Após DetectorService (linha ~250)
+
 ```python
         detector_service = DetectorService(...)
         log.info("timing.detector_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
@@ -421,7 +437,8 @@ recorder=recorder_factory,
         splash.update_status("Preparando processamento de vídeo...")
 ```
 
-**Após RecorderFactory (linha ~268):**
+### Após RecorderFactory (linha ~268)
+
 ```python
         recorder_factory = RecorderFactory(settings_obj=settings_obj)
         log.info("timing.recorder_factory_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
@@ -429,7 +446,8 @@ recorder=recorder_factory,
         splash.update_status("Criando interface gráfica...")
 ```
 
-**Antes de MainViewModel (linha ~343):**
+### Antes de MainViewModel (linha ~343)
+
 ```python
         _t0 = time.perf_counter()
         from zebtrack.core.main_view_model import MainViewModel
@@ -441,14 +459,16 @@ recorder=recorder_factory,
 
 **Localização:** Linha ~373 (antes de `controller.run()`)
 
-**Buscar por:**
+### Buscar por
+
 ```python
         # Bind events and run
         controller.bind_events()
         controller.run()
 ```
 
-**Substituir por:**
+### Substituir por
+
 ```python
         # Bind events
         controller.bind_events()
@@ -468,7 +488,8 @@ recorder=recorder_factory,
         controller.run()
 ```
 
-**Validação:**
+### Validação
+
 - Splash aparece imediatamente ✅
 - Status atualiza durante carregamento ✅
 - Splash fecha e janela principal aparece pronta ✅
@@ -481,14 +502,16 @@ recorder=recorder_factory,
 
 **Localização:** No bloco `except Exception:` existente (linha ~377)
 
-**Buscar por:**
+### Buscar por
+
 ```python
     except Exception:
         log.critical("unhandled.exception", exc_info=True)
         messagebox.showerror("Fatal Error", "A fatal error occurred. See analysis.log for details.")
 ```
 
-**Substituir por:**
+### Substituir por
+
 ```python
     except Exception:
         log.critical("unhandled.exception", exc_info=True)
@@ -518,12 +541,14 @@ recorder=recorder_factory,
 
 ### Tarefa 5.1: Teste de inicialização normal
 
-**Executar:**
+### Executar
+
 ```powershell
 poetry run python -m zebtrack
 ```
 
-**Validar:**
+### Validar
+
 - ✅ Splash aparece imediatamente (< 100ms)
 - ✅ Logo é exibida (PNG ou emoji fallback)
 - ✅ Barra de progresso anima (círculo rodando)
@@ -534,48 +559,55 @@ poetry run python -m zebtrack
 
 ### Tarefa 5.2: Teste de lazy-loading do Recorder
 
-**Verificar nos logs:**
-```
+### Verificar nos logs
+
+```text
 [info] recorder_factory.created lazy_load=True
-# ... depois, quando análise inicia ...
+# ... depois, quando análise inicia ..
 [info] recorder_factory.initializing first_access=True
 [info] recorder_factory.initialized elapsed_ms=2XXX
 ```
 
-**Validar:**
+### Validar
+
 - ✅ Recorder NÃO é importado durante startup
 - ✅ Recorder é criado quando usuário inicia análise
 - ✅ Tempo de startup reduzido em ~2.3 segundos
 
 ### Tarefa 5.3: Teste de erro durante inicialização
 
-**Simular erro (temporariamente quebrar config.yaml):**
+### Simular erro (temporariamente quebrar config.yaml)
+
 ```yaml
 # Adicionar linha inválida para forçar erro
 invalid_key_test: [1, 2, error
 ```
 
-**Executar:**
+### Executar
+
 ```powershell
 poetry run python -m zebtrack
 ```
 
-**Validar:**
+### Validar
+
 - ✅ Splash é fechado mesmo com erro
 - ✅ Mensagem de erro é exibida
 - ✅ Programa não fica travado
 
-**Reverter mudança no config.yaml após teste**
+### Reverter mudança no config.yaml após teste
 
 ### Tarefa 5.4: Teste de análise de vídeo (verifica Recorder lazy-load)
 
-**Passos:**
+### Passos
+
 1. Iniciar programa
 2. Criar novo projeto
 3. Configurar vídeo
 4. Iniciar análise
 
-**Validar:**
+### Validar
+
 - ✅ Recorder é carregado apenas ao iniciar análise
 - ✅ Log mostra `recorder_factory.initialized` no momento correto
 - ✅ Análise funciona normalmente
@@ -590,7 +622,8 @@ poetry run python -m zebtrack
 poetry run pytest -q
 ```
 
-**Validar:**
+### Validar
+
 - ✅ Todos os testes passam (~1586 testes)
 - ✅ Nenhuma regressão introduzida
 
@@ -600,7 +633,8 @@ poetry run pytest -q
 poetry run pytest -m gui -n0
 ```
 
-**Validar:**
+### Validar
+
 - ✅ Testes de GUI ainda passam
 - ✅ Splash não interfere com testes automatizados
 
@@ -610,7 +644,8 @@ poetry run pytest -m gui -n0
 
 ### Tarefa 7.1: Atualizar CHANGELOG.md
 
-**Adicionar:**
+### Adicionar
+
 ```markdown
 ## [Unreleased]
 
@@ -630,7 +665,8 @@ poetry run pytest -m gui -n0
 
 ### Tarefa 7.2: Atualizar docs/PERFORMANCE_TUNING.md
 
-**Adicionar seção:**
+### Adicionar seção
+
 ```markdown
 ## Startup Optimization
 
@@ -672,19 +708,22 @@ Antes de considerar concluído, verificar:
 
 ## 🎯 Resultados Esperados
 
-**Antes:**
-```
+### Antes
+
+```text
 0.0s → Tela preta aparece
 6.5s → Interface completa aparece
 ```
 
-**Depois:**
-```
+### Depois
+
+```text
 0.0s → Splash com logo aparece
 4.0s → Interface completa aparece (splash fecha)
 ```
 
-**Ganhos:**
+### Ganhos
+
 - ⚡ **40% mais rápido** (2.5s economizados)
 - 😊 **UX profissional** (feedback visual imediato)
 - 🎨 **Sem tela preta** (splash elegante desde o início)
@@ -696,12 +735,14 @@ Antes de considerar concluído, verificar:
 
 Se algo der errado:
 
-1. **Reverter __main__.py:**
+1. **Reverter **main**.py:**
+
    ```bash
    git checkout src/zebtrack/__main__.py
    ```
 
 2. **Remover novos arquivos:**
+
    ```bash
    rm src/zebtrack/ui/splash_screen.py
    rm src/zebtrack/io/recorder_factory.py

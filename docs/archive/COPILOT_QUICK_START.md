@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Sistema de Otimização do GitHub Copilot
 
 ## 🚀 Quick Start
@@ -23,6 +25,7 @@ poetry run pre-commit install
 **Sempre consulte `.copilot-context.yaml` primeiro!**
 
 Este arquivo contém:
+
 - ✅ Índice de arquivos principais
 - ✅ Árvores de decisão para tarefas comuns
 - ✅ Comandos prontos
@@ -31,7 +34,7 @@ Este arquivo contém:
 ## 📁 Arquivos do Sistema
 
 | Arquivo | Propósito | Atualização |
-|---------|-----------|-------------|
+| --------- | ----------- | ------------- |
 | `.copilot-context.yaml` | Navegação rápida e decisões | Script + pre-push |
 | `.github/copilot-instructions.md` | Playbook completo | Manual |
 | `scripts/generate_copilot_context.py` | Gerador de contexto | N/A |
@@ -73,6 +76,7 @@ lint job:
 Consulte `.copilot-context.yaml` → Seção `adding_*_feature`
 
 **UI:**
+
 ```yaml
 1. Check ui/widgets/
 2. Update MainViewModel
@@ -81,6 +85,7 @@ Consulte `.copilot-context.yaml` → Seção `adding_*_feature`
 ```
 
 **Processing:**
+
 ```yaml
 1. Check core/detector_service.py
 2. Inject settings_obj
@@ -91,6 +96,7 @@ Consulte `.copilot-context.yaml` → Seção `adding_*_feature`
 ### Debug
 
 **Profiles disponíveis (F5 no VS Code):**
+
 - `ZebTrack: Run Application` - Rodar app
 - `ZebTrack: Debug Wizard Flow` - Debug do wizard
 - `ZebTrack: Smoke Test` - Testes rápidos
@@ -197,7 +203,7 @@ poetry run pre-commit run --all-files        # Exit 0
 ### Quando é Ativada
 
 | Evento | Ação | Tool |
-|--------|------|------|
+| -------- | ------ | ------ |
 | `git commit` | Valida docs | pre-commit hook |
 | `git push` | Atualiza contexto | pre-commit hook |
 | CI (lint job) | Valida + gera contexto | GitHub Actions |

@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Sprint 26 Analysis Summary
 
 **Generated:** 2025-11-14
@@ -7,7 +9,7 @@
 
 ## Quick Answer
 
-**✅ RECOMMENDATION: Proceed with Option B (Core + Live Camera Analysis)**
+### ✅ RECOMMENDATION: Proceed with Option B (Core + Live Camera Analysis)
 
 - **Extract:** 14 methods, 488 lines
 - **Risk:** MEDIUM (acceptable)
@@ -21,6 +23,7 @@
 Identified **16 recording/session-related methods** in MainViewModel totaling **763 lines**:
 
 ### Core Recording (363 lines)
+
 - `start_recording` (66)
 - `stop_recording` (21)
 - `start_live_camera_analysis` (65)
@@ -28,6 +31,7 @@ Identified **16 recording/session-related methods** in MainViewModel totaling **
 - `start_live_project_session` (63)
 
 ### Helpers (194 lines)
+
 - `_handle_external_trigger` (46)
 - `_ensure_zones_before_recording` (93)
 - `run_live_calibration` (99)
@@ -37,6 +41,7 @@ Identified **16 recording/session-related methods** in MainViewModel totaling **
 - `on_arduino_event` (21)
 
 ### State Management (87 lines)
+
 - `is_recording` property (11)
 - `_on_recording_state_changed` (20)
 - `_setup_recording_service_callbacks` (20)
@@ -47,7 +52,7 @@ Identified **16 recording/session-related methods** in MainViewModel totaling **
 ## Three Options Evaluated
 
 | Option | Lines | Risk | Reduction | Sprint Goal |
-|--------|-------|------|-----------|-------------|
+| -------- | ------- | ------ | ----------- | ------------- |
 | **A: Conservative** | 358 | LOW ✅ | 7.7% | ❌ Below target |
 | **B: Recommended** | 488 | MEDIUM ⚠️ | 10.4% | ✅ Meets target |
 | **C: Maximum** | 740 | HIGH ❌ | 15.8% | ⚠️ Too risky |
@@ -57,6 +62,7 @@ Identified **16 recording/session-related methods** in MainViewModel totaling **
 ## Why Option B (Recommended)
 
 ### ✅ Pros
+
 1. Meets sprint goal (~500 lines)
 2. Complete recording coordination extracted
 3. `run_live_calibration` is well-encapsulated (try/finally, bounded loop)
@@ -65,11 +71,13 @@ Identified **16 recording/session-related methods** in MainViewModel totaling **
 6. Logical grouping (all recording methods together)
 
 ### ⚠️ Cons
+
 1. `run_live_calibration` has 5-second camera capture loop
 2. Direct camera access via `self.view.camera`
 3. Temp file management (mitigated by try/finally)
 
 ### Risk Mitigation
+
 - Camera access is checked with `is_opened()` first
 - 5-second capture loop is bounded (not infinite)
 - Temp file cleanup guaranteed by try/finally
@@ -81,20 +89,25 @@ Identified **16 recording/session-related methods** in MainViewModel totaling **
 ## What NOT to Extract (Defer to Sprint 27)
 
 ### ❌ `start_live_camera_analysis_from_config` (148 lines)
-**Why defer:**
+
+### Why defer
+
 - Creates default arena (complex geometry calculations)
 - Opens temporary camera to get dimensions
 - Math.sqrt calculations for arena sizing
 - Should extract arena creation logic first
 
 ### ❌ `_ensure_zones_before_recording` (93 lines)
-**Why defer:**
+
+### Why defer
+
 - Complex 3-way dialog branching
 - Calls `run_live_calibration` (recursive dependency)
 - Project type detection with different flows
 - Should extract zone validation logic first
 
-**Sprint 27 Prerequisites:**
+### Sprint 27 Prerequisites
+
 - Create `ArenaCreationOrchestrator`
 - Create `ZoneValidationOrchestrator`
 - Then extract these 2 methods (252 lines)
@@ -104,28 +117,33 @@ Identified **16 recording/session-related methods** in MainViewModel totaling **
 ## Extraction Plan (5 Phases)
 
 ### Phase 1: State Methods (87 lines) - LOW RISK ✅
+
 1. `is_recording` property
 2. `_on_recording_state_changed`
 3. `_setup_recording_service_callbacks`
 4. `_init_recording_service`
 
 ### Phase 2: Helpers (37 lines) - LOW RISK ✅
-5. `_clear_external_trigger_wait`
-6. `_schedule_recording`
+
+1. `_clear_external_trigger_wait`
+2. `_schedule_recording`
 
 ### Phase 3: External Trigger (84 lines) - MEDIUM RISK ⚠️
-7. `_handle_external_trigger`
-8. `trigger_recording`
-9. `on_arduino_event`
+
+1. `_handle_external_trigger`
+2. `trigger_recording`
+3. `on_arduino_event`
 
 ### Phase 4: Core Recording (150 lines) - MEDIUM RISK ⚠️
-10. `start_recording`
-11. `stop_recording`
-12. `start_live_project_session`
+
+1. `start_recording`
+2. `stop_recording`
+3. `start_live_project_session`
 
 ### Phase 5: Live Camera (164 lines) - MEDIUM RISK ⚠️
-13. `start_live_camera_analysis`
-14. `run_live_calibration`
+
+1. `start_live_camera_analysis`
+2. `run_live_calibration`
 
 **Strategy:** Extract incrementally, run tests after each phase.
 
@@ -134,6 +152,7 @@ Identified **16 recording/session-related methods** in MainViewModel totaling **
 ## Key Dependencies
 
 ### Methods Extracted Will Call (Stay in MainViewModel)
+
 - `setup_detector()` - Detector initialization
 - `setup_detector_zones()` - Zone configuration
 - `setup_arduino()` - Arduino initialization
@@ -141,11 +160,13 @@ Identified **16 recording/session-related methods** in MainViewModel totaling **
 - `_publish_processing_mode()` - UI mode updates
 
 ### Services Used
+
 - `recording_coordinator.start_recording()`
 - `recording_coordinator.stop_recording()`
 - `live_camera_service.start_session()`
 
 ### Hardware Dependencies
+
 - Camera (via `self.view.camera`) - `run_live_calibration` only
 - Arduino (optional, graceful degradation)
 
@@ -154,17 +175,20 @@ Identified **16 recording/session-related methods** in MainViewModel totaling **
 ## Expected Results
 
 ### Before
+
 - **File:** `/home/user/ZebTrack-AI/src/zebtrack/core/main_view_model.py`
 - **Size:** 4,672 lines
 - **Recording Methods:** Scattered across file (lines 617-3016)
 
 ### After
+
 - **MainViewModel:** ~4,184 lines (-488, -10.4%)
 - **RecordingSessionOrchestrator:** ~550 lines (new file)
 - **Total Code:** Same (no net change, just reorganized)
 
 ### Cumulative Progress
-```
+
+```text
 Sprint 24: 5,224 → 4,949 lines (-275, -5.3%) VideoProcessingOrchestrator
 Sprint 25: 4,949 → 4,674 lines (-275, -5.6%) AnalysisOrchestrator
 Sprint 26: 4,674 → 4,184 lines (-488, -10.4%) RecordingSessionOrchestrator
@@ -180,7 +204,7 @@ TOTAL:     5,224 → 4,184 lines (-1,040, -19.9%)
 ## Risk Assessment
 
 | Risk Category | Level | Details |
-|--------------|-------|---------|
+| -------------- | ------- | --------- |
 | **Threading** | LOW ✅ | No direct thread creation, delegates to services |
 | **Hardware** | MEDIUM ⚠️ | Camera access in `run_live_calibration` (bounded, checked) |
 | **State** | LOW ✅ | All via StateManager (thread-safe) |
@@ -193,11 +217,13 @@ TOTAL:     5,224 → 4,184 lines (-1,040, -19.9%)
 ## Testing Requirements
 
 ### Existing Tests to Update
+
 - `tests/test_main_view_model.py` - Recording tests
 - `tests/test_recording_service.py` - May need updates
 - `tests/test_live_camera_service.py` - Verify delegation
 
 ### New Tests Needed
+
 - `tests/test_recording_session_orchestrator.py` (~800-1000 lines)
   - Unit tests for all 14 methods
   - Mock all dependencies
@@ -206,6 +232,7 @@ TOTAL:     5,224 → 4,184 lines (-1,040, -19.9%)
   - Test calibration workflow
 
 ### Test Commands
+
 ```bash
 # Fast tests (excludes GUI/slow)
 poetry run pytest -v
@@ -223,17 +250,20 @@ poetry run pytest --cov=src/zebtrack/core --cov-report=term-missing
 
 After extraction, test manually:
 
-**Recording Flow:**
+### Recording Flow
+
 - [ ] Start live project recording (with/without Arduino)
 - [ ] External trigger recording (Arduino start)
 - [ ] Stop recording (manual and Arduino)
 
-**Live Camera:**
+### Live Camera
+
 - [ ] Live camera analysis (dialog)
 - [ ] Live project session start
 - [ ] Live calibration (aquarium detection)
 
-**Edge Cases:**
+### Edge Cases
+
 - [ ] Cancel during external trigger wait
 - [ ] Recording with no zones (validation)
 - [ ] Live camera with no zones (default arena)
@@ -296,19 +326,24 @@ Sprint 26 is complete when:
 
 ## Questions/Concerns?
 
-**Q: Is `run_live_calibration` safe to extract?**
+### Q: Is `run_live_calibration` safe to extract?
+
 A: Yes. It has a bounded 5-second loop, checks camera availability, uses try/finally for cleanup, and is already tested in production.
 
-**Q: What about `_ensure_zones_before_recording`?**
+### Q: What about `_ensure_zones_before_recording`?
+
 A: Defer to Sprint 27. It has complex 3-way dialog branching and recursive calibration calls. Better to extract zone validation logic first.
 
-**Q: What about `start_live_camera_analysis_from_config`?**
+### Q: What about `start_live_camera_analysis_from_config`?
+
 A: Defer to Sprint 27. It creates default arenas with complex geometry. Better to extract arena creation logic first.
 
-**Q: Why not Option A (Conservative)?**
+### Q: Why not Option A (Conservative)?
+
 A: It's too conservative (358 lines, below sprint goal). Option B adds only 2 methods (130 lines) but achieves the sprint goal with acceptable risk.
 
-**Q: Why not Option C (Maximum)?**
+### Q: Why not Option C (Maximum)?
+
 A: Too risky. The 2 additional methods have complex arena creation and zone validation logic that should be extracted separately in Sprint 27.
 
 ---

@@ -12,7 +12,7 @@
 During the Phase 3/4 architecture consolidation, we identified that the Live Camera feature uses a different display mechanism than the recorded video analysis:
 
 | Feature | Display Method | Event Used |
-|---------|---------------|------------|
+| --------- | --------------- | ------------ |
 | Recorded Video Analysis | `CanvasManager` | `Events.UI_DISPLAY_FRAME` |
 | Live Camera Preview | `LivePreviewWindow` | Direct `root.after()` calls |
 
@@ -34,6 +34,7 @@ This divergence was flagged as a potential architectural inconsistency (Vulnerab
 - **Live Camera:** Uses daemon threads for capture + processing with direct callback updates
 
 Forcing both through the same channel would require:
+
 - Adding queue overhead to live camera (latency impact)
 - Or modifying `CanvasManager` to support multiple threading models
 
@@ -45,6 +46,7 @@ Forcing both through the same channel would require:
 ### 3. Recent Stabilization
 
 Live camera was unified and stabilized in Phase 8 (January 2025). The current implementation:
+
 - Works reliably
 - Has no user complaints
 - Has proper thread cleanup (daemon threads)
@@ -52,7 +54,7 @@ Live camera was unified and stabilized in Phase 8 (January 2025). The current im
 ### 4. Risk vs. Benefit Analysis
 
 | Factor | Unify | Document |
-|--------|-------|----------|
+| -------- | ------- | ---------- |
 | Development Time | 2-3 weeks | 1 day |
 | Risk of Regression | High | None |
 | User Impact | None (internal) | None |
@@ -105,6 +107,7 @@ None required - this is a documentation-only decision.
 ## Review
 
 This ADR should be reviewed if:
+
 - Users request drawing tools for live camera
 - Performance issues are found with current live camera implementation
 - Major refactoring of display layer is planned

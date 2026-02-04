@@ -27,7 +27,7 @@ Complete implementation of live camera multi-aquarium workflow with disconnect r
 
 ### Event Flow Diagram
 
-```
+```text
 ┌─────────────────────┐
 │ LiveCameraService   │
 │ (Processing Loop)   │
@@ -93,7 +93,7 @@ Complete implementation of live camera multi-aquarium workflow with disconnect r
 #### Capability Tiers
 
 | Tier | CPU | RAM Free | GPU | Max Aquariums | Real-time |
-|------|-----|----------|-----|---------------|-----------|
+| ------ | ----- | ---------- | ----- | --------------- | ----------- |
 | EXCELLENT | 8+ cores | 12GB+ | Yes | 6 | ✅ |
 | VERY_GOOD | 6+ cores | 10GB+ | Yes | 4 | ✅ |
 | GOOD | 4+ cores | 8GB+ | Optional | 2-3 | ✅ |
@@ -124,7 +124,7 @@ print(f"Real-time: {report.can_process_realtime}")
 #### Modes
 
 | Mode | Description | Aquariums | Processing |
-|------|-------------|-----------|------------|
+| ------ | ------------- | ----------- | ------------ |
 | MULTI_AQUARIUM_REALTIME | Parallel detection (2-6) | N | Real-time |
 | SINGLE_AQUARIUM_REALTIME | Single aquarium only | 1 | Real-time |
 | SEQUENTIAL_AQUARIUM | N sessions, one at a time | N | Real-time |
@@ -146,6 +146,7 @@ print(f"Fallback options: {recommendation.fallback_modes}")
 ```
 
 **Fallback Hierarchy**:
+
 1. Multi-aquarium → Single aquarium (real-time)
 2. Single aquarium → Sequential sessions
 3. Sequential → Record-only (always possible)
@@ -155,6 +156,7 @@ print(f"Fallback options: {recommendation.fallback_modes}")
 ### 3. Camera Disconnect Recovery
 
 **Files**:
+
 - `src/zebtrack/core/live_camera_service.py` (+150 lines)
 - `src/zebtrack/ui/dialogs/camera_disconnect_recovery_dialog.py` (260 lines)
 - `src/zebtrack/io/recorder.py` (+80 lines)
@@ -181,12 +183,14 @@ def _check_camera_disconnect(self) -> None:
 #### User Dialog
 
 **Features**:
+
 - 30-second countdown timer
 - 3 action buttons: Wait | Resume | Stop
 - Auto-close on reconnection
 - Thread-safe callbacks
 
 **UI Flow**:
+
 1. Dialog appears when gap > 2s
 2. Countdown starts (30s)
 3. User selects action:
@@ -217,6 +221,7 @@ def resume_recording(self) -> None:
 ### 4. Aquarium Detection Progress
 
 **Files**:
+
 - `src/zebtrack/core/live_camera_service.py` (event publishing)
 - `src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py` (270 lines)
 
@@ -271,6 +276,7 @@ def update_progress(
 ### 5. Batch Report Generation
 
 **Files**:
+
 - `src/zebtrack/coordinators/live_batch_coordinator.py` (250 lines)
 - `src/zebtrack/core/project_manager.py` (+60 lines)
 
@@ -279,13 +285,14 @@ def update_progress(
 **Concept**: Group multiple live sessions by `(group, day, subject_id)` and generate unified Excel report.
 
 **Workflow**:
+
 1. Register each session: `register_session(batch_id, output_dir)`
 2. Mark batch complete: `mark_batch_complete(batch_id)`
 3. Auto-generate unified report: `_generate_unified_report(batch_id)`
 
 #### Report Structure
 
-```
+```text
 <project_root>/batch_reports/
   └── batch_<batch_id>_unified_report.xlsx
       ├── Summary (aggregated metrics)
@@ -316,7 +323,7 @@ def _generate_unified_report(self, batch_id: str) -> Path:
 #### New Event Handlers
 
 | Event | Handler | Action |
-|-------|---------|--------|
+| ------- | --------- | -------- |
 | CAMERA_DISCONNECT_DETECTED | `_on_camera_disconnect()` | Show recovery dialog |
 | CAMERA_RECONNECTED | `_on_camera_reconnected()` | Update status bar |
 | AQUARIUM_DETECTION_PROGRESS | `_on_aquarium_detection_progress()` | Update status every 10 frames |
@@ -360,7 +367,7 @@ def _on_camera_disconnect(self, event_data: dict[str, Any]) -> None:
 ### Test Coverage
 
 | Category | Tests | Coverage |
-|----------|-------|----------|
+| ---------- | ------- | ---------- |
 | Hardware Detection | 3 | Excellent, Limited, Insufficient |
 | Mode Selection | 3 | Sufficient, Insufficient, Fallback |
 | Recorder Pause/Resume | 2 | Pause, Resume with gap tracking |
@@ -432,7 +439,7 @@ poetry run pytest --cov=zebtrack.core.live_camera_service \
 ### New Files (9)
 
 | File | Lines | Purpose |
-|------|-------|---------|
+| ------ | ------- | --------- |
 | `src/zebtrack/utils/hardware_capability.py` | 370 | Hardware detection |
 | `src/zebtrack/core/live_camera_mode.py` | 280 | Mode selection |
 | `src/zebtrack/coordinators/live_batch_coordinator.py` | 250 | Batch coordination |
@@ -442,17 +449,17 @@ poetry run pytest --cov=zebtrack.core.live_camera_service \
 | `docs/decisions/ADR-008-live-camera-multi-aquarium.md` | 120 | ADR |
 | `docs/guides/developer/LIVE_CAMERA_MULTI_AQUARIUM.md` | 200 | Dev guide |
 | `docs/LIVE_CAMERA_V2.2_IMPLEMENTATION_SUMMARY.md` | 150 | Summary |
-| **Total** | **2180** | |
+| **Total** | **2180** |  |
 
 ### Modified Files (4)
 
 | File | Changes | Purpose |
-|------|---------|---------|
+| ------ | --------- | --------- |
 | `src/zebtrack/core/live_camera_service.py` | +190 lines | Disconnect, events, actions |
 | `src/zebtrack/io/recorder.py` | +80 lines | Pause/resume |
 | `src/zebtrack/core/project_manager.py` | +60 lines | Batch persistence |
 | `src/zebtrack/ui/ui_coordinator.py` | +180 lines | Event handlers |
-| **Total** | **+510 lines** | |
+| **Total** | **+510 lines** |  |
 
 **Grand Total**: ~2,700 lines of new/modified code
 
@@ -602,10 +609,12 @@ unified_report_path = coordinator.mark_batch_complete(batch_id)
 ### For Developers
 
 **New dependencies**:
+
 - `psutil` - Already in dependencies (used for hardware detection)
 - No new external dependencies
 
 **Event subscribers**:
+
 - If you have custom EventBus subscribers, add handlers for new events:
   - `CAMERA_DISCONNECT_DETECTED`
   - `CAMERA_RECONNECTED`
@@ -613,6 +622,7 @@ unified_report_path = coordinator.mark_batch_complete(batch_id)
   - `BATCH_ANALYSIS_COMPLETED`
 
 **Settings changes**:
+
 - No new settings required
 - Optional: `live_camera.disconnect_threshold_s` (default: 2.0)
 - Optional: `live_camera.aquarium_detection_frames` (default: 100)
@@ -633,6 +643,7 @@ unified_report_path = coordinator.mark_batch_complete(batch_id)
 ### Issue: Disconnect dialog doesn't appear
 
 **Solution**: Verify EventBus is enabled and UICoordinator is subscribed:
+
 ```python
 # In __main__.py composition root
 event_bus = EventBusV2(enabled=True)
@@ -643,6 +654,7 @@ ui_coordinator.setup_event_subscriptions()
 ### Issue: Recorder keeps writing during disconnect
 
 **Solution**: Ensure Recorder has pause/resume methods:
+
 ```python
 # In recorder.py
 def pause_recording(self) -> None:
@@ -656,6 +668,7 @@ def write_detection_data(self, ...):
 ### Issue: Hardware detection returns INSUFFICIENT incorrectly
 
 **Solution**: Check psutil version and GPU detection:
+
 ```bash
 poetry run python -c "
 import psutil
@@ -672,6 +685,7 @@ print(f'RAM: {psutil.virtual_memory().available / (1024**3):.1f} GB')
 Live Camera v2.2.0 provides a **complete, production-ready** workflow for multi-aquarium analysis with robust disconnect recovery and hardware-aware processing. All core components are implemented, integrated, and tested.
 
 **Implementation Quality**:
+
 - ✅ All 8 key features implemented
 - ✅ Full event-driven architecture
 - ✅ 15 comprehensive tests
@@ -679,6 +693,7 @@ Live Camera v2.2.0 provides a **complete, production-ready** workflow for multi-
 - ✅ Complete documentation (ADR + guides + this summary)
 
 **Ready for**:
+
 - Production use (single aquarium + disconnect recovery)
 - Integration testing (multi-aquarium real-time)
 - User feedback (wizard hardware checks)

@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # API Reference v3.0 - Current Public Interfaces
 
 **Version:** 3.0 (Pre-Refactoring Baseline)
@@ -10,7 +12,8 @@ This document catalogs the current public interfaces of ZebTrack-AI v3.0 that ex
 code and plugins depend on. These interfaces will be preserved or migrated during the
 v4.0 refactoring to maintain backward compatibility.
 
-**Related Documents:**
+### Related Documents
+
 - `docs/REFACTOR-MASTER-PLAN-2025.md` - Refactoring strategy
 - `docs/ARCHITECTURE.md` - Overall architecture
 - `docs/DEPENDENCY_INJECTION_GUIDE.md` - DI patterns
@@ -26,7 +29,8 @@ v4.0 refactoring to maintain backward compatibility.
 The MainViewModel is the central orchestrator of the application. It coordinates all
 business logic and state management.
 
-**Current Issues:**
+### Current Issues
+
 - **SRP Violation:** 154 methods, 164 instance variables
 - **God Object:** Manages 7+ different concerns
 - **Low Testability:** High coupling, difficult to mock
@@ -54,7 +58,8 @@ def __init__(
     """Initialize MainViewModel with injected dependencies."""
 ```
 
-**Dependencies (11 total):**
+### Dependencies (11 total)
+
 1. `StateManager` - State management
 2. `ProjectManager` - Project data persistence
 3. `ProjectService` - Project business logic
@@ -70,7 +75,7 @@ def __init__(
 
 ### 1.3 Project Management Methods
 
-**PUBLIC API - Do Not Break**
+### PUBLIC API - Do Not Break
 
 ```python
 def create_project_traditional(
@@ -98,13 +103,14 @@ def validate_project_structure(self, project_folder: str) -> bool:
     """Validate project folder structure."""
 ```
 
-**Planned Migration (Sprint 3):**
+### Planned Migration (Sprint 3)
+
 - Extract to `ProjectCoordinator`
 - Maintain compatibility via delegation
 
 ### 1.4 Detector Management Methods
 
-**PUBLIC API - Do Not Break**
+### PUBLIC API - Do Not Break
 
 ```python
 def initialize_detector(
@@ -125,13 +131,14 @@ def get_detector_info(self) -> dict:
     """Get current detector configuration and status."""
 ```
 
-**Planned Migration (Sprint 4):**
+### Planned Migration (Sprint 4)
+
 - Extract to `DetectorCoordinator`
 - Maintain compatibility
 
 ### 1.5 Recording Management Methods
 
-**PUBLIC API - Do Not Break**
+### PUBLIC API - Do Not Break
 
 ```python
 def start_recording(
@@ -150,13 +157,14 @@ def get_recording_status(self) -> dict:
     """Get current recording session status."""
 ```
 
-**Planned Migration (Sprint 5):**
+### Planned Migration (Sprint 5)
+
 - Extract to `RecordingCoordinator`
 - Maintain compatibility
 
 ### 1.6 Live Camera Methods
 
-**PUBLIC API - Do Not Break**
+### PUBLIC API - Do Not Break
 
 ```python
 def start_live_camera_analysis(
@@ -178,13 +186,14 @@ def get_live_camera_status(self) -> dict:
     """Get current live camera session status."""
 ```
 
-**Planned Migration (Sprint 6):**
+### Planned Migration (Sprint 6)
+
 - Extract to `LiveCameraCoordinator`
 - Maintain compatibility
 
 ### 1.7 Video Processing Methods
 
-**PUBLIC API - Do Not Break**
+### PUBLIC API - Do Not Break
 
 ```python
 def process_single_video(
@@ -211,13 +220,14 @@ def get_processing_progress(self) -> dict:
     """Get current processing progress."""
 ```
 
-**Planned Migration (Sprint 7):**
+### Planned Migration (Sprint 7)
+
 - Extract to `ProcessingCoordinator`
 - Maintain compatibility
 
 ### 1.8 State Access Methods
 
-**PUBLIC API - Do Not Break**
+### PUBLIC API - Do Not Break
 
 ```python
 def get_project_state(self) -> ProjectState:
@@ -240,7 +250,8 @@ def subscribe_to_state(
     """Subscribe to state changes (Observer pattern)."""
 ```
 
-**Planned Changes:**
+### Planned Changes
+
 - These will delegate to StateManager (already does)
 - No compatibility concerns
 
@@ -254,7 +265,8 @@ def subscribe_to_state(
 
 The ApplicationGUI is the main Tkinter window that manages all UI components.
 
-**Current Issues:**
+### Current Issues
+
 - **SRP Violation:** 232 methods, 7 UI responsibilities
 - **Monolithic:** All UI in one class
 - **Low Testability:** Difficult to test in isolation
@@ -273,14 +285,15 @@ def __init__(
     """Initialize main GUI window with injected dependencies."""
 ```
 
-**Dependencies:**
+### Dependencies
+
 1. `MainViewModel` - Application controller
 2. `EventBus` - Event notifications
 3. `Settings` - Configuration
 
 ### 2.3 Window Management
 
-**PUBLIC API - Do Not Break**
+### PUBLIC API - Do Not Break
 
 ```python
 def show(self) -> None:
@@ -298,7 +311,7 @@ def get_root(self) -> tk.Tk:
 
 ### 2.4 Menu Management
 
-**PUBLIC API - Do Not Break**
+### PUBLIC API - Do Not Break
 
 ```python
 def create_menu_bar(self) -> None:
@@ -308,13 +321,14 @@ def update_menu_states(self) -> None:
     """Update menu item states based on application state."""
 ```
 
-**Planned Migration (Sprint 8):**
+### Planned Migration (Sprint 8)
+
 - Extract to `MenuManager` component
 - Maintain compatibility
 
 ### 2.5 Project View Management
 
-**PUBLIC API - Do Not Break**
+### PUBLIC API - Do Not Break
 
 ```python
 def show_project_overview(self) -> None:
@@ -330,13 +344,14 @@ def refresh_project_view(self) -> None:
     """Refresh current project view."""
 ```
 
-**Planned Migration (Sprint 9):**
+### Planned Migration (Sprint 9)
+
 - Extract to `ProjectViewManager` component
 - Maintain compatibility
 
 ### 2.6 Dialog Management
 
-**PUBLIC API - Do Not Break**
+### PUBLIC API - Do Not Break
 
 ```python
 def show_settings_dialog(self) -> None:
@@ -356,7 +371,8 @@ def show_confirm_dialog(
     """Show confirmation dialog, return True if confirmed."""
 ```
 
-**Planned Migration (Sprint 10):**
+### Planned Migration (Sprint 10)
+
 - Extract to `DialogManager` component
 - Maintain compatibility
 
@@ -763,7 +779,7 @@ When extracting coordinators from MainViewModel:
 4. **Deprecation warnings** in v4.0
 5. **Remove delegation** in v5.0 (2026)
 
-**Example:**
+### Example
 
 ```python
 # v4.0 - Delegation pattern
@@ -798,7 +814,8 @@ When extracting UI components from ApplicationGUI:
 
 ### 10.1 Stable APIs
 
-**No breaking changes planned:**
+### No breaking changes planned
+
 - StateManager interface
 - Service layer interfaces (DetectorService, VideoProcessingService, etc.)
 - Plugin system
@@ -807,13 +824,15 @@ When extracting UI components from ApplicationGUI:
 
 ### 10.2 Evolving APIs
 
-**Will be refactored with compatibility shim:**
+### Will be refactored with compatibility shim
+
 - MainViewModel public methods → Coordinators (v4.0)
 - ApplicationGUI public methods → Components (v4.0)
 
 ### 10.3 Internal APIs
 
-**May change without notice:**
+### May change without notice
+
 - Private methods (`_method_name`)
 - Internal helper functions
 - UI widget implementation details
@@ -823,7 +842,7 @@ When extracting UI components from ApplicationGUI:
 ## 11. Migration Timeline
 
 | Sprint | Target | Changes | Compatibility |
-|--------|--------|---------|---------------|
+| -------- | -------- | --------- | --------------- |
 | 1-2 | Foundation | BaseCoordinator, BaseUIComponent | N/A (new) |
 | 3 | ProjectCoordinator | Extract project methods | Delegation |
 | 4 | DetectorCoordinator | Extract detector methods | Delegation |
@@ -840,7 +859,7 @@ When extracting UI components from ApplicationGUI:
 
 ### 12.1 For External Developers
 
-**If you're building on ZebTrack-AI:**
+### If you're building on ZebTrack-AI
 
 1. **Use only public APIs** documented here
 2. **Avoid private methods** (`_method_name`)
@@ -849,7 +868,7 @@ When extracting UI components from ApplicationGUI:
 
 ### 12.2 For Internal Development
 
-**When modifying existing code:**
+### When modifying existing code
 
 1. **Check this document** before changing signatures
 2. **Add deprecation warnings** for changed methods
@@ -861,7 +880,7 @@ When extracting UI components from ApplicationGUI:
 ## 13. Version History
 
 | Version | Date | Changes |
-|---------|------|---------|
+| --------- | ------ | --------- |
 | 3.0 | 2025-01 | Baseline documentation (pre-refactoring) |
 
 ---
@@ -894,4 +913,4 @@ When extracting UI components from ApplicationGUI:
 
 ---
 
-**End of API Reference v3.0**
+### End of API Reference v3.0

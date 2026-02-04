@@ -107,6 +107,7 @@ sequenceDiagram
 ```
 
 **Characteristics**:
+
 - ✅ Clean one-way dependency
 - ✅ GUI acts as facade
 - ✅ No callbacks to orchestrators
@@ -127,6 +128,7 @@ sequenceDiagram
 ```
 
 **Characteristics**:
+
 - ✅ Clean one-way dependency
 - ✅ Services don't depend on GUI internals
 - ✅ Stable API contract
@@ -152,12 +154,14 @@ sequenceDiagram
 ```
 
 **Characteristics**:
+
 - ⚠️ **BIDIRECTIONAL** dependency
 - ⚠️ Component calls GUI, GUI calls Component
 - ⚠️ Can create circular call chains
 - 📝 **Why it exists**: GUI acts as coordination hub
 
 **Affected Components**:
+
 - DialogManager (2 calls to GUI)
 - PolygonDrawingService (1 call to GUI)
 - ROITemplateManager (1 call to GUI)
@@ -187,6 +191,7 @@ graph LR
 ```
 
 **Analysis**:
+
 - `update_zone_listbox()` is called by **5 different components**
 - This demonstrates why it **CANNOT** be removed (breaking 5 callers)
 - GUI acts as **central coordination point**
@@ -198,7 +203,7 @@ graph LR
 ### GUI → Components (Delegation)
 
 | Component | # of Delegations | Purpose |
-|-----------|------------------|---------|
+| ----------- | ------------------ | --------- |
 | ProjectViewManager | ~15 | Project overview, reports, video hierarchy |
 | CanvasManager | ~5 | Zone rendering, polygon editing |
 | StateSynchronizer | ~4 | Progress stats, social summary |
@@ -215,7 +220,7 @@ graph LR
 ### Components → GUI (Reverse Calls)
 
 | Component | # of Calls to GUI | Methods Called |
-|-----------|-------------------|----------------|
+| ----------- | ------------------- | ---------------- |
 | **ZoneControlBuilder** | 3 | `_populate_video_selector_tree` (2x), `update_zone_listbox` |
 | **ProjectViewManager** | 2 | `_populate_video_selector_tree`, `_build_video_hierarchy_snapshot` |
 | **DialogManager** | 2 | `update_zone_listbox`, `apply_pending_readiness_snapshot` |
@@ -233,20 +238,24 @@ graph LR
 ### Issue 1: Bidirectional Dependencies ⚠️
 
 **Problem**: Components call GUI, GUI calls Components back
-```
+
+```text
 DialogManager → GUI.update_zone_listbox() → CanvasManager.update_zone_listbox() → Renderer → GUI.update_zone_listbox()
 ```
 
 **Impact**:
+
 - Makes dependency graph cyclic
 - Hard to test in isolation
 - Prevents true component separation
 
 **Mitigation (Current)**:
+
 - `@public_api` decorator documents stable interfaces
 - Components depend on specific GUI methods only
 
 **Future Solution** (v4.0):
+
 - Introduce Mediator/Event Bus pattern
 - Components emit events instead of calling GUI
 - GUI subscribes to events and coordinates
@@ -256,16 +265,19 @@ DialogManager → GUI.update_zone_listbox() → CanvasManager.update_zone_listbo
 ### Issue 2: GUI as "God Object"
 
 **Current State**:
+
 - GUI has 166 methods, 2653 lines
 - Acts as facade for 8+ components
 - Central coordination hub
 
 **Why It's Acceptable**:
+
 - ✅ Delegations reduce cognitive load (thin wrappers)
 - ✅ Stable public API (37 methods marked)
 - ✅ Well-tested (98.5% tests passing)
 
 **Future Evolution** (Optional):
+
 - Extract coordination logic to separate `UICoordinator`
 - GUI becomes pure view layer
 - Coordinator handles inter-component communication
@@ -277,7 +289,7 @@ DialogManager → GUI.update_zone_listbox() → CanvasManager.update_zone_listbo
 ### Most Called Public APIs
 
 | Method | # of Callers | Caller Types |
-|--------|--------------|--------------|
+| -------- | -------------- | -------------- |
 | `update_zone_listbox()` | 5 | Components (DM, PDS, RTM, ZCB, Renderer) |
 | `refresh_project_views()` | 3 | Orchestrators (Analysis, Project, VideoProcessing) |
 | `_populate_video_selector_tree()` | 3 | Components (ZCB×2, PVM) |
@@ -295,12 +307,14 @@ DialogManager → GUI.update_zone_listbox() → CanvasManager.update_zone_listbo
 Replace direct calls with event emissions:
 
 **Before (v3.0)**:
+
 ```python
 # In DialogManager
 self.gui.update_zone_listbox()
 ```
 
 **After (v4.0)**:
+
 ```python
 # In DialogManager
 self.event_bus.publish(Events.ZONES_UPDATED, zone_data=...)
@@ -311,6 +325,7 @@ def _on_zones_updated(self, zone_data):
 ```
 
 **Benefits**:
+
 - ✅ Breaks bidirectional dependency
 - ✅ Components don't need GUI reference
 - ✅ Easier to test
@@ -338,6 +353,7 @@ class UICoordinator:
 ```
 
 **Benefits**:
+
 - ✅ GUI becomes pure view
 - ✅ Testable coordination logic
 - ✅ Single Responsibility Principle
@@ -348,7 +364,7 @@ class UICoordinator:
 ## Dependency Health Score
 
 | Metric | Current | Target (v4.0) |
-|--------|---------|---------------|
+| -------- | --------- | --------------- |
 | GUI → Component calls | 39 | 20 (reduce by 50%) |
 | Component → GUI calls | 11 | 0 (eliminate via events) |
 | Bidirectional deps | 7 components | 0 |
@@ -363,12 +379,14 @@ class UICoordinator:
 ## Conclusion
 
 ### Current Architecture (v3.0)
+
 - GUI acts as **Facade** for UI components
 - **Bidirectional** dependencies exist (7 components call GUI)
 - **Stable** public API with `@public_api` markers
 - **Functional** and well-tested (98.5% pass rate)
 
 ### Recommended Evolution (v4.0+)
+
 1. Introduce **Event Bus** for component communication
 2. Extract **UICoordinator** for inter-component logic
 3. Reduce GUI to **pure view layer**
@@ -379,6 +397,7 @@ class UICoordinator:
 ---
 
 **References**:
+
 - API Documentation: `docs/API_STABILITY.md`
 - Wrapper Removal Report: `RELATORIO_REMOCAO_WRAPPERS_FINAL.md`
 - GUI Source: `src/zebtrack/ui/gui.py` (2653 lines, 166 methods)

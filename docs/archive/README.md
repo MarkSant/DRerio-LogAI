@@ -4,6 +4,7 @@
 > **Reason**: Documentation cleanup and reorganization
 
 This directory contains historical documentation that has been archived because:
+
 - It describes completed work (refactoring phases, migrations, sprints)
 - It has been superseded by newer documentation
 - It's kept for reference but is no longer actively maintained
@@ -12,7 +13,7 @@ This directory contains historical documentation that has been archived because:
 
 ## 📁 Directory Structure
 
-```
+```text
 archive/
 ├── refactoring-2025/     # 2025 major refactoring (27 files)
 ├── mainviewmodel/        # MainViewModel extraction docs (5 files)
@@ -30,7 +31,7 @@ archive/
 Major 2025 refactoring effort documentation - Sprints 1-34 complete.
 
 | File | Description | Archived Reason |
-|------|-------------|-----------------|
+| ------ | ------------- | ----------------- |
 | `PLANO_ACAO_V4.md` | v4.0 action plan | Plan executed |
 | `PLANO_REFATORACAO_GUI.md` | GUI refactoring plan v2.0 | 85%+ complete |
 | `PLANO_REFATORACAO_MAINVIEWMODEL.md` | MainViewModel plan v2.0 | 68%+ complete |
@@ -66,7 +67,7 @@ Major 2025 refactoring effort documentation - Sprints 1-34 complete.
 MainViewModel extraction and simplification documentation.
 
 | File | Description | Archived Reason |
-|------|-------------|-----------------|
+| ------ | ------------- | ----------------- |
 | `MAINVIEWMODEL_DEPENDENCY_MAP.md` | Dependency mapping | Analysis completed |
 | `MAINVIEWMODEL_EXTRACTION_ANALYSIS.md` | Extraction analysis | Sprints completed |
 | `MAINVIEWMODEL_METHOD_CLASSIFICATION.md` | Method classification | Analysis completed |
@@ -80,6 +81,7 @@ MainViewModel extraction and simplification documentation.
 Sprint results from the 2025 refactoring effort (Sprints 16-34).
 
 **Subdirectories:**
+
 - `analysis/` - Sprint analysis documents (9 files)
 - `overview/` - Sprint summaries (2 files)
 - `plans/` - Sprint planning documents (3 files)
@@ -93,7 +95,7 @@ Sprint results from the 2025 refactoring effort (Sprints 16-34).
 Completed implementation plans.
 
 | File | Description | Archived Reason |
-|------|-------------|-----------------|
+| ------ | ------------- | ----------------- |
 | `IMPLEMENTATION_PLAN_SPLASH_LAZY_LOAD.md` | Splash screen plan | Implemented |
 | `PLANO_CORRECAO_FLUXOS_CAMERA_LIVE.md` | Live camera fix plan | Bug fixed |
 | `PLANO_EXTRACAO_MAINVIEWMODEL.md` | MainViewModel extraction | Completed |
@@ -105,7 +107,7 @@ Completed implementation plans.
 Bug fix documentation.
 
 | File | Description | Archived Reason |
-|------|-------------|-----------------|
+| ------ | ------------- | ----------------- |
 | `BUGFIX_SUMMARY.md` | Bug fix summary | Historical |
 | `CAMERA_GHOST_FIX.md` | Camera ghost bug | Fixed |
 | `FRAME_MANAGEMENT_IMPROVEMENTS.md` | Frame management | Implemented |
@@ -119,7 +121,7 @@ Bug fix documentation.
 Pre-v4.0 API and migration documentation.
 
 | File | Description | Archived Reason |
-|------|-------------|-----------------|
+| ------ | ------------- | ----------------- |
 | `API_REFERENCE_V3.md` | v3.0 API baseline | Superseded by v4.0 |
 | `BREAKING_CHANGES_V4.md` | v4.0 breaking changes | Migration completed |
 | `MIGRATION_GUIDE_V4.md` | v4.0 migration guide | Migration completed |
@@ -129,7 +131,7 @@ Pre-v4.0 API and migration documentation.
 ## 📂 Root Archive Files (22 files)
 
 | File | Description | Archived Reason |
-|------|-------------|-----------------|
+| ------ | ------------- | ----------------- |
 | `COPILOT_OPTIMIZATION.md` | Copilot optimizations | Historical |
 | `COPILOT_OPTIMIZATION_IMPLEMENTATION.md` | Implementation details | Historical |
 | `COPILOT_QUICK_START.md` | Quick start guide | Historical |
@@ -171,6 +173,7 @@ Pre-v4.0 API and migration documentation.
 **Do not use archived documents for current development!**
 
 Refer to the main documentation:
+
 - **[docs/INDEX.md](../INDEX.md)** - Central documentation index (⭐ START HERE)
 - **[docs/architecture/ARCHITECTURE.md](../architecture/ARCHITECTURE.md)** - Current architecture
 - **[docs/reference/REFERENCE_GUIDE.md](../reference/REFERENCE_GUIDE.md)** - Operational reference
@@ -187,7 +190,7 @@ Refer to the main documentation:
 ## 📅 Archive Timeline
 
 | Date | Action | Files |
-|------|--------|-------|
+| ------ | -------- | ------- |
 | Dec 2, 2025 | Major reorganization | 70+ files archived |
 | Nov 2025 | Sprints 16-34 completed | Sprint results archived |
 | Oct 2025 | Phase 3-4 completed | Phase reports archived |

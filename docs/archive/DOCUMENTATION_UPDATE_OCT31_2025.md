@@ -103,7 +103,7 @@ Get-ChildItem -Path src/zebtrack -Recurse -Filter "*.py" | Select-String "from z
 ## Related Files
 
 | File | Role | Status |
-|------|------|--------|
+| ------ | ------ | -------- |
 | `.github/copilot-instructions.md` | Agent playbook | ✅ Updated |
 | `docs/ARCHITECTURE.md` | Architecture overview | ✅ Already correct |
 | `docs/DEPENDENCY_INJECTION_GUIDE.md` | DI patterns | ✅ Already correct |

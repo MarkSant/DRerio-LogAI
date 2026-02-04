@@ -13,7 +13,7 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 ### ✅ Objetivos Alcançados
 
 | Objetivo | Status | Resultado |
-|----------|--------|-----------|
+| ---------- | -------- | ----------- |
 | Analisar oportunidades de cleanup | ✅ COMPLETO | 5 métodos identificados (~98 linhas) |
 | Extrair model settings methods | ✅ COMPLETO | 5 métodos extraídos |
 | Consolidar em ProjectOrchestrator | ✅ COMPLETO | Todos em ProjectOrchestrator |
@@ -28,7 +28,7 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 ## 📈 Estatísticas
 
 | Métrica | Antes | Depois | Redução |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | **Total linhas** | 2,701 | 2,659 | -42 (-1.58%) |
 | **Métodos** | 54 | 49 | -5 |
 
@@ -41,6 +41,7 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 **Propósito**: Persiste configurações de modelo no projeto.
 
 **Lógica Principal**:
+
 ```python
 1. Obtém project_data e overrides record
 2. Atualiza overrides com weight e use_openvino
@@ -50,6 +51,7 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 ```
 
 **Call Sites Internos Atualizados**:
+
 - `ProjectOrchestrator.copy_global_model_settings_to_project` (linha 311)
 - `ProjectOrchestrator.save_current_calibration_to_project` (linha 401)
 
@@ -60,6 +62,7 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 **Propósito**: Aplica weight e OpenVINO settings ao detector.
 
 **Lógica Principal**:
+
 ```python
 1. Se weight_name existe: set_active_weight(weight_name)
 2. Senão: set_active_weight("") # clear
@@ -67,6 +70,7 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 ```
 
 **Chamado Internamente Por**:
+
 - `apply_project_model_overrides` (linha 489)
 - `_restore_global_model_defaults` (linha 546)
 
@@ -77,6 +81,7 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 **Propósito**: Aplica project-specific model overrides às configurações atuais.
 
 **Lógica Principal**:
+
 ```python
 1. Se sem project_data: retorna current settings
 2. Resolve settings via resolve_project_model_settings(overrides)
@@ -88,9 +93,11 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 ```
 
 **Call Sites Internos Atualizados**:
+
 - `ProjectOrchestrator.save_current_calibration_to_project` (linha 407)
 
 **Call Sites Externos Já Corretos**:
+
 - `CalibrationOrchestrator.global_calibration_session` (linha 156) - já usava `project_orchestrator.apply_project_model_overrides()`
 
 ---
@@ -100,6 +107,7 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 **Propósito**: Salva model settings como project overrides e aplica.
 
 **Lógica Principal**:
+
 ```python
 1. Valida project_path existente
 2. Cria/atualiza model_overrides dict
@@ -109,6 +117,7 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 ```
 
 **Call Sites Externos** (via facade):
+
 - `ui/dialogs/calibration_dialog.py:401` - user saves calibration settings
 
 ---
@@ -118,6 +127,7 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 **Propósito**: Restaura defaults globais após fechar projeto.
 
 **Lógica Principal**:
+
 ```python
 1. Obtém target_weight e target_openvino dos _global_model_defaults
 2. Marca _using_project_overrides = False
@@ -125,6 +135,7 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 ```
 
 **Call Sites Internos Atualizados**:
+
 - `ProjectOrchestrator.close_project` (linha 66) - callback para ProjectWorkflowAdapter
 
 ---
@@ -132,7 +143,7 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 ## 📊 Progresso Total (Sprints 24-34)
 
 | Sprint | Redução | MainViewModel Após | % Acumulado |
-|--------|---------|-------------------|-------------|
+| -------- | --------- | ------------------- | ------------- |
 | 24 | -693 | 4,534 | -13.3% |
 | 25 | -275 | 4,259 | -18.5% |
 | 26 | -364 | 3,895 | -25.5% |
@@ -154,6 +165,7 @@ Sprint 34 extraiu **5 métodos de gerenciamento de model settings** do MainViewM
 ## 🔍 Validações
 
 ### Sintaxe Python ✅
+
 ```bash
 python -m py_compile src/zebtrack/orchestrators/project_orchestrator.py
 python -m py_compile src/zebtrack/core/main_view_model.py
@@ -161,13 +173,16 @@ python -m py_compile src/zebtrack/core/main_view_model.py
 ```
 
 ### Linting (ruff check) ✅
+
 **Resultado:**
-```
+
+```text
 Found 1 error (fixed).
 All checks passed!
 ```
 
 **Issue Corrigido**:
+
 - ✅ E501: Line too long (101 > 100) - multiline tuple return formatting
 
 **Status:** ✅ LINTING LIMPO
@@ -179,6 +194,7 @@ All checks passed!
 ### 1. **`src/zebtrack/orchestrators/project_orchestrator.py`** (+136 linhas)
 
 **Mudanças**:
+
 - **Lines 415-417**: Adicionado Group D header comment
 - **Lines 419-448**: Método `_persist_project_model_settings` (30 linhas)
 - **Lines 450-466**: Método `_apply_model_settings` (17 linhas)
@@ -197,6 +213,7 @@ All checks passed!
 ### 2. **`src/zebtrack/core/main_view_model.py`** (-42 linhas)
 
 **Mudanças**:
+
 - **Lines 1449-1456**: Método `_persist_project_model_settings` reduzido para facade (4 linhas)
 - **Lines 1472-1481**: Método `_apply_model_settings` reduzido para facade (5 linhas)
 - **Lines 1501-1514**: Método `apply_project_model_overrides` reduzido para facade (14 linhas)
@@ -204,6 +221,7 @@ All checks passed!
 - **Lines 1535-1540**: Método `_restore_global_model_defaults` reduzido para facade (5 linhas)
 
 **Facades Criadas**:
+
 ```python
 def _persist_project_model_settings(self, weight: str | None, use_openvino: bool) -> dict:
     """Facade - delegates to ProjectOrchestrator (Sprint 34)."""
@@ -287,7 +305,7 @@ def _restore_global_model_defaults(self) -> None:
 ### Métricas Sprint 34
 
 | Métrica | Valor |
-|---------|-------|
+| --------- | ------- |
 | **Métodos Extraídos** | 5 |
 | **Linhas Extraídas** | 98 (lógica) + 38 (overhead) = 136 (total adicionado) |
 | **Redução MainViewModel** | -42 linhas (-1.58%) |
@@ -299,7 +317,7 @@ def _restore_global_model_defaults(self) -> None:
 
 ### Estado Atual do Projeto
 
-```
+```text
 MainViewModel (antes Sprint 34):  2,701 linhas
 MainViewModel (depois Sprint 34): 2,659 linhas
 Redução Sprint 34:               -   42 linhas (-1.58%)

@@ -16,7 +16,7 @@ Esta auditoria documenta o fluxo completo de criação e uso de projetos com ví
 
 O ZebTrack-AI utiliza uma arquitetura em camadas com **dependency injection** e comunicação via **event bus dual**:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                      UI Layer (Tkinter)                      │
 │  - ApplicationGUI                                            │
@@ -61,7 +61,7 @@ O ZebTrack-AI utiliza uma arquitetura em camadas com **dependency injection** e 
 ### Dual Event Bus (CRÍTICO)
 
 | Event System | Módulo | Tipo de Evento | Uso Principal |
-|--------------|--------|----------------|---------------|
+| -------------- | -------- | ---------------- | --------------- |
 | **EventBus (v1)** | `zebtrack.ui.event_bus.EventBus` | String constants (`Events` class) | Domain events: recording, project, analysis, detector |
 | **EventBusV2** | `zebtrack.ui.event_bus_v2.EventBusV2` | Enum (`UIEvents`) | UI component communication: zones, dialogs, canvas updates |
 
@@ -171,7 +171,7 @@ config = {
 
 **Caminho**:
 
-```
+```text
 EventBus.publish(Events.VIDEO_ANALYZE_SINGLE, payload)
     ↓
 EventDispatcher._handle_video_analyze_single(payload)
@@ -243,7 +243,7 @@ ZoneData(
 
 **Caminho**:
 
-```
+```text
 AnalysisControlViewModel
     ↓
 LiveCameraCoordinator.start_session_from_config(config)
@@ -298,7 +298,7 @@ self.live_camera_service.start_session(
 
 **Arquitetura de Threads**:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    Main Thread (Tkinter)                     │
 └──────────────────────────┬──────────────────────────────────┘
@@ -507,7 +507,7 @@ if self._recorder and self.is_capturing_for_video:
 
 **Outputs Gerados**:
 
-```
+```text
 output_base_dir/
 ├── live_20251230_154956/
 │   ├── live_20251230_154956.mp4          # ← Vídeo gravado
@@ -520,7 +520,7 @@ output_base_dir/
 
 **Para 1 aquário**, os outputs seguem o padrão **sem sufixo** `_aquarium_X`:
 
-```
+```text
 <experiment_id>/
 ├── <experiment_id>.mp4                        # Vídeo original/gravado
 ├── 1_ArenaROI_<experiment_id>.parquet         # Arena ROI (bbox do tanque)
@@ -536,7 +536,7 @@ output_base_dir/
 
 **Formato do Summary Parquet** (usado para gerar relatórios):
 
-```
+```text
 Colunas:
 - experiment_id, group, subject, day, aquarium_id, is_multi_aquarium
 - Total Time (s), Total Distance (cm), Average Speed (cm/s), Max Speed (cm/s)
@@ -606,7 +606,7 @@ def stop_session():
 
 **Fluxo**:
 
-```
+```text
 LiveCameraService.stop_session()
     ↓
 Publica Events.ANALYSIS_COMPLETED
@@ -625,7 +625,7 @@ Reporter.generate_word_report() + Reporter.generate_excel_report()
 
 **Relatórios Gerados** (Single-Aquarium):
 
-```
+```text
 <experiment_id>/
 ├── reports/
 │   ├── Individual_Report_<experiment_id>.docx   # ← Word report individual
@@ -857,7 +857,7 @@ class ZoneData:
 ### Domain Events (EventBus v1)
 
 | Evento | Payload | Publisher | Subscriber | Efeito |
-|--------|---------|-----------|------------|--------|
+| -------- | --------- | ----------- | ------------ | -------- |
 | `Events.VIDEO_ANALYZE_SINGLE` | `video_path`, `config` | `SingleVideoConfigDialog` | `AnalysisControlViewModel` | Inicia workflow de análise |
 | `Events.VIDEO_CANCEL_ANALYSIS` | - | UI (Cancel button) | `AnalysisControlViewModel` | Cancela análise em andamento |
 | `Events.ZONE_AUTO_DETECT` | `video_path`, `stabilization_frames` | `ZoneControls` | `ProcessingCoordinator` | Auto-detecta aquário |
@@ -867,14 +867,14 @@ class ZoneData:
 ### UI Events (EventBusV2)
 
 | Evento | Payload | Publisher | Subscriber | Efeito |
-|--------|---------|-----------|------------|--------|
+| -------- | --------- | ----------- | ------------ | -------- |
 | `UIEvents.ZONES_UPDATED` | `zone_data` | `ZoneManager`, `CanvasManager` | UI components | Atualiza UI de zonas |
 | `UIEvents.SHOW_ERROR` | `title`, `message` | Diversos | `ApplicationGUI` | Mostra diálogo de erro |
 
 ### Custom Events (String-based)
 
 | Evento | Payload | Publisher | Subscriber | Efeito |
-|--------|---------|-----------|------------|--------|
+| -------- | --------- | ----------- | ------------ | -------- |
 | `"ui:setup_zone_definition_for_single_video"` | `video_path`, `config` | `AnalysisControlViewModel` | `EventDispatcher` → `ZoneControlBuilder` | Navega para tab de zona |
 
 ---

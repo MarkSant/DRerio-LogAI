@@ -13,6 +13,7 @@
 **Commit:** 96f5a25 - "feat(main_view_model): Simplify start_recording() - Sprint 15 Phase 1"
 
 **Changes:**
+
 - Extracted `_handle_external_trigger()` helper (~46 lines)
   - Validates external trigger configuration
   - Handles Arduino requirement checks
@@ -25,6 +26,7 @@
   - Main flow more readable
 
 **Impact:**
+
 - Net reduction: -17 lines (129 - 66 - 46 = -17)
 - MainViewModel: 5,733 → 5,718 lines
 - Improved testability (trigger logic can be tested independently)
@@ -41,6 +43,7 @@
 **Status:** ✅ MOSTLY COMPLETE (Sprints 11-14)
 
 **Already Delegated:**
+
 - ✅ Validation logic → ProcessingCoordinator.validate_can_start_processing()
 - ✅ Helper services (VideoClassificationService, VideoSelectionService, VideoValidationService)
 - ✅ Workflow orchestration → ProcessingCoordinator methods
@@ -53,6 +56,7 @@
 **Conclusion:** ❌ NOT DELEGATABLE
 
 **Reasoning:**
+
 - Deeply coupled to UI orchestration (needs `self.view`, `self.ui_coordinator`)
 - Callback factory pattern requires closure over ViewModel state
 - Callbacks access: `cancel_event`, `state_manager`, `ui_event_bus`, `project_manager`
@@ -66,6 +70,7 @@
 **Conclusion:** ❌ NOT DELEGATABLE
 
 **Reasoning:**
+
 - Assembles context with ViewModel method references:
   - `self._process_single_video` (method closure)
   - `self.apply_project_settings_to_batch` (method closure)
@@ -84,11 +89,13 @@
 **Status:** ⏳ PENDING - To be completed
 
 **Current Situation:**
+
 - ✅ RecordingCoordinator exists (created Sprint 4)
 - ❌ RecordingCoordinator is a skeleton (doesn't delegate to RecordingService)
 - ❌ MainViewModel calls RecordingService directly instead of using coordinator
 
 **API Mismatch:**
+
 ```python
 # RecordingCoordinator API (clean interface)
 def start_recording(
@@ -107,12 +114,14 @@ def start_session(
 ```
 
 **Complexity:**
+
 - Need to bridge two different APIs
 - RecordingService uses context dicts with many fields
 - Requires building context from coordinator parameters
 - Must maintain backward compatibility
 
 **User Guidance:** "Ainda que complexo, não deixe de terminar RecordingCoordinator delegation depois"
+
 - User acknowledges complexity
 - Wants delegation completed "depois" (later)
 - Will be tackled after current Phase
@@ -124,12 +133,13 @@ def start_session(
 ### Phase 1: Recording Simplification
 
 | Metric | Before | After | Change |
-|--------|--------|-------|--------|
+| -------- | -------- | ------- | -------- |
 | MainViewModel LOC | 5,733 | 5,718 | -15 (-0.3%) |
 | start_recording() LOC | 129 | 66 | -63 (-49%) |
 | Methods added | - | 1 | +1 (_handle_external_trigger) |
 
 **Observations:**
+
 - Small overall reduction but significant method simplification
 - Improved code organization and testability
 - Follows "bem feito" (well-done) principle
@@ -142,6 +152,7 @@ def start_session(
 ### Phase 2: RecordingCoordinator Delegation (Pending)
 
 **Tasks:**
+
 1. Complete RecordingCoordinator.start_recording() implementation
    - Build context dict from parameters
    - Delegate to RecordingService.start_session()

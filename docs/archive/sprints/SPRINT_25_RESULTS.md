@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # ✅ Sprint 25 Results - AnalysisOrchestrator Extraction
 
 **Document:** SPRINT_25_RESULTS.md
@@ -16,7 +18,7 @@ Sprint 25 extraiu com sucesso **3 métodos de análise** do MainViewModel para u
 ### ✅ Objetivos Alcançados
 
 | Objetivo | Status | Resultado |
-|----------|--------|-----------|
+| ---------- | -------- | ----------- |
 | Criar AnalysisOrchestrator | ✅ COMPLETO | 378 linhas criadas |
 | Extrair 3 métodos do MainViewModel | ✅ COMPLETO | 322 linhas extraídas |
 | Criar facades no MainViewModel | ✅ COMPLETO | 3 facades criadas |
@@ -32,7 +34,7 @@ Sprint 25 extraiu com sucesso **3 métodos de análise** do MainViewModel para u
 ### MainViewModel (Before/After)
 
 | Métrica | Antes | Depois | Redução |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | **Total de linhas** | 4,949 | 4,674 | -275 (-5.56%) |
 | **Linhas em métodos** | ~4,534 | ~4,259 | ~-275 (-6.07%) |
 | **Total de métodos** | 134 | 131 | -3 |
@@ -40,7 +42,7 @@ Sprint 25 extraiu com sucesso **3 métodos de análise** do MainViewModel para u
 ### Projeção vs Realizado
 
 | Métrica | Planejado | Realizado | Δ |
-|---------|-----------|-----------|---|
+| --------- | ----------- | ----------- | --- |
 | **Linhas extraídas** | ~322 | 322 | 0 (100% ✅) |
 | **Redução MainViewModel** | -6.2% | -5.56% | -0.64% |
 | **Métodos extraídos** | 3 | 3 | 0 ✅ |
@@ -60,12 +62,12 @@ Sprint 25 extraiu com sucesso **3 métodos de análise** do MainViewModel para u
 
 ### Arquivos Modificados
 
-2. **`src/zebtrack/orchestrators/__init__.py`** (17 linhas)
+1. **`src/zebtrack/orchestrators/__init__.py`** (17 linhas)
    - Export do `AnalysisOrchestrator` adicionado
    - Documentação atualizada (Sprint 25)
    - Ordenação alfabética mantida
 
-3. **`src/zebtrack/core/main_view_model.py`**
+2. **`src/zebtrack/core/main_view_model.py`**
    - **Import adicionado:** `AnalysisOrchestrator` (linha 68)
    - **Inicialização adicionada:** `self.analysis_orchestrator = AnalysisOrchestrator(self)` (linha 590)
    - **3 métodos convertidos em facades:**
@@ -84,7 +86,8 @@ Sprint 25 extraiu com sucesso **3 métodos de análise** do MainViewModel para u
 **Complexidade:** 🟡 MÉDIA
 **Dependências:** AquariumDetector, ProcessingMode, state management
 
-**Facade criada:**
+### Facade criada
+
 ```python
 def run_aquarium_detection(self) -> None:
     """Run aquarium detection in standalone mode.
@@ -94,7 +97,8 @@ def run_aquarium_detection(self) -> None:
     return self.analysis_orchestrator.run_aquarium_detection()
 ```
 
-**Características:**
+### Características
+
 - Workflow completo de detecção de aquário
 - Publicação de modo de processamento
 - Integração com UI e state manager
@@ -109,7 +113,8 @@ def run_aquarium_detection(self) -> None:
 **Complexidade:** 🟡 MÉDIA
 **Dependências:** Threading, queue, project_manager
 
-**Facade criada:**
+### Facade criada
+
 ```python
 def _generate_parquet_summaries_worker(
     self,
@@ -128,7 +133,8 @@ def _generate_parquet_summaries_worker(
     )
 ```
 
-**Características:**
+### Características
+
 - Worker thread para processamento paralelo
 - Comunicação via queues (thread-safe)
 - Tratamento de exceções e logging
@@ -143,7 +149,8 @@ def _generate_parquet_summaries_worker(
 **Complexidade:** 🔴 ALTA
 **Dependências:** pandas, numpy, shapely, CV2, calibration
 
-**Facade criada:**
+### Facade criada
+
 ```python
 def _process_summary_video(
     self, video_path: str, progress_queue: queue.Queue, result_queue: queue.Queue
@@ -159,7 +166,8 @@ def _process_summary_video(
     )
 ```
 
-**Características:**
+### Características
+
 - Leitura de dados de rastreamento (Parquet)
 - Processamento de ROIs e zonas
 - Cálculos de calibração (px → cm)
@@ -194,7 +202,7 @@ class AnalysisOrchestrator:
 O orchestrator **delega de volta** para o MainViewModel os seguintes métodos:
 
 | Método | Tipo | Razão |
-|--------|------|-------|
+| -------- | ------ | ------- |
 | `_publish_processing_mode()` | State publishing | **NÚCLEO** - permanece no MainViewModel |
 | `refresh_project_views()` | UI refresh | Será extraído no Sprint 28 (UIStateController) |
 
@@ -214,13 +222,15 @@ python -m py_compile src/zebtrack/core/main_view_model.py
 
 ### Linting (ruff check) ✅
 
-**Resultado:**
-```
+### Resultado
+
+```text
 Found 3 errors (3 fixed, 0 remaining).
 All checks passed!
 ```
 
-**Issues Corrigidos Automaticamente:**
+### Issues Corrigidos Automaticamente
+
 1. ✅ F401: `pandas` imported but unused (removido)
 2. ✅ F401: `shapely.geometry.Polygon` imported but unused (removido)
 3. ✅ I001: Import block is un-sorted (corrigido)
@@ -233,26 +243,31 @@ All checks passed!
 
 ### Status: ⚠️ PARCIAL (mesma situação Sprint 24)
 
-**Problema Encontrado:**
+### Problema Encontrado
+
 Ambiente não possui `tkinter` instalado, impedindo execução da suite completa de testes:
 
-```
+```text
 ImportError: No module named 'tkinter'
 ```
 
-**Mitigação:**
+### Mitigação
+
 - ✅ Validação de sintaxe via `py_compile` (passou)
 - ✅ Validação de linting via `ruff check` (3 issues corrigidos)
 - ✅ Inspeção manual do código (facades corretas, assinaturas preservadas)
 - ✅ Consistência com padrão Sprint 24
 
-**Recomendação:**
+### Recomendação
+
 Em ambiente com `tkinter` instalado, executar:
+
 ```bash
 poetry run pytest -q  # Todos os testes (2,568+)
 ```
 
-**Confiança:**
+### Confiança
+
 🟢 **ALTA** - As facades são triviais (apenas delegam), assinaturas foram preservadas exatamente, e não há lógica nova introduzida. Padrão idêntico ao Sprint 24 (que funcionou corretamente).
 
 ---
@@ -261,8 +276,8 @@ poetry run pytest -q  # Todos os testes (2,568+)
 
 ### Redução Acumulada
 
-| Sprint | Linhas Reduzidas | MainViewModel Após |  % Redução Acumulada |
-|--------|------------------|--------------------|----------------------|
+| Sprint | Linhas Reduzidas | MainViewModel Após | % Redução Acumulada |
+| -------- | ------------------ | -------------------- | ---------------------- |
 | **Antes Sprint 23** | - | 5,227 linhas (métodos) | - |
 | **Sprint 23** | 0 (análise) | 5,227 linhas | 0% |
 | **Sprint 24** | -693 | 4,534 linhas | -13.3% |
@@ -270,7 +285,7 @@ poetry run pytest -q  # Todos os testes (2,568+)
 
 ### Projeção vs Realizado (Sprint 25)
 
-```
+```text
 Planejado:   -322 linhas (-6.2%)
 Realizado:   -275 linhas (-5.56%)
 Diferença:    -47 linhas (-0.64% menos que o esperado)
@@ -280,7 +295,7 @@ Diferença:    -47 linhas (-0.64% menos que o esperado)
 
 ### Meta Geral do Projeto
 
-```
+```text
 Meta Original (Sprints 1-22): Reduzir MainViewModel em -60-70%
 Meta Atualizada (Sprints 23-35): Reduzir para ~1,000 linhas (-81%)
 
@@ -302,6 +317,7 @@ Sprints Restantes: 10 (Sprints 26-35)
 
 **Objetivo:** Extrair lógica de sessões de gravação
 **Métodos a extrair:** 8 métodos (~534 linhas)
+
 - `start_recording` (89 linhas)
 - `_on_start_recording` (66 lines)
 - `pause_recording` (17 linhas)
@@ -362,17 +378,17 @@ Sprints Restantes: 10 (Sprints 26-35)
 ### Métricas Sprint 25
 
 | Métrica | Valor |
-|---------|-------|
+| --------- | ------- |
 | **Duração** | ~1 dia (planejado: 2 dias) ✅ |
 | **Métodos Extraídos** | 3 |
 | **Linhas Extraídas** | 322 |
 | **Redução MainViewModel** | -275 linhas (-5.56%) |
 | **Arquivos Criados** | 1 (orchestrator) |
-| **Arquivos Modificados** | 2 (MainViewModel + __init__) |
+| **Arquivos Modificados** | 2 (MainViewModel + **init**) |
 
 ### Estado Atual do Projeto
 
-```
+```text
 MainViewModel (antes Sprint 25):  4,534 linhas (em métodos)
 MainViewModel (depois Sprint 25): 4,259 linhas (em métodos)
 Redução Sprint 25:               -  275 linhas (-5.56%)
@@ -384,7 +400,8 @@ Restante para extrair:            3,259 linhas
 
 ### Próximo Sprint
 
-**Sprint 26: RecordingSessionOrchestrator**
+### Sprint 26: RecordingSessionOrchestrator
+
 - **Objetivo:** Extrair 8 métodos de gravação (~534 linhas)
 - **Duração Estimada:** 3 dias
 - **Risco:** 🔴 ALTO (threading, hardware, state)

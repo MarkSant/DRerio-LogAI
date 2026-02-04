@@ -11,6 +11,7 @@
 ## Resumo Executivo
 
 Implementar suporte para vídeos contendo **2 aquários separados**, cada um com 1 animal, permitindo:
+
 - Cada aquário pertencer a grupos diferentes (ex: Controle vs Tratamento)
 - ROIs independentes por aquário
 - Auto-detecção por contorno de 2 regiões retangulares
@@ -25,11 +26,13 @@ Implementar suporte para vídeos contendo **2 aquários separados**, cada um com
 ## Fase 0: Setup Inicial (Branch e Ambiente)
 
 ### 0.1 Criar Feature Branch
+
 ```bash
 git checkout -b feature/multi-aquarium-support
 ```
 
 ### 0.2 Tag de Referência (Opcional)
+
 ```bash
 git tag pre-multi-aquarium-v3.0
 ```
@@ -39,6 +42,7 @@ git tag pre-multi-aquarium-v3.0
 ## Fase 1: Modelos de Dados Core (Foundation)
 
 ### 1.1 Novos Data Classes
+
 **Arquivo:** `src/zebtrack/core/detector.py`
 
 ```python
@@ -82,6 +86,7 @@ class MultiAquariumZoneData:
 ```
 
 ### 1.2 Modelo Pydantic para Configuração de Aquário
+
 **Arquivo:** `src/zebtrack/ui/wizard/models.py`
 
 ```python
@@ -116,6 +121,7 @@ class CalibrationData(BaseModel):
 ```
 
 ### 1.3 Testes Unitários Fase 1 (Cobertura: 80%+)
+
 **Arquivo:** `tests/core/test_multi_aquarium_models.py`
 
 ```python
@@ -150,7 +156,8 @@ class TestAquariumConfigPydantic:
         """Testa extração via regex."""
 ```
 
-### Arquivos Modificados Fase 1:
+### Arquivos Modificados Fase 1
+
 - `src/zebtrack/core/detector.py` (adicionar classes)
 - `src/zebtrack/ui/wizard/models.py` (estender CalibrationData)
 - `tests/core/test_multi_aquarium_models.py` (criar)
@@ -160,6 +167,7 @@ class TestAquariumConfigPydantic:
 ## Fase 2: Extensão do ZoneManager
 
 ### 2.1 Armazenamento Multi-Aquário
+
 **Arquivo:** `src/zebtrack/core/zone_manager.py`
 
 Substituir estrutura de armazenamento para suportar multi-aquário:
@@ -194,7 +202,9 @@ class ZoneManager:
 ```
 
 ### 2.2 Serialização JSON (project_config.json)
+
 Nova estrutura no arquivo de projeto:
+
 ```json
 {
   "zones_by_video": {
@@ -229,6 +239,7 @@ Nova estrutura no arquivo de projeto:
 ```
 
 ### 2.3 Testes Unitários Fase 2 (Cobertura: 80%+)
+
 **Arquivo:** `tests/core/test_zone_manager_multi_aquarium.py`
 
 ```python
@@ -252,7 +263,8 @@ class TestZoneManagerMultiAquarium:
         """Testa carregamento de project_config.json."""
 ```
 
-### Arquivos Modificados Fase 2:
+### Arquivos Modificados Fase 2
+
 - `src/zebtrack/core/zone_manager.py`
 - `tests/core/test_zone_manager_multi_aquarium.py` (criar)
 
@@ -261,6 +273,7 @@ class TestZoneManagerMultiAquarium:
 ## Fase 3: Auto-Detecção de 2 Aquários
 
 ### 3.1 Novo Método em AquariumDetector
+
 **Arquivo:** `src/zebtrack/core/aquarium_detector.py`
 
 ```python
@@ -405,12 +418,15 @@ def _check_overlap(self, bbox1: tuple, bbox2: tuple, threshold: float = 0.1) -> 
 ```
 
 ### 3.3 Fallback para Detecção Manual
+
 Se auto-detecção falhar:
+
 - Emitir evento `ZONE_AUTO_DETECT_FAILED`
 - Mostrar mensagem: "Não foi possível detectar 2 aquários automaticamente. Por favor, desenhe manualmente."
 - Habilitar modo de desenho manual
 
 ### 3.4 Testes Unitários Fase 3 (Cobertura: 80%+)
+
 **Arquivo:** `tests/core/test_aquarium_detector_multi.py`
 
 ```python
@@ -445,7 +461,8 @@ class TestMultiAquariumDetection:
         """Testa detecção com múltiplos frames de estabilização."""
 ```
 
-### Arquivos Modificados Fase 3:
+### Arquivos Modificados Fase 3
+
 - `src/zebtrack/core/aquarium_detector.py`
 - `tests/core/test_aquarium_detector_multi.py` (criar)
 
@@ -454,6 +471,7 @@ class TestMultiAquariumDetection:
 ## Fase 4: UI - Diálogos de Configuração
 
 ### 4.1 Diálogo de Confirmação de Quantidade
+
 **Arquivo:** `src/zebtrack/ui/dialogs/multi_aquarium_confirm_dialog.py`
 
 ```python
@@ -534,6 +552,7 @@ class MultiAquariumConfirmDialog(tk.Toplevel):
 ```
 
 ### 4.2 Diálogo de Atribuição de Aquários
+
 **Arquivo:** `src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py`
 
 ```python
@@ -601,9 +620,11 @@ class AquariumAssignmentDialog(tk.Toplevel):
 ```
 
 ### 4.3 Integração com ZoneControlsWidget
+
 **Arquivo:** `src/zebtrack/ui/components/zone_controls.py`
 
 Adicionar:
+
 ```python
 # Novo frame para seleção de aquário (visível apenas em modo multi-aquário)
 self.aquarium_selector_frame = ttk.LabelFrame(
@@ -639,6 +660,7 @@ def _on_aquarium_selected(self):
 ```
 
 ### 4.4 Testes GUI Fase 4 (Cobertura: 80%+)
+
 **Arquivo:** `tests/ui/test_aquarium_dialogs.py`
 
 ```python
@@ -668,7 +690,8 @@ class TestAquariumAssignmentDialog:
         """Testa validação de sujeito vazio."""
 ```
 
-### Arquivos Criados/Modificados Fase 4:
+### Arquivos Criados/Modificados Fase 4
+
 - `src/zebtrack/ui/dialogs/multi_aquarium_confirm_dialog.py` (criar)
 - `src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py` (criar)
 - `src/zebtrack/ui/components/zone_controls.py` (modificar)
@@ -680,6 +703,7 @@ class TestAquariumAssignmentDialog:
 ## Fase 5: Sistema de Eventos
 
 ### 5.1 Novos Eventos (EventBus v1)
+
 **Arquivo:** `src/zebtrack/ui/events.py`
 
 ```python
@@ -698,7 +722,7 @@ class Events:
 ### 5.2 Payloads de Eventos
 
 | Evento | Payload | Handler |
-|--------|---------|---------|
+| -------- | --------- | --------- |
 | `ZONE_MULTI_AUTO_DETECT` | `{video_path: str, stabilization_frames: int}` | `ProcessingCoordinator` |
 | `ZONE_MULTI_AUTO_DETECT_SUCCESS` | `{video_path: str, polygons: list[list]}` | `ZoneControls`, `CanvasManager` |
 | `ZONE_MULTI_AUTO_DETECT_FAILED` | `{video_path: str, reason: str}` | `ZoneControls` |
@@ -707,6 +731,7 @@ class Events:
 | `ZONE_SECOND_AQUARIUM_DRAWN` | `{video_path: str, polygon: list}` | Opens `AquariumAssignmentDialog` |
 
 ### 5.3 Handlers nos Coordinators
+
 **Arquivo:** `src/zebtrack/coordinators/processing_coordinator.py`
 
 ```python
@@ -781,9 +806,11 @@ def _handle_aquarium_config_updated(self, payload: dict):
 ```
 
 ### 5.4 Atualizar SYSTEM_INTEGRATION_MAP.md
+
 Adicionar seção "Multi-Aquarium Events" com todos os novos eventos documentados.
 
-### Arquivos Modificados Fase 5:
+### Arquivos Modificados Fase 5
+
 - `src/zebtrack/ui/events.py`
 - `src/zebtrack/ui/components/event_dispatcher.py`
 - `src/zebtrack/coordinators/processing_coordinator.py`
@@ -795,6 +822,7 @@ Adicionar seção "Multi-Aquarium Events" com todos os novos eventos documentado
 ## Fase 6: Detector com Particionamento
 
 ### 6.1 Detecção Particionada por Aquário
+
 **Arquivo:** `src/zebtrack/core/detector.py`
 
 ```python
@@ -894,6 +922,7 @@ class Detector:
 ```
 
 ### 6.2 Reset de Trackers por Aquário
+
 ```python
 def reset_multi_aquarium_tracking(self, aquarium_id: int | None = None):
     """Reseta estado de tracking para um ou todos os aquários."""
@@ -906,6 +935,7 @@ def reset_multi_aquarium_tracking(self, aquarium_id: int | None = None):
 ```
 
 ### 6.3 Testes Unitários Fase 6 (Cobertura: 80%+)
+
 **Arquivo:** `tests/core/test_detector_partitioned.py`
 
 ```python
@@ -948,7 +978,8 @@ class TestDetectorPartitioned:
         """Testa reset de tracking para todos os aquários."""
 ```
 
-### Arquivos Modificados Fase 6:
+### Arquivos Modificados Fase 6
+
 - `src/zebtrack/core/detector.py`
 - `tests/core/test_detector_partitioned.py` (criar)
 
@@ -957,6 +988,7 @@ class TestDetectorPartitioned:
 ## Fase 7: Recorder Multi-Aquário
 
 ### 7.1 Extensão do Schema Parquet
+
 **Arquivo:** `src/zebtrack/io/recorder.py`
 
 ```python
@@ -1042,6 +1074,7 @@ class Recorder:
 ```
 
 ### 7.2 Adição da Coluna aquarium_id
+
 Para cada arquivo Parquet individual, adicionar coluna `aquarium_id`:
 
 ```python
@@ -1065,6 +1098,7 @@ def _determine_parquet_columns(self, aquarium_id: int | None = None) -> list[str
 ```
 
 ### 7.3 Testes Unitários Fase 7 (Cobertura: 80%+)
+
 **Arquivo:** `tests/io/test_recorder_multi_aquarium.py`
 
 ```python
@@ -1085,7 +1119,8 @@ class TestRecorderMultiAquarium:
         """Testa geração de vídeo por aquário."""
 ```
 
-### Arquivos Modificados Fase 7:
+### Arquivos Modificados Fase 7
+
 - `src/zebtrack/io/recorder.py`
 - `tests/io/test_recorder_multi_aquarium.py` (criar)
 
@@ -1094,6 +1129,7 @@ class TestRecorderMultiAquarium:
 ## Fase 8: ProjectManager - Resolução de Diretórios
 
 ### 8.1 Método para Resolução Multi-Aquário
+
 **Arquivo:** `src/zebtrack/core/project_manager.py`
 
 ```python
@@ -1155,6 +1191,7 @@ def register_multi_aquarium_outputs(
 ```
 
 ### 8.2 Testes Unitários Fase 8 (Cobertura: 80%+)
+
 **Arquivo:** `tests/core/test_project_manager_multi_aquarium.py`
 
 ```python
@@ -1172,7 +1209,8 @@ class TestProjectManagerMultiAquarium:
         """Testa sanitização de nomes de pasta."""
 ```
 
-### Arquivos Modificados Fase 8:
+### Arquivos Modificados Fase 8
+
 - `src/zebtrack/core/project_manager.py`
 - `tests/core/test_project_manager_multi_aquarium.py` (criar)
 
@@ -1181,6 +1219,7 @@ class TestProjectManagerMultiAquarium:
 ## Fase 9: Wizard - Configuração Multi-Aquário
 
 ### 9.1 Extensão do Calibration Step
+
 **Arquivo:** `src/zebtrack/ui/wizard/calibration_step.py`
 
 Adicionar seção colapsável "Modo Multi-Aquário":
@@ -1293,6 +1332,7 @@ def _update_regex_preview(self, event=None):
 ```
 
 ### 9.2 Validação no WizardService
+
 **Arquivo:** `src/zebtrack/core/wizard_service.py`
 
 ```python
@@ -1347,6 +1387,7 @@ def validate_multi_aquarium_config(
 ```
 
 ### 9.3 Testes Fase 9 (Cobertura: 80%+)
+
 **Arquivo:** `tests/ui/wizard/test_multi_aquarium_wizard.py`
 
 ```python
@@ -1381,7 +1422,8 @@ class TestWizardServiceMultiAquariumValidation:
         """Testa validação bem-sucedida."""
 ```
 
-### Arquivos Modificados Fase 9:
+### Arquivos Modificados Fase 9
+
 - `src/zebtrack/ui/wizard/calibration_step.py`
 - `src/zebtrack/core/wizard_service.py`
 - `tests/ui/wizard/test_multi_aquarium_wizard.py` (criar)
@@ -1391,6 +1433,7 @@ class TestWizardServiceMultiAquariumValidation:
 ## Fase 10: Analysis Service Multi-Aquário
 
 ### 10.1 Análise Separada por Aquário
+
 **Arquivo:** `src/zebtrack/analysis/analysis_service.py`
 
 ```python
@@ -1452,6 +1495,7 @@ def run_multi_aquarium_analysis(
 ```
 
 ### 10.2 Reporter Multi-Aquário
+
 **Arquivo:** `src/zebtrack/analysis/reporter.py`
 
 ```python
@@ -1509,6 +1553,7 @@ def export_multi_aquarium_reports(
 ```
 
 ### 10.3 Testes Fase 10 (Cobertura: 80%+)
+
 **Arquivo:** `tests/analysis/test_analysis_multi_aquarium.py`
 
 ```python
@@ -1535,7 +1580,8 @@ class TestMultiAquariumReporter:
         """Testa que caminhos de saída estão corretos."""
 ```
 
-### Arquivos Modificados Fase 10:
+### Arquivos Modificados Fase 10
+
 - `src/zebtrack/analysis/analysis_service.py`
 - `src/zebtrack/analysis/reporter.py`
 - `tests/analysis/test_analysis_multi_aquarium.py` (criar)
@@ -1545,6 +1591,7 @@ class TestMultiAquariumReporter:
 ## Fase 11: Visualização Unificada
 
 ### 11.1 Overlay com 2 Aquários
+
 **Arquivo:** `src/zebtrack/ui/components/canvas/canvas_manager.py`
 
 ```python
@@ -1621,16 +1668,19 @@ def draw_multi_aquarium_overlay(
 ```
 
 ### 11.2 Integração com gui.py
+
 **Arquivo:** `src/zebtrack/ui/gui.py`
 
 Modificar `_draw_detection_overlay()` para usar o novo método quando em modo multi-aquário.
 
 ### 11.3 Testes GUI Fase 11
+
 - Teste visual de renderização com 2 aquários
 - Teste de cores corretas por aquário
 - Teste de labels corretos
 
-### Arquivos Modificados Fase 11:
+### Arquivos Modificados Fase 11
+
 - `src/zebtrack/ui/components/canvas/canvas_manager.py`
 - `src/zebtrack/ui/gui.py`
 
@@ -1639,6 +1689,7 @@ Modificar `_draw_detection_overlay()` para usar o novo método quando em modo mu
 ## Fase 12: Testes de Integração
 
 ### 12.1 Testes E2E Multi-Aquário
+
 **Arquivo:** `tests/integration/test_multi_aquarium_e2e.py`
 
 ```python
@@ -1685,7 +1736,8 @@ class TestMultiAquariumE2E:
         """Verifica que análise gera resultados separados."""
 ```
 
-### 12.2 Arquivos Criados Fase 12:
+### 12.2 Arquivos Criados Fase 12
+
 - `tests/integration/test_multi_aquarium_e2e.py`
 
 ---
@@ -1695,7 +1747,7 @@ class TestMultiAquariumE2E:
 ### 13.1 Atualizações Obrigatórias
 
 | Documento | Atualizações |
-|-----------|-------------|
+| ----------- | ------------- |
 | `CLAUDE.md` | Nova seção "Multi-Aquário Support", atualizar ZoneData |
 | `docs/architecture/SYSTEM_INTEGRATION_MAP.md` | Novos eventos e payloads |
 | `docs/architecture/ARCHITECTURE.md` | Diagrama com fluxo multi-aquário |
@@ -1705,6 +1757,7 @@ class TestMultiAquariumE2E:
 | `README_TESTS.md` | Novos markers e testes |
 
 ### 13.2 ADR (Architecture Decision Record)
+
 **Arquivo:** `docs/decisions/ADR-001-multi-aquarium-support.md`
 
 ```markdown
@@ -1737,12 +1790,14 @@ permitindo grupos diferentes por aquário.
 ### 14.1 Testes que Precisam de Adaptação
 
 Verificar e ajustar:
+
 - `tests/core/test_detector.py` - Adicionar testes para modo não-multi
 - `tests/io/test_recorder.py` - Garantir funcionamento sem multi-aquário
 - `tests/core/test_zone_manager.py` - Adaptar para novo formato
 - `tests/analysis/test_analysis_service.py` - Manter funcionamento padrão
 
 ### 14.2 Fixtures Atualizadas
+
 **Arquivo:** `tests/conftest.py`
 
 ```python
@@ -1802,6 +1857,7 @@ def multi_aquarium_zone_data():
 ## Fase 15: Validação Final e Merge
 
 ### 15.1 Checklist de Validação
+
 - [ ] Todos os testes passam: `poetry run pytest -m "" -n0`
 - [ ] Ruff sem erros: `poetry run ruff check .`
 - [ ] Cobertura >= 80%: `poetry run pytest --cov --cov-fail-under=80`
@@ -1815,6 +1871,7 @@ def multi_aquarium_zone_data():
 - [ ] Pre-commit passa: `poetry run pre-commit run --all-files`
 
 ### 15.2 Merge para Main
+
 ```bash
 git checkout main
 git merge feature/multi-aquarium-support
@@ -1826,7 +1883,8 @@ git push origin main --tags
 
 ## Arquivos Críticos (Resumo Completo)
 
-### Criar (13 arquivos):
+### Criar (13 arquivos)
+
 1. `src/zebtrack/ui/dialogs/aquarium_assignment_dialog.py`
 2. `src/zebtrack/ui/dialogs/multi_aquarium_confirm_dialog.py`
 3. `tests/core/test_multi_aquarium_models.py`
@@ -1841,7 +1899,8 @@ git push origin main --tags
 12. `tests/integration/test_multi_aquarium_e2e.py`
 13. `docs/decisions/ADR-001-multi-aquarium-support.md`
 
-### Modificar (20 arquivos):
+### Modificar (20 arquivos)
+
 1. `src/zebtrack/core/detector.py`
 2. `src/zebtrack/ui/wizard/models.py`
 3. `src/zebtrack/core/zone_manager.py`
@@ -1869,7 +1928,7 @@ git push origin main --tags
 ## Riscos e Mitigações
 
 | Risco | Impacto | Probabilidade | Mitigação |
-|-------|---------|---------------|-----------|
+| ------- | --------- | --------------- | ----------- |
 | Colisão de track_id entre aquários | Médio | Médio | Offset de IDs por aquário (id * 1000) |
 | Auto-detecção falha em vídeos complexos | Médio | Médio | Fallback para desenho manual |
 | Performance degradada com 2 ByteTrackers | Baixo | Médio | Inicialização lazy, profiling |

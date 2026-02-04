@@ -5,18 +5,22 @@ This directory contains migration guides for upgrading between major versions of
 ## Available Guides
 
 ### [v2.1 → v3.0](v2.1-to-v3.0.md)
+
 **Status:** Pre-release (November 2025)  
 **Release Date:** February 2026
 
 Main migration guide covering all breaking changes in v3.0:
+
 - Reporter constructor removal (HIGH IMPACT)
 - Settings singleton removal (MEDIUM IMPACT - already migrated)
 - EventBus API changes (LOW IMPACT)
 
 ### [Reporter v3.0 Migration](reporter-v3-migration.md)
+
 **Type:** Detailed guide
 
 In-depth guide for migrating from the old Reporter constructor to the new `Reporter.from_analysis()` pattern. Includes:
+
 - Background and rationale
 - Before/after code examples
 - Migration scenarios (unit tests, production code, custom analysis)
@@ -46,12 +50,14 @@ poetry run python scripts/migrate_reporter_v3.py tests/analysis/test_reporter.py
 ```
 
 **What it does:**
+
 1. Identifies direct `Reporter(trajectory_df=...)` instantiations
 2. Extracts constructor parameters
 3. Generates equivalent code using `AnalysisService` + `Reporter.from_analysis()`
 4. Preserves comments and code structure
 
 **Limitations:**
+
 - Cannot migrate highly dynamic code (e.g., `Reporter(**kwargs)`)
 - Cannot migrate tests with complex mocks
 - Manual review recommended after migration

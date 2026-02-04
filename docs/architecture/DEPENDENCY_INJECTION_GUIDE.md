@@ -13,6 +13,7 @@ All services receive settings via the `settings_obj` parameter in their construc
 Services that **cannot function** without settings raise `RuntimeError`:
 
 **`io/camera.py`**
+
 ```python
 def __init__(self, settings_obj: "Settings | None" = None):
     if settings_obj is None:
@@ -24,6 +25,7 @@ def __init__(self, settings_obj: "Settings | None" = None):
 **Reason**: Camera requires specific hardware configuration (index, resolution) and cannot operate with defaults.
 
 **`analysis/analysis_service.py`**
+
 ```python
 def run_full_analysis(...):
     if self.settings is None:
@@ -37,6 +39,7 @@ def run_full_analysis(...):
 Services that **can function** with reasonable defaults use graceful fallback:
 
 **`plugins/openvino_detector.py`** and **`plugins/ultralytics_detector.py`**
+
 ```python
 def __init__(self, model_path, settings_obj: Any | None = None):
     if settings_obj is not None:
@@ -55,6 +58,7 @@ def __init__(self, model_path, settings_obj: Any | None = None):
 UI widgets that display settings-based defaults use fallback to maintain usability:
 
 **`ui/wizard/model_selection_step.py`**
+
 ```python
 if self.settings and hasattr(self.settings, "yolo_model"):
     default_confidence = self.settings.yolo_model.confidence_threshold
@@ -73,6 +77,7 @@ else:
 Some services accept `None` initially and are populated later:
 
 **`core/video_processing_service.py`**
+
 ```python
 def __init__(self, detector: Detector | None, ...):
     self.detector = detector  # Can be None initially
@@ -215,6 +220,7 @@ self.project_workflow_adapter = ProjectWorkflowAdapter(
 ```
 
 This is acceptable because:
+
 1. The adapter requires ViewModel-level callbacks (`setup_detector_callback`, etc.)
 2. All injected services come from MainViewModel's own dependencies
 3. No new service creation - pure orchestration layer
@@ -270,6 +276,7 @@ class LiveBatchCoordinator:
 **Key Integration Points**:
 
 1. **Wizard Metadata Collection** (`ui/wizard/live_config_step.py`):
+
    ```python
    def get_data(self):
        return {
@@ -281,6 +288,7 @@ class LiveBatchCoordinator:
    ```
 
 2. **SessionCoordinator Registration** (`coordinators/session_coordinator.py`):
+
    ```python
    def _register_batch_session(self):
        """Register completed session with LiveBatchCoordinator (v2.3.0)."""
@@ -308,6 +316,7 @@ class LiveBatchCoordinator:
    ```
 
 3. **Batch Key Creation** (groups sessions by Group × Day × Subject):
+
    ```python
    def _create_batch_key(self, group: str | None, day: str | None, subject_id: str | None) -> str:
        """Create unique batch key from metadata."""
@@ -321,6 +330,7 @@ class LiveBatchCoordinator:
    ```
 
 4. **Batch ID Uniqueness** (prevents collisions):
+
    ```python
    # Include microseconds for uniqueness when multiple batches created in same second
    batch_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
@@ -328,6 +338,7 @@ class LiveBatchCoordinator:
    ```
 
 5. **Event Publishing** (after unified report generation):
+
    ```python
    if self.event_bus:
        self.event_bus.publish_event(
@@ -344,6 +355,7 @@ class LiveBatchCoordinator:
    ```
 
 6. **UICoordinator Event Handler** (`ui/ui_coordinator.py`):
+
    ```python
    self.event_bus.subscribe(UIEvents.BATCH_ANALYSIS_COMPLETED, self._on_batch_analysis_completed)
 
@@ -364,11 +376,13 @@ class LiveBatchCoordinator:
    ```
 
 **Multi-Aquarium Support**:
+
 - Each aquarium treated as separate subject_id: `Peixe_01_Aquario_0`, `Peixe_01_Aquario_1`
 - Separate batches per aquarium (independent reporting)
 - Batch keys: `Controle_Dia_1_Peixe_01_Aquario_0`, `Controle_Dia_1_Peixe_01_Aquario_1`
 
 **Key Points**:
+
 - All dependencies via constructor (no singleton imports)
 - Settings injected for analysis parameters
 - Event bus optional (graceful degradation if disabled)
@@ -400,6 +414,7 @@ class SessionCoordinator:
 ```
 
 **Key Points**:
+
 - Receives `live_batch_coordinator` as optional dependency
 - Calls `_register_batch_session()` after live camera stops
 - Transforms wizard field names to batch metadata keys
@@ -430,6 +445,7 @@ class ProjectWorkflowAdapter:
 ```
 
 **Key Points**:
+
 - No `settings_obj` parameter (relies on services that already have settings)
 - All service dependencies injected
 - Pure orchestration layer - delegates business logic to `ProjectWorkflowService`
@@ -465,6 +481,7 @@ class AnalysisCoordinator:
 ```
 
 **Key Points**:
+
 - Requires `settings_obj` for analysis parameters (freezing threshold, smoothing windows)
 - View can be set later via `set_view()` for delayed initialization
 - Uses `ThreadPoolExecutor` for background analysis tasks
@@ -487,6 +504,7 @@ class DialogManager:
 ```
 
 **Key Points**:
+
 - Minimal dependencies (only GUI reference)
 - No `settings_obj` needed (dialogs are purely UI-driven)
 - Extracted from ApplicationGUI to reduce God Object (~811 lines)

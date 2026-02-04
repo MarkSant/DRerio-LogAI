@@ -12,20 +12,24 @@ Fixed critical bug where custom regex patterns configured in the wizard were not
 ## Bug Reports (All Related to Same Root Cause)
 
 ### Bug 1: Dialog Pre-Fill Not Working ✅ FIXED
+
 **Symptom**: Second video's assignment dialog should pre-fill subject names (s03, s04) extracted from filename via regex, but shows default/wrong values instead.
 
 **Root Cause**: `custom_regex_patterns` from wizard never converted to `MultiAquariumData` format and saved to `project_data["calibration"]["multi_aquarium"]`, so dialog couldn't retrieve regex pattern for auto-fill.
 
 ### Bug 2: Sequential Processing Toggle Ignored (UNRELATED)
+
 **Status**: Separate issue - not caused by regex config missing
 **Note**: This bug requires separate investigation of `sequential_processing` flag persistence
 
 ### Bug 3: Warning Dialog `_sub_*` Paths ✅ ALREADY FIXED
+
 **Status**: Already resolved in previous fix
 **Location**: `src/zebtrack/core/video_selection_service.py` lines 166-172
 **Fix**: Filter out `_sub_*` paths (UI tree node IDs) from target validation
 
 ### Bug 4: "Sujeito_Indefinido" Folders ✅ FIXED
+
 **Symptom**: Output directories created as "Sujeito_Indefinido" instead of using assigned subject names.
 
 **Root Cause**: Same as Bug 1 - when regex pattern is missing, dialog can't auto-fill subject_id, so `AquariumData.subject_id` remains empty, causing `ProcessingWorker._format_subject()` to return "Indefinido".
@@ -49,7 +53,8 @@ The ZebTrack-AI multi-aquarium workflow has two separate data structures for reg
 ### The Missing Conversion
 
 **BEFORE THIS FIX**:
-```
+
+```text
 Wizard (detection_step.py)
   └─> custom_regex_patterns = {group_pattern, day_pattern, subject_pattern}
        └─> project_workflow_service.py: create_project()
@@ -69,7 +74,8 @@ ProcessingWorker
 ```
 
 **AFTER THIS FIX**:
-```
+
+```text
 Wizard (detection_step.py)
   └─> custom_regex_patterns = {group_pattern, day_pattern, subject_pattern}
        └─> project_workflow_service.py: create_project()
@@ -101,6 +107,7 @@ ProcessingWorker
 ### 1. `src/zebtrack/core/project_workflow_service.py`
 
 **Line 521**: Added `custom_regex_patterns` to `wizard_metadata`
+
 ```python
 wizard_metadata = {
     # ... existing fields ...
@@ -113,6 +120,7 @@ wizard_metadata = {
 ### 2. `src/zebtrack/core/project_manager.py`
 
 **Lines 1303-1346**: Added conversion logic in `create_new_project()` (CRITICAL FIX)
+
 ```python
 # CRITICAL FIX: Convert custom_regex_patterns to multi_aquarium config
 # This enables regex auto-fill in assignment dialogs for multi-aquarium videos
@@ -151,6 +159,7 @@ if custom_patterns and isinstance(custom_patterns, dict):
 ### 2. `src/zebtrack/coordinators/processing_coordinator.py`
 
 **Lines 1040-1118**: Added new method `_save_multi_aquarium_config_to_calibration()`
+
 ```python
 def _save_multi_aquarium_config_to_calibration(self, calibration_dict: dict) -> None:
     """
@@ -182,6 +191,7 @@ def _save_multi_aquarium_config_to_calibration(self, calibration_dict: dict) -> 
 **Why**: Converts wizard's separate patterns into the combined format expected by `MultiAquariumData`.
 
 **Lines 1053-1056** & **1138-1141**: Call new method in two calibration save locations
+
 ```python
 # CRITICAL FIX: Convert custom_regex_patterns from wizard to MultiAquariumData format
 # This enables regex auto-fill in the assignment dialog
@@ -191,6 +201,7 @@ self._save_multi_aquarium_config_to_calibration(c)
 **Why**: Ensures conversion happens in both sequential and standard processing flows.
 
 **Lines 2048-2055**: Fixed line length violation in diagnostic logging
+
 ```python
 regex_val = getattr(multi_aquarium_config, "regex_pattern", None)
 log.info(
@@ -204,7 +215,7 @@ log.info(
 
 ## Data Flow Diagram
 
-```
+```text
 ┌─ WIZARD PHASE ──────────────────────────────────────────────────┐
 │                                                                  │
 │  detection_step.py:                                              │
@@ -293,6 +304,7 @@ log.info(
 ## Testing Instructions
 
 ### Prerequisites
+
 - ZebTrack-AI with fix applied
 - At least 2 videos with filenames matching regex pattern
 - Example filenames:
@@ -302,6 +314,7 @@ log.info(
 ### Test Procedure
 
 #### 1. Create New Project with Custom Regex
+
 1. Launch ZebTrack-AI: `poetry run zebtrack`
 2. Create new project via wizard
 3. In Detection step, configure custom regex:
@@ -311,7 +324,9 @@ log.info(
 4. Complete wizard with 2 aquariums
 
 #### 2. Verify Wizard Metadata Saved
+
 Check project file (`.yaml`) contains:
+
 ```yaml
 _wizard_metadata:
   custom_regex_patterns:
@@ -321,15 +336,18 @@ _wizard_metadata:
 ```
 
 #### 3. Auto-Detect Aquarium Regions
+
 1. Go to Zones tab
 2. Select first video
 3. Click "Auto-Detectar"
 4. **Expected Log Entry**:
-   ```
+
+   ```text
    calibration.multi_aquarium.saved has_regex=True regex_pattern_preview='G(?P<group>\d+)_D(?P<day>\d+)_S(?P<subject>\d+)'
    ```
 
 #### 4. Verify Assignment Dialog Auto-Fill (Bug 1 Fix)
+
 1. Assignment dialog should appear automatically
 2. **Expected Behavior**:
    - Dialog title shows correct video name (e.g., "G1_D1_S3--G1_D1_S4.mp4")
@@ -342,25 +360,32 @@ _wizard_metadata:
      - Dia: `1`
      - Sujeito: `4` ← **Should be auto-filled, not default**
 3. **Expected Log Entries**:
-   ```
+
+   ```text
    aquarium_assignment.auto_fill_silent.starting filename='G1_D1_S3--G1_D1_S4.mp4' regex_pattern='G(?P<group>\d+)_D(?P<day>\d+)_S(?P<subject>\d+)'
    aquarium_assignment.auto_fill_silent.matches_found matches=[{...}] count=2
    ```
+
 4. Confirm dialog
 5. Repeat for second video - should auto-fill `S5` and `S6` (or whatever subjects are in filename)
 
 #### 5. Process Videos
+
 1. Go to Processing/Reports tab
 2. Click process button
 3. **Expected Log Entry** (NOT the bug):
-   ```
+
+   ```text
    workflow.multi_aquarium_zone_data_attached subjects='aq0=3, aq1=4'
    ```
+
    **FAIL if logs show**: `subjects='aq0=EMPTY, aq1=EMPTY'`
 
 #### 6. Verify Output Folders (Bug 4 Fix)
+
 After processing completes, check output structure:
-```
+
+```text
 video_results/
   Grupo_G01/
     Dia_D01/
@@ -384,24 +409,28 @@ video_results/
 ### Logs to Monitor
 
 **Calibration Save (should appear once per project)**:
-```
+
+```text
 calibration.multi_aquarium.saved has_regex=True regex_pattern_preview='G(?P<group>\d+)_D(?P<day>\d+)_S(?P<subject>\d+)'
 ```
 
 **Auto-Detect (should appear per video)**:
-```
+
+```text
 run_aquarium_detection.multi_aquarium_config_loaded has_regex=True regex_pattern='G(?P<group>\d+)_...'
 aquarium_assignment.auto_fill_silent.starting filename='G1_D1_S3--G1_D1_S4.mp4' regex_pattern='...'
 aquarium_assignment.auto_fill_silent.matches_found matches=[...] count=2
 ```
 
 **Batch Processing (should show valid subject IDs)**:
-```
+
+```text
 workflow.multi_aquarium_zone_data_attached subjects='aq0=3, aq1=4'
 ```
 
 **FAIL Indicators** (these should NOT appear):
-```
+
+```text
 ❌ calibration.multi_aquarium.no_wizard_metadata
 ❌ calibration.multi_aquarium.no_custom_patterns
 ❌ aquarium_assignment.auto_fill_silent.no_matches
@@ -412,6 +441,7 @@ workflow.multi_aquarium_zone_data_attached subjects='aq0=3, aq1=4'
 ## Backward Compatibility
 
 ✅ **Fully Backward Compatible**
+
 - Existing projects without regex patterns continue to work
 - Assignment dialog still allows manual entry when regex is missing
 - Default values used when auto-fill fails
@@ -433,7 +463,7 @@ workflow.multi_aquarium_zone_data_attached subjects='aq0=3, aq1=4'
 
 ## Commit Message
 
-```
+```text
 fix: Multi-aquarium regex auto-fill not working (Bugs 1, 4)
 
 Root cause: custom_regex_patterns from wizard was never converted to
@@ -466,12 +496,14 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ## Impact
 
 **Before Fix**:
+
 - ❌ Users had to manually re-enter subject names for every video
 - ❌ Output folders were generic "Sujeito_Indefinido"
 - ❌ No automation benefit from regex configuration
 - ❌ Batch processing blocked by validation
 
 **After Fix**:
+
 - ✅ Dialog auto-fills subject names from filenames
 - ✅ Output folders organized by actual subject IDs
 - ✅ Regex configuration fully functional

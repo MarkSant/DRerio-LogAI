@@ -11,7 +11,7 @@ IMPROVEMENT #3 proposes partitioned Parquet storage for multi-video projects to 
 
 ## Current Architecture
 
-```
+```text
 project_results/
   video1_results/
     3_CoordMovimento_video1.parquet    (2.5 MB)
@@ -23,13 +23,14 @@ project_results/
 ```
 
 **Issues**:
+
 - 50 separate Parquet files = 50 open/close operations
 - Separate metadata for each file (schema stored 50 times)
 - Overhead for small files (<5 MB)
 
 ## Proposed Architecture
 
-```
+```text
 project_data/
   trajectories/                        # Partitioned dataset
     video=video1/
@@ -44,6 +45,7 @@ project_data/
 ```
 
 **Benefits**:
+
 - **Centralized metadata**: Schema stored once, not N times
 - **Efficient queries**: `pq.ParquetDataset` API for multi-file reads
 - **Batch processing**: Read multiple videos in parallel
@@ -142,7 +144,7 @@ def migrate_project_to_partitioned(project_path: Path) -> None:
 ### Batch Processing (50 videos)
 
 | Metric | Current | Partitioned | Improvement |
-|--------|---------|-------------|-------------|
+| -------- | --------- | ------------- | ------------- |
 | File opens | 50 | 1 | **-98%** |
 | Metadata reads | 50 × 2KB = 100KB | 1 × 2KB = 2KB | **-98%** |
 | Total I/O time | ~500ms | ~150ms | **-70%** |
@@ -163,6 +165,7 @@ df_all = pd.read_parquet("project_data/trajectories")
 ## When to Implement
 
 Consider implementing when:
+
 1. **Project size**: Regular projects with 50+ videos
 2. **Batch analysis**: Users frequently analyze multiple videos together
 3. **Cloud storage**: S3/GCS where file count matters for performance
@@ -175,6 +178,7 @@ Consider implementing when:
 - Keep support for individual Parquet files
 - Add `--partitioned` flag to recorder
 - Auto-detect format on load:
+
   ```python
   if (project_root / "trajectories").exists():
       # Load partitioned
@@ -194,6 +198,7 @@ Consider implementing when:
 ## Related Work
 
 **2025 Best Practices**:
+
 - [Apache Arrow: Partitioned Datasets Guide](https://arrow.apache.org/docs/python/parquet.html#partitioned-datasets)
 - [Pandas Performance Patterns](https://pandas.pydata.org/docs/user_guide/enhancingperf.html)
 - [Dask Partitioning Strategies](https://docs.dask.org/en/stable/dataframe-parquet.html)
@@ -201,12 +206,14 @@ Consider implementing when:
 ## Decision Rationale
 
 **Why not implemented now**:
+
 1. **LOW priority**: Current architecture works well for typical projects (5-20 videos)
 2. **Breaking change**: Would require migration tool and version upgrade
 3. **Complexity**: Requires significant refactoring of recorder and analysis service
 4. **ROI unclear**: Benefit only significant for very large projects (50+ videos)
 
 **When to reconsider**:
+
 - User feedback requests batch processing improvements
 - Projects regularly exceed 50 videos
 - Cloud storage usage increases (S3/GCS)
@@ -215,6 +222,7 @@ Consider implementing when:
 ## Implementation Effort
 
 **Estimated effort**: 3-5 days
+
 - Day 1: Refactor Recorder for partitioned writes
 - Day 2: Update AnalysisService for partitioned reads
 - Day 3: Create migration tool
@@ -224,7 +232,7 @@ Consider implementing when:
 ## References
 
 - **Audit Document**: `docs/DATA_PIPELINE_AUDIT.md` (Section 5.2)
-- **PyArrow Docs**: https://arrow.apache.org/docs/python/parquet.html
+- **PyArrow Docs**: <https://arrow.apache.org/docs/python/parquet.html>
 - **Hive-style Partitioning**: Standard format used by Spark, Dask, Arrow
 
 ---

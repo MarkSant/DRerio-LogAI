@@ -9,6 +9,7 @@
 ## 🎯 Objetivos
 
 Completar as delegations pendentes do Sprint 7:
+
 1. **Processing Delegation** - Finalizar delegation ao ProcessingCoordinator
 2. **Recording Delegation** - Integrar RecordingCoordinator no MainViewModel
 
@@ -21,17 +22,20 @@ Completar as delegations pendentes do Sprint 7:
 ### Processing Delegation - Status
 
 **Já Completo (Sprints 11-14):**
+
 - ✅ Validation extraction → ProcessingCoordinator.validate_can_start_processing()
 - ✅ Helper services (VideoClassificationService, VideoSelectionService, VideoValidationService)
 - ✅ Workflow simplification (Extract Method patterns)
 - ✅ Cleanup deprecated code
 
 **Ainda Pendente:**
+
 - ❌ `_create_processing_callbacks()` (133 linhas) - criar callbacks de progresso
 - ❌ `_create_processing_context()` (20 linhas) - criar contexto de processamento
 - ❌ Delegation completa dos workflows para ProcessingCoordinator
 
 **Métodos que ainda estão no MainViewModel:**
+
 ```python
 # Public workflows (UI orchestration - devem permanecer)
 - start_single_video_processing()       # 154 lines
@@ -48,15 +52,18 @@ Completar as delegations pendentes do Sprint 7:
 ### Recording Delegation - Status
 
 **RecordingCoordinator existente:**
+
 - ✅ `start_recording()` - implementado
 - ✅ `stop_recording()` - implementado
 - ✅ `is_recording()` - implementado
 
 **Problema:** RecordingCoordinator NÃO está sendo usado no MainViewModel!
+
 - ❌ MainViewModel não usa `self.recording_coordinator`
 - ❌ Métodos de recording ainda estão diretamente no MainViewModel
 
 **Buscar no MainViewModel:**
+
 - Métodos relacionados a recording/gravação
 - Integração com RecordingService
 
@@ -69,6 +76,7 @@ Completar as delegations pendentes do Sprint 7:
 **Objetivo:** Delegar helpers de processing ao ProcessingCoordinator
 
 **Tarefas:**
+
 1. Mover `_create_processing_callbacks()` para ProcessingCoordinator
    - Criar método `create_processing_callbacks()` no coordinator
    - Manter callback factories (podem ter UI dependencies)
@@ -89,6 +97,7 @@ Completar as delegations pendentes do Sprint 7:
 **Objetivo:** Integrar RecordingCoordinator no MainViewModel
 
 **Tarefas:**
+
 1. Identificar métodos de recording no MainViewModel
    - Buscar padrões: record, recording, gravação
    - Analisar dependências com RecordingService

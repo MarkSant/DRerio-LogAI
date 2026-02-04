@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Plano de Ação v4.0 - Arquitetura Event-Driven
 
 **Versão**: 4.0 (Draft)
@@ -10,12 +12,13 @@
 ## Visão Geral
 
 ### Objetivo Principal
+
 Transformar a arquitetura atual (Facade com dependências bidirecionais) em uma arquitetura **Event-Driven** com separação clara de responsabilidades.
 
 ### Metas v4.0
 
 | Métrica | v3.0 (Atual) | v4.0 (Meta) | Redução |
-|---------|--------------|-------------|---------|
+| --------- | -------------- | ------------- | --------- |
 | GUI Lines | 2.691 | ~1.500 | -44% |
 | GUI Methods | 166 | ~100 | -40% |
 | Public API | 37 | ~20 | -46% |
@@ -58,7 +61,7 @@ gantt
 
 ---
 
-# FASE 1: Preparação e Documentação (1-3 meses)
+## FASE 1: Preparação e Documentação (1-3 meses)
 
 **Duração**: 2-3 meses
 **Paralelização**: ✅ 3 agentes simultâneos
@@ -69,15 +72,18 @@ gantt
 ## TRACK 1: API Documentation (Agent 1)
 
 ### Objetivo
+
 Completar documentação da API pública e preparar deprecação de métodos.
 
 ### Tarefas
 
 #### 1.1. Marcar Métodos Públicos Restantes (27 métodos)
+
 **Duração**: 2-3 dias
 **Prioridade**: ALTA
 
-**Métodos a Marcar**:
+### Métodos a Marcar
+
 - `_request_overview_refresh()` (6 callers internos)
 - `_update_project_overview_summary()` (ProjectViewManager)
 - `_populate_video_selector_tree()` (ZoneControlBuilder × 2, ProjectViewManager)
@@ -87,9 +93,10 @@ Completar documentação da API pública e preparar deprecação de métodos.
 - `_maybe_offer_zone_reuse()` (DialogManager)
 - Mais 20 métodos (ver `docs/API_STABILITY.md`)
 
-**Critério de Aceitação**:
+### Critério de Aceitação
+
 ```python
-# Todos os 37 métodos públicos devem ter @public_api
+## Todos os 37 métodos públicos devem ter @public_api
 assert count_public_api_decorators() == 37
 ```
 
@@ -98,14 +105,17 @@ assert count_public_api_decorators() == 37
 ---
 
 #### 1.2. Adicionar Warnings de Deprecação
+
 **Duração**: 1-2 dias
 **Prioridade**: MÉDIA
 
 **Métodos para Deprecar** (candidatos para remoção em v4.0):
+
 - Wrappers internos que serão substituídos por eventos
 - Métodos com lógica trivial (1-2 linhas)
 
-**Exemplo**:
+### Exemplo
+
 ```python
 @deprecated(
     reason="Use Event Bus instead: event_bus.subscribe(Events.ZONES_UPDATED)",
@@ -118,18 +128,21 @@ def update_zone_listbox(self, zone_data: ZoneData | None = None):
     self.canvas_manager.update_zone_listbox(zone_data)
 ```
 
-**Critério de Aceitação**:
+### Critério de Aceitação
+
 - Todos os métodos a deprecar têm `@deprecated` decorator
 - CHANGELOG.md lista todos os deprecated methods
 - Warnings aparecem em logs quando métodos são chamados
 
-**Arquivos Modificados**:
+### Arquivos Modificados
+
 - `src/zebtrack/ui/gui.py`
 - `CHANGELOG.md`
 
 ---
 
 #### 1.3. Criar Testes de Contrato para API Pública
+
 **Duração**: 3-5 dias
 **Prioridade**: ALTA
 
@@ -177,12 +190,14 @@ def test_public_api_has_decorator():
         assert hasattr(method, '__public_api__'), f"{method_name} missing @public_api"
 ```
 
-**Critério de Aceitação**:
+### Critério de Aceitação
+
 - 37 métodos públicos testados
 - Testes falham se assinatura mudar
 - CI executa testes em todo PR
 
-**Arquivos Criados**:
+### Arquivos Criados
+
 - `tests/ui/test_gui_public_api_contract.py`
 
 ---
@@ -190,11 +205,13 @@ def test_public_api_has_decorator():
 ## TRACK 2: Event Bus Foundation (Agent 2)
 
 ### Objetivo
+
 Implementar infraestrutura básica de Event Bus para comunicação desacoplada.
 
 ### Tarefas
 
 #### 2.1. Implementar Event Bus Pattern
+
 **Duração**: 5-7 dias
 **Prioridade**: CRÍTICA
 
@@ -247,28 +264,31 @@ class EventBusV2:
                 handler(event.data)
 ```
 
-**Critério de Aceitação**:
+### Critério de Aceitação
+
 - Event Bus suporta subscribe/unsubscribe/publish
 - Thread-safe (usa locks)
 - Suporta 20+ tipos de eventos
 - 100% cobertura de testes
 
-**Arquivos Criados**:
+### Arquivos Criados
+
 - `src/zebtrack/ui/event_bus_v2.py`
 - `tests/ui/test_event_bus_v2.py`
 
 ---
 
 #### 2.2. Definir Eventos para Comunicação Component↔GUI
+
 **Duração**: 2-3 dias
 **Prioridade**: ALTA
 
 **Objetivo**: Mapear todas as 11 chamadas Component→GUI para eventos.
 
-**Mapeamento de Eventos**:
+### Mapeamento de Eventos
 
 | Current Call | New Event | Payload |
-|-------------|-----------|---------|
+| ------------- | ----------- | --------- |
 | `gui.update_zone_listbox(zone_data)` | `UIEvents.ZONES_UPDATED` | `{zone_data: ZoneData}` |
 | `gui._populate_video_selector_tree(filter)` | `UIEvents.VIDEO_TREE_REFRESH_REQUESTED` | `{filter: str}` |
 | `gui.apply_pending_readiness_snapshot(...)` | `UIEvents.READINESS_SNAPSHOT_UPDATED` | `{snapshot: dict}` |
@@ -278,7 +298,7 @@ class EventBusV2:
 **Arquivo de Documentação**: `docs/EVENT_MAPPING.md`
 
 ```markdown
-# Event Mapping - Component → GUI Communication
+## Event Mapping - Component → GUI Communication
 
 ## ZONES_UPDATED
 **Replaces**: `gui.update_zone_listbox(zone_data)`
@@ -297,23 +317,27 @@ class EventBusV2:
 ... (document all 11 events)
 ```
 
-**Critério de Aceitação**:
+### Critério de Aceitação
+
 - 11+ eventos documentados
 - Mapeamento completo de callers atuais
 - Payloads definidos com tipos
 
-**Arquivos Criados**:
+### Arquivos Criados
+
 - `docs/EVENT_MAPPING.md`
 
 ---
 
 #### 2.3. Criar Documentação de Eventos
+
 **Duração**: 1-2 dias
 **Prioridade**: MÉDIA
 
 **Arquivo**: `docs/EVENT_BUS_GUIDE.md`
 
-**Conteúdo**:
+### Conteúdo
+
 - Introdução ao Event Bus pattern
 - Quando usar eventos vs chamadas diretas
 - Como criar novos eventos
@@ -321,15 +345,16 @@ class EventBusV2:
 - Debugging de eventos
 - Performance considerations
 
-**Exemplo de Uso**:
+### Exemplo de Uso
+
 ```python
-# Before (v3.0)
+## Before (v3.0)
 class DialogManager:
     def create_zone(self, zone_data):
         # Create zone
         self.gui.update_zone_listbox(zone_data)  # Direct call
 
-# After (v4.0)
+## After (v4.0)
 class DialogManager:
     def create_zone(self, zone_data):
         # Create zone
@@ -340,12 +365,14 @@ class DialogManager:
         ))  # Event emission
 ```
 
-**Critério de Aceitação**:
+### Critério de Aceitação
+
 - Guia completo com exemplos
 - Diagrama de fluxo de eventos
 - Comparação Before/After
 
-**Arquivos Criados**:
+### Arquivos Criados
+
 - `docs/EVENT_BUS_GUIDE.md`
 
 ---
@@ -353,11 +380,13 @@ class DialogManager:
 ## TRACK 3: Testing Infrastructure (Agent 3)
 
 ### Objetivo
+
 Expandir infraestrutura de testes para suportar refatoração segura.
 
 ### Tarefas
 
 #### 3.1. Expandir Testes de Integração
+
 **Duração**: 5-7 dias
 **Prioridade**: ALTA
 
@@ -394,17 +423,20 @@ def test_video_selector_refresh_flow(gui_fixture):
     assert gui_fixture.video_tree_filter == filter_text
 ```
 
-**Critério de Aceitação**:
+### Critério de Aceitação
+
 - 15+ testes de integração cobrindo os 11 fluxos Component→GUI
 - Testes verificam propagação de mudanças
 - 100% dos fluxos críticos cobertos
 
-**Arquivos Criados**:
+### Arquivos Criados
+
 - `tests/integration/test_gui_component_integration.py`
 
 ---
 
 #### 3.2. Criar Testes para Validar Quebra de API
+
 **Duração**: 3-4 dias
 **Prioridade**: MÉDIA
 
@@ -437,18 +469,21 @@ def signatures_compatible(expected, actual):
     ...
 ```
 
-**Critério de Aceitação**:
+### Critério de Aceitação
+
 - Testes falham se método público removido
 - Testes falham se assinatura quebra compatibilidade
 - Baseline armazenado em `tests/fixtures/api_baseline.json`
 
-**Arquivos Criados**:
+### Arquivos Criados
+
 - `tests/ui/test_api_breaking_changes.py`
 - `tests/fixtures/api_baseline.json`
 
 ---
 
 #### 3.3. Configurar CI Checks para @public_api
+
 **Duração**: 2-3 dias
 **Prioridade**: MÉDIA
 
@@ -503,12 +538,14 @@ if __name__ == "__main__":
     main()
 ```
 
-**Critério de Aceitação**:
+### Critério de Aceitação
+
 - CI executa checks em todo PR
 - PRs bloqueados se API check falhar
 - Badge no README mostrando status
 
-**Arquivos Criados**:
+### Arquivos Criados
+
 - `.github/workflows/api_check.yml`
 - `scripts/check_public_api.py`
 
@@ -517,7 +554,7 @@ if __name__ == "__main__":
 ## Entregáveis Fase 1
 
 | Entregável | Responsável | Status | Validação |
-|-----------|-------------|--------|-----------|
+| ----------- | ------------- | -------- | ----------- |
 | 37 métodos com @public_api | Agent 1 | ⏳ | `grep -c "@public_api" gui.py` == 37 |
 | Deprecated methods tagged | Agent 1 | ⏳ | CHANGELOG.md atualizado |
 | API contract tests | Agent 1 | ⏳ | 37 testes passando |
@@ -532,7 +569,7 @@ if __name__ == "__main__":
 
 ---
 
-# FASE 2: Migração Event-Driven (3-6 meses)
+## FASE 2: Migração Event-Driven (3-6 meses)
 
 **Duração**: 3-4 meses
 **Paralelização**: ✅ 2-3 agentes simultâneos
@@ -543,6 +580,7 @@ if __name__ == "__main__":
 ## TRACK 1: Event Migration (Agent 1)
 
 ### Objetivo
+
 Migrar 5-10 chamadas Component→GUI para comunicação via Event Bus.
 
 ### Estratégia de Migração
@@ -550,7 +588,7 @@ Migrar 5-10 chamadas Component→GUI para comunicação via Event Bus.
 **Abordagem**: Migração incremental com **Dual Mode** (compatibilidade v3/v4)
 
 ```python
-# Phase 2A: Mantém ambos os caminhos
+## Phase 2A: Mantém ambos os caminhos
 class DialogManager:
     def create_zone(self, zone_data):
         # OLD PATH (deprecated)
@@ -564,7 +602,7 @@ class DialogManager:
                 data={'zone_data': zone_data}
             ))
 
-# Phase 2B: Remove old path
+## Phase 2B: Remove old path
 class DialogManager:
     def create_zone(self, zone_data):
         # NEW PATH only
@@ -574,17 +612,20 @@ class DialogManager:
 ### Tarefas
 
 #### 2.1. Migrar update_zone_listbox() (Prioridade 1)
+
 **Duração**: 7-10 dias
 **Prioridade**: CRÍTICA (5 publishers)
 
-**Publishers a Migrar**:
+### Publishers a Migrar
+
 1. DialogManager
 2. PolygonDrawingService
 3. ROITemplateManager
 4. ZoneControlBuilder
 5. Renderer
 
-**Passos**:
+### Passos
+
 1. Adicionar Event Bus injection em todos os 5 components
 2. Implementar dual mode (GUI call + Event publish)
 3. Adicionar subscriber em CanvasManager
@@ -620,7 +661,8 @@ def test_zones_updated_event_updates_canvas(event_bus, canvas_manager):
     assert canvas_manager.zone_listbox_updated
 ```
 
-**Critério de Aceitação**:
+### Critério de Aceitação
+
 - 5 publishers emitem evento
 - 1 subscriber (CanvasManager) processa evento
 - Testes de integração passam
@@ -629,10 +671,12 @@ def test_zones_updated_event_updates_canvas(event_bus, canvas_manager):
 ---
 
 #### 2.2. Migrar _populate_video_selector_tree() (Prioridade 2)
+
 **Duração**: 5-7 dias
 **Prioridade**: ALTA (3 publishers)
 
-**Publishers**:
+### Publishers
+
 1. ZoneControlBuilder (2x)
 2. ProjectViewManager
 
@@ -644,6 +688,7 @@ def test_zones_updated_event_updates_canvas(event_bus, canvas_manager):
 ---
 
 #### 2.3. Migrar apply_pending_readiness_snapshot() (Prioridade 3)
+
 **Duração**: 3-5 dias
 **Prioridade**: MÉDIA (1 publisher)
 
@@ -654,10 +699,12 @@ def test_zones_updated_event_updates_canvas(event_bus, canvas_manager):
 ---
 
 #### 2.4. Migrar Outros 2-7 Métodos
+
 **Duração**: 10-15 dias total
 **Prioridade**: BAIXA-MÉDIA
 
 **Candidatos** (ordenados por impacto):
+
 1. `setup_interactive_polygon()` - CanvasManager → GUI
 2. `_build_video_hierarchy_snapshot()` - ProjectViewManager → GUI
 3. Outros métodos com baixo número de callers
@@ -667,11 +714,13 @@ def test_zones_updated_event_updates_canvas(event_bus, canvas_manager):
 ## TRACK 2: UICoordinator Prototype (Agent 2)
 
 ### Objetivo
+
 Extrair lógica de coordenação entre components para classe dedicada.
 
 ### Tarefas
 
 #### 2.5. Extrair UICoordinator
+
 **Duração**: 10-14 dias
 **Prioridade**: ALTA
 
@@ -728,32 +777,37 @@ class UICoordinator:
             self.components['dialog_manager'].offer_zone_reuse(video_path)
 ```
 
-**Critério de Aceitação**:
+### Critério de Aceitação
+
 - UICoordinator coordena 5+ workflows complexos
 - Zero dependências bidirecionais (Component → UICoordinator, não Component → GUI)
 - 100% cobertura de testes unitários
 
-**Arquivos Criados**:
+### Arquivos Criados
+
 - `src/zebtrack/ui/ui_coordinator.py`
 - `tests/ui/test_ui_coordinator.py`
 
 ---
 
 #### 2.6. Implementar Pattern Mediator
+
 **Duração**: 5-7 dias
 **Prioridade**: MÉDIA
 
 **Objetivo**: UICoordinator como Mediator entre Components.
 
-**Antes (v3.0)**:
-```
+### Antes (v3.0)
+
+```text
 DialogManager ──> GUI ──> CanvasManager
      └──> ValidationManager
      └──> ProjectViewManager
 ```
 
-**Depois (v4.0)**:
-```
+### Depois (v4.0)
+
+```text
 DialogManager ──> Event Bus ──> UICoordinator ──> CanvasManager
                                       └──> ValidationManager
                                       └──> ProjectViewManager
@@ -766,54 +820,63 @@ DialogManager ──> Event Bus ──> UICoordinator ──> CanvasManager
 ## TRACK 3: Documentation & Migration Guide (Agent 3)
 
 ### Objetivo
+
 Documentar todas as mudanças e criar guias de migração.
 
 ### Tarefas
 
 #### 2.7. Documentar Breaking Changes
+
 **Duração**: 3-5 dias
 **Prioridade**: ALTA
 
 **Arquivo**: `docs/BREAKING_CHANGES_V4.md`
 
-**Conteúdo**:
+### Conteúdo
+
 - Lista completa de breaking changes
 - Métodos removidos
 - Assinaturas alteradas
 - Novos requisitos (Event Bus injection)
 
-**Template**:
+### Template
+
 ```markdown
 ## BREAKING CHANGE: update_zone_listbox() Removed
 
 **Impact**: HIGH (5 components affected)
 
-**Before (v3.0)**:
+### Before (v3.0)
 ```python
 self.gui.update_zone_listbox(zone_data)
-```
+```text
 
-**After (v4.0)**:
+### After (v4.0)
+
 ```python
 self.event_bus.publish(Event(UIEvents.ZONES_UPDATED, {'zone_data': zone_data}))
-```
+```text
 
-**Migration Steps**:
+### Migration Steps
+
 1. Inject `event_bus` in component `__init__`
 2. Replace direct GUI call with event publish
 3. Update tests to mock event bus
 4. Verify integration tests pass
+
 ```
 
 ---
 
 #### 2.8. Criar Guia de Migração v3→v4
+
 **Duração**: 5-7 dias
 **Prioridade**: CRÍTICA
 
 **Arquivo**: `docs/MIGRATION_GUIDE_V3_TO_V4.md`
 
-**Estrutura**:
+### Estrutura
+
 1. **Overview**: O que mudou e por quê
 2. **Prerequisites**: Dependências, versões Python
 3. **Step-by-Step Migration**:
@@ -836,12 +899,14 @@ self.event_bus.publish(Event(UIEvents.ZONES_UPDATED, {'zone_data': zone_data}))
 ---
 
 #### 2.9. Atualizar Diagramas Arquiteturais
+
 **Duração**: 2-3 dias
 **Prioridade**: MÉDIA
 
 **Arquivo**: `docs/ARCHITECTURE_V4.md`
 
-**Novos Diagramas**:
+### Novos Diagramas
+
 1. **Event Flow Diagram**: Mostra fluxo de eventos no sistema
 2. **Component Communication**: Antes vs Depois (v3 vs v4)
 3. **UICoordinator Responsibilities**: O que coordena
@@ -851,7 +916,7 @@ self.event_bus.publish(Event(UIEvents.ZONES_UPDATED, {'zone_data': zone_data}))
 ## Entregáveis Fase 2
 
 | Entregável | Responsável | Duração | Validação |
-|-----------|-------------|---------|-----------|
+| ----------- | ------------- | --------- | ----------- |
 | 5-10 eventos migrados | Agent 1 | 30-40 dias | Testes integração passando |
 | UICoordinator implementado | Agent 2 | 15-21 dias | 100% cobertura testes |
 | Mediator pattern aplicado | Agent 2 | 5-7 dias | Diagrama atualizado |
@@ -859,14 +924,15 @@ self.event_bus.publish(Event(UIEvents.ZONES_UPDATED, {'zone_data': zone_data}))
 | Migration guide | Agent 3 | 5-7 dias | Testado em projeto piloto |
 | Architecture diagrams | Agent 3 | 2-3 dias | Docs publicadas |
 
-**Critério de Aceitação Fase 2**:
+### Critério de Aceitação Fase 2
+
 - ✅ 5+ eventos migrados com sucesso
 - ✅ UICoordinator coordena workflows principais
 - ✅ Migration guide testado e aprovado
 
 ---
 
-# FASE 3: Consolidação v4.0 (6-12 meses)
+## FASE 3: Consolidação v4.0 (6-12 meses)
 
 **Duração**: 3-4 meses
 **Paralelização**: ⚠️ Limitada (trabalho sequencial com validações)
@@ -886,22 +952,26 @@ self.event_bus.publish(Event(UIEvents.ZONES_UPDATED, {'zone_data': zone_data}))
 ## Tarefas Fase 3
 
 ### 3.1. Eliminar Dependências Bidirecionais Restantes
+
 **Duração**: 30-45 dias
 **Prioridade**: CRÍTICA
 
 **Objetivo**: Migrar todos os 11 Component→GUI calls para eventos.
 
 **Status Atual** (após Fase 2):
+
 - Migrados: 5-10 calls
 - Restantes: 1-6 calls
 
-**Estratégia**:
+### Estratégia
+
 1. Identificar calls restantes
 2. Migrar cada um para evento (seguir processo Fase 2)
 3. Validar zero Component→GUI direct calls
 4. Remover métodos deprecated do GUI
 
-**Validação**:
+### Validação
+
 ```python
 def test_no_component_to_gui_calls():
     """Ensure no component directly calls GUI methods."""
@@ -919,12 +989,14 @@ def test_no_component_to_gui_calls():
 ---
 
 ### 3.2. Reduzir GUI para ~1.500 Linhas
+
 **Duração**: 20-30 dias
 **Prioridade**: ALTA
 
 **Meta**: 2.691 → 1.500 linhas (-1.191 linhas, -44%)
 
-**Estratégias**:
+### Estratégias
+
 1. **Remover Deprecated Methods** (~500 linhas)
    - 37 métodos públicos deprecated
    - Métodos internos não mais necessários
@@ -941,21 +1013,24 @@ def test_no_component_to_gui_calls():
    - Lógica movida para UICoordinator
    - GUI torna-se pure view layer
 
-**Critério de Aceitação**:
+### Critério de Aceitação
+
 ```bash
 wc -l src/zebtrack/ui/gui.py
-# Target: <= 1500 lines
+## Target: <= 1500 lines
 ```
 
 ---
 
 ### 3.3. Reduzir API Pública para ~20 Métodos
+
 **Duração**: 15-20 dias
 **Prioridade**: MÉDIA
 
 **Meta**: 37 → 20 métodos (-17 métodos, -46%)
 
 **Métodos a Manter** (Core UI API):
+
 1. `show_info(title, message)` - User notifications
 2. `show_warning(title, message)`
 3. `show_error(title, message)`
@@ -967,6 +1042,7 @@ wc -l src/zebtrack/ui/gui.py
 9. Métodos de lifecycle (init, destroy) (2 métodos)
 
 **Métodos a Remover** (migrados para Event Bus):
+
 - `refresh_project_views()` → `UIEvents.PROJECT_VIEWS_REFRESH_REQUESTED`
 - `update_zone_listbox()` → `UIEvents.ZONES_UPDATED`
 - `setup_interactive_polygon()` → `UIEvents.POLYGON_EDIT_REQUESTED`
@@ -976,7 +1052,8 @@ wc -l src/zebtrack/ui/gui.py
 - `update_analysis_task_status()` → `UIEvents.ANALYSIS_TASK_STATUS_UPDATED`
 - Mais 10 métodos internos
 
-**Critério de Aceitação**:
+### Critério de Aceitação
+
 ```python
 assert count_public_api_methods(GUI) <= 20
 ```
@@ -984,17 +1061,20 @@ assert count_public_api_methods(GUI) <= 20
 ---
 
 ### 3.4. Validação Completa e Release
+
 **Duração**: 20-30 dias
 **Prioridade**: CRÍTICA
 
-**Checklist de Validação**:
+### Checklist de Validação
 
 #### Performance
+
 - [ ] Benchmark startup time (não piorou)
 - [ ] Benchmark memory usage (idealmente melhorou)
 - [ ] Profile event bus overhead (< 5ms per event)
 
 #### Testes
+
 - [ ] 100% testes unitários passando
 - [ ] 100% testes integração passando
 - [ ] 100% testes E2E passando
@@ -1002,6 +1082,7 @@ assert count_public_api_methods(GUI) <= 20
 - [ ] Zero regressões funcionais
 
 #### Documentação
+
 - [ ] API_STABILITY.md atualizado para v4.0
 - [ ] ARCHITECTURE_V4.md completo
 - [ ] MIGRATION_GUIDE_V3_TO_V4.md testado
@@ -1009,12 +1090,14 @@ assert count_public_api_methods(GUI) <= 20
 - [ ] README.md atualizado
 
 #### Qualidade
+
 - [ ] Ruff checks passando
 - [ ] Type hints em todos métodos públicos
 - [ ] Docstrings atualizadas
 - [ ] Zero TODOs ou FIXMEs críticos
 
 #### Release Checklist
+
 - [ ] Tag v4.0.0 criada
 - [ ] Release notes publicadas
 - [ ] Migration guide publicado
@@ -1026,7 +1109,7 @@ assert count_public_api_methods(GUI) <= 20
 ## Entregáveis Fase 3
 
 | Entregável | Duração | Validação |
-|-----------|---------|-----------|
+| ----------- | --------- | ----------- |
 | Zero dependências bidirecionais | 30-45 dias | `test_no_component_to_gui_calls()` passa |
 | GUI <= 1.500 linhas | 20-30 dias | `wc -l gui.py` <= 1500 |
 | API pública <= 20 métodos | 15-20 dias | `count_public_api_methods()` <= 20 |
@@ -1039,7 +1122,7 @@ assert count_public_api_methods(GUI) <= 20
 
 ---
 
-# Matriz de Dependências
+## Matriz de Dependências
 
 ```mermaid
 graph TD
@@ -1070,7 +1153,8 @@ graph TD
     style RELEASE fill:#9f9
 ```
 
-**Legenda**:
+### Legenda
+
 - 🔵 Azul: Fase 1 (baixo risco, paralelo)
 - 🟠 Laranja: Fase 2 (médio risco, paralelo limitado)
 - 🔴 Vermelho: Fase 3 (alto risco, sequencial)
@@ -1078,12 +1162,12 @@ graph TD
 
 ---
 
-# Estimativas de Esforço
+## Estimativas de Esforço
 
 ## Por Fase
 
 | Fase | Duração | Pessoa-Dias | Agentes | Tipo |
-|------|---------|-------------|---------|------|
+| ------ | --------- | ------------- | --------- | ------ |
 | Fase 1 | 2-3 meses | 60-80 dias | 3 paralelos | Preparação |
 | Fase 2 | 3-4 meses | 80-100 dias | 2-3 paralelos | Migração |
 | Fase 3 | 3-4 meses | 90-120 dias | 1-2 sequenciais | Consolidação |
@@ -1092,7 +1176,7 @@ graph TD
 ## Por Track
 
 | Track | Agente | Duração Total | Fases Envolvidas |
-|-------|--------|---------------|------------------|
+| ------- | -------- | --------------- | ------------------ |
 | API Documentation | Agent 1 | 40-50 dias | F1, F2 |
 | Event Bus Implementation | Agent 2 | 60-80 dias | F1, F2, F3 |
 | UICoordinator | Agent 2 | 50-70 dias | F2, F3 |
@@ -1109,32 +1193,41 @@ graph TD
 
 ---
 
-# Riscos e Mitigações
+## Riscos e Mitigações
 
 ## Riscos Críticos (🔴 HIGH)
 
 ### R1: Breaking Changes Quebram Aplicação
+
 **Probabilidade**: ALTA
 **Impacto**: CRÍTICO
-**Mitigação**:
+
+### Mitigação
+
 - ✅ Dual mode durante Fase 2 (compatibilidade v3/v4)
 - ✅ Feature flags para ativar/desativar Event Bus
 - ✅ Testes de regressão extensivos
 - ✅ Rollback plan documentado
 
 ### R2: Event Bus Overhead de Performance
+
 **Probabilidade**: MÉDIA
 **Impacto**: ALTO
-**Mitigação**:
+
+### Mitigação
+
 - ✅ Benchmark antes/depois de cada migração
 - ✅ Profile event bus com pyinstrument
 - ✅ Otimizar hot paths (< 5ms per event)
 - ✅ Considerar event batching se necessário
 
 ### R3: Testes Insuficientes para Validar Migração
+
 **Probabilidade**: MÉDIA
 **Impacto**: ALTO
-**Mitigação**:
+
+### Mitigação
+
 - ✅ Expandir testes integração (Fase 1)
 - ✅ 100% cobertura para Event Bus
 - ✅ E2E tests para workflows críticos
@@ -1145,26 +1238,35 @@ graph TD
 ## Riscos Médios (🟡 MEDIUM)
 
 ### R4: Complexidade de Coordenação Aumenta
+
 **Probabilidade**: ALTA
 **Impacto**: MÉDIO
-**Mitigação**:
+
+### Mitigação
+
 - ✅ UICoordinator encapsula complexidade
 - ✅ Event flow diagrams documentam fluxos
 - ✅ Logging detalhado de eventos
 
 ### R5: Curva de Aprendizado da Equipe
+
 **Probabilidade**: MÉDIA
 **Impacto**: MÉDIO
-**Mitigação**:
+
+### Mitigação
+
 - ✅ Event Bus Guide detalhado
 - ✅ Migration guide step-by-step
 - ✅ Code reviews rigorosos
 - ✅ Pair programming em migrações complexas
 
 ### R6: Cronograma Estimado Muito Otimista
+
 **Probabilidade**: ALTA
 **Impacto**: MÉDIO
-**Mitigação**:
+
+### Mitigação
+
 - ✅ Overhead de 30-40% já incluído
 - ✅ Fases podem ser estendidas se necessário
 - ✅ MVP de Fase 2 pode ser menor (3 eventos em vez de 10)
@@ -1174,21 +1276,24 @@ graph TD
 ## Riscos Baixos (🟢 LOW)
 
 ### R7: Conflitos de Merge Entre Agentes
+
 **Probabilidade**: BAIXA
 **Impacto**: BAIXO
-**Mitigação**:
+
+### Mitigação
+
 - ✅ Tracks trabalham em arquivos diferentes
 - ✅ Sincronização semanal entre agentes
 - ✅ Git branches por track
 
 ---
 
-# Critérios de Sucesso
+## Critérios de Sucesso
 
 ## Métricas Quantitativas
 
 | Métrica | Baseline (v3.0) | Meta (v4.0) | Status |
-|---------|-----------------|-------------|--------|
+| --------- | ----------------- | ------------- | -------- |
 | GUI Lines | 2.691 | <= 1.500 | ⏳ |
 | GUI Methods | 166 | <= 100 | ⏳ |
 | Public API | 37 | <= 20 | ⏳ |
@@ -1207,21 +1312,24 @@ graph TD
 
 ---
 
-# Próximas Ações Imediatas
+## Próximas Ações Imediatas
 
 ## Sprint 1 (Próximas 2 Semanas)
 
 ### Agent 1: API Documentation
+
 1. [ ] Marcar 10 métodos públicos com @public_api
 2. [ ] Criar baseline API em `tests/fixtures/api_baseline.json`
 3. [ ] Escrever primeiros 10 API contract tests
 
 ### Agent 2: Event Bus Foundation
+
 1. [ ] Implementar EventBusV2 básico
 2. [ ] Definir UIEvents enum (primeiros 5 eventos)
 3. [ ] Escrever testes unitários para Event Bus
 
 ### Agent 3: Testing Infrastructure
+
 1. [ ] Criar `test_gui_component_integration.py`
 2. [ ] Escrever primeiros 3 integration tests
 3. [ ] Configurar CI workflow básico
@@ -1238,10 +1346,10 @@ graph TD
 
 ---
 
-# Glossário
+## Glossário
 
 | Termo | Definição |
-|-------|-----------|
+| ------- | ----------- |
 | **Event Bus** | Padrão de comunicação pub/sub desacoplado |
 | **UICoordinator** | Classe responsável por coordenar UI workflows |
 | **Dual Mode** | Suportar ambos v3 e v4 APIs temporariamente |
@@ -1253,20 +1361,23 @@ graph TD
 
 ---
 
-# Referências
+## Referências
 
 ## Documentação Atual (v3.0)
+
 - `docs/API_STABILITY.md` - API pública documentada
 - `docs/GUI_DEPENDENCIES_DIAGRAM.md` - Diagramas de dependências
 - `RELATORIO_FINAL_REFATORACAO_COMPLETA.md` - Estado atual
 - `RELATORIO_REMOCAO_WRAPPERS_FINAL.md` - Histórico de refatoração
 
 ## Padrões Arquiteturais
+
 - [Event-Driven Architecture](https://martinfowler.com/articles/201701-event-driven.html)
 - [Mediator Pattern](https://refactoring.guru/design-patterns/mediator)
 - [Observer Pattern](https://refactoring.guru/design-patterns/observer)
 
 ## Ferramentas
+
 - Event Bus: Implementação customizada
 - Testing: pytest, pytest-mock
 - Profiling: pyinstrument, memory_profiler
@@ -1281,4 +1392,4 @@ graph TD
 
 ---
 
-**FIM DO PLANO V4.0**
+### FIM DO PLANO V4.0

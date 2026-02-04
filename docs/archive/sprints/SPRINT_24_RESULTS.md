@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # ✅ Sprint 24 Results - VideoProcessingOrchestrator Extraction
 
 **Document:** SPRINT_24_RESULTS.md
@@ -16,7 +18,7 @@ Sprint 24 extraiu com sucesso **7 métodos de processamento de vídeo** do MainV
 ### ✅ Objetivos Alcançados
 
 | Objetivo | Status | Resultado |
-|----------|--------|-----------|
+| ---------- | -------- | ----------- |
 | Criar VideoProcessingOrchestrator | ✅ COMPLETO | 879 linhas criadas |
 | Extrair 7 métodos do MainViewModel | ✅ COMPLETO | 783 linhas extraídas |
 | Criar facades no MainViewModel | ✅ COMPLETO | 7 facades criadas |
@@ -32,7 +34,7 @@ Sprint 24 extraiu com sucesso **7 métodos de processamento de vídeo** do MainV
 ### MainViewModel (Before/After)
 
 | Métrica | Antes | Depois | Redução |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | **Total de linhas** | 5,643 | 4,950 | -693 (-12.3%) |
 | **Linhas em métodos** | 5,227 | ~4,534 | ~-693 (-13.3%) |
 | **Total de métodos** | 141 | 134 | -7 |
@@ -40,7 +42,7 @@ Sprint 24 extraiu com sucesso **7 métodos de processamento de vídeo** do MainV
 ### Projeção vs Realizado
 
 | Métrica | Planejado | Realizado | Δ |
-|---------|-----------|-----------|---|
+| --------- | ----------- | ----------- | --- |
 | **Linhas extraídas** | ~815 | 783 | -32 (-3.9%) |
 | **Redução MainViewModel** | -15.6% | -12.3% | -3.3% |
 | **Métodos extraídos** | 6-7 | 7 | +1 ✅ |
@@ -64,7 +66,7 @@ Sprint 24 extraiu com sucesso **7 métodos de processamento de vídeo** do MainV
 
 ### Arquivos Modificados
 
-3. **`src/zebtrack/core/main_view_model.py`**
+1. **`src/zebtrack/core/main_view_model.py`**
    - **Import adicionado:** `VideoProcessingOrchestrator` (linha 65)
    - **Inicialização adicionada:** `self.video_processing_orchestrator = VideoProcessingOrchestrator(self)` (linha 587)
    - **7 métodos convertidos em facades:**
@@ -87,7 +89,8 @@ Sprint 24 extraiu com sucesso **7 métodos de processamento de vídeo** do MainV
 **Complexidade:** 🟡 ALTA
 **Dependências:** 6 métodos do MainViewModel
 
-**Facade criada:**
+### Facade criada
+
 ```python
 def start_single_video_processing(self, video_path: Path | str, config: dict):
     """Facade - delegates to VideoProcessingOrchestrator (Sprint 24)."""
@@ -105,7 +108,8 @@ def start_single_video_processing(self, video_path: Path | str, config: dict):
 **Complexidade:** 🔴 ALTA (6 chamadas)
 **Dependências:** Validação de zonas, cenário de dados mistos
 
-**Facade criada:**
+### Facade criada
+
 ```python
 def start_project_processing_workflow(self):
     """Facade - delegates to VideoProcessingOrchestrator (Sprint 24)."""
@@ -121,7 +125,8 @@ def start_project_processing_workflow(self):
 **Complexidade:** 🔴 MUITO ALTA (C901 warning - complexidade ciclomática 23 > 20)
 **Dependências:** Classificação, seleção, batch processing
 
-**Facade criada:**
+### Facade criada
+
 ```python
 def process_pending_project_videos(
     self, skip_dialog: bool = False, eligible_videos: list[dict] | None = None
@@ -143,7 +148,8 @@ def process_pending_project_videos(
 **Complexidade:** 🟢 BAIXA (isolado, sem dependências internas)
 **Dependências:** UI event bus para diálogos
 
-**Facade criada:**
+### Facade criada
+
 ```python
 def _select_eligible_videos(
     self,
@@ -172,7 +178,8 @@ def _select_eligible_videos(
 **Complexidade:** 🟡 MÉDIA
 **Dependências:** UI updates, event bus
 
-**Facade criada:**
+### Facade criada
+
 ```python
 def _make_progress_callback(
     self, experiment_id: str, video_basename: str, total_videos: int, video_index: int
@@ -195,7 +202,8 @@ def _make_progress_callback(
 **Complexidade:** 🔴 ALTA (usado por 3 métodos principais)
 **Dependências:** UI coordinator, state manager, event bus
 
-**Facade criada:**
+### Facade criada
+
 ```python
 def _create_processing_callbacks(self, videos_to_process: list[dict]) -> ProcessingCallbacks:
     """Facade - delegates to VideoProcessingOrchestrator (Sprint 24)."""
@@ -213,7 +221,8 @@ def _create_processing_callbacks(self, videos_to_process: list[dict]) -> Process
 **Complexidade:** 🟢 BAIXA
 **Dependências:** Settings, callbacks para outros métodos
 
-**Facade criada:**
+### Facade criada
+
 ```python
 def _create_processing_context(
     self,
@@ -255,7 +264,7 @@ class VideoProcessingOrchestrator:
 O orchestrator **delega de volta** para o MainViewModel os seguintes métodos:
 
 | Método | Tipo | Razão |
-|--------|------|-------|
+| -------- | ------ | ------- |
 | `_handle_validation_error()` | UI validation | Será extraído no Sprint 31 (ValidationHandler) |
 | `_validate_zones_with_ui()` | UI interaction | Será extraído no Sprint 28 (UIStateController) |
 | `_handle_mixed_data_scenario()` | Workflow logic | Será extraído no Sprint 31 (EventHandler) |
@@ -283,8 +292,9 @@ python -m py_compile src/zebtrack/core/main_view_model.py
 
 ### Linting (ruff check) ⚠️
 
-**Resultado:**
-```
+### Resultado
+
+```text
 src/zebtrack/orchestrators/video_processing_orchestrator.py:638:9: C901 `process_pending_project_videos` is too complex (23 > 20)
 ```
 
@@ -296,6 +306,7 @@ src/zebtrack/orchestrators/video_processing_orchestrator.py:638:9: C901 `process
 ### Imports ✅
 
 **Resultado:** 2 problemas de ordenação/imports não usados foram **corrigidos automaticamente** pelo `ruff check --fix`:
+
 - ✅ `datetime` import não usado removido
 - ✅ Imports reordenados (I001)
 
@@ -305,25 +316,30 @@ src/zebtrack/orchestrators/video_processing_orchestrator.py:638:9: C901 `process
 
 ### Status: ⚠️ PARCIAL
 
-**Problema Encontrado:**
+### Problema Encontrado
+
 Ambiente não possui `tkinter` instalado, impedindo execução da suite completa de testes:
 
-```
+```text
 ImportError: No module named 'tkinter'
 ```
 
-**Mitigação:**
+### Mitigação
+
 - ✅ Validação de sintaxe via `py_compile` (passou)
 - ✅ Validação de linting via `ruff check` (1 warning pré-existente)
 - ✅ Inspeção manual do código (facades corretas, assinaturas preservadas)
 
-**Recomendação:**
+### Recomendação
+
 Em ambiente com `tkinter` instalado, executar:
+
 ```bash
 poetry run pytest -q  # Todos os testes (2,568+)
 ```
 
-**Confiança:**
+### Confiança
+
 🟢 **ALTA** - As facades são triviais (apenas delegam), assinaturas foram preservadas exatamente, e não há lógica nova introduzida.
 
 ---
@@ -332,15 +348,15 @@ poetry run pytest -q  # Todos os testes (2,568+)
 
 ### Redução Acumulada
 
-| Sprint | Linhas Reduzidas | MainViewModel Após |  % Redução Acumulada |
-|--------|------------------|--------------------|----------------------|
+| Sprint | Linhas Reduzidas | MainViewModel Após | % Redução Acumulada |
+| -------- | ------------------ | -------------------- | ---------------------- |
 | **Antes Sprint 23** | - | 5,227 linhas (métodos) | - |
 | **Sprint 23** | 0 (análise) | 5,227 linhas | 0% |
 | **Sprint 24** | -693 | 4,534 linhas | -13.3% |
 
 ### Projeção vs Realizado (Sprint 24)
 
-```
+```text
 Planejado:   -815 linhas (-15.6%)
 Realizado:   -693 linhas (-13.3%)
 Diferença:    -32 linhas (-3.9% menos que o esperado)
@@ -350,7 +366,7 @@ Diferença:    -32 linhas (-3.9% menos que o esperado)
 
 ### Meta Geral do Projeto
 
-```
+```text
 Meta Original (Sprints 1-22): Reduzir MainViewModel em -60-70%
 Meta Atualizada (Sprints 23-35): Reduzir para ~1,000 linhas (-81%)
 
@@ -370,6 +386,7 @@ Sprints Restantes: 11 (Sprints 25-35)
 
 **Objetivo:** Extrair lógica de análise e relatórios
 **Métodos a extrair:** 3 métodos (~322 linhas)
+
 - `_process_summary_video` (151 linhas)
 - `run_aquarium_detection` (108 linhas)
 - `_generate_parquet_summaries_worker` (63 linhas)
@@ -427,17 +444,17 @@ Sprints Restantes: 11 (Sprints 25-35)
 ### Métricas Sprint 24
 
 | Métrica | Valor |
-|---------|-------|
+| --------- | ------- |
 | **Duração** | ~1 dia (conforme planejado) |
 | **Métodos Extraídos** | 7 |
 | **Linhas Extraídas** | 783 |
 | **Redução MainViewModel** | -693 linhas (-12.3%) |
-| **Arquivos Criados** | 2 (orchestrator + __init__) |
+| **Arquivos Criados** | 2 (orchestrator + **init**) |
 | **Arquivos Modificados** | 1 (MainViewModel) |
 
 ### Estado Atual do Projeto
 
-```
+```text
 MainViewModel (antes):      5,227 linhas (em métodos)
 MainViewModel (depois):     4,534 linhas (em métodos)
 Redução Sprint 24:         -  693 linhas (-13.3%)
@@ -448,7 +465,8 @@ Restante para extrair:      3,534 linhas
 
 ### Próximo Sprint
 
-**Sprint 25: AnalysisOrchestrator**
+### Sprint 25: AnalysisOrchestrator
+
 - **Objetivo:** Extrair 3 métodos de análise (~322 linhas)
 - **Duração Estimada:** 2 dias
 - **Risco:** 🟡 MÉDIO

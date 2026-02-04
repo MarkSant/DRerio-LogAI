@@ -5,15 +5,18 @@ Welcome to the ZebTrack-AI (DRerio LogAI) documentation repository.
 ## Documentation Structure
 
 ### 📚 [API Reference](api/)
+
 Complete API documentation generated with Sphinx.
 
 **What's inside:**
+
 - Auto-generated documentation from source code
 - Type hints and docstrings
 - Module hierarchy and relationships
 - Links to source code
 
 **Quick Start:**
+
 ```bash
 # Build HTML documentation
 sphinx-build -b html docs/api/source docs/api/build/html
@@ -27,16 +30,20 @@ See [api/README.md](api/README.md) for detailed instructions.
 ---
 
 ### 🔄 [Migration Guides](migration/)
+
 Step-by-step guides for upgrading between major versions.
 
 **Available Guides:**
+
 - [v2.1 → v3.0](migration/v2.1-to-v3.0.md) - Main migration guide
 - [Reporter v3.0 Migration](migration/reporter-v3-migration.md) - Detailed guide
 
 **Automated Tools:**
+
 - [Migration Script](../scripts/migrate_reporter_v3.py) - Automated code migration
 
 **Quick Start:**
+
 ```bash
 # Preview migration changes
 python scripts/migrate_reporter_v3.py --dry-run
@@ -74,6 +81,7 @@ Existing documentation in this directory:
 ## Quick Links
 
 ### For Developers
+
 - 🏗️ [Architecture Overview](architecture/ARCHITECTURE.md)
 - 🔧 [Developer Reference](reference/REFERENCE_GUIDE.md)
 - 🗺️ [System Integration Map](architecture/SYSTEM_INTEGRATION_MAP.md) (v3.2)
@@ -81,12 +89,14 @@ Existing documentation in this directory:
 - 📊 [Performance Tuning](performance/PERFORMANCE_TUNING.md)
 
 ### For Users
+
 - 📚 [API Documentation](api/build/html/index.html) (after building)
 - 🔄 [Migration Guides](migration/)
 - 📝 [Known Issues](reference/KNOWN_ISSUES.md)
 - 📖 [Wiki (Portuguese)](wiki/)
 
 ### For Contributors
+
 - 🔄 [Workflows](guides/developer/WORKFLOWS.md)
 - 🎨 [Widgets](reference/WIDGETS.md)
 - 🧩 [Service Patterns](architecture/SERVICE_LAYER_PATTERNS.md)
@@ -99,11 +109,13 @@ Existing documentation in this directory:
 ### API Documentation
 
 Prerequisites:
+
 ```bash
 pip install sphinx sphinx-rtd-theme sphinx-autodoc-typehints myst-parser
 ```
 
 Build:
+
 ```bash
 sphinx-build -b html docs/api/source docs/api/build/html
 ```

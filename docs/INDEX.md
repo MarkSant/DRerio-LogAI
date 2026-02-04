@@ -143,7 +143,7 @@ docs/
 ### By Role
 
 | Role | Start Here |
-|------|------------|
+| ------ | ------------ |
 | New User | [Wizard User Guide](wiki/1_Wizard_User_Guide.md) |
 | New Developer | [Architecture](architecture/ARCHITECTURE.md) + [Contributing](../CONTRIBUTING.md) |
 | Debugger | [Quick Debug Guide](guides/developer/QUICK_DEBUG_GUIDE.md) |
@@ -154,7 +154,7 @@ docs/
 ### By Task
 
 | Task | Documents |
-|------|-----------|
+| ------ | ----------- |
 | Implementing new feature | [Workflows](guides/developer/WORKFLOWS.md) + [Service Patterns](architecture/SERVICE_LAYER_PATTERNS.md) |
 | Fixing bug | [Error Handling](guides/developer/ERROR_HANDLING.md) + [Quick Debug](guides/developer/QUICK_DEBUG_GUIDE.md) |
 | Adding detector plugin | [DetectorService API](reference/detector_service_api.md) |
@@ -182,7 +182,7 @@ docs/
 ## Documentation Statistics
 
 | Category | Count |
-|----------|-------|
+| ---------- | ------- |
 | Total Active Files | ~40 |
 | Architecture Docs | 8 |
 | Developer Guides | 8 |

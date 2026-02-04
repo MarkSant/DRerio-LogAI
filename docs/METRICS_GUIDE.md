@@ -23,7 +23,7 @@ Este documento fornece uma explicação detalhada de todos os itens exportados n
 | **Sharp Turns (count)** | Contagem de curvas acentuadas. | Numero de vezes que a velocidade angular (deg/s) excedeu o limiar. | **Threshold:** 45.0 a 90.0 °/s (padrão 90); **Cooldown:** 0.5s | Sim (`config.yaml`) |
 | **Sharp Turns (per min)** | Taxa de curvas por minuto. | `Count / (Duração Total / 60)`. | - | Não |
 | **Speed Bursts (count)** | Episódios de alta velocidade ("arrancadas"). | Episódios onde a velocidade excedeu o limiar por pelo menos o tempo mínimo. | **Threshold:** Quantil 90% (dinâmico) ou fixo; **Duração Mín:** 0.5s | Sim (Código/Config) |
-| **Speed Bursts Duration (s)**| Duração total das arrancadas. | Soma das durações de todos os episódios de Speed Burst. | - | Não |
+| **Speed Bursts Duration (s)** | Duração total das arrancadas. | Soma das durações de todos os episódios de Speed Burst. | - | Não |
 | **Speed Burst Threshold (cm/s)** | Valor de corte para arrancada. | Valor calculado (via quantil 90%) ou definido pelo usuário. | **Padrão:** Dinâmico (Quantil 0.9) | Não (Interface) |
 
 ---

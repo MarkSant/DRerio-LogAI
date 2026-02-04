@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Documentation Changelog
 
 **Maintained by**: Agent-15 (P4-T4)
@@ -55,11 +57,13 @@ This changelog tracks major documentation updates, reorganizations, and archival
 ### Archived 📦
 
 **From Root Directory** (3 files):
+
 1. `GOD_OBJECTS_ANALYSIS.md` → `docs/archive/`
 2. `TASK_CONTEXTS.md` → `docs/archive/`
 3. `TASK_CONTEXTS_RODADAS_3_4_5.md` → `docs/archive/`
 
 **From docs/** (15 files):
+
 1. `MAINVIEWMODEL_ANALYSIS.md` → `docs/archive/`
 2. `PHASE3_FINAL_STATUS.md` → `docs/archive/`
 3. `PHASE3_SESSION_PROGRESS.md` → `docs/archive/`
@@ -77,6 +81,7 @@ This changelog tracks major documentation updates, reorganizations, and archival
 15. `FACADE_PATTERN.md` → `docs/archive/` (historical pattern doc)
 
 **Rationale**: These documents were:
+
 - Pre-refactoring analyses (now outdated)
 - Completed phase tracking (no longer active)
 - Completed migrations (historical reference only)
@@ -92,6 +97,7 @@ This changelog tracks major documentation updates, reorganizations, and archival
 ### Documentation Statistics 📊
 
 **Before Curation**:
+
 - Total markdown files: ~87
 - Root-level docs: ~25
 - docs/ directory: ~60
@@ -100,6 +106,7 @@ This changelog tracks major documentation updates, reorganizations, and archival
 - Archive policy: Informal
 
 **After Curation**:
+
 - Total markdown files: ~87
 - Root-level docs: ~22 (-3 to archive)
 - docs/ directory: ~47 (-15 to archive, +2 new)
@@ -121,12 +128,14 @@ This changelog tracks major documentation updates, reorganizations, and archival
 ## [October 2025] - Phase 4-7 Documentation (Pre-Curation)
 
 ### Added
+
 - `WIZARD_LIVE_IMPROVEMENTS.md` - Phase 4-7 wizard and live camera enhancements
 - `TEST_FIXES_NOV_2025.md` - Critical pytest hang fixes documentation
 - `BENCHMARK_GUIDE.md` - Performance benchmarking tools and methodology
 - `PERFORMANCE_BASELINE.md` - Current performance metrics
 
 ### Changed
+
 - Updated `ARCHITECTURE.md` with Phase 4 service layer changes
 - Enhanced `DEVELOPER_GUIDE_WIZARD.md` with WizardService patterns
 - Updated `CHEATSHEET.md` with new testing commands
@@ -136,12 +145,14 @@ This changelog tracks major documentation updates, reorganizations, and archival
 ## [September 2025] - Phase 1-3 Documentation
 
 ### Added
+
 - `SERVICE_LAYER_PATTERNS.md` - Service design principles
 - `STATE_MANAGEMENT_GUIDE.md` - StateManager usage guide
 - `ERROR_HANDLING.md` - Exception handling patterns
 - `DEPENDENCY_INJECTION_GUIDE.md` - DI patterns documentation
 
 ### Changed
+
 - Major update to `ARCHITECTURE.md` with MVVM-S pattern
 - Enhanced `REFERENCE_GUIDE.md` with operational workflows
 
@@ -150,12 +161,14 @@ This changelog tracks major documentation updates, reorganizations, and archival
 ## [August 2025] - Initial Documentation Structure
 
 ### Added
+
 - `docs/api/` - Sphinx API documentation setup
 - `docs/migration/` - Version migration guides
 - `docs/refactoring/` - Refactoring progress tracking
 - `docs/wiki/` - User guides in Portuguese
 
 ### Changed
+
 - Reorganized root-level docs into `docs/` directory
 - Created subdirectory structure for specialized docs
 
@@ -166,6 +179,7 @@ This changelog tracks major documentation updates, reorganizations, and archival
 ### When to Update This Changelog
 
 Update this changelog when:
+
 1. **Major documentation added** - New comprehensive guides or references
 2. **Files archived** - Documents moved to archive/ directory
 3. **Structure changes** - New subdirectories or reorganization
@@ -175,6 +189,7 @@ Update this changelog when:
 ### Changelog Format
 
 Use the following categories:
+
 - **Added** ✨ - New documentation files or sections
 - **Changed** 🔄 - Updates to existing documentation
 - **Archived** 📦 - Files moved to archive/
@@ -190,6 +205,7 @@ Use date-based versions (Month YYYY) for major updates.
 ## Contributing
 
 To update documentation:
+
 1. Make changes to relevant markdown files
 2. Update internal links if necessary
 3. Update `INDEX.md` if adding new files or changing structure

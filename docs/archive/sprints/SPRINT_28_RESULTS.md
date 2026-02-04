@@ -16,7 +16,7 @@ Sprint 28 extraiu com sucesso **23 métodos de controle de estado de UI** do Mai
 ### ✅ Objetivos Alcançados
 
 | Objetivo | Status | Resultado |
-|----------|--------|-----------|
+| ---------- | -------- | ----------- |
 | Criar UIStateController | ✅ COMPLETO | 741 linhas criadas |
 | Extrair 23 métodos do MainViewModel | ✅ COMPLETO | 23 métodos extraídos |
 | Criar facades no MainViewModel | ✅ COMPLETO | 23 facades criadas |
@@ -33,7 +33,7 @@ Sprint 28 extraiu com sucesso **23 métodos de controle de estado de UI** do Mai
 ### MainViewModel (Before/After)
 
 | Métrica | Antes | Depois | Redução |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | **Total de linhas** | 4,118 | 3,709 | -409 (-9.93%) |
 | **Linhas em métodos** | ~3,708 | ~3,299 | ~-409 (-11.02%) |
 | **Total de métodos** | 103 | 80 | -23 |
@@ -41,7 +41,7 @@ Sprint 28 extraiu com sucesso **23 métodos de controle de estado de UI** do Mai
 ### Projeção vs Realizado
 
 | Métrica | Planejado | Realizado | Δ |
-|---------|-----------|-----------|---|
+| --------- | ----------- | ----------- | --- |
 | **Linhas extraídas** | ~600 | 634 (controller) | +34 (+5.7%) ✅ |
 | **Redução MainViewModel** | -15.4% | -9.93% | -5.47% |
 | **Métodos extraídos** | 10-12 | 23 | +11 ✅ ACIMA! |
@@ -63,12 +63,12 @@ Sprint 28 extraiu com sucesso **23 métodos de controle de estado de UI** do Mai
 
 ### Arquivos Modificados
 
-2. **`src/zebtrack/orchestrators/__init__.py`** (32 linhas)
+1. **`src/zebtrack/orchestrators/__init__.py`** (32 linhas)
    - Export do `UIStateController` adicionado
    - Documentação atualizada (Sprint 28)
    - Ordenação alfabética mantida
 
-3. **`src/zebtrack/core/main_view_model.py`**
+2. **`src/zebtrack/core/main_view_model.py`**
    - **Import adicionado:** `UIStateController` (linha 65)
    - **Inicialização adicionada:** `self.ui_state_controller = UIStateController(self)` (linha 596)
    - **23 métodos convertidos em facades** (8 grupos A-H)
@@ -78,50 +78,60 @@ Sprint 28 extraiu com sucesso **23 métodos de controle de estado de UI** do Mai
 ## 📋 Métodos Extraídos por Grupo
 
 ### Grupo H: Core Utilities (2 métodos, 31 linhas)
+
 1. `_schedule_on_ui` - Thread-safe UI scheduling
 2. `refresh_project_views` - Refresh all project views
 
 ### Grupo A: Weight Management (7 métodos, 177 linhas)
-3. `manage_weights` - Open weight management dialog
-4. `add_new_weight` - Add new model weight
-5. `delete_weight` - Remove model weight
-6. `set_active_weight` - Set active weight
-7. `load_new_weight` - Load weight workflow
-8. `set_openvino_usage` - Toggle OpenVINO
-9. `convert_active_weight_to_openvino` - Convert to OpenVINO
+
+1. `manage_weights` - Open weight management dialog
+2. `add_new_weight` - Add new model weight
+3. `delete_weight` - Remove model weight
+4. `set_active_weight` - Set active weight
+5. `load_new_weight` - Load weight workflow
+6. `set_openvino_usage` - Toggle OpenVINO
+7. `convert_active_weight_to_openvino` - Convert to OpenVINO
 
 ### Grupo B: UI Status Updates (2 métodos, 40 linhas)
-10. `update_openvino_status` - Update OpenVINO status in UI
-11. `update_detector_parameters` - Update detector parameters in UI
+
+1. `update_openvino_status` - Update OpenVINO status in UI
+2. `update_detector_parameters` - Update detector parameters in UI
 
 ### Grupo C: Zone UI Updates (3 métodos, 97 linhas)
-12. `setup_detector_zones` - Configure detector zones
-13. `apply_roi_template` - Apply ROI template with validation
-14. `update_main_arena` - Update main arena polygon
+
+1. `setup_detector_zones` - Configure detector zones
+2. `apply_roi_template` - Apply ROI template with validation
+3. `update_main_arena` - Update main arena polygon
 
 ### Grupo D: User Feedback (3 métodos, 71 linhas)
-15. `_show_post_creation_guide` - Post-creation onboarding
-16. `_show_cancel_feedback` - Cancel operation feedback
-17. `_handle_validation_error` - Validation error dialogs
+
+1. `_show_post_creation_guide` - Post-creation onboarding
+2. `_show_cancel_feedback` - Cancel operation feedback
+3. `_handle_validation_error` - Validation error dialogs
 
 ### Grupo E: Complex Validation (1 método, 117 linhas) ⭐ MAIOR
-18. `_validate_zones_with_ui` - Complex zone validation with dialogs
+
+1. `_validate_zones_with_ui` - Complex zone validation with dialogs
 
 ### Grupo F: Processing UI (3 métodos, 43 linhas)
-19. `_activate_analysis_view_mode` - Switch to analysis tab
-20. `_prepare_processing_ui` - Prepare UI for processing
-21. `_finalize_processing` - Cleanup UI after processing
+
+1. `_activate_analysis_view_mode` - Switch to analysis tab
+2. `_prepare_processing_ui` - Prepare UI for processing
+3. `_finalize_processing` - Cleanup UI after processing
 
 ### Grupo G: Diagnostic UI (2 métodos, 22 linhas) ⚠️ THREADING
-22. `_update_diagnostic_progress` - Update diagnostic progress (root.after)
-23. `_finish_progress_dialog` - Close diagnostic dialog (root.after)
+
+1. `_update_diagnostic_progress` - Update diagnostic progress (root.after)
+2. `_finish_progress_dialog` - Close diagnostic dialog (root.after)
 
 ---
 
 ## 🧵 Threading Patterns Preserved
 
 ### root.after() Calls (3 total)
+
 Todas as chamadas `root.after()` foram preservadas EXATAMENTE:
+
 1. **Line 767:** `self.root.after(0, progress_dialog.update_progress, message)`
 2. **Line 769:** `self.root.after(0, progress_dialog.update_progress, message, current, total)`
 3. **Line 774:** `self.root.after(0, progress_dialog.finish)`
@@ -133,6 +143,7 @@ Todas as chamadas `root.after()` foram preservadas EXATAMENTE:
 ## ✅ Verificações de Qualidade
 
 ### Sintaxe Python ✅
+
 ```bash
 python -m py_compile src/zebtrack/orchestrators/ui_state_controller.py
 python -m py_compile src/zebtrack/core/main_view_model.py
@@ -140,13 +151,16 @@ python -m py_compile src/zebtrack/core/main_view_model.py
 ```
 
 ### Linting (ruff check) ✅
+
 **Resultado:**
-```
+
+```text
 Found 1 error (1 fixed, 0 remaining).
 All checks passed!
 ```
 
 **Issue Corrigido Automaticamente:**
+
 - ✅ F401: `OpenVINOExportError` imported but unused (removido - movido para UIStateController)
 
 **Status:** ✅ LINTING LIMPO
@@ -158,7 +172,7 @@ All checks passed!
 ### Redução Acumulada
 
 | Sprint | Linhas Reduzidas | MainViewModel Após | % Redução Acumulada |
-|--------|------------------|--------------------|---------------------|
+| -------- | ------------------ | -------------------- | --------------------- |
 | **Antes Sprint 23** | - | 5,227 linhas | - |
 | **Sprint 23** | 0 (análise) | 5,227 linhas | 0% |
 | **Sprint 24** | -693 | 4,534 linhas | -13.3% |
@@ -169,7 +183,7 @@ All checks passed!
 
 ### Meta Geral do Projeto
 
-```
+```text
 Meta Original (Sprints 1-22): Reduzir MainViewModel em -60-70%
 Meta Atualizada (Sprints 23-35): Reduzir para ~1,000 linhas (-81%)
 
@@ -226,18 +240,18 @@ Sprints Restantes: 7 (Sprints 29-35)
 ### Métricas Sprint 28
 
 | Métrica | Valor |
-|---------|-------|
+| --------- | ------- |
 | **Duração** | ~1 dia (planejado: 3-4 dias) ⚡ **75% mais rápido** |
 | **Métodos Extraídos** | 23 (planejado: 10-12) |
 | **Linhas Extraídas** | 634 (controller) |
 | **Redução MainViewModel** | -409 linhas (-9.93%) |
 | **Arquivos Criados** | 1 (controller) |
-| **Arquivos Modificados** | 2 (MainViewModel + __init__) |
+| **Arquivos Modificados** | 2 (MainViewModel + **init**) |
 | **Risco Realizado** | 🟢 LOW (planejado: HIGH) |
 
 ### Estado Atual do Projeto
 
-```
+```text
 MainViewModel (antes Sprint 28):  3,708 linhas (em métodos)
 MainViewModel (depois Sprint 28): 3,299 linhas (em métodos)
 Redução Sprint 28:               -  409 linhas (-9.93%)

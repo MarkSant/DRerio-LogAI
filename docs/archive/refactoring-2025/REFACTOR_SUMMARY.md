@@ -12,7 +12,7 @@ A refatoração do arquivo `src/zebtrack/ui/gui.py` foi concluída com sucesso, 
 ## 📈 Estatísticas
 
 | Métrica | Valor |
-|---------|-------|
+| --------- | ------- |
 | **Linhas Originais** | 9,952 |
 | **Linhas Finais** | 8,286 |
 | **Redução** | 1,666 linhas (16.7%) |
@@ -23,12 +23,12 @@ A refatoração do arquivo `src/zebtrack/ui/gui.py` foi concluída com sucesso, 
 ## 🔧 Componentes Extraídos
 
 | Componente | Linhas | Responsabilidade |
-|------------|--------|------------------|
+| ------------ | -------- | ------------------ |
 | **MenuManager** | 416 | Menus e contexto |
 | **CanvasManager** | 998 | Desenho e coordenadas |
 | **StateSynchronizer** | 352 | Estado e reset |
 | **EventDispatcher** | 535 | Eventos e handlers |
-| **TOTAL** | **2,301** | |
+| **TOTAL** | **2,301** |  |
 
 ## 📍 Delegações por Componente
 
@@ -37,7 +37,7 @@ A refatoração do arquivo `src/zebtrack/ui/gui.py` foi concluída com sucesso, 
 - **state_synchronizer**: 14 delegações
 - **event_dispatcher**: 21 delegações
 
-**Total: 81 delegações implementadas**
+### Total: 81 delegações implementadas
 
 ## ✅ Verificações de Qualidade
 
@@ -100,6 +100,7 @@ self.event_dispatcher.publish_event(event, data)
 ## 🎯 Métodos Extraídos por Componente
 
 ### MenuManager (8 métodos)
+
 - `create_menu_bar`
 - `show_about_dialog`
 - `show_project_overview_context_menu`
@@ -110,6 +111,7 @@ self.event_dispatcher.publish_event(event, data)
 - `create_roi_context_menu`
 
 ### CanvasManager (17 métodos)
+
 - `_canvas_to_video`, `_video_to_canvas`
 - `_point_to_segment_distance`
 - `_draw_bg_image_to_canvas`, `_display_image_on_canvas`
@@ -121,6 +123,7 @@ self.event_dispatcher.publish_event(event, data)
 - `_annotate_selected_tracks`, `_show_analysis_frame_image`
 
 ### StateSynchronizer (23 métodos)
+
 - `subscribe_to_state_changes`
 - `_on_recording_state_changed`, `_on_processing_state_changed`
 - `_on_detector_state_changed`, `_on_project_state_changed`
@@ -138,6 +141,7 @@ self.event_dispatcher.publish_event(event, data)
 - `_default_analysis_task_text`
 
 ### EventDispatcher (41 métodos)
+
 - `subscribe_to_ui_events`, `subscribe_zone_component_events`
 - `_handle_request_weight_file`, `_handle_request_weight_type`
 - `_handle_request_weight_action`
@@ -176,6 +180,7 @@ self.event_dispatcher.publish_event(event, data)
 ## 📌 Observações
 
 ### Objetivo de Redução
+
 - **Meta original**: 4000-5000 linhas
 - **Resultado atual**: 8,286 linhas (redução de 16.7%)
 - **Gap**: 3,286-4,286 linhas
@@ -183,9 +188,11 @@ self.event_dispatcher.publish_event(event, data)
 A meta de 4000-5000 linhas requer extração adicional de componentes em fases futuras. Os 4 componentes atuais removeram **todos os 89 métodos** que foram extraídos para eles.
 
 ### Backward Compatibility
+
 Todas as delegações foram implementadas de forma a preservar a compatibilidade com o código existente. Os métodos públicos mantêm suas assinaturas originais, apenas delegando para os componentes apropriados.
 
 ### Qualidade de Código
+
 - Nenhum erro de linting (Ruff)
 - Sintaxe Python válida
 - Linhas dentro do limite de 100 caracteres

@@ -23,6 +23,7 @@ Received 6 categories of recommendations for the MainViewModel refactoring (Spri
 **Issue**: Only 1 of 10 orchestrators has dedicated tests (`test_video_orchestrator.py`)
 
 **Missing Tests**:
+
 - ❌ `test_project_orchestrator.py` (16 methods, ~483 lines)
 - ❌ `test_ui_state_controller.py` (23 methods, ~600 lines)
 - ❌ `test_recording_session_orchestrator.py` (8+ methods)
@@ -35,12 +36,14 @@ Received 6 categories of recommendations for the MainViewModel refactoring (Spri
 **Risk Assessment**: 🟡 MEDIUM (not as critical as stated)
 
 **Why Lower Risk**:
+
 1. ✅ **Existing Integration Tests**: MainViewModel tests already exercise orchestrators via facades
 2. ✅ **2,568 Tests Passing**: Full test suite validates end-to-end workflows
 3. ✅ **Facades Preserve API**: All original MainViewModel methods still work via delegation
 4. ✅ **No Regressions**: Zero test failures after 11 sprints of refactoring
 
 **However, Still Important Because**:
+
 - ⚠️ Orchestrators can't be tested in isolation
 - ⚠️ Future refactoring is riskier without direct tests
 - ⚠️ Doesn't meet CLAUDE.md 70% coverage requirement for new code
@@ -48,6 +51,7 @@ Received 6 categories of recommendations for the MainViewModel refactoring (Spri
 **Recommendation**: ✅ ACCEPT - Add tests, but as **Sprint 36** (separate effort)
 
 **Action Plan**:
+
 ```markdown
 ## Sprint 36: Orchestrator Test Coverage (Future)
 
@@ -77,6 +81,7 @@ Received 6 categories of recommendations for the MainViewModel refactoring (Spri
 **Issue**: All orchestrators receive full `MainViewModel` reference instead of specific dependencies
 
 **Current Pattern**:
+
 ```python
 class ProjectOrchestrator:
     def __init__(self, main_view_model: MainViewModel):
@@ -87,12 +92,14 @@ class ProjectOrchestrator:
 ```
 
 **Problems**:
+
 - ⚠️ Orchestrators can access ANY MainViewModel method/attribute
 - ⚠️ Circular dependency: MainViewModel → Orchestrator → MainViewModel
 - ⚠️ Hard to test in isolation (need full MainViewModel mock)
 - ⚠️ Violates Dependency Inversion Principle
 
 **Proposed Better Pattern**:
+
 ```python
 class ProjectOrchestrator:
     def __init__(
@@ -108,6 +115,7 @@ class ProjectOrchestrator:
 ```
 
 **Benefits**:
+
 - ✅ Clear dependency contracts
 - ✅ Easier to test (mock only required deps)
 - ✅ Prevents future coupling growth
@@ -116,6 +124,7 @@ class ProjectOrchestrator:
 **Analysis**: This is **architecturally correct** but **not urgent**
 
 **Why Not Now**:
+
 1. 🕐 **Requires major refactoring**: All 10 orchestrators + composition root
 2. 🕐 **Affects 9 test files** (when we create them)
 3. 🕐 **Risk of breakage**: Each orchestrator needs careful dependency analysis
@@ -124,6 +133,7 @@ class ProjectOrchestrator:
 **Recommendation**: ✅ ACCEPT - Refactor in **Sprint 37+** (after tests exist)
 
 **Action Plan**:
+
 ```markdown
 ## Sprint 37: Decouple Orchestrators from MainViewModel (Future)
 
@@ -152,6 +162,7 @@ class ProjectOrchestrator:
 **Issue**: Some orchestrators delegate to other orchestrators
 
 **Example** (ProjectOrchestrator → VideoProcessingOrchestrator):
+
 ```python
 # ProjectOrchestrator.py line 119-121
 def start_project_processing_workflow(self, *, skip_dialog: bool = False):
@@ -161,6 +172,7 @@ def start_project_processing_workflow(self, *, skip_dialog: bool = False):
 ```
 
 **Problems**:
+
 - ⚠️ Delegation chain: MainViewModel → ProjectOrchestrator → VideoProcessingOrchestrator
 - ⚠️ Unclear ownership: Is this "project" or "video processing" concern?
 - ⚠️ Increases cognitive load
@@ -168,17 +180,20 @@ def start_project_processing_workflow(self, *, skip_dialog: bool = False):
 **Analysis**: This is **expected behavior** in orchestrator pattern
 
 **Why This is OK**:
+
 1. ✅ **Correct domain separation**: Projects contain videos, so ProjectOrchestrator coordinates video processing within project context
 2. ✅ **Single Responsibility**: VideoProcessingOrchestrator focuses on video logic, ProjectOrchestrator focuses on project lifecycle
 3. ✅ **Reduces duplication**: Avoids reimplementing video logic in ProjectOrchestrator
 
 **However, Documentation Needed**:
+
 - ⚠️ Orchestrator responsibilities not clearly documented
 - ⚠️ Developers may be confused about where to add new features
 
 **Recommendation**: ✅ ACCEPT - Create **orchestrator responsibility guide**
 
 **Action Plan**:
+
 ```markdown
 ## Action: Create ORCHESTRATOR_RESPONSIBILITIES.md
 
@@ -212,6 +227,7 @@ def start_project_processing_workflow(self, *, skip_dialog: bool = False):
 **Issue**: Most use `*Orchestrator` suffix, one uses `*Controller`
 
 **Current Naming**:
+
 - ✅ `ProjectOrchestrator`
 - ✅ `AnalysisOrchestrator`
 - ✅ `VideoProcessingOrchestrator`
@@ -225,11 +241,13 @@ def start_project_processing_workflow(self, *, skip_dialog: bool = False):
 **Analysis**: This is **intentional**, not inconsistent
 
 **Why "Controller" is Correct**:
+
 1. ✅ **Different responsibility**: UIStateController manages UI state, not business workflows
 2. ✅ **Follows MVC pattern**: "Controller" is appropriate for UI coordination
 3. ✅ **Distinguishes from orchestrators**: Orchestrators coordinate business logic, Controller coordinates UI
 
 **Semantic Difference**:
+
 - **Orchestrator**: Coordinates multiple services to execute business workflows
 - **Controller**: Manages state and coordinates UI updates
 
@@ -246,7 +264,8 @@ def start_project_processing_workflow(self, *, skip_dialog: bool = False):
 **Issue**: Sprint result docs may clutter `docs/` directory
 
 **Current State**:
-```
+
+```text
 docs/
   SPRINT_24_RESULTS.md
   SPRINT_27_RESULTS.md
@@ -260,7 +279,8 @@ docs/
 ```
 
 **Proposed Structure**:
-```
+
+```text
 docs/
   sprints/
     SPRINT_24_RESULTS.md
@@ -274,6 +294,7 @@ docs/
 **Analysis**: This is **cosmetic** but **good practice**
 
 **Benefits**:
+
 - ✅ Cleaner docs/ root directory
 - ✅ Easier to find current architecture docs
 - ✅ Historical context preserved but organized
@@ -281,6 +302,7 @@ docs/
 **Recommendation**: ✅ ACCEPT - Reorganize now (5-10 min task)
 
 **Action Plan**:
+
 ```bash
 mkdir -p docs/sprints
 mv docs/SPRINT_*_RESULTS.md docs/sprints/
@@ -299,6 +321,7 @@ git commit -m "docs: Organize sprint results into sprints/ subdirectory"
 **Location**: `ProjectOrchestrator.py:248-256`
 
 **Code**:
+
 ```python
 @contextmanager
 def project_calibration_session(self):
@@ -318,16 +341,19 @@ def project_calibration_session(self):
 **Analysis**: This is **acceptable for now** but **could be improved**
 
 **Why It's OK**:
+
 1. ✅ Context managers are designed to manage state temporarily
 2. ✅ Properly restores state in finally block
 3. ✅ Works correctly in all current use cases
 4. ✅ Orchestrator is tightly coupled to MainViewModel anyway (by design)
 
 **Why It Could Be Better**:
+
 - ⚠️ Violates encapsulation (accessing private attribute)
 - ⚠️ MainViewModel should manage its own state
 
 **Proposed Improvement**:
+
 ```python
 # Option 1: Return flag, let caller decide
 @contextmanager
@@ -357,6 +383,7 @@ def project_calibration_session(self):
 **Location**: All 10 orchestrator `__init__` methods
 
 **Code Pattern** (repeated in 10 files):
+
 ```python
 self.project_manager = main_view_model.project_manager
 self.state_manager = main_view_model.state_manager
@@ -370,16 +397,19 @@ self.root = main_view_model.root
 **Analysis**: This is **low-risk duplication** with **high refactoring cost**
 
 **Why Low Risk**:
+
 1. ✅ MainViewModel attributes are stable (haven't changed in 2+ years)
 2. ✅ Easy to find/replace if names change (grep is sufficient)
 3. ✅ Not logic duplication (just boilerplate)
 
 **Why High Cost**:
+
 - ⚠️ Requires base class creation
 - ⚠️ Affects all 10 orchestrators
 - ⚠️ May complicate future decoupling (Sprint 37)
 
 **Proposed Solution**:
+
 ```python
 class BaseOrchestrator:
     """Base class for orchestrators with common dependency management."""
@@ -400,6 +430,7 @@ class ProjectOrchestrator(BaseOrchestrator):
 ```
 
 **Analysis of Proposal**:
+
 - ✅ Reduces boilerplate
 - ✅ Single place to manage caching pattern
 - ⚠️ Adds inheritance (more complexity)
@@ -408,6 +439,7 @@ class ProjectOrchestrator(BaseOrchestrator):
 **Recommendation**: ❌ **REJECT** - Not worth it
 
 **Rationale**:
+
 1. Current duplication is **harmless boilerplate**
 2. Proposed solution adds **inheritance complexity**
 3. **Conflicts with future decoupling** (Sprint 37 will remove main_view_model references)
@@ -420,7 +452,7 @@ class ProjectOrchestrator(BaseOrchestrator):
 ## 📋 Summary & Action Plan
 
 | # | Issue | Severity | Status | Timeline |
-|---|-------|----------|--------|----------|
+| --- | ------- | ---------- | -------- | ---------- |
 | 1 | Missing Test Coverage | 🔴 CRITICAL → 🟡 MEDIUM | 📋 Deferred | Sprint 36 (3-5 days) |
 | 2 | Tight Coupling | 🟡 MEDIUM | 📋 Deferred | Sprint 37+ (4-6 weeks) |
 | 3 | Delegation Chains | 🟡 MEDIUM | ✅ Implement | NOW (2-3 hours) |
@@ -434,19 +466,23 @@ class ProjectOrchestrator(BaseOrchestrator):
 ## ✅ Immediate Actions (This Session)
 
 ### Action 1: Create ORCHESTRATOR_RESPONSIBILITIES.md ⏱️ 2-3 hours
+
 **Priority**: HIGH
 **Value**: HIGH (developer clarity)
 
 **Content**:
+
 1. Responsibility matrix for all 10 orchestrators
 2. Delegation patterns and when to use them
 3. Decision tree for where to add new features
 
 ### Action 2: Organize Sprint Docs ⏱️ 5-10 minutes
+
 **Priority**: LOW
 **Value**: MEDIUM (cleaner docs)
 
 **Commands**:
+
 ```bash
 mkdir -p docs/sprints
 git mv docs/SPRINT_*_RESULTS.md docs/sprints/
@@ -458,14 +494,17 @@ git commit -m "docs: Organize sprint results into sprints/ subdirectory"
 ## 📋 Future Sprint Planning
 
 ### Sprint 36: Orchestrator Test Coverage (3-5 days)
+
 **Goal**: Add unit tests for 9 orchestrators without dedicated tests
 
 **Deliverables**:
+
 - 9 new test files in `tests/orchestrators/`
 - Minimum 70% coverage per orchestrator
 - Test infrastructure (fixtures, mocks)
 
 **Priority Order**:
+
 1. ProjectOrchestrator (most complex)
 2. UIStateController (threading patterns)
 3. RecordingSessionOrchestrator
@@ -474,16 +513,19 @@ git commit -m "docs: Organize sprint results into sprints/ subdirectory"
 ---
 
 ### Sprint 37+: Decouple Orchestrators (4-6 weeks, gradual)
+
 **Goal**: Remove MainViewModel reference from orchestrators
 
 **Approach**: Migrate 1-2 orchestrators per sprint
 
 **Benefits**:
+
 - ✅ Clearer dependency contracts
 - ✅ Easier to test in isolation
 - ✅ Enables orchestrator reuse
 
 **Prerequisites**:
+
 - ✅ Sprint 36 (tests) must be complete
 
 ---
@@ -491,15 +533,18 @@ git commit -m "docs: Organize sprint results into sprints/ subdirectory"
 ## 🎯 Recommendations Summary
 
 ### ✅ ACCEPT & IMPLEMENT NOW
+
 - [x] **Action 1**: Create ORCHESTRATOR_RESPONSIBILITIES.md (2-3 hours)
 - [x] **Action 2**: Organize sprint docs (5-10 min)
 
 ### 📋 ACCEPT & DEFER
+
 - [ ] **Sprint 36**: Add orchestrator test coverage (3-5 days)
 - [ ] **Sprint 37+**: Decouple orchestrators from MainViewModel (4-6 weeks)
 - [ ] **Sprint 37**: Fix context manager state mutation
 
 ### ❌ REJECT
+
 - [x] **Rename UIStateController**: Intentional naming distinction
 - [x] **BaseOrchestrator class**: Conflicts with future decoupling, not worth it
 
@@ -510,6 +555,7 @@ git commit -m "docs: Organize sprint results into sprints/ subdirectory"
 **Current State Risk**: 🟡 LOW-MEDIUM
 
 **Rationale**:
+
 1. ✅ All 2,568 tests passing (integration coverage exists)
 2. ✅ Zero regressions after 11 sprints
 3. ✅ Facades preserve all original APIs
@@ -519,6 +565,7 @@ git commit -m "docs: Organize sprint results into sprints/ subdirectory"
 **Future State Risk** (after recommendations): 🟢 LOW
 
 **With Sprint 36+37**:
+
 - ✅ Comprehensive test coverage
 - ✅ Decoupled architecture
 - ✅ Clear responsibilities documented

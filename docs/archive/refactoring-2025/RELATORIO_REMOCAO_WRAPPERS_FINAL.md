@@ -12,7 +12,7 @@
 ### Métricas Finais
 
 | Métrica | Antes | Depois | Redução |
-|---------|--------|---------|----------|
+| --------- | -------- | --------- | ---------- |
 | **Linhas (GUI)** | 2.726 | 2.653 | **-73 (-2.7%)** |
 | **Métodos (GUI)** | 184 | 166 | **-18 (-9.8%)** |
 | **MainViewModel** | 523 linhas | 523 linhas | 0 (sem alterações) |
@@ -22,15 +22,19 @@
 ## Trabalho Realizado ✅
 
 ### BATCH 2 (10 wrappers, -47L)
+
 Removidos métodos que delegavam para componentes sem lógica adicional.
 
 ### BATCH 3 (12 wrappers, -48L)
+
 Continuação da remoção sistemática de wrappers simples.
 
 ### BATCH 4 (15 wrappers, -60L)
+
 Maior batch processado com sucesso, focando em delegações para WidgetFactory e TabBuilder.
 
 ### BATCH 5 (9 wrappers, -37L)
+
 - `_create_welcome_frame` → `widget_factory.create_welcome_frame()`
 - `_create_configuration_tab_widget` → `tab_builder.build_configuration_tab()`
 - `_create_main_controls_tab` → `tab_builder.build_main_controls_tab()`
@@ -41,7 +45,9 @@ Maior batch processado com sucesso, focando em delegações para WidgetFactory e
 - 2 wrappers adicionais
 
 ### BATCH 6 (5 wrappers, -20L)
+
 Foco em wrappers não utilizados (dead code):
+
 - `_create_template_rois` (não chamado)
 - `_prompt_for_weight_type` (não chamado)
 - `_prepare_single_video_ui_state` (chamado 1x internamente)
@@ -49,7 +55,9 @@ Foco em wrappers não utilizados (dead code):
 - `_render_progress_grid` (chamado 1x internamente)
 
 ### BATCH 7 (4 wrappers, -16L)
+
 Wrappers delegando para ValidationManager:
+
 - `_compose_single_video_runtime_config`
 - `_resolve_group_display`
 - `_resolve_day_display`
@@ -60,9 +68,11 @@ Wrappers delegando para ValidationManager:
 ## Descobertas Importantes 🔍
 
 ### 1. Wrappers que SÃO API Pública
+
 Descobertos ~37 wrappers que **NÃO podem ser removidos** porque são chamados de fora do GUI:
 
 **Exemplos**:
+
 - `refresh_project_views()` - chamado de orchestrators e analysis_service
 - `show_external_trigger_notice()` / `clear_external_trigger_notice()` - chamados de dialog_manager
 - `update_zone_listbox()` - chamado de 5+ componentes (dialog_manager, renderer, polygon_drawing_service, roi_template_manager)
@@ -75,7 +85,9 @@ Descobertos ~37 wrappers que **NÃO podem ser removidos** porque são chamados d
 **Implicação**: Remover estes métodos quebraria a aplicação.
 
 ### 2. Padrão Arquitetural Identificado
+
 Muitos "wrappers" são na verdade **pontos de integração arquitetural**:
+
 - GUI atua como **facade** para componentes
 - Componentes chamam métodos de GUI para coordenação
 - Remover todos os wrappers violaria o padrão de design atual
@@ -87,16 +99,19 @@ Muitos "wrappers" são na verdade **pontos de integração arquitetural**:
 ### Categorias
 
 **A. API Pública (NÃO remover)** - ~37 wrappers
+
 - Chamados de orchestrators
 - Chamados de components
 - Bound to UI commands/events
 - Parte da interface pública de GUI
 
 **B. Candidatos para Remoção** - ~0-5 wrappers
+
 - Dead code verdadeiro (não chamados)
 - Chamados apenas 1x internamente com lógica trivial
 
 **C. Requer Análise Manual** - ~13-18 wrappers
+
 - Delegações complexas (multi-linha)
 - Event handlers (_on_* methods)
 - Métodos com lógica parcial
@@ -129,6 +144,7 @@ Muitos "wrappers" são na verdade **pontos de integração arquitetural**:
 ### Opções para os Wrappers Restantes
 
 #### Opção A: Manter Estado Atual ✅ RECOMENDADO
+
 - **Prós**:
   - Código estável e funcional
   - API pública preservada
@@ -140,6 +156,7 @@ Muitos "wrappers" são na verdade **pontos de integração arquitetural**:
   - Métricas ficam 10% acima da meta original
 
 #### Opção B: Refatoração Completa (Alto Risco)
+
 - Remover API pública de GUI
 - Componentes chamariam diretamente outros componentes
 - Requer:
@@ -151,6 +168,7 @@ Muitos "wrappers" são na verdade **pontos de integração arquitetural**:
 - **Risco**: Alto (breaking changes)
 
 #### Opção C: Remoção Seletiva Adicional (Médio Risco)
+
 - Identificar 5-10 wrappers verdadeiramente inúteis
 - Remover apenas dead code comprovado
 - Manter toda API pública
@@ -172,7 +190,7 @@ Muitos "wrappers" são na verdade **pontos de integração arquitetural**:
 ### Métricas vs Metas Originais
 
 | Métrica | Meta Original | Alcançado | Status |
-|---------|---------------|-----------|--------|
+| --------- | --------------- | ----------- | -------- |
 | GUI Linhas | ~2.700 | 2.653 | ✅ **ABAIXO da meta** |
 | GUI Métodos | ~160 | 166 | ⚠️ 6 acima (+3.8%) |
 | MainViewModel | < 800L | 523L | ✅ **BEM ABAIXO** |
@@ -184,11 +202,13 @@ Muitos "wrappers" são na verdade **pontos de integração arquitetural**:
 ## Próximos Passos (Opcional)
 
 ### Curto Prazo
+
 1. Documentar métodos públicos restantes como API estável
 2. Adicionar `@public_api` decorators onde apropriado
 3. Criar diagrama de dependências GUI ↔ Components
 
 ### Longo Prazo (v4.0)
+
 1. Avaliar migração para padrão Mediator/Event Bus completo
 2. Reduzir dependências bidirecionais (GUI ← Components)
 3. Injetar dependências em vez de acessar via GUI

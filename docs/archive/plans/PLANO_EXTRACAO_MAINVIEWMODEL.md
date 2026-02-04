@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # 🚀 PLANO DE EXTRAÇÃO REAL - MainViewModel Reduction
 
 **Documento:** PLANO_EXTRACAO_MAINVIEWMODEL.md
@@ -11,7 +13,8 @@
 ## 📊 SITUAÇÃO ATUAL
 
 ### Estado Atual (Após Sprint 22)
-```
+
+```text
 MainViewModel: 5,568 linhas, 141 métodos
 Progresso até agora: -165 linhas (-2.9%)
 Objetivo original: -60-70% (reduzir para ~1,500-2,000 linhas)
@@ -20,11 +23,13 @@ Gap restante: -3,568 linhas necessárias (-64%)
 
 ### Problema Identificado
 
-**Sprints 1-14**: Criaram Coordinators como **camada de delegação**, mas **não extraíram código**
+**Sprints 1-14**: Criaram Coordinators como**camada de delegação**, mas**não extraíram código**
+
 - ProjectCoordinator, DetectorCoordinator, RecordingCoordinator, LiveCameraCoordinator
 - Resultado: +2,400 linhas em novos arquivos, MainViewModel reduziu apenas -100 linhas
 
-**Sprints 15-22**: Focaram em **code quality**, não em **size reduction**
+**Sprints 15-22**: Focaram em**code quality**, não em**size reduction**
+
 - Dead code removal, linting fixes, analysis
 - Resultado: -165 linhas (apenas limpeza superficial)
 
@@ -33,9 +38,11 @@ Gap restante: -3,568 linhas necessárias (-64%)
 ## 🎯 OBJETIVOS DA EXTRAÇÃO REAL
 
 ### Meta Principal
+
 **Reduzir MainViewModel para ~2,000 linhas** através de extração real de código
 
 ### Estratégia
+
 1. **Extrair métodos grandes** do MainViewModel para novos orchestrators
 2. **Mover lógica de orquestração** para coordenadores especializados
 3. **Criar camada de UI Controllers** separada da lógica de negócio
@@ -43,6 +50,7 @@ Gap restante: -3,568 linhas necessárias (-64%)
 5. **Testar exaustivamente** cada extração
 
 ### Princípios
+
 - ✅ **Extract Method Refactoring**: Mover código, não duplicar
 - ✅ **One Step at a Time**: Uma extração por commit
 - ✅ **Test After Each Step**: Garantir zero regressões
@@ -54,16 +62,18 @@ Gap restante: -3,568 linhas necessárias (-64%)
 
 ### FASE 1: Análise Profunda e Preparação (Sprint 23)
 
-**Sprint 23: Análise de Dependências do MainViewModel**
+### Sprint 23: Análise de Dependências do MainViewModel
 
-**Objetivos:**
+### Objetivos
+
 1. Mapear todos os 141 métodos do MainViewModel
 2. Identificar dependências entre métodos
 3. Classificar métodos por categoria (UI, orchestration, business logic)
 4. Identificar métodos candidatos para extração (>50 linhas)
 5. Criar mapa de dependências (quem chama quem)
 
-**Deliverables:**
+### Deliverables
+
 - `docs/MAINVIEWMODEL_DEPENDENCY_MAP.md` - Mapa completo de dependências
 - `docs/MAINVIEWMODEL_METHOD_CLASSIFICATION.md` - Categorização dos 141 métodos
 - `docs/EXTRACTION_CANDIDATES.md` - Top 20 métodos para extração prioritária
@@ -80,6 +90,7 @@ Gap restante: -3,568 linhas necessárias (-64%)
 **Objetivo:** Extrair lógica de processamento de vídeos do MainViewModel
 
 **Métodos a extrair** (~800 linhas):
+
 1. `start_batch_processing()` - 120 linhas
 2. `process_pending_project_videos()` - 149 linhas (C901 complexity warning)
 3. `_process_video_with_recording()` - 80 linhas
@@ -89,7 +100,8 @@ Gap restante: -3,568 linhas necessárias (-64%)
 7. `cancel_processing()` - 40 linhas
 8. Métodos auxiliares de processamento (~200 linhas)
 
-**Estrutura do novo arquivo:**
+### Estrutura do novo arquivo
+
 ```python
 # src/zebtrack/orchestrators/video_processing_orchestrator.py
 
@@ -120,6 +132,7 @@ class VideoProcessingOrchestrator:
 ```
 
 **MainViewModel após extração** (facade mínima):
+
 ```python
 class MainViewModel:
     def __init__(self, ..., video_processing_orchestrator: VideoProcessingOrchestrator):
@@ -134,7 +147,8 @@ class MainViewModel:
         return self.video_processing_orchestrator.process_pending_project_videos(**kwargs)
 ```
 
-**Testes:**
+### Testes
+
 - Criar `tests/orchestrators/test_video_processing_orchestrator.py` (~500 linhas)
 - 30+ testes cobrindo todos os métodos extraídos
 - Testes de integração: MainViewModel → VideoProcessingOrchestrator
@@ -150,6 +164,7 @@ class MainViewModel:
 **Objetivo:** Extrair lógica de análise e relatórios
 
 **Métodos a extrair** (~600 linhas):
+
 1. `start_analysis()` - 90 linhas
 2. `start_analysis_for_videos()` - 80 linhas
 3. `_run_analysis_for_video()` - 70 linhas
@@ -159,7 +174,8 @@ class MainViewModel:
 7. `_handle_analysis_completion()` - 50 linhas
 8. Métodos auxiliares (~70 linhas)
 
-**Estrutura:**
+### Estrutura
+
 ```python
 # src/zebtrack/orchestrators/analysis_orchestrator.py
 
@@ -184,6 +200,7 @@ class AnalysisOrchestrator:
 **Objetivo:** Extrair lógica de sessões de gravação
 
 **Métodos a extrair** (~500 linhas):
+
 1. `start_live_camera_analysis()` - 100 linhas
 2. `start_recording_session()` - 90 linhas
 3. `stop_current_session()` - 70 linhas
@@ -192,7 +209,8 @@ class AnalysisOrchestrator:
 6. `_cleanup_session()` - 40 linhas
 7. Métodos de gerenciamento de sessões (~90 linhas)
 
-**Estrutura:**
+### Estrutura
+
 ```python
 # src/zebtrack/orchestrators/recording_session_orchestrator.py
 
@@ -220,6 +238,7 @@ class RecordingSessionOrchestrator:
 **Objetivo:** Extrair lógica de orquestração de projetos
 
 **Métodos a extrair** (~400 linhas):
+
 1. `load_project()` - 80 linhas
 2. `close_project()` - 60 linhas
 3. `_setup_project_state()` - 70 linhas
@@ -228,7 +247,8 @@ class RecordingSessionOrchestrator:
 6. `_cleanup_project_resources()` - 40 linhas
 7. Métodos auxiliares (~40 linhas)
 
-**Estrutura:**
+### Estrutura
+
 ```python
 # src/zebtrack/orchestrators/project_orchestrator.py
 
@@ -255,6 +275,7 @@ class ProjectOrchestrator:
 **Objetivo:** Extrair lógica de sincronização de UI
 
 **Métodos a extrair** (~600 linhas):
+
 1. `update_progress_callback()` - 80 linhas
 2. `_update_ui_after_processing()` - 70 linhas
 3. `_update_ui_after_analysis()` - 60 linhas
@@ -264,7 +285,8 @@ class ProjectOrchestrator:
 7. `_sync_ui_with_state()` - 70 linhas
 8. Métodos auxiliares de UI (~140 linhas)
 
-**Estrutura:**
+### Estrutura
+
 ```python
 # src/zebtrack/ui/controllers/ui_state_controller.py
 
@@ -296,6 +318,7 @@ class UIStateController:
 **Objetivo:** Extrair lógica de gerenciamento da árvore de vídeos
 
 **Métodos a extrair** (~400 linhas):
+
 1. `populate_video_tree()` - 80 linhas
 2. `_build_video_tree_structure()` - 70 linhas
 3. `on_video_selected()` - 60 linhas
@@ -304,7 +327,8 @@ class UIStateController:
 6. `filter_video_tree()` - 50 linhas
 7. Métodos auxiliares (~50 linhas)
 
-**Estrutura:**
+### Estrutura
+
 ```python
 # src/zebtrack/ui/controllers/video_tree_controller.py
 
@@ -329,6 +353,7 @@ class VideoTreeController:
 **Objetivo:** Extrair lógica de controle do canvas
 
 **Métodos a extrair** (~350 linhas):
+
 1. `update_canvas_overlay()` - 70 linhas
 2. `_draw_detection_boxes()` - 60 linhas
 3. `_draw_zones()` - 50 linhas
@@ -336,7 +361,8 @@ class VideoTreeController:
 5. `_update_canvas_frame()` - 60 linhas
 6. Métodos auxiliares de canvas (~70 linhas)
 
-**Estrutura:**
+### Estrutura
+
 ```python
 # src/zebtrack/ui/controllers/canvas_controller.py
 
@@ -363,6 +389,7 @@ class CanvasController:
 **Objetivo:** Extrair handlers de eventos de menu
 
 **Métodos a extrair** (~300 linhas):
+
 1. `on_menu_new_project()` - 40 linhas
 2. `on_menu_open_project()` - 40 linhas
 3. `on_menu_save_project()` - 30 linhas
@@ -370,7 +397,8 @@ class CanvasController:
 5. `on_menu_settings()` - 40 linhas
 6. Outros handlers de menu (~100 linhas)
 
-**Estrutura:**
+### Estrutura
+
 ```python
 # src/zebtrack/ui/handlers/menu_event_handler.py
 
@@ -395,13 +423,15 @@ class MenuEventHandler:
 **Objetivo:** Extrair handlers de eventos de toolbar
 
 **Métodos a extrair** (~250 linhas):
+
 1. `on_start_processing()` - 50 linhas
 2. `on_stop_processing()` - 40 linhas
 3. `on_pause_processing()` - 40 linhas
 4. `on_start_analysis()` - 50 linhas
 5. Outros handlers de toolbar (~70 linhas)
 
-**Estrutura:**
+### Estrutura
+
 ```python
 # src/zebtrack/ui/handlers/toolbar_event_handler.py
 
@@ -425,6 +455,7 @@ class ToolbarEventHandler:
 **Objetivo:** Extrair métodos auxiliares menores
 
 **Métodos a extrair** (~400 linhas):
+
 - Métodos auxiliares de validação (~100 linhas)
 - Métodos de formatação e conversão (~100 linhas)
 - Métodos de logging e debugging (~100 linhas)
@@ -440,7 +471,8 @@ class ToolbarEventHandler:
 
 **Objetivo:** Garantir que todas as extrações funcionam em conjunto
 
-**Atividades:**
+### Atividades
+
 1. Criar test suite de integração end-to-end
 2. Testar todos os fluxos principais:
    - Criar projeto → Processar vídeos → Gerar relatórios
@@ -450,7 +482,8 @@ class ToolbarEventHandler:
 4. Testes de regressão (comparar resultados antes/depois)
 5. Performance benchmarks (garantir sem degradação)
 
-**Deliverables:**
+### Deliverables
+
 - `tests/integration/test_mainviewmodel_refactored.py` (~800 linhas)
 - `tests/integration/test_orchestrators_integration.py` (~600 linhas)
 - `docs/INTEGRATION_TEST_RESULTS.md` - Relatório de testes
@@ -464,7 +497,8 @@ class ToolbarEventHandler:
 
 **Objetivo:** Documentar todas as mudanças e preparar release
 
-**Atividades:**
+### Atividades
+
 1. Atualizar `docs/ARCHITECTURE.md` com nova estrutura
 2. Atualizar `CLAUDE.md` com novos orchestrators
 3. Criar migration guide para desenvolvedores
@@ -472,7 +506,8 @@ class ToolbarEventHandler:
 5. Preparar release notes
 6. Criar tag de versão (v5.0.0 - Breaking Changes)
 
-**Deliverables:**
+### Deliverables
+
 - `docs/ARCHITECTURE_V5.md` - Arquitetura atualizada
 - `docs/MIGRATION_GUIDE_V5.md` - Guia de migração
 - `docs/MAINVIEWMODEL_REFACTORING_COMPLETE.md` - Relatório final
@@ -489,29 +524,29 @@ class ToolbarEventHandler:
 ### Por Fase
 
 | Fase | Sprints | Linhas Extraídas | Novos Arquivos | Estimativa |
-|------|---------|------------------|----------------|------------|
+| ------ | --------- | ------------------ | ---------------- | ------------ |
 | **Análise** | 23 | 0 | 3 docs | 1 dia |
 | **Orchestrators** | 24-27 | -2,300 | 4 orchestrators | 8-9 dias |
 | **UI Controllers** | 28-30 | -1,350 | 3 controllers | 5-6 dias |
 | **Event Handlers** | 31-32 | -550 | 2 handlers | 2 dias |
 | **Refinamento** | 33-35 | -400 | Tests + Docs | 6-7 dias |
-| **TOTAL** | **23-35 (13 sprints)** | **-4,600** | **9 novos arquivos** | **22-25 dias** |
+| **TOTAL**|**23-35 (13 sprints)**|**-4,600**|**9 novos arquivos**|**22-25 dias** |
 
 ### Resultado Final Esperado
 
-```
+```text
 MainViewModel:
   ANTES: 5,568 linhas, 141 métodos
   DEPOIS: ~1,000-1,200 linhas, ~30-40 métodos (facades)
   REDUÇÃO: -4,400 linhas (-79%)
 ```
 
-**Meta Original**: Reduzir 60-70% ✅ **SUPERADO!**
+### Meta Original**: Reduzir 60-70% ✅**SUPERADO
 
 ### Distribuição Após Extração
 
 | Componente | Linhas | Métodos | Papel |
-|------------|--------|---------|-------|
+| ------------ | -------- | --------- | ------- |
 | **MainViewModel** | ~1,000 | ~30 | Facade + DI Root |
 | **VideoProcessingOrchestrator** | ~800 | ~15 | Processamento |
 | **AnalysisOrchestrator** | ~600 | ~12 | Análise |
@@ -523,7 +558,7 @@ MainViewModel:
 | **MenuEventHandler** | ~300 | ~15 | Menu Events |
 | **ToolbarEventHandler** | ~250 | ~10 | Toolbar Events |
 | **Auxiliares** | ~400 | ~20 | Utilities |
-| **TOTAL DISTRIBUÍDO** | **5,600** | **147** | - |
+| **TOTAL DISTRIBUÍDO**|**5,600**|**147** | - |
 
 ---
 
@@ -532,21 +567,25 @@ MainViewModel:
 ### Ordem de Execução
 
 **Prioridade 1** (Crítico - maior impacto):
+
 - Sprint 24: VideoProcessingOrchestrator (-800 linhas)
 - Sprint 25: AnalysisOrchestrator (-600 linhas)
 
 **Prioridade 2** (Alto - complexidade média):
+
 - Sprint 26: RecordingSessionOrchestrator (-500 linhas)
 - Sprint 27: ProjectOrchestrator (-400 linhas)
 - Sprint 28: UIStateController (-600 linhas)
 
 **Prioridade 3** (Médio - refinamento):
+
 - Sprint 29: VideoTreeController (-400 linhas)
 - Sprint 30: CanvasController (-350 linhas)
 - Sprint 31: MenuEventHandler (-300 linhas)
 - Sprint 32: ToolbarEventHandler (-250 linhas)
 
 **Prioridade 4** (Baixo - consolidação):
+
 - Sprint 33: Métodos remanescentes (-400 linhas)
 - Sprint 34: Testes de integração
 - Sprint 35: Documentação
@@ -601,7 +640,7 @@ Cada Sprint deve cumprir:
 ### Riscos Identificados
 
 | Risco | Probabilidade | Impacto | Mitigação |
-|-------|---------------|---------|-----------|
+| ------- | --------------- | --------- | ----------- |
 | **Regressões** | Alta | Alto | Testes exaustivos após cada extração |
 | **Breaking Changes** | Média | Alto | Manter facades públicas no MainViewModel |
 | **Performance degradation** | Baixa | Médio | Benchmarks antes/depois |
@@ -637,7 +676,7 @@ Cada Sprint deve cumprir:
 ### Métricas Principais
 
 | Métrica | Antes | Meta | Como Medir |
-|---------|-------|------|------------|
+| --------- | ------- | ------ | ------------ |
 | **Linhas no MainViewModel** | 5,568 | <2,000 | `wc -l main_view_model.py` |
 | **Métodos no MainViewModel** | 141 | <50 | `grep "^    def " \| wc -l` |
 | **Linting Issues** | 1 | 0 | `ruff check` |
@@ -647,7 +686,7 @@ Cada Sprint deve cumprir:
 ### Métricas Secundárias
 
 | Métrica | Como Medir |
-|---------|------------|
+| --------- | ------------ |
 | **Cyclomatic Complexity** | `ruff check --select C901` |
 | **Duplicação de código** | `pylint --duplicate-code` |
 | **Imports circulares** | `pytest --import-errors` |
@@ -673,7 +712,7 @@ Para considerar o plano completo, TODOS os critérios devem ser atendidos:
 
 ### Estimativa Total: 22-25 dias úteis (~5 semanas)
 
-```
+```text
 Semana 1 (5 dias):
   Sprint 23: Análise (1 dia)
   Sprint 24: VideoProcessingOrchestrator (2-3 dias)
@@ -704,7 +743,7 @@ Semana 5 (5 dias):
 ### Milestones
 
 | Milestone | Data Estimada | Entregáveis |
-|-----------|---------------|-------------|
+| ----------- | --------------- | ------------- |
 | **M1: Análise Completa** | Dia 1 | Dependency maps, classification docs |
 | **M2: Orchestrators Completos** | Dia 9 | 4 orchestrators extraídos, -2,300 linhas |
 | **M3: UI Controllers Completos** | Dia 15 | 3 controllers extraídos, -1,350 linhas |
@@ -716,7 +755,7 @@ Semana 5 (5 dias):
 
 ## 📚 ESTRUTURA DE ARQUIVOS PÓS-EXTRAÇÃO
 
-```
+```text
 src/zebtrack/
 ├── orchestrators/           # NOVO - Camada de orquestração
 │   ├── __init__.py
@@ -781,28 +820,32 @@ docs/
 
 ### Antes de Iniciar (Sprint 23)
 
-**GO se:**
+### GO se
+
 - ✅ Todos os testes atuais passando (2568 testes)
 - ✅ Coverage atual medido (baseline: 61%)
 - ✅ Performance atual medida (baseline benchmarks)
 - ✅ Backup do código atual criado
 - ✅ Branch de desenvolvimento criada
 
-**NO-GO se:**
+### NO-GO se
+
 - ❌ Testes falhando
 - ❌ Linting com >5 issues
 - ❌ Coverage <60%
 
 ### Após Cada Sprint
 
-**GO para próximo sprint se:**
+### GO para próximo sprint se
+
 - ✅ Todos os testes passando (incluindo novos testes)
 - ✅ Linting clean (ruff check)
 - ✅ Coverage mantido ou aumentado
 - ✅ Code review aprovado
 - ✅ Documentação atualizada
 
-**NO-GO se:**
+### NO-GO se
+
 - ❌ Qualquer teste falhando
 - ❌ Coverage diminuiu
 - ❌ Performance degradou >10%
@@ -810,7 +853,8 @@ docs/
 
 ### Release Final (Sprint 35)
 
-**GO para release se:**
+### GO para release se
+
 - ✅ MainViewModel <2,000 linhas
 - ✅ Todos os critérios de aceitação atendidos
 - ✅ Migration guide completo
@@ -833,6 +877,7 @@ Se encontrar dificuldades durante a implementação, consulte:
 ### Reporting
 
 Após cada Sprint, atualizar:
+
 - `docs/SPRINT_XX_RESULTS.md` - Resultados detalhados
 - `docs/REFACTOR-MASTER-PLAN-2025.md` - Progresso no master plan
 - Este documento (`PLANO_EXTRACAO_MAINVIEWMODEL.md`) - Status dos sprints
@@ -878,11 +923,13 @@ Execute este comando para criar o prompt de início:
 Antes de iniciar Sprint 23:
 
 1. **Criar branch de desenvolvimento**
+
    ```bash
    git checkout -b refactor/mainviewmodel-extraction-v5
    ```
 
 2. **Verificar estado atual**
+
    ```bash
    poetry run pytest  # Todos passando?
    poetry run ruff check  # Zero issues?
@@ -890,6 +937,7 @@ Antes de iniciar Sprint 23:
    ```
 
 3. **Criar backup**
+
    ```bash
    git tag -a backup-pre-extraction-v5 -m "Backup before MainViewModel extraction"
    git push origin backup-pre-extraction-v5
@@ -919,6 +967,7 @@ Este plano foi criado com base nas lições aprendidas dos Sprints 1-22. O foco 
 ### Flexibilidade
 
 Este plano é um guia, não uma camisa de força:
+
 - Ajuste estimativas conforme necessário
 - Combine ou divida Sprints se fizer sentido
 - Adicione Sprints se descobrir mais código para extrair
@@ -927,6 +976,7 @@ Este plano é um guia, não uma camisa de força:
 ### Sucesso
 
 O sucesso será medido por:
+
 1. **MainViewModel <2,000 linhas** (objetivo primário)
 2. **Zero regressões** (objetivo de qualidade)
 3. **Código mais testável** (objetivo de manutenibilidade)
@@ -934,7 +984,7 @@ O sucesso será medido por:
 
 ---
 
-**Boa sorte com a extração! 🚀**
+### Boa sorte com a extração! 🚀
 
 ---
 

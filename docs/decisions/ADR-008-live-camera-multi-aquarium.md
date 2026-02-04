@@ -7,11 +7,13 @@
 ## Context
 
 Live camera sessions in ZebTrack-AI v2.1 supported only single-aquarium processing. Users with multiple aquariums needed to:
+
 1. Run separate sessions sequentially (lost temporal synchronization)
 2. Process offline after recording (delayed feedback)
 3. Manually crop/split videos post-capture (error-prone)
 
 Additionally, no hardware capability assessment existed, leading to:
+
 - Frame drops and crashes on low-end systems
 - Poor user experience with no guidance on system requirements
 - Silent failures during high-load scenarios
@@ -21,6 +23,7 @@ Additionally, no hardware capability assessment existed, leading to:
 Implement **hardware-aware multi-aquarium live processing** with automatic fallback options:
 
 ### 1. Hardware Capability Detection (`hardware_capability.py`)
+
 - **5-Tier Classification:**
   - EXCELLENT: GPU + 8+ cores + 16GB RAM → 4+ aquariums
   - GOOD: 6+ cores + 8GB RAM → 2-3 aquariums
@@ -32,10 +35,11 @@ Implement **hardware-aware multi-aquarium live processing** with automatic fallb
 - **Output:** `HardwareCapabilityReport` with recommendations and warnings
 
 ### 2. Live Camera Modes (`live_camera_mode.py`)
+
 Four processing modes with automatic selection:
 
 | Mode | Description | Hardware Required |
-|------|-------------|-------------------|
+| ------ | ------------- | ------------------- |
 | `MULTI_AQUARIUM_REALTIME` | Process N aquariums simultaneously | MODERATE+ for N aquariums |
 | `SINGLE_AQUARIUM_REALTIME` | Process 1 aquarium only | LIMITED+ (2 cores, 6GB) |
 | `SEQUENTIAL_AQUARIUM` | Record N sessions, 1 per aquarium | LIMITED+ (per session) |
@@ -44,7 +48,8 @@ Four processing modes with automatic selection:
 ### 3. User Workflow Integration
 
 **Wizard Phase (LiveConfigStep):**
-```
+
+```text
 User selects: 3 aquariums
 ↓
 HardwareCapabilityDetector.assess_capability()
@@ -62,7 +67,8 @@ User chooses → Wizard adapts config
 ```
 
 **Session Start:**
-```
+
+```text
 LiveCameraCoordinator.start_live_session(mode=MULTI_AQUARIUM_REALTIME)
 ↓
 If mode == MULTI_AQUARIUM:
@@ -78,11 +84,13 @@ Else if mode == RECORD_ONLY:
 ### 4. Camera Disconnect Recovery
 
 **Problem:** Camera USB disconnects during 30min+ sessions caused:
+
 - Silent data gaps (continued with cached detections)
 - Invalid trajectory data
 - No user notification
 
 **Solution:**
+
 - **Detection:** Track `last_valid_frame_time`; gap >2s = disconnect
 - **Action:** Pause recorder, publish `CAMERA_DISCONNECT_DETECTED` event
 - **UI:** Show `CameraDisconnectRecoveryDialog` with options:
@@ -96,6 +104,7 @@ Else if mode == RECORD_ONLY:
 **Problem:** No unified reports across multiple live sessions (same experiment group).
 
 **Solution:**
+
 - `LiveBatchCoordinator` tracks sessions with same `group/day/subject_id`
 - After last session, auto-generates unified Excel (aggregated metrics)
 - Persists via `ProjectManager.register_batch_outputs()`
@@ -104,6 +113,7 @@ Else if mode == RECORD_ONLY:
 ## Consequences
 
 ### Positive
+
 ✅ **Multi-Aquarium Support:** Process 2-6 aquariums simultaneously (hardware-dependent)
 ✅ **Graceful Degradation:** Automatic fallback to single-aquarium or record-only
 ✅ **User Transparency:** Clear hardware requirements and recommendations
@@ -112,12 +122,14 @@ Else if mode == RECORD_ONLY:
 ✅ **Sequential Mode:** Alternative for low-end hardware (1 aquarium per session)
 
 ### Negative
+
 ⚠️ **Complexity Increase:** 4 processing modes vs 1 (testing burden)
 ⚠️ **Hardware Detection Accuracy:** Heuristics may misclassify edge cases
 ⚠️ **UI Overhead:** New dialogs (recovery, progress, mode selection)
 ⚠️ **Migration Path:** Existing projects assume single-aquarium (need schema versioning)
 
 ### Neutral
+
 - Record-only mode bypasses all detection (useful for storage-first workflows)
 - Sequential mode requires user to manually switch cameras/positions between sessions
 - Multi-aquarium detection uses same `detect_partitioned_parallel` as offline processing
@@ -125,6 +137,7 @@ Else if mode == RECORD_ONLY:
 ## Implementation Files
 
 **New Modules:**
+
 - `src/zebtrack/utils/hardware_capability.py` - Capability detection
 - `src/zebtrack/core/live_camera_mode.py` - Mode selection logic
 - `src/zebtrack/coordinators/live_batch_coordinator.py` - Batch tracking
@@ -132,6 +145,7 @@ Else if mode == RECORD_ONLY:
 - `src/zebtrack/ui/dialogs/aquarium_detection_progress_dialog.py` - Arena detection UI
 
 **Modified Modules:**
+
 - `src/zebtrack/core/live_camera_service.py` - Disconnect detection, mode support
 - `src/zebtrack/io/recorder.py` - Pause/resume methods
 - `src/zebtrack/core/project_manager.py` - Batch output persistence
@@ -139,30 +153,37 @@ Else if mode == RECORD_ONLY:
 ## Alternatives Considered
 
 ### A. Always Use Record-Only for Multi-Aquarium
+
 **Rejected:** Defeats purpose of "live" analysis; users want real-time feedback.
 
 ### B. Require GPU for Multi-Aquarium
+
 **Rejected:** Excludes majority of users; CPU-only systems can handle 2-3 aquariums with optimizations.
 
 ### C. Automatic Hardware Upgrade Prompts
+
 **Rejected:** Out of scope; users should decide hardware investments independently.
 
 ### D. Cloud Processing Offload
+
 **Rejected:** Requires internet, privacy concerns, cost barriers.
 
 ## Testing Strategy
 
 **Unit Tests:**
+
 - `HardwareCapabilityDetector` with mocked psutil (CPU/RAM variations)
 - `LiveCameraModeSelector` recommendation logic (all scenarios)
 - `Recorder.pause_recording()` / `resume_recording()`
 
 **Integration Tests:**
+
 - End-to-end: wizard → multi-aquarium session → batch report
 - Camera disconnect → recovery → session completion
 - Aquarium detection progress → consensus → zone save
 
 **Performance Tests:**
+
 - Multi-aquarium frame drop rates (2-6 aquariums)
 - Memory usage over 30min sessions
 - Disconnect recovery time (reconnect latency)
@@ -170,11 +191,13 @@ Else if mode == RECORD_ONLY:
 ## Migration Guide
 
 **Existing Projects (v2.1):**
+
 - No schema changes required
 - Multi-aquarium is opt-in (wizard selection)
 - Single-aquarium sessions work identically
 
 **New Projects (v2.2):**
+
 - Wizard includes hardware check step
 - Mode selection dialog shown if requested > supported
 - `project_data.json` includes `live_camera_mode` field

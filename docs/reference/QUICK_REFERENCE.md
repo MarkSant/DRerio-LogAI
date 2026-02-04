@@ -1,6 +1,6 @@
 # ZebTrack-AI Quick Reference
 
-**Ultra-compact reference for AI assistants and developers**
+## Ultra-compact reference for AI/LLM contexts
 
 ## 🎯 One-Liners
 
@@ -12,7 +12,7 @@ poetry run ruff check --fix .                       # Lint & auto-fix
 
 ## 🏗️ Architecture (MVVM-S + DI)
 
-```
+```text
 # Pre-recorded
 User → EventBus → MainViewModel → StateManager → UI (root.after)
                          ↓
@@ -29,7 +29,7 @@ User → LiveAnalysisDialog → LiveCameraService → [CaptureThread, Processing
 ## 📁 Critical Files
 
 | Path | Purpose |
-|------|---------|
+| ------ | --------- |
 | `core/main_view_model.py` | Orchestrator (11+ deps) |
 | `core/state_manager.py` | Thread-safe state |
 | `core/wizard_service.py` | Wizard logic + HW caching (30s TTL) |
@@ -40,9 +40,10 @@ User → LiveAnalysisDialog → LiveCameraService → [CaptureThread, Processing
 
 ## 🔒 IMMUTABLE Parquet Schema
 
-```
+```text
 timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_px, x_cm, y_cm]*
 ```
+
 **DO NOT REORDER** - Tests: `tests/test_recorder.py`
 
 ## ⚡ Critical Rules
@@ -136,7 +137,7 @@ results = analyzer.run_full_analysis(parquet_path, zones)
 
 ## 🔧 Configuration Hierarchy
 
-```
+```text
 config.yaml (base)
     ↓ overrides
 config.local.yaml (machine-specific, git-ignored)
@@ -149,7 +150,7 @@ ProjectManager.project_data (per-project)
 ## 🚨 Common Pitfalls
 
 | Issue | Solution |
-|-------|----------|
+| ------- | ---------- |
 | UI freeze | Use `root.after(0, ...)` |
 | Zone mismatch | Call `Detector.set_zones()` |
 | Missing track_id | Use `.get("track_id", -1)` |
@@ -159,7 +160,7 @@ ProjectManager.project_data (per-project)
 ## 📚 Documentation Index
 
 | Need | See |
-|------|-----|
+| ------ | ----- |
 | **Quick commands** | `docs/CHEATSHEET.md` |
 | **Architecture deep-dive** | `docs/ARCHITECTURE.md` |
 | **Wizard dev** | `docs/DEVELOPER_GUIDE_WIZARD.md` |
@@ -206,23 +207,27 @@ performance:
 
 **Quick Access**: Menu File → "Analisar Câmera ao Vivo..." or `controller.start_live_camera_analysis()`
 
-**Architecture**:
+### Architecture
+
 - **LiveCameraService**: Coordinates capture & processing threads
 - **LiveAnalysisDialog**: Configuration UI
 - **LivePreviewWindow**: Real-time preview
 - **Output**: `live_analysis_sessions/{experiment_id}_{timestamp}/`
 
-**Key Files**:
+### Key Files
+
 - `core/live_camera_service.py` - Service (446 lines)
 - `ui/dialogs/live_analysis_dialog.py` - Dialog
 - `io/live_stream_source.py` - Time-limited Camera wrapper
 
-**Threading**:
+### Threading
+
 - `_capture_loop()`: Frame acquisition from Camera
 - `_processing_loop()`: Detection processing
 - Integrated with `RecordingService` for timed sessions
 
-**Data Flow**:
+### Data Flow
+
 1. User configures via `LiveAnalysisDialog`
 2. `LiveCameraService.start_session()` creates threads + preview
 3. Capture thread: Camera → frame_queue

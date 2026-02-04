@@ -1,6 +1,8 @@
+<!-- markdownlint-disable MD024 -->
+
 # Getting Started with DRerio LogAI (ZebTrack-AI)
 
-## Welcome!
+## Welcome
 
 DRerio LogAI is a comprehensive application for zebrafish behavioral tracking and analysis. This guide will help you get started with your first project, from installation to analyzing results.
 
@@ -98,7 +100,7 @@ When the application starts, you'll see the main window with the following compo
 
 ![Main Window](../screenshots/main_window.png)
 
-**Key Components**:
+### Key Components
 
 1. **Menu Bar**: Access to File, Edit, View, Tools, and Help menus
 2. **Toolbar**: Quick access to common actions (New, Open, Save, Run Analysis)
@@ -125,6 +127,7 @@ DRerio LogAI uses a **Project Wizard** as the primary method for creating new pr
 ### Alternative: Traditional Flow
 
 For advanced users, you can use the traditional flow:
+
 - **File → Load Video**: Load video first, then configure settings
 
 ---
@@ -135,12 +138,14 @@ The wizard consists of 5 steps with a consistent layout (1150×550px window):
 
 ### Wizard Step 1: Project Information
 
-**Required Information**:
+### Required Information
+
 - **Project Name**: Unique identifier for your project
 - **Experiment ID**: Experiment identifier (used for grouping)
 - **Description**: Optional notes about the experiment
 
-**Tips**:
+### Tips
+
 - Use descriptive names (e.g., "Zebrafish_Locomotion_Trial1")
 - Keep experiment IDs consistent across related projects
 - Document experimental conditions in the description
@@ -151,19 +156,22 @@ The wizard consists of 5 steps with a consistent layout (1150×550px window):
 
 Choose your video source:
 
-**Option A: Pre-recorded Video**
+### Option A: Pre-recorded Video
+
 - Click **Browse** to select video file
 - Supported formats: MP4, AVI, MOV, MKV
 - Resolution: Up to 4K (1080p recommended)
 
-**Option B: Live Camera**
+### Option B: Live Camera
+
 - Select camera from dropdown
 - Configure resolution and frame rate
 - Test camera feed before proceeding
 
 ![Wizard Step 2 - Video Source](../screenshots/wizard_step2_video.png)
 
-**Tips**:
+### Tips
+
 - For best results, use 1080p resolution at 30 FPS
 - Ensure consistent lighting across video
 - Minimize camera movement and vibrations
@@ -172,12 +180,14 @@ Choose your video source:
 
 Define the analysis arena and regions of interest (ROI).
 
-**Arena Configuration**:
+### Arena Configuration
+
 - **Center Point**: Click to set arena center
 - **Four Corners**: Click four corners to define arena boundary
 - Arena defines the analysis boundary
 
-**ROI Configuration**:
+### ROI Configuration
+
 - Click **Add ROI** to create new regions
 - Draw rectangle or polygon on video
 - Name each ROI (e.g., "Zone A", "Zone B", "Center")
@@ -185,7 +195,8 @@ Define the analysis arena and regions of interest (ROI).
 
 ![ROI Configuration](../screenshots/roi_config.png)
 
-**Tips**:
+### Tips
+
 - Draw ROIs on a representative frame
 - Use clear, descriptive names
 - Save ROI templates for reuse (**File → Save ROI Template**)
@@ -194,12 +205,14 @@ Define the analysis arena and regions of interest (ROI).
 
 Configure the AI detection model and tracking parameters.
 
-**Model Selection**:
+### Model Selection
+
 - **YOLO (Recommended)**: Fast, accurate, general-purpose
 - **OpenVINO**: Optimized for Intel CPUs
 - **Custom Model**: Load your own trained model
 
-**Detection Parameters**:
+### Detection Parameters
+
 - **Confidence Threshold**: 0.5 (default)
   - Lower values: More detections, more false positives
   - Higher values: Fewer detections, more misses
@@ -208,7 +221,8 @@ Configure the AI detection model and tracking parameters.
 
 ![Detection Settings](../screenshots/wizard_step4_detection.png)
 
-**Tips**:
+### Tips
+
 - Start with default confidence (0.5)
 - Enable GPU acceleration if available
 - Test detection on a few frames before full analysis
@@ -217,24 +231,28 @@ Configure the AI detection model and tracking parameters.
 
 Final configuration before running analysis.
 
-**Output Options**:
+### Output Options
+
 - **Save Annotated Video**: Include bounding boxes and tracks
 - **Generate Heatmap**: Visualize movement density
 - **Export Format**: Parquet (default), CSV, JSON
 
-**Performance Options**:
+### Performance Options
+
 - **Frame Skipping**: Analyze every N frames (default: 1)
 - **Parallel Processing**: Enable multi-threading
 - **GPU Acceleration**: Use CUDA if available
 
-**Advanced Options**:
+### Advanced Options
+
 - **Analysis Interval**: Detection frequency (default: 10 frames)
 - **Display Interval**: Overlay update frequency (default: 10 frames)
 - **Calibration**: Physical units (cm) conversion
 
 ![Wizard Step 5 - Analysis Options](../screenshots/wizard_step5_options.png)
 
-**Tips**:
+### Tips
+
 - Enable all output options for comprehensive results
 - Frame skipping speeds up processing but reduces temporal resolution
 - Calibration enables distance/speed metrics in cm and cm/s
@@ -265,6 +283,7 @@ After creating a project:
 ### Monitoring Progress
 
 The progress dialog displays:
+
 - **Progress Bar**: Overall completion percentage
 - **Frame Count**: Current frame / Total frames
 - **Detection Rate**: Frames with successful detections
@@ -285,11 +304,11 @@ The analysis pipeline consists of:
 ### Typical Processing Times
 
 | Video Length | Resolution | Speed (with GPU) | Speed (CPU only) |
-|-------------|-----------|-----------------|-----------------|
-| 1 minute    | 1080p     | ~10 seconds     | ~30 seconds     |
-| 5 minutes   | 1080p     | ~50 seconds     | ~2.5 minutes    |
-| 30 minutes  | 1080p     | ~5 minutes      | ~15 minutes     |
-| 1 hour      | 4K        | ~20 minutes     | ~1 hour         |
+| ------------- | ----------- | ----------------- | ----------------- |
+| 1 minute | 1080p | ~10 seconds | ~30 seconds |
+| 5 minutes | 1080p | ~50 seconds | ~2.5 minutes |
+| 30 minutes | 1080p | ~5 minutes | ~15 minutes |
+| 1 hour | 4K | ~20 minutes | ~1 hour |
 
 ### Pausing and Canceling
 
@@ -305,7 +324,7 @@ The analysis pipeline consists of:
 
 After analysis completes, results are saved in `<video_name>_results/` directory:
 
-```
+```text
 my_video_results/
 ├── 1_ArenaROI_my_video.parquet         # Arena and ROI definitions
 ├── 2_Zones_my_video.parquet            # Zone metadata
@@ -320,11 +339,13 @@ my_video_results/
 #### 1. Tracking Data (`3_CoordMovimento_*.parquet`)
 
 **Parquet Schema** (fixed, immutable):
-```
+
+```text
 timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_px, x_cm, y_cm]*
 ```
 
-**Columns**:
+### Columns
+
 - `timestamp`: Video timestamp (seconds)
 - `frame`: Frame number
 - `track_id`: Unique ID for each tracked subject
@@ -333,7 +354,8 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 - `x_center_px, y_center_px`: Centroid coordinates (pixels)
 - `x_cm, y_cm`: Centroid coordinates (cm, if calibrated)
 
-**Reading in Python**:
+### Reading in Python
+
 ```python
 import pandas as pd
 
@@ -352,10 +374,10 @@ print(f"Total distance: {distance:.2f} cm")
 
 Excel file with multiple sheets:
 
-**Sheet 1: Overall Statistics**
+### Sheet 1: Overall Statistics
 
 | Metric | Value | Unit |
-|--------|-------|------|
+| -------- | ------- | ------ |
 | Total Time | 120.5 | seconds |
 | Total Frames | 3615 | frames |
 | Detection Rate | 98.3 | % |
@@ -363,13 +385,13 @@ Excel file with multiple sheets:
 | Average Speed | 2.86 | cm/s |
 | Max Speed | 12.4 | cm/s |
 
-**Sheet 2: ROI Metrics**
+### Sheet 2: ROI Metrics
 
 | ROI Name | Time (s) | Entries | Exits | % Time |
-|----------|----------|---------|-------|--------|
-| Zone A   | 45.3     | 12      | 12    | 37.6   |
-| Zone B   | 32.1     | 8       | 8     | 26.6   |
-| Center   | 43.1     | 15      | 14    | 35.8   |
+| ---------- | ---------- | --------- | ------- | -------- |
+| Zone A | 45.3 | 12 | 12 | 37.6 |
+| Zone B | 32.1 | 8 | 8 | 26.6 |
+| Center | 43.1 | 15 | 14 | 35.8 |
 
 **Sheet 3: Track-by-Track Analysis** (if multi-subject)
 
@@ -378,6 +400,7 @@ Per-track metrics for each detected subject.
 #### 3. Word Report (`*_report.docx`)
 
 Comprehensive report including:
+
 - Experiment metadata
 - Summary statistics
 - Trajectory plots
@@ -393,7 +416,8 @@ Heatmaps show movement density (warmer colors = more time spent):
 
 ![Heatmap Example](../screenshots/heatmap.png)
 
-**Interpreting Heatmaps**:
+### Interpreting Heatmaps
+
 - **Red zones**: High activity, preferred locations
 - **Blue zones**: Low activity, avoided locations
 - **Green zones**: Moderate activity
@@ -401,12 +425,14 @@ Heatmaps show movement density (warmer colors = more time spent):
 #### Trajectory Plot
 
 Line plot showing subject's path over time:
+
 - **Color gradient**: Time progression (blue → red)
 - **Line thickness**: Speed (thicker = faster)
 
 #### Speed Over Time
 
 Graph showing speed variations:
+
 - **Peaks**: Bursts of activity
 - **Valleys**: Resting periods
 - **Average line**: Mean speed across session
@@ -415,17 +441,20 @@ Graph showing speed variations:
 
 #### Export Formats
 
-**Parquet (Default)**:
+### Parquet (Default)
+
 - Binary format, efficient storage
 - Best for Python analysis (pandas)
 - Preserves data types and schema
 
-**CSV**:
+### CSV
+
 - Text format, universal compatibility
 - Excel-compatible
 - Larger file size
 
-**JSON**:
+### JSON
+
 - Structured text format
 - Web application friendly
 - Human-readable
@@ -452,18 +481,21 @@ Live Camera Analysis allows real-time tracking and recording from connected came
 
 ### Configuration
 
-**Basic Settings**:
+### Basic Settings
+
 - **Experiment ID**: Identifier for live session
 - **Session Duration**: Time limit (seconds, minutes, or hours)
 - **Camera**: Select connected camera
 - **Resolution**: Camera resolution (720p, 1080p)
 
-**Detection Settings**:
+### Detection Settings
+
 - **Model**: Choose detection model
 - **Confidence**: Detection threshold
 - **ROIs**: Define analysis regions
 
-**Output Settings**:
+### Output Settings
+
 - **Save Video**: Record annotated video
 - **Save Tracking Data**: Export Parquet file
 - **Output Directory**: `live_analysis_sessions/`
@@ -490,7 +522,8 @@ Live Camera Analysis allows real-time tracking and recording from connected came
 ### Live Analysis Output
 
 Same structure as pre-recorded analysis:
-```
+
+```text
 live_analysis_sessions/
 └── exp_001_20251110_143022/
     ├── 3_CoordMovimento_live_session.parquet
@@ -506,7 +539,7 @@ live_analysis_sessions/
 ### Global Shortcuts
 
 | Shortcut | Action |
-|----------|--------|
+| ---------- | -------- |
 | `Ctrl+N` | New Project (open wizard) |
 | `Ctrl+O` | Open Project |
 | `Ctrl+S` | Save Project |
@@ -516,7 +549,7 @@ live_analysis_sessions/
 ### Video Playback
 
 | Shortcut | Action |
-|----------|--------|
+| ---------- | -------- |
 | `Space` | Play/Pause |
 | `→` | Next Frame |
 | `←` | Previous Frame |
@@ -528,7 +561,7 @@ live_analysis_sessions/
 ### Analysis
 
 | Shortcut | Action |
-|----------|--------|
+| ---------- | -------- |
 | `Ctrl+R` | Run Analysis |
 | `Ctrl+P` | Pause Analysis |
 | `Ctrl+T` | Toggle Track Overlays |
@@ -537,7 +570,7 @@ live_analysis_sessions/
 ### ROI Management
 
 | Shortcut | Action |
-|----------|--------|
+| ---------- | -------- |
 | `Ctrl+Shift+A` | Add ROI |
 | `Ctrl+Shift+D` | Delete Selected ROI |
 | `Ctrl+Shift+E` | Edit ROI Properties |
@@ -550,6 +583,7 @@ live_analysis_sessions/
 ### Tutorial Videos
 
 Watch video tutorials on our [YouTube channel](https://youtube.com/zebtrack) (coming soon):
+
 - Basic project workflow
 - Advanced ROI configuration
 - Multi-subject tracking
@@ -558,6 +592,7 @@ Watch video tutorials on our [YouTube channel](https://youtube.com/zebtrack) (co
 ### Advanced Features
 
 Explore advanced capabilities:
+
 - **Batch Processing**: Analyze multiple videos automatically ([see FAQ](FAQ.md#batch-processing))
 - **Custom Models**: Train detection models on your data
 - **Arduino Integration**: Trigger external devices based on ROI events
@@ -568,11 +603,12 @@ Explore advanced capabilities:
 - **Documentation Hub**: [docs.zebtrack.ai](https://docs.zebtrack.ai)
 - **GitHub Issues**: [Report bugs and request features](https://github.com/MarkSant/ZebTrack-AI/issues)
 - **Discussions**: [Community forum](https://github.com/MarkSant/ZebTrack-AI/discussions)
-- **Email Support**: support@zebtrack.ai
+- **Email Support**: <support@zebtrack.ai>
 
 ### Contributing
 
 Interested in contributing? See our [Contributing Guide](../../../CONTRIBUTING.md) for:
+
 - Code contribution guidelines
 - Development setup
 - Testing requirements
@@ -584,7 +620,8 @@ Interested in contributing? See our [Contributing Guide](../../../CONTRIBUTING.m
 
 For common issues and solutions, see the [Troubleshooting Guide](TROUBLESHOOTING.md).
 
-**Quick Links**:
+### Quick Links
+
 - [Camera Not Found](TROUBLESHOOTING.md#camera-not-found)
 - [Low Detection Accuracy](TROUBLESHOOTING.md#low-detection-accuracy)
 - [Slow Performance](TROUBLESHOOTING.md#slow-performance)

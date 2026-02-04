@@ -27,7 +27,7 @@ self.dialog_manager = DialogManager(self)  # ← ADICIONAR ESTA LINHA
 ### 2.1 MessageBox - Substituições Simples
 
 | Linha | Método Original | Substituir Por |
-|-------|----------------|----------------|
+| ------- | ---------------- | ---------------- |
 | 7889 | `show_error(title, message)` | `self.dialog_manager.show_error(title, message)` |
 | 7893 | `show_warning(title, message)` | `self.dialog_manager.show_warning(title, message)` |
 | 7897 | `show_info(title, message)` | `self.dialog_manager.show_info(title, message)` |
@@ -55,6 +55,7 @@ def show_warning(self):
 ### 2.2 Calibration - Linhas 843-860
 
 **ANTES:**
+
 ```python
 def _open_global_calibration_window(self):
     with self.controller.global_calibration_session():
@@ -76,6 +77,7 @@ def _open_project_calibration_window(self):
 ```
 
 **DEPOIS:**
+
 ```python
 def _open_global_calibration_window(self):
     self.dialog_manager.open_global_calibration_window()
@@ -89,6 +91,7 @@ def _open_project_calibration_window(self):
 ### 2.3 External Trigger Notice - Linhas 1749-1800
 
 **ANTES:**
+
 ```python
 def show_external_trigger_notice(self, session_label: str, **details):
     # 32 linhas de código...
@@ -98,6 +101,7 @@ def clear_external_trigger_notice(self):
 ```
 
 **DEPOIS:**
+
 ```python
 def show_external_trigger_notice(self, session_label: str, **details):
     self.dialog_manager.show_external_trigger_notice(session_label, **details)
@@ -111,6 +115,7 @@ def clear_external_trigger_notice(self):
 ### 2.4 Zone Reuse Offer - Linha 3837
 
 **ANTES (60 linhas):**
+
 ```python
 def _maybe_offer_zone_reuse(self, video_path: str) -> None:
     # ... verificações ...
@@ -129,6 +134,7 @@ def _maybe_offer_zone_reuse(self, video_path: str) -> None:
 ```
 
 **DEPOIS:**
+
 ```python
 def _maybe_offer_zone_reuse(self, video_path: str) -> None:
     # ... verificações ...
@@ -143,6 +149,7 @@ def _maybe_offer_zone_reuse(self, video_path: str) -> None:
 ### 2.5 Open Path in Explorer - Linha 4785
 
 **ANTES (18 linhas):**
+
 ```python
 def _open_path_in_explorer(self, target_path: str) -> None:
     try:
@@ -163,6 +170,7 @@ def _open_path_in_explorer(self, target_path: str) -> None:
 ```
 
 **DEPOIS:**
+
 ```python
 def _open_path_in_explorer(self, target_path: str) -> None:
     self.dialog_manager.open_path_in_explorer(target_path)
@@ -173,7 +181,9 @@ def _open_path_in_explorer(self, target_path: str) -> None:
 ### 2.6 ROI Template Dialogs - Linhas 5628-5851
 
 #### 2.6.1 Show Template Save Dialog - Linha 5628
+
 **ANTES (21 linhas):**
+
 ```python
 def _show_template_save_dialog(
     self,
@@ -198,6 +208,7 @@ def _show_template_save_dialog(
 ```
 
 **DEPOIS:**
+
 ```python
 def _show_template_save_dialog(
     self,
@@ -216,7 +227,9 @@ def _show_template_save_dialog(
 ```
 
 #### 2.6.2 Delete ROI Template - Linha 5649
+
 **ANTES (63 linhas com messagebox.askyesno):**
+
 ```python
 def _on_delete_roi_template(self) -> None:
     # ... verificações ...
@@ -237,6 +250,7 @@ def _on_delete_roi_template(self) -> None:
 ```
 
 **DEPOIS:**
+
 ```python
 def _on_delete_roi_template(self) -> None:
     # ... verificações ...
@@ -252,7 +266,9 @@ def _on_delete_roi_template(self) -> None:
 ```
 
 #### 2.6.3 Import ROI Template - Linha 5713
+
 **ANTES (43 linhas):**
+
 ```python
 def _on_import_roi_template(self) -> None:
     pm = getattr(self.controller, "project_manager", None)
@@ -284,19 +300,23 @@ def _on_import_roi_template(self) -> None:
 ```
 
 **DEPOIS:**
+
 ```python
 def _on_import_roi_template(self) -> None:
     self.dialog_manager.import_roi_template()
 ```
 
 #### 2.6.4 Import and Apply ROI Template - Linha 5742
+
 **ANTES (110 linhas):**
+
 ```python
 def _on_import_and_apply_roi_template(self) -> None:
     # ... muita lógica ...
 ```
 
 **DEPOIS:**
+
 ```python
 def _on_import_and_apply_roi_template(self) -> None:
     self.dialog_manager.import_and_apply_roi_template()
@@ -305,7 +325,9 @@ def _on_import_and_apply_roi_template(self) -> None:
 ### 2.7 Analysis Dialogs - Linhas 6529-6607
 
 #### 2.7.1 Center Periphery Analysis - Linha 6529
+
 **ANTES (16 linhas):**
+
 ```python
 def _run_center_periphery_analysis(self):
     current_arena_id = self.arena_selector_var.get()
@@ -325,6 +347,7 @@ def _run_center_periphery_analysis(self):
 ```
 
 **DEPOIS:**
+
 ```python
 def _run_center_periphery_analysis(self):
     current_arena_id = self.arena_selector_var.get()
@@ -344,7 +367,9 @@ def _run_center_periphery_analysis(self):
 ```
 
 #### 2.7.2 Create Template ROIs - Linha 6546
+
 **ANTES (62 linhas):**
+
 ```python
 def _create_template_rois(self):
     current_arena_id = self.arena_selector_var.get()
@@ -362,6 +387,7 @@ def _create_template_rois(self):
 ```
 
 **DEPOIS:**
+
 ```python
 def _create_template_rois(self):
     current_arena_id = self.arena_selector_var.get()
@@ -381,6 +407,7 @@ def _create_template_rois(self):
 ### 2.8 Project Workflow - Linha 7164
 
 **ANTES (8 linhas):**
+
 ```python
 def _open_project_workflow(self):
     project_path = self.ask_directory(title="Selecione uma Pasta de Projeto Existente")
@@ -391,6 +418,7 @@ def _open_project_workflow(self):
 ```
 
 **DEPOIS:**
+
 ```python
 def _open_project_workflow(self):
     self.dialog_manager.open_project_workflow()
@@ -399,6 +427,7 @@ def _open_project_workflow(self):
 ### 2.9 Single Video Config Dialog - Linha 7172
 
 **ANTES (33 linhas):**
+
 ```python
 def _on_analyze_single_video_clicked(self):
     dialog = SingleVideoConfigDialog(self.root, settings_obj=self.controller.settings)
@@ -412,6 +441,7 @@ def _on_analyze_single_video_clicked(self):
 ```
 
 **DEPOIS:**
+
 ```python
 def _on_analyze_single_video_clicked(self):
     result = self.dialog_manager.open_single_video_config_dialog()
@@ -427,6 +457,7 @@ def _on_analyze_single_video_clicked(self):
 ### 2.10 Single Video Processing - Linha 7382
 
 **ANTES (50 linhas com messagebox.askyesnocancel):**
+
 ```python
 def _on_start_single_video_processing_clicked(self):
     if self.edited_polygon_points:
@@ -450,6 +481,7 @@ def _on_start_single_video_processing_clicked(self):
 ```
 
 **DEPOIS:**
+
 ```python
 def _on_start_single_video_processing_clicked(self):
     if self.edited_polygon_points:
@@ -468,6 +500,7 @@ def _on_start_single_video_processing_clicked(self):
 ### 2.11 Progress Bar - Linha 7443
 
 **ANTES (14 linhas):**
+
 ```python
 def show_progress_bar(self):
     if self.progress_frame and not self.progress_frame.winfo_viewable():
@@ -475,6 +508,7 @@ def show_progress_bar(self):
 ```
 
 **DEPOIS:**
+
 ```python
 def show_progress_bar(self):
     self.dialog_manager.show_progress_bar()
@@ -483,6 +517,7 @@ def show_progress_bar(self):
 ### 2.12 Pending Videos Dialog - Linha 7901
 
 **ANTES (28 linhas):**
+
 ```python
 def show_pending_videos_dialog(
     self,
@@ -512,6 +547,7 @@ def show_pending_videos_dialog(
 ```
 
 **DEPOIS:**
+
 ```python
 def show_pending_videos_dialog(
     self,
@@ -532,6 +568,7 @@ def show_pending_videos_dialog(
 ### 2.13 Recording Details - Linha 8158
 
 **ANTES (14 linhas):**
+
 ```python
 def ask_recording_details_unified(self):
     pm = self.controller.project_manager
@@ -547,6 +584,7 @@ def ask_recording_details_unified(self):
 ```
 
 **DEPOIS:**
+
 ```python
 def ask_recording_details_unified(self):
     return self.dialog_manager.ask_recording_details_unified()
@@ -555,6 +593,7 @@ def ask_recording_details_unified(self):
 ### 2.14 Missing Metadata - Linha 8172
 
 **ANTES (4 linhas):**
+
 ```python
 def ask_missing_metadata(self, experiment_id):
     dialog = MissingMetadataDialog(self.root, experiment_id)
@@ -562,6 +601,7 @@ def ask_missing_metadata(self, experiment_id):
 ```
 
 **DEPOIS:**
+
 ```python
 def ask_missing_metadata(self, experiment_id):
     return self.dialog_manager.ask_missing_metadata(experiment_id)
@@ -570,6 +610,7 @@ def ask_missing_metadata(self, experiment_id):
 ### 2.15 Remove ROI - Linha 8095
 
 **ANTES (com messagebox.askyesno inline):**
+
 ```python
 def _on_remove_roi_from_context_menu(self):
     # ... obter ROI selecionada ...
@@ -586,6 +627,7 @@ def _on_remove_roi_from_context_menu(self):
 ```
 
 **DEPOIS:**
+
 ```python
 def _on_remove_roi_from_context_menu(self):
     # ... obter ROI selecionada ...
@@ -599,15 +641,18 @@ def _on_remove_roi_from_context_menu(self):
 ## 3. Checklist de Refatoração
 
 ### Fase 1: Setup ✅
+
 - [ ] Adicionar `self.dialog_manager = DialogManager(self)` em `__init__`
 - [ ] Importar `DialogManager` no início do arquivo
 - [ ] Executar testes básicos
 
 ### Fase 2: Properties de Compatibilidade
+
 - [ ] Criar properties para métodos simples (show_error, show_warning, etc.)
 - [ ] Testar compatibilidade com código existente
 
 ### Fase 3: Refatoração de Métodos
+
 - [ ] Refatorar `_open_global_calibration_window()` e `_open_project_calibration_window()`
 - [ ] Refatorar `show_external_trigger_notice()` e `clear_external_trigger_notice()`
 - [ ] Refatorar `_maybe_offer_zone_reuse()`
@@ -624,11 +669,13 @@ def _on_remove_roi_from_context_menu(self):
 - [ ] Refatorar `_on_remove_roi_from_context_menu()`
 
 ### Fase 4: Testes
+
 - [ ] Executar suite completa de testes
 - [ ] Testar workflows de usuário manualmente
 - [ ] Verificar logs para erros
 
 ### Fase 5: Limpeza
+
 - [ ] Remover métodos antigos de gui.py (após verificação completa)
 - [ ] Remover imports não utilizados
 - [ ] Executar ruff check e fix
@@ -637,7 +684,7 @@ def _on_remove_roi_from_context_menu(self):
 ## 4. Métricas Esperadas
 
 | Métrica | Antes | Depois | Redução |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | Linhas em gui.py | 8,286 | ~7,574 | ~712 (-8.6%) |
 | Métodos em gui.py | 254 | ~222 | ~32 (-12.6%) |
 | Complexidade | Alta | Média | Melhor manutenibilidade |
@@ -645,7 +692,7 @@ def _on_remove_roi_from_context_menu(self):
 ## 5. Riscos e Mitigações
 
 | Risco | Mitigação |
-|-------|-----------|
+| ------- | ----------- |
 | Quebrar código existente | Criar properties de compatibilidade |
 | Regressão em testes | Executar suite completa após cada mudança |
 | Dependências circulares | DialogManager não deve importar gui.py |

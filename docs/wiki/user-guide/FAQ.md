@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Frequently Asked Questions (FAQ)
 
 ## Table of Contents
@@ -23,6 +25,7 @@ DRerio LogAI is a comprehensive Python application for automated zebrafish behav
 ### What animals does ZebTrack-AI support?
 
 Primarily zebrafish (Danio rerio), but the system works with any small aquatic animals including:
+
 - Medaka fish
 - Zebrafish larvae
 - Small fish species (guppies, etc.)
@@ -36,7 +39,7 @@ Yes! ZebTrack-AI is open-source software released under the MIT License. You can
 
 Absolutely! ZebTrack-AI is designed for scientific research. When citing, please use:
 
-```
+```text
 ZebTrack-AI: DRerio LogAI - Automated Zebrafish Behavioral Tracking System
 https://github.com/MarkSant/ZebTrack-AI
 ```
@@ -48,6 +51,7 @@ https://github.com/MarkSant/ZebTrack-AI
 **For basic use**: None! The GUI is designed for non-programmers.
 
 **For advanced use**: Python knowledge helpful for:
+
 - Custom analysis scripts
 - Model training
 - Plugin development
@@ -62,6 +66,7 @@ https://github.com/MarkSant/ZebTrack-AI
 **Python 3.12 or higher** is required. Python 3.11 and below are not supported.
 
 To check your Python version:
+
 ```bash
 python --version
 ```
@@ -69,6 +74,7 @@ python --version
 ### Do I need to install CUDA for GPU support?
 
 **For NVIDIA GPUs**: Yes, install:
+
 - CUDA Toolkit 11.8 or 12.1
 - cuDNN 8.x
 - Compatible NVIDIA drivers
@@ -78,6 +84,7 @@ python --version
 ### Why does installation take so long?
 
 First-time installation downloads:
+
 - AI models (~200MB)
 - Python dependencies (~500MB)
 - OpenVINO runtime (~800MB if using)
@@ -109,13 +116,15 @@ poetry install  # Update dependencies
 
 ### What are the minimum system requirements?
 
-**Minimum**:
+### Minimum
+
 - CPU: Dual-core, 2.0 GHz
 - RAM: 8GB
 - Storage: 5GB free space
 - OS: Windows 10, Linux (Ubuntu 20.04+), macOS 11+
 
-**Recommended**:
+### Recommended
+
 - CPU: Quad-core, 3.0 GHz+
 - RAM: 16GB+
 - GPU: NVIDIA GTX 1060 or better (6GB VRAM)
@@ -124,6 +133,7 @@ poetry install  # Update dependencies
 ### Can I run ZebTrack-AI without a GPU?
 
 Yes! CPU-only mode works but is slower:
+
 - **With GPU**: 25-60 FPS real-time processing
 - **CPU only**: 5-15 FPS (adequate for pre-recorded videos)
 
@@ -133,7 +143,8 @@ For live analysis, GPU strongly recommended.
 
 **Application**: ~2GB (including models)
 
-**Per video analysis**:
+### Per video analysis
+
 - 1-minute 1080p video: ~50MB results
 - 10-minute 1080p video: ~300MB results
 - 1-hour 4K video: ~2GB results
@@ -143,6 +154,7 @@ Plan for 2-3x video file size for complete results.
 ### Can I run on a laptop?
 
 Yes, if it meets minimum requirements. Performance tips:
+
 - Close other applications
 - Use power adapter (not battery)
 - Ensure adequate cooling
@@ -155,6 +167,7 @@ Yes, if it meets minimum requirements. Performance tips:
 ### What video formats are supported?
 
 All formats supported by OpenCV:
+
 - **Recommended**: MP4 (H.264 codec)
 - **Supported**: AVI, MOV, MKV, WEBM, FLV
 - **Not recommended**: Uncompressed formats (huge file sizes)
@@ -166,6 +179,7 @@ All formats supported by OpenCV:
 **Minimum**: 480p (640×480)
 
 Higher resolutions:
+
 - ✅ Better detection accuracy
 - ❌ Slower processing
 - ❌ Larger output files
@@ -176,6 +190,7 @@ Higher resolutions:
 **Frame rate**: 30 FPS
 
 This balances:
+
 - Detection accuracy
 - Processing speed
 - File size
@@ -191,17 +206,20 @@ This balances:
 
 ### How do I improve video quality for better tracking?
 
-**Lighting**:
+### Lighting
+
 - Uniform, diffuse lighting (no harsh shadows)
 - Avoid glare and reflections
 - Consistent brightness across frames
 
-**Camera**:
+### Camera
+
 - Fixed position (no movement)
 - Perpendicular to water surface
 - High-quality lens (minimize distortion)
 
-**Recording**:
+### Recording
+
 - High bitrate (minimize compression artifacts)
 - Consistent frame rate (no drops)
 - Clean tank (no debris, algae)
@@ -209,6 +227,7 @@ This balances:
 ### Can I analyze videos from smartphones?
 
 Yes, but consider:
+
 - Transfer video to computer first (don't run on phone)
 - Use landscape orientation
 - Stabilize phone during recording
@@ -223,11 +242,13 @@ Yes, but consider:
 
 Confidence threshold is the minimum score (0.0-1.0) required to accept a detection.
 
-**Low threshold (e.g., 0.3)**:
+### Low threshold (e.g., 0.3)
+
 - ✅ Detects more subjects (fewer misses)
 - ❌ More false positives (debris detected as fish)
 
-**High threshold (e.g., 0.7)**:
+### High threshold (e.g., 0.7)
+
 - ✅ Fewer false positives (high precision)
 - ❌ May miss some subjects (lower recall)
 
@@ -235,12 +256,14 @@ Confidence threshold is the minimum score (0.0-1.0) required to accept a detecti
 
 ### How do I choose between YOLO and OpenVINO?
 
-**YOLO**:
+### YOLO
+
 - ✅ Better accuracy (state-of-the-art)
 - ✅ Works on NVIDIA GPUs
 - ❌ Slower on CPU
 
-**OpenVINO**:
+### OpenVINO
+
 - ✅ Optimized for Intel CPUs
 - ✅ Faster on Intel hardware
 - ❌ Slightly lower accuracy
@@ -252,12 +275,14 @@ Confidence threshold is the minimum score (0.0-1.0) required to accept a detecti
 **Track ID** is a unique identifier assigned to each detected subject across frames.
 
 **ID changes** (re-identification failures) occur when:
+
 - Subject occlusions (one fish hides another)
 - Subject exits and re-enters frame
 - Similar-looking subjects swap positions
 - Detection gaps (subject temporarily not detected)
 
-**To minimize ID changes**:
+### To minimize ID changes
+
 - Increase confidence threshold (more consistent detections)
 - Enable multi-subject tracking algorithms
 - Improve video quality (better feature extraction)
@@ -266,12 +291,14 @@ Confidence threshold is the minimum score (0.0-1.0) required to accept a detecti
 
 Yes! Enable **Multi-Subject Tracking** in Wizard Step 4.
 
-**Supports**:
+### Supports
+
 - Up to 10 subjects simultaneously (tested)
 - Individual metrics per track ID
 - Track-by-track analysis in reports
 
-**Limitations**:
+### Limitations
+
 - More prone to ID swaps (re-identification challenges)
 - Slightly slower processing
 - Requires higher confidence threshold
@@ -279,11 +306,13 @@ Yes! Enable **Multi-Subject Tracking** in Wizard Step 4.
 ### How accurate is the detection?
 
 **Typical accuracy** (on zebrafish):
+
 - Precision: 95-98% (few false positives)
 - Recall: 92-96% (few misses)
 - F1 Score: 93-97%
 
-**Factors affecting accuracy**:
+### Factors affecting accuracy
+
 - Video quality (lighting, resolution, clarity)
 - Subject size (larger = easier to detect)
 - Background complexity (clean tank = better)
@@ -292,6 +321,7 @@ Yes! Enable **Multi-Subject Tracking** in Wizard Step 4.
 ### Can I train my own detection model?
 
 Yes, for custom species or setups. Requires:
+
 1. Annotated dataset (100+ images with bounding boxes)
 2. YOLO training pipeline (see `docs/MODEL_TRAINING.md` - coming soon)
 3. GPU for training (6GB+ VRAM)
@@ -305,13 +335,15 @@ Custom models can be loaded in Wizard Step 4.
 
 ### What metrics does ZebTrack-AI calculate?
 
-**Spatial metrics**:
+### Spatial metrics
+
 - Total distance traveled (cm)
 - Average speed (cm/s)
 - Maximum speed (cm/s)
 - Time in each ROI (seconds, %)
 
-**Behavioral metrics**:
+### Behavioral metrics
+
 - ROI entries and exits
 - Dwell time per ROI
 - Movement patterns (trajectory)
@@ -323,16 +355,18 @@ Custom models can be loaded in Wizard Step 4.
 
 **Parquet** is a columnar binary format for efficient data storage.
 
-**Opening Parquet files**:
+### Opening Parquet files
 
-**Python (pandas)**:
+### Python (pandas)
+
 ```python
 import pandas as pd
 df = pd.read_parquet("3_CoordMovimento_my_video.parquet")
 print(df.head())
 ```
 
-**R**:
+### R
+
 ```r
 library(arrow)
 df <- read_parquet("3_CoordMovimento_my_video.parquet")
@@ -345,12 +379,14 @@ head(df)
 
 Yes! Change export format in **Wizard Step 5 → Export Format**.
 
-**Formats**:
+### Formats
+
 - Parquet (default, most efficient)
 - CSV (Excel-compatible, larger files)
 - JSON (web applications, human-readable)
 
 Or convert after analysis:
+
 ```python
 import pandas as pd
 df = pd.read_parquet("file.parquet")
@@ -361,7 +397,8 @@ df.to_csv("file.csv", index=False)
 
 Load Parquet file in Python and use pandas:
 
-**Example: Calculate time above speed threshold**
+### Example: Calculate time above speed threshold
+
 ```python
 import pandas as pd
 
@@ -383,11 +420,13 @@ print(f"Time swimming fast: {time_fast:.2f} seconds")
 
 **Calibration** converts pixel coordinates to physical units (cm).
 
-**Without calibration**:
+### Without calibration
+
 - Coordinates in pixels (px)
 - No distance/speed metrics
 
-**With calibration**:
+### With calibration
+
 - Coordinates in centimeters (cm)
 - Distance traveled (cm)
 - Speed (cm/s)
@@ -397,10 +436,12 @@ print(f"Time swimming fast: {time_fast:.2f} seconds")
 ### How long are results stored?
 
 **Forever** (until you delete them). Results are saved locally in:
+
 - `<video_name>_results/` (pre-recorded videos)
 - `live_analysis_sessions/` (live camera sessions)
 
-**Best practices**:
+### Best practices
+
 - Archive old results to external storage
 - Use descriptive experiment IDs for organization
 - Back up important results
@@ -411,7 +452,8 @@ print(f"Time swimming fast: {time_fast:.2f} seconds")
 
 ### Why is analysis slow?
 
-**Common causes**:
+### Common causes
+
 1. **No GPU acceleration**: CPU-only mode is 3-5x slower
 2. **High resolution**: 4K videos take 4x longer than 1080p
 3. **Low confidence threshold**: More detections = more processing
@@ -421,16 +463,20 @@ print(f"Time swimming fast: {time_fast:.2f} seconds")
 
 ### How do I enable GPU acceleration?
 
-**For NVIDIA GPUs**:
+### For NVIDIA GPUs
+
 1. Install CUDA Toolkit and cuDNN
 2. Install GPU-enabled PyTorch:
+
    ```bash
    poetry run pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
    ```
+
 3. Restart application
 4. Check **Help → System Info** to verify GPU detected
 
-**For Intel GPUs**:
+### For Intel GPUs
+
 - OpenVINO automatically uses Intel GPU if available
 - No additional configuration needed
 
@@ -453,19 +499,22 @@ Yes! Use **Batch Processing**:
 **Skip 2**: Analyze every 2nd frame (50% speed increase)
 **Skip 5**: Analyze every 5th frame (5x speed increase)
 
-**Use cases**:
+### Use cases
+
 - ✅ Slow-moving subjects (zebrafish at rest)
 - ✅ Long videos (1+ hours)
 - ✅ Quick preliminary analysis
 
-**Avoid for**:
+### Avoid for
+
 - ❌ Fast movements (may miss behavior)
 - ❌ Short videos (minimal time savings)
 - ❌ High temporal resolution needed
 
 ### How much RAM does ZebTrack-AI use?
 
-**Typical usage**:
+### Typical usage
+
 - Application: ~500MB
 - Video buffer: ~200MB per minute of 1080p video
 - AI model: ~500MB (YOLO) to ~1GB (large models)
@@ -483,7 +532,8 @@ Yes! Use **Batch Processing**:
 
 ZebTrack-AI can send commands to Arduino microcontrollers based on ROI events.
 
-**Use cases**:
+### Use cases
+
 - Trigger LED lights when fish enters zone
 - Activate pumps/feeders based on behavior
 - Synchronize with external devices
@@ -494,6 +544,7 @@ ZebTrack-AI can send commands to Arduino microcontrollers based on ROI events.
 ### Can I create custom ROI shapes?
 
 Yes! ROI tools support:
+
 - **Rectangle**: Click and drag
 - **Polygon**: Click corners to define arbitrary shape
 - **Circle**: Center + radius
@@ -504,12 +555,14 @@ Yes! ROI tools support:
 
 **ROI templates** save ROI configurations for reuse across projects.
 
-**Workflow**:
+### Workflow
+
 1. Configure ROIs in Project Wizard
 2. **File → Save ROI Template**
 3. In future projects: **File → Load ROI Template**
 
-**Use cases**:
+### Use cases
+
 - Consistent experimental setup
 - Multi-day experiments
 - Batch processing with same ROIs
@@ -517,11 +570,13 @@ Yes! ROI tools support:
 ### Can I export heatmaps as images?
 
 Yes! Heatmaps are automatically saved as PNG images in results directory:
+
 - `<video_name>_heatmap.png`
 - Resolution matches original video
 - Color scale: Blue (low) → Red (high)
 
 Or generate manually:
+
 ```python
 from zebtrack.analysis import generate_heatmap
 generate_heatmap("3_CoordMovimento_video.parquet", output="heatmap.png")
@@ -555,7 +610,8 @@ for video in videos:
 
 ### Camera not detected - what should I do?
 
-**Quick fixes**:
+### Quick fixes
+
 1. Check camera is connected (USB)
 2. Try different USB port
 3. Check camera permissions (Windows: Settings → Privacy → Camera)
@@ -566,7 +622,8 @@ for video in videos:
 
 ### Detection accuracy is poor - how to improve?
 
-**Immediate fixes**:
+### Immediate fixes
+
 1. Increase confidence threshold (0.5 → 0.6+)
 2. Improve lighting (uniform, bright)
 3. Clean tank (remove debris)
@@ -576,43 +633,50 @@ for video in videos:
 
 ### Application crashes during analysis - why?
 
-**Common causes**:
+### Common causes
+
 1. **Insufficient RAM**: Close other applications
 2. **Corrupted video file**: Try different video
 3. **GPU memory overflow**: Reduce batch size or resolution
 4. **Python version mismatch**: Ensure Python 3.12+
 
-**Debugging**:
+### Debugging
+
 - Check logs: `logs/zebtrack.log`
 - Run with verbose logging: `poetry run zebtrack --verbose`
 - Report bug: [GitHub Issues](https://github.com/MarkSant/ZebTrack-AI/issues)
 
 ### Results seem incorrect - what's wrong?
 
-**Check**:
+### Check
+
 1. **Calibration**: Is physical unit conversion correct?
 2. **ROI definitions**: Are ROIs drawn accurately?
 3. **Track IDs**: Are there many ID swaps? (affects per-track metrics)
 4. **Video quality**: Is detection accuracy acceptable (>90%)?
 
-**Validation**:
+### Validation
+
 - Manually inspect annotated video
 - Check detection rate in analysis summary
 - Compare trajectory plots to expected behavior
 
 ### Where can I get help?
 
-**Documentation**:
+### Documentation
+
 - [User Guide](GETTING_STARTED.md)
 - [Troubleshooting Guide](TROUBLESHOOTING.md)
 - Developer docs: `docs/`
 
-**Community**:
+### Community
+
 - [GitHub Issues](https://github.com/MarkSant/ZebTrack-AI/issues)
 - [Discussions](https://github.com/MarkSant/ZebTrack-AI/discussions)
 
-**Direct support**:
-- Email: support@zebtrack.ai
+### Direct support
+
+- Email: <support@zebtrack.ai>
 
 ---
 
@@ -621,6 +685,7 @@ for video in videos:
 ### How can I contribute to ZebTrack-AI?
 
 Contributions welcome! See [Contributing Guide](../../../CONTRIBUTING.md) for:
+
 - Bug reports
 - Feature requests
 - Code contributions
@@ -629,10 +694,11 @@ Contributions welcome! See [Contributing Guide](../../../CONTRIBUTING.md) for:
 
 ### Where is the source code?
 
-GitHub repository: https://github.com/MarkSant/ZebTrack-AI
+GitHub repository: <https://github.com/MarkSant/ZebTrack-AI>
 
-**Structure**:
-```
+### Structure
+
+```text
 ZebTrack-AI/
 ├── src/zebtrack/        # Application code
 ├── tests/               # Test suite
@@ -645,7 +711,8 @@ ZebTrack-AI/
 
 Yes! The MIT License allows commercial use with no restrictions.
 
-**Requirements**:
+### Requirements
+
 - Include original copyright notice
 - Include MIT License text
 
@@ -660,6 +727,7 @@ Yes! The MIT License allows commercial use with no restrictions.
 **MIT License** - permissive, open-source
 
 You are free to:
+
 - Use commercially
 - Modify and distribute
 - Use privately
@@ -671,7 +739,7 @@ See [LICENSE](../../../LICENSE) file for full text.
 
 **Temporary citation** (until formal publication):
 
-```
+```text
 ZebTrack-AI: DRerio LogAI - Automated Zebrafish Behavioral Tracking System
 https://github.com/MarkSant/ZebTrack-AI
 Version 2.1 (2025)
@@ -683,4 +751,4 @@ Version 2.1 (2025)
 
 **Last Updated**: November 2025
 **Version**: 2.1
-**For more questions**: [Open an issue](https://github.com/MarkSant/ZebTrack-AI/issues) or email support@zebtrack.ai
+**For more questions**: [Open an issue](https://github.com/MarkSant/ZebTrack-AI/issues) or email <support@zebtrack.ai>

@@ -13,11 +13,12 @@ O ZebTrack-AI espera modelos com classes específicas para funcionar corretament
 Modelos de segmentação devem ter **2 classes**:
 
 | Classe ID | Nome Primário | Alternativas Aceitas | Descrição |
-|-----------|---------------|----------------------|-----------|
+| ----------- | --------------- | ---------------------- | ----------- |
 | **0** | `aqua` | `aquarium`, `tank`, `agua` | Aquário/tanque de água |
 | **1** | `zebrafish` | `fish`, `peixe` | Peixe zebrafish |
 
 **Uso:**
+
 - **Classe 0**: Utilizada na fase inicial de detecção de arena
 - **Classe 1**: Utilizada para rastreamento de animais após arena definida
 
@@ -26,7 +27,7 @@ Modelos de segmentação devem ter **2 classes**:
 Modelos de detecção (apenas bboxes, sem segmentação) devem ter **1 classe**:
 
 | Classe ID | Nome Primário | Alternativas Aceitas | Descrição |
-|-----------|---------------|----------------------|-----------|
+| ----------- | --------------- | ---------------------- | ----------- |
 | **0** | `zebrafish` | `fish`, `peixe` | Peixe zebrafish |
 
 **Nota:** Modelos de detecção não incluem detecção de aquário, apenas animais.
@@ -36,6 +37,7 @@ Modelos de detecção (apenas bboxes, sem segmentação) devem ter **1 classe**:
 O ZebTrack-AI **extrai automaticamente** os nomes de classes dos modelos:
 
 ### Para Modelos PyTorch (`.pt`)
+
 ```python
 from ultralytics import YOLO
 model = YOLO("modelo.pt")
@@ -43,7 +45,9 @@ class_names = model.names  # {0: 'aqua', 1: 'zebrafish'}
 ```
 
 ### Para Modelos OpenVINO (após conversão)
+
 Os nomes são salvos em `metadata.json` durante a conversão:
+
 ```json
 {
   "class_names": {
@@ -54,6 +58,7 @@ Os nomes são salvos em `metadata.json` durante a conversão:
 ```
 
 **Vantagens:**
+
 - ✅ Não há hardcoding de nomes no código
 - ✅ Modelos com nomes customizados funcionarão automaticamente
 - ✅ Sistema loggará warnings se nomes não forem reconhecidos
@@ -94,7 +99,8 @@ names:
 ### 1. Preparação do Dataset
 
 **Estrutura de Diretórios:**
-```
+
+```text
 dataset/
 ├── images/
 │   ├── train/
@@ -115,6 +121,7 @@ dataset/
 ```
 
 **Formato de Anotações (YOLO):**
+
 - Cada imagem tem um arquivo `.txt` correspondente
 - Para segmentação: `<class_id> <x1> <y1> <x2> <y2> ... <xn> <yn>` (polígono)
 - Para detecção: `<class_id> <x_center> <y_center> <width> <height>` (bbox normalizado)
@@ -122,6 +129,7 @@ dataset/
 ### 2. Comando de Treinamento
 
 #### Segmentação
+
 ```bash
 yolo segment train \
   data=data.yaml \
@@ -133,6 +141,7 @@ yolo segment train \
 ```
 
 #### Detecção
+
 ```bash
 yolo detect train \
   data=data.yaml \
@@ -171,7 +180,8 @@ print(f"Número de classes: {model_info['num_classes']}")
 ```
 
 **Saída Esperada:**
-```
+
+```text
 Tipo: segment
 Classes: {0: 'aqua', 1: 'zebrafish'}
 Número de classes: 2
@@ -200,6 +210,7 @@ Ao carregar um modelo, o sistema automaticamente:
 **Causa:** Modelo não tem as classes esperadas.
 
 **Solução:** Verifique o `data.yaml` usado no treinamento. Certifique-se de que as classes estão definidas corretamente:
+
 ```yaml
 names:
   0: aqua
@@ -217,8 +228,10 @@ names:
 **Causa:** Threshold de confiança muito alto ou modelo mal treinado.
 
 **Solução:**
+
 1. Ajuste o threshold de confiança no ZebTrack-AI (Configurações → Detector)
 2. Valide o modelo com:
+
    ```bash
    yolo segment predict model=best.pt source=test_image.jpg
    ```
@@ -230,7 +243,7 @@ Após treinamento, valide a qualidade do modelo:
 ### Métricas Mínimas Recomendadas
 
 | Métrica | Segmentação | Detecção |
-|---------|-------------|----------|
+| --------- | ------------- | ---------- |
 | **mAP@0.5** | ≥ 0.90 | ≥ 0.85 |
 | **mAP@0.5:0.95** | ≥ 0.70 | ≥ 0.60 |
 | **Precision** | ≥ 0.90 | ≥ 0.85 |
@@ -266,17 +279,20 @@ tail -f logs/zebtrack.log | grep "validate_classes"
 **Exemplos de logs:**
 
 ✅ **Sucesso:**
-```
+
+```text
 detector_service.validate_classes.success: model_path=best_seg.pt plugin_classes={0: 'aqua', 1: 'zebrafish'}
 ```
 
 ⚠️ **Warning (nome inesperado):**
-```
+
+```text
 detector_service.validate_classes.unexpected_name: class_id=0 actual_name='aquario' expected_names=['aqua', 'aquarium', 'tank', 'agua']
 ```
 
 ❌ **Erro (classe ausente):**
-```
+
+```text
 detector_service.validate_classes.missing: model_path=bad_model.pt plugin_classes={0: 'fish'} missing=[1]
 ```
 

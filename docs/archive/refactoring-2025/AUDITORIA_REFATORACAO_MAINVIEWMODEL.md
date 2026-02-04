@@ -1,4 +1,7 @@
+<!-- markdownlint-disable MD024 -->
+
 # Auditoria: Refatoração MainViewModel
+
 **Branch:** `refactor-mainviewmodel-phase3-completion`
 **Data:** 2025-01-21
 **Status Geral:** 🟡 PARCIALMENTE COMPLETO (68%)
@@ -10,7 +13,7 @@
 ### Métricas Finais vs Meta do Plano
 
 | Métrica | Meta Original | Atual | Gap | % Completude |
-|---------|---------------|-------|-----|--------------|
+| --------- | --------------- | ------- | ----- | -------------- |
 | **Linhas Totais** | < 800 | 1.739 | +939 | **53%** |
 | **Redução de Linhas** | -2.000 (-71%) | -1.058 (-38%) | -942 | **54%** |
 | **Métodos Totais** | < 40 | 73 | +33 | **45%** |
@@ -20,7 +23,8 @@
 | **Testes Criados** | 125+ | 67 | -58 | **54%** |
 | **Cobertura** | 85% | ~70% | -15% | **82%** |
 
-**Linha de Base:**
+### Linha de Base
+
 - Original: 2.797 linhas, 155 métodos
 - Atual: 1.739 linhas, 73 métodos
 - Redução: 1.058 linhas (38%), 82 métodos (53%)
@@ -28,7 +32,7 @@
 ### Status por Fase
 
 | Fase | Completude | Status |
-|------|------------|--------|
+| ------ | ------------ | -------- |
 | **Fase 1:** Extração de Serviços | 80% | 🟡 Falta ApplicationBootstrapper |
 | **Fase 2:** Limpeza de Facades | 100% | ✅ Completa |
 | **Fase 3:** Super Coordinators | 100% | ✅ Completa |
@@ -46,14 +50,15 @@
 #### Serviços Implementados
 
 | Serviço | Status | Linhas | Testes | Localização |
-|---------|--------|--------|--------|-------------|
+| --------- | -------- | -------- | -------- | ------------- |
 | **BatchConfigurationService** | ✅ | 236 | 18 | `core/batch_configuration_service.py` |
 | **ThreadCoordinator** | ✅ | 153 | 29 | `core/thread_coordinator.py` |
 | **DialogCoordinator** | ✅ | 255 | 12 | `coordinators/dialog_coordinator.py` |
 | **EventDispatcher** | ✅ | ~150 | 8 | `ui/components/event_dispatcher.py` |
 | **ApplicationBootstrapper** | ❌ | - | - | **NÃO CRIADO** |
 
-**Gaps Críticos:**
+### Gaps Críticos
+
 - ❌ **ApplicationBootstrapper ausente** → ~400 linhas de métodos `_init_*` permanecem no MainViewModel
 - Métodos não extraídos: `_extract_dependencies`, `_init_services`, `_init_hardware_and_models`, `_init_runtime_state`, `_init_view`, `_init_orchestrators`, `_inject_or_create`, `_subscribe_to_state`
 
@@ -68,12 +73,13 @@
 #### Resultados
 
 | Aspecto | Meta | Implementado | Status |
-|---------|------|--------------|--------|
+| --------- | ------ | -------------- | -------- |
 | Métodos facade removidos | 85 | 86 | ✅ SUPERADO |
 | OrchestratorRegistry criado | Sim | Sim | ✅ |
 | Testes | 40+ | 34 | ✅ ADEQUADO |
 
-**Implementação:**
+### Implementação
+
 - ✅ `OrchestratorRegistry` implementado (103 linhas, 29 testes)
 - ✅ Todos os facades removidos do MainViewModel
 - ✅ Backward compatibility preservada via aliases
@@ -90,7 +96,7 @@
 #### Coordinators Criados
 
 | Super Coordinator | Linhas | Consolida | Testes | Arquivo |
-|-------------------|--------|-----------|--------|---------|
+| ------------------- | -------- | ----------- | -------- | --------- |
 | **ProjectLifecycleCoordinator** | 813 | ProjectOrchestrator, CalibrationOrchestrator | 5 | `coordinators/project_lifecycle_coordinator.py` |
 | **ProcessingCoordinator** | 1.961 | VideoProcessing, Analysis, ProcessingConfig | 5 | `coordinators/processing_coordinator.py` |
 | **HardwareCoordinator** | 1.829 | DetectorCoordinator, ModelDiagnostics | 5 | `coordinators/hardware_coordinator.py` |
@@ -98,7 +104,8 @@
 
 **Total:** 5.869 linhas em 4 coordinators (média: 1.467 linhas)
 
-**Análise:**
+### Análise
+
 - ✅ 20 componentes → 4 super coordinators (redução de 80%)
 - ✅ Zero acoplamento com MainViewModel (verificado via grep)
 - ✅ Injeção de dependência pura em todos
@@ -116,14 +123,15 @@
 #### Status da Implementação
 
 | Tarefa | Meta | Implementado | Status |
-|--------|------|--------------|--------|
+| -------- | ------ | -------------- | -------- |
 | DialogCoordinator | Criar | ✅ Criado (255 linhas) | ✅ |
 | Migrar para EventBus | 100% | ~70% | ⚠️ PARCIAL |
 | UICoordinator | Refatorar | ❌ UIStateController legado | ❌ |
 | Remover `view` param | Sim | ❌ Ainda presente | ❌ |
 | Testes eventos UI | 20+ | ~10 | ⚠️ INSUFICIENTE |
 
-**Gaps Críticos:**
+### Gaps Críticos
+
 - ❌ **Dependência de `view` não removida** - MainViewModel ainda recebe `view` no construtor
 - ❌ **UIStateController legado** - Deveria ser refatorado para UICoordinator
 - ⚠️ ~30% das interações UI ainda são diretas (não via EventBus)
@@ -140,7 +148,7 @@
 #### Status
 
 | Tarefa | Status | Observações |
-|--------|--------|-------------|
+| -------- | -------- | ------------- |
 | Remover código morto | ⚠️ Parcial | Métodos `_init_*` ainda presentes |
 | Atualizar ARCHITECTURE.md | ✅ Feito | Fase 3 documentada |
 | Atualizar CLAUDE.md | ✅ Feito | Componentes atualizados |
@@ -149,11 +157,13 @@
 | Benchmarks performance | ❌ Não | Nenhum executado |
 | Análise cobertura | ✅ Feito | ~70% medido |
 
-**TODOs Deixados:**
+### TODOs Deixados
+
 - Linha 443: `Phase 4 TODO: Implement _on_recording_state_changed`
 - Linha 582: `Phase 4 TODO: Remove these and refactor callers`
 
-**Gaps:**
+### Gaps
+
 - ❌ Guia de migração ausente
 - ❌ Benchmarks não executados
 - ⚠️ 2 TODOs no código
@@ -165,7 +175,7 @@
 ### Resumo de Arquivos
 
 | Categoria | Planejados | Criados | % |
-|-----------|------------|---------|---|
+| ----------- | ------------ | --------- | --- |
 | **Serviços (Fase 1)** | 5 | 4 | 80% |
 | **Infrastructure (Fase 2)** | 1 | 1 | 100% |
 | **Super Coordinators (Fase 3)** | 4 | 4 | 100% |
@@ -173,7 +183,8 @@
 
 ### Detalhamento
 
-**✅ Criados Corretamente:**
+### ✅ Criados Corretamente
+
 1. `core/batch_configuration_service.py` (236 linhas, 18 testes)
 2. `core/thread_coordinator.py` (153 linhas, 29 testes)
 3. `coordinators/dialog_coordinator.py` (255 linhas, 12 testes)
@@ -184,7 +195,8 @@
 8. `coordinators/hardware_coordinator.py` (1.829 linhas)
 9. `coordinators/session_coordinator.py` (1.266 linhas)
 
-**❌ Não Criado:**
+### ❌ Não Criado
+
 1. `core/application_bootstrapper.py` - **CRÍTICO**
 
 ---
@@ -194,7 +206,7 @@
 ### Cobertura por Componente
 
 | Componente | Testes | Meta | % Meta | Qualidade |
-|------------|--------|------|--------|-----------|
+| ------------ | -------- | ------ | -------- | ----------- |
 | BatchConfigurationService | 18 | 10 | 180% | ✅ EXCELENTE |
 | ThreadCoordinator | 29 | 10 | 290% | ✅ EXCELENTE |
 | DialogCoordinator | 12 | 7 | 171% | ✅ EXCELENTE |
@@ -220,7 +232,8 @@
 
 **Problema:** MainViewModel ainda tem 73 métodos (meta: < 40)
 
-**Violações Identificadas:**
+### Violações Identificadas
+
 - 8 métodos `_init_*` (~400 linhas) deveriam estar em ApplicationBootstrapper
 - Gerenciamento de estado e orquestração misturados
 - UIStateController não migrado para UICoordinator
@@ -231,13 +244,15 @@
 
 ### 2. Dependency Inversion Principle (DIP) - ✅ RESOLVIDO
 
-**Antes:**
+### Antes
+
 ```python
 def __init__(self, main_view_model: MainViewModel):  # ❌ Acoplamento
     self.main_view_model = main_view_model
 ```
 
-**Depois:**
+### Depois
+
 ```python
 def __init__(self, state_manager: StateManager, project_manager: ProjectManager):  # ✅
     # Injeção de dependência pura
@@ -251,7 +266,8 @@ def __init__(self, state_manager: StateManager, project_manager: ProjectManager)
 
 **Problema:** ViewModel ainda depende diretamente de `view`
 
-**Evidência:**
+### Evidência
+
 - `main_view_model.py:116` - `view` passado no construtor
 - Algumas chamadas UI não usam EventBus
 
@@ -265,7 +281,8 @@ def __init__(self, state_manager: StateManager, project_manager: ProjectManager)
 
 **Impacto:** ~400 linhas que deveriam estar em ApplicationBootstrapper
 
-**Métodos:**
+### Métodos
+
 - `_extract_dependencies` (30 linhas)
 - `_init_services` (40 linhas)
 - `_init_hardware_and_models` (100 linhas)
@@ -287,7 +304,8 @@ def __init__(self, state_manager: StateManager, project_manager: ProjectManager)
 
 ### 3. TODOs no Código - 🟢 BAIXA PRIORIDADE
 
-**2 TODOs identificados:**
+### 2 TODOs identificados
+
 - Linha 443: `_on_recording_state_changed` não implementado
 - Linha 582: Refatorar callers para uso direto de coordinators
 
@@ -298,9 +316,11 @@ def __init__(self, state_manager: StateManager, project_manager: ProjectManager)
 ### 🔴 CRÍTICAS (Fazer AGORA)
 
 #### 1. Extrair ApplicationBootstrapper
+
 **Impacto:** -400 linhas, MainViewModel → ~1.339 linhas
 
-**Tarefas:**
+### Tarefas
+
 - Criar `core/application_bootstrapper.py`
 - Mover 8 métodos `_init_*`
 - Criar 8-10 testes unitários
@@ -312,9 +332,11 @@ def __init__(self, state_manager: StateManager, project_manager: ProjectManager)
 ---
 
 #### 2. Completar Desacoplamento UI (Fase 4)
+
 **Impacto:** Remover dependência de `view`, MVVM puro
 
-**Tarefas:**
+### Tarefas
+
 - Migrar 100% chamadas `self.view.*` para EventBus
 - Remover parâmetro `view` do construtor (BREAKING)
 - Refatorar UIStateController → UICoordinator
@@ -326,9 +348,11 @@ def __init__(self, state_manager: StateManager, project_manager: ProjectManager)
 ---
 
 #### 3. Adicionar Testes de Integração
+
 **Impacto:** +25 testes, cobertura > 78%
 
-**Tarefas:**
+### Tarefas
+
 - Workflows completos: Criar projeto → Processar → Analisar → Fechar
 - Testes de thread safety
 - Testes de estado consistente
@@ -341,7 +365,9 @@ def __init__(self, state_manager: StateManager, project_manager: ProjectManager)
 ### 🟡 ALTAS (Fazer em Seguida)
 
 #### 4. Resolver TODOs
-**Tarefas:**
+
+### Tarefas
+
 - Implementar `_on_recording_state_changed`
 - Refatorar callers diretos
 
@@ -350,7 +376,9 @@ def __init__(self, state_manager: StateManager, project_manager: ProjectManager)
 ---
 
 #### 5. Criar Guias de Migração
-**Tarefas:**
+
+### Tarefas
+
 - Guia de uso dos novos coordinators
 - Guia DI atualizado
 - Exemplos de código
@@ -362,7 +390,9 @@ def __init__(self, state_manager: StateManager, project_manager: ProjectManager)
 ### 🟢 MÉDIAS (Backlog)
 
 #### 6. Benchmarks de Performance
-**Métricas:**
+
+### Métricas
+
 - Tempo de inicialização (meta: < 2.5s)
 - Throughput de processamento
 - Uso de memória
@@ -372,6 +402,7 @@ def __init__(self, state_manager: StateManager, project_manager: ProjectManager)
 ---
 
 #### 7. Testes E2E
+
 **Cenários:** 5 workflows críticos completos
 
 **Tempo:** 6-8 horas
@@ -381,7 +412,7 @@ def __init__(self, state_manager: StateManager, project_manager: ProjectManager)
 ## 8. Análise de Riscos
 
 | Risco | Prob. | Impacto | Mitigação |
-|-------|-------|---------|-----------|
+| ------- | ------- | --------- | ----------- |
 | **Dependência `view` não removida** | Alta | Médio | Completar Fase 4 antes de merge |
 | **ApplicationBootstrapper ausente** | Média | Alto | Extrair antes de release |
 | **Cobertura < 85%** | Alta | Médio | Adicionar testes integração |
@@ -394,11 +425,13 @@ def __init__(self, state_manager: StateManager, project_manager: ProjectManager)
 
 ### Completude Geral: **68%**
 
-**FASES COMPLETAS:**
+### FASES COMPLETAS
+
 - ✅ Fase 2: Limpeza de Facades (100%)
 - ✅ Fase 3: Consolidação de Coordinators (100%)
 
-**FASES PARCIAIS:**
+### FASES PARCIAIS
+
 - 🟡 Fase 1: Extração de Serviços (80% - falta ApplicationBootstrapper)
 - 🟡 Fase 4: Desacoplamento UI (70% - dependência `view` presente)
 - 🟡 Fase 5: Limpeza & Docs (40% - guias ausentes)
@@ -407,7 +440,7 @@ def __init__(self, state_manager: StateManager, project_manager: ProjectManager)
 
 ### Arquitetura Atual
 
-```
+```text
 MainViewModel (1.739 linhas, 73 métodos)
   ├─> ProjectLifecycleCoordinator (813 linhas)
   ├─> ProcessingCoordinator (1.961 linhas)
@@ -434,16 +467,18 @@ MainViewModel (1.739 linhas, 73 métodos)
 
 ### Recomendação Final
 
-**✅ APROVAR COM RESSALVAS**
+### ✅ APROVAR COM RESSALVAS
 
-**Objetivos Arquiteturais Atingidos:**
+### Objetivos Arquiteturais Atingidos
+
 - ✅ Super Coordinators implementados corretamente
 - ✅ Acoplamento circular eliminado
 - ✅ Facades removidas
 - ✅ Injeção de dependência pura
 - ✅ Testes unitários excelentes
 
-**Requer para Produção:**
+### Requer para Produção
+
 - 🔴 ApplicationBootstrapper (CRÍTICO - meta de 800 linhas)
 - 🔴 Desacoplamento UI completo (CRÍTICO - MVVM puro)
 - 🟡 Testes de integração (+25 testes)
@@ -461,8 +496,8 @@ MainViewModel (1.739 linhas, 73 métodos)
 
 ### Médio Prazo (3-4 sprints)
 
-3. **Sprint 3:** Guias de migração + Documentação (4-5 horas)
-4. **Sprint 4:** Benchmarks + Testes E2E (9-12 horas)
+1. **Sprint 3:** Guias de migração + Documentação (4-5 horas)
+2. **Sprint 4:** Benchmarks + Testes E2E (9-12 horas)
 
 ### Critérios de Aceitação para v3.0
 
@@ -474,4 +509,4 @@ MainViewModel (1.739 linhas, 73 métodos)
 
 ---
 
-**FIM DA AUDITORIA**
+### FIM DA AUDITORIA

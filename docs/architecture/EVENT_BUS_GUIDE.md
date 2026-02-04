@@ -8,14 +8,15 @@ O `EventBusV2` é o coração da arquitetura desacoplada do ZebTrack-AI. Ele per
 ## Como Funciona
 
 O padrão é **Publicar/Assinar (Pub/Sub)**.
-1.  Um componente (Publisher) emite um evento.
-2.  O `EventBus` notifica todos os assinantes (Subscribers) daquele evento.
-3.  O `UICoordinator` é o principal assinante, orquestrando as atualizações de UI.
+
+1. Um componente (Publisher) emite um evento.
+2. O `EventBus` notifica todos os assinantes (Subscribers) daquele evento.
+3. O `UICoordinator` é o principal assinante, orquestrando as atualizações de UI.
 
 ## Lista de Eventos (UIEvents)
 
 | Evento | Descrição | Payload (Dados) |
-|--------|-----------|-----------------|
+| -------- | ----------- | ----------------- |
 | `ZONES_UPDATED` | Zonas (arena/ROIs) foram alteradas (desenhadas, apagadas, editadas). | `{'zone_data': ZoneData \| None}` |
 | `POLYGON_EDIT_REQUESTED` | Solicitação para editar vértices de um polígono existente. | `{'polygon': np.ndarray}` |
 | `VIDEO_TREE_REFRESH_REQUESTED` | Solicitação para atualizar a árvore de seleção de vídeos. | `{'filter_text': str \| None}` |
@@ -66,17 +67,20 @@ def _on_zones_updated(self, data: dict):
 
 ## Melhores Práticas
 
-1.  **Payloads Leves:** Evite passar objetos pesados (como arrays de imagem gigantes) se não for estritamente necessário. Passe referências ou IDs.
-2.  **Sem Loops:** Cuidado para que o tratamento de um evento A não publique um evento B que, por sua vez, publica o evento A novamente.
-3.  **Thread Safety:** O `EventBus` é síncrono por padrão. Se publicar de uma thread secundária, o handler rodará nessa thread. O `UICoordinator` usa `root.after(0, ...)` para garantir que atualizações de GUI ocorram na main thread.
+1. **Payloads Leves:** Evite passar objetos pesados (como arrays de imagem gigantes) se não for estritamente necessário. Passe referências ou IDs.
+2. **Sem Loops:** Cuidado para que o tratamento de um evento A não publique um evento B que, por sua vez, publica o evento A novamente.
+3. **Thread Safety:** O `EventBus` é síncrono por padrão. Se publicar de uma thread secundária, o handler rodará nessa thread. O `UICoordinator` usa `root.after(0, ...)` para garantir que atualizações de GUI ocorram na main thread.
 
 ## Migração de Código Legado
 
 Se encontrar uma chamada direta como:
+
 ```python
 self.gui.update_zone_listbox(data)
 ```
+
 Substitua por:
+
 ```python
 self.event_bus.publish(Event(UIEvents.ZONES_UPDATED, {'zone_data': data}))
 ```

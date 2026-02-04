@@ -11,7 +11,8 @@
 **Description:**
 
 When the full test suite is run (`pytest -q`), UI component tests may fail with:
-```
+
+```text
 _tkinter.TclError: can't invoke "tk" command: application has been destroyed
 ```
 
@@ -22,6 +23,7 @@ The ttkbootstrap library uses a singleton pattern for its Style class. This sing
 **Workaround:**
 
 Run UI component tests in isolation:
+
 ```bash
 poetry run pytest tests/ui/test_components.py -v
 ```
@@ -31,6 +33,7 @@ Result: All 22 tests pass successfully (100% pass rate).
 **Full Test Suite Results:**
 
 When running the complete test suite:
+
 - **Total tests:** 519
 - **Passing:** 508 (97.9%)
 - **Failing:** 11 (UI components affected by Style singleton)
@@ -44,6 +47,7 @@ When running the complete test suite:
 4. **Skip in full suite:** Mark tests with `@pytest.mark.skipif` when detected as part of full suite run.
 
 **Related Files:**
+
 - `tests/ui/test_components.py` - Affected test module
 - `src/zebtrack/ui/components/` - Component implementations (working correctly)
 - `src/zebtrack/ui/gui.py` - Main GUI (working correctly)

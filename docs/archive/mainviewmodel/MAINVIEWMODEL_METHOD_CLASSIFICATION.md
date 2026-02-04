@@ -13,6 +13,7 @@
 Este documento classifica todos os 141 métodos do MainViewModel em **12 categorias funcionais**, facilitando a identificação de responsabilidades e guiando a extração para orchestrators especializados nos Sprints 24-35.
 
 **Categorias:**
+
 1. **Orchestration** - Workflows públicos de alto nível
 2. **Orchestration Internal** - Helpers de orquestração privados
 3. **Utility Internal** - Utilitários e helpers privados
@@ -31,7 +32,7 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 ## 📈 Estatísticas por Categoria
 
 | Categoria | Métodos | Linhas | % Total | Avg Linhas/Método | Destino Extração |
-|-----------|---------|--------|---------|-------------------|------------------|
+| ----------- | --------- | -------- | --------- | ------------------- | ------------------ |
 | **Utility Internal** | 38 | 1,550 | 29.7% | 40.8 | Vários Orchestrators |
 | **Orchestration** | 15 | 1,225 | 23.4% | 81.7 | VideoProcessing, Recording |
 | **Orchestration Internal** | 15 | 713 | 13.6% | 47.5 | VideoProcessing, Analysis |
@@ -55,7 +56,7 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 **Destino:** VideoProcessingOrchestrator, RecordingSessionOrchestrator, AnalysisOrchestrator
 
 | Método | Linhas | Linha | Prioridade |
-|--------|--------|-------|------------|
+| -------- | -------- | ------- | ------------ |
 | `process_pending_project_videos` | 239 | 3695 | 🔴 ALTA (Sprint 24) |
 | `start_single_video_processing` | 153 | 3449 | 🔴 ALTA (Sprint 24) |
 | `start_live_camera_analysis_from_config` | 148 | 2771 | 🔴 ALTA (Sprint 26) |
@@ -73,11 +74,13 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 | `generate_report` | 6 | 5115 | 🟢 BAIXA (Sprint 25) |
 
 **Análise:**
+
 - **Método mais longo:** `process_pending_project_videos` (239 linhas, C901 warning)
 - **Total extraível:** ~1,218 linhas (99.4%)
 - **Manter:** `run` (7 linhas)
 
 **Estratégia de Extração:**
+
 - **Sprint 24:** 4 métodos de video processing (531 linhas)
 - **Sprint 25:** 3 métodos de análise (217 linhas)
 - **Sprint 26:** 5 métodos de recording (445 linhas)
@@ -92,7 +95,7 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 **Destino:** VideoProcessingOrchestrator, AnalysisOrchestrator
 
 | Método | Linhas | Linha | Prioridade |
-|--------|--------|-------|------------|
+| -------- | -------- | ------- | ------------ |
 | `_process_summary_video` | 151 | 4451 | 🔴 ALTA (Sprint 25) |
 | `_create_processing_callbacks` | 132 | 4936 | 🔴 ALTA (Sprint 24) |
 | `_run_diagnostic_frame_loop` | 87 | 5410 | 🟡 MÉDIA (Sprint 27) |
@@ -110,11 +113,13 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 | `_prepare_results_directory` | 6 | 4929 | 🟢 BAIXA (Sprint 24) |
 
 **Análise:**
+
 - **Método mais longo:** `_process_summary_video` (151 linhas)
 - **Total extraível:** ~669 linhas (93.8%)
 - **Manter:** `_publish_processing_mode` (18 linhas), `_determine_processing_mode` (26 linhas)
 
 **Estratégia de Extração:**
+
 - **Sprint 24:** 10 métodos de video processing (550 linhas)
 - **Sprint 25:** 2 métodos de análise (190 linhas)
 - **Sprint 27:** 2 métodos de diagnostic (139 linhas)
@@ -127,10 +132,10 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 
 **Destino:** Vários Orchestrators (detector, project, UI, analysis)
 
-### Top 20 Métodos (por tamanho):
+### Top 20 Métodos (por tamanho)
 
 | Método | Linhas | Linha | Destino | Prioridade |
-|--------|--------|-------|---------|------------|
+| -------- | -------- | ------- | --------- | ------------ |
 | `__init__` | 280 | 128 | ⚠️ MainViewModel | NÃO EXTRAIR (DI root) |
 | `_init_coordinators` | 162 | 422 | ⚠️ MainViewModel | NÃO EXTRAIR (DI) |
 | `_format_diagnostic_report` | 97 | 5536 | DiagnosticOrchestrator | 🟡 MÉDIA |
@@ -155,10 +160,12 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 **Restante (18 métodos, 268 linhas):** Métodos pequenos (<25 linhas)
 
 **Análise:**
+
 - **Total extraível:** ~1,158 linhas (74.7%)
 - **Manter no MainViewModel:** ~392 linhas (25.3%) - DI, setup, events
 
 **Estratégia de Extração:**
+
 - **Sprint 24:** 5 métodos video processing (~290 linhas)
 - **Sprint 25:** 2 métodos análise (~160 linhas)
 - **Sprint 26:** 3 métodos recording (~180 linhas)
@@ -173,7 +180,7 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 **Destino:** ProjectOrchestrator, DetectorOrchestrator
 
 | Método | Linhas | Linha | Destino | Prioridade |
-|--------|--------|-------|---------|------------|
+| -------- | -------- | ------- | --------- | ------------ |
 | `apply_project_settings_to_batch` | 86 | 4842 | ProjectOrchestrator | 🔴 ALTA |
 | `apply_roi_template` | 51 | 2182 | ProjectOrchestrator | 🟡 MÉDIA |
 | `convert_active_weight_to_openvino` | 41 | 1593 | DetectorOrchestrator | 🔴 ALTA |
@@ -192,10 +199,12 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 | `save_manual_arena` | 9 | 2284 | ProjectOrchestrator | 🟢 BAIXA |
 
 **Análise:**
+
 - **Total extraível:** ~415 linhas (95.6%)
 - **Manter:** `setup_arduino` (10 linhas)
 
 **Estratégia de Extração:**
+
 - **Sprint 27 - ProjectOrchestrator:** 9 métodos (~295 linhas)
 - **Sprint 27 - DetectorOrchestrator:** 6 métodos (~120 linhas)
 
@@ -208,7 +217,7 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 **Destino:** EventHandlers, UIStateController
 
 | Método | Linhas | Linha | Destino | Prioridade |
-|--------|--------|-------|---------|------------|
+| -------- | -------- | ------- | --------- | ------------ |
 | `_handle_mixed_data_scenario` | 53 | 3228 | ProjectEventHandler | 🟡 MÉDIA |
 | `_handle_validation_error` | 49 | 3399 | ValidationHandler | 🔴 ALTA (3 dependentes) |
 | `_handle_external_trigger` | 46 | 2591 | RecordingEventHandler | 🟡 MÉDIA |
@@ -223,10 +232,12 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 | `_handle_setup_zone_definition_for_single_video` | 6 | 1049 | VideoProcessingOrchestrator | 🟢 BAIXA |
 
 **Análise:**
+
 - **Total extraível:** ~200 linhas (60.2%)
 - **Manter:** ~132 linhas (39.8%) - State observers, event setup, tests
 
 **Estratégia de Extração:**
+
 - **Sprint 31:** Event Handlers (148 linhas)
 - **Sprint 28:** UIStateController (22 linhas)
 - **Sprint 24:** VideoProcessing (6 linhas)
@@ -241,7 +252,7 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 **Destino:** DetectorOrchestrator, ProjectOrchestrator
 
 | Método | Linhas | Linha | Destino | Prioridade |
-|--------|--------|-------|---------|------------|
+| -------- | -------- | ------- | --------- | ------------ |
 | `add_roi_polygon` | 125 | 2312 | ProjectOrchestrator | 🔴 ALTA |
 | `set_main_arena_polygon` | 49 | 2234 | ProjectOrchestrator | 🟡 MÉDIA |
 | `delete_project_asset` | 34 | 2456 | ProjectOrchestrator | 🟢 BAIXA |
@@ -250,9 +261,11 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 | `add_new_weight` | 20 | 1458 | DetectorOrchestrator | 🟢 BAIXA |
 
 **Análise:**
+
 - **Total extraível:** 277 linhas (100%)
 
 **Estratégia de Extração:**
+
 - **Sprint 27 - ProjectOrchestrator:** 3 métodos (208 linhas)
 - **Sprint 27 - DetectorOrchestrator:** 3 métodos (69 linhas)
 
@@ -265,7 +278,7 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 **Destino:** DetectorOrchestrator, ProjectOrchestrator
 
 | Método | Linhas | Linha | Destino | Prioridade |
-|--------|--------|-------|---------|------------|
+| -------- | -------- | ------- | --------- | ------------ |
 | `get_calibration_scope_info` | 56 | 1688 | ProjectOrchestrator | 🟡 MÉDIA |
 | `can_remove_project_asset` | 17 | 2438 | ProjectOrchestrator | 🟢 BAIXA |
 | `get_current_detector_parameters` | 13 | 1745 | DetectorOrchestrator | 🟢 BAIXA |
@@ -276,10 +289,12 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 | `is_recording` | 6 | 617 | ⚠️ MainViewModel | NÃO EXTRAIR (property setter) |
 
 **Análise:**
+
 - **Total extraível:** ~126 linhas (95.5%)
 - **Manter:** `is_recording` (6 linhas)
 
 **Estratégia de Extração:**
+
 - **Sprint 27 - ProjectOrchestrator:** 4 métodos (93 linhas)
 - **Sprint 27 - DetectorOrchestrator:** 3 métodos (33 linhas)
 
@@ -292,16 +307,18 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 **Destino:** UIStateController
 
 | Método | Linhas | Linha | Prioridade |
-|--------|--------|-------|------------|
+| -------- | -------- | ------- | ------------ |
 | `update_detector_parameters` | 33 | 1773 | 🟡 MÉDIA |
 | `refresh_project_views` | 21 | 1102 | 🔴 ALTA (9 dependentes) |
 | `update_main_arena` | 17 | 2294 | 🟢 BAIXA |
 | `update_openvino_status` | 6 | 1635 | 🔴 ALTA (4 dependentes) |
 
 **Análise:**
+
 - **Total extraível:** 77 linhas (100%)
 
 **Estratégia de Extração:**
+
 - **Sprint 28 - UIStateController:** 4 métodos (77 linhas)
 
 ---
@@ -313,17 +330,19 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 **Destino:** UIStateController
 
 | Método | Linhas | Linha | Prioridade |
-|--------|--------|-------|------------|
+| -------- | -------- | ------- | ------------ |
 | `_validate_zones_with_ui` | 116 | 3282 | 🔴 ALTA |
 | `_update_diagnostic_progress` | 16 | 5278 | 🟢 BAIXA |
 | `_prepare_processing_ui` | 8 | 4241 | 🟢 BAIXA |
 | `_schedule_on_ui` | 8 | 808 | ⚠️ NÃO EXTRAIR (core, thread safety) |
 
 **Análise:**
+
 - **Total extraível:** ~140 linhas (94.6%)
 - **Manter:** `_schedule_on_ui` (8 linhas)
 
 **Estratégia de Extração:**
+
 - **Sprint 28 - UIStateController:** 3 métodos (140 linhas)
 
 ---
@@ -335,17 +354,19 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 **Destino:** EventHandlers
 
 | Método | Linhas | Linha | Destino | Prioridade |
-|--------|--------|-------|---------|------------|
+| -------- | -------- | ------- | --------- | ------------ |
 | `on_arduino_event` | 21 | 1150 | ArduinoEventHandler | 🟢 BAIXA |
 | `on_close` | 14 | 759 | ⚠️ MainViewModel | NÃO EXTRAIR (lifecycle) |
 | `on_arduino_status_change` | 3 | 1142 | ArduinoEventHandler | 🟢 BAIXA |
 | `on_arduino_command_sent` | 3 | 1146 | ArduinoEventHandler | 🟢 BAIXA |
 
 **Análise:**
+
 - **Total extraível:** ~27 linhas (65.9%)
 - **Manter:** `on_close` (14 linhas)
 
 **Estratégia de Extração:**
+
 - **Sprint 31 - ArduinoEventHandler:** 3 métodos (27 linhas)
 
 ---
@@ -357,7 +378,7 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 **Destino:** Vários
 
 | Método | Linhas | Linha | Destino | Prioridade |
-|--------|--------|-------|---------|------------|
+| -------- | -------- | ------- | --------- | ------------ |
 | `resolve_project_model_settings` | 63 | 1900 | ProjectOrchestrator | 🟡 MÉDIA |
 | `cancel_current_analysis` | 53 | 3102 | VideoProcessingOrchestrator | 🟡 MÉDIA |
 | `copy_global_model_settings_to_project` | 27 | 1833 | ProjectOrchestrator | 🟢 BAIXA |
@@ -374,10 +395,12 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 | `manage_weights` | 3 | 1530 | DetectorOrchestrator | 🟢 BAIXA |
 
 **Análise:**
+
 - **Total extraível:** ~221 linhas (80.7%)
 - **Manter:** ~53 linhas (19.3%) - lifecycle, properties, setup
 
 **Estratégia de Extração:**
+
 - **Sprint 27 - ProjectOrchestrator:** 5 métodos (127 linhas)
 - **Sprint 24 - VideoProcessingOrchestrator:** 1 método (53 linhas)
 - **Sprint 26 - RecordingOrchestrator:** 2 métodos (38 linhas)
@@ -393,7 +416,7 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 **Destino:** ⚠️ MANTER no MainViewModel (expõem estado interno)
 
 | Método | Linhas | Linha | Nota |
-|--------|--------|-------|------|
+| -------- | -------- | ------- | ------ |
 | `detector` (getter) | 8 | 625 | Property - não extrair |
 | `are_project_overrides_active` | 7 | 1643 | Property - não extrair |
 | `is_recording` (getter) | 3 | 612 | Property - não extrair |
@@ -401,6 +424,7 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 | `is_processing` | 3 | 658 | Property - não extrair |
 
 **Análise:**
+
 - **Total:** 24 linhas
 - **Manter:** 100% (properties devem ficar no MainViewModel)
 
@@ -409,7 +433,7 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 ## 📊 Resumo por Destino de Extração
 
 | Destino | Métodos | Linhas | % Total |
-|---------|---------|--------|---------|
+| --------- | --------- | -------- | --------- |
 | **VideoProcessingOrchestrator** | 22 | ~1,150 | 22.0% |
 | **ProjectOrchestrator** | 27 | ~950 | 18.2% |
 | **RecordingOrchestrator** | 12 | ~680 | 13.0% |
@@ -426,6 +450,7 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 ## ✅ Métodos a MANTER no MainViewModel (34 métodos, 677 linhas)
 
 ### 1. DI & Initialization (5 métodos, 520 linhas)
+
 - `__init__` (280 linhas) - Composition Root
 - `_init_coordinators` (162 linhas) - DI wiring
 - `_inject_or_create` (12 linhas) - DI helper
@@ -433,15 +458,18 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 - `_create_event_dispatcher` (35 linhas) - Event dispatcher factory
 
 ### 2. Event Binding & Setup (3 métodos, 60 linhas)
+
 - `_setup_recording_service_callbacks` (20 linhas)
 - `bind_events` (14 linhas)
 - `_register_event_handlers` (26 linhas)
 
 ### 3. Core Orchestration (2 métodos, 26 linhas)
+
 - `_publish_processing_mode` (18 linhas) - 11 dependentes
 - `_schedule_on_ui` (8 linhas) - Thread safety
 
 ### 4. State Observers (5 métodos, 54 linhas)
+
 - `_on_project_state_changed` (10 linhas)
 - `_on_detector_state_changed` (13 linhas)
 - `_on_recording_state_changed` (20 linhas)
@@ -449,11 +477,13 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 - `_determine_processing_mode` (26 linhas)
 
 ### 5. Lifecycle (3 métodos, 40 linhas)
+
 - `run` (7 linhas)
 - `on_close` (14 linhas)
 - `join_threads` (19 linhas)
 
 ### 6. Properties (5 métodos, 24 linhas)
+
 - `is_recording` (3 linhas)
 - `detector` (8 linhas)
 - `detector_initialized` (3 linhas)
@@ -461,17 +491,21 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 - `are_project_overrides_active` (7 linhas)
 
 ### 7. Property Setters/Deleters (3 métodos, 20 linhas)
+
 - `is_recording` (setter, 6 linhas)
 - `detector` (setter, 7 linhas)
 - `detector` (deleter, 7 linhas)
 
 ### 8. Hardware (1 método, 10 linhas)
+
 - `setup_arduino` (10 linhas)
 
 ### 9. Test Support (1 método, 27 linhas)
+
 - `_on_state_change_for_test` (27 linhas)
 
 ### 10. Shutdown (2 métodos, 12 linhas)
+
 - `_get_arduino_manager` (4 linhas)
 - `_shutdown_arduino_manager` (8 linhas)
 
@@ -480,12 +514,14 @@ Este documento classifica todos os 141 métodos do MainViewModel em **12 categor
 ## 🎯 Conclusão
 
 **Classificação completa:**
+
 - ✅ **141 métodos** categorizados em 12 categorias
 - ✅ **Destinos de extração** identificados
 - ✅ **Prioridades** definidas
 - ✅ **Métodos núcleo** protegidos
 
 **Principais insights:**
+
 1. **Orchestration + Orchestration Internal** = 28 métodos, 1,938 linhas (37.1%)
 2. **Utility Internal** é a maior categoria em número de métodos (38)
 3. **34 métodos** devem permanecer no MainViewModel (677 linhas)

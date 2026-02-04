@@ -6,12 +6,14 @@ multi-aquarium reporting pipeline and the Reports tab UI.
 ## Scope
 
 This covers:
+
 - Per-aquarium report generation (Word/Excel) for multi-aquarium videos
 - Per-aquarium background frame extraction and ROI-local coordinate consistency
 - Persistence contracts for `video_entry["multi_aquarium_outputs"]`
 - Reports tab tree population and common failure modes
 
 This does NOT cover:
+
 - Multi-aquarium detection itself (see ADR-001)
 - Wizard aquarium counting UX
 
@@ -30,11 +32,13 @@ The report code path used `ProjectManager.get_zone_data()` in multi-aquarium mod
 That accessor is backward-compatible and returns only the *first* aquarium in multi-mode.
 
 Impact:
+
 - Wrong polygon selected for `aq_id != 0`
 - Wrong `frame_crop_box`
 - Wrong transform constants (notably video height) for overlay alignment
 
 Fix:
+
 - Always use `get_multi_aquarium_zone_data()` in multi-aquarium report generation.
 - Keep a single-aquarium fallback only when multi data is truly absent.
 
@@ -45,6 +49,7 @@ The hierarchy builder may return a simplified `video` dict that omits custom fie
 single-aquarium even though the artifacts existed on disk.
 
 Fix:
+
 - In the Reports tree population logic, fall back to `ProjectManager.find_video_entry(video_path)`
   as the canonical source of truth.
 
@@ -55,6 +60,7 @@ or strings (`0` vs `"0"`). If the UI builds Treeview node IDs directly from thos
 Treeview iid collisions can cause only one aquarium node to be visible.
 
 Fix:
+
 - Normalize aquarium IDs to integers and merge duplicate entries.
 
 ### 4) Summary/report generation updated files but did not persist metadata reliably
@@ -63,6 +69,7 @@ Some flows generated `*_summary.parquet` and `4_Relatorio_*.docx/.xlsx` but did 
 (or persist) the `ProjectManager` video entry flags in a way the UI reliably picked up.
 
 Fix (Option B):
+
 - After generating per-aquarium summary/report outputs, re-register the updated
   `multi_aquarium_outputs` into `ProjectManager.register_multi_aquarium_outputs(...)`.
 
@@ -71,19 +78,23 @@ Fix (Option B):
 Type: `dict[aquarium_id, dict]` (keys may be int or str; treat as numeric IDs).
 
 Minimum expected per aquarium:
+
 - `results_dir`: absolute path to `.../<video>_results/aquarium_<id>`
 - `parquet_files`: map of artifact keys to filenames (relative within `results_dir`)
 
 Common `parquet_files` keys used by UI/pipeline:
+
 - `trajectory`
 - `summary` (per-aquarium parquet)
 - `summary_excel` (per-aquarium xlsx from report/export)
 - `report_docx` (per-aquarium docx)
 
 Optional:
+
 - `frame_crop_box`: `(x, y, w, h)` crop used to render backgrounds consistently
 
 Video-level flags:
+
 - `has_summary`: should be set when any aquarium has `summary` or `summary_excel`
 
 ## Reports Tree Rules (UI)
@@ -100,6 +111,7 @@ On some Windows environments, OpenCV may emit FFmpeg warnings like:
 `Could not find decoder for codec_id=61` (often MJPEG).
 
 Guidance:
+
 - Prefer extracted background frames (`.png`) for report plots.
 - When a `.png` path is passed as background, load it with `cv2.imread` (do not use
   `cv2.VideoCapture`).

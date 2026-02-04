@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Wizard Layout Optimization for 1080p Screens
 
 **Data**: 2024-12-24
@@ -10,7 +12,7 @@
 **Arquivo**: [wizard_dialog.py](../../src/zebtrack/ui/wizard/wizard_dialog.py#L327-L347)
 
 | Aspecto | Antes | Depois | Mudança |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | Largura | 1150px | 1050px | -100px (-8.7%) |
 | Altura | 850px | 780px | -70px (-8.2%) |
 | Min Width | 900px | 850px | -50px |
@@ -26,15 +28,16 @@
 **Arquivo**: [custom_regex_dialog.py](../../src/zebtrack/ui/wizard/custom_regex_dialog.py#L556-L574)
 
 | Aspecto | Antes | Depois | Mudança |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | Largura | 800px | 800px | Sem mudança |
 | Altura | 960px | 780px | **-180px (-18.8%)** |
 | Min Height | 720px | 550px | -170px |
 
 **Motivo**: Dialog muito alto, ultrapassava altura disponível em 1080p
 
-#### Layout ANTES (Vertical Stack):
-```
+#### Layout ANTES (Vertical Stack)
+
+```text
 ┌─────────────────────────────────────────────┐
 │ 💡 Dicas                                    │
 │ 📋 Exemplos                                 │
@@ -51,8 +54,9 @@
 └─────────────────────────────────────────────┘
 ```
 
-#### Layout DEPOIS (Horizontal 2-Column 55%/45%):
-```
+#### Layout DEPOIS (Horizontal 2-Column 55%/45%)
+
+```text
 ┌────────────────────────────────────────────────────────────┐
 │                        Título                              │
 ├───────────────────────────────┬────────────────────────────┤
@@ -79,10 +83,10 @@
 └───────────────────────────────┴────────────────────────────┘
 ```
 
-#### Mudanças Específicas:
+#### Mudanças Específicas
 
 | Elemento | Antes | Depois | Mudança |
-|----------|-------|--------|---------|
+| ---------- | ------- | -------- | --------- |
 | Layout | Vertical stack | 2 colunas (55%/45%) | Usa largura |
 | Entry width | 50 chars | 42 chars (patterns) | Mais compacto |
 | Test input width | 40 chars | 28 chars | Mais compacto |
@@ -98,10 +102,10 @@
 
 **Arquivo**: [calibration_step.py](../../src/zebtrack/ui/wizard/calibration_step.py#L78-L210)
 
-#### Mudanças Aplicadas:
+#### Mudanças Aplicadas
 
 | Aspecto | Antes | Depois | Mudança |
-|---------|-------|--------|---------|
+| --------- | ------- | -------- | --------- |
 | Layout | Vertical stack | 2 colunas (50%/50%) | Usa largura |
 | LabelFrame padx | 15px | 10px | -5px por frame |
 | LabelFrame pady | 10px | 8px | -2px por frame |
@@ -109,8 +113,9 @@
 | Row spacing | pady=5 | pady=3 | -2px entre linhas |
 | Total savings | - | ~32px + layout | Cabe verticalmente |
 
-#### Layout Structure:
-```
+#### Layout Structure
+
+```text
 ┌──────────────────────────────────────────────────────────────┐
 │                  Título e Subtítulo                          │
 ├────────────────────────────────┬─────────────────────────────┤
@@ -138,6 +143,7 @@
 ```
 
 **Benefícios**:
+
 - Colunas 50%/50% permitem visualizar comportamental ao lado da config básica
 - Padding compactado economiza ~32px verticais
 - "Sobre a Calibração" agora visível sem scroll
@@ -149,8 +155,9 @@
 
 **Arquivo**: [detection_step.py](../../src/zebtrack/ui/wizard/detection_step.py#L82-L193)
 
-#### Layout ANTES (Vertical Stack):
-```
+#### Layout ANTES (Vertical Stack)
+
+```text
 ┌─────────────────────────────────────────────┐
 │ Título                                      │
 │ Subtítulo                                   │
@@ -172,8 +179,9 @@
          ↑ Total: ~900px altura
 ```
 
-#### Layout DEPOIS (Horizontal 2-Column):
-```
+#### Layout DEPOIS (Horizontal 2-Column)
+
+```text
 ┌──────────────────────────────────────────────────────────────┐
 │ Título                                                       │
 │ Subtítulo                                                    │
@@ -197,10 +205,10 @@
          ↑ Total: ~550px altura (-350px!)
 ```
 
-#### Mudanças Específicas:
+#### Mudanças Específicas
 
 | Elemento | Antes | Depois | Economia |
-|----------|-------|--------|----------|
+| ---------- | ------- | -------- | ---------- |
 | Text height | 15 linhas | 12 linhas | -3 linhas |
 | Text width | 60 chars | 50 chars | -10 chars |
 | Layout | Vertical stack | 2 colunas (70%/30%) | Usa largura |
@@ -212,16 +220,19 @@
 ## Benefícios
 
 ### ✅ Compatibilidade com 1080p
+
 - Funciona perfeitamente em 1920×1080 mesmo com escalonamento 125%-150%
 - Margem de segurança para taskbar do Windows (70px)
 - Margem de segurança para bordas/decorações (~160px)
 
 ### ✅ Melhor Aproveitamento de Espaço
+
 - Layout horizontal usa largura disponível (1050px)
 - Menos scroll vertical necessário
 - Todos os controles visíveis simultaneamente
 
 ### ✅ Usabilidade Mantida
+
 - Todos os elementos permanecem acessíveis
 - Text widget ainda tem scroll para conteúdo longo
 - Botões em tamanho adequado (width=22)
@@ -231,8 +242,9 @@
 
 ## Dimensões Finais Recomendadas
 
-### Para Telas 1080p (1920×1080):
-```
+### Para Telas 1080p (1920×1080)
+
+```text
 Screen: 1920×1080
 Taskbar: -70px
 Decorations: -160px
@@ -243,12 +255,14 @@ Wizard: 1050×780 (✅ Cabe confortavelmente)
 Regex:  800×780  (✅ Cabe confortavelmente)
 ```
 
-### Para Telas Maiores (1440p+):
+### Para Telas Maiores (1440p+)
+
 - Wizard e dialogs se expandem até maxsize
 - Max Width: 1207px (1050 × 1.15)
 - Max Height: 858px (780 × 1.1)
 
-### Para Telas Menores (768p):
+### Para Telas Menores (768p)
+
 - Wizard reduz até minsize
 - Min Width: 850px
 - Min Height: 520px
@@ -258,16 +272,19 @@ Regex:  800×780  (✅ Cabe confortavelmente)
 
 ## Testes Realizados
 
-### ✅ Resoluções Testadas:
+### ✅ Resoluções Testadas
+
 - [x] 1920×1080 @ 100% scaling
 - [x] 1920×1080 @ 125% scaling (comum)
 - [x] 1920×1080 @ 150% scaling
 
-### ✅ Sistemas Operacionais:
+### ✅ Sistemas Operacionais
+
 - [x] Windows 10/11 (taskbar inferior)
 - [x] Windows 10/11 (taskbar lateral)
 
-### ✅ Elementos Verificados:
+### ✅ Elementos Verificados
+
 - [x] Todos os botões visíveis
 - [x] Text widget com scroll funcional
 - [x] Labels com wraplength correto
@@ -280,7 +297,8 @@ Regex:  800×780  (✅ Cabe confortavelmente)
 
 ### Detection Step - Estrutura
 
-#### ANTES:
+#### ANTES
+
 ```python
 def build_ui(self):
     title.pack(pady=(0, 10))
@@ -291,7 +309,8 @@ def build_ui(self):
     help_text.pack(pady=(15, 0))
 ```
 
-#### DEPOIS:
+#### DEPOIS
+
 ```python
 def build_ui(self):
     title.pack(pady=(0, 5))
@@ -343,17 +362,20 @@ def build_ui(self):
 ## Notas de Implementação
 
 ### Grid vs Pack
+
 - **Título/Subtítulo**: Continuam usando `pack()` (full-width, sequencial)
 - **Content Area**: Migrado para `grid()` com 2 colunas
 - **Right Panel**: Usa `pack()` internamente (vertical stack de LabelFrames)
 
-### Vantagens do Grid:
+### Vantagens do Grid
+
 - Controle preciso de proporções (70%/30%)
 - Alinhamento consistente entre colunas
 - Expansão proporcional ao redimensionar
 - `minsize` garante largura mínima por coluna
 
-### LabelFrames:
+### LabelFrames
+
 - Organização visual clara
 - Agrupa elementos relacionados
 - Facilita manutenção futura
@@ -365,7 +387,7 @@ def build_ui(self):
 ### Economia Total de Espaço Vertical
 
 | Janela | Antes | Depois | Economia |
-|--------|-------|--------|----------|
+| -------- | ------- | -------- | ---------- |
 | Wizard Dialog | 850px | 780px | -70px (-8.2%) |
 | Custom Regex Dialog | 960px | 780px | -180px (-18.8%) |
 | Detection Step (conteúdo) | ~900px | ~550px | -350px (-38.9%) |
@@ -373,19 +395,22 @@ def build_ui(self):
 
 ### Melhorias de Layout
 
-#### Custom Regex Dialog (55%/45%):
+#### Custom Regex Dialog (55%/45%)
+
 - ✅ Tips e Examples na esquerda, Test e Preview na direita
 - ✅ Preview tree aumentado de 4→7 linhas (+75%)
 - ✅ Melhor aproveitamento da largura 800px
 - ✅ Todos os elementos visíveis sem scroll
 
-#### Calibration Step (50%/50%):
+#### Calibration Step (50%/50%)
+
 - ✅ Config básica na esquerda, Behavioral widget na direita
 - ✅ Padding compactado economiza 32px vertical
 - ✅ "Sobre a Calibração" agora sempre visível
 - ✅ Aproveitamento completo de 1050px largura
 
-#### Detection Step (70%/30%):
+#### Detection Step (70%/30%)
+
 - ✅ Results text na esquerda, controles na direita
 - ✅ Economia de 350px permite caber confortavelmente
 - ✅ Layout mais profissional e organizado
@@ -394,7 +419,7 @@ def build_ui(self):
 ### Compatibilidade Garantida
 
 | Resolução | Escalonamento | Status |
-|-----------|---------------|--------|
+| ----------- | --------------- | -------- |
 | 1920×1080 | 100% | ✅ Perfeito (sobra 70px) |
 | 1920×1080 | 125% | ✅ Confortável (ajustado) |
 | 1920×1080 | 150% | ✅ Funcional (tight fit) |

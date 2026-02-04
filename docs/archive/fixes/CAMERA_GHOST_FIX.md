@@ -16,7 +16,7 @@
 
 O problema NÃO era de mapeamento de índices, mas sim de **câmeras fantasma** (ghost cameras):
 
-```
+```text
 WIZARD DETECTAVA:
 ├─ Índice 0: Câmera "fantasma" (isOpened=True, mas read() nunca retorna frames)
 ├─ Índice 1: Câmera do notebook (funcional)
@@ -107,7 +107,7 @@ temp_settings.camera.desired_height = 720
 ### ANTES da Correção
 
 | Índice | Wizard Detecta? | Funciona? | Imagem |
-|--------|----------------|-----------|---------|
+| -------- | ---------------- | ----------- | --------- |
 | 0 | ✅ Sim | ❌ Não | 🖤 Preview preto |
 | 1 | ✅ Sim | ✅ Sim | ✅ Câmera notebook |
 | 2 | ✅ Sim | ✅ Sim | ✅ Webcam USB |
@@ -118,7 +118,7 @@ temp_settings.camera.desired_height = 720
 ### DEPOIS da Correção
 
 | Índice Real | Wizard Detecta? | Wizard Mostra Como | Funciona? |
-|-------------|----------------|---------------------|-----------|
+| ------------- | ---------------- | --------------------- | ----------- |
 | 0 | ❌ **Rejeitado** | - | - |
 | 1 | ✅ Sim | Primeira câmera | ✅ Sim |
 | 2 | ✅ Sim | Segunda câmera | ✅ Sim |
@@ -132,10 +132,12 @@ temp_settings.camera.desired_height = 720
 2. **Abra novamente**: `poetry run zebtrack`
 3. **Clique em "Detectar Câmeras"**
 4. **Observe os logs**:
-   ```
+
+   ```text
    wizard_service.camera_ghost_detected index=0 reason="isOpened=True but read() failed or timed out"
    wizard_service.detect_cameras.complete count=3 indices=[1, 2, 3]
    ```
+
 5. **Selecione primeira câmera da lista** → Deve abrir câmera do notebook
 6. **Selecione segunda câmera da lista** → Deve abrir webcam USB
 7. **Nomes agora devem bater** com as câmeras físicas

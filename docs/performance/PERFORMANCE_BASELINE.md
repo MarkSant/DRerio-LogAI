@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # Performance Baseline - ZebTrack-AI
 
 **Document Version**: 1.0
@@ -11,7 +13,7 @@ This document establishes the performance baseline for ZebTrack-AI and identifie
 ### Key Findings
 
 | Metric | Current State | Target | Priority |
-|--------|---------------|--------|----------|
+| -------- | --------------- | -------- | ---------- |
 | **Detection FPS** | ~8-12 FPS (YOLO11n CPU) | 20-25 FPS | 🔴 **High** |
 | **Plot Generation** | ~15s sequential (5 plots) | <6s (parallel) | 🟡 **Medium** |
 | **Parquet I/O** | ~2min (10 videos) | ~1.5min | 🟢 **Low** |
@@ -26,12 +28,14 @@ This document establishes the performance baseline for ZebTrack-AI and identifie
 **Component**: `src/zebtrack/core/detector.py`, `src/zebtrack/plugins/yolo_plugin.py`
 
 #### Current Performance
+
 - **FPS**: 8-12 FPS (640x480 resolution, CPU inference)
 - **Latency per frame**: 80-125ms
 - **Model load time**: 2-4s (cold start)
 - **OpenVINO FPS**: 15-20 FPS (when available)
 
 #### Measured Bottlenecks
+
 ```python
 # From detector.py analysis:
 def detect(frame):
@@ -46,11 +50,13 @@ def detect(frame):
 ```
 
 **Profiling Evidence**:
+
 - cProfile shows `yolo_plugin.detect()` consumes 85-90% of CPU time
 - GPU/OpenVINO acceleration provides 50-80% speedup
 - Batch processing (not yet implemented) could yield 2-3x improvement
 
 #### Configuration Impact
+
 ```yaml
 # config.yaml
 detector:
@@ -66,7 +72,8 @@ detector:
 **Component**: `src/zebtrack/core/video_processing_service.py`
 
 #### Current Performance (Single Video Workflow)
-```
+
+```text
 Total time for 5min video @ 30 FPS:
 ├─ Video decode:          45s  (10%)
 ├─ Detection:            750s  (83%) ⚠️ BOTTLENECK #1 (see above)
@@ -78,8 +85,9 @@ Total:                   860s  (~14.3 min)
 ```
 
 #### Breakdown by Stage
+
 | Stage | Time (5min video) | CPU % | I/O % | Optimization Opportunity |
-|-------|-------------------|-------|-------|--------------------------|
+| ------- | ------------------- | ------- | ------- | -------------------------- |
 | `VideoSource.read()` | 45s | 60% | 40% | Prefetching, parallel decode |
 | `Detector.detect()` | 750s | 95% | 5% | GPU, batch inference, model quantization |
 | `Recorder.record()` | 20s | 30% | 70% | Already optimized (snappy compression) |
@@ -92,7 +100,8 @@ Total:                   860s  (~14.3 min)
 **Component**: `src/zebtrack/io/recorder.py`
 
 #### Current Performance (50K rows benchmark)
-```
+
+```text
 Compression Codec Performance:
 ┌──────────┬────────────┬───────────┬──────────┬─────────┐
 │ Codec    │ Write Time │ Read Time │ File Size│ Status  │
@@ -104,11 +113,13 @@ Compression Codec Performance:
 ```
 
 **Analysis** (from `docs/PERFORMANCE_TUNING.md`):
+
 - Snappy compression: Best balance (30% overhead, 62% size reduction)
 - Gzip: 2.5x slower writes, additional 26% compression
 - Current implementation is near-optimal for I/O-bound workloads
 
 **Code Reference**: `src/zebtrack/io/recorder.py:97-99`
+
 ```python
 # Already optimized in Phase 8
 pq.write_table(table, path, compression=self._parquet_compression)
@@ -121,7 +132,8 @@ pq.write_table(table, path, compression=self._parquet_compression)
 **Component**: `src/zebtrack/analysis/reporter.py`
 
 #### Current Performance
-```
+
+```text
 Individual Report (5 plots):
 ├─ Sequential:            15.0s  (baseline)
 ├─ Parallel (workers=2):   9.0s  (1.7x speedup)
@@ -130,6 +142,7 @@ Individual Report (5 plots):
 ```
 
 **Implemented Optimization** (Phase 8):
+
 ```python
 # src/zebtrack/analysis/reporter.py:450-480
 def _generate_plots_parallel(self, plot_configs):
@@ -148,21 +161,23 @@ def _generate_plots_parallel(self, plot_configs):
 #### Peak Memory by Component (10-subject tracking, 5min video)
 
 | Component | Baseline | Peak | Delta | Notes |
-|-----------|----------|------|-------|-------|
+| ----------- | ---------- | ------ | ------- | ------- |
 | **Detector (model)** | 0 MB | 450 MB | +450 MB | Loaded once, persistent |
 | **Frame buffer** | 0 MB | 60 MB | +60 MB | 640x480x3 RGB, double buffered |
 | **Trajectory buffer** | 0 MB | 120 MB | +120 MB | 10 subjects × 9K frames × track data |
 | **matplotlib plots** | 0 MB | 180 MB | +180 MB | 5 plots × 36MB each (concurrent) |
 | **Other (Tkinter, libs)** | 200 MB | 250 MB | +50 MB | Baseline overhead |
-| **Total** | 200 MB | 1.06 GB | +860 MB | |
+| **Total** | 200 MB | 1.06 GB | +860 MB |  |
 
 **Memory Growth Pattern**:
+
 - **Startup**: 200 MB (Tkinter + base libraries)
 - **After detector init**: 650 MB (+450 MB for YOLO model)
 - **During processing**: 770 MB (+120 MB trajectory buffer)
 - **Report generation peak**: 1.06 GB (+180 MB for 3 parallel plots)
 
 **Leak Detection** (via `tracemalloc`):
+
 - No significant memory leaks detected in 1-hour stress test
 - GC collections stable (~300-400 per session)
 - Tkinter `after()` callbacks properly canceled (Phase 7.3 fix)
@@ -177,6 +192,7 @@ def _generate_plots_parallel(self, plot_configs):
 **Location**: `src/zebtrack/plugins/yolo_plugin.py:45-67` (detect method)
 
 #### Root Cause Analysis
+
 ```python
 # yolo_plugin.py (pseudo-code)
 def detect(self, frame):
@@ -188,6 +204,7 @@ def detect(self, frame):
 ```
 
 **Why it's slow**:
+
 1. **CPU inference**: YOLO11n runs on CPU, lacks SIMD optimization
 2. **No batch processing**: Processes 1 frame at a time
 3. **Model size**: Even "nano" model (11n) has 2.6M parameters
@@ -195,7 +212,7 @@ def detect(self, frame):
 #### Optimization Strategies
 
 | Strategy | Expected Gain | Complexity | Effort | Status |
-|----------|---------------|------------|--------|--------|
+| ---------- | --------------- | ------------ | -------- | -------- |
 | **GPU inference (CUDA)** | 8-10x speedup | Low | 1-2h | 🟡 Partial (OpenVINO available) |
 | **Batch processing** | 2-3x speedup | Medium | 3-4h | ⚪ Not implemented |
 | **Model quantization (INT8)** | 1.5-2x speedup | Medium | 2-3h | ⚪ Not implemented |
@@ -203,6 +220,7 @@ def detect(self, frame):
 | **Smaller model (YOLO11n → YOLOv8t)** | 1.2-1.5x speedup | Low | 2h | ⚪ Consideration |
 
 **Recommended Action**:
+
 1. **Short-term**: Encourage GPU/OpenVINO usage (50-80% speedup, already supported)
 2. **Medium-term**: Implement batch processing (3-4h effort, 2-3x gain)
 3. **Long-term**: Model quantization + distillation (research effort)
@@ -215,6 +233,7 @@ def detect(self, frame):
 **Location**: `src/zebtrack/core/video_processing_service.py:120-180`
 
 #### Current Limitation
+
 ```python
 # video_processing_service.py
 def process_multiple_videos(self, video_list):
@@ -224,6 +243,7 @@ def process_multiple_videos(self, video_list):
 ```
 
 **Why it's slow**:
+
 - Videos processed one-by-one (no parallelism)
 - Idle CPU cores during I/O waits (video decode, Parquet writes)
 - No pipelining between decode → detect → encode stages
@@ -231,12 +251,13 @@ def process_multiple_videos(self, video_list):
 #### Optimization Strategies
 
 | Strategy | Expected Gain | Complexity | Effort | Status |
-|----------|---------------|------------|--------|--------|
+| ---------- | --------------- | ------------ | -------- | -------- |
 | **ProcessingWorkerPool** | 2-3x speedup | High | 3-4h | 🟡 Planned (mentioned in PERF_TUNING.md) |
 | **Pipeline parallelism** | 1.5-2x speedup | Medium | 2-3h | ⚪ Not implemented |
 | **Prefetch video frames** | 1.1-1.3x speedup | Low | 1-2h | ⚪ Not implemented |
 
 **Architectural Proposal** (from Phase 8 planning docs):
+
 ```python
 # Future: ProcessingWorkerPool
 class ProcessingWorkerPool:
@@ -250,6 +271,7 @@ class ProcessingWorkerPool:
 ```
 
 **Recommended Action**:
+
 1. **Short-term**: Document limitations, recommend manual parallelization
 2. **Medium-term**: Implement ProcessingWorkerPool (Phase 9 candidate)
 3. **Long-term**: Full pipeline with decode → detect → encode stages
@@ -262,6 +284,7 @@ class ProcessingWorkerPool:
 **Location**: `src/zebtrack/io/recorder.py:150-190` (trajectory buffer)
 
 #### Current Behavior
+
 ```python
 # recorder.py (simplified)
 class Recorder:
@@ -284,11 +307,13 @@ class Recorder:
 ```
 
 **Why it's a bottleneck**:
+
 - Holds 9,000 frames × 10 subjects × 11 fields = ~990K rows in RAM
 - Each row: ~12 bytes × 11 fields = 132 bytes → **~130 MB** per video
 - No incremental writes (all-or-nothing flush)
 
 #### Impact on Workflow
+
 - **Memory pressure**: Limits concurrent video processing
 - **Risk**: Out-of-memory for long videos (>30 min) or high subject count (>20)
 - **Recovery**: No checkpointing (full re-run on crash)
@@ -296,16 +321,18 @@ class Recorder:
 #### Optimization Strategies
 
 | Strategy | Expected Gain | Complexity | Effort | Status |
-|----------|---------------|------------|--------|--------|
+| ---------- | --------------- | ------------ | -------- | -------- |
 | **Incremental Parquet writes** | -80% memory | Medium | 2-3h | ⚪ Not implemented |
 | **Chunked buffering (e.g., 1000 frames)** | -50% memory | Low | 1-2h | ⚪ Not implemented |
 | **Arrow RecordBatch streaming** | -90% memory | High | 4-6h | ⚪ Research needed |
 
 **Trade-offs**:
+
 - Incremental writes: Adds I/O overhead (~10-15% slower writes)
 - Chunked buffering: Requires Parquet append logic (PyArrow limitation)
 
 **Recommended Action**:
+
 1. **Short-term**: Document memory requirements in user guide
 2. **Medium-term**: Implement chunked buffering (1000-frame batches)
 3. **Long-term**: Migrate to Arrow RecordBatch streaming
@@ -344,6 +371,7 @@ poetry run python scripts/profile_performance.py --mode benchmark
 ```
 
 **Output Location**: `profiling_results/`
+
 - `cpu_*.prof` - cProfile binary dumps (use `snakeviz` to visualize)
 - `cpu_*.txt` - Human-readable summaries
 - `memory_*.txt` - Tracemalloc reports
@@ -354,11 +382,13 @@ poetry run python scripts/profile_performance.py --mode benchmark
 ## 📈 Optimization Roadmap
 
 ### Phase 4: Performance Profiling (Current)
+
 - ✅ Profiling infrastructure created
 - ✅ Baseline metrics documented
 - ✅ Top 3 bottlenecks identified
 
 ### Phase 5: Quick Wins (Proposed)
+
 **Effort**: ~4-6 hours | **Expected gain**: 20-30% overall speedup
 
 1. **GPU/OpenVINO documentation** (0.5h)
@@ -374,6 +404,7 @@ poetry run python scripts/profile_performance.py --mode benchmark
    - Flush every 1000 frames
 
 ### Phase 6: Parallelization (Proposed)
+
 **Effort**: ~6-8 hours | **Expected gain**: 2-3x for batch jobs
 
 1. **ProcessingWorkerPool** (3-4h)
@@ -385,6 +416,7 @@ poetry run python scripts/profile_performance.py --mode benchmark
    - Queue-based coordination
 
 ### Phase 7: Advanced Optimizations (Research)
+
 **Effort**: ~12-20 hours | **Expected gain**: Variable
 
 1. **Batch inference** (4-6h)
@@ -404,16 +436,19 @@ poetry run python scripts/profile_performance.py --mode benchmark
 ## 🎯 Performance Targets
 
 ### Short-term (1-2 weeks)
+
 - Detection: 15-20 FPS (with GPU/OpenVINO documentation)
 - Memory: <800 MB (chunked buffering)
 - Batch processing: 2x speedup (ProcessingWorkerPool)
 
 ### Medium-term (1-2 months)
+
 - Detection: 20-25 FPS (batch inference)
 - Memory: <500 MB (streaming Parquet)
 - Batch processing: 3x speedup (pipeline parallelism)
 
 ### Long-term (3-6 months)
+
 - Detection: 30+ FPS (quantized model)
 - Memory: <400 MB (full streaming architecture)
 - Real-time mode: <100ms latency (live camera analysis)
@@ -423,17 +458,20 @@ poetry run python scripts/profile_performance.py --mode benchmark
 ## 📚 References
 
 ### Internal Documentation
+
 - `docs/PERFORMANCE_TUNING.md` - Phase 8 optimizations (plots, Parquet)
 - `docs/ARCHITECTURE.md` - System architecture
 - `docs/COORDINATE_SYSTEMS.md` - Zone management overhead
 - `README_TESTS.md` - Test performance considerations
 
 ### External Resources
+
 - [YOLO Performance Guide](https://docs.ultralytics.com/guides/model-optimization-guide/)
 - [PyArrow Performance](https://arrow.apache.org/docs/python/parquet.html#performance)
 - [OpenVINO Optimization](https://docs.openvino.ai/latest/openvino_docs_optimization_guide_dldt_optimization_guide.html)
 
 ### Profiling Tools
+
 - **cProfile**: Built-in CPU profiling
 - **tracemalloc**: Built-in memory profiling
 - **snakeviz**: cProfile visualization (`pip install snakeviz`)
@@ -444,7 +482,7 @@ poetry run python scripts/profile_performance.py --mode benchmark
 ## 📝 Changelog
 
 | Date | Version | Changes |
-|------|---------|---------|
+| ------ | --------- | --------- |
 | 2025-11-10 | 1.0 | Initial baseline (Agent-12, P4-T1) |
 
 ---
@@ -454,6 +492,7 @@ poetry run python scripts/profile_performance.py --mode benchmark
 **Task**: P4-T1 (Add performance profiling infrastructure)
 
 **Next Steps**:
+
 1. Review this baseline with team
 2. Prioritize optimizations (Quick Wins vs. Long-term)
 3. Create tracking issues for each optimization

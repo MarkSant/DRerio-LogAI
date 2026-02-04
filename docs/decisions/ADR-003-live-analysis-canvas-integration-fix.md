@@ -8,6 +8,7 @@
 ## Context
 
 During Phase 3 Live Analysis Integration, users reported that when starting live camera analysis, the frames were not appearing in the integrated Analysis tab. Instead, they saw either:
+
 1. A blank/white canvas ("Canvas Preto")
 2. External window opening when it shouldn't
 3. No video frames being displayed
@@ -60,6 +61,7 @@ if not use_external_preview and not getattr(...):
 ```
 
 **Fix**:
+
 ```python
 # ✅ CORRECT: Create window when use_external_preview=True
 if use_external_preview and not getattr(...):
@@ -105,6 +107,7 @@ Implement all three fixes:
 ## Implementation
 
 **Files Changed**:
+
 1. `src/zebtrack/core/live_camera_service.py`
    - Line 361: Fixed window creation logic
    - Lines 1180-1210: Moved event publication outside block
@@ -117,9 +120,11 @@ Implement all three fixes:
    - Line 3143: Changed polygon validation from `error` to `debug` level
 
 **Tests Added**:
+
 - `tests/test_live_analysis_integration.py` - Comprehensive regression tests
 
 **Verification**:
+
 ```bash
 # Run live analysis tests
 poetry run pytest tests/test_live_analysis_integration.py -v
@@ -132,7 +137,7 @@ poetry run pytest -q
 
 ### Event Flow (Correct)
 
-```
+```text
 LiveCameraService._processing_loop
   ↓ (frame ready)
   ↓ should_display=True AND use_external_preview=False
@@ -152,13 +157,14 @@ User sees frames in Analysis tab ✅
 ### Window vs Canvas Decision Matrix
 
 | `use_external_preview` | Result |
-|---|---|
+| --- | --- |
 | `False` | NO window, publish to EventBus → Canvas |
 | `True` | CREATE window, NO EventBus publication |
 
 ### Critical Conditions
 
 For frames to display in canvas, ALL must be true:
+
 1. `should_display = (frame_number % display_interval_frames) == 0`
 2. `use_external_preview = False`
 3. `event_bus is not None`

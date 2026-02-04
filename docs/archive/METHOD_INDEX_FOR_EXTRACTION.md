@@ -6,7 +6,7 @@ Referência rápida para localizar os métodos a extrair. Use com `git blame` ou
 
 Métodos para extrair diretamente (20):
 
-```
+```text
   539  _update_window_title()
   843  _open_global_calibration_window()
   847  _open_project_calibration_window()
@@ -32,7 +32,7 @@ Métodos para extrair diretamente (20):
 
 Métodos com lógica de diálogos para refatorar:
 
-```
+```text
  5407  _on_save_roi_template()
  5649  _on_delete_roi_template()
  5713  _on_import_roi_template()
@@ -49,7 +49,7 @@ Métodos com lógica de diálogos para refatorar:
 
 Métodos base para extrair (5):
 
-```
+```text
  1416  _compose_overview_status_line()
  1490  _prepare_overview_hierarchy_for_widget()
  6803  _check_live_project_calibration()
@@ -59,7 +59,7 @@ Métodos base para extrair (5):
 
 Métodos com lógica de validação para refatorar:
 
-```
+```text
  7339  _on_auto_detect_clicked()
  5542  _get_zone_data_for_active_context()
 ```
@@ -70,7 +70,7 @@ Métodos com lógica de validação para refatorar:
 
 Métodos de criação de frames/widgets (27+):
 
-```
+```text
   426  _build_status_icon_legend()
   592  _create_welcome_frame()
   632  _build_project_actions()
@@ -106,7 +106,7 @@ Métodos de criação de frames/widgets (27+):
 
 Métodos auxiliares (configure handlers):
 
-```
+```text
  1860  _on_pane_configure()
  1962  _on_canvas_configure()
  3035  _on_frame_configure()
@@ -120,7 +120,7 @@ Métodos auxiliares (configure handlers):
 
 Métodos de atualização de views (28+):
 
-```
+```text
  1274  _navigate_to_processing_reports_tab()
  1303  _request_overview_refresh()
  1330  refresh_project_views()
@@ -160,7 +160,7 @@ Métodos de atualização de views (28+):
 
 Métodos auxiliares:
 
-```
+```text
  1290  _get_status_meta()
  1490  _prepare_overview_hierarchy_for_widget()
  1590  _build_status_token()
@@ -181,11 +181,13 @@ Métodos auxiliares:
 ## MÉTODOS JÁ EXTRAÍDOS (NÃO INCLUIR)
 
 ### MenuManager
+
 - Métodos de criação de menus
 - Context menus
 - Métodos de menu bar
 
 ### CanvasManager
+
 - `_on_canvas_click()`
 - `_on_canvas_motion()`
 - `_on_canvas_double_click()`
@@ -200,10 +202,12 @@ Métodos auxiliares:
 - Drawing modes
 
 ### StateSynchronizer
+
 - State observation
 - State update callbacks
 
 ### EventDispatcher
+
 - Event bus subscriptions
 - Event handlers
 
@@ -218,7 +222,7 @@ Métodos auxiliares:
 
 ### Dependências Entre Componentes
 
-```
+```text
 ValidationManager
 ├─ usado por: DialogManager, WidgetFactory, ProjectViewManager
 └─ depende de: nada (clean)
@@ -238,4 +242,3 @@ ProjectViewManager
 ├─ depende de: ValidationManager, DialogManager (algumas views)
 └─ depende de: models, project_manager
 ```
-
