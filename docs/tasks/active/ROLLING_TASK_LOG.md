@@ -24,6 +24,7 @@ AnalysisCoordinator summary video state.
 - [x] Measure Windows non-GUI coverage (core: 45.22%).
 - [x] Adjust Linux core coverage threshold to match observed coverage.
 - [x] Fix pip-audit strict failure for local package auditing.
+- [x] Force LF output in copilot context generator to prevent CRLF churn.
 
 ### [2026-02-05] CI Fixes (ProcessingWorker + BaseUIComponent)
 

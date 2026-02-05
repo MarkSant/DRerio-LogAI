@@ -294,7 +294,7 @@ def main():
 
     context = generate_yaml_context()
 
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    with open(OUTPUT_FILE, "w", encoding="utf-8", newline="\n") as f:
         f.write(context)
 
     print(f"Contexto gerado: {OUTPUT_FILE}")
