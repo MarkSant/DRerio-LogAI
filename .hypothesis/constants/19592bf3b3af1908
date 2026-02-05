@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\coordinators\project_lifecycle_coordinator.py
+# hypothesis_version: 6.151.4
+
+['Escopo: Projeto', 'Nenhum Projeto', 'active_weight', 'aquarium_height_cm', 'aquarium_id', 'aquarium_width_cm', 'calibration', 'config', 'day', 'detail', 'detector_parameters', 'get_project_name', 'global', 'group', 'inherit', 'inheriting_globals', 'is_single_video_mode', 'label', 'message', 'model_overrides', 'model_service', 'new_manager', 'overrides_active', 'processing_progress', 'project', 'project.close.start', 'project.create.start', 'project.open.failed', 'project.open.start', 'project_loaded', 'project_name', 'project_path', 'scope', 'subject_id', 'title', 'use_openvino', 'video_path']

@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\weight_manager.py
+# hypothesis_version: 6.151.4
+
+['%Y-%m-%d %H:%M:%S', '*.xml', '.', '_oi.pt', '_seg.pt', 'class_names', 'conversion_date', 'converting', 'description', 'det', 'det_filename', 'detect', 'failed', 'is_default', 'is_default_det', 'is_default_seg', 'legacy_path', 'metadata.json', 'model_type', 'not_converted', 'num_classes', 'object_detection', 'openvino', 'openvino.cache.found', 'openvino_hash', 'openvino_model_cache', 'openvino_path', 'openvino_status', 'original_model', 'path', 'ready', 'seg', 'seg_filename', 'segment', 'set_default.success', 'task', 'type', 'unknown', 'utf-8', 'w', 'weight_type', 'weights', 'weights.add.success', 'weights.config.saved', 'weights_config.json', 'yolo_model']

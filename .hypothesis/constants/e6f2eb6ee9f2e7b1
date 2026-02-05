@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\ui\components\analysis_display.py
+# hypothesis_version: 6.151.4
+
+[100, 360, '-', '--', '<<ComboboxSelected>>', 'Arial', 'Cancelar Análise', 'Concluído:', 'Dia: --', 'Frames Detectados:', 'Grupo: --', 'Indivíduo: --', 'Multi-indivíduos', 'Processados:', 'Tempo Decorrido:', 'Tempo Estimado:', 'Todos', 'Total de Frames:', 'Track ID ativo:', 'analysis_info', 'analysis_stats', 'black', 'bold', 'both', 'default', 'detected', 'determinate', 'disabled', 'elapsed', 'eta', 'ew', 'horizontal', 'left', 'ne', 'normal', 'percent', 'processed', 'readonly', 'total', 'track_id', 'value', 'w', 'x']

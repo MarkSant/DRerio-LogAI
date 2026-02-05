@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\coordinators\detector_coordinator.py
+# hypothesis_version: 6.151.4
+
+[0.0, 1.0, 'DetectorCoordinator', 'ZONES_CONFIGURED', 'active_weight_name', 'animal_method', 'aquariums', 'arena', 'conf_threshold', 'confidence_threshold', 'config', 'coordinator', 'det', 'detector_service', 'enabled', 'global', 'initialized', 'iou_threshold', 'match_threshold', 'max_center_distance', 'missing_dependency', 'name', 'params', 'polygon', 'project', 'roi_polygons', 'scope', 'seg', 'single_subject_mode', 'track_buffer', 'track_threshold', 'tracking_parameters', 'type', 'use_bytetrack', 'use_openvino', 'video_height', 'video_width', 'zones_configured', 'zones_count', 'zones_data']

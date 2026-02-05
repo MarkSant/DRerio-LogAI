@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\video_manager.py
+# hypothesis_version: 6.151.4
+
+[30.0, '*', '.avi', '.mov', '.mp4', '/', '\\', 'arena', 'batches', 'day', 'group', 'group_display_name', 'has_arena', 'has_complete_data', 'has_data', 'has_rois', 'has_trajectory', 'is_multi_subject', 'metadata', 'missing', 'parquet_files', 'path', 'pending', 'processed', 'rois', 'sha256', 'signature', 'status', 'subject', 'subject_entries', 'timestamp', 'trajectory', 'utf-8', 'videos', 'zones_finalized']

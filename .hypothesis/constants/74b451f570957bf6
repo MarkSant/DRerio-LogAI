@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\ui\components\canvas\renderer.py
+# hypothesis_version: 6.151.4
+
+[1.0, 255, 600, 800, '#0066CC', '#008B8B', '#666666', '#888888', '#B8860B', '#DAA520', '<B1-Motion>', '<ButtonPress-1>', '<ButtonRelease-1>', 'Alvo', 'Arial', 'BOTTOM', 'Det', 'NEAREST', 'Resampling', 'Segoe UI', 'TOP', '_canvas_bg_position', '_original_image', '_raw_bg_image', 'all', 'analysis_active', 'aquarium_label', 'background_image', 'behavioral_analysis', 'blue', 'bold', 'center', 'cyan', 'darkgoldenrod', 'detection_overlay', 'drawing_aid', 'edit_clamp_indicator', 'elastic_line', 'geotaxis_zone', 'ghost_polygon', 'gray12', 'gui.roi_draw_error', 'handle', 'interactive_polygon', 'italic', 'magenta', 'main_polygon', 'nw', 'orange', 'red', 'roi', 'roi_label', 'roi_label_bg', 'roi_polygon', 'settings', 'show_geotaxis_zones', 'sw', 'temp_vertex', 'video_display', 'white', 'yellow', 'zone_tab_frame']

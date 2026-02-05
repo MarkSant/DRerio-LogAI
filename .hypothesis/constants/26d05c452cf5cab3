@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\coordinators\live_camera_coordinator.py
+# hypothesis_version: 6.151.4
+
+[6.0, 60.0, 300.0, 720, 1280, '%Y%m%d_%H%M%S', 'CAMERA_INITIALIZED', 'CAMERA_RELEASED', 'Erro na Análise', 'LIVE_SESSION_STARTED', 'LIVE_SESSION_STOPPED', 'camera_index', 'camera_not_opened', 'dependency.missing', 'duration_s', 'experiment_id', 'height', 'initialize_camera', 'is_active', 'live_analysis', 'live_camera_service', 'message', 'no_arena_defined', 'record_video', 'session_id', 'start_live_session', 'state_manager', 'title', 'width']

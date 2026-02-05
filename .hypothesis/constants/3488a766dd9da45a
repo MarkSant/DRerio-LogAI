@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\types.py
+# hypothesis_version: 6.151.4
+
+['arena', 'rois', 'summary', 'trajectory', 'video']

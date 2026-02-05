@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\application_bootstrapper.py
+# hypothesis_version: 6.151.4
+
+['*.xml', 'No recording_service', 'active_weight_name', 'analysis_coordinator', 'analysis_service', 'arduino_manager', 'bootstrapper.init', 'cancel_event', 'detector_coordinator', 'dialog_coordinator', 'enable_event_queue', 'event_dispatcher', 'frame_queue', 'hardware_summary', 'openvino', 'openvino_path', 'program_exit_event', 'project_coordinator', 'project_service', 'recommended_backend', 'recorder', 'registry', 'thread_coordinator', 'ui_features', 'ui_state_controller', 'use_openvino', 'video_orchestrator', 'video_queue']

@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\recording_facade.py
+# hypothesis_version: 6.151.4
+
+[30.0, '*_tracked.mp4', '*_trajectory.parquet', 'metadata', 'metadata.csv', 'output_dir', 'parquet', 'recording.started', 'recording.stopped', 'video', 'video_path']

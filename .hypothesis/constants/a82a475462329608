@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\utils\hardware_capability.py
+# hypothesis_version: 6.151.4
+
+[0.5, 1024, 'CUDA', 'FULL_DEVICE_NAME', 'GPU', 'No', 'OpenVINO', 'excellent', 'good', 'hardware_capability', 'insufficient', 'limited', 'moderate']

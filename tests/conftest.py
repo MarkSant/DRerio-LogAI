@@ -60,6 +60,8 @@ def _create_mock_tk_root():
     from unittest.mock import MagicMock
 
     root = MagicMock()
+    root._w = "."
+    root.children = {}
     root.tk = MagicMock()
     root.tk.call = MagicMock(return_value=())
     root.winfo_id = MagicMock(return_value=12345)
@@ -489,6 +491,8 @@ def tkinter_root(tkinter_session_root):
         test_window: Any = MagicMock()
         test_window.master = tkinter_session_root
         test_window.tk = tkinter_session_root.tk
+        test_window._w = f"{tkinter_session_root._w}.toplevel"
+        test_window.children = {}
         test_window.winfo_id = MagicMock(return_value=67890)
         test_window.destroy = MagicMock()
         test_window.update_idletasks = MagicMock()

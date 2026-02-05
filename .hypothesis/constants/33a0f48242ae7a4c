@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\viewmodels\analysis_control_view_model.py
+# hypothesis_version: 6.151.4
+
+[0.0, 1.0, 5.0, 30.0, 255, 1080, '-', 'D', 'Grp', 'S', 'Unknown', '_', 'analysis_parameters', 'analysis_progress', 'animal_method', 'animals_per_aquarium', 'append_summary', 'aquarium_height_cm', 'aquarium_width_cm', 'calibration', 'config', 'day', 'det', 'detections.parquet', 'excel', 'experiment_id', 'fps', 'group', 'immediate', 'message', 'metadata', 'parquet', 'project_data', 'px', 'reason', 'reports_generated', 'smoothing_polyorder', 'stabilization_frames', 'subject', 'title', 'use_openvino', 'video_path', 'zone_data']

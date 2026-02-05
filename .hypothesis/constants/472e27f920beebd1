@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\ui\wizard\templates.py
+# hypothesis_version: 6.151.4
+
+[10.0, '*.json', '.json', '.zebtrack', 'Unknown', '_', 'animals_per_aquarium', 'aquarium_height_cm', 'aquarium_width_cm', 'created_at', 'detected_design', 'detector_parameters', 'experiment_days', 'group_names', 'model_selection', 'name', 'num_aquariums', 'num_groups', 'parquet_import_scope', 'path', 'project_type', 'schema_version', 'subjects_per_group', 'template', 'template_name', 'use_openvino', 'utf-8', 'w', 'weight_assignments', 'wizard_templates']

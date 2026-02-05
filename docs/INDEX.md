@@ -16,6 +16,10 @@ docs/
 ├── tasks/           # Active intervention logs and technical debt
 ├── wiki/            # Portuguese translations and end-user manuals
 └── archive/         # Legacy and historical documentation
+
+> Legacy content in [docs/archive/](docs/archive/) is preserved for historical reference.
+> It is excluded from markdownlint checks; see [.markdownlintignore](.markdownlintignore) and
+> [.pre-commit-config.yaml](.pre-commit-config.yaml) for the enforcement details.
 ```
 
 ---

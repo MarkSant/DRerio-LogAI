@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\ui\wizard\tooltip.py
+# hypothesis_version: 6.151.4
+
+[300, 500, '#0066CC', '#FFFACD', '<Button>', '<Enter>', '<Leave>', 'Segoe UI', 'bold', 'left', 'question_arrow', 'solid', 'ⓘ']

@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\ui\components\__init__.py
+# hypothesis_version: 6.151.4
+
+['BaseUIComponent', 'BaseWidget', 'CanvasManager', 'ConfigEditorWidget', 'ControlPanelWidget', 'DialogManager', 'DrawingStateManager', 'EventDispatcher', 'MenuManager', 'ProjectViewManager', 'ROITemplateManager', 'StateSynchronizer', 'TabBuilder', 'UIComponentError', 'ValidationManager', 'VideoDisplayWidget', 'WidgetFactory', 'ZoneControlsWidget']

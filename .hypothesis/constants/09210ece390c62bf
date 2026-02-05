@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\io\camera.py
+# hypothesis_version: 6.151.4
+
+[0.01, 0.05, 0.1, 0.5, 2.0, 30.0, 100.0, 255, 1000, 'Camera', 'Camera Test', 'Camera properties:', 'Interrupted by user.', 'Settings | None', 'Test finished.', '__main__', 'camera.disconnected', 'camera.initialized', 'camera.initializing', 'camera.released', 'fps', 'height', 'max_frame_lag_ms', 'q', 'width', 'win32']

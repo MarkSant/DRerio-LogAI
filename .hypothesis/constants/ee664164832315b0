@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\io\arduino.py
+# hypothesis_version: 6.151.4
+
+[0.1, 0.5, 1.5, 'Arduino', 'Arduino is ready.', 'OK', 'PING', 'RESET', 'START', 'STATUS', 'STOP', 'TRIGGER', '__main__', 'arduino.command.ack', 'arduino.command.nack', 'arduino.command.sent', 'arduino.init', 'device', 'ignore', 'utf-8']

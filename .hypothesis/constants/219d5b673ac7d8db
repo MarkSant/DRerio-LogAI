@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\ui\components\behavioral_config_widget.py
+# hypothesis_version: 6.151.4
+
+[0.1, 1.5, 10.0, 500, '%.1f', '(padrão: 1.5 cm)', '<<ComboboxSelected>>', '<FocusOut>', '<Return>', 'Distância (cm):', 'Dividir aquário em:', 'Modo de cálculo:', 'Perspectiva:', 'Por Distância', 'Por Zonas Verticais', 'TkDefaultFont', 'Vista Lateral', 'aquarium_perspective', 'bold', 'config', 'default_perspective', 'disabled', 'enabled', 'geotaxis_distance_cm', 'geotaxis_enabled', 'geotaxis_mode', 'geotaxis_num_zones', 'left', 'normal', 'perspective', 'readonly', 'x', 'zonas verticais']

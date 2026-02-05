@@ -942,13 +942,28 @@ class _WorkerProcess(multiprocessing.Process):
 
     def _check_cancellation(self) -> bool:
         """Check for cancellation messages."""
+        if self._cancel_requested:
+            return True
+
+        msg = None
         try:
             msg = self.command_queue.get_nowait()
-            if msg == "cancel":
-                self._cancel_requested = True
-                log.info("worker.process.cancelled_by_command")
         except queue.Empty:
-            pass
+            try:
+                msg = self.command_queue.get(timeout=0.005)
+            except queue.Empty:
+                return self._cancel_requested
+        except (OSError, EOFError, ValueError) as exc:
+            self._cancel_requested = True
+            log.warning("worker.process.cancelled_by_queue_error", error=str(exc))
+            return True
+
+        if msg == "cancel":
+            self._cancel_requested = True
+            log.info("worker.process.cancelled_by_command")
+        elif msg is not None:
+            log.warning("worker.process.unknown_command", command=msg)
+
         return self._cancel_requested
 
     def _send_progress(self, index, total, fraction, message, experiment_id, stats=None):

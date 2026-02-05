@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\orchestrators\video_processing_orchestrator.py
+# hypothesis_version: 6.151.4
+
+['*.*', '*.mp4 *.avi *.mov', '*/', 'Arquivos de vídeo', 'Pastas', 'Sucesso', 'Todos os arquivos', 'complete', 'dialog_coordinator', 'message', 'path', 'title', 'ui_state_controller', 'view']

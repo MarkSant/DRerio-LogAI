@@ -6,6 +6,23 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-05] CI Fixes (ProcessingWorker + BaseUIComponent)
+
+**ID:** TASK-009
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Resolve Linux CI failure in ProcessingWorker cancellation handling and Windows
+CI failures in BaseUIComponent logger initialization.
+
+### Subtasks (TASK-009)
+
+- [x] Run impact analysis for affected files.
+- [x] Fix ProcessingWorker cancellation behavior and update tests if needed.
+- [x] Fix BaseUIComponent logger binding to avoid MagicMock string errors.
+- [x] Run focused tests for processing worker and base UI component (coverage gate failed).
+- [x] Run full test suite sequentially (all passed).
+
 ### [2026-02-03] Phase 7 CI Hygiene (Mypy + Markdownlint + Ruff)
 
 **ID:** TASK-008

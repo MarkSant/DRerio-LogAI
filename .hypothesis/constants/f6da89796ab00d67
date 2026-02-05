@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\zone_manager.py
+# hypothesis_version: 6.151.4
+
+[128, 204, 255, 'aquariums', 'arena', 'batches', 'day', 'detection_zones', 'group', 'has_arena', 'has_rois', 'id', 'list/none', 'live', 'multi_aquarium_zones', 'parquet_files', 'path', 'point_index', 'polygon', 'project_type', 'roi_colors', 'roi_name', 'roi_names', 'roi_polygons', 'roi_templates', 'rois', 'subject_id', 'video_height', 'video_width', 'videos', 'x', 'y', 'zones_by_video', 'zones_finalized']

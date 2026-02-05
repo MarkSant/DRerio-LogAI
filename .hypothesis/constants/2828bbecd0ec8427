@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\analysis\behavior.py
+# hypothesis_version: 6.151.4
+
+[0.0, 0.1, 0.5, 0.9, 1.0, 30.0, 60.0, 100, 'Int64', 'absolute', 'average_distance', 'bottom_zones_pct', 'coerce', 'confidence', 'count', 'degrees', 'distance_to_wall_cm', 'dt', 'duration', 'end_time', 'episodes', 'first', 'is_near_wall', 'max', 'mean', 'median', 'relative', 's', 'sharp_turns_count', 'start_time', 'std_dev', 'threshold_cm_s', 'time_near_bottom', 'time_near_wall', 'timestamp', 'total_duration_s', 'track_id', 'v_mag', 'vertical_zone', 'vx', 'vy', 'x1', 'x2', 'x_center_px', 'x_cm', 'x_cm_smoothed', 'y1', 'y2', 'y_center_px', 'y_cm', 'y_cm_smoothed', 'zone_time']

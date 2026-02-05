@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\ui_scheduler.py
+# hypothesis_version: 6.151.4
+
+['__name__', 'display_frame', 'hide_progress_bar', 'set_status', 'show_error', 'show_info', 'show_progress_bar', 'show_warning', 'update_button_state', 'update_idletasks', 'update_progress']

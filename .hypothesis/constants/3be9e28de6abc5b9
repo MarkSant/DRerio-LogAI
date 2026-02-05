@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\coordinators\live_batch_coordinator.py
+# hypothesis_version: 6.151.4
+
+[10000, '%Y%m%d_%H%M%S_%f', '_', 'batch_id', 'day', 'group', 'live_batch.created', 'no_day', 'no_group', 'no_subject', 'project_path', 'project_root', 'session_count', 'subject_id', 'summary_excel']

@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\__main__.py
+# hypothesis_version: 6.151.4
+
+[100, 300, 1000, '--log-level', '=', 'CRITICAL', 'DEBUG', 'ERROR', 'Fatal Error', 'INFO', 'Pronto!', 'WARNING', '__main__', 'analysis.log', 'append', 'application.finished', 'application.starting', 'benchmark.failed', 'ignore', 'main', 'nt', 'openvino', 'root', 'settings.loaded', 'splash', 'timing.model_service', 'unhandled.exception', 'unknown', 'windll', 'zebtrack.ai.app.v1']

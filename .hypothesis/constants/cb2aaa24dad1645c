@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\analysis_coordinator.py
+# hypothesis_version: 6.151.4
+
+['(desconhecido)', '*.*', '*.csv', '*.parquet', '*.xlsx', '.csv', '.parquet', '.xlsx', ':', 'Arquivo CSV', 'Arquivo Parquet', 'Erro no Relatório', 'Nenhum Vídeo', 'Projeto ausente', 'Relatório Gerado', 'Sumários', 'Sumários Gerados', 'Todos os arquivos', 'Vídeos ignorados', '_report.docx', '_sub_', 'analysis_worker', 'aquarium_height_cm', 'aquarium_width_cm', 'calibration', 'completed', 'experiment_id', 'failed', 'has_complete_data', 'has_trajectory', 'message', 'metadata', 'parquet', 'parquet_files', 'path', 'processing_progress', 'px', 'skipped', 'summary', 'title', 'trajectory', 'unified', 'video_name']

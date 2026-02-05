@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\ui\dialogs\save_roi_template_dialog.py
+# hypothesis_version: 6.151.4
+
+[360, '#4a4a4a', '*.*', '*.json', '-', '.json', 'Arena principal', 'Incluir no template:', 'Local não definido', 'Local personalizado', 'Nome do template:', 'Nome obrigatório', 'Procurar…', 'Projeto atual', 'Salvar em:', 'Seleção incompleta', 'Template de zonas', 'Todos os arquivos', '[^a-zA-Z0-9_-]+', 'custom', 'custom_path', 'disabled', 'ew', 'global', 'name', 'normal', 'nw', 'project', 'save_arena', 'save_location', 'save_rois', 'template', 'w', 'we', 'write']

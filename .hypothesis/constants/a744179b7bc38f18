@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\analysis\trajectory_validator.py
+# hypothesis_version: 6.151.4
+
+[0.1, 0.9, 1.0, 50.0, 100.0, 100, 999, 1000, 'aquarium_id', 'aquariums', 'arena_violations', 'avg_gap_frames', 'count', 'coverage_percent', 'errors', 'expected_range', 'frame', 'frame_range', 'gap_count', 'id_jumps_count', 'id_violations_count', 'is_valid', 'longest_gap_frames', 'longest_gap_range', 'max', 'max_gap_frames', 'max_speed_cm_s', 'min', 'out_of_range', 'per_aquarium', 'per_aquarium_gaps', 'percentage', 'span', 'speed_violations', 'stats', 'switch_rate', 'switches', 'temporal_coverage', 'temporal_gaps', 'threshold_cm_s', 'timestamp', 'total_frames', 'total_missing_frames', 'track_id', 'track_id_stability', 'track_ids', 'unique_tracks', 'warnings', 'x_cm', 'y_cm']

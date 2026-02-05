@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\plugins\ultralytics_detector.py
+# hypothesis_version: 6.151.4
+
+[0.25, 0.45, 0.95, 0.99, 640, 'YOLO (Ultralytics)', 'box', 'class_id', 'class_name', 'confidence', 'cuda', 'has_mask', 'inference_size', 'mask_points', 'match_threshold', 'track_threshold', 'use_half_precision']

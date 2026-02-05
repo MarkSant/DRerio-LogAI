@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\video_orchestrator.py
+# hypothesis_version: 6.151.4
+
+['\n\nFila:\n', 'Análise em Andamento', 'Arena Padrão Criada', 'Cancelado', 'Erro', 'Erro na Análise', 'Processamento', 'Processamento falhou', 'Pronto.', 'Sucesso', 'Usar Arena Padrão?', '_sub_', 'affected_videos', 'complete', 'current_frame', 'detections', 'frame', 'has_arena', 'has_complete_data', 'has_rois', 'has_trajectory', 'message', 'path', 'processed', 'report', 'stats', 'status', 'tab_name', 'title', 'total_frames', 'video_path', 'worker.completed', 'worker.fatal_error', 'worker.started', 'zone_tab']

@@ -1,0 +1,4 @@
+# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\coordinators\recording_coordinator.py
+# hypothesis_version: 6.151.4
+
+['RECORDING_STOPPED', 'RECORDING_TRIGGERED', 'RecordingCoordinator', 'command', 'context', 'dependency.missing', 'duration', 'enter', 'exit', 'experiment_id', 'folder_name', 'is_recording', 'manual', 'output_folder', 'output_path', 'recording_service', 'start_recording', 'state_manager', 'trigger_source', 'trigger_type', 'zone_name']
