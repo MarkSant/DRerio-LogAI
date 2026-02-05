@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\logging_config.py
-# hypothesis_version: 6.151.4
-
-[1024, '  +', '%Y-%m-%d %H:%M:%S', '.', 'PYTEST_CURRENT_TEST', 'Settings | None', 'ZEBTRACK_LOG_DIR', 'a', 'analysis.log', 'analysis_worker.log', 'levels', 'logging', 'logging.configured', 'logging.level.set', 'logs', 'pyproject.toml', 'utf-8', 'w']

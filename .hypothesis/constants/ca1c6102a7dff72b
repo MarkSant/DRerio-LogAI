@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\schemas.py
-# hypothesis_version: 6.151.4
-
-[200, 300, 'Dados do template', 'Nome do template', 'Versão do template', 'allow', 'data', 'polygon', 'roi_colors', 'roi_names', 'roi_polygons', 'version']

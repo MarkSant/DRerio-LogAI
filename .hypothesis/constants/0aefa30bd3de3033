@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\model_service.py
-# hypothesis_version: 6.151.4
-
-[640, 'No weight specified', 'Weight not found', 'class_names', 'converting', 'error', 'errors', 'exists', 'failed', 'imgsz', 'input_shape', 'is_available', 'model', 'model_path', 'model_task', 'name', 'not_converted', 'num_classes', 'openvino_available', 'openvino_path', 'openvino_ready', 'openvino_status', 'path', 'ready', 'status', 'type', 'unknown', 'valid', 'warnings', 'weight_exists', 'weight_name', 'weight_type', 'weight_valid', 'weights']

@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\ui\event_bus.py
-# hypothesis_version: 6.151.4
-
-['CallableEvent', 'EventBus', 'EventType', 'NamedEvent', 'RECORDING_STARTED', 'UIEvent', '__name__', 'event_bus.subscribe', 'ui.event_bus', 'ui:display_frame']

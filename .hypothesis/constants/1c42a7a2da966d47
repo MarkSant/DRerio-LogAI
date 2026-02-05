@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\plugins\openvino_detector.py
-# hypothesis_version: 6.151.4
-
-[0.0, 0.1, 0.25, 0.45, 0.5, 0.8, 1.0, 255.0, 114, 255, 640, '*.xml', 'AUTO', 'CACHE_DIR', 'EXECUTION_DEVICES', 'FP16', 'GPU', 'INT8', 'LATENCY', 'OpenVINO', 'PERFORMANCE_HINT', '_target_h', '_target_w', 'batch', 'box', 'bytetrack', 'class_id', 'class_name', 'class_names', 'conf_threshold', 'confidence', 'context', 'f16', 'has_mask', 'i8', 'live', 'mask_points', 'match_threshold', 'metadata.json', 'nms_threshold', 'openvino', 'track_threshold', 'tracking', 'uint8', 'utf-8']

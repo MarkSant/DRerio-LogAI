@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\detector_service.py
-# hypothesis_version: 6.151.4
-
-[0.0, 0.1, 0.25, 0.45, 0.8, 1.0, 200.0, 'None', 'OpenVINO', 'YOLO (Ultralytics)', '_context', 'agua', 'animal', 'animals_per_aquarium', 'aqua', 'aquarium', 'bool', 'bytetrack', 'calibration', 'class_names', 'conf_threshold', 'confidence_threshold', 'context', 'detector_state', 'deve estar entre', 'fish', 'float', 'get_name', 'global', 'int', 'iou_threshold', 'match_threshold', 'max_center_distance', 'name', 'nms_threshold', 'openvino_hash', 'peixe', 'plugin_name', 'project', 'project_data', 'save_detector_state', 'set_context', 'single-video', 'tank', 'track_buffer', 'track_threshold', 'tracking', 'use_bytetrack', 'zebrafish']

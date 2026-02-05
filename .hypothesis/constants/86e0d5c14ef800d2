@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\io\recorder.py
-# hypothesis_version: 6.151.4
-
-[0.0, 0.1, 0.95, 1.0, 5.0, 30.0, 100, 150, 200, 250, 255, 480, 500, 640, '.parquet', 'Cleanup on error', 'Recorder', 'Settings | None', '_BACKUP.json', '__main__', 'aquarium_id', 'bbox_iou', 'cancel', 'confidence', 'first', 'flush_row_threshold', 'fps', 'frame', 'is_paused', 'missing_columns', 'mp4v', 'parquet_compression', 'pause_start_time', 'performance', 'pixel_per_cm_ratio', 'point_index', 'recorder', 'recorder.flush.error', 'recorder.stop.forced', 'records', 'roi_name', 'snappy', 'timestamp', 'track_id', 'uncertainty', 'utf-8', 'video_processing', 'w', 'x', 'x1', 'x2', 'x_center_px', 'x_cm', 'y', 'y1', 'y2', 'y_center_px', 'y_cm']

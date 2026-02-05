@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\ui\ui_coordinator.py
-# hypothesis_version: 6.151.4
-
-[0.0, 100, '-R', '/select,', 'Darwin', 'Windows', 'action', 'all', 'append_summary', 'arena_only', 'asset', 'batch_id', 'deleted_video_path', 'detected_bbox', 'errors_count', 'events_handled', 'experiment_id', 'explorer', 'filter_text', 'frame_image', 'frame_number', 'gap_duration_s', 'immediate', 'is_valid', 'open', 'polygon', 'ready_with_zones', 'reason', 'report_path', 'session_count', 'session_label', 'total_gaps', 'ui.ui_coordinator', 'unknown', 'update_zone_listbox', 'video_path', 'without_arena', 'xdg-open', 'zone_data', 'zones_updated']

@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\detector.py
-# hypothesis_version: 6.151.4
-
-[0.0, 0.05, 0.1, 0.25, 0.5, 0.6, 0.95, 400.0, 100, 150, 165, 255, 720, 1000, 1280, 'ByteTrack', 'ByteTracker', 'Settings | None', 'Simple', 'SingleSubjectTracker', 'agua', 'aqua', 'aquarium', 'aquariums', 'basetrack_id_counter', 'byte_tracker_state', 'bytetrack', 'class_names', 'detect_batch', 'detector.context.set', 'detector.zones.set', 'diagnostic', 'empty', 'fish', 'fps', 'iou_threshold', 'match_threshold', 'max_center_distance', 'model_input_shape', 'multi_aquarium', 'no_input_detections', 'peixe', 'polygon', 'processing_interval', 'reset_tracking_state', 'restore_state', 'roi_colors', 'roi_polygons', 'simple', 'tank', 'to_zone_data', 'track_buffer', 'track_threshold', 'tracking', 'video_processing', 'zebrafish']

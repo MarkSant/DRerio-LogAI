@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\project_service.py
-# hypothesis_version: 6.151.4
-
-['"', '*', '*.json', '. ', '/', ':', '<', '>', '?', '\\', '_', '_integrity_hash', 'active_weight', 'arena', 'config_snapshot.yaml', 'created_at', 'day', 'detection_zones', 'group', 'last_modified', 'metadata.csv', 'model_overrides', 'polygon', 'project_config.json', 'project_name', 'project_type', 'results', 'roi_templates', 'rois', 'subject', 'summary', 'templates', 'trajectory', 'untitled', 'use_openvino', 'utf-8', 'video', 'videos', 'w', 'zones_by_video', '|']

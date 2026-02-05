@@ -727,7 +727,8 @@ class AnalysisCoordinator:
                 smoothing_polyorder=settings_obj.trajectory_smoothing.polyorder,
             )
 
-            os.makedirs(results_dir, exist_ok=True)
+            if not os.path.exists(results_dir):
+                os.makedirs(results_dir, exist_ok=True)
             parquet_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
             reporter.export_summary_data(parquet_path, format="parquet")
 

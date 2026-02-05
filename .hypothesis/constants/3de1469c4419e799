@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\roi_template_manager.py
-# hypothesis_version: 6.151.4
-
-['*.json', '-', '.zebtrack', 'NFKD', '[^a-zA-Z0-9_-]+', 'ascii', 'created_at', 'custom', 'data', 'exists', 'file', 'global', 'ignore', 'includes_arena', 'includes_rois', 'kept', 'location', 'name', 'polygon', 'project', 'removed', 'roi_colors', 'roi_count', 'roi_names', 'roi_polygons', 'roi_templates', 'save_location', 'slug', 'template', 'updated_at', 'utf-8', 'version', 'w']

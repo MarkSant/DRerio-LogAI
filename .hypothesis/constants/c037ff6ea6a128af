@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\coordinators\project_coordinator.py
-# hypothesis_version: 6.151.4
-
-['None', 'PROJECT_CLOSED', 'PROJECT_CREATED', 'PROJECT_LOADED', 'ProjectCoordinator', 'Projects', 'Unknown', 'ZebTrack', 'dependency.missing', 'detector_config', 'experiment_id', 'is_loaded', 'load_project', 'paths', 'project_config.json', 'project_manager', 'project_name', 'project_not_loaded', 'project_path', 'project_service', 'project_type', 'state_manager', 'traditional', 'video_file', 'wizard_data', 'zones']

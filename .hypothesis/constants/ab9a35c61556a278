@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\viewmodels\hardware_status_view_model.py
-# hypothesis_version: 6.151.4
-
-['*.pt *.onnx *.xml', 'Carregar Novo Peso', 'active_weight_name', 'detector_coordinator', 'global', 'project', 'recording_service', 'status', 'unknown']

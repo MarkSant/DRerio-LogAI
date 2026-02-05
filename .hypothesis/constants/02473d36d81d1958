@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\analysis\roi.py
-# hypothesis_version: 6.151.4
-
-[0.0, 0.1, 0.5, 1.0, 100, 'Center', 'From', 'Outside', 'Periphery', 'To', '_pixelcm_x', '_pixelcm_y', '_video_height_px', 'area_ratio', 'bbox_intersects', 'boolean', 'centroid_in', 'cm', 'coerce', 'count', 'distance', 'dt', 'duration', 'enter', 'entry_counts', 'episodes', 'event', 'exit', 'frame', 'group_id', 'ignore', 'index', 'is_in_group', 'latency_first_entry', 'mean', 'median', 'percentage', 'px', 'right', 'roi_name', 'seconds', 'seg_overlap', 'segment_dist', 'social_time_seconds', 'stable_roi', 'start_time', 'std_dev', 'time_spent', 'timestamp', 'tortuosity', 'total_duration', 'total_seconds', 'track_id', 'transitions', 'v_mag', 'velocity_stats', 'x1', 'x2', 'x_center_px', 'x_cm_smoothed', 'y1', 'y2', 'y_center_px', 'y_cm_smoothed']

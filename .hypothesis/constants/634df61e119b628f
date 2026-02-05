@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\state_manager.py
-# hypothesis_version: 6.151.4
-
-[0.1, 5.0, 100, 'MULTI_TRACK', '__dict__', '__name__', '_timestamp', 'active_weight', 'active_zone_video', 'arduino_connected', 'by_category', 'cancel_requested', 'current_tab', 'current_video', 'detector', 'detector_initialized', 'frame_size', 'global', 'has_data', 'has_dimensions', 'has_metadata', 'has_output', 'has_path', 'has_progress', 'has_zones', 'initialized', 'intervals', 'is_processing', 'is_recording', 'metadata_keys', 'mode', 'observers', 'output_path', 'plugin', 'processing', 'progress', 'project', 'project_data_keys', 'project_path', 'recording', 'state_manager', 'state_valid', 'total', 'ui', 'unknown', 'use_openvino', 'view_mode', 'zones', 'zones_configured']

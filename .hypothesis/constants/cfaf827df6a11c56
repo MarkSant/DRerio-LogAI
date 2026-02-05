@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\batch_configuration_service.py
-# hypothesis_version: 6.151.4
-
-['active_weight', 'calibration', 'detector_config', 'has_calibration', 'has_rois', 'has_zones', 'path', 'project_data', 'project_name', 'timestamp', 'use_openvino', 'video_settings', 'w', 'zone_data', 'zones.json']

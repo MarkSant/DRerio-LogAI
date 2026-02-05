@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\utils\hardware_detection.py
-# hypothesis_version: 6.151.4
-
-['GPU', 'Unknown', 'cuda_available', 'hardware.summary', 'has_intel_gpu', 'openvino', 'openvino_available', 'openvino_devices', 'pytorch', 'recommended_backend']

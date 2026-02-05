@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\ui\dialogs\live_config_dialog.py
-# hypothesis_version: 6.151.4
-
-[9600, ' [Arduino]', ' [sem handshake]', 'Erro', 'Porta Arduino:', 'Selecionar Câmera:', 'Settings | None', 'Usar Arduino', 'arduino', 'arduino_port', 'baud_rate', 'camera_index', 'description', 'device', 'disabled', 'ew', 'index', 'left', 'readonly', 'use_arduino', 'values', 'w', '🔍 Detectar']

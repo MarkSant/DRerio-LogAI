@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\ui\components\roi_template_manager.py
-# hypothesis_version: 6.151.4
-
-['*.*', '*.json', '/,zebtrack/', '/.zebtrack/', 'ApplicationGUI', 'Confirmar Exclusão', 'Erro ao importar', 'Erro ao salvar', 'Template Applied', 'Template aplicado', 'Template importado', 'Template incompleto', 'Template inválido', 'Template salvo', 'Templates de ROI', 'Todos os arquivos', '\\,zebtrack\\', '\\.zebtrack\\', 'append_summary', 'custom_path', 'delete_template_btn', 'disabled', 'display_name', 'file', 'global', 'identifier', 'location', 'name', 'normal', 'project', 'project_path', 'readonly', 'reason', 'save_arena', 'save_location', 'save_rois', 'slug', 'state', 'values', 'zone_data']

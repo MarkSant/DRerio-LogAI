@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\ui\wizard\calibration_step.py
-# hypothesis_version: 6.151.4
-
-[10.0, 420, 500, 580, 700, '#555555', 'Altura (cm):', 'Animais por aquário:', 'Calibração Física', 'EventBus | None', 'Frame', 'Largura (cm):', 'Sobre a Calibração', 'animals_per_aquarium', 'aquarium_height_cm', 'aquarium_perspective', 'aquarium_width_cm', 'behavioral_analysis', 'bold', 'both', 'geotaxis_mode', 'gray', 'lateral', 'left', 'nsew', 'num_aquariums', 'template_metadata', 'video_count', 'w', 'x', 'zones']

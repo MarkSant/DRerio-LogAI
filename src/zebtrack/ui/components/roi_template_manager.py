@@ -1,5 +1,5 @@
 from pathlib import Path
-from tkinter import StringVar, filedialog, ttk
+from tkinter import Misc, StringVar, Tcl, TclError, filedialog, ttk
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -10,6 +10,17 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
+class _FallbackStringVar:
+    def __init__(self, value: str = "") -> None:
+        self._value = value
+
+    def get(self) -> str:
+        return self._value
+
+    def set(self, value: str) -> None:
+        self._value = value
+
+
 class ROITemplateManager:
     """Gerencia operações de templates de ROI."""
 
@@ -18,7 +29,14 @@ class ROITemplateManager:
         self.gui = gui_parent
         self.event_bus_v2 = event_bus_v2
         self._cache: list[dict[str, Any]] = []
-        self.template_var = StringVar(value="")
+        master = getattr(gui_parent, "root", None) or getattr(gui_parent, "tk", None)
+        if not isinstance(master, Misc):
+            # Fallback to a Tcl interpreter to avoid default-root failures in headless tests.
+            master = Tcl()
+        try:
+            self.template_var = StringVar(master=master, value="")
+        except TclError:
+            self.template_var = _FallbackStringVar("")
         # Delete button reference will be managed via gui or passed in?
         # The plan says self.delete_button = None initially.
         self.delete_button: ttk.Button | None = None

@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\asset_manager.py
-# hypothesis_version: 6.151.4
-
-[5.0, '-', 'NFKD', 'ROIs', '[^a-zA-Z0-9_-]+', 'analysis_profiles', 'animal', 'animal_id', 'arena', 'ascii', 'cobaia', 'created_at', 'criteria', 'custom', 'data', 'day', 'day_display_name', 'day_id', 'day_label', 'default', 'enabled', 'experiment_id', 'file', 'global', 'group', 'group_display_name', 'group_id', 'group_name', 'has_arena', 'has_complete_data', 'has_rois', 'has_summary', 'has_trajectory', 'ignore', 'includes_arena', 'includes_rois', 'individual', 'individuo', 'location', 'name', 'parquet_files', 'path', 'project', 'radius_cm', 'report_docx', 'roi_count', 'roi_templates', 'rois', 'slug', 'social', 'subject', 'subject_id', 'subject_label', 'summary', 'summary_excel', 'template', 'track_ids', 'trajectory', 'trajetória', 'updated_at', 'utf-8', 'video', 'video_name']

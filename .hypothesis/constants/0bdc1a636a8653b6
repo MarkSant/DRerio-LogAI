@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\main_view_model.py
-# hypothesis_version: 6.151.4
-
-[5.0, 'Erro Crítico', 'N/A', '_active_weight_name', '_detector', '_recording_service', '_use_openvino', 'active_weight', 'active_weight_name', 'active_zone_video', 'analysis_coordinator', 'camera', 'cancel_requested', 'capture_thread', 'config', 'detector_coordinator', 'detector_service', 'dict', 'error.occurred', 'global', 'hardware_coordinator', 'hardware_vm', 'init', 'is_checked', 'is_processing', 'kwargs_all', 'kwargs_get', 'message', 'new_manager', 'no_params', 'polygon_points', 'positional', 'positional_optional', 'project_coordinator', 'project_data', 'project_manager', 'project_path', 'recording_service', 'title', 'use_openvino', 'video_orchestrator', 'video_path', 'video_paths', 'weight_name', 'wizard_data', 'zone_data']

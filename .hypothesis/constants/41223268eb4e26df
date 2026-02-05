@@ -1,4 +1,0 @@
-# file: C:\Users\santa\OneDrive\UNESP\Pesquisa Canabidiol\Codigos_Programas\ZebTrack-AI\src\zebtrack\core\exceptions.py
-# hypothesis_version: 6.151.4
-
-['AnalysisError', 'ArduinoError', 'CameraAccessError', 'CameraError', 'CameraNotFoundError', 'ConfigurationError', 'DetectorError', 'FileOperationError', 'FrameProcessingError', 'HardwareError', 'ModelError', 'ModelLoadError', 'ParquetError', 'ProcessingError', 'ProjectError', 'ProjectLoadError', 'ProjectNotFoundError', 'ProjectSaveError', 'RecorderError', 'SettingsError', 'TrackingError', 'UIError', 'ValidationError', 'VideoNotFoundError', 'VideoReadError', 'VideoSourceError', 'VideoWriteError', 'WizardError', 'ZebTrackError', 'ZoneError']
