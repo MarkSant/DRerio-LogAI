@@ -28,6 +28,7 @@ AnalysisCoordinator summary video state.
 - [x] Make live analysis camera auto-detect run immediately for GUI tests.
 - [x] Update dependencies to clear pip-audit CVEs and add Python upper bound.
 - [x] Avoid Windows Codecov upload failures without tokens.
+- [x] Add Linux disk cleanup steps to prevent CI runner OOM.
 
 ### [2026-02-05] CI Fixes (ProcessingWorker + BaseUIComponent)
 
