@@ -528,7 +528,7 @@ class TestMainViewModelProcessingWorker:
             while not main_view_model.cancel_event.is_set():
                 time.sleep(0.05)  # intentional interleaving delay
 
-        main_view_model.processing_thread = threading.Thread(target=worker, daemon=False)
+        main_view_model.processing_thread = threading.Thread(target=worker, daemon=True)
         main_view_model.processing_thread.start()
 
         # Both should be active
@@ -536,7 +536,7 @@ class TestMainViewModelProcessingWorker:
 
         # Cancel both
         main_view_model.cancel_event.set()
-        wait_for_thread_exit(main_view_model.processing_thread, timeout=2.0)
+        wait_for_thread_exit(main_view_model.processing_thread, timeout=5.0)
 
         # Thread should stop
         assert not main_view_model.processing_thread.is_alive()

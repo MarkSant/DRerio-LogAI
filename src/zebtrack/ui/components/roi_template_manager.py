@@ -29,6 +29,7 @@ class ROITemplateManager:
         self.gui = gui_parent
         self.event_bus_v2 = event_bus_v2
         self._cache: list[dict[str, Any]] = []
+        self.template_var: StringVar | _FallbackStringVar
         master = getattr(gui_parent, "root", None) or getattr(gui_parent, "tk", None)
         if not isinstance(master, Misc):
             # Fallback to a Tcl interpreter to avoid default-root failures in headless tests.

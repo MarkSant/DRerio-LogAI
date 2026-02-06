@@ -27,6 +27,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo rm -rf /usr/share/swift /usr/local/share/powershell /usr/local/share/chromium
           sudo apt-get clean
           df -h
 
@@ -166,6 +167,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo rm -rf /usr/share/swift /usr/local/share/powershell /usr/local/share/chromium
           sudo apt-get clean
           df -h
 
