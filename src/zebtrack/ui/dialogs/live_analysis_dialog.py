@@ -419,8 +419,8 @@ class LiveAnalysisDialog(Dialog):
         )
         self.behavioral_config_widget.pack(fill="x", expand=True)
 
-        # Auto-detect on open
-        self.after(100, self._detect_cameras)
+        # Auto-detect on open (schedule immediately for test determinism)
+        self.after(0, self._detect_cameras)
 
         return self.camera_combo
 
