@@ -30,11 +30,7 @@ def test_refresh_complete_flag():
 
 
 def test_find_video_entry_by_path():
-    project_data = {
-        "batches": [
-            {"videos": [{"path": "/data/A.MP4"}, {"path": "/data/B.MP4"}]}
-        ]
-    }
+    project_data = {"batches": [{"videos": [{"path": "/data/A.MP4"}, {"path": "/data/B.MP4"}]}]}
 
     entry = VideoManager.find_video_entry(project_data, path="/data/a.mp4")
     assert entry is not None
@@ -52,10 +48,12 @@ def test_find_video_entry_by_experiment_id():
 def test_get_next_video():
     project_data = {
         "batches": [
-            {"videos": [
-                {"path": "one.mp4", "status": "processed"},
-                {"path": "two.mp4", "status": "pending"},
-            ]}
+            {
+                "videos": [
+                    {"path": "one.mp4", "status": "processed"},
+                    {"path": "two.mp4", "status": "pending"},
+                ]
+            }
         ]
     }
 

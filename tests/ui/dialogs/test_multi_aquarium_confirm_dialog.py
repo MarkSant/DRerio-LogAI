@@ -17,9 +17,7 @@ class _DummyIntVar:
 def _build_dialog(value: int) -> dialog_module.MultiAquariumConfirmDialog:
     dialog = cast(
         Any,
-        dialog_module.MultiAquariumConfirmDialog.__new__(
-            dialog_module.MultiAquariumConfirmDialog
-        ),
+        dialog_module.MultiAquariumConfirmDialog.__new__(dialog_module.MultiAquariumConfirmDialog),
     )
     dialog._aquarium_count = _DummyIntVar(value)
     dialog._on_single = MagicMock()

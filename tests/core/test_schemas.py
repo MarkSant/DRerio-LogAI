@@ -37,7 +37,7 @@ def test_roi_template_schema_rejects_partial_roi_keys():
         ROITemplateSchema(
             version=1,
             name="Test",
-            data={"roi_polygons": [[[0, 0], [1, 0], [1, 1]]] },
+            data={"roi_polygons": [[[0, 0], [1, 0], [1, 1]]]},
         )
 
 

@@ -77,6 +77,7 @@ def test_validate_invalid_log_level(mock_config_file):
         load_settings(config_path)
     assert "Invalid log level 'INVALID_LEVEL'" in str(excinfo.value)
 
+
 # =============================================================================
 # NEW TESTS: Extended coverage for logging_config module
 # =============================================================================

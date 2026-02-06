@@ -43,9 +43,7 @@ def test_on_confirm_sets_mode_and_invokes_callback():
     dialog._on_confirm()
 
     assert dialog.selected_mode == LiveCameraMode.SEQUENTIAL_AQUARIUM
-    cast(Mock, dialog.on_mode_selected).assert_called_once_with(
-        LiveCameraMode.SEQUENTIAL_AQUARIUM
-    )
+    cast(Mock, dialog.on_mode_selected).assert_called_once_with(LiveCameraMode.SEQUENTIAL_AQUARIUM)
     cast(Mock, dialog.destroy).assert_called_once()
 
 

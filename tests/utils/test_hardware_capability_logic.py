@@ -88,25 +88,40 @@ def test_calculate_capability_tier_thresholds():
 def test_calculate_max_aquariums():
     detector = _make_detector()
 
-    assert detector._calculate_max_aquariums(
-        MultiAquariumCapability.INSUFFICIENT, cpu_cores=4, total_memory_gb=8
-    ) == 0
+    assert (
+        detector._calculate_max_aquariums(
+            MultiAquariumCapability.INSUFFICIENT, cpu_cores=4, total_memory_gb=8
+        )
+        == 0
+    )
 
-    assert detector._calculate_max_aquariums(
-        MultiAquariumCapability.LIMITED, cpu_cores=3, total_memory_gb=6
-    ) == 1
+    assert (
+        detector._calculate_max_aquariums(
+            MultiAquariumCapability.LIMITED, cpu_cores=3, total_memory_gb=6
+        )
+        == 1
+    )
 
-    assert detector._calculate_max_aquariums(
-        MultiAquariumCapability.MODERATE, cpu_cores=4, total_memory_gb=8
-    ) == 2
+    assert (
+        detector._calculate_max_aquariums(
+            MultiAquariumCapability.MODERATE, cpu_cores=4, total_memory_gb=8
+        )
+        == 2
+    )
 
-    assert detector._calculate_max_aquariums(
-        MultiAquariumCapability.GOOD, cpu_cores=6, total_memory_gb=8
-    ) == 3
+    assert (
+        detector._calculate_max_aquariums(
+            MultiAquariumCapability.GOOD, cpu_cores=6, total_memory_gb=8
+        )
+        == 3
+    )
 
-    assert detector._calculate_max_aquariums(
-        MultiAquariumCapability.EXCELLENT, cpu_cores=10, total_memory_gb=20
-    ) == 5
+    assert (
+        detector._calculate_max_aquariums(
+            MultiAquariumCapability.EXCELLENT, cpu_cores=10, total_memory_gb=20
+        )
+        == 5
+    )
 
 
 def test_generate_recommendations_and_warnings():

@@ -285,11 +285,7 @@ class TestDataValidationProperties:
 class TestNumericalStability:
     """Property-based tests for numerical stability."""
 
-    @given(
-        value=st.floats(
-            min_value=-1e4, max_value=1e4, allow_nan=False, allow_infinity=False
-        )
-    )
+    @given(value=st.floats(min_value=-1e4, max_value=1e4, allow_nan=False, allow_infinity=False))
     @settings(max_examples=50, database=None)  # database=None to avoid cached failures
     def test_polygon_centroid_handles_large_values(self, value):
         """Polygon centroid should handle coordinate values reliably.
@@ -315,11 +311,7 @@ class TestNumericalStability:
         assert math.isclose(cx, expected, rel_tol=1e-4, abs_tol=1e-6)
         assert math.isclose(cy, expected, rel_tol=1e-4, abs_tol=1e-6)
 
-    @given(
-        small=st.floats(
-            min_value=1e-10, max_value=1e-5, allow_nan=False, allow_infinity=False
-        )
-    )
+    @given(small=st.floats(min_value=1e-10, max_value=1e-5, allow_nan=False, allow_infinity=False))
     @settings(max_examples=30)
     def test_polygon_centroid_handles_small_values(self, small):
         """Polygon centroid should handle very small coordinate values."""

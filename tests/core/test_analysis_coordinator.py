@@ -282,8 +282,9 @@ class TestAnalysisCoordinatorProcessSummaryVideo(unittest.TestCase):
         settings = Mock()
         self.project_manager.resolve_results_directory.return_value = Path("/tmp/results")
 
-        with patch("os.path.exists", return_value=True), patch(
-            "pandas.read_parquet", return_value=pd.DataFrame()
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("pandas.read_parquet", return_value=pd.DataFrame()),
         ):
             state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
 
@@ -312,9 +313,11 @@ class TestAnalysisCoordinatorProcessSummaryVideo(unittest.TestCase):
             polygon=[], roi_polygons=[], roi_names=[], roi_colors=[]
         )
 
-        with patch("os.path.exists", return_value=True), patch(
-            "pandas.read_parquet", return_value=pd.DataFrame({"x": [1]})
-        ), patch("zebtrack.utils.video.get_video_dimensions", return_value=None):
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("pandas.read_parquet", return_value=pd.DataFrame({"x": [1]})),
+            patch("zebtrack.utils.video.get_video_dimensions", return_value=None),
+        ):
             state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
 
         assert state == "skipped"
@@ -343,8 +346,9 @@ class TestAnalysisCoordinatorProcessSummaryVideo(unittest.TestCase):
             roi_colors=[],
         )
 
-        with patch("os.path.exists", return_value=True), patch(
-            "pandas.read_parquet", return_value=pd.DataFrame({"x": [1]})
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("pandas.read_parquet", return_value=pd.DataFrame({"x": [1]})),
         ):
             state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
 
@@ -377,9 +381,11 @@ class TestAnalysisCoordinatorProcessSummaryVideo(unittest.TestCase):
         )
         self.project_manager.get_metadata_for_experiment.return_value = {"experiment_id": "video"}
 
-        with patch("os.path.exists", return_value=True), patch(
-            "pandas.read_parquet", return_value=pd.DataFrame({"x": [1]})
-        ), patch("zebtrack.core.analysis_coordinator.Reporter") as reporter_mock:
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("pandas.read_parquet", return_value=pd.DataFrame({"x": [1]})),
+            patch("zebtrack.core.analysis_coordinator.Reporter") as reporter_mock,
+        ):
             reporter_instance = reporter_mock.return_value
             state, msg, path, changed = self.coordinator._process_summary_video(video, settings)
 

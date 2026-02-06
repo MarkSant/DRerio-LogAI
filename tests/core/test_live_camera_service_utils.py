@@ -74,9 +74,7 @@ def test_threadsafe_properties_round_trip(live_camera_service):
 def test_on_disconnect_user_action_sets_state(live_camera_service):
     live_camera_service._camera_disconnected = True
 
-    live_camera_service._on_disconnect_user_action(
-        {"action": "resume", "experiment_id": "exp1"}
-    )
+    live_camera_service._on_disconnect_user_action({"action": "resume", "experiment_id": "exp1"})
 
     assert live_camera_service._user_disconnect_action == "resume"
 
@@ -84,9 +82,7 @@ def test_on_disconnect_user_action_sets_state(live_camera_service):
 def test_on_disconnect_user_action_stop_calls_stop_session(live_camera_service):
     live_camera_service.stop_session = Mock()
 
-    live_camera_service._on_disconnect_user_action(
-        {"action": "stop", "experiment_id": "exp1"}
-    )
+    live_camera_service._on_disconnect_user_action({"action": "stop", "experiment_id": "exp1"})
 
     assert live_camera_service._user_disconnect_action == "stop"
     live_camera_service.stop_session.assert_called_once()

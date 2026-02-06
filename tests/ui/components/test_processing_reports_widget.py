@@ -64,6 +64,7 @@ def test_open_unified_opens_latest(widget, tmp_path, monkeypatch):
     first_utime = (first_time, first_time)
     second_utime = (second_time, second_time)
     import os
+
     os.utime(first, first_utime)
     os.utime(second, second_utime)
 

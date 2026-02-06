@@ -109,9 +109,7 @@ def test_apply_analysis_metadata_strings_updates_widget_vars():
 
     synchronizer._apply_analysis_metadata_strings("G1", "D2", "S3")
 
-    gui.analysis_metadata_var.set.assert_called_once_with(
-        "Grupo: G1 | Dia: D2 | Indivíduo: S3"
-    )
+    gui.analysis_metadata_var.set.assert_called_once_with("Grupo: G1 | Dia: D2 | Indivíduo: S3")
     analysis_display_widget.group_var.set.assert_called_once_with("Grupo: G1")
     analysis_display_widget.day_var.set.assert_called_once_with("Dia: D2")
     analysis_display_widget.subject_var.set.assert_called_once_with("Indivíduo: S3")

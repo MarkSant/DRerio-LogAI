@@ -153,9 +153,7 @@ def test_handle_external_trigger_no_arduino_publishes_error(
     )
 
 
-def test_handle_external_trigger_with_arduino_sets_pending(
-    coordinator, project_manager, event_bus
-):
+def test_handle_external_trigger_with_arduino_sets_pending(coordinator, project_manager, event_bus):
     project_manager.project_data = {"external_trigger_mode": True}
     context = {
         "folder_name": "D1_G1_S1",
@@ -174,9 +172,7 @@ def test_handle_external_trigger_with_arduino_sets_pending(
     assert Events.UI_SET_STATUS in calls
 
 
-def test_handle_external_trigger_disabled_returns_false(
-    coordinator, project_manager, event_bus
-):
+def test_handle_external_trigger_disabled_returns_false(coordinator, project_manager, event_bus):
     project_manager.project_data = {"external_trigger_mode": False}
 
     waiting = coordinator._handle_external_trigger({"folder_name": "D1"}, arduino_enabled=True)

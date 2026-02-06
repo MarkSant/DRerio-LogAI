@@ -95,9 +95,7 @@ def test_select_candidates_handles_invalid_paths(monkeypatch):
         {"path": None},
     ]
 
-    result = service.select_candidates(
-        all_videos, target_paths=[cast(str, None), "", "video.mp4"]
-    )
+    result = service.select_candidates(all_videos, target_paths=[cast(str, None), "", "video.mp4"])
 
     assert result.candidate_count == 1
     assert result.candidate_entries[0]["path"] == "video.mp4"
