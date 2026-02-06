@@ -273,7 +273,7 @@ jobs:
       - name: "Run GUI tests (Linux - with xvfb)"
         if: runner.os == 'Linux'
         run: |
-          xvfb-run --auto-servernum poetry run pytest -m gui -n0 --reruns 2 --reruns-delay 1 --cov=zebtrack --cov-report=xml:coverage-gui.xml --timeout=300 --timeout-method=thread
+          xvfb-run --auto-servernum poetry run pytest -m gui -n0 --reruns 2 --reruns-delay 1 --cov=zebtrack --cov-report=xml:coverage-gui.xml --cov-fail-under=30 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       - name: "Run tests (Windows)"

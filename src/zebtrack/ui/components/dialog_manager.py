@@ -17,6 +17,9 @@ import structlog
 
 log = structlog.get_logger()
 
+if not hasattr(os, "startfile"):
+    os.startfile = None  # type: ignore[attr-defined]
+
 
 class DialogManager:
     """Manages dialogs and user interactions for ApplicationGUI."""
@@ -830,7 +833,11 @@ class DialogManager:
         """
         try:
             if sys.platform.startswith("win"):
-                os.startfile(target_path)  # type: ignore[attr-defined]
+                startfile = getattr(os, "startfile", None)
+                if callable(startfile):
+                    startfile(target_path)
+                else:
+                    raise OSError("startfile not available")
             elif sys.platform == "darwin":
                 subprocess.Popen(["open", target_path])
             else:

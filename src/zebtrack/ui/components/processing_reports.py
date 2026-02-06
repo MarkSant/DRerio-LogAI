@@ -502,12 +502,9 @@ class ProcessingReportsWidget(BaseWidget):
 
         try:
             # Open file with default system application
-            if os.name == "nt":  # Windows
-                startfile = getattr(os, "startfile", None)
-                if callable(startfile):
-                    cast(Callable[[str], Any], startfile)(latest_file)
-                else:
-                    raise OSError("startfile not available")
+            startfile = getattr(os, "startfile", None)
+            if callable(startfile):
+                cast(Callable[[str], Any], startfile)(latest_file)
             elif os.name == "posix":  # macOS/Linux
                 import platform
                 import subprocess
@@ -516,6 +513,8 @@ class ProcessingReportsWidget(BaseWidget):
                     subprocess.call(["open", latest_file])
                 else:  # Linux
                     subprocess.call(["xdg-open", latest_file])
+            else:
+                raise OSError("startfile not available")
 
             log.info("processing_reports.open_unified.success", file=os.path.basename(latest_file))
         except Exception as e:

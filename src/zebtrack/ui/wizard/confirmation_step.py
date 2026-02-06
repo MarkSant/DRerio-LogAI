@@ -767,9 +767,17 @@ class ConfirmationStep(WizardStep):
 
         # Check if project directory already exists
         project_path = Path(location) / project_name
-        if project_path.exists():
-            if project_path.is_file():
-                return (False, f"Já existe um arquivo com esse nome em: {location}")
+        try:
+            project_exists = project_path.exists()
+        except OSError:
+            return (False, "Nome do projeto é muito longo para o sistema de arquivos.")
+
+        if project_exists:
+            try:
+                if project_path.is_file():
+                    return (False, f"Já existe um arquivo com esse nome em: {location}")
+            except OSError:
+                return (False, "Nome do projeto é muito longo para o sistema de arquivos.")
 
             # Allow reusing an empty directory so long as it has no content
             try:

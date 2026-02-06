@@ -6,6 +6,23 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-06] Ubuntu GUI CI Fixes (Open Path + Wizard Validation)
+
+**ID:** TASK-011
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** In Progress
+**Description:**
+Resolve Ubuntu GUI test failures in open-path utilities, processing report open
+behavior, and wizard project name validation handling.
+
+### Subtasks (TASK-011)
+
+- [x] Run impact analysis for affected UI and wizard files.
+- [x] Fix open-path handling for non-Windows test environments.
+- [x] Stabilize processing reports open action in headless Linux.
+- [x] Handle long project name validation without filesystem stat errors.
+- [x] Run focused GUI tests for affected modules.
+
 ### [2026-02-05] Windows CI Fixes (ROI Template + Analysis Coordinator)
 
 **ID:** TASK-010
