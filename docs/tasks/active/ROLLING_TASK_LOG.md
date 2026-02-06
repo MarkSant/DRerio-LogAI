@@ -6,6 +6,23 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-06] CI Security Fixes (Bandit + Codecov)
+
+**ID:** TASK-012
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** In Progress
+**Description:**
+Resolve Bandit security warnings (hashing, pickle usage, shell calls) and
+stabilize Codecov upload in Linux CI.
+
+### Subtasks (TASK-012)
+
+- [x] Run impact analysis for affected files.
+- [x] Replace weak hashes and add safe pickle guidance.
+- [x] Remove shell-based explorer calls.
+- [x] Adjust Codecov upload to avoid tokenless failures.
+- [x] Run focused tests for affected modules.
+
 ### [2026-02-06] Ubuntu GUI CI Fixes (Open Path + Wizard Validation)
 
 **ID:** TASK-011

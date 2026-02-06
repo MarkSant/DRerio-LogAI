@@ -279,7 +279,7 @@ def detect_hardware_profile() -> HardwareProfile:
 
     # Generate fingerprint for cache invalidation
     fingerprint_data = f"{profile.cpu_name}|{profile.gpu_name}|{profile.gpu_memory_gb}"
-    profile.fingerprint = hashlib.md5(fingerprint_data.encode()).hexdigest()[:12]
+    profile.fingerprint = hashlib.sha256(fingerprint_data.encode()).hexdigest()[:12]
 
     log.info(
         "hardware.profile_detected",

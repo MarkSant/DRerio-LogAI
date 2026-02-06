@@ -289,7 +289,7 @@ jobs:
         with:
           files: coverage-core.xml
           flags: core
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Upload Codecov gui coverage (Linux)
         if: runner.os == 'Linux'

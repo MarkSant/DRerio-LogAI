@@ -2011,11 +2011,15 @@ class ProjectViewManager:
         # Open directory in file explorer
         try:
             if sys.platform.startswith("win"):
-                os.startfile(results_dir)  # type: ignore[attr-defined]
+                startfile = getattr(os, "startfile", None)
+                if callable(startfile):
+                    startfile(results_dir)
+                else:
+                    raise OSError("startfile not available")
             elif sys.platform == "darwin":
-                os.system(f'open "{results_dir}"')
+                subprocess.run(["open", results_dir], check=False)
             else:  # Linux and other Unix-like systems
-                os.system(f'xdg-open "{results_dir}"')
+                subprocess.run(["xdg-open", results_dir], check=False)
         except Exception as exc:
             log.error("project_view.open_explorer_failed", path=results_dir, error=str(exc))
             self.gui.show_error("Erro", f"Não foi possível abrir a pasta:\n{exc}")
