@@ -6,6 +6,22 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-08] Reports Final Polish (Layperson Sections)
+
+**ID:** TASK-026
+**Agent:** GitHub Copilot (GPT-5.2)
+**Status:** Completed ✅
+**Description:**
+Finalize the two generated reports by adding layperson-focused explanations: (1) limitations and
+mitigations in real lab videos, (2) what is recorded for reproducibility/auditability, and (3) a small
+glossary of key AI terms. Re-export updated `.docx` artifacts.
+
+### Subtasks (TASK-026)
+
+- [x] Run impact analysis for both report Markdown sources.
+- [x] Add limitations/mitigations, reproducibility, and glossary sections.
+- [x] Re-run markdownlint and re-export DOCX with Pandoc.
+
 ### [2026-02-08] README Version History (v1–v3) + Fix Changelog Link
 
 **ID:** TASK-025

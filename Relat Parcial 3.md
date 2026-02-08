@@ -667,6 +667,47 @@ longitudinais e com pontos faltantes.
 - **Rastreabilidade completa**: os parâmetros usados (câmera, intervalos, filtros, regras de zona)
   ficam registrados, para que o resultado seja reprodutível e auditável.
 
+#### Limitações práticas (e como foram mitigadas)
+
+Em vídeos reais de laboratório, alguns fatores podem introduzir erros de medida se não forem
+controlados. No pipeline consolidado, esses riscos foram tratados com rotinas e parâmetros
+documentados:
+
+- **Reflexos, ondulação e bolhas** podem gerar detecções falsas ou perda momentânea do animal.
+  Mitigação: curadoria do dataset, registro de **confiança** e validações, além de ajustes de
+  thresholds quando necessário.
+- **Oclusões e proximidade com bordas/objetos** podem “esconder” parte do corpo e alterar a caixa
+  detectada. Mitigação: regras de inclusão em zonas (centroide/intersecção/sobreposição) e filtros
+  de suavização para reduzir tremor sem apagar movimentos reais.
+- **Variação de iluminação/câmera** entre dias pode alterar a aparência do animal. Mitigação:
+  parâmetros expostos e registrados, presets e validações de consistência.
+- **Instabilidade inicial do aquário** (interferência do operador/estabilização da água) pode
+  enviesar métricas do início da sessão. Mitigação: *offset* inicial configurável para ignorar frames
+  iniciais.
+
+#### Reprodutibilidade: o que exatamente fica registrado
+
+Para que outro pesquisador consiga reproduzir os resultados (ou para que o mesmo conjunto seja
+reprocessado meses depois), o sistema guarda, junto dos dados:
+
+- **Modelo/peso utilizado** e método (detecção vs segmentação) quando aplicável.
+- **Parâmetros de detecção e rastreamento** (ex.: confiança/NMS e configurações de associação).
+- **Calibração** pixel→cm e dimensões do aparato usadas na conversão.
+- **Regras de zonas** (AOIs/ROIs) e critério “dentro/fora” adotado, incluindo buffers/limiares.
+- **Parâmetros de processamento** (intervalos, FPS, *offset*) e filtros de trajetória.
+- **Logs com timestamps** (coordenadas + confiança), permitindo auditoria e checagem.
+
+#### Glossário rápido (leigo)
+
+- **IA / modelo**: um sistema que aprende padrões no vídeo para localizar o peixe.
+- **Treinamento**: etapa em que o modelo aprende a partir de muitos exemplos anotados.
+- **Anotação**: marcar manualmente onde o peixe está em cada imagem (base do treinamento).
+- **Detecção vs segmentação**: detecção usa “caixa”; segmentação usa “contorno/máscara”.
+- **Confiança**: quão segura está a IA de que aquilo é o peixe.
+- **Falso positivo / falso negativo**: detectar algo que não é peixe / deixar de detectar o peixe.
+- **Trajetória**: caminho do peixe ao longo do tempo (sequência de posições).
+- **Parâmetro**: um ajuste do “instrumento” que altera sensibilidade/robustez.
+
 ### 5.2 Evolução metodológica da análise estatística em R (ciclo 2025)
 
 No ciclo de 2025, consolidou-se uma mudança metodológica importante: a análise deixou de ser

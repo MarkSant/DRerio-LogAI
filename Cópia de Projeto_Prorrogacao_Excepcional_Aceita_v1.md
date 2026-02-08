@@ -218,6 +218,35 @@ validação e aplicabilidade em etologia e neuropsicofarmacologia.
 - Por que ajustes (parâmetros) existem e como eles se relacionam a problemas reais de laboratório
   (reflexos, baixa luz, oclusão, ruído), sem depender de programação.
 
+#### Limitações práticas (e como serão tratadas na validação)
+
+Para que o software seja publicável como método, é importante explicitar as limitações típicas de
+vídeos reais e como elas são mitigadas (evitando que artefatos virem “efeitos”):
+
+- **Reflexos/ondulação/bolhas** podem gerar detecções falsas ou perda temporária do animal.
+- **Baixa luminosidade e variação de iluminação** alteram o contraste do peixe e a estabilidade do
+  rastreio.
+- **Oclusões e cruzamentos** (em multi-animais) podem causar trocas de identidade.
+
+O plano de validação inclui testes em condições progressivamente mais difíceis e comparação entre
+configurações/métodos (detecção vs segmentação), com registro das escolhas e métricas de qualidade.
+
+#### Reprodutibilidade: o que fica registrado para auditoria e replicação
+
+O ZebTrack-AI salva, junto aos dados, os elementos necessários para reprocessar e auditar uma
+análise: versão do modelo/peso, parâmetros de detecção/rastreamento, calibração pixel→cm,
+regras de zonas e configurações de processamento. Isso permite que diferentes operadores do grupo
+utilizem o sistema mantendo o mesmo “protocolo digital”, reduzindo variabilidade de operador.
+
+#### Glossário rápido (leigo)
+
+- **Modelo (IA)**: sistema que aprende a localizar o peixe no vídeo.
+- **Treinamento**: aprender a partir de exemplos anotados.
+- **Anotação**: marcação manual do peixe nas imagens.
+- **Detecção/segmentação**: “caixa” vs “contorno/máscara”.
+- **Confiança**: o quão seguro o modelo está.
+- **Parâmetro**: ajuste que muda sensibilidade/robustez.
+
 ### 3.2 Identificação individual dos animais (rastreamento longitudinal e persistência de identidade)
 
 Para ampliar a capacidade científica do ZebTrack-AI, será desenvolvida uma camada que permita
