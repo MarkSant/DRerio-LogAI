@@ -270,6 +270,23 @@ Além dos itens acima, o desenvolvimento do software envolveu um conjunto de fun
 inovações práticas (com impacto direto na rotina do laboratório) que viabilizam a execução
 contínua de experimentos, minimizando intervenção manual e reduzindo fontes de erro:
 
+#### Nota explicativa (para leitores sem formação em programação/IA): por que “criar funções” importa
+
+Em software científico, “funções” e “módulos” não são apenas detalhes de programação: eles são a
+forma de transformar um procedimento de laboratório em um **protocolo digital padronizado**.
+Na prática, cada função do sistema corresponde a uma etapa bem definida do método (capturar vídeo,
+detectar o animal, reconhecer quando entrou/saiu de uma área, registrar o instante, exportar dados,
+gerar relatórios). Isso foi necessário porque:
+
+- **O experimento é longitudinal (7 dias)** e mudanças sutis (ex.: aumento de *freezing*, redução de
+  velocidade, evitação de cor) precisam ser comparáveis dia a dia, grupo a grupo.
+- **O zebrafish é sensível a condições ambientais** (luz, reflexo, ondulação, ruído), e qualquer
+  inconsistência na medição pode parecer “efeito do tratamento” quando na verdade é artefato.
+- **Padronizar em funções permite checagens automáticas** (validações, logs, limites), reduzindo
+  erros que ocorreriam se cada sessão dependesse de passos manuais repetidos.
+- **Facilita auditoria e replicação**: outro pesquisador consegue repetir o mesmo fluxo e obter saídas
+  com o mesmo formato, com os mesmos parâmetros registrados.
+
 - **Padronização e rastreabilidade do dado:** organização automática de pastas por sessão,
 animal e dia; nomes consistentes; associação explícita entre vídeo, logs e parâmetros.
 - **Definição e persistência das áreas de interesse (AOIs):** arquivos contendo coordenadas do
@@ -293,6 +310,25 @@ expõe parâmetros críticos do rastreio, do processamento e das variáveis comp
 permite calibrar o método às condições reais do laboratório (vídeos longos, reflexos, variabilidade
 de iluminação, instabilidade inicial da água), reduzindo variância de operador e aumentando
 reprodutibilidade.
+
+##### Explicação em linguagem simples: por que expor parâmetros (em vez de “caixa-preta”)
+
+O rastreio por IA funciona como um **instrumento de medida**. Assim como um microscópio tem foco,
+zoom e iluminação ajustáveis, a IA também possui “ajustes” que mudam sua sensibilidade. Expor esses
+parâmetros na interface foi necessário para:
+
+- **Evitar erros de medição que viram falsas conclusões**: se o modelo “perde” o peixe por reflexo,
+  a trajetória fica com “buracos” e isso pode inflar/deflacionar velocidade e *freezing*.
+- **Adaptar o método a mudanças inevitáveis do ambiente**: pequenas variações de câmera, altura,
+  nitidez, luz e ondulação mudam a aparência do animal no vídeo.
+- **Documentar e congelar o método**: cada análise salva os parâmetros usados; isso impede que o
+  resultado dependa de “quem mexeu” no dia e permite repetir exatamente o mesmo processamento.
+- **Separar ajuste técnico de decisão científica**: os parâmetros existem para calibrar o instrumento
+  (reduzir falsos positivos/negativos), não para “forçar um resultado”.
+
+Em resumo: os parâmetros expostos tornam o método **mais controlável, mais transparente e mais
+reprodutível**, que é exatamente o tipo de exigência metodológica em estudos de estresse/memória,
+onde os efeitos comportamentais podem ser pequenos e cumulativos.
 
 Em termos práticos, foram implementados e consolidados na UI:
 
@@ -621,6 +657,15 @@ O fluxo operacional consolidado no período seguiu as etapas:
 3) Conversão/extração de variáveis comportamentais gerais e por cor.
 4) Análise estatística em R com modelos mistos (LMM/GLMM), adequados a dados
 longitudinais e com pontos faltantes.
+
+#### Leitura guiada (não técnica): o que esse pipeline garante para o experimento
+
+- **Do vídeo para números confiáveis**: a IA converte o movimento do animal em coordenadas no tempo;
+  depois essas coordenadas viram variáveis (distância, velocidade, *freezing*, tempo por área/cor).
+- **Controle de qualidade embutido**: junto com coordenadas, registra-se “confiança” da detecção.
+  Isso permite identificar trechos duvidosos (reflexos/oclusões) e reduzir viés por falhas de rastreio.
+- **Rastreabilidade completa**: os parâmetros usados (câmera, intervalos, filtros, regras de zona)
+  ficam registrados, para que o resultado seja reprodutível e auditável.
 
 ### 5.2 Evolução metodológica da análise estatística em R (ciclo 2025)
 

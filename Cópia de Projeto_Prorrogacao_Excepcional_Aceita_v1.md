@@ -57,6 +57,28 @@ previsíveis no início**, mas que se mostraram essenciais para alcançar um ní
 compatível com a complexidade do comportamento do zebrafish e com o padrão de publicação
 internacional esperado. Entre essas demandas, destacam-se:
 
+**Explicação em linguagem simples (para avaliadores/leitores não técnicos): por que “funções” e
+parâmetros expostos importam**
+
+O ZebTrack-AI não é apenas um “programa que encontra o peixe”: ele funciona como um
+**instrumento de medição do comportamento**. Para que um instrumento seja publicável e utilizável
+por outros laboratórios, duas coisas são indispensáveis:
+
+1) **Procedimentos padronizados (funções/módulos)**: transformar etapas repetidas do método em
+rotinas consistentes (captura do vídeo → rastreio → detecção de eventos → logs → exportações).
+Isso reduz erro humano e garante que o mesmo protocolo digital seja aplicado em diferentes dias,
+animais e operadores.
+
+2) **Parâmetros de controle visíveis e registrados**: a IA tem “ajustes” que mudam sua sensibilidade
+(por exemplo, o quão rigorosa ela é para aceitar uma detecção). Em comportamento, pequenos erros
+de rastreio podem parecer efeito do tratamento (ex.: aumentar ou reduzir artificialmente velocidade,
+tempo parado/*freezing* ou tempo em zonas). Ao expor parâmetros na interface e salvar os valores
+usados, o método fica **transparente, auditável e reprodutível**.
+
+Isso se conecta diretamente ao zebrafish: é um modelo altamente sensível a luz, reflexos, ondulação
+e condições ambientais. Sem controle fino e registro dos parâmetros, resultados podem variar por
+“condições do vídeo”, e não por fenômenos neurocomportamentais reais.
+
 **Esclarecimento (alinhamento com o estado atual do software):** ao longo do período regular,
 foram implementadas e consolidadas melhorias que inicialmente eram tratadas como “mudanças”
 de escopo (ex.: automação de partes do fluxo, melhorias de interface e módulos de processamento).
@@ -187,6 +209,14 @@ No período prorrogado, o software será consolidado como método científico po
 
 O objetivo é permitir um artigo focado no software como ferramenta científica, com resultados de
 validação e aplicabilidade em etologia e neuropsicofarmacologia.
+
+#### Complemento (público-alvo leigo): o que será explicado no artigo/documentação
+
+- O que significa “treinar” IA (mostrar milhares de exemplos anotados para o modelo aprender o
+  padrão do peixe, como um treinamento supervisionado).
+- O que são métricas como precisão/recall/mAP e por que elas importam para não “perder o animal”.
+- Por que ajustes (parâmetros) existem e como eles se relacionam a problemas reais de laboratório
+  (reflexos, baixa luz, oclusão, ruído), sem depender de programação.
 
 ### 3.2 Identificação individual dos animais (rastreamento longitudinal e persistência de identidade)
 
