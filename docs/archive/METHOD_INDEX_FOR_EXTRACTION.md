@@ -238,4 +238,3 @@ ProjectViewManager
 ├─ depende de: ValidationManager, DialogManager (algumas views)
 └─ depende de: models, project_manager
 ```
-

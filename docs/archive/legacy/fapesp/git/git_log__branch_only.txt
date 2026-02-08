@@ -1,0 +1,44 @@
+﻿2026-02-06 d3130a4  (HEAD -> fix/ci-remote-issues, origin/fix/ci-remote-issues) Fix mypy type error, flaky threading test, and disk space cleanup
+2026-02-06 51694f3  Fix ruff format, camera GC-safety, and xfail cleanup
+2026-02-05 9cbd793  Fix bandit findings and Codecov upload
+2026-02-05 44040b2  Fix GUI open-path handling and CI coverage gate
+2026-02-05 a58a18d  Free Linux CI disk space
+2026-02-05 382d2d6  Fix CI audit and GUI detection
+2026-02-05 9ec3019  Normalize copilot context output
+2026-02-05 a097959  Fix CI thresholds and headless ROI vars
+2026-02-05 3a2e77b  fix: stabilize CI tests and artifacts
+2026-02-04 71fdd38  chore: fix lint, docs, and tests
+2026-02-03 3fdbb4b  docs: synchronize instruction files with AGENTS.md updates and reinforce XML vocabulary conventions
+2026-02-03 044ee65  chore: update copilot context generator
+2026-02-03 8e30af4  Refactor documentation links, update API documentation build instructions, and enhance type hints
+2026-02-02 680e760  docs: update agent instruction paths to reflect new Di├ítaxis structure
+2026-02-02 1b7c618  docs: unify documentation to Di├ítaxis and fix quality issues; code: resolve linting/typing errors and unify developer tools
+2026-02-02 0c73da4  fix(ci): update cache directories for Windows and set environment variables fix(tests): enhance test cases with mock objects and type hints fix(docs): update Sphinx configuration for type aliases fix: improve type annotations across various modules
+2026-02-02 70764f8  Sync remaining working tree changes
+2026-02-02 efec8be  Fix lint warnings and rerun CI tests
+2026-02-02 ee310ed  fix(ci): add env cache dirs for windows
+2026-02-02 2b749c9  fix(ci): normalize cache paths by OS
+2026-02-02 8607ca7  fix(ci): bootstrap poetry before cache
+2026-02-01 ce1bb87  fix(ci): use setup-python poetry cache
+2026-02-01 bde0c34  Ensure cache paths exist in test job
+2026-02-01 2142d1f  Force Poetry venv creation on CI
+2026-02-01 7f03f0b  Fix cache path warnings in test job
+2026-02-01 e5b432e  Fix CI workflow cache and artifacts
+2026-02-01 4c8196e  Remove obsolete error log files related to UI coordinator and video processing orchestrator errors. These files contained outdated error reports that are no longer relevant to the current codebase.
+2026-02-01 85d387a  fix: improve settings handling and type hints across multiple modules; enhance error handling and default values
+2026-02-01 1a1afe7  Fix CI lag warning and observer timing
+2026-02-01 d3bac9d  fix: enhance CI configuration for caching and Windows compatibility; improve data handling in processing coordinator; update tests for resource management
+2026-02-01 8634aaa  fix: update CI configuration to remove .venv caching; enhance Windows compatibility in file handling
+2026-02-01 8c9509a  fix: update type hints in video_orchestrator and behavioral_config_widget for improved clarity
+2026-02-01 7908a37  fix: update MyPy exclusion patterns and improve session stop handling; enhance type coercion in behavioral config widget
+2026-02-01 44139ed  fix: exclude specific directories from MyPy type checking to streamline error resolution
+2026-02-01 f0cf34e  chore: sync copilot context
+2026-02-01 0082cea  refactor: Simplify lambda expressions in UI and video processing components for improved readability
+2026-02-01 72896c7  Refactor video processing callbacks and error handling
+2026-02-01 40a0e74  feat: Introduce new Recorder, VideoSource, Camera, AnalysisCoordinator, and ProcessingCoordinator components, along with extensive MyPy type checking analysis files.
+2026-02-01 b858bf4  refactor: Extract UI state management and introduce new orchestrators, event system, and UI components for improved modularity.
+2026-02-01 1f52112  feat: Implement the foundational application architecture, introducing new UI components, core services, and various coordinators.
+2026-01-31 18203c4  feat: Implement new core video processing and detection pipeline with multi-aquarium support, add translation compilation, and configure CI.
+2026-01-31 8d01f28  feat: introduce Pydantic models for wizard data validation, new core managers, a base tracker, detector, and processing worker, along with CI/build scripts and translation files.
+2026-01-31 1175514  refactor: update Copilot context for ProcessingCoordinator to reflect new parameter handling methods.
+2026-01-31 4c1bcbf  feat: Implement a comprehensive analysis and processing pipeline with new UI wizards, core services, and testing infrastructure.

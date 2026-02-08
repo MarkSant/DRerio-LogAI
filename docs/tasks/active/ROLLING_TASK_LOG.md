@@ -6,6 +6,228 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-08] Historical Archive Organization + Annex Link Updates
+
+**ID:** TASK-024
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Organize historical FAPESP artifacts into a single archive area under
+`docs/archive/legacy/fapesp/` (reports, proposals, manuscripts, finance, notebooks) and update
+the annex pointers in `Relat Parcial 3.md` to reference the new locations. Add an index file
+(`docs/archive/legacy/fapesp/README.md`) to make the archive structure self-explanatory.
+
+### Subtasks (TASK-024)
+
+- [x] Run impact analysis for `Relat Parcial 3.md` and the rolling task log.
+- [x] Update report annex section to point to the new archive paths.
+- [x] Add `docs/archive/legacy/fapesp/README.md` as an archive index.
+- [x] Move `git_*.txt` evidence exports from repo root to `docs/archive/legacy/fapesp/git/`.
+
+### [2026-02-08] Report Corrections (Current State: Lateral + Auto-AOI + Tkinter) + Word Export
+
+**ID:** TASK-023
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Correct `Relat Parcial 3.md` to reflect the current implementation/training status (perspectiva
+lateral already trained, AOI/ROI auto-detection already implemented, UI already built with
+Tkinter). Rephrase these items as robustness/validation and dataset-variability work (including
+FullHD improvements for individualization) and regenerate the Word export.
+Also add explicit remaining deliverables: public-facing documentation for the target audience,
+cross-tool validation against other programs/pipelines (when applicable), and final publication
+packaging/dissemination.
+Also clarify the financial linkage language (“credits” vs “compute units”) so the spend narrative
+matches the engineering iteration loop.
+
+### Subtasks (TASK-023)
+
+- [x] Run impact analysis for `Relat Parcial 3.md`.
+- [x] Patch extension-justification bullets to distinguish current capabilities vs future improvements.
+- [x] Update the 12-month cronogram lines to “aprimoramento/validação” (not “implementação”).
+- [x] Add deliverables: target-audience documentation, cross-tool validation, and final publication.
+- [x] Clarify “créditos adicionais” vs “unidades computacionais” linkage to iteration/compute.
+- [x] Explicitly name tools in spend narrative (ChatGPT/Claude/Copilot/Colab).
+- [x] Export updated report to `exports/word/Relat Parcial 3.docx`.
+- [x] Archive older DOCX export copies under `exports/word/archive/`.
+- [x] Unify extension proposal into a single prorrogação document; archive consolidated MD/DOCX.
+
+### [2026-02-08] README Enrichment (Wizard + Tabs + Weights + det-vs-seg)
+
+**ID:** TASK-022
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Update `README.md` to reflect the verified application behavior described in the expanded
+partial report: dynamic wizard flows (live vs pre-recorded), tab-by-tab UI responsibilities,
+weight management (seg vs det defaults) and OpenVINO conversion/caching semantics, and a
+clear methodological explanation of det vs seg trade-offs. Also remove/repair outdated README
+claims (Python version badge and non-existent CLI subcommands).
+
+### Subtasks (TASK-022)
+
+- [x] Run impact analysis for `README.md` and the rolling task log.
+- [x] Verify CLI reality in `src/zebtrack/__main__.py` (logging-only args) and correct README.
+- [x] Patch README with wizard step detail, UI tabs tour, weights/OpenVINO notes, det-vs-seg notes.
+
+### [2026-02-08] Report Enrichment (Wizard + Project Tabs + Weights + det-vs-seg)
+
+**ID:** TASK-021
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Expand `Relat Parcial 3.md` to accurately and technically document the engineering density
+that was still underrepresented: (i) the dynamic project-creation Wizard (step-by-step, per
+project type), (ii) pre-recorded vs live project windows with tab-by-tab functional coverage,
+(iii) model weight management with independent defaults for segmentation vs detection and
+OpenVINO conversion/caching, and (iv) methodological implications of detection vs segmentation
+trade-offs for ROI logic, stability, and computational cost.
+
+### Subtasks (TASK-021)
+
+- [x] Run impact analysis for the edited Markdown files.
+- [x] Cross-check wizard steps, tabs, and weights logic in code to avoid generic prose.
+- [x] Patch report section 3.3 with new subsections (wizard/tabs/weights/det-vs-seg).
+- [x] Extend section 3.4 chronology to include wizard/import and dual-method/weights phases.
+
+### [2026-02-08] Report Enrichment (UI Parameterization + In-App Explanations)
+
+**ID:** TASK-020
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Strengthen `Relat Parcial 3.md` by explicitly documenting the app’s differentiator: extensive
+UI-exposed parameters with contextual help (tooltips/help labels), validated saving, and
+persistent overrides via `config.local.yaml` for reproducible experimental control.
+
+### Subtasks (TASK-020)
+
+- [x] Run impact analysis for the edited Markdown files.
+- [x] Inventory remaining UI parameter controls and in-app explanations.
+- [x] Patch report sections 3.3/3.4 to include an exhaustive, faithful list.
+- [x] Mark task as completed after review.
+
+### [2026-02-06] Proposal Consolidation (Mudança + Prorrogação) + Word Export
+
+**ID:** TASK-019
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Explain why two proposal documents existed (mudança/extensão vs prorrogação excepcional) and
+consolidate both into a single improved proposal document. Export the unified Markdown file to
+Word (.docx) using Pandoc.
+
+### Subtasks (TASK-019)
+
+- [x] Run impact analysis for task log and related docs.
+- [x] Create a unified proposal Markdown with merged content and consistent structure.
+- [x] Export the unified proposal to `.docx` under `exports/word/`.
+
+### [2026-02-06] Report Patch (R Methodology Memorial + References)
+
+**ID:** TASK-018
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Integrate the “Memorial de Evolução Metodológica em R (ciclo 2025)” into `Relat Parcial 3.md`
+as a dedicated methodological subsection under section 5, renumbering the results subsection
+accordingly. Expand the report and proposal bibliographies with the most relevant sources
+already used in earlier drafts (AI-driven zebrafish phenotyping, foundational tracking/ethology)
+and add core R/GLMM tooling references (diagnostics and marginal means).
+
+### Subtasks (TASK-018)
+
+- [x] Run impact analysis for edited Markdown files.
+- [x] Add R methodology memorial subsection and update Sumário numbering.
+- [x] Expand “Referências/Bibliografia” with the most relevant sources.
+
+### [2026-02-06] Exceptional Extension Proposal (Accepted) — New Document
+
+**ID:** TASK-017
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Create a new exceptional extension (prorrogação excepcional) proposal document, submitted and
+accepted, to be delivered alongside `Relat Parcial 3.md`. The new proposal mirrors the
+structure of the existing extension/mudança document and frames the additional 12-month period
+as essential to publish the software appropriately and implement/validate new ethology-focused
+capabilities (individual identification, gregarious/social interaction metrics, and night-period
+behavior analysis).
+
+### Subtasks (TASK-017)
+
+- [x] Run impact analysis for the rolling task log and template docs.
+- [x] Draft the new proposal document in Portuguese, matching the established mold.
+- [x] Include a 12-month execution cronogram and scientific/technical justification.
+
+### [2026-02-06] Report Enrichment (Functions/Innovations + IA Annotation Work)
+
+**ID:** TASK-015
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Enrich `Relat Parcial 3.md` with a more detailed description of software functions and
+innovations across the program’s evolution, emphasizing how AI (YOLO) underpins the
+experimental method and documenting the manual workload of dataset annotation/curation.
+
+### Subtasks (TASK-015)
+
+- [x] Run impact analysis for edited files.
+- [x] Expand IA section with annotation/curation effort and methodological role.
+- [x] Expand software section with concrete functions and lab-impact innovations.
+
+### [2026-02-06] Report Addendum (Chronological Software Evolution Section)
+
+**ID:** TASK-016
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Add section “3.4 Evolução do desenvolvimento do programa (funções e inovações)” to
+`Relat Parcial 3.md`, and update the Sumário to include it.
+
+### Subtasks (TASK-016)
+
+- [x] Run impact analysis for edited files.
+- [x] Update Sumário to include section 3.4.
+- [x] Add chronological evolution narrative with AI emphasis.
+
+### [2026-02-06] Report Rebuild (Mirror Partial 1–2 + Integrate TEPT Draft)
+
+**ID:** TASK-014
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Rebuild and substantially expand `Relat Parcial 3.md` to mirror the structure and
+detail level of Partial Reports 1–2, integrating content from the extension/mudança
+document and the TEPT model validation draft, while preserving previously validated
+Roboflow metrics and 2025 spend totals.
+
+### Subtasks (TASK-014)
+
+- [x] Run impact analysis for edited files.
+- [x] Extract canonical structure/wording patterns from Partial Reports 1 and 2.
+- [x] Integrate TEPT validation draft results into the narrative.
+- [x] Integrate Cannabis Full Spectrum (CBD) draft results into the narrative.
+- [x] Rewrite/expand `Relat Parcial 3.md` with aligned sectioning and strong justification.
+- [x] Quick markdown sanity pass.
+
+### [2026-02-06] Report Update (Git History + Roboflow + Spend CSV)
+
+**ID:** TASK-013
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
+**Status:** Completed ✅
+**Description:**
+Update `Relat Parcial 3.md` with verified Roboflow metrics, validated 2025 spend
+totals from the attached CSV, and corrected repository timeline/branch framing
+based on exported git logs.
+
+### Subtasks (TASK-013)
+
+- [x] Run impact analysis for edited files.
+- [x] Summarize 2025 spend totals from CSV for citation.
+- [x] Patch report sections 2.2 and 3.1–3.3 with validated numbers.
+- [x] Quick markdown sanity pass (no broken headings/lists).
+
 ### [2026-02-06] CI Security Fixes (Bandit + Codecov)
 
 **ID:** TASK-012

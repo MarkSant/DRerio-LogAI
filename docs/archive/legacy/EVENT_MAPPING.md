@@ -185,4 +185,3 @@ It specifically addresses the "11 Component -> GUI calls" identified in the arch
 | (new) `update_processing_mode` | `ZONE_PROCESSING_MODE_CHANGED` | 1 | ✅ New Dec 2025 |
 
 **Total Mapped Calls**: 16
-

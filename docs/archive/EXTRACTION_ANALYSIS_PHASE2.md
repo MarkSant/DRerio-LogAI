@@ -262,4 +262,3 @@ As seguintes classes de diálogos já existem em `ui/dialogs/`:
 - SingleVideoConfigDialog
 
 DialogManager deve gerenciar a abertura dessas dialogs.
-

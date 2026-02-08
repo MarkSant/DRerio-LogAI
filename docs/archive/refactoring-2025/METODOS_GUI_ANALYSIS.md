@@ -1295,4 +1295,3 @@ Métodos que poderiam ser refatorados para um WidgetFactory:
 - Processadores de dados (23, 24, 28, 34)
 - Builders complexos de hierarquia (15, 16, 17, 25)
 - Handlers de eventos especializados (2, 5, 12, 26)
-

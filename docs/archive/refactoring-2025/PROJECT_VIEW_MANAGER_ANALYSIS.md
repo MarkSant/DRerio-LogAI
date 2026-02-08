@@ -1835,4 +1835,3 @@ Estes 34 métodos formam o núcleo da lógica de visualização e atualização 
 5. **Utilitários diversos** (8 métodos)
 
 Um novo componente `ProjectViewManager` consolidaria estes métodos em um único ponto de controle, reduzindo o tamanho da classe `ApplicationGUI` e melhorando a manutenibilidade.
-

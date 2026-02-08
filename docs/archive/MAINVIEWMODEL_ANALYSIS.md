@@ -534,4 +534,3 @@ Each coordinator should:
 - Publish events to ui_event_bus
 - Update state via state_manager (not directly)
 - Have comprehensive tests
-

@@ -307,4 +307,3 @@ def handle_roi_import_workflow(self, file_path: str) -> dict | None:
 
     return data
 ```
-

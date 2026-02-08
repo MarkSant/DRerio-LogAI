@@ -1,0 +1,622 @@
+﻿2026-01-30 5773f17  (origin/main, origin/HEAD, main) Merge pull request #338 from MarkSant/fix-mypy-ci-opencv-1516458248776637113
+2026-01-28 696d61e  fix(types): resolve 100 mypy errors across 29 files (5% progress)
+2026-01-28 7bb2c45  feat: Implement new analysis components, processing coordinator, and a UI dialog, with updated dependencies and multi-aquarium tests.
+2026-01-28 f1b1cf0  feat: Implement dedicated services and coordinators to consolidate project workflow, processing, and analysis logic.
+2026-01-28 12072fa  feat: add `jules_setup.sh` for automated agent environment setup and remove hardcoded Poetry virtualenv configuration from `setup.sh`.
+2026-01-28 ce63127  chore: update setup script to install Poetry via pipx and explicitly configure in-project virtual environments.
+2026-01-28 b3a69ac  Merge branch 'main' of https://github.com/MarkSant/ZebTrack-AI
+2026-01-28 44ab38b  feat: add `AGENTS.md` and `jules_setup.sh` to provide context and automate environment setup for the Google Jules Agent, and update `GEMINI.md` to reference the new agent documentation.
+2026-01-28 e376b5f  feat: Implement the main application GUI, incorporating an event-driven architecture and various new UI components and dialogs.
+2026-01-28 7f4b936  feat: implement LiveBatchCoordinator for unified report generation from live sessions and configure GitHub Actions CI/CD and Dependabot.
+2026-01-28 838cea8  refactor(core): consolidate ZoneManager extraction and resolve conflicts
+2026-01-28 690e5aa  Merge pull request #334 from MarkSant/refactor-analysis-aggregation-11883467981978204480
+2026-01-28 df3f2a4  Merge pull request #333 from MarkSant/optimize-roi-bbox-intersects-12517221014336523388
+2026-01-28 f444e23  Merge pull request #332 from MarkSant/fix-processing-report-callback-11654308476207871871
+2026-01-28 4338f63  Merge pull request #331 from MarkSant/fix/roi-scaling-logic-14851477825630366575
+2026-01-28 b9620f3  Merge pull request #329 from MarkSant/chore/video-processing-refresh-event-374627605318342370
+2026-01-28 de507d7  Merge pull request #330 from MarkSant/fix/calibration-retrieval-3563496038933832601
+2026-01-04 b5753eb  feat(docs): Add comprehensive guide for AI investigation agent in ZebTrack-AI
+2026-01-04 ad3070b  Add Impact Analysis Protocol and Impact Analyzer Tool
+2026-01-04 b044a74  chore(gitattributes): Add .gitattributes file to normalize line endings for text files
+2026-01-04 5af4212  feat(benchmark): Implement adaptive hardware benchmarking for OpenVINO optimization
+2026-01-04 e0d1514  fix(tests): Improve synchronization in GUI state observer tests to handle async updates
+2026-01-04 b158d48  feat(logging): Enhance logging configuration for test environment and suppress console output
+2026-01-04 f101b2c  feat(v2.3.1): Live Camera improvements and bug fixes
+2026-01-04 0931545  fix(hardware): improve GPU detection and RAM classification
+2026-01-03 b901cc9  fix: Remove emojis from copilot context script for Windows compatibility
+2026-01-03 59714ff  docs: Document LiveBatchCoordinator v2.3.0 DI patterns
+2026-01-03 1f6379e  feat: Activate LiveBatchCoordinator for unified batch reporting (v2.3.0)
+2026-01-01 418e3bb  fix(ui): Add Live Camera events to UIEvents enum
+2026-01-01 fcd843d  fix: Live Camera v2.2.0 audit fixes + pre-existing test bugs
+2025-12-30 2f14159  chore: normalize copilot context paths
+2025-12-30 570cee6  chore: update copilot context
+2025-12-30 d883d60  fix: live analysis canvas and recording metadata
+2025-12-30 9a5d586  Merge pull request #325 from MarkSant/revert-324-ruff-lint-fixes-6358270829343960975
+2025-12-30 73b26b1  Merge pull request #324 from MarkSant/ruff-lint-fixes-6358270829343960975
+2025-12-30 29685bd  Fix GUI/Slow tests failures and disable local pre-commit checks (pytest, ruff, api)
+2025-12-29 d8accd4  feat: Add new UI components, core coordinators, project management, data transformation, and update documentation.
+2025-12-28 4655888  Enhance multi-aquarium reporting and metrics in ZebTrack-AI
+2025-12-28 fbbf326  fix: stabilize multi-aquarium batch processing
+2025-12-24 1a86844  feat: Introduce new wizard workflow, refactor project and video management, and add dedicated UI view components.
+2025-12-23 7a36be0  feat: Introduce core components for project and processing management, live camera services, UI event dispatching, and dialogs, alongside a camera detection test script.
+2025-12-23 31b5fdc  fix: Multi-aquarium audit Phase 2 - idempotency, warnings, finalization
+2025-12-23 28902b3  fix: Resolve critical multi-aquarium audit issues (Phase 1)
+2025-12-23 9e0d950  Merge pull request #323 from MarkSant/feature/geotaxis-thigmotaxis-configurable
+2025-12-23 21be27d  feat: Fix simultaneous multi-aquarium report generation and enhance output detection logic
+2025-12-23 3bff586  feat: Add tracking parameters to DetectorState for improved detection accuracy
+2025-12-23 07c1d42  Merge pull request #322 from MarkSant:feature/tracking-params-ui
+2025-12-22 a42d82c  feat: Implement multi-aquarium reporting and UI enhancements
+2025-12-22 334e6e0  feat: Add frame crop box to analysis results and related components
+2025-12-22 26d8351  feat: implement complete multi-aquarium processing pipeline with per-aquarium calibration, partitioned detection, and UI updates.
+2025-12-21 7617133  Update detector and processing coordinator
+2025-12-21 4a444b3  Merge pull request #321 from MarkSant/feature/multi-aquarium-v2-improvements
+2025-12-13 7a32b3c  (tag: pre-multi-aquarium-v3.0) Implement feature X to enhance user experience and optimize performance
+2025-12-13 3a4084c  fix: Clean up whitespace in reporter and processing coordinator files
+2025-12-13 8073c82  feat: Add support for detector parameters in project report export
+2025-12-13 4cdafb7  feat: Implement unified report generation fixes and enhancements
+2025-12-11 da1259e  Add comprehensive tests for processing coordinator, video processing service, detector, recorder, metrics cache, project manager, and UI components
+2025-12-11 55298f7  Enhance error handling in StateSynchronizer and ZoneControlsWidget for safer UI state resets
+2025-12-11 66e9662  Merge branch 'main' of https://github.com/MarkSant/ZebTrack-AI
+2025-12-10 2ec5fb4  Improve processing workflows and stabilize tests
+2025-12-10 e7693d2  feat: Enhance canvas management with zone copy/paste/delete functionality
+2025-12-09 3259fe8  feat: Enhance inference performance with half precision and configurable image size
+2025-12-09 7f1660f  fix(visualization): remove unnecessary whitespace in VisualizationGenerator class
+2025-12-09 481f82f  fix(visualization): correct trajectory plot coordinate system and report layout
+2025-12-08 5fd815d  feat: Implement core processing, project management, and UI view models.
+2025-12-05 8037c64  feat: establish core video processing pipeline with detection, ByteTrack, and Pydantic-based settings.
+2025-12-04 807b609  feat: Add comprehensive tracking system documentation and implement new ByteTracker with critical association threshold fix.
+2025-12-03 806bf87  refactor: remove unnecessary whitespace in configuration and documentation files
+2025-12-03 54f53cc  Add technical reference documentation for ZebTrack-AI and implement tests for hybrid matching
+2025-12-03 bb5b876  refactor: remove unused processing mode events from hardware and session coordinators
+2025-12-02 680d931  Refactor code structure for improved readability and maintainability
+2025-12-02 4f3fc16  refactor: complete vulnerability correction phases 1-4
+2025-12-02 38d937b  Merge pull request #318 from MarkSant/audit-integration-map
+2025-12-02 a47b1c1  feat: Enhance video analysis and overlay features
+2025-11-28 f187187  feat: Implement core detection, tracking, analysis, UI, and testing infrastructure for ZebTrack-AI.
+2025-11-28 789fe80  feat: Implement core ZebTrack-AI system with comprehensive frame management, detection, processing, and analysis capabilities.
+2025-11-28 8945763  feat: Refactor video processing to use multiprocessing for improved performance and responsiveness
+2025-11-28 e130db0  Refactor MainViewModel into Project, Analysis, and Hardware ViewModels
+2025-11-27 161df7c  chore: remove temporary test output and error log files
+2025-11-27 66bfc72  feat: Implement Ultralytics detector with live camera service and UI for detection and tracking.
+2025-11-27 f884f6b  feat: Enhance MainViewModel with new model and video processing events
+2025-11-27 437894b  Merge pull request #317 from MarkSant/fix-openvino-segmentation
+2025-11-27 01c6531  feat: Refactor EventDispatcher and UI components for improved event handling and UI updates
+2025-11-26 2cc70ad  Merge pull request #316 from MarkSant/fix-regression-audit
+2025-11-26 1858781  feat: Enhance project view and live analysis dialogs
+2025-11-24 68f634a  Merge pull request #315 from MarkSant/claude/expand-readme-v4-014nsXRPUwVmwqcStNotFcdh
+2025-11-24 e9ee7e7  Refactor tests to replace time.sleep() with wait helpers for improved reliability
+2025-11-24 26b3c81  Refactor: Enhance observer handling in StateManager for non-blocking UI; add timeout to thread shutdown; optimize video frame processing; implement threading stress tests for BYTETracker
+2025-11-23 8b2d0dc  Refactor integration tests for HardwareCoordinator and related components
+2025-11-23 dcf1a1c  refactor: clean up whitespace in project view manager and test files for improved readability
+2025-11-23 daab98a  Refactor and remove obsolete tests; update event handling and GUI components
+2025-11-23 d85e810  Merge pull request #314 from MarkSant/improve-headless-testing
+2025-11-23 95f9f10  refactor: clean up whitespace in ProjectViewManager methods for improved readability
+2025-11-23 18a5845  feat: Enhance EventDispatcher and ProjectViewManager with new event handling
+2025-11-23 cee21b6  refactor: enhance camera resource management and introduce VideoContext for video capture metadata
+2025-11-23 32e454e  refactor: streamline initialization and event handling in core components
+2025-11-23 0b045ba  Merge pull request #313 from MarkSant/phase3-analysis-migration-gui-cleanup
+2025-11-22 47fd8c6  feat: Add documentation for v4.0 breaking changes and migration guide for the new event-driven architecture.
+2025-11-22 f1a7c80  Merge pull request #312 from MarkSant/claude/uicoordinator-prototype-agent2-01Dmm1RnegS9mcfLAimvBzHt
+2025-11-22 a5576ba  Merge branch 'main' of https://github.com/MarkSant/ZebTrack-AI into main
+2025-11-22 35fcc01  feat: Introduce ProjectViewManager for UI project view management, navigation, and data refreshing.
+2025-11-22 bebeeb1  feat: Enhance EventDispatcher with unregister_handler and get_registered_count methods; add legacy project overview panel helper in ApplicationGUI
+2025-11-22 47413b5  Merge pull request #306 from MarkSant/fix-arduino-lock-and-integration-tests
+2025-11-22 d4c1ac9  feat: Introduce MainViewModel to orchestrate application flow, manage dependencies, and handle project and video processing workflows.
+2025-11-22 93cfaf4  Refactor: Update tests for ApplicationBootstrapper and related components after significant refactoring
+2025-11-22 d9d81e5  Refactor: Enhance video metadata handling and update related components
+2025-11-22 13ea75d  Merge pull request #305 from MarkSant/refactor/finalize-mainviewmodel-gui
+2025-11-20 bb5eaad  Merge pull request #301 from MarkSant/setup-script-configuration
+2025-11-20 7577127  feat(refactor): apply MainViewModel Phase 3 super coordinators
+2025-11-19 15d9e76  docs: Add comprehensive Phase 2 completion report
+2025-11-19 39cfd48  feat(refactor): Complete Phase 2 - Remove all 86 facade methods
+2025-11-19 ecab876  feat(refactor): Complete Phase 2 infrastructure for facade removal
+2025-11-19 7cfcda7  Refactor code structure for improved readability and maintainability
+2025-11-19 24a766a  Merge pull request #300 from MarkSant/claude/finish-viewmodel-dependencies-011uwKKUv5uZjRERxGV6QXHA
+2025-11-18 815de29  Refactor validation analysis and quick reference documentation; remove obsolete files
+2025-11-18 c1f6d4c  refactor(phase3): code quality improvements and test refactoring
+2025-11-17 1ae7af0  refactor(phase2): architectural improvements and state management unification
+2025-11-17 60b2f5a  feat(arch): implement Phase 2.1 - Inversion of Control (View-ViewModel)
+2025-11-17 2600e77  feat(audit): implement Phase 1 critical fixes (P0)
+2025-11-17 7ceeb32  feat: Add Gemini workflows for invoking, reviewing, triaging, and scheduled issue management
+2025-11-14 b881bf7  feat: add comprehensive documentation and unit tests for orchestrators
+2025-11-14 8f3e9f6  chore: reorganize sprint docs and cleanup artifacts
+2025-11-14 6231a7c  Merge pull request #298 from MarkSant/claude/extract-mainviewmodel-logic-017SK4UL51U3j6nV8XPKLEQg
+2025-11-14 582de66  Merge pull request #297 from MarkSant/claude/access-voice-feature-01XPHyf4NAi2ivKGLoDUCYjq
+2025-11-14 4426b2e  Merge pull request #295 from MarkSant/claude/investigate-improvements-011CV4PN89wZE2jjM8zYsmSJ
+2025-11-12 4225cb0  (tag: v3.0.0) Merge pull request #294 from MarkSant/claude/implement-feature-011CV4MHjyMQHtWEqMMgwLun
+2025-11-12 5ba8c9d  Merge pull request #292 from MarkSant/claude/implement-camera-live-fixes-011CV2djwZTBipDWkVTDWN37
+2025-11-11 0b22509  Merge pull request #291 from MarkSant/claude/investigate-existing-flows-011CV1PcUMkL3s7bim2M4n1n
+2025-11-11 0fdf232  refactor(camera): clean up whitespace in initialization and test methods
+2025-11-11 30258e0  feat(camera): add is_opened() method and remove unnecessary confirmation dialog
+2025-11-10 7f57f2e  Merge pull request #288 from MarkSant/claude/fix-black-screen-box-011CV1BUp9GQibr8K6gm8jzX
+2025-11-10 47f2d26  fix: remove unnecessary whitespace in SplashScreen and RecorderFactory classes for cleaner code
+2025-11-10 8e48aee  feat: implement splash screen and lazy-loading for Recorder to enhance startup experience
+2025-11-10 af2cbc4  fix: remove unnecessary whitespace in _update_window_title method
+2025-11-10 ee3e857  refactor: streamline event bus handling and optimize hardware detection functions
+2025-11-10 7b8e1c8  feat: add new Bash commands for file deletion and selection in settings
+2025-11-10 c1f9e55  test: fix 13 test failures across dependency injection and mock configuration
+2025-11-10 5570740  refactor: remove outdated documentation and test execution summaries
+2025-11-10 e9f7cf6  docs: Add comprehensive refactoring implementation analysis report
+2025-11-10 b32d1ce  Merge pull request #287 from MarkSant/claude/user-documentation-guide-011CUywNCFD99KJEhTsPD7Sw
+2025-11-10 b54a7cf  Merge pull request #286 from MarkSant/claude/curate-documentation-index-011CUywR2VAsaar8MgBAvGGh
+2025-11-10 75888f4  Merge pull request #282 from MarkSant/claude/add-performance-profiling-011CUyu6EdemRMpc5i7SjEDP
+2025-11-10 35a8db4  Merge pull request #283 from MarkSant/claude/update-architecture-docs-011CUyu9r5CAvHSYChv4Gzs7
+2025-11-10 9d7abba  Merge pull request #280 from MarkSant/claude/increase-test-coverage-80-011CUyMpoYkbxHZ9A6uTiNkS
+2025-11-10 8c5724a  Merge pull request #278 from MarkSant/claude/improve-docstrings-011CUyKMiXA8gJEQ2mxu1az4
+2025-11-09 f43a07d  Merge pull request #277 from MarkSant/claude/fix-deprecation-warnings-011CUyKKpPZVZzk1HSTabDgm
+2025-11-09 f040472  Merge pull request #275 from MarkSant/claude/extract-analysis-coordinator-011CUyHLcpb4LMUsCX1FTyrT
+2025-11-09 4a7259b  Merge pull request #273 from MarkSant/claude/extract-project-workflow-adapter-011CUyFYCcf8NT1LDKUyRgRe
+2025-11-09 5ae24cc  Merge pull request #272 from MarkSant/claude/extract-dialog-manager-011CUyEZDB4Wv7KtC8vqeZ1g
+2025-11-09 0d89bda  Merge pull request #270 from MarkSant/claude/ci-cd-timeout-fixes-011CUyAktLbZnJFxHzcW3num
+2025-11-09 482826a  Merge pull request #269 from MarkSant/claude/settings-injection-refactor-011CUyAiMX8g8HmgFSPpASeE
+2025-11-09 2cf6bd1  Merge pull request #267 from MarkSant/claude/add-resource-context-managers-011CUyAfAWGVw7iRGsaBFjCm
+2025-11-09 e069fa1  Merge pull request #265 from MarkSant/claude/modernize-exception-handling-011CUyAczAMko6UJZme7uNLd
+2025-11-09 291e6a6  Merge pull request #263 from MarkSant/claude/custom-exception-hierarchy-011CUy8SrmMnsUdcSTtiYsGS
+2025-11-09 9f0be26  style: Clean up whitespace and formatting across multiple agent instruction files
+2025-11-09 59bdd73  docs: Create complete agent execution instruction files
+2025-11-09 1b21fff  chore: Apply formatter changes and remove temporary test files
+2025-11-09 8e8d37c  docs: Add comprehensive parallel refactoring plan and agent orchestration guide
+2025-11-09 c0da5b7  fix: lower coverage threshold from 70 to 60 for test runs
+2025-11-09 4e4e6a9  refactor: fix all ruff E501 errors and remove obsolete tests
+2025-11-09 4ae63ef  docs: update AI assistant configs with v2.1 pytest fixes
+2025-11-09 e1d783a  test: remove obsolete tests and fix critical ruff errors
+2025-11-09 d7f6af0  (tag: v2.1.0) docs: update documentation for v2.1.0 release + code formatting
+2025-11-09 2372a4e  fix: resolve critical pytest hang on Windows causing system freezes
+2025-11-09 8434220  Fix threading test scaffolding and suppress Tk teardown errors
+2025-11-09 dd57b42  Fix recorder schema and quiet Tk teardown
+2025-11-09 4caf484  Merge pull request #262 from MarkSant/claude/execute-phase-4-task-4-4-011CUxFQ28u88hg9d8VUBWmp
+2025-11-09 5e2b663  Merge pull request #261 from MarkSant/claude/execute-phase-4-task-4-3-011CUxFP9kWNpNcCPUmNYKAo
+2025-11-09 e5c5b85  Merge pull request #260 from MarkSant/claude/execute-phase-4-task-4-2-011CUxFMahPBpVH2zXuV6iY7
+2025-11-09 d013f09  Merge pull request #259 from MarkSant/claude/execute-phase-4-task-4-1-011CUxFLSAQk2rUgwhfkPZoZ
+2025-11-09 fe4ba13  Merge pull request #257 from MarkSant/claude/fix-pytest-warnings-011CUwbsfG8qSjrDvgBnw7Ap
+2025-11-09 41c16f7  Merge pull request #256 from MarkSant/claude/execute-task-3-6-011CUwNRZf4F1jp1AcGgSPPJ
+2025-11-09 54d890e  Merge pull request #255 from MarkSant/claude/execute-phase-3-task-3-5-011CUwNQKmrEnjxhAgMnfy4K
+2025-11-08 c1deecd  Merge pull request #254 from MarkSant/claude/execute-phase-3-task-3-4-011CUwNNGKS2JFpL6jK6J1En
+2025-11-08 ff4fee5  Merge pull request #253 from MarkSant/claude/execute-phase-3-task-3-3-011CUwNLfn23A71QcXXdLfJ1
+2025-11-08 7b0a3f3  Merge pull request #252 from MarkSant/claude/execute-phase-3-task-3-2-011CUwNJ9ptmsLPjte9bSeMJ
+2025-11-08 4f0b7f1  Merge pull request #251 from MarkSant/claude/execute-phase-3-task-3-1-011CUwNGEAYArMGbR8GQobfB
+2025-11-08 b89e3ed  Merge pull request #245 from MarkSant/claude/execute-phase-2-task-2-5-011CUpfWTeFCihydjDDaLdgp
+2025-11-08 0d23e7c  Merge pull request #244 from MarkSant/claude/execute-phase-2-task-2-4-011CUpfURs2fiXQwDqqNvLqy
+2025-11-08 39a3202  Merge pull request #243 from MarkSant/claude/execute-phase-2-task-2-3-011CUpfQDnePA1fZYbX6FV8T
+2025-11-08 36bb085  Merge pull request #246 from MarkSant/claude/merge-code-review-fixes-011CUpfLXfKH6aqpLq4VuLDe
+2025-11-08 dcdb2d8  Merge pull request #242 from MarkSant/claude/execute-phase-2-task-2-2-011CUpfLXfKH6aqpLq4VuLDe
+2025-11-08 c8967c3  Merge pull request #241 from MarkSant/claude/refactor-phase-3-011CUqM8chFGwTgqffN29xGw
+2025-11-05 ca20e9b  Merge pull request #240 from MarkSant/claude/execute-phase-2-task-2-1-011CUpfHz8CVSQQ22hDf9cdD
+2025-11-05 5f0c5b9  Merge pull request #237 from MarkSant/claude/fix-post-refactor-bugs-011CUpYC3FjTK9gyrCusQND3
+2025-11-05 4ee03fd  Merge pull request #236 from MarkSant/claude/update-repository-documentation-011CUpWMmkcgv4t7iiZQ6m3o
+2025-11-05 25374a0  feat: Add LiveCameraService for live camera analysis with preview window
+2025-11-01 6d6ecc6  docs: add workstation setup guide
+2025-11-01 7837417  chore: remove obsolete documentation files
+2025-11-01 8e69df9  feat: implement GitHub Copilot optimization system
+2025-11-01 4393d00  feat: add timing logs for service initializations and pass settings_obj to GUI
+2025-11-01 1fb96f2  fix(docs): remove unnecessary blank lines in benchmark examples
+2025-11-01 7703247  chore: add pytest-benchmark support and fix deprecation warnings
+2025-11-01 b2e68b5  docs: Fix Sphinx documentation warnings and errors
+2025-11-01 1b56556  fix: corrige valida├º├úo de schemas Pydantic v2 e testes de ROI templates
+2025-11-01 6d63b71  (tag: v2.2.0-alpha) fix(tests): Corrigir testes de an├ílise com imports e par├ómetros faltando
+2025-11-01 950ac28  Merge pull request #235 from MarkSant/copilot/generate-api-documentation-sphinx
+2025-11-01 09bfa08  Merge pull request #234 from MarkSant/copilot/add-hypothesis-to-project
+2025-11-01 8003641  Merge pull request #233 from MarkSant/copilot/fix-markdown-linting-errors
+2025-11-01 71cdba6  Merge pull request #232 from MarkSant/copilot/refactor-mainviewmodel
+2025-11-01 c8335ed  Merge pull request #231 from MarkSant/copilot/add-tests-for-analysis-service
+2025-11-01 3b6d745  Merge pull request #230 from MarkSant/copilot/fix-deadlock-in-observers
+2025-11-01 7709635  fix(docs): improve formatting and clarity in TEST_FIXES_NOV_2025.md fix(analysis): enhance error message formatting in BehavioralAnalyzer fix(analysis): refine deprecation warning message in Reporter class fix(core): add noqa comment to suppress complexity warning in create_project method fix(tests): update type hint for instances_created in MockRecorderClass and improve test docstring
+2025-11-01 2a0b022  docs: update TEST_FIXES_NOV_2025.md with Phase 2 GitHub CI fixes
+2025-11-01 9aaae29  fix: resolve GitHub CI test failures in main entry point tests
+2025-11-01 94b2b43  fix: achieve 100% test success rate (1022/1022 tests passing)
+2025-11-01 d408b85  fix(settings): Add additional Bash commands for enhanced functionality
+2025-11-01 346c12f  fix(tests): Fix 6 additional tests (detector property, Arduino, on-close)
+2025-11-01 f4df079  fix(tests): Fix 13 failing tests after architectural refactoring
+2025-11-01 e6dde1d  fix(tests): Remove unnecessary blank lines in test files for cleaner code
+2025-11-01 2019609  fix(tests): Configure logging mocks for entry point tests
+2025-11-01 8474cec  fix(tests): Update wizard tests to use correct WizardService API
+2025-11-01 43d3f3b  fix(tests): Update logging tests to use new configure_logging_levels API
+2025-11-01 5f19f1a  fix(tests): Update test_empty_trajectory_dataframe to expect ValueError
+2025-11-01 d92fd2f  fix(tests): Disable logging during tests to prevent Mock comparison errors
+2025-11-01 194344c  test: fix CalibrationData and Unicode wizard tests
+2025-11-01 78d27db  test: fix ExperimentalDesignData Pydantic field names in wizard edge cases
+2025-11-01 530e610  test: Fix 4 reporter visualization tests (heatmap + trajectory plot)
+2025-11-01 87cca71  test: Fix 168 tests across 6 files - achieve 90% pass rate (919/1022)
+2025-10-31 9c21008  test: Add sample video file for testing purposes
+2025-10-31 0bcba92  Merge pull request #229 from MarkSant/claude/increase-test-coverage-011CUgCnevfbRb7N82R4WLVR
+2025-10-31 7390021  refactor(docs): Clean up whitespace in architecture and state management documents
+2025-10-31 87b43a5  feat(fase8): Limpeza, documenta├º├úo e testes DI
+2025-10-31 2aa56e8  refactor(phase7): Remove wizard_adapter technical debt and consolidate logic in ProjectWorkflowService
+2025-10-31 c91b8d7  feat: Complete Phase 6 UI componentization and fix test suite
+2025-10-31 76fdd82  refactor(ui): extract ConfigEditorWidget - complete FASE 6 componentiza├º├úo
+2025-10-31 a4291a3  docs: update copilot instructions and fix remaining singleton import
+2025-10-31 5854862  Merge pull request #228 from MarkSant/claude/refactor-di-architecture-011CUfeRKwMRFBKXUgG8t7iL
+2025-10-31 61a577b  refactor(detect): streamline detection logic by removing unnecessary context handling
+2025-10-31 28dbd1b  refactor(detector): remove unnecessary whitespace for cleaner code
+2025-10-31 724c2db  feat(FASE 5): Centralizar l├│gica de filtragem de plugin no Detector
+2025-10-31 7355810  feat(phase4): Complete MVVM unidirectional data flow implementation
+2025-10-31 d89b827  refactor(state_manager): clean up docstrings for state retrieval methods
+2025-10-31 c80024c  feat(phase4): implement MVVM unidirectional data flow and StateManager optimization
+2025-10-31 52bb088  feat(FASE 3): Complete VideoProcessingService implementation and delegation
+2025-10-31 f0d386f  Passo 4: Documentar padr├Áes de delega├º├úo Service Layer
+2025-10-31 b531581  Passo 3: Remover m├®todos *_ORIGINAL_MOVED_TO_SERVICE
+2025-10-31 00c72a2  Passo 1: Atualizar testes de overlay integration
+2025-10-31 4e6b347  FASE 3 (Completa): Refatora├º├úo MainViewModel para delegar ao VideoProcessingService
+2025-10-31 de44e22  FASE 3 (Parcial): Refatora├º├úo VideoProcessingService - Parte 2
+2025-10-31 d6f8476  FASE 3 (Parcial): Refatora├º├úo VideoProcessingService - Parte 1
+2025-10-31 31a47a4  fix: correct formatting in documentation by removing unnecessary newlines
+2025-10-31 4bdc0c1  docs: Add comprehensive agent playbook for ZebTrack-AI
+2025-10-31 d50948a  docs: Add development efficiency toolkit
+2025-10-31 c0da0f5  fix: ensure proper formatting in configuration files by adding missing newlines
+2025-10-31 23540dc  fix: update pytest configuration to disable coverage and avoid conflicts
+2025-10-31 b424963  chore: reduce coverage threshold from 35% to 30%
+2025-10-31 5a6b600  fix: resolve CI errors - remove unused imports and add @pytest.mark.gui to event bus tests
+2025-10-31 4a750a4  refactor(tests): migrate tests from unittest to pytest and simplify setup
+2025-10-31 3663b3e  refactor: consistent exception handling and structured error information
+2025-10-31 c438a15  Merge pull request #227 from MarkSant/claude/refactor-di-architecture-011CUfJA8NpzdstNcw25WXzx
+2025-10-31 7835ab5  Merge pull request #226 from MarkSant/claude/zebtrack-dependency-injection-refactor-011CUdRvGMqiZ1zNngkqvJF1
+2025-10-30 424c260  fix(lint): resolve 11 ruff errors in scripts, service, and tests
+2025-10-29 ec0414d  docs: update CLAUDE.md and CHANGELOG.md with Phase 4 & 5 implementations
+2025-10-29 62aec31  refactor(tests): remove redundant skipped test from event bus migration
+2025-10-29 9f06580  perf(wizard): add hardware detection caching to WizardService (Phase 5.4)
+2025-10-29 20f27d5  test(wizard): add comprehensive E2E tests for WizardService integration (Phase 5.1)
+2025-10-29 8607024  refactor(ui): extract all dialog classes from gui.py to separate modules
+2025-10-29 cf7a348  feat(wizard): implement Phase 4 architecture refactoring with service layer
+2025-10-29 f7167ef  fix: resolve WindowsPath JSON serialization errors in project persistence
+2025-10-29 4faef11  feat(wizard): complete Phase 4 - UX refinements and comprehensive documentation
+2025-10-25 fffa727  feat: Enhance wizard UI and functionality
+2025-10-24 e3d6262  feat(wizard): enhance ConfirmationStep validation for live projects without videos
+2025-10-24 7fa3985  feat(wizard): enhance ConfirmationStep with scrollable summary and improved layout feat(wizard): update ImportConfigStep for better UI layout and usability feat(wizard): improve WizardDialog layout for better step navigation feat: add git command permissions to settings
+2025-10-24 ed50fec  docs: comprehensive documentation of LIVE wizard improvements (Phases 0-3)
+2025-10-24 d0943d3  feat(wizard): enhance CalibrationStep with comprehensive tooltips
+2025-10-24 01d83d8  feat(wizard): add real-time inline validation highlighting to ModelSelectionStep
+2025-10-24 54821e5  feat(wizard): enhance ConfirmationStep summary with all Phase 0-1 parameters
+2025-10-24 c9fcec2  feat: add restore defaults buttons in wizard steps (Phase 2.1)
+2025-10-24 4463b5e  feat: enhance live project wizard with experimental design and advanced settings
+2025-10-24 f069276  feat: consolidate redundant tabs into unified Processing and Reports tab
+2025-10-24 006d4df  Improve pipeline selection handling
+2025-10-24 e6477cd  Clarify smoothing and offset tips
+2025-10-24 89df153  Ensure project overview legend shows readiness icons
+2025-10-23 9880cd1  Tweak zone controls layout widths
+2025-10-23 7b0c901  feat: split global and project calibration flows
+2025-10-21 b8056b7  Align analysis view and clean lint
+2025-10-21 8a2b284  feat: enhance project metadata handling and simplify directory structure for analysis artifacts
+2025-10-21 5d25602  Refactor diagnostic helpers and stabilize tests
+2025-10-21 c4eea83  Prevent outputs on cancelled analysis
+2025-10-21 c4c6b71  feat: enhance cancellation handling in analysis workflow and update recorder stop method
+2025-10-21 b7a2ed9  Fix analysis view navigation for single video
+2025-10-21 fd9be89  Lower coverage gate to 35 percent
+2025-10-21 823788d  chore: update documentation for ZebTrack-AI Agent Guide
+2025-10-21 af14995  feat: add cleanup script for orphaned ROI templates and enhance template management
+2025-10-21 38a9080  fix: suprimir warning pkg_resources e compactar formato de logs
+2025-10-21 746bd1b  fix: remove excessive logging and improve frame scaling for analysis view
+2025-10-21 d8696f7  fix: corrigir 3 problemas em ROI templates e edi├º├úo de v├®rtices
+2025-10-21 bb5a64b  fix: corrigir context menu e sele├º├úo autom├ítica de template ├║nico
+2025-10-21 ba1f2c0  fix: atualizar link do badge de CI para o reposit├│rio correto
+2025-10-21 08a72e6  fix: corrigir clique no canvas para adicionar pontos durante desenho
+2025-10-21 db571aa  feat: adicionar edi├º├úo interativa de v├®rtices e corre├º├Áes UX no desenho
+2025-10-21 08f58ff  feat: adicionar sistema de undo/redo e corrigir clipping no desenho de zonas
+2025-10-21 1bd17ac  fix: corrigir AttributeError em BaseWidget.emit_event
+2025-10-21 6244be4  fix: corrigir 8 funcionalidades quebradas no sistema de eventos de zona
+2025-10-21 aa34498  refactor(logging): Update log levels for project path validation and detector state saving
+2025-10-21 4be99a1  fix: corrigir largura do painel esquerdo na an├ílise de v├¡deo ├║nico
+2025-10-21 72c865f  Reorganiza layout da janela de configura├º├úo em duas colunas
+2025-10-21 384f96c  refactor(logging): Ajustar pad_event para 45 para melhor alinhamento
+2025-10-21 06fae8a  refactor(logging): Reduzir espa├ºamento de logs para formato mais compacto
+2025-10-21 fe65897  feat(logging): Unificar formato de logs e reduzir espa├ºamento
+2025-10-21 643141a  Melhora explica├º├Áes de suaviza├º├úo de trajet├│ria para leigos
+2025-10-21 a9ff78a  fix(gui): Converter DiagnosticProgressDialog de modal para n├úo-modal
+2025-10-21 f223d14  feat(Phase 7-8): Hardware auto-detection, GPU display, and weight type management
+2025-10-20 afcb7f5  fix: corrige EventBus.publish() e melhora robustez de ├¡cones
+2025-10-20 3e1cb44  fix(tests): resolve TclError in GUI tests by enforcing serial execution
+2025-10-20 7b44578  test: Increase coverage to 44% with new io/video_source and detector zone tests
+2025-10-20 213e9f0  Add GitHub Copilot settings for enhanced code generation and testing
+2025-10-20 273d807  Add comprehensive tests for ROI analyzer metrics and behavior analysis functions
+2025-10-20 d4a1a20  Enhance integration tests with additional fixtures and improve error handling in video processing tests
+2025-10-20 4367b7d  Merge pull request #225 from MarkSant/fix-attribute-error
+2025-10-20 60d0d46  Merge pull request #224 from MarkSant/fix-attribute-error
+2025-10-20 b31e03d  Merge pull request #223 from MarkSant/fix-attribute-error
+2025-10-20 50fb432  fix: Update permissions in settings.local.json to include additional Bash commands
+2025-10-20 fcf002d  feat: Implement DRerio LogAI visual identity and branding
+2025-10-20 4d8d844  style: Fix formatting and remove unused imports
+2025-10-20 faaceea  fix(tests): Update integration tests to use new Recorder and StateManager APIs
+2025-10-20 c37407b  docs(phase-5.2): Add comprehensive documentation and Windows test fixes
+2025-10-20 d6dd08b  - Create comprehensive ERROR_HANDLING.md documentation   - Update ARCHITECTURE.md with state, schema, errors, logging   - Update WORKFLOWS.md with EventBus consolidation and event registry   - Clean up 9 temporary artifacts and obsolete scripts   - Fix README.md line-length inconsistency   - Update .gitignore with local config patterns   - Align CI/CD coverage threshold to 70%   - Format all code with ruff (13 files)   - Fix 5 manual linting errors
+2025-10-19 5cd9c01    Implements comprehensive integration testing for core ZebTrack-AI   components:
+2025-10-19 77cb07d    feat(tests): Add critical end-to-end integration tests
+2025-10-19 93fda8e  Merge pull request #222 from MarkSant/feature/configurable-logging
+2025-10-19 6c39972  Merge pull request #221 from MarkSant/refactor/test-fixtures
+2025-10-19 61c42b8  Merge pull request #220 from MarkSant/feat/event-bus-migration
+2025-10-19 17fb181  Merge pull request #219 from MarkSant/hotfix/coverage-increase
+2025-10-19 31baff6  Merge pull request #218 from MarkSant/fix/memory-leak-and-worker-test
+2025-10-19 c2df83c  Merge pull request #217 from MarkSant/fix/memory-leak-and-worker-test
+2025-10-19 47ad8db  Merge pull request #216 from MarkSant/fix/memory-leak-and-worker-test
+2025-10-19 779d041  Merge pull request #215 from MarkSant/fix/memory-leak-and-worker-test
+2025-10-19 2c0b517  Merge pull request #214 from MarkSant/fix/memory-leak-and-worker-test
+2025-10-19 c8aac4a  Merge pull request #213 from MarkSant/fix/memory-leak-and-worker-test
+2025-10-18 be3c6da  Merge pull request #212 from MarkSant/feature/fatal-error-handling
+2025-10-18 d5a4227  Merge pull request #211 from MarkSant/feat/state-manager-immutability
+2025-10-18 0c64114  Merge pull request #210 from MarkSant/feat/detector-validation
+2025-10-18 c3b803a  Merge pull request #209 from MarkSant/feature/add-calibration-validation
+2025-10-18 8ef340a  Merge pull request #208 from MarkSant/feat/recorder-schema-validation
+2025-10-18 61c465c  ci: adjust coverage threshold for fast tests only
+2025-10-18 11bfd4d  ci: exclude GUI and slow tests from default pytest run
+2025-10-18 b1f753d  ci: fix poetry cache corruption by using in-project virtualenvs
+2025-10-18 68b9288  Merge pull request #204 from MarkSant/ci/fix-poetry-install-cache-20251018
+2025-10-18 df5377d  Merge pull request #203 from MarkSant/ci/fix-poetry-install-cache-20251018
+2025-10-18 f0d33c6   ­ƒôè Execu├º├úo de Testes
+2025-10-18 19d44e7  chore: Update permissions and backup files for git operations
+2025-10-18 a80fe90  Merge pull request #201 from MarkSant/integration/merge-refactor
+2025-10-15 80697b1  ci: ensure cache dirs exist and add debug listings; fix workflow duplicates
+2025-10-15 846bf4a  ci: upload only coverage.xml (remove htmlcov artifact)
+2025-10-15 c6aac75  ci: move build/compile steps before caching to ensure cache paths exist
+2025-10-15 09f898e  style: apply ruff formatting to match CI expectations
+2025-10-15 5e99f1d  Commit A ÔÇö behavior fixes (save report + wizard mapping)
+2025-10-15 6005803   Final Result: 653/653 tests passing (100%)
+2025-10-15 b464834  ÔùÅ Excellent progress! All 6 Group 1 (Controller) tests are now passing! ­ƒÄë
+2025-10-15 52c90db  refactor: modernize type annotations to Python 3.12+
+2025-10-15 cb3bd51  "Phase 3 Step 1: Final validation and repository cleanup
+2025-10-15 cc1cd2c  "Phase 3 Step 1: Final validation and repository cleanup
+2025-10-15 96c5826  Fase 9 ÔÇö CI, Tests & Monitoring CONCLU├ìDA!
+2025-10-15 2a769b1   ­ƒÄë Conclus├úo
+2025-10-15 8ecbc80  ÔùÅ ­ƒÄë Fase 7 - Final Cleanup CONCLU├ìDA!
+2025-10-15 9bf2791  docs(phase7): complete Phase 7 - Final Cleanup
+2025-10-15 e3baeae  refactor(phase7.3+7.6): simplify _collect_analysis_parameters and remove unused imports
+2025-10-15 f9f7fab  refactor(phase7.2b): integrate VideoProcessingService and migrate auxiliary methods
+2025-10-15 4cab49c  feat(phase7.2a): create VideoProcessingService skeleton
+2025-10-15 6ab4e79  refactor(phase7.1): consolidate event handlers into generic dispatcher
+2025-10-14 9a1af4c  Fase 6 - Tarefas Opcionais Conclu├¡das
+2025-10-14 0b13f6e   I've successfully implemented Phase 5, extracting all project workflow logic from the controller into a dedicated ProjectWorkflowService. Here's what   was accomplished:
+2025-10-14 e7daca5   A Fase 4 foi conclu├¡da com ├¬xito, consolidando todo o gerenciamento de coordena├º├úo de UI em um UICoordinator   centralizado, reduzindo c├│digo duplicado e melhorando a testabilidade.
+2025-10-14 168b85f  ­ƒÆí Benef├¡cios Alcan├ºados
+2025-10-14 28dbacd  A Etapa 2.2 foi executada com ├¬xito, implementando melhorias significativas no StateManager para garantir um padr├úo Observer expl├¡cito e fluxo de dados unidirecional.
+2025-10-14 94b33eb  feat(phase3): expand AnalysisService with video processing orchestration
+2025-10-14 85b7034  Ô£¿┬áBenef├¡cios Alcan├ºadosSepara├º├úo de Responsabilidades: L├│gica de grava├º├úo isolada em RecordingServiceTestabilidade: Service test├ível independentemente via callback injectionManutenibilidade: C├│digo mais organizado, f├ícil de estenderZero Regress├Áes: Todos os testes passando
+2025-10-14 6f7de51  Fase 2.1 - Refatora├º├úo da Camada de Servi├ºos: Ô£à┬áCOMPLETA
+2025-10-14 18b840f  I've successfully completed the first part of Phase 2.1 by creating the┬áModelService┬áclass to extract AI model management logic from MainViewModel:
+2025-10-14 4c05477  Resumo Executivo - Fase 1 Completa Ô£àImplementei com sucesso a┬áFase 1: Corre├º├úo e Valida├º├úo dos Testes da Arquitetura, eliminando completamente as condi├º├Áes de corrida (race conditions) nos testes do ZebTrack-AI.­ƒÄ» Resultados Alcan├ºadosEtapa 1.1: StateManager Integration TestsÔ£à┬á90/90 testes┬ábem-sucedidos (10 execu├º├Áes completas)Ô£à Implementado sincroniza├º├úo via┬áthreading.EventÔ£à Injetado no construtor do┬áMainViewModelÔ£à Padr├úo:┬áevent.clear()┬áÔåÆ trigger ÔåÆ┬áevent.wait()┬áÔåÆ assertEtapa 1.2: GUI State Observer TestsÔ£à┬á140/140 testes┬ábem-sucedidos (20 execu├º├Áes completas)Ô£à Implementado┬ámock_root.update_idletasks()┬árealistaÔ£à Simula fila de eventos do TkinterÔ£à C├│digo de teste┬á55% mais limpo
+2025-10-14 048fff0  I've successfully completed Phase 1, Step 1.1: Stabilization of StateManager Integration Tests. Here's what was accomplished:
+2025-10-14 c243a2c  Perfeito! Conclu├¡ todas as tarefas:
+2025-10-14 afcd7aa  Successfully finalized all documentation, consolidated temporary implementation files, and cleaned up the repository for professional presentation and long-term maintainability.­ƒôï Actions Completed1.┬áDocumentation ConsolidationÔ£à Consolidated all phase and step summaries into┬áchangelog.md┬áwith proper dating (2025-10-14)Ô£à Created comprehensive v1.8 entry documenting:StateManager implementation (51 tests)Enhanced Pydantic v2 settings systemReactive GUI with observer patternThread-safe operations with history tracking
+2025-10-14 0218746  I've successfully completed┬áPhase 3, Step 8: Document the New Architecture┬áfor ZebTrack-AI. The┬áARCHITECTURE.md┬áfile has been comprehensively updated to reflect the current MVVM-like architecture with centralized state management and service layer separation.­ƒÄ» Key Achievements1. MVVM-like Pattern Documentation┬á(New Section 1)Clearly defines Model-View-ViewModel architecture adapted for TkinterExplains separation of responsibilities and benefits2. Completely Redesigned Architecture Diagrams4 new/updated Mermaid diagrams showing:Layered MVVM component architectureState-centric data flow (sequence diagram)Asynchronous processing model with threadingThreading architecture with safety patterns3. Enhanced Documentation StructureSection 2: MVVM architecture diagram with color-coded layersSection 3: Data flow, async processing model, and pipeline (3 subsections)Section 4: 13 architectural decisions (reorganized, 3 new)Section 4.1: StateManager deep dive (preserved from original)Section 4.2: Threading & Concurrency (NEW - 5 thread-safety rules + code examples)Section 5: Extension points (6 detailed guides with templates)Section 6: Performance considerations (expanded with profiling)Section 7: Module bibliography (reorganized by architectural layer)Section 8: Architecture summary (NEW - ASCII diagram + timeline)Section 9: Links and references (updated)
+2025-10-14 b418490  I've successfully refactored the ZebTrack-AI settings system to be more robust, explicit, and maintainable using enhanced Pydantic v2 patterns. Here's what was accomplished:Key ImprovementsStrict Validation with ConfigDictAdded┬áextra="forbid"┬áto all models - unknown config keys now cause immediate errorsAdded┬ávalidate_assignment=True┬á- catches errors when settings are modified at runtimeAdded┬ástr_strip_whitespace=True┬á- automatically cleans string inputsNew Utility Functionsreload_settings()┬á- Reload configuration at runtime (useful for GUI config editor)export_schema()┬á- Generate JSON Schema for documentation and IDE integrationBetter Error MessagesValidation errors now show field-level details with clear pathsExample:┬ácamera ÔåÆ index: Field required┬áinstead of cryptic Pydantic errorsImproved Configuration LoadingEnhanced deep merge logic with better documentationFails fast with clear errors instead of silently setting┬ásettings = NoneBetter structured logging at each stageComprehensive DocumentationEnhanced┬áconfig.yaml┬áwith section headers and detailed inline commentsUpdated all field descriptions to explain purpose, ranges, and trade-offsAdded usage examples in module docstringClean Code PatternsReplaced problematic┬ádefault_factory=ClassName┬áwith clean lambda factoriesAdded comprehensive┬á__all__┬áexport list for public APIFixed inconsistent default values (wizard now default, event queue opt-in)
+2025-10-14 b4da25a  feat(ui): Integrate UI Components - Zone Config Tab refactored
+2025-10-14 92b1bf3  ┬áResumo Executivo13 arquivos criados┬átotalizando┬á2.620+ linhas de c├│digo:Componentes UI┬á(1.754 linhas):base.py┬á- BaseWidget abstrato com EventBusvideo_display.py┬á- Widget de display com convers├úo de coordenadaszone_controls.py┬á- Widget de controle de zonas (642 linhas, 11 eventos)control_panel.py┬á- Painel de grava├º├úo/processamentoproject_overview.py┬á- Dashboard de statusanalysis_controls.py┬á- Controles de an├ílise
+2025-10-14 66d7c8f  Resumo das Corre├º├Áes Bug #1: Verifica├º├úo de Integridade do Config Ô£à Problema: _compute_project_hash() usava incorretamente calculate_sha256() com bytes em vez de path Solu├º├úo: Uso direto de hashlib.sha256().hexdigest() Teste habilitado: test_load_project_config_integrity_check_failure Bug #2: Acesso ├ás Configura├º├Áes de Freezing Ô£à Problema: C├│digo acessava settings.freezing.* (inexistente) Solu├º├úo: Corrigido para settings.video_processing.freezing_* 6 testes habilitados: Todos relacionados a coleta de par├ómetros e perfis de an├ílise
+2025-10-14 4306c3b  57 comprehensive unit tests across two new test files:
+2025-10-14 6a2945e  feat: implement centralized state management with StateManager (v1.8)
+2025-10-14 4697eb5  Adicionei se├º├úo completa "Gerenciamento Centralizado de Estado (StateManager)" incluindo:Vis├úo Geral: Introdu├º├úo ao padr├úo observ├ível e fonte ├║nica de verdadeDiagrama de Arquitetura: Mermaid diagram mostrando fluxo StateManager ÔåÆ ObserversTabela de Categorias: 5 categorias (Project, Detector, Recording, Processing, UI) com campos e quando atualizarCaracter├¡sticas T├®cnicas: Thread-safety, hist├│rico, padr├úo observ├ívelIntegra├º├úo com Componentes:MainViewModel (Controller) - 10+ pontos de atualiza├º├úoApplicationGUI - 4 observadores reativosProjectManager - Refer├¬ncia opcionalCasos de Uso Avan├ºados: Arduino tracking, progresso em tempo realPadr├Áes de Teste: Unit, integra├º├úo, GUIGuia de Extens├úo: Como adicionar novas categorias/camposCobertura de Testes: 51 testes, 100% passandoRefer├¬ncias Relacionadas: Links para arquivos e testes
+2025-10-14 fb78b42  Benef├¡cios Alcan├ºados Fonte ├Ünica de Verdade: Todo estado da aplica├º├úo centralizado no StateManager Padr├úo Observ├ível: Componentes podem se inscrever para mudan├ºas de estado (base para UI reativa) Thread Safety: Todas as opera├º├Áes protegidas por RLock Suporte a Depura├º├úo: Rastreamento de fonte + hist├│rico de mudan├ºas Retrocompatibilidade: Properties mant├¬m API existente, sem quebrar c├│digo legado Type Safety: Dataclasses com type hints para todo o estado
+2025-10-14 33389d3  Phase 1, Step 3: Refatora├º├úo Fundacional - AppController ÔåÆ MainViewModel + Services
+2025-10-14 8e4b383  Benefits Delivered 100% Responsive UI - Users can interact during long video processing Clean Architecture - Processing logic decoupled from controller Maintainable - Clear responsibilities, well-tested, documented Robust - Error handling, cancellation, graceful shutdown Extensible - Foundation for future enhancements (worker pools, etc.) ­ƒôü Files Changed New:
+2025-10-14 69c9765  A arquitetura event-driven est├í implementada, testada e pronta para produ├º├úo. O ZebTrack-AI agora tem uma base s├│lida para crescer sem acoplamento entre UI e l├│gica de neg├│cio!Documentos criados:PHASE1_COMPLETION_SUMMARY.md┬á- Resumo completo com m├®tricas, arquitetura, e pr├│ximos passos
+2025-10-14 2c07c11  Key Improvements:
+2025-10-14 dc2f135  Update documentation files for clarity and consistency
+2025-10-14 7dc9400  mplementei com sucesso uma┬ásolu├º├úo combinada robusta┬ápara corrigir o problema de jitter na velocidade angular, conforme sua an├ílise t├®cnica. Aqui est├í o que foi feito:Ô£à Solu├º├úo Implementada1. Limiar de Movimento M├¡nimo┬á(Principal)Par├ómetro:┬ámin_displacement_threshold_cm┬á(padr├úo: 0.5 cm)Evita c├ílculo de ├óngulos quando deslocamento < limiarAtribui┬áNaN┬ápara estados "parado" ao inv├®s de valores esp├║rios2. Janela de C├ílculo Adaptativa┬á(Complementar)Par├ómetro:┬áangle_calculation_window┬á(padr├úo: 1)Permite calcular ├óngulos com frames n├úo-consecutivos (ex: F-3, F, F+3)Cria vetores mais longos que diluem o efeito do jitter3. Suaviza├º├úo Secund├íria┬á(Opcional)Par├ómetro:┬áangular_velocity_smoothing_window┬á(padr├úo: 3)M├®dia m├│vel centrada nas velocidades angulares calculadasReduz ru├¡do de alta frequ├¬ncia sem atraso de fase­ƒôü Arquivos Modificadossettings.py: Nova classe┬áAngularVelocitySettings┬ácom 3 par├ómetros configur├íveisconfig.yaml: Se├º├úo┬áangular_velocity┬ácom documenta├º├úo inlinebehavior.py: Algoritmo┬áget_angular_velocity┬ácompletamente reescritoanalysis_service.py: Integra├º├úo com as novas configura├º├Áes­ƒº¬ Testes6 novos testes┬áespec├¡ficos para validar a corre├º├úo de jitter2 testes legacy┬áatualizados para refletir novo comportamento42 testes de an├ílise┬ápassando com 100% de sucesso­ƒôè Resultados EsperadosAntes: Trajet├│ria estacion├íria ÔåÆ 500-1000 guinadas esp├║riasDepois: Trajet├│ria estacion├íria ÔåÆ 0-5 guinadas (ru├¡do residual m├¡nimo)­ƒöº Configur├ível e Retrocompat├¡velTotalmente configur├ível via┬áconfig.yamlValores padr├úo conservadores mas eficazesDefinir limiar = 0.0 desabilita o filtro (opt-out para comportamento antigo)A implementa├º├úo segue exatamente sua recomenda├º├úo de solu├º├úo combinada e est├í pronta para uso imediato!
+2025-10-14 bd08c29  fix(ui): add positioning parameter to interactive buttons pack() call
+2025-10-14 69a9506  ├¡deos de an├ílise ├║nica n├úo apareciam nas abas "Resumo do Projeto" e "Relat├│rios"Causa Raiz:Faltava chamada de refresh imediato da GUI ap├│s registro do v├¡deoSolu├º├úo Principal:Adicionado┬árefresh_project_views(immediate=True)┬áem┬ástart_single_video_processing()Resultado:Ô£à V├¡deos aparecem imediatamente nas abasÔ£à Status atualiza durante processamentoÔ£à Relat├│rios exibidos corretamenteÔ£à 345 testes passandoArquivos Modificados:controller.py┬á- refresh imediato + zone flagsproject_manager.py┬á- auto-add videos + flags retroativosgui.py┬á- removeu early returns + debug logs2 novos arquivos de teste (5 testes)2 documentos explicativos
+2025-10-14 600c135  feat: Enhance ROI template handling and UI improvements
+2025-10-13 f0f000e  Added richer metadata cues to ROI template handling so you can describe the commit clearly:gui.py┬ánow renders combobox entries with ÔÇ£Arena/ROIsÔÇØ content badges plus location hints, making each templateÔÇÖs scope obvious without opening it.Same module also keeps the selected templateÔÇÖs name through the apply flow, ensuring status messages and logging reference the correct template, including in error cases.Verified the changes with┬ápoetry run pytest [test_project_manager.py](http://_vscodecontentref_/1) -q┬á(30 passed).
+2025-10-13 19bc15b  Guard ROI reference plotting against non-polygon shapely geometries so only true polygons render as filled patches, fixing the previous lint complaint (reporter.py). Added precise typing for python-docx documents and cleaned up the report generation function, restoring proper indentation and callable annotation (reporter.py).
+2025-10-13 9f1b0bf  Converted the ROI template timestamp logic to use datetime.now(UTC) (importing UTC directly) so templates and metadata stay timezone-aware and the datetime.utcnow() deprecation warning disappears. Verified by rerunning the targeted tests:
+2025-10-13 85ef344  Step 7 Complete
+2025-10-13 06abd89  Step 6 Review
+2025-10-13 cf88bc1  Normalized track IDs end-to-end so recorder outputs stay numeric and analytics no longer choke on string IDs. Updates touch both ingestion (recorder.py) and consumers (behavior.py, reporter.py, roi.py) to coerce and sanitize IDs, including dropping non-numeric entries before social proximity calculations. Added regression coverage in test_recorder.py to ensure single- and multi-track detections with mixed ID types persist as integers.
+2025-10-13 cdbe099  Centralized tracking now expects plugins to emit raw boxes, so both Ultralytics and OpenVINO integrations were flattened to stop running their own ByteTrack passes.
+2025-10-13 4f7d54e  Tracker Update
+2025-10-13 677cdbb  Propagated the single-subject tracker preference end-to-end so single-animal workflows can bypass ByteTrack by default.
+2025-10-13 4520937  Added tracking.use_single_subject_tracker setting (settings.py, config.yaml) along with a dedicated TrackingSettings model. Persisted the new flag in project configs, including creation defaults and legacy migration (project_manager.py), and extended the unit tests to cover it (test_settings.py, test_project_manager.py).
+2025-10-13 a37bc25  Layout Ajustado
+2025-10-13 5040568  Eliminei o slider de sensibilidade, adicionei orienta├º├Áes diretas sobre cada par├ómetro e passei a persistir os limiares do detector como padr├úo global com op├º├úo de restaura├º├úo.
+2025-10-13 7863e7f  Propagated the wizardÔÇÖs OpenVINO toggle all the way into project creation so new projects now reflect the selected acceleration mode.wizard_adapter.py: forward┬áuse_openvino┬áfrom wizard output into┬ácontroller_data┬áand metadata, falling back to settings defaults when the wizard omits it.controller.py: sync controller state with incoming┬áuse_openvino┬ábefore persisting project settings, ensuring UI and saved data stay aligned.test_wizard_adapter.py,┬átest_controller.py: added coverage proving the adapter and controller honour the OpenVINO flag.Testspoetry run pytest [test_wizard_adapter.py](http://_vscodecontentref_/7) [test_controller.py](http://_vscodecontentref_/8) -q(NB:┬árunTests┬ácould not discover these tests in this workspace, so I executed them via┬ápytest┬áinstead.)
+2025-10-13 c4f8c93  Refactor UI components and improve usability across multiple dialogs
+2025-10-09 1c46cc7  Wrapped up the wizard Scrollbar crash by hardening our ttkbootstrap handling and confirming the full suite is green.Ô£à Actions takenAdded┬á_ttkbootstrap_style_needs_reset,┬á_clear_ttkbootstrap_style, and┬ácreate_scrollbar┬áhelpers in┬áwindow_utils.py┬áto detect a dead ttkbootstrap┬áStyle┬ásingleton and safely recreate scrollbars after Tk roots are torn down.Updated wizard steps (discovery_step.py,┬áfile_selection_step.py,┬ádetection_step.py,┬áimport_config_step.py) and the design editor dialog to route all scrollbar creation through the resilient factory.Normalized import ordering/formatting across the touched wizard modules to keep Ruff satisfied.­ƒº¬ Quality gatespoetry run ruff check [window_utils.py](http://_vscodecontentref_/9) src/zebtrack/ui/wizard --fix┬á(PASS)poetry run pytest -q┬á(PASS, 311 passed / 3 warnings about deprecated┬ápkg_resources┬áand┬ádatetime.utcnow())Requirements coverageResolve ttkbootstrap/tkinter teardown errors in wizard tests:┬áDoneExecute entire pytest suite after fixes:┬áDoneNotesPytest emitted the known upstream warnings (pkg_resources┬ádeprecation in┬ádocxcompose,┬ádatetime.utcnow()┬áusage); no regressions introduced.No additional follow-ups required, but consider migrating from┬ádatetime.utcnow()┬áwhen convenient to silence the warning.
+2025-10-09 cf9ede7  ase 8 ÔÇô Documenta├º├úo e automa├º├úo cont├¡nuas Atualizar README, changelog e guias de fluxo ao final de cada fase. Ajustar pipeline CI para gerar pacotes de templates e compilar tradu├º├Áes automaticamente. Acrescentar scripts de verifica├º├úo manual em manual para novos fluxos (wizard, m├║ltiplos perfis, templates de ROI). Estabelecer checklist de QA regressiva antes de cada release, incluindo execu├º├úo de poetry run pytest -q e poetry run ruff check. Fase 9 ÔÇô Valida├º├úo pr├®-release Executar suite completa de testes automatizados e manuais. Fa├ºa o ruff check e corrija todos erros apontados nele e no pytest.
+2025-10-09 876ea1d  Jumping back into Phase 7, I finished wiring the advanced settings editor so it actually loads, validates, and persists configuration overrides.actions takenCompleted the configuration tab in┬áApplicationGUI: it now preloads values from the current┬áSettings, validates numeric inputs (matching the new Pydantic rules), saves deltas into┬áconfig.local.yaml, refreshes state on demand, and keeps ROI rule widgets in sync.Added helper utilities (_extract_setting,┬á_deep_merge_dicts, reload/reset/save handlers) to support the GUI flow while keeping the global┬ásettings┬áinstance updated in place.Updated┬áREFERENCE_GUIDE.md┬áwith a dedicated section and FAQ entry explaining the new┬áConfig. Avan├ºadas┬átab and the validations it enforces.testspoetry run pytest [test_settings.py](http://_vscodecontentref_/7) -qrequirements coverageAdvanced validation logic: Done (already covered in┬ásettings.py┬áand exercised by tests).GUI config editor with tooltips + validation + load/save flow: Done (_create_configuration_tab┬áand related handlers).Expanded settings tests: Done (existing suite passes with new validator cases).In-app help / documentation refresh: Done (REFERENCE_GUIDE.md┬áupdates).follow-upsConsider a targeted GUI smoke test (manual or automated) to double-check the new tab renders correctly under both live and pre-recorded projects.
+2025-10-09 9259280  Jumping in to close out the PhaseÔÇ»6 ROI-template work with a quick rundown of what changed.actions takenConsolidated the utility layer so┬ázebtrack.utils┬ánow exposes hashing, seeding, and the new geometry helpers; updated the GUI snapping logic to use the centroid-aware helpers while keeping center/axis snapping flexible.Finished wiring the ROI template workflow in┬áApplicationGUI┬áwith combobox, save/import/apply handlers, and live refresh of template lists.Added two regression tests in┬átest_project_manager.py┬áto cover saving/importing templates and expanded┬átest_geometry.py┬áfor centroid/axis snapping behavior.Extended┬áPROJECT_WORKFLOW.md┬áwith sections on template persistence, UI usage, and the improved snapping flow.testsPASS:┬ápoetry run pytest [test_geometry.py](http://_vscodecontentref_/5) tests/test_project_manager.py::TestProjectManager::test_save_roi_template_persists_file_and_metadata tests/test_project_manager.py::TestProjectManager::test_import_roi_template_registers_metadata -q┬á(emitted existing┬ádatetime.utcnow┬ádeprecation warnings).requirements coverageROI template persistence and UI controls: Done (code + tests + docs).Enhanced snapping leveraging polygon centroid helpers: Done (logic + tests + doc note).Documentation updates for the new workflow: Done.notesPytest still warns about┬ádatetime.utcnow()┬áin┬áProjectManager; existing behavior unchanged, so follow-up cleanup can replace it with┬ádatetime.now(datetime.UTC)┬áwhen convenient.That should leave PhaseÔÇ»6 fully implemented and verified by targeted tests.
+2025-10-09 4451dbb  eeping the PhaseÔÇ»5 UI upgrades moving, I fleshed out the analysis tab so it can react to track-specific overlays and social summaries right away.actions takenExpanded┬águi.py┬áwith handlers to cache detection batches, update the profile label, refresh track selectors, and recolor the currently chosen track on the buffered analysis frame without redrawing overlays.Ensured view transitions reset overlay state, guard Combobox options, and store the rendered Tk image safely.Updated controller callbacks to drive the new GUI hooks, and tightened social-summary scheduling indentation.Refreshed┬átest_analysis_view_toggle.py┬áto understand the new track-selector state machine and added a light DummyCombobox helper so the existing expectations still hold.testspoetry run pytest [test_overlay_integration.py](http://_vscodecontentref_/2) -q┬áÔ£àpoetry run pytest [test_analysis_view_toggle.py](http://_vscodecontentref_/3) -q┬áÔ£àrequirements coverageProfile label and track-selector wiring in the analysis tab ÔÇô┬áDoneHighlighting a single track on the preserved detector overlay ÔÇô┬áDoneDisplaying social proximity percentages with graceful fallbacks ÔÇô┬áDoneKeeping existing overlay-preservation guarantees ÔÇô┬áDonenotes & next stepsController Ôåö GUI wiring now supports profile-aware overlays; documenting the new controls in the user guide is still outstanding.Consider an automated test around┬áupdate_detection_overlay┬áto validate deduped options and highlight logic once more infrastructure is in place.All current changes are passing the targeted test suite.
+2025-10-09 f3f7794  Fase 4 entregue: finalizei o preview estrutural na etapa de arquivos, o regex tester ao vivo e alinhei metadados/tests para refletir os novos dados do wizard.
+2025-10-09 183b3d4  Tackled Phase 3 by wiring smoothing controls, thigmotaxis math, ROI normalization, and docs before rerunning the targeted tests.
+2025-10-09 cf85852  Jumping in to wrap up the templated reporter work with a quick rundown of what changed and how it checks out next.
+2025-10-09 3c553cc  Brought PhaseÔÇ»1 online by (1) introducing the shared UI event bus module, (2) switching controller/view plumbing to respect the new flag, and (3) covering the flow with docs and tests.
+2025-10-09 1777516  Phase 0 groundwork deliveredÔÇömapped controllerÔåöGUI touchpoints, drafted the event-bus design, and wired the feature flag so we can stage the migration cleanly.
+2025-10-09 b66e0da  Modernized the UI theme as requestedÔÇöfocusing on (1) wiring in ttkbootstrap with graceful fallbacks, (2) initializing the theme ahead of _configure_styles, and (3) updating dependency artifacts plus a quick startup regression test.
+2025-10-09 a5fc8db  Expanded the test coverage around interval frames and wrapped up integration checksÔÇöhereÔÇÖs the rundown.
+2025-10-09 0c6eafe  Reworked the recorder persistence and Arduino port detection to add the requested safeguards by:Extending the settings/config schema so recorder flush cadence can be tuned.Refactoring┬áRecorder┬áto stream Parquet writes with timed/row-based flushes plus regression tests.Adding Arduino handshake probing (with wizard/GUI wiring) and companion unit tests.actions takenAdded┬áRecorderSettings┬áto┬ásettings.py, wired defaults into┬áconfig.yaml, and updated┬átest_settings.py┬áto cover base/override scenarios.Reworked┬áRecorder┬áto maintain a┬áParquetWriter, periodically flush on thresholds, and gracefully finalize; included fallback logic and a new┬átest_periodic_flush_triggers_before_stop.Introduced┬áArduino.READY_SIGNAL,┬áprobe_port, and┬áscan_available_ports, then updated the GUI device discovery to prioritize handshake-verified ports while labeling fallbacks.Created┬átest_arduino.py┬áwith serial stubs to validate the handshake probe and scan behavior.tests runpoetry run pytest [test_settings.py](http://_vscodecontentref_/12) [test_recorder.py](http://_vscodecontentref_/13) [test_arduino.py](http://_vscodecontentref_/14) -qrequirements coveragePeriodic Parquet flush mechanism to reduce data loss risk ÔÇö┬áDone┬á(configurable thresholds, streaming writer, new test).More robust Arduino port detection via handshake identification ÔÇö┬áDone┬á(probe method, GUI integration, unit tests).notesProjects with custom┬áconfig.local.yaml┬áshould add the optional┬árecorder.flush_interval_seconds┬á/┬áflush_row_threshold┬ákeys if overrides are desired; defaults remain safe.GUI now surfaces handshake-verified ports with an┬á[Arduino]┬ásuffix while still listing unverified ports for manual selection.
+2025-10-09 dc1f937  Finished tightening up the analysis layer by removing the random stub, extending the real analyzer with new metrics, wiring everything into the reporting path, and refreshing documentation/tests to match.actions takenDeleted the legacy┬ábehavioral_analyzer.py┬ámodule and scrubbed every reference across guides, docs, and fixtures so the architecture now points to┬ábehavior.py┬á+┬áanalysis_service.Expanded┬áConcreteBehavioralAnalyzer┬áwith speed-burst and inactivity detection, reused a new helper for velocity-based episodes, and exposed the metrics through┬áAnalysisService.Surfaced the additional metrics in┬áReporter, including tidy DataFrame columns with English-friendly names, and documented the formulas in┬áREFERENCE_GUIDE.md.Added unit tests for the new analyzer methods plus reporter assertions, keeping test fixtures up to date.testspoetry run pytest [test_concrete_behavioral_analyzer.py](http://_vscodecontentref_/7) [test_reporter.py](http://_vscodecontentref_/8) -q┬áÔ£àrequirements coverageRemove┬ábehavioral_analyzer.py┬ástub: Done (file deleted, references updated).Enrich┬áConcreteBehavioralAnalyzer┬áwith speed-burst/inactivity metrics: Done (new methods, report wiring, tests).notesEverything compiles cleanly, targeted tests are green, and documentation now reflects the richer behavioral analysis pipeline.
+2025-10-09 8f0144d  Shored up the file scan caching and OpenVINO conversion handling today; the work followed this path:add a directory/file signature cache to┬áProjectManager.scan_input_paths┬áplus tests around reuse and invalidationtrack conversion status/error details in┬áWeightManager┬áexports with thorough cleanup and new regression testsactions takenIntroduced a lightweight cache (_scan_cache) in┬áProjectManager┬áwith TTL-based reuse, signature checking, helper APIs, and a┬áclear_scan_cache┬áhook; added two pytest cases that verify cache hits and invalidation when new media appears.Hardened┬áWeightManager.convert_to_openvino┬áby recording conversion phases (not_converted/converting/ready/failed), persisting the last error, clearing stale artifacts on failure, and migrating legacy configs; added assertions to placate type checking.Authored┬átest_weight_manager_conversion.py┬áto cover both failure rollback and successful export, including metadata persistence and status reload.tests Ô£àrequirements coverageCache┬áscan_input_paths┬áresults and avoid redundant filesystem walks ÔÇö┬áDone┬á(cache + tests).Implement conversion failure rollback/status reporting in┬áWeightManager┬áÔÇö┬áDone┬á(status flags, error capture, cleanup + tests).notes & next stepsCache TTL is currently 30ÔÇ»s; adjust if UI feedback suggests different responsiveness.Status strings are persisted in┬áweights_config.json; surface them in any UI that monitors conversion progress to give users clearer feedback.
+2025-10-09 1f538c5  Refactor wrapped upÔÇöhandled it in three steps: break┬á_process_videos┬áinto dedicated helpers, centralize single-animal handling in the controller, and adapt the detector plugins to the new flow.actions takenIntroduced a suite of helpers around┬á_process_videos┬á(_process_single_video,┬á_run_analysis_pipeline,┬á_generate_reports_for_video,┬á_determine_processing_intervals,┬á_temporary_single_animal_mode, etc.) to keep responsibilities focused and shrink the orchestration method dramatically.Added┬á_apply_single_animal_track_ids┬áso the controller enforces single-animal mode consistently for every detector, including the live tracking loop.Reworked┬áOpenVINOPlugin.detect┬áto hand detections to ByteTrack again (no more hard-coded track id) and removed the single-animal override from the Ultralytics plugin.tests Ô£àpoetry run pytest [test_controller.py](http://_vscodecontentref_/9) -qpoetry run pytest [test_detector.py](http://_vscodecontentref_/10) -qquality gatesTests: PASS (see above)Lint/format: not run this roundBuild: not applicable/unchangedrequirements coverageRefactor┬á_process_videos┬áinto smaller, purpose-specific functions ÔÇö┬áDoneMove single-animal logic from detector plugin(s) into┬ácontroller.py┬áso it applies to every detector ÔÇö┬áDonenotesWith single-animal mode unified in the controller, any future detector only needs to supply its native track IDs; the override happens in one place.ByteTrack now stays enabled in the OpenVINO path, which should improve multi-animal tracking while still producing a stable┬átrack_id=1┬áwhen single mode is active.
+2025-10-09 71563cd  Investigated the ByteTrack tracker crash and laid out the key steps I followed next:Reproduce the failure path and inspect the Ultralytics tracker configuration handling.Update the plugin to persist a YAML tracker config file with safe cleanup logic.Add a regression test and run targeted lint/tests to keep the suite green.actions takenAdjusted┬áUltralyticsDetectorPlugin┬áso┬á_build_tracker_config()┬ánow writes the ByteTrack options to a temporary┬á.yaml┬áfile, reusing it when possible and regenerating it if thresholds change or the file disappears. The temp file lifecycle is tracked and cleaned up at process exit.Added┬á_cleanup_tracker_temp_files()┬áinfrastructure and registered it with the runtime to prevent stray temp files.Introduced┬átest_ultralytics_tracker_config.py┬áto confirm the plugin produces a YAML file, honours updates to thresholds, and cooperates with the new cleanup routine.files changedultralytics_detector.py┬áÔÇô persist tracker config as YAML, manage temp paths, and tidy imports/docstring.test_ultralytics_tracker_config.py┬áÔÇô new regression test covering the YAML emission and cache refresh.validationpoetry run pytest [test_ultralytics_tracker_config.py](http://_vscodecontentref_/6) -q┬áÔ£àpoetry run ruff check [ultralytics_detector.py](http://_vscodecontentref_/7) tests/test_ultralytics_tracker_config.py┬áÔ£àrequirements coverageResolve ByteTrack tracker crash caused by passing a dict instead of YAML:┬áDone┬ávia YAML-backed config and regression test.follow-upsNone required; the wizard and controller should now run the tracker without hitting the Ultralytics suffix assertion.
+2025-10-09 798f8c0  Abordei o sumi├ºo dos bot├Áes evitando que o wizard force a janela a ocupar toda a tela; o plano foi (1) remover a maximiza├º├úo autom├ítica do di├ílogo e (2) validar o fluxo com os testes do wizard.a├º├Áes tomadasAjustei┬áWizardDialog┬ápara n├úo chamar mais o agendamento de maximiza├º├úo nem for├ºar┬ámaximize_window, mantendo apenas o c├ílculo de geometria centralizada dentro da ├írea dispon├¡vel.Deixei a l├│gica de tamanho m├¡nimo intacta para que os passos sigam cabendo sem esconder bot├Áes ou controles, mas agora respeitando a barra de tarefas/├írea de trabalho do SO.testespoetry run pytest [test_wizard_foundation.py](http://_vscodecontentref_/2) -q┬áÔ£àrequisitos atendidosBot├Áes do wizard permanecem vis├¡veis ao abrir a janela:┬áDonepr├│ximos passosSe quiser garantir estilo consistente com o restante da UI, vale um teste manual r├ípido em diferentes resolu├º├Áes para confirmar o comportamento em m├║ltiplos monitores.
+2025-10-09 c15a17c  Validated the suite and refreshed the repo narrative; my approach was:Run the full pytest suite, resolve collection errors, and re-run until green.Bring Ruff back to zero by fixing long lines, unused vars, and import ordering.Capture the maintenance pass in the contributor docs/notes (including Copilot guidance).actions takenFixed an┬áApplicationGUI┬áindentation slip plus dozens of Ruff line-length hits across reporter, controller, project manager, plugins, wizard, GUI, and tests; introduced┬áfunctools.partial┬áfor the Tk callbacks and tightened metadata guards without altering behavior.Updated┬ácopilot-instructions.md┬áwith the explicit Ruff requirement and logged the GUI/report-tree hardening in┬áui_changes_summary.md┬áand┬áprogress_stats_summary.md.Ensured metadata helpers share cached lookups and adjusted wizard/model setters for readability; removed unused locals and normalized strings for 88-column compliance.quality gates Ô£àPytest: PASS (281 tests).Ruff: PASS.documentation updatescopilot-instructions.md┬ánow calls out┬ápoetry run ruff check.ui_changes_summary.md┬ádocuments the 2025ÔÇæ10ÔÇæ09 GUI maintenance (string wrapping, partial-based callbacks, metadata caching).progress_stats_summary.md┬árecords the new┬áupdate_analysis_metadata┬ásafeguards and style alignment.requirements coverageFull pytest run: Done.Ruff check and fixes: Done.Docs/notes/copilot guide refresh: Done.
+2025-10-09 7ff4bc8  Zooming back in on the backend/QA tidy-up, I tightened the test guard around ROI parquet cleanup and stabilized the copy helperÔÇÖs return paths so the hierarchy stays consistent.actions takenUpdated┬átests/test_project_manager.py::test_remove_rois_clears_zone_and_file┬áto assert the ROI parquet path is non-null before checking its deletion, eliminating the optional-type warning.Tweaked┬áProjectManager.copy_zone_parquet_files┬áto iterate over destination directories in a deterministic list order, ensuring┬ácopied[...]┬áreports the hierarchical results path that downstream logic expects.quality gatesÔ£à┬ápoetry run pytest [test_project_manager.py](http://_vscodecontentref_/2) -qrequirements coverageTest suite regression around ROI deletion guard ÔåÆ┬áDoneEnsure copy helper preserves hierarchical path contract ÔåÆ┬áDoneEverythingÔÇÖs passing; let me know if youÔÇÖd like the wider suite or GUI flow exercised next.
+2025-10-09 3b4f5c9  Hooked into the reports tree to surface existing artifacts, wired double-click handling, and verified the GUI pipeline tests still pass.a├º├Áes conclu├¡dasPassei a reter metadados por n├│ (self._report_tree_metadata) e a associar os v├¡deos a seus resultados, capturando tamb├®m┬áparquet_files┬áe metadados originais.Inclu├¡┬á_append_report_artifacts, que detecta relat├│rios Word/Excel existentes, cria n├│s-filho clic├íveis na ├írvore e mant├®m o pai expandido.Atualizei sele├º├úo, duplo clique e gera├º├úo parcial para trabalhar sobre os metadados (abrindo arquivos diretamente quando apropriado e preservando a abertura da pasta para n├│s de v├¡deo).Corrigi pequenas inconsist├¬ncias de indenta├º├úo na pr├│pria tela (as chamadas┬áreset_geometry_if_not_maximized) que impediam a importa├º├úo.testes Ô£àpoetry run pytest [test_gui_pipeline_indicators.py](http://_vscodecontentref_/4) -q┬á(PASS)qualidadeBuild: n├úo aplic├ívelLint/Typecheck: n├úo executado (sem mudan├ºas estruturais adicionais)Unit/Integration: ver teste acimaSmoke: n├úo executadorequirements coverageListar relat├│rios Word e Excel existentes e permitir que o usu├írio abra o selecionado:┬áDonenotas finaisOs usu├írios agora veem os relat├│rios individuais como itens filhos na aba ÔÇ£Relat├│riosÔÇØ; um duplo clique abre o documento correto, enquanto o v├¡deo continua abrindo a pasta. Se quisermos expandir, um pr├│ximo passo seria exibir tamb├®m o status do sum├írio Parquet ou disponibilizar a abertura via menu de contexto.
+2025-10-09 bc62d5e  Objetivo cumpridoÔÇösegui o plano de (1) centralizar a l├│gica de maximiza├º├úo, (2) aplic├í-la ├ás janelas pedidas e (3) ajustar resets de geometria antes de validar tudo.a├º├Áes tomadascriei┬áwindow_utils.py┬ácom utilit├írios cross-platform (maximize_window,┬áschedule_maximize, etc.) para controlar estado maximizado sem quebrar quem preferir redimensionar manualmente depois.apliquei a nova rotina ao ciclo de vida do app principal (__main__.py) para abrir o┬áTk┬áj├í em modo maximizado, preservando a experi├¬ncia existente quando as configs falham.atualizei┬águi.py┬ápara usar┬áschedule_maximize┬ánas janelas de calibra├º├úo/diagn├│stico, gerenciamento de pesos e cria├º├úo/ajustes de projeto, al├®m de trocar┬áself.root.geometry("")/geometry(...)┬ápor helpers que respeitam o modo maximizado.ajustei┬áwizard_dialog.py┬ápara maximizar automaticamente o assistente de projeto logo ap├│s montar o layout, garantindo que cada etapa apare├ºa em tela cheia.testes Ô£àpoetry run pytest [test_wizard_integration.py](http://_vscodecontentref_/10) -q┬á(7 testes) ÔÇö PASSrequirements coverageJanela inicial maximizada por padr├úo ÔÇô┬áDoneDi├ílogo de calibra├º├úo de pesos/diagn├│stico maximizado ÔÇô┬áDoneDi├ílogo de gerenciamento de pesos/testes maximizado ÔÇô┬áDoneAssistente (todas as etapas do wizard) maximizado ÔÇô┬áDoneJanela de gerenciamento/prefer├¬ncias de projeto maximizada ÔÇô┬áDonenotasQuem preferir reduzir alguma janela ainda pode desmaximizar manualmente; os utilit├írios s├│ evitam que o c├│digo volte a diminuir automaticamente.Se houver outras janelas cr├¡ticas que tamb├®m devam abrir maximizadas, d├í para reutilizar┬áschedule_maximize┬ácom uma linha.Resumo final: adicionei utilit├írios de maximiza├º├úo, integrei-os ├ás janelas principais e validei com os testes do wizard; tudo pronto e verificado.
+2025-10-09 02ece1a  Tying up the new wizard step, I tightened the model selection UI defaults and reran the wizard-focused tests to confirm everythingÔÇÖs happy.Ô£à actions takenAdded┬á_method_display┬áhelper so Tkinter┬áStringVar┬áinstances always receive safe string values, even when data is missing.Tracked the methods frame widget (self._methods_frame) and guarded the template banner packing logic to avoid┬áNone┬átargets.Ensured the template banner inserts cleanly before the methods section whether or not a target frame exists.­ƒº¬ quality gatespoetry run pytest tests -k wizard -q┬áÔåÆ Ô£à PASS(Other suites not rerun in this iteration.)requirements coverageFix lint/type issues in┬áModelSelectionStep┬ásetup and banner placement ÔåÆ Done.next stepsNone required right now; the wizard tests cover the updated step. Let me know if you want the remaining project tests or adapter/template wiring reviewed next.
+2025-10-09 be0b0bc  Wrapped up exposing the confidence/NMS/ByteTrack thresholds in the calibration dialog and wiring the persistence so the detector actually honors the new values.actions takenExtended the calibration dialog with inputs for NMS, ByteTrack track/match thresholds, an ÔÇ£Aplicar Par├ómetrosÔÇØ action, and automatic prefill from the active detector; syncing the sensitivity slider with the chosen confidence.Added controller helpers to read and persist detector thresholds, validate updates, and save them into project state for reloads.Taught both Ultralytics and OpenVINO plugins to store and accept runtime ByteTrack thresholds (Ultralytics now builds a tracker config from the UI values), and included the new fields in detector-state snapshots.Documented the extra detector-config keys and strengthened controller tests to cover the new parameter pathway.testspoetry run pytest [test_controller.py](http://_vscodecontentref_/0) -q┬áÔ£àpoetry run pytest [test_detector.py](http://_vscodecontentref_/1) -q┬áÔ£àrequirements coverageUI exposes confidence/NMS/ByteTrack thresholds and keeps them persistent per project ÔÇô┬áDone.notesThe Ultralytics tracker now consumes an in-memory config dict so changes take effect immediately; if you notice divergent behaviour with other trackers, we can add a toggle for the low-threshold heuristics.Next step to consider: surface these parameters in the project wizard so users can set them before the first calibration.
+2025-10-08 fed43b2  Implementa├º├úo conclu├¡da: reorganizei a aba de an├ílise para exibir metadados do v├¡deo ativo e o andamento da tarefa diretamente na interface.a├º├Áes realizadasAcrescentei vari├íveis, r├│tulos e helpers em┬áApplicationGUI┬ápara mostrar ÔÇ£GrupoÔÇØ, ÔÇ£DiaÔÇØ e ÔÇ£Indiv├¡duoÔÇØ, al├®m de um resumo textual do v├¡deo em processamento (├¡ndice, total e etapa atual).Ajustei┬ástart_analysis_view_mode,┬ástop_analysis_view_mode┬áe a rotina de prepara├º├úo para resetar automaticamente esses indicadores.No controlador, reuni metadados a partir do projeto/configura├º├úo e passei ao GUI durante cada itera├º├úo do processamento, tamb├®m atualizando o r├│tulo de progresso conforme os callbacks de etapa.Atualizei o mock da GUI nos testes existentes e criei┬átest_analysis_metadata_display.py┬ápara validar formata├º├úo de metadados e texto de progresso.testes Ô£àpoetry run pytest [test_analysis_metadata_display.py](http://_vscodecontentref_/4) [test_analysis_view_toggle.py](http://_vscodecontentref_/5) [test_controller.py](http://_vscodecontentref_/6) -q┬á(36 passed).requirements coverageExibir metadados (grupo, dia, indiv├¡duo) do v├¡deo em an├ílise:┬áDone┬áÔÇô novos r├│tulos e atualiza├º├úo autom├ítica em tempo real.Mostrar andamento da tarefa em execu├º├úo:┬áDone┬áÔÇô r├│tulo dedicado que reflete posi├º├úo na fila e etapa atual.notasSem pend├¬ncias adicionais; os demais testes do projeto podem ser executados normalmente caso queira uma checagem completa.
+2025-10-08 0f6bdc2  Fiz a reorganiza├º├úo completa do salvamento interno: agora cada v├¡deo vai para uma ├írvore┬áGrupo_X/Dia_Y/Sujeito_Z/Experimento, e dei suporte na interface para abrir essa pasta direto do painel de relat├│rios.a├º├Áes realizadasproject_manager.py: criei o helper┬áresolve_results_directory, sanitizei os componentes (grupo/dia/sujeito), atualizei c├│pia/importa├º├úo de parquets e o registro de artefatos para gravar/consultar o novo caminho hier├írquico.controller.py: passei todos os fluxos de processamento, resumo e gera├º├úo de relat├│rios a usarem o novo helper, incluindo o pr├®-carregamento de metadados para nomear diret├│rios corretamente.gui.py: armazenei o caminho de resultados nos n├│s da ├írvore, atualizei a verifica├º├úo de sum├írios e acrescentei o duplo clique que abre a pasta (com fallback cross-platform e checagem de arquivos existentes).test_project_manager.py┬áe┬átest_gui_pipeline_indicators.py: ajustei as expectativas para o layout hier├írquico e introduzi stubs com┬áresolve_results_directory.testes executadospoetry run pytest [test_project_manager.py](http://_vscodecontentref_/7) [test_gui_pipeline_indicators.py](http://_vscodecontentref_/8) [test_controller.py](http://_vscodecontentref_/9) -q┬á(PASS)cobertura dos requisitosReorganizar diret├│rios de resultados por grupo/dia/sujeito ÔåÆ┬áFeito┬á(novo helper e uso em todo fluxo).Abrir a pasta de resultados ao dar duplo clique na aba Relat├│rios ÔåÆ┬áFeito┬á(binding + verifica├º├úo de arquivos).notasResultados antigos permanecem onde estavam; se quiser migr├í-los para a nova hierarquia, basta mover manualmente ou rodar uma rotina de migra├º├úo.Documenta├º├úo do projeto ainda fala em┬á*_results; vale atualizar o guia de uso em um follow-up se necess├írio.
+2025-10-08 e1c05ef  Tracked down the returning multi-ID issue and followed this plan: inspect recent commits, relocate the single-animal toggle inside the shared processing flow, and back it up with targeted tests.actions takenReviewed the September/October controller refactors that dropped the earlier single-animal toggle, confirming that batch analyses no longer forced┬átrack_id=1.Added┬áAppController._resolve_single_animal_mode┬áto derive the flag from either single-video config or project calibration data, and now flip┬ásettings.video_processing.single_animal_per_aquarium┬áat the start of┬á_process_videos, restoring it afterward.Removed the ad-hoc toggle in┬ástart_single_video_processing┬áso the logic lives in one place across workflows, preventing future regressions.Extended┬átest_controller.py┬áwith focused unit tests for the resolver and safeguarded the global setting between tests.tests Ô£àPASSQuality gates: Build ÔÇô not applicable here; Lint/Typecheck ÔÇô not run (same as prior workflow); Tests ÔÇô pass (see above).requirements coverageStop runaway track IDs when only one animal is declared:┬áDone┬á(flag now enforced per workflow, matching the earlier fix regardless of long occlusions).Investigate commit history to pinpoint regression source:┬áDone┬á(September 30 controller refactor removed the automatic flag).notesByteTrack will now keep re-identifying the sole subject as┬átrack_id=1┬áeven after long gaps in detection, for both single-video and project analyses. If you notice multi-animal workflows needing a similar hook (e.g., segmentation-based trackers), we can extend┬á_resolve_single_animal_mode┬áwith additional heuristics.
+2025-10-08 5e1b219  Atualizei o fluxo de reutiliza├º├úo de desenhos na aba de zonas e vou detalhar rapidamente como garanti que os status na coluna ÔÇ£DadosÔÇØ mudem assim que os arquivos forem copiados.Ajustar a ├írvore de sele├º├úo de v├¡deos para ser repovoada preservando filtro/sele├º├úo.Invocar essa atualiza├º├úo imediatamente ap├│s aceitar ou recusar a c├│pia de desenhos.Validar o comportamento executando o teste direcionado ├ás corre├º├Áes da configura├º├úo de zonas.a├º├Áes realizadasgui.py: criei o helper┬á_refresh_video_selector_tree┬á(com re-sele├º├úo autom├ítica) e o utilizei em┬á_maybe_offer_zone_reuse┬ápara que a Treeview atualize os s├¡mbolos assim que o usu├írio aprove ou recuse a reutiliza├º├úo; isso garante que os checkmarks de arena/ROI reflitam os novos arquivos copiados.testespoetry run pytest [test_gui_zone_config_fixes.py](http://_vscodecontentref_/3) -q┬áÔ£ö´©Åquality gatesBuild: n├úo aplic├ível (somente altera├º├úo de GUI).Lint/Typecheck: n├úo rodado (nenhuma instru├º├úo autom├ítica dispon├¡vel).Tests: PASS (comando acima).requirements coverageAtualizar status dos s├¡mbolos ap├│s reutilizar desenhos: Done.Tudo pronto ÔÇö os status agora se ajustam automaticamente depois de aceitar copiar os arquivos de desenho. Se quiser validar outros fluxos da GUI ou rodar uma su├¡te mais ampla, ├® s├│ avisar!
+2025-10-08 ae87816  Handled the duplicate-name analysis collision by isolating new runs and guarding the GUI import pathway; plan followed these steps:Introduce a results directory rotation helper and call it from both single-video and project workflows.Preserve prior artifacts in timestamped history subfolders while keeping current run outputs in the canonical location.Back the change with a focused controller unit test (and fix the GUI dialog initializer so tests import cleanly).actions takenAdded┬á_prepare_results_directory┬áto┬áAppController, archiving any existing per-video artifacts into a┬áhistory/<timestamp>┬ásubfolder before each new analysis run; invoked it from the single-video flow and the batch settings pipeline to ensure fresh output folders without losing past data.Updated┬áSubjectSelectionDialog┬áin┬águi.py┬áto compute its title inside┬á__init__, eliminating a class-level┬áNameError┬áthat surfaced during test imports.Extended┬átest_controller.py┬áwith a new regression test that verifies the archival behavior and idempotency of the results-directory helper.testspoetry run pytest tests/test_controller.py::TestAppController::test_prepare_results_directory_archives_existing_run -qpoetry run pytest [test_single_video_workflow.py](http://_vscodecontentref_/6) -qpoetry run pytest [test_controller.py](http://_vscodecontentref_/7) -qAll above passed.requirements coveragePrevent reusing stale analysis outputs when videos share the same filename across days:┬áDone┬á(results folders are rotated into timestamped history before each new run while keeping the active path consistent).notesPrior runs remain accessible under┬á.../<video>_results/history/<YYYYMMDD-HHMMSS>/; downstream scanners keep looking at the canonical root, so the UI and aggregators continue to function unchanged.Consider surfacing the archived-run list in the UI later if users need quick access to historical outputs.
+2025-10-08 955d9d9  Wrapped up the day-label cleanup so the wizard output and GUI stay readableÔÇöhereÔÇÖs what changed.actions takenAdded┬á_format_day_display/_build_day_title┬áhelpers in┬áApplicationGUI┬áand refactored every tree/grid/dialog day label to use them, preventing ÔÇ£Dia Day01ÔÇØ style duplicates.Normalized day labels inside┬áwizard_adapter.enrich_videos_with_design_metadata, persisting a new┬áday_label┬áfield alongside the canonical┬áday┬ávalue for downstream consumers.Updated┬átest_wizard_adapter.py┬áto assert the new┬áday_label┬ámetadata and ensure custom regex enrichment keeps producing the normalized display value.testspoetry run pytest [test_wizard_adapter.py](http://_vscodecontentref_/8) -q┬á(PASS)requirements coverageDay label duplication fix (ÔÇ£Dia Day01ÔÇØ ÔåÆ ÔÇ£Dia 01ÔÇØ) ÔÇô DoneAll changes verified with targeted tests; no additional follow-ups identified.
+2025-10-08 4c2e1f5  Digging into the analysis stack, I tightened calibration propagation and warped legacy trajectories so the Word overlays, ROI metrics, and heatmaps line up again.actions takenUpdated┬áAppController._run_tracking_if_needed┬áto always pull the projectÔÇÖs stored calibration when per-video overrides arenÔÇÖt supplied, ensuring the recorder receives the correct pixel/cm ratio and homography.Added a safeguard in┬áReporter┬áthat automatically warps bounding boxes into calibrated space whenever raw coordinates slip through, recalculating derived centers and stripping stale cm columns before analysis.Expanded the test suite with targeted coverage: one unit test exercises the new warping helper, and another confirms the tracking pipeline passes calibration data to the recorder.testspoetry run pytest [test_reporter.py](http://_vscodecontentref_/2) -qpoetry run pytest tests/test_controller.py::TestAppController::test_run_tracking_uses_project_calibration -qrequirements coverageTrajectory overlay missing in Word report:┬áDone┬áÔÇô trajectories are forced into calibrated space before plotting, so the line now renders over the background frame.ROI presence metrics absent:┬áDone┬áÔÇô recorder always saves warped coordinates, and the reporter backfills older files, restoring accurate ROI entry/exit counts and dwell times.Heatmap showing a single color:┬áDone┬áÔÇô corrected coordinates now populate the occupancy grid, yielding proper density gradients.notesExisting projects with previously exported trajectories are automatically corrected during analysis, but re-running the processing step will regenerate fully calibrated Parquet files for long-term consistency. Investigated earlier, the tracker occasionally saved detections in the original pixel space while the analyzer assumes the warped, calibrated space. That mismatch meant the trajectory line was plotted off-frame, ROI inclusion tests always missed, and the heatmap bins stayed empty (so the entire plot defaulted to a single low-value color). I fixed it by ensuring tracking always persists the calibrated pixel/cm ratios and by back-filling older Parquet filesÔÇöbefore analysis,┬áReporter┬ánow checks whether any bounding-box coordinate exceeds the warped frame size and, if so, automatically warps those detections into calibrated space and rebuilds their derived columns.
+2025-10-08 0590151  Looked into the zone-reuse flow; here's what I addressed:Ensure reused arenas/ROIs also clone their Parquet artifacts so eligibility checks pass.Persist those copies in project metadata and surface a fallback warning when none exist.Add regression coverage for the copy helper.actions takenAdded┬áProjectManager.copy_zone_parquet_files┬áto duplicate arena/ROI Parquet files (mirroring both the video folder and its┬á_results┬átwin) while updating the target videoÔÇÖs metadata.Updated┬á_maybe_offer_zone_reuse┬áto reuse zones without double-saving, copy the Parquets, persist once, refresh indicators, and warn only when no artifacts were found to copy.Created┬átest_copy_zone_parquet_files_replicates_artifacts┬áto validate the new helper and ensure both parent and┬á_results┬ádirectories receive the expected files.tests Ô£àpoetry run pytest tests/test_project_manager.py::TestProjectManager::test_copy_zone_parquet_files_replicates_artifacts -q┬á(PASS)requirements coverageReuse of arenas/ROIs now correctly links/copies existing Parquet files for new videos (Done).UI now reflects reused zones and alerts only when upstream Parquet assets are missing (Done).notesIf the source video truly lacks Parquet files, users receive a single warning so they can redraw or regenerate zones manually. No further action required unless youÔÇÖd like to auto-generate fresh Parquets in that edge case.
+2025-10-08 05c65fb  Zeroing in on the missing metadata warning, I added smarter fallbacks and status updates before verifying with focused tests.
+2025-10-08 50c5ab6  Aligned the project overview and pipeline tabs with the reports hierarchy; hereÔÇÖs the quick game plan I followed:
+2025-10-08 b4830fd  feat: Make Wizard the default project creation flow (v1.6)
+2025-10-08 2b5229f  Pytest and Ruff runs are complete; recapping the steps I took next.
+2025-10-08 0c21bda  Tudo pronto; foquei nos tr├¬s pontos pedidosÔÇöpadronizar a legendagem dos s├¡mbolos, registrar telemetria com structlog, e atualizar a documenta├º├úo com esses retoques.
+2025-10-08 e3f334e  Wrapping up the validation push nowÔÇöhereÔÇÖs the (already executed) game plan before I dive into details:
+2025-10-08 9531a2c  Vou preparar um resumo objetivo das altera├º├Áes e validar o que foi executado:
+2025-10-08 77064e0  Centralized the project-view refresh flow by adding the new controller helper and wiring it into the summary and analysis finalizersÔÇöUI updates now funnel through a single scheduled call.
+2025-10-08 d4b2800  Notebook styling polish underwayÔÇöset up a custom ttk theme and wired it into every tab so the UI feels cohesive.
+2025-10-08 d8ee13b  Dialing in the reports tab nowÔÇöplanning to add the ╬ú column, reuse our status helpers, and keep the aggregates in sync.
+2025-10-08 ab64255  Wrapped up the targeted processing and summary-generation work and hereÔÇÖs what changed.
+2025-10-08 4bde500  While finishing the zone-tab refresh, I completed the summary cards integration and cleaned up the supporting logicÔÇöhereÔÇÖs what happened:
+2025-10-08 5589c59  ackled the calibration split by wiring up global defaults vs per-project overrides, so IÔÇÖll quickly spell out what changed and how itÔÇÖs behaving now.actions takenExtended┬áProjectManager┬áto persist a structured┬ámodel_overrides┬áfield on creation/load, with migration logic and tests covering both new and legacy projects.Taught┬áAppController┬áto keep track of global defaults, apply/inherit project overrides, persist them, and revert/restore around global calibration sessions.Refreshed the main GUI: the welcome screen and project control tab now offer separate buttons for global calibration and project-specific ÔÇ£Prefer├¬ncias do ProjetoÔÇªÔÇØ, backed by the new┬áProjectModelOverridesDialog┬áthat previews effective settings.Added capability tests in┬átest_controller.py┬áand┬átest_project_manager.py┬áfor overrides, ensuring mocks expose a predictable weight list.verification Ô£àpoetry run pytest [test_project_manager.py](http://_vscodecontentref_/5) [test_controller.py](http://_vscodecontentref_/6) -qrequirements coverageDual-button UI for calibration (global vs project-specific) ÔÇö┬áDoneProject-level model override persistence and inheritance behavior ÔÇö┬áDoneTests guarding new override logic ÔÇö┬áDonenotes & next stepsOverrides fall back gracefully if a referenced weight disappears (logged and auto-fallback to global/default). If we later add multi-weight categories, weÔÇÖll need to share that lookup logic.No lint/type errors surfaced during pytest; existing Tkinter type stubs still flag noisy warnings under static analyzersÔÇöworth a future pass if stronger typing is needed.All changes validated and ready for review.
+2025-10-08 3824adb  Picked up the controller-hub request and expanded┬águi.py┬áto surface project status metrics via a new overview panel and supporting helpers.ÔÇó added a reusable ÔÇ£Resumo do ProjetoÔÇØ frame on the main controls tab with dynamic status totals, a batch/video tree synced to┬áProjectManager, and a double-click loader that behaves like the existing selectorÔÇó wired asynchronous┬á_request_overview_refresh┬á/┬á_refresh_project_overview┬áutilities and tied them into zone/ROI save flows, project load, selector refreshes, and reuse prompts so Tkinter stays responsive while status text gains summary addÔÇæonsÔÇó ensured ROI rename/color/remove and arena/ROI draws now set status messages and feed the same refresh pipeline, hiding zero-count badges for claritytestsResult: 4 passedrequirements coveragestatus totals panel in main controls tab ÔåÆ Donehierarchical tree synced with┬áProjectManager┬ábatches/videos ÔåÆ Donerefresh on arena/ROI/trajectory saves with non-blocking updates and coherent┬áset_status┬áusage ÔåÆ DonenotesDouble-clicking a video inside the new overview tree loads its frame, reuses zones when applicable, and immediately refreshes the summary.Status badges collapse when counts hit zero so the summary row stays compact.Overview refresh scheduling automatically cancels superseded jobs when the UI tears down or rebuilds.
+2025-10-08 da81895  Capturing everything we shipped so you can commit cleanly:
+2025-10-08 cb8f25a  Thanks for the stack traceÔÇömy plan was (1) realinhar a inicializa├º├úo do┬áAppController┬ápara garantir que o estado de pesos/OpenVINO existisse antes de construir a GUI, e (2) validar o fluxo com os testes de controller.a├º├Áes realizadasReordenei o┬á__init__┬ádo┬áAppController┬ápara calcular┬áactive_weight_name/use_openvino┬áe demais estados essenciais antes de instanciar a┬áApplicationGUI, evitando a tentativa prematura da view de acessar esses atributos (controller.py).Mantive os helpers adicionados anteriormente na GUI, que agora recebem esses valores j├í preparados.qualidade verificadaTestes automatizados:poetry run pytest [test_controller.py](http://_vscodecontentref_/7) -q┬áÔ£à (8 testes passados)cobertura dos requisitosCorrigir o crash ao iniciar a aplica├º├úo devido ├á aus├¬ncia de┬áactive_weight_name┬áno controller ÔÇö┬áConclu├¡do.notas finaisCom a ordem corrigida, a GUI j├í nasce com os estados de peso/OpenVINO dispon├¡veis e o workflow de abrir projetos continua v├ílido. Se quiser repetir a valida├º├úo completa da interface, basta iniciar o app normalmente (python -m zebtrack).
+2025-10-08 8a5bc3a  Summarizing the merged work with a quick plan:highlight the functional changes and cleanups.note the supporting test updates and workspace tweak.mention the targeted test run used for verification.resumo para commitrefatorei┬áApplicationGUI┬ápara criar a aba dedicada ÔÇ£An├ílise de V├¡deoÔÇØ, movendo o player de frames, status e barra de progresso para l├í e limpando os widgets de overlay antigos; ajustes complementares garantem reset seguro da aba ao abrir/fechar projetos e durante o fluxo de um ├║nico v├¡deo.atualizei┬átest_analysis_view_toggle.py┬ápara cobrir a nova navega├º├úo baseada em abas (status, toggle, progress bar) e┬átest_gui_zone_config_fixes.py┬ápara verificar que a aba de an├ílise ├® independente da de ROI.acrescentei configura├º├úo┬áchat.agent.maxRequests┬áem┬ásettings.json.valida├º├úopoetry run pytest [test_analysis_view_toggle.py](http://_vscodecontentref_/4) [test_gui_zone_config_fixes.py](http://_vscodecontentref_/5) -q
+2025-10-07 75daee8  vis├úo geral Atualizamos o fluxo do assistente (wizard_dialog.py) para garantir janelas efetivamente redimension├íveis e com limites m├¡nimos mais amig├íveis. Remodelamos o bot├úo ÔÇ£Processar V├¡deos PendentesÔÇØ na aba de zonas para acionar um novo fluxo que varre os v├¡deos j├í cadastrados no projeto e processa apenas os eleg├¡veis, sem solicitar novos caminhos. Criamos uma bateria de testes em test_controller.py assegurando o comportamento dessa rotina e dos cen├írios sem v├¡deos pendentes. detalhes por arquivo wizard_dialog.py
+2025-10-07 846c12e  Took another pass at the GUI so loading a video without stored zones now blanks the canvas and only offers a reuse prompt when thereÔÇÖs actually a previous video with zone dataÔÇösay ÔÇ£YesÔÇØ and it clones the stored layout, ÔÇ£NoÔÇØ wipes the selection and remembers not to nag again for that clip. Under the hood I leaned on the existing ProjectManager helpers and cleared out the unused import, then validated everything with poetry run pytest [test_project_manager.py](http://_vscodecontentref_/1) [test_gui_zone_config_fixes.py](http://_vscodecontentref_/2) -q and poetry run pytest [test_wizard_integration.py](http://_vscodecontentref_/3) -q; both suites are green. The static type checker still reports legacy Tkinter-typing mismatches that predated this change, so I left them untouched for now.
+2025-10-07 20e7721  Ready with an end-to-end recap of the template banner rolloutÔÇöhereÔÇÖs what changed and how it was validated.
+2025-10-07 788e764  Resumo do commit:
+2025-10-07 84a1357  Manual-design regex refresh is wired up so the dialog now reflects new detections instantlyÔÇöhereÔÇÖs what changed and how it was verified.
+2025-10-07 91d1631  Adjusting the manual design editor table so its editable rows share the same column widths as the headers and options that follow.
+2025-10-07 299e7dd  Tackling the shrunken wizard: IÔÇÖm going to (1) restore a sensible default geometry for the discovery step while keeping the scrollability, (2) ensure the new scroll frame inherits the original background so radio-button indicators stay visible, and (3) validate everything with the wizard tests plus Ruff.
+2025-10-06 40d68ae  Enhance wizard suppression logic and update test configurationsÔÇöadded environment flags to control post-creation guide and wizard dialogs.
+2025-10-06 221b1b1  Post-creation guide in placeÔÇöhereÔÇÖs the quick rundown I followed: adicionada a rotina de onboarding no controlador, vinculada ao fluxo de cria├º├úo do projeto e validada com os testes requeridos.
+2025-10-06 6f64b80  Reworked the reports tab hierarchy and synced it with the new metadata-driven structureÔÇöhereÔÇÖs what landed.
+2025-10-06 5f26e34  Locked onto making the group editor mandatoryÔÇöhereÔÇÖs how I tackled it.
+2025-10-06 49864e0  Metadata persistence is in placeÔÇöhereÔÇÖs what I touched and verified next.
+2025-10-06 4109d05  Zooming in on ÔÇ£Solu├º├úoÔÇ»1ÔÇØ, I first wired the new hierarchical video selector UI, refreshed the supporting GUI logic, and wrapped up with tests and lint to keep the build clean.
+2025-10-06 1807011  Implement code changes to enhance functionality and improve performance
+2025-10-05 76bf9bf  Merge pull request #193 from MarkSant/fix/ruff-e501-errors
+2025-10-05 368fe02  Refactor UI components in wizard steps for improved readability and maintainability
+2025-10-05 d48c43c  feat: add extended documentation and Arduino integration details in guides
+2025-10-05 9fe2827  feat: Implement ArduinoManager for improved Arduino handling
+2025-10-05 86c8923  feat: implement Arduino connection setup and command handling in AppController
+2025-10-05 eb6fad3  feat: add summary data export functionality in Reporter; implement group ID resolution and column name translation
+2025-10-05 03aa0e9  feat: enhance project creation wizard with camera and Arduino settings; remove legacy generator scripts
+2025-10-05 667e0a8  refactor: remove outdated test scenario generation scripts for Wizard v1.5
+2025-10-05 03d1e3c  Merge pull request #192 from MarkSant/feature/granular-parquet-detection-import
+2025-10-03 f0c209a  docs: add detailed project workflow and batch analysis documentation
+2025-10-03 3a33ad1  fix: complete single video workflow - restore perspective transformation pipeline
+2025-10-03 e8f248f  fix: resolve ALL remaining test failures - 133/133 tests passing! ­ƒÄë
+2025-10-03 6e3d4cf  wip: partial fixes for overlay and workflow integration tests
+2025-10-03 3b9a942  fix: resolve test suite failures and improve CI stability
+2025-10-03 20445fd  fix: resolve test_integration.py timeout in CI
+2025-10-03 4cb4811  fix: add xvfb support for GUI tests in CI
+2025-10-03 6217d6e  Merge pull request #191 from MarkSant/all_lint_ok
+2025-10-03 0cd58a5  Merge pull request #190 from MarkSant/feature/roi-and-report-improvements
+2025-10-02 c14bf4d  Merge pull request #189 from MarkSant/feature/ui-improvements-and-bug-fixes
+2025-10-02 cbb7a36  Merge pull request #188 from MarkSant/add-claude-github-actions-1759425428019
+2025-09-30 6159ee7  docs: add comprehensive project documentation for ZebTrack-AI, including setup, architecture, and usage guidelines
+2025-09-30 6765b7d  Problema: Durante a an├ílise de v├¡deo, a barra de progresso e as estat├¡sticas (total de frames,   processados, detectados, etc.) s├│ apareciam quando o usu├írio clicava em "Ver Desenhos das   ├üreas", ao inv├®s de serem exibidas em tempo real abaixo dos frames de detec├º├úo.
+2025-09-30 e7aef39  Refactor code structure and remove redundant sections for improved readability
+2025-09-30 e009429  docs: update contributing guide and README for clarity and structure; add architecture documentation
+2025-09-30 c04f5d7  Refactor and enhance UI and functionality for video analysis
+2025-09-30 8957096  Organize manual tests and documentation notes
+2025-09-24 70ab6cf  Merge pull request #186 from MarkSant/copilot/fix-271c7ace-4c14-4490-87dc-b56ce443d6d8
+2025-09-24 b34e30f  Merge pull request #185 from MarkSant/copilot/fix-d0707dd6-47d3-4497-b704-a0a63471f18f
+2025-09-24 67c03d4  Merge pull request #184 from MarkSant/copilot/fix-520cb3ee-da2d-4262-897e-572e178e89f2
+2025-09-24 ae00c25  Merge pull request #183 from MarkSant/copilot/fix-c104d786-4ca7-4970-8aaf-0d395b954a79
+2025-09-24 739d60c  Merge pull request #182 from MarkSant:copilot/fix-a6515e4b-5ac8-4b30-b242-2f069d212f24
+2025-09-19 244bac9  Merge pull request #181 from MarkSant/copilot/fix-567f89c1-b6a5-447f-8bde-3c134c6b8480
+2025-09-19 7181d2f  Merge pull request #180 from MarkSant/copilot/fix-6fc9c129-0ad2-454a-b84c-46952f66ea83
+2025-09-19 6b3371e  Merge pull request #179 from MarkSant/copilot/fix-1e32d41e-0e7a-4e38-bcf4-1c1820e76007
+2025-09-19 a0af497  Merge pull request #178 from MarkSant/copilot/fix-6a45e153-20e3-470f-b522-ad04988f66a3
+2025-09-19 1d289da  Merge pull request #177 from MarkSant/copilot/fix-eed533ee-3656-4823-8177-89d397802e75
+2025-09-19 35feeb7  Merge pull request #176 from MarkSant/copilot/fix-22a314ff-0e91-451a-bea1-622c6148d765
+2025-09-19 0862cfd  Merge pull request #175 from MarkSant/copilot/fix-56bc8f60-3d52-459d-8204-84b051402d85
+2025-09-19 fbc85ae  Merge pull request #174 from MarkSant/copilot/fix-62b7e2da-4e38-4dfd-bb2c-55a5d01c3a94
+2025-09-19 f9222d0  Merge pull request #173 from MarkSant/copilot/fix-cb8a3d30-932b-4a19-b348-d9e58919234c
+2025-09-19 01eee78  Merge pull request #172 from MarkSant/copilot/fix-4af4ec0b-7b5b-4e90-90f6-936da3f125ab
+2025-09-19 a419749  Merge pull request #169 from MarkSant/fix/ruff-pytest-errors
+2025-09-19 183c78d  Merge pull request #168 from MarkSant/copilot/fix-6886eb04-d303-478b-af21-61cdac970981
+2025-09-19 945d00c  Merge pull request #167 from MarkSant/copilot/fix-c8d77b9e-b465-4988-82d2-d9616514b2d0
+2025-09-19 8b038e6  Merge pull request #166 from MarkSant/copilot/fix-57df1cec-69e2-4efc-867e-033736beef2a
+2025-09-19 4b43fb3  Retirar pesos .pt do reposit├│rio e incluir no gitiignore
+2025-09-18 5e6d14a  Merge pull request #165 from MarkSant/fix-linting-errors
+2025-09-18 ac5b9e9  Merge pull request #164 from MarkSant/fix/ruff-pytest-errors
+2025-09-18 057d79b  Apaguei arquivos MD inuteis
+2025-09-18 cf2cef1  Merge pull request #163 from MarkSant/copilot/fix-65258e89-d4a7-4a34-8ed9-2126ad550c7c
+2025-09-18 bbd9d68  Merge pull request #162 from MarkSant/copilot/fix-7864ccf9-2caf-47c5-9ca4-e8862271d870
+2025-09-18 b0cb555  Merge pull request #161 from MarkSant/copilot/fix-e83db3b6-5600-4734-a807-0d3998f54a64
+2025-09-17 46b0080  Merge pull request #160 from MarkSant/copilot/fix-409f1d36-abdb-4f71-8a43-a7e4b9252a9f
+2025-09-17 1c6ddb8  Merge pull request #158 from MarkSant/copilot/fix-dcfde9af-3788-4cf5-bcbd-bd7158974449
+2025-09-17 f7dff7e  Merge pull request #157 from MarkSant/copilot/fix-4802e1ec-d840-413a-94ab-bee7a12b815f
+2025-09-17 6b82539  Update processing thread behavior: Keep main screen to display progress bar
+2025-09-17 9cbf453  Merge pull request #156 from MarkSant/copilot/fix-404b0fd0-6f44-4c97-871d-5a930f0f954c
+2025-09-16 05f5347  Altera├º├Áes Claude boas 2
+2025-09-15 a26339f  Adiciona funcionalidades e remove v├¡deo do hist├│rico (agora de verdade)
+2025-09-13 df499f0  Merge pull request #150 from MarkSant:copilot/fix-4bbaf333-0be2-4161-9e8a-40dde9e1fe51
+2025-09-13 671defb  Merge pull request #149 from MarkSant:copilot/fix-d6198bbe-6ea4-4645-bbf4-8d2f0c57ceb7
+2025-09-13 b332f7e  Merge pull request #148 from MarkSant:copilot/fix-a8c92b7b-193b-46aa-8081-9a890ff3c2ff
+2025-09-13 b502790  Merge pull request #147 from MarkSant/copilot/vscode1757798297332
+2025-09-13 adacd66  Merge pull request #146 from MarkSant/fix/calibration-flow
+2025-09-13 144de11  Merge pull request #145 from MarkSant/fix/calibration-flow
+2025-09-13 b3d675f  Merge pull request #144 from MarkSant/fix/calibration-flow
+2025-09-13 4a8fba8  Merge pull request #142 from MarkSant/copilot/fix-09f7c040-4786-44a9-8be2-907adfaad50c
+2025-09-13 a02ddb9  chore: Remove best2.pt
+2025-09-13 8d38567  chore: Remove tracked files now specified in .gitignore
+2025-09-13 f876ffc  Merge pull request #141 from MarkSant/feature/add-gitignore
+2025-09-12 7d59d43  Merge pull request #140 from MarkSant/feat/gui-refactor-and-diagnostic-tool
+2025-09-12 caedd7d  Merge pull request #139 from MarkSant/feat/gui-refactor-and-diagnostic-tool
+2025-09-12 0eceb46  Merge pull request #138 from MarkSant/fix/polygon-save-bug
+2025-09-12 388e312  Merge pull request #136 from MarkSant/fix/manual-drawing-and-detection-tuning
+2025-09-12 15bbdf3  Merge pull request #135 from MarkSant/feat/optimize-and-fix-detection-logic
+2025-09-12 13dee92  Merge pull request #134 from MarkSant/feature/robust-aquarium-detection
+2025-09-11 0db18ac  Merge pull request #133 from MarkSant/fix-single-video-workflow
+2025-09-11 58ee846  Merge pull request #131 from MarkSant/fix-single-video-workflow
+2025-09-11 19cb10a  Merge pull request #130 from MarkSant/feature/interactive-video-analysis
+2025-09-11 4dca5d4  Merge pull request #129 from MarkSant/feature/interactive-video-analysis
+2025-09-11 00c291d  Add metadata for YOLO11s-seg model, update tracking loop logic, and create weights configuration
+2025-09-11 2cf764a  Merge pull request #127 from MarkSant/fix/single-video-analysis-crash
+2025-09-11 8c9ee1c  Merge pull request #126 from MarkSant/fix/single-video-analysis-crash
+2025-09-11 0fc0c95  Merge pull request #125 from MarkSant/fix/single-video-analysis-crash
+2025-09-10 c126086  Merge pull request #124 from MarkSant/fix-numpy-nameerror
+2025-09-10 821955e  Merge pull request #123 from MarkSant/fix-numpy-nameerror
+2025-09-10 2959ab4  Merge pull request #122 from MarkSant/fix-numpy-nameerror
+2025-09-10 357aa90  Merge pull request #121 from MarkSant/fix-numpy-nameerror
+2025-09-10 5f7165c  Merge pull request #120 from MarkSant/fix-numpy-nameerror
+2025-09-10 4b03596  Merge pull request #119 from MarkSant/feat/openvino-bytetrack-integration
+2025-09-10 3e08164  Merge pull request #116 from MarkSant/feat/openvino-bytetrack-integration
+2025-09-09 09d1e4e  Merge pull request #113 from MarkSant/fix-video-analysis-workflow
+2025-09-07 1d2af1e  refactor: Consolidate project instructions and remove obsolete files
+2025-09-07 d40f8f6  Merge pull request #111 from MarkSant/feat/security-and-api-stability
+2025-09-07 c62b56c  Merge pull request #109 from MarkSant/feature/update-packaging
+2025-09-07 b2d15c9  Merge pull request #108 from MarkSant/feat/ux-improvements
+2025-09-07 fac2878  Merge pull request #106 from MarkSant/feature/improve-logging
+2025-09-07 4a995c7  Merge pull request #105 from MarkSant/feature/improve-test-coverage
+2025-09-07 f9e9837  Merge pull request #104 from MarkSant/fix/behavioral-metrics-logic
+2025-09-07 7414eb0  Merge pull request #103 from MarkSant/perf-optimizations
+2025-09-07 c953744  Merge pull request #101 from MarkSant/fix/robustness-and-runtime-issues
+2025-09-07 d4db292  Merge pull request #100 from MarkSant/refactor/remove-dead-code
+2025-09-07 8f6ce1c  Merge pull request #99 from MarkSant/refactor/standardize-codebase
+2025-09-07 cd8ffc2  Merge pull request #98 from MarkSant/bugfix/critical-fixes-batch-1
+2025-09-07 8a5fac7  Merge pull request #97 from MarkSant/feat/major-analysis-overhaul
+2025-09-07 f47b49e  Merge pull request #95 from MarkSant/feat/refactor-analysis-and-metrics
+2025-09-07 31b01bc  Merge pull request #93 from MarkSant/feat/refactor-workflows
+2025-09-05 8889daf  Merge pull request #91 from MarkSant/feat/refactor-live-project-workflow
+2025-09-05 8c0025a  Merge pull request #90 from MarkSant/feat/welcome-screen-model-management
+2025-09-05 433c481  Merge pull request #88 from MarkSant/feature/dynamic-zones
+2025-09-05 66ca550  Merge pull request #84 from MarkSant/feature/interactive-device-selection
+2025-09-05 919a9aa  Merge pull request #83 from MarkSant/remove-unused-config
+2025-09-05 0e63ff6  Remove metadata.yaml for best12_openvino_model as it was updated with a new wheigth to instance segmentation and need to be readapted to openvino
+2025-09-05 e45fcf6  Merge pull request #82 from MarkSant/feat/add-tests-and-docs
+2025-09-05 04277ba  Merge pull request #81 from MarkSant/fix/linting-and-test-errors
+2025-09-05 8b84609  Merge pull request #76 from MarkSant/feature/roi-analysis-module
+2025-09-04 598610a  Merge pull request #74 from MarkSant/feature/behavioral-analyzer-abc
+2025-09-04 a5acffa  Merge pull request #73 from MarkSant/feature/automatic-calibration
+2025-09-04 a2fb491  Merge pull request #72 from MarkSant/feature/migrate-csv-to-parquet
+2025-09-04 cc5c63c  Merge pull request #71 from MarkSant/refactor-yolo-plugin
+2025-08-17 777af2e  Merge pull request #70 from MarkSant/feat/bytetrack-parquet-integration
+2025-08-17 eb2bd15  Merge pull request #69 from MarkSant/fix-ruff-issues
+2025-08-17 6efdbc1  Merging branchs
+2025-08-17 69c0c6a  Delete .github directory
+2025-08-17 d907c32  Delete labels.json
+2025-08-17 fe77f7f  Delete labels directory
+2025-08-17 05dfa64  Delete milestones directory
+2025-08-17 be557f3  Delete <path_to_file>
+2025-08-17 81418cc  chore(labels): add remaining label definition files
+2025-08-17 d20cc7c  Create milestone v.01
+2025-08-17 f793e00  chore(labels): add Type__Enhancement
+2025-08-17 affddb0  chore(labels): add remaining standardized label definition files
+2025-08-17 c82b4d8  Delete labels/Bug.json
+2025-08-17 5cd2477  Revert commit 09c5de3cfa46c98d8cb15a37e2ae1a4c8fd7ab74
+2025-08-17 09c5de3  Create Type: Bug label file
+2025-08-17 f54d44e  Create or update label: Bug
+2025-08-17 74e0683  Ensure labels in repositories
+2025-08-17 0d4573e  Add consolidated labels manifest
+2025-08-17 a5eb55c  Create label Type: Bug
+2025-08-17 380cd62  Create label Type: Bug
+2025-08-17 9661f2d  Ajustei nome do arquivo
+2025-08-17 a95fd09  Add Instructions file for Project
+2025-08-17 4bdbb77  Delete plano_projeto.txt
+2025-08-17 0084c12  Delete issues directory
+2025-08-17 6d8f6b3  Delete labels.json
+2025-08-17 6aa88ec  Delete labels.yaml
+2025-08-17 4410e0d  Merge pull request #33 from MarkSant/copilot/fix-07089f2b-fdc3-4c45-8b94-0c1a818dc04d
+2025-08-17 5c05674  Create/update labels with exact colors.
+2025-08-17 675da8c  Create labels for ZebTrack-AI repository
+2025-08-17 d4d3258  Criando issue: Configura├º├úo e Automa├º├úo do Projeto Global ZebTrack
+2025-08-17 712cd6d  Criar arquivo plano_projeto.txt com o plano de projeto detalhado.
+2025-08-17 349dac3  auto

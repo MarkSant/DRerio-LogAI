@@ -597,4 +597,3 @@ This is actually a good refactoring that extracted logic from MainViewModel. The
 3. **Single Responsibility Checks:** Code reviews focused on concern separation
 4. **Extract Services Early:** Refactor at 1000 lines, not 5000+
 5. **Component Tests:** Test individual UI components separately from the main window
-

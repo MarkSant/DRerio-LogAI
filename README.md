@@ -7,7 +7,7 @@
 
 ![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)
 ![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
-![Python](https://img.shields.io/badge/python-3.11%2B-yellow.svg)
+![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
 ![Tests](https://img.shields.io/badge/tests-2568%20passing-brightgreen.svg)
 [![Codecov](https://codecov.io/gh/MarkSant/ZebTrack-AI/branch/main/graph/badge.svg)](https://codecov.io/gh/MarkSant/ZebTrack-AI)
@@ -34,9 +34,9 @@ O **ZebTrack-AI** resolve esses problemas oferecendo análise automatizada, obje
 
 ### ✨ Diferenciais
 
-- **🤖 Deep Learning Otimizado**: Modelos YOLO v8/v11 com aceleração OpenVINO para detecção em tempo real
+- **🤖 Deep Learning Otimizado**: Ultralytics YOLO (detecção e segmentação) com opção de aceleração via OpenVINO
 - **📊 Métricas Científicas**: Cálculo automático de velocidade, distância percorrida, tempo em zonas, imobilidade, proximidade social
-- **🎨 Interface Intuitiva**: Wizard de 5 etapas para configuração de projetos sem necessidade de programação
+- **🎨 Interface Intuitiva**: Wizard dinâmico (6–7 etapas) para criação de projetos (pré-gravado ou ao vivo) sem necessidade de programação
 - **🔬 Reprodutibilidade**: Todas as configurações e parâmetros de análise são salvos junto com os dados
 - **📹 Análise ao Vivo**: Captura e análise em tempo real com câmeras USB/webcams
 - **🏗️ Arquitetura Event-Driven**: Sistema modular e extensível baseado em eventos
@@ -204,17 +204,12 @@ poetry run zebtrack
 
 ### Modo Linha de Comando (CLI)
 
-O ZebTrack-AI também pode ser executado via linha de comando:
+Atualmente o entrypoint `zebtrack` é focado na execução da aplicação (GUI) e expõe apenas
+opções de diagnóstico/log via argumentos.
 
 ```bash
-# Processar um vídeo específico
-poetry run zebtrack process --video /caminho/para/video.mp4 --project meu_projeto
-
-# Análise ao vivo com câmera
-poetry run zebtrack live --camera 0 --duration 300
-
-# Gerar relatório de um projeto existente
-poetry run zebtrack report --project meu_projeto
+# Exemplo: aumentar verbosidade de um módulo específico
+poetry run zebtrack --log-level zebtrack.core.detector=DEBUG
 ```
 
 ### Primeira Execução
@@ -229,12 +224,16 @@ Na primeira execução, o sistema irá:
 
 ### Fluxo de Trabalho Típico
 
-1. **Criar Projeto** (Wizard de 5 Etapas)
-   - Configurar informações do experimento (nome, descrição, duração)
-   - Definir arena e ROIs (Regions of Interest)
-   - Configurar detector e parâmetros de rastreamento
-   - Selecionar vídeos para análise
-   - Configurar hardware (Arduino, câmera) se aplicável
+1. **Criar Projeto** (Wizard dinâmico: 6 etapas ao vivo, 7 etapas pré-gravado)
+    - **Discovery**: tipo de projeto (experimental/exploratório/ao vivo), organização de pastas e
+       escopo de importação de parquets (quando aplicável); suporte a templates
+    - **Pré-gravado**: seleção de arquivos/pastas → calibração física → detecção/validação de
+       design (auto-detecção por estrutura de pastas, regex customizada e editor de design)
+       → seleção de modelo/pesos/parâmetros → configuração de importação por vídeo
+       (arena/ROIs/trajetória + estratégia de merge de ROIs) → confirmação
+    - **Ao vivo**: design experimental (grupos/dias/sujeitos) → configuração de câmera/Arduino e
+       gravação (inclui modo de gatilho externo) → calibração física → seleção de modelo/pesos/
+       parâmetros → confirmação
 
 2. **Processar Vídeos**
    - Detecção automática de peixes com YOLO
@@ -252,46 +251,54 @@ Na primeira execução, o sistema irá:
    - Planilhas Excel com métricas agregadas
    - Gráficos de velocidade, distância e ocupação
 
-### Exemplo: Análise de Vídeo Pré-gravado
+## 🧩 Tour da Interface (abas do projeto)
 
-```bash
-# 1. Criar projeto via GUI
-poetry run zebtrack
+Após criar/abrir um projeto, a janela principal organiza o fluxo operacional em abas:
 
-# 2. Ou via CLI (avançado)
-poetry run zebtrack create-project \
-  --name "Experimento CBD" \
-  --arena-type circular \
-  --roi-count 4 \
-  --videos "video1.mp4,video2.mp4"
+- **Controle Principal**: ações por tipo de projeto (ao vivo: iniciar/parar gravação; pré-gravado:
+   adicionar e processar novos vídeos/pastas), fechar projeto, visão geral hierárquica
+   (grupo/dia/sujeito/vídeo), e painel de estado do modelo (peso ativo e OpenVINO)
+- **Configuração de Zonas**: definição de arena e ROIs com desenho por polígono, desfazer/refazer,
+   estabilização (ignorar frames iniciais), regras de inclusão em zona (centroide/intersecção/sobreposição)
+   e suporte a templates/reuso
+- **Análise de Vídeo**: acompanhamento de análise e seleção de `track_id` (todos ou específicos)
+- **Processamento e Relatórios**: centraliza geração de trajetórias, exportação de sumários e
+   geração de relatórios (parciais e unificado), com árvore de status por vídeo e abertura por duplo clique
+- **Config. Avançadas**: editor in-app para parâmetros do `config.yaml` com persistência em
+   `config.local.yaml` e sincronização por eventos
+- **Progresso do Experimento** (ao vivo): grade visual de progresso e atualização sob demanda
 
-# 3. Processar vídeos
-poetry run zebtrack process --project "Experimento CBD"
-
-# 4. Gerar relatório
-poetry run zebtrack report --project "Experimento CBD" --format docx
-```
-
-### Exemplo: Análise ao Vivo
-
-```bash
-# Iniciar sessão de análise ao vivo (5 minutos)
-poetry run zebtrack live \
-  --camera 0 \
-  --duration 300 \
-  --project "Teste Live" \
-  --preview
-```
+Em projetos ao vivo, o **Arduino Dashboard** também é integrado ao fluxo para status de conexão,
+comandos e rechecagem de portas.
 
 ## 🔬 Funcionalidades Científicas
 
 ### Detecção e Rastreamento
 
-- **Modelos de Detecção**: YOLO v8/v11 (nano, small, medium)
+- **Modelos**: Ultralytics YOLO (detecção e/ou segmentação conforme o objetivo)
 - **Aceleração**: OpenVINO para CPUs Intel (3-5x mais rápido)
 - **Multi-objeto**: Rastreamento simultâneo de até 96 peixes
 - **Filtragem**: Savitzky-Golay para suavização de trajetórias
 - **Persistência**: Manutenção de IDs através de oclusões temporárias
+
+### Pesos, backends e reprodutibilidade de modelo
+
+- **Catálogo persistente de pesos**: gerenciamento via `weights_config.json`
+- **Tipos de peso**: separação explícita entre segmentação (`seg`) e detecção (`det`)
+- **Padrões independentes por tipo**: um peso padrão para segmentação e outro para detecção
+- **Seleção por tarefa**: no Wizard, método/peso podem ser definidos separadamente para “aquário”
+   e “animal”
+- **OpenVINO**: conversão/caching com estados explícitos (não convertido, convertendo, pronto, falhou)
+
+### Detecção (det) vs Segmentação (seg): quando usar
+
+- **Detecção (det)**: representa o alvo como _bounding box_; tende a ser mais leve e adequada quando
+   a localização aproximada é suficiente
+- **Segmentação (seg)**: representa o alvo como máscara; tende a ser mais adequada quando a análise
+   depende de precisão espacial (bordas/ROIs pequenas) e/ou quando há múltiplos animais
+
+O ZebTrack-AI expõe na UI os parâmetros críticos (confiança/NMS e ByteTrack) para documentar e
+reproduzir o trade-off escolhido em cada experimento.
 
 ### Métricas Comportamentais
 
@@ -319,7 +326,7 @@ poetry run zebtrack live \
 
 ### Calibração e Coordenadas
 
-- **Calibração Espacial**: Conversão pixels → cm usando arUco markers
+- **Calibração Espacial**: Conversão pixels → cm via dimensões físicas informadas (largura/altura em cm)
 - **Sistemas de Coordenadas**: Referência (original) e display (redimensionado)
 - **Geometria de ROIs**: Suporte a polígonos, círculos e retângulos
 - **Buffer de ROIs**: Expansão/contração de regiões para análises de proximidade
@@ -394,7 +401,7 @@ ZebTrack-AI/
 │   │   ├── live_stream_source.py # Fonte limitada por tempo
 │   │   └── frame_source_factory.py # Factory de fontes
 │   ├── ui/                     # Interface gráfica
-│   │   ├── gui.py              # Janela principal (10759 linhas)
+│   │   ├── gui.py              # Janela principal
 │   │   ├── ui_coordinator.py   # Mediator (Event-Driven)
 │   │   ├── components/         # Gerenciadores de UI
 │   │   │   ├── canvas_manager.py
@@ -406,9 +413,16 @@ ZebTrack-AI/
 │   │   │   ├── live_preview_window.py
 │   │   │   └── ...
 │   │   ├── wizard/             # Wizard de 5 etapas
-│   │   │   ├── models.py       # Modelos Pydantic
-│   │   │   ├── wizard_step1.py
-│   │   │   └── ...
+│   │   │   ├── wizard_dialog.py
+│   │   │   ├── discovery_step.py
+│   │   │   ├── file_selection_step.py
+│   │   │   ├── experimental_design_step.py
+│   │   │   ├── live_config_step.py
+│   │   │   ├── calibration_step.py
+│   │   │   ├── detection_step.py
+│   │   │   ├── model_selection_step.py
+│   │   │   ├── import_config_step.py
+│   │   │   └── confirmation_step.py
 │   │   └── assets/             # Recursos visuais (logos)
 │   ├── analysis/               # Análise comportamental
 │   │   ├── analysis_service.py
