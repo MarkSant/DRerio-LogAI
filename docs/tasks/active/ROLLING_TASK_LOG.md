@@ -6,6 +6,21 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-08] README Version History (v1–v3) + Fix Changelog Link
+
+**ID:** TASK-025
+**Agent:** GitHub Copilot (GPT-5.2)
+**Status:** Completed ✅
+**Description:**
+Add a concise but detailed version-history section to `README.md` covering v1–v3 milestones based
+strictly on `CHANGELOG.md`, and fix the README “Changelog” link to point to the correct file.
+
+### Subtasks (TASK-025)
+
+- [x] Run impact analysis for `README.md` and task log (doc-only change).
+- [x] Patch README: update Changelog link and add v1–v3 summary section.
+- [x] Validate markdownlint/pre-commit checks on edited docs.
+
 ### [2026-02-08] Historical Archive Organization + Annex Link Updates
 
 **ID:** TASK-024

@@ -12,7 +12,7 @@
 ![Tests](https://img.shields.io/badge/tests-2568%20passing-brightgreen.svg)
 [![Codecov](https://codecov.io/gh/MarkSant/ZebTrack-AI/branch/main/graph/badge.svg)](https://codecov.io/gh/MarkSant/ZebTrack-AI)
 
-[Documentação](docs/) | [Guia de Contribuição](docs/guides/developer/DEVELOPER_GUIDE.md) | [Arquitetura](docs/architecture/ARCHITECTURE.md) | [Changelog](docs/changelog.md)
+[Documentação](docs/) | [Guia de Contribuição](docs/guides/developer/DEVELOPER_GUIDE.md) | [Arquitetura](docs/architecture/ARCHITECTURE.md) | [Changelog](CHANGELOG.md)
 
 </div>
 
@@ -94,6 +94,45 @@ Suporte avançado para análise simultânea de múltiplos aquários:
 - **🧠 Geotaxia (Novel Tank Test)**: Suporte nativo para perspectiva lateral com zonas verticais (Fundo/Meio/Superfície)
 - **📏 Demarcação Visual**: Linhas de zona automáticas em plots de trajetória e heatmaps para visualização clara de preferência de altura
 - **📄 Relatórios Contextuais**: Nomenclatura adaptativa de colunas baseada na perspectiva da câmera
+
+## 📚 Histórico de versões (v1–v3)
+
+O README destaca o estado atual (v4.0). Para detalhes completos por release, consulte o
+[CHANGELOG.md](CHANGELOG.md). Abaixo fica um resumo (marcos principais) das versões anteriores.
+
+### v3.0.0 (2025-01-11)
+
+- Remoção completa do sistema legado de threads para projetos ao vivo.
+- Fluxo de câmera ao vivo passa a ser exclusivamente via `LiveCameraService`.
+- Limpeza e simplificação do carregamento de projetos Live (separação mais clara entre vídeo e
+   câmera).
+
+### v2.x (2025)
+
+#### v2.1.0 (2025-01-11)
+
+- Migração de projetos Live para arquitetura unificada do `LiveCameraService`.
+- Correções críticas: `camera_index` respeitado (não força câmera 0) e intervalos de análise/display
+   respeitados.
+- Redução de threads e memória (de 4 → 2 threads; buffer menor).
+
+#### v2.0.0 (2025-10-XX)
+
+- Camada de serviço do Wizard (`zebtrack.core.wizard_service`) com lógica de negócio testável e
+   centralizada (hardware, validação, utilitários e sugestões).
+- Modelos Pydantic para validação tipada (`LiveConfigData`, `ExperimentalDesignData`, etc.).
+- Modularização de UI: extração de diálogos do `gui.py` para `zebtrack.ui.dialogs/` e melhoria de
+   testabilidade/manutenibilidade.
+- Cache de detecção de hardware (TTL 30s) para reduzir latência na navegação do Wizard.
+- Evolução do Wizard (Express/Advanced, trigger externo, templates, regras de inclusão em ROI).
+
+### v1.x (baseline)
+
+#### v1.6.0 (previous release)
+
+- Criação de projetos via Wizard (fluxo em etapas) e suporte a projetos Live com câmera/Arduino.
+- Campos de desenho experimental (grupos/dias/sujeitos) e persistência de templates.
+- Diálogos legados mantidos por compatibilidade.
 
 ## 🛠️ Instalação
 
@@ -368,7 +407,7 @@ A documentação técnica está disponível na pasta `docs/`:
 - 🔄 [**WORKFLOWS.md**](docs/guides/developer/WORKFLOWS.md) - Fluxos de trabalho detalhados
 - 🐛 [**QUICK_DEBUG_GUIDE.md**](docs/guides/developer/QUICK_DEBUG_GUIDE.md) - Solução de problemas
 - ⚠️ [**KNOWN_ISSUES.md**](docs/reference/KNOWN_ISSUES.md) - Problemas conhecidos e soluções
-- 📝 [**CHANGELOG.md**](docs/changelog.md) - Histórico de versões
+- 📝 [**CHANGELOG.md**](CHANGELOG.md) - Histórico de versões
 
 ### Documentos Históricos
 
