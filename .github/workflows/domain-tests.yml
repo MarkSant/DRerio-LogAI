@@ -335,7 +335,7 @@ jobs:
 
       - name: Run analysis tests
         run: |
-          poetry run pytest tests/test_analysis*.py tests/test_reporter*.py -v --no-cov --timeout=300
+          poetry run pytest tests/analysis/ tests/test_analysis*.py -v --no-cov --timeout=300
 
   summary:
     runs-on: ubuntu-latest

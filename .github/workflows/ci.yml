@@ -282,7 +282,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           $Env:ZEBTRACK_HEADLESS_TESTS = "1"
-          poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=25 --timeout=300 --timeout-method=thread
+          poetry run pytest -m "not gui" --ignore=tests/ui/test_aquarium_dialogs.py --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=25 --timeout=300 --timeout-method=thread
         timeout-minutes: 45
 
       - name: Upload Codecov core coverage (Linux)

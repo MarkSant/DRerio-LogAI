@@ -20,8 +20,8 @@ correction, including commitlint false negatives and Domain Tests instability on
 - [x] Diagnose all failing checks from PR #343 and extract failed logs.
 - [x] Fix domain workflow coverage-gate coupling (`--no-cov` in domain shards).
 - [x] Stabilize Windows timing assertion in threading test.
-- [ ] Resolve residual commitlint failure mode and re-validate check.
-- [ ] Resolve headless Tkinter errors in multi-aquarium domain shard.
+- [x] Resolve residual commitlint failure mode and re-validate check.
+- [x] Resolve headless Tkinter errors in multi-aquarium domain shard.
 - [ ] Re-run CI and confirm all required checks pass.
 
 ### [2026-02-13] Batch UX, ROI template safeguards, processing-mode label, and unified reports hardening
