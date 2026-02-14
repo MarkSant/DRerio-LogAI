@@ -40,7 +40,7 @@ class FakeDetector:
 @pytest.fixture
 def worker_config():
     settings = SimpleNamespace(
-        video_processing=SimpleNamespace(processing_interval=2, animals_per_aquarium=1),
+        video_processing=SimpleNamespace(processing_interval=2, single_animal_per_aquarium=True),
         camera=SimpleNamespace(desired_width=320, desired_height=240),
         yolo_model=SimpleNamespace(path="model.pt"),
         tracking=SimpleNamespace(use_single_subject_tracker=False),

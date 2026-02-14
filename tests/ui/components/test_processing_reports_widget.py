@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import Mock, patch
 
 import pytest
@@ -74,6 +75,76 @@ def test_open_unified_opens_latest(widget, tmp_path, monkeypatch):
     widget._open_latest_unified_file(".xlsx")
 
     startfile.assert_called_once_with(str(second))
+
+
+@pytest.mark.gui
+def test_open_unified_prefers_latest_manifest_artifact(widget, tmp_path, monkeypatch):
+    widget._project_path = str(tmp_path)
+    unified_dir = tmp_path / "unified_reports"
+    unified_dir.mkdir()
+
+    older = unified_dir / "report_old.xlsx"
+    latest_by_time = unified_dir / "report_latest.xlsx"
+    from_manifest = unified_dir / "report_from_manifest.xlsx"
+
+    older.write_text("older")
+    latest_by_time.write_text("latest")
+    from_manifest.write_text("manifest")
+
+    import os
+
+    os.utime(older, (1_000_000, 1_000_000))
+    os.utime(from_manifest, (1_000_050, 1_000_050))
+    os.utime(latest_by_time, (1_000_100, 1_000_100))
+
+    manifest = {
+        "run_id": "run_123",
+        "artifacts": {
+            "excel": str(from_manifest),
+            "word": "",
+            "parquet": "",
+        },
+    }
+    (unified_dir / "latest_unified_run.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    startfile = Mock()
+    monkeypatch.setattr("os.startfile", startfile, raising=False)
+
+    widget._open_latest_unified_file(".xlsx")
+
+    startfile.assert_called_once_with(str(from_manifest))
+
+
+@pytest.mark.gui
+def test_open_unified_manifest_missing_artifact_falls_back_to_latest(widget, tmp_path, monkeypatch):
+    widget._project_path = str(tmp_path)
+    unified_dir = tmp_path / "unified_reports"
+    unified_dir.mkdir()
+
+    older = unified_dir / "report_old.xlsx"
+    latest = unified_dir / "report_latest.xlsx"
+    older.write_text("older")
+    latest.write_text("latest")
+
+    import os
+
+    os.utime(older, (1_000_000, 1_000_000))
+    os.utime(latest, (1_000_100, 1_000_100))
+
+    manifest = {
+        "run_id": "run_124",
+        "artifacts": {
+            "excel": str(unified_dir / "missing.xlsx"),
+        },
+    }
+    (unified_dir / "latest_unified_run.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    startfile = Mock()
+    monkeypatch.setattr("os.startfile", startfile, raising=False)
+
+    widget._open_latest_unified_file(".xlsx")
+
+    startfile.assert_called_once_with(str(latest))
 
 
 @pytest.mark.gui

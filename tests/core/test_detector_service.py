@@ -552,6 +552,14 @@ class TestDetectorService(unittest.TestCase):
         # Verify
         self.assertTrue(pref)
 
+    def test_resolve_single_subject_tracker_preference_from_top_level_animals(self):
+        """Test resolve tracker preference from legacy top-level animals_per_aquarium."""
+        self.project_manager.project_data = {"animals_per_aquarium": 1}
+
+        pref = self.service._resolve_single_subject_tracker_preference(None)
+
+        self.assertTrue(pref)
+
 
 class TestDetectorServiceZoneErrorHandling(unittest.TestCase):
     """Test suite for zone configuration error handling."""

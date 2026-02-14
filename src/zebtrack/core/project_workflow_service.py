@@ -171,6 +171,7 @@ class ProjectWorkflowService:
             "camera_index",
             "use_arduino",
             "arduino_port",
+            "external_trigger_mode",
             "use_single_subject_tracker",
             # Live project params
             "experiment_days",
@@ -581,6 +582,33 @@ class ProjectWorkflowService:
         )
 
         # Update StateManager
+        project_updated = False
+
+        # Persist behavioral configuration collected in wizard calibration step
+        behavioral_analysis = kwargs.get("behavioral_analysis")
+        if isinstance(behavioral_analysis, dict) and behavioral_analysis:
+            if self.project_manager.project_data.get("behavioral_config") != behavioral_analysis:
+                self.project_manager.project_data["behavioral_config"] = behavioral_analysis
+                project_updated = True
+
+        # Persist live-session defaults captured in live wizard flow
+        live_defaults = {
+            "selected_live_mode": kwargs.get("selected_live_mode"),
+            "experimental_group": kwargs.get("experimental_group"),
+            "experiment_day": kwargs.get("experiment_day"),
+            "subject_id": kwargs.get("subject_id"),
+            "is_batch_last_session": kwargs.get("is_batch_last_session"),
+        }
+        live_defaults = {k: v for k, v in live_defaults.items() if v is not None}
+        if live_defaults:
+            existing_live_defaults = self.project_manager.project_data.get("live_session_defaults")
+            if existing_live_defaults != live_defaults:
+                self.project_manager.project_data["live_session_defaults"] = live_defaults
+                project_updated = True
+
+        if project_updated and self.project_manager.project_path:
+            self.project_manager.save_project()
+
         self.state_manager.update_project_state(
             source="project_workflow_service.create_project",
             project_path=Path(self.project_manager.project_path)

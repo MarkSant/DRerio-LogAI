@@ -405,7 +405,6 @@ class ProcessingReportsWidget(BaseWidget):
         """Handle Generate Trajectories button click."""
         log.info("processing_reports.generate_trajectories_clicked")
         selection = self.tree.selection() if self.tree else []
-        self.emit_event("processing.generate_trajectories", {"selection": selection})
         if self._on_generate_trajectories:
             self._on_generate_trajectories(selection)
 
@@ -480,6 +479,7 @@ class ProcessingReportsWidget(BaseWidget):
             return
 
         import glob
+        import json
         import os
         from collections.abc import Callable
         from typing import Any, cast
@@ -489,16 +489,48 @@ class ProcessingReportsWidget(BaseWidget):
             log.warning("processing_reports.open_unified.dir_not_found", dir=unified_dir)
             return
 
-        # Find all files with the given extension
-        pattern = os.path.join(unified_dir, f"*{extension}")
-        files = glob.glob(pattern)
+        latest_manifest_path = os.path.join(unified_dir, "latest_unified_run.json")
+        latest_file = None
 
-        if not files:
-            log.warning("processing_reports.open_unified.no_files", extension=extension)
-            return
+        extension_key_map = {
+            ".docx": "word",
+            ".xlsx": "excel",
+            ".parquet": "parquet",
+        }
+        artifact_key = extension_key_map.get(extension)
 
-        # Get the most recent file by modification time
-        latest_file = max(files, key=os.path.getmtime)
+        if artifact_key and os.path.exists(latest_manifest_path):
+            try:
+                with open(latest_manifest_path, encoding="utf-8") as fp:
+                    manifest = json.load(fp)
+                artifacts = manifest.get("artifacts", {})
+                candidate = artifacts.get(artifact_key)
+                if isinstance(candidate, str) and os.path.exists(candidate):
+                    latest_file = candidate
+                else:
+                    log.warning(
+                        "processing_reports.open_unified.manifest_artifact_missing",
+                        extension=extension,
+                        artifact_key=artifact_key,
+                        candidate=candidate,
+                    )
+            except Exception:
+                log.warning(
+                    "processing_reports.open_unified.manifest_read_failed",
+                    path=latest_manifest_path,
+                    exc_info=True,
+                )
+
+        if not latest_file:
+            # Legacy fallback: open most recent file by extension
+            pattern = os.path.join(unified_dir, f"*{extension}")
+            files = glob.glob(pattern)
+
+            if not files:
+                log.warning("processing_reports.open_unified.no_files", extension=extension)
+                return
+
+            latest_file = max(files, key=os.path.getmtime)
 
         try:
             # Open file with default system application

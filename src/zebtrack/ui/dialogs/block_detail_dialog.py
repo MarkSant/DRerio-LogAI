@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 from tkinter import Button, Canvas, Frame, Label, Toplevel, messagebox, simpledialog, ttk
 from typing import TYPE_CHECKING
@@ -426,7 +427,7 @@ class BlockDetailDialog(Toplevel):
                 f"Falha ao abrir pasta de resultados:\n{e!s}",
             )
 
-    def generate_partial_report(self):
+    def generate_partial_report(self):  # noqa: C901
         """Generate partial report for completed sessions in this block.
 
         Collects all summary Excel files from completed sessions and aggregates
@@ -520,28 +521,50 @@ class BlockDetailDialog(Toplevel):
                 )
                 unified_df = pd.concat(non_empty_dfs, ignore_index=True)
 
-            # Write to Excel with multiple sheets
-            with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
-                # Sheet 1: All sessions combined
-                unified_df.to_excel(writer, sheet_name="Dados Consolidados", index=False)
+            def _write_partial_report_excel(path: Path) -> None:
+                with pd.ExcelWriter(path, engine="openpyxl") as writer:
+                    # Sheet 1: All sessions combined
+                    unified_df.to_excel(writer, sheet_name="Dados Consolidados", index=False)
 
-                # Sheet 2: Summary by animal
-                if len(all_data) > 1 and "total_distance_cm" in unified_df.columns:
-                    # Create summary stats
-                    stats_cols = [
-                        col
-                        for col in unified_df.columns
-                        if any(kw in col.lower() for kw in ["distance", "speed", "time", "entries"])
-                    ]
-                    if stats_cols:
-                        summary_stats = unified_df.groupby("animal")[stats_cols].mean()
-                        summary_stats.to_excel(writer, sheet_name="Resumo por Animal")
+                    # Sheet 2: Summary by animal
+                    if len(all_data) > 1 and "total_distance_cm" in unified_df.columns:
+                        # Create summary stats
+                        stats_cols = [
+                            col
+                            for col in unified_df.columns
+                            if any(
+                                kw in col.lower() for kw in ["distance", "speed", "time", "entries"]
+                            )
+                        ]
+                        if stats_cols:
+                            summary_stats = unified_df.groupby("animal")[stats_cols].mean()
+                            summary_stats.to_excel(writer, sheet_name="Resumo por Animal")
+
+            write_fallback_used = False
+            try:
+                _write_partial_report_excel(output_path)
+            except PermissionError:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_filename = (
+                    f"PartialReport_Dia{self.day_num}_{self.group_name}_{timestamp}.xlsx"
+                )
+                output_path = reports_dir / output_filename
+                _write_partial_report_excel(output_path)
+                write_fallback_used = True
 
             log.info(
                 "block_detail.partial_report.success",
                 output=str(output_path),
                 session_count=len(all_data),
             )
+
+            if write_fallback_used:
+                messagebox.showwarning(
+                    "Arquivo em uso",
+                    "O arquivo padrão estava bloqueado por outro programa/serviço "
+                    "de sincronização.\n"
+                    f"O relatório foi salvo com novo nome:\n{output_filename}",
+                )
 
             # Show success and offer to open
             result = messagebox.askyesno(

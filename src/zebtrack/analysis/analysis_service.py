@@ -77,6 +77,17 @@ class AnalysisService:
             self.metrics_cache = MetricsCache(cache_dir)
             self.log.info("analysis_service.metrics_cache_enabled", cache_dir=str(cache_dir))
 
+    @staticmethod
+    def _normalize_aquarium_perspective(perspective: str | None) -> str:
+        """Normalize perspective aliases to canonical values.
+
+        Canonical values are ``lateral`` and ``top_down``.
+        """
+        raw = str(perspective or "").strip().lower().replace("-", "_")
+        if raw in {"top_down", "top_down_view", "topdown", "top"}:
+            return "top_down"
+        return "lateral"
+
     def run_full_analysis(
         self,
         trajectory_df: pd.DataFrame,
@@ -763,7 +774,9 @@ class AnalysisService:
         if settings is not None and hasattr(settings, "behavioral_analysis"):
             ba_cfg = settings.behavioral_analysis
             # Get perspective - lateral enables geotaxis by default
-            perspective = getattr(ba_cfg, "aquarium_perspective", "lateral")
+            perspective = self._normalize_aquarium_perspective(
+                getattr(ba_cfg, "aquarium_perspective", "lateral")
+            )
             params["behavioral_config"] = {
                 "thigmotaxis_distance_cm": ba_cfg.default_thigmotaxis_distance_cm,
                 "geotaxis_distance_cm": ba_cfg.default_geotaxis_distance_cm,
@@ -791,6 +804,14 @@ class AnalysisService:
                 params["behavioral_config"].update(project_data["behavioral_config"])
             elif "behavioral_analysis" in project_data:  # Handle legacy/alternate key
                 params["behavioral_config"].update(project_data["behavioral_analysis"])
+
+        if params.get("behavioral_config"):
+            perspective = self._normalize_aquarium_perspective(
+                params["behavioral_config"].get("aquarium_perspective")
+            )
+            params["behavioral_config"]["aquarium_perspective"] = perspective
+            if "geotaxis_enabled" not in params["behavioral_config"]:
+                params["behavioral_config"]["geotaxis_enabled"] = perspective == "lateral"
 
         self.log.debug(
             "analysis_service.collect_parameters",

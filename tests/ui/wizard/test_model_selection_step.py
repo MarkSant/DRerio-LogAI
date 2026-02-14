@@ -332,6 +332,34 @@ class TestModelSelectionStep:
         # Should be empty or not show warning
         assert hint == "" or "⚠️" not in hint
 
+    def test_bytetrack_default_disabled_for_single_animal_detection(self, mock_weight_manager):
+        """ByteTrack should default to disabled for 1 animal + detection mode."""
+        wizard_data = {
+            "animals_per_aquarium": 1,
+            "model_selection": {
+                "animal_method": "det",
+            },
+        }
+        step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
+        step.build_ui()
+
+        assert step.use_bytetrack_var.get() is False
+
+    def test_bytetrack_default_kept_enabled_for_single_animal_segmentation(
+        self, mock_weight_manager
+    ):
+        """ByteTrack default should stay enabled when animal method is segmentation."""
+        wizard_data = {
+            "animals_per_aquarium": 1,
+            "model_selection": {
+                "animal_method": "seg",
+            },
+        }
+        step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
+        step.build_ui()
+
+        assert step.use_bytetrack_var.get() is True
+
     @pytest.mark.parametrize(
         "confidence,nms,track,match,expected_valid",
         [

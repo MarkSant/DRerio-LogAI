@@ -278,6 +278,29 @@ class TestDataValidation:
         )
 
         # Implementation may or may not have explicit validate_schema method
+
+
+@pytest.mark.unit
+class TestGeotaxisVisualizationGate:
+    """Tests for geotaxis visualization gating in DOC reports."""
+
+    def test_geotaxis_hidden_for_top_down(self, reporter):
+        reporter.behavioral_config = {"aquarium_perspective": "top_down"}
+
+        assert reporter._should_include_geotaxis_visualization() is False
+
+    def test_geotaxis_hidden_when_explicitly_disabled(self, reporter):
+        reporter.behavioral_config = {
+            "aquarium_perspective": "lateral",
+            "geotaxis_enabled": False,
+        }
+
+        assert reporter._should_include_geotaxis_visualization() is False
+
+    def test_geotaxis_visible_for_lateral_default(self, reporter):
+        reporter.behavioral_config = {"aquarium_perspective": "lateral"}
+
+        assert reporter._should_include_geotaxis_visualization() is True
         # Test based on actual implementation
 
     def test_handles_missing_columns_gracefully(self, sample_trajectory_df, mock_settings):

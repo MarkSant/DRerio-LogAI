@@ -220,6 +220,13 @@ class ROITemplateManager:
             self.gui.show_info(
                 "Template aplicado", f"As zonas foram atualizadas com o template '{template_name}'."
             )
+            self.gui.show_warning(
+                "Revise as zonas aplicadas",
+                (
+                    "Confira arena/ROIs no vídeo atual antes de iniciar a análise. "
+                    "Templates podem precisar de ajustes finos por vídeo."
+                ),
+            )
             self.gui.set_status(f"Template '{template_name}' aplicado ao vídeo em edição.")
 
             return True
@@ -253,6 +260,38 @@ class ROITemplateManager:
         except Exception as exc:
             log.error("roi_templates.delete_failed", error=str(exc))
             self.gui.show_error("Erro ao excluir template", str(exc))
+            return False
+
+    def clear_applied_template_drawings(self) -> bool:
+        """Clear zone drawings from the active video only.
+
+        This action does not remove templates from the library.
+        """
+        active_video = self._get_active_video()
+        if not active_video:
+            self.gui.show_warning(
+                "Vídeo não selecionado",
+                "Selecione um vídeo para limpar os desenhos aplicados.",
+            )
+            return False
+
+        confirm = self.gui.ask_ok_cancel(
+            "Limpar desenho aplicado",
+            (
+                "Deseja limpar a arena e as ROIs do vídeo atual?\n\n"
+                "Esta ação afeta somente o vídeo selecionado e não remove templates da biblioteca."
+            ),
+        )
+        if not confirm:
+            return False
+
+        try:
+            self.gui.canvas_manager.delete_zones_from_video(active_video)
+            self.gui.set_status("Desenhos do vídeo atual foram limpos.")
+            return True
+        except Exception as exc:
+            log.error("roi_templates.clear_applied_failed", error=str(exc), video=active_video)
+            self.gui.show_error("Erro ao limpar desenho", str(exc))
             return False
 
     def get_selected_template(self) -> dict | None:
@@ -289,7 +328,11 @@ class ROITemplateManager:
     def _update_combobox_values(self, display_names: list[str]):
         """Atualiza valores do combobox."""
         # Update path to access widget via zone_controls (Phase 6 fix)
-        combobox = self.gui.zone_controls.roi_template_combobox if self.gui.zone_controls else None
+        combobox = None
+        if getattr(self.gui, "zone_controls", None):
+            combobox = getattr(self.gui.zone_controls, "roi_template_combobox", None)
+        if combobox is None:
+            combobox = getattr(self.gui, "roi_template_combobox", None)
 
         if combobox:
             combobox["values"] = display_names

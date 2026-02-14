@@ -65,6 +65,10 @@ class ZoneControlBuilder:
                 else:
                     log.error("zone_control_builder.save_project.failed", error=str(e))
 
+        # Clear the dirty flag — zones are now fully committed
+        if hasattr(self.gui, "_zones_dirty"):
+            self.gui._zones_dirty = False
+
         self._refresh_video_tree_dual_mode()
 
         # 2. Emit zone saved event to resume pending recording (if any)

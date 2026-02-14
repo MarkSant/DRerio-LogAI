@@ -21,6 +21,18 @@ __all__ = ["DataTransformer"]
 
 log = structlog.get_logger(__name__)
 
+
+def _normalize_aquarium_perspective(perspective: str | None) -> str:
+    """Normalize perspective aliases to canonical values.
+
+    Canonical values are ``lateral`` and ``top_down``.
+    """
+    raw = str(perspective or "").strip().lower().replace("-", "_")
+    if raw in {"top_down", "top_down_view", "topdown", "top"}:
+        return "top_down"
+    return "lateral"
+
+
 # Color matching threshold for RGB space (50² in RGB space, 0-255 range)
 # Increased to catch more variations (e.g. from color pickers)
 RGB_COLOR_MATCH_THRESHOLD = 2500
@@ -298,10 +310,12 @@ class DataTransformer:
             combined_data["thigmotaxis_distance_threshold_cm"] = thigmotaxis_threshold
 
         # --- Aquarium Perspective ---
-        combined_data["aquarium_perspective"] = aquarium_perspective
+        combined_data["aquarium_perspective"] = _normalize_aquarium_perspective(
+            aquarium_perspective
+        )
 
         # --- Geotaxis Metrics (lateral perspective only) ---
-        if geotaxis_enabled and aquarium_perspective == "lateral":
+        if geotaxis_enabled and combined_data["aquarium_perspective"] == "lateral":
             try:
                 geotaxis_avg = b_analyzer.calculate_geotaxis_index(method="average_distance")
                 combined_data["geotaxis_avg_bottom_distance_cm"] = geotaxis_avg
@@ -494,6 +508,11 @@ class DataTransformer:
             if candidate:
                 return str(candidate)
 
+        log.warning(
+            "data_transformer.resolve_group_id.fallback",
+            reason="No group_id found in combined_data or metadata; defaulting to 'unassigned'",
+            metadata_keys=list(metadata.keys()) if metadata else [],
+        )
         return "unassigned"
 
     @staticmethod
@@ -694,9 +713,26 @@ class DataTransformer:
             )
             standardized_df["experiment_id"] = experiment_id or "unknown"
 
-        standardized_df["experiment_id"] = (
-            standardized_df["experiment_id"].fillna("unknown").astype(str)
+        fallback_experiment_id = (
+            metadata.get("experiment_id")
+            or metadata.get("video_name")
+            or metadata.get("experiment_name")
+            or metadata.get("name")
+            or "unknown"
         )
+
+        standardized_df["experiment_id"] = standardized_df["experiment_id"].fillna(
+            fallback_experiment_id
+        )
+        standardized_df["experiment_id"] = standardized_df["experiment_id"].astype(str)
+        unknown_mask = (
+            standardized_df["experiment_id"]
+            .str.strip()
+            .str.lower()
+            .isin({"", "unknown", "desconhecido", "none", "nan"})
+        )
+        if unknown_mask.any():
+            standardized_df.loc[unknown_mask, "experiment_id"] = str(fallback_experiment_id)
 
         # Ensure group_id exists
         if "group_id" not in standardized_df.columns:

@@ -918,6 +918,19 @@ class DetectorService:
                 except (TypeError, ValueError):
                     pref = None
 
+        if pref is None:
+            animals = project_data.get("animals_per_aquarium")
+            if animals is None:
+                video_processing = project_data.get("video_processing")
+                if isinstance(video_processing, dict):
+                    animals = video_processing.get("animals_per_aquarium")
+
+            if animals is not None:
+                try:
+                    pref = int(animals) == 1
+                except (TypeError, ValueError):
+                    pref = None
+
         if pref is not None:
             return bool(pref)
 

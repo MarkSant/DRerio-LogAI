@@ -607,3 +607,58 @@ def test_unified_report_full_workflow_with_different_rois(
     assert "time_in_roi1_s" in result_df.columns
     assert "time_in_roiA_s" in result_df.columns
     assert len(result_df) == 4  # 2 rows from each video
+
+
+def test_unified_report_shows_error_when_all_exports_fail(
+    coordinator, sample_summary_df, tmp_path, monkeypatch
+):
+    """Must show UI error (not false success) when no unified artifact can be exported."""
+    video1_results = tmp_path / "video1_results"
+    video1_results.mkdir()
+    parquet_path = video1_results / "video1_summary.parquet"
+    sample_summary_df.to_parquet(parquet_path, index=False)
+
+    coordinator.project_manager.find_video_entry = Mock(
+        return_value={
+            "parquet_files": {"summary": str(parquet_path)},
+            "metadata": {"group_id": "control", "experiment_id": "video1"},
+            "experiment_id": "video1",
+        }
+    )
+    coordinator.project_manager.get_metadata_for_experiment = Mock(
+        return_value={"group_id": "control", "experiment_id": "video1"}
+    )
+
+    def _raise_parquet_error(*args, **kwargs):
+        raise OSError("parquet fail")
+
+    def _raise_excel_error(*args, **kwargs):
+        raise OSError("excel fail")
+
+    def _raise_word_error(*args, **kwargs):
+        raise RuntimeError("word fail")
+
+    with patch.object(coordinator.project_manager, "project_path", tmp_path):
+        monkeypatch.setattr(pd.DataFrame, "to_parquet", _raise_parquet_error)
+        monkeypatch.setattr(pd.DataFrame, "to_excel", _raise_excel_error)
+
+        from zebtrack.analysis.reporter import Reporter
+
+        monkeypatch.setattr(Reporter, "export_project_report", _raise_word_error)
+
+        coordinator.generate_unified_report([str(tmp_path / "video1.mp4")])
+
+    error_calls = [
+        call
+        for call in coordinator._publish_event.call_args_list
+        if call[0][0] == Events.UI_SHOW_ERROR
+    ]
+    assert error_calls, "Expected UI_SHOW_ERROR when all unified exports fail"
+
+    success_calls = [
+        call
+        for call in coordinator._publish_event.call_args_list
+        if call[0][0] == Events.UI_SHOW_INFO
+        and "Relatório Unificado" in call[0][1].get("title", "")
+    ]
+    assert not success_calls, "Should not show success info when no unified files were generated"

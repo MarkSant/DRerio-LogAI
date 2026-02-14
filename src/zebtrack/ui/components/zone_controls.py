@@ -441,6 +441,12 @@ class ZoneControlsWidget(BaseWidget):
 
             ttk.Button(
                 container,
+                text="🧹 Limpar desenho",
+                command=self._on_clear_applied_template_clicked,
+            ).pack(side="left", padx=(0, 10))
+
+            ttk.Button(
+                container,
                 text="💾 Salvar",
                 command=self._on_save_template_clicked,
             ).pack(side="left", padx=(0, 5))
@@ -469,6 +475,11 @@ class ZoneControlsWidget(BaseWidget):
 
             ttk.Button(
                 template_selector, text="Aplicar", command=self._on_apply_template_clicked
+            ).pack(side="left", padx=4)
+            ttk.Button(
+                template_selector,
+                text="🧹 Limpar desenho",
+                command=self._on_clear_applied_template_clicked,
             ).pack(side="left", padx=4)
 
             # Template actions
@@ -790,6 +801,10 @@ class ZoneControlsWidget(BaseWidget):
     def _on_import_template_clicked(self) -> None:
         """Handle import template button click."""
         self.emit_event("zone.template_import", {})
+
+    def _on_clear_applied_template_clicked(self) -> None:
+        """Handle clear applied template drawings from active video."""
+        self.emit_event("zone.template_clear_applied", {})
 
     def _on_video_search_changed(self) -> None:
         """Handle video search text change."""

@@ -67,6 +67,7 @@ def test_apply_template(manager, mock_pm, mock_gui):
         mock_pm.load_roi_template.assert_called()
         mock_pm.save_zone_data.assert_called()
         mock_gui.controller.setup_detector_zones.assert_called()
+        mock_gui.show_warning.assert_called()
 
 
 def test_delete_template(manager, mock_pm, mock_gui):
@@ -179,3 +180,16 @@ def test_import_template_error_shows_message(manager, mock_pm, mock_gui):
         manager.import_template()
 
     mock_gui.show_error.assert_called_once()
+
+
+def test_update_combobox_values_falls_back_to_gui_combobox(mock_pm, tkinter_root):
+    gui = MagicMock()
+    gui.root = tkinter_root
+    gui.zone_controls = None
+    gui.roi_template_combobox = MagicMock()
+
+    manager = ROITemplateManager(mock_pm, gui)
+    manager._update_combobox_values(["📁 Local"])
+
+    gui.roi_template_combobox.__setitem__.assert_called_once_with("values", ["📁 Local"])
+    gui.roi_template_combobox.configure.assert_called_once_with(state="readonly")

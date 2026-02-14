@@ -542,8 +542,16 @@ class CanvasManager:
         self._last_detections = detections
 
         try:
+            frame_for_display = frame.copy()
+
+            if detections:
+                selected_track = self._get_selected_analysis_track()
+                filtered_detections = self._filter_detections_by_track(detections, selected_track)
+                self._update_analysis_track_options_from_detections(detections)
+                self._draw_detection_overlay_on_frame(frame_for_display, filtered_detections)
+
             # Convert the frame for display (BGR -> RGB)
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_rgb = cv2.cvtColor(frame_for_display, cv2.COLOR_BGR2RGB)
             pil_image = Image.fromarray(frame_rgb)
 
             # ONLY display on Analysis Tab widget during analysis
@@ -579,6 +587,87 @@ class CanvasManager:
 
         except Exception as e:
             log.error("canvas_manager.update_video_frame.error", error=str(e))
+
+    def _get_selected_analysis_track(self) -> str:
+        """Return currently selected Track ID in analysis widget."""
+        widget = getattr(self.gui, "analysis_display_widget", None)
+        if widget and getattr(widget, "track_selector_var", None) is not None:
+            selected = str(widget.track_selector_var.get()).strip()
+            if selected:
+                return selected
+        return "Todos"
+
+    def _filter_detections_by_track(self, detections: list, selected_track: str) -> list:
+        """Filter detections according to selected Track ID."""
+        if selected_track == "Todos":
+            return detections
+
+        filtered: list = []
+        for det in detections:
+            if not isinstance(det, tuple | list) or len(det) < 6:
+                continue
+
+            # Supported contracts:
+            # - 6-tuple: (x1, y1, x2, y2, conf, track_id)
+            # - 7-tuple: (x1, y1, x2, y2, conf, track_id, class_id)
+            track_id = det[5]
+            if len(det) >= 7:
+                track_id = det[5]
+            if str(track_id) == selected_track:
+                filtered.append(det)
+        return filtered
+
+    def _update_analysis_track_options_from_detections(self, detections: list) -> None:
+        """Refresh track selector options from current detections."""
+        track_ids: set[str] = set()
+        for det in detections:
+            if isinstance(det, tuple | list) and len(det) >= 6:
+                track_id = str(det[5]).strip()
+                if track_id:
+                    track_ids.add(track_id)
+
+        options = ["Todos", *sorted(track_ids, key=lambda value: (len(value), value))]
+        normalized = tuple(options)
+        if getattr(self.gui, "_available_track_options", ("Todos",)) == normalized:
+            return
+
+        synchronizer = getattr(self.gui, "state_synchronizer", None)
+        if synchronizer is not None and hasattr(synchronizer, "_update_track_options"):
+            synchronizer._update_track_options(options)
+
+    @staticmethod
+    def _draw_detection_overlay_on_frame(frame: np.ndarray, detections: list) -> None:
+        """Draw detection rectangles and labels directly on frame."""
+        for det in detections:
+            if not isinstance(det, tuple | list) or len(det) < 6:
+                continue
+
+            x1, y1, x2, y2 = map(int, det[:4])
+            class_id = 0
+            track_id = det[5]
+            if len(det) >= 7:
+                class_id = int(det[6])
+            confidence = float(det[4]) if len(det) >= 5 else None
+
+            color = (0, 255, 255) if class_id == 0 else (255, 0, 255)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+
+            if track_id is not None:
+                label = f"ID {track_id}"
+            else:
+                label = "Object"
+            if confidence is not None:
+                label = f"{label} ({int(confidence * 100)}%)"
+            cv2.putText(
+                frame,
+                label,
+                (x1, max(0, y1 - 8)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                color,
+                1,
+                cv2.LINE_AA,
+            )
 
     def _render_last_analysis_frame(self) -> None:
         """Re-render the last analysis frame with current settings."""
@@ -870,6 +959,13 @@ class CanvasManager:
     def load_selected_video_frame(self, event=None):
         """Load the frame from the selected video to the main canvas."""
         import os
+
+        if hasattr(self.gui, "_confirm_pending_zone_edit_before_navigation"):
+            should_continue = self.gui._confirm_pending_zone_edit_before_navigation(
+                context="abrir outro vídeo"
+            )
+            if not should_continue:
+                return
 
         tree = self.gui.zone_controls.video_selector_tree if self.gui.zone_controls else None
         if not tree:

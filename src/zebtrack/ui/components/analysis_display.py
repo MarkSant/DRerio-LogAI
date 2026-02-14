@@ -59,8 +59,8 @@ class AnalysisDisplayWidget(BaseWidget):
         self.day_var = StringVar(value="Dia: --")
         self.subject_var = StringVar(value="Indivíduo: --")
         self.profile_var = StringVar(value="Perfil de análise: default")
-        self.tracking_mode_var = StringVar(value="Modo de rastreamento: Multi-indivíduos")
-        self.social_summary_var = StringVar(value="Interações sociais: aguardando dados.")
+        self.tracking_mode_var = StringVar(value="Modo de rastreamento: --")
+        self.social_summary_var = StringVar(value="Interações sociais: não aplicável no momento.")
         self.track_selector_var = StringVar(value="Todos")
 
         # Progress statistics
@@ -384,7 +384,7 @@ class AnalysisDisplayWidget(BaseWidget):
         self.set_status("Nenhuma análise em andamento.")
         self.set_task("Nenhuma tarefa em andamento.")
         self.set_metadata("--", "--", "--")
-        self.set_tracking_mode("Multi-indivíduos")
+        self.set_tracking_mode("--")
         self.set_profile("default")
         self.set_social_summary("Interações sociais: aguardando dados.")
         self.track_selector_var.set("Todos")

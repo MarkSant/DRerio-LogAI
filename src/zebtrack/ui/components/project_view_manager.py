@@ -865,10 +865,61 @@ class ProjectViewManager:
                 "Não há vídeos processados neste projeto para gerar um relatório.",
             )
             return
+
+        replace_existing = self._resolve_unified_generation_strategy()
+        if replace_existing is None:
+            return
+
         self.gui.event_dispatcher.publish_event(
             Events.REPORT_GENERATE,
-            {"videos": all_videos, "report_type": "unified"},
+            {
+                "videos": all_videos,
+                "report_type": "unified",
+                "report_scope": "all",
+                "replace_existing": replace_existing,
+            },
         )
+
+    def _resolve_unified_generation_strategy(self) -> bool | None:
+        """Resolve conflict strategy when unified reports already exist.
+
+        Returns:
+            True to overwrite existing artifacts,
+            False to keep previous files and append a new generation,
+            None if user cancels.
+        """
+        pm = self.gui.controller.project_manager
+        if not pm.project_path:
+            return False
+
+        unified_dir = Path(pm.project_path) / "unified_reports"
+        if not unified_dir.exists():
+            return False
+
+        has_existing = (
+            any(unified_dir.glob("*.parquet"))
+            or any(unified_dir.glob("*.xlsx"))
+            or any(unified_dir.glob("*.docx"))
+        )
+        if not has_existing:
+            return False
+
+        response = self.gui.dialog_manager.ask_yes_no_cancel(
+            "Relatórios Unificados Existentes",
+            (
+                "Já existem relatórios unificados neste projeto.\n\n"
+                "Sim: apagar os anteriores e gerar novo\n"
+                "Não: manter anteriores e gerar outro com novo nome\n"
+                "Cancelar: abortar geração"
+            ),
+            icon="warning",
+        )
+
+        if response is None:
+            self.gui.set_status("Geração de relatório unificado cancelada pelo usuário.")
+            return None
+
+        return bool(response)
 
     def _resolve_selection_from_project_overview(self) -> list[str]:
         """Resolve selected video paths from Project Overview tree."""
@@ -1326,13 +1377,22 @@ class ProjectViewManager:
                     break
 
         if selected_videos:
+            replace_existing = self._resolve_unified_generation_strategy()
+            if replace_existing is None:
+                return
+
             self.gui.event_dispatcher.publish_event(
                 Events.REPORT_GENERATE,
-                {"videos": selected_videos, "report_type": "partial"},
+                {
+                    "videos": selected_videos,
+                    "report_type": "unified",
+                    "report_scope": "selected",
+                    "replace_existing": replace_existing,
+                },
             )
 
     def generate_partial_report(self) -> None:
-        """Gather selected videos and generate a partial report from reports tree."""
+        """Gather selected videos and generate a unified partial report from reports tree."""
         from zebtrack.ui.events import Events
 
         if not hasattr(self.gui, "reports_tree") or not self.gui.reports_tree:
@@ -1361,9 +1421,18 @@ class ProjectViewManager:
                     break
 
         if selected_videos:
+            replace_existing = self._resolve_unified_generation_strategy()
+            if replace_existing is None:
+                return
+
             self.gui.event_dispatcher.publish_event(
                 Events.REPORT_GENERATE,
-                {"videos": selected_videos, "report_type": "partial"},
+                {
+                    "videos": selected_videos,
+                    "report_type": "unified",
+                    "report_scope": "selected",
+                    "replace_existing": replace_existing,
+                },
             )
 
     # ===========================================================================

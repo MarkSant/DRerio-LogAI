@@ -76,7 +76,40 @@ def test_update_social_summary_no_stats():
     synchronizer.update_social_summary(profile="default", stats=None, tracks=None)
 
     gui.analysis_display_widget.set_social_summary.assert_called_once_with(
+        "Interações sociais: perfil atual não gera métricas sociais."
+    )
+
+
+def test_update_social_summary_no_stats_social_profile_waiting_data():
+    gui = _make_gui()
+    synchronizer = StateSynchronizer(gui)
+
+    synchronizer.update_social_summary(profile="social_interaction", stats=None, tracks=None)
+
+    gui.analysis_display_widget.set_social_summary.assert_called_once_with(
         "Interações sociais: aguardando dados."
+    )
+
+
+def test_update_processing_mode_single_sets_social_summary_not_applicable():
+    gui = _make_gui()
+    synchronizer = StateSynchronizer(gui)
+
+    synchronizer.update_processing_mode({"mode": ProcessingMode.SINGLE_SUBJECT})
+
+    gui.analysis_display_widget.set_social_summary.assert_called_once_with(
+        "Interações sociais: não aplicável no modo de sujeito único."
+    )
+
+
+def test_update_processing_mode_accepts_string_mode_name():
+    gui = _make_gui()
+    synchronizer = StateSynchronizer(gui)
+
+    synchronizer.update_processing_mode({"mode": "SINGLE_SUBJECT"})
+
+    gui.analysis_display_widget.set_tracking_mode.assert_called_once_with(
+        ProcessingMode.SINGLE_SUBJECT.display_name
     )
 
 

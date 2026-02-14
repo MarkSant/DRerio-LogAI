@@ -126,6 +126,22 @@ class ModelSelectionStep(WizardStep):
             return method_key
         return _METHOD_OPTIONS["seg"]
 
+    def _recommended_use_bytetrack(self, animal_method: str) -> bool:
+        """Return recommended ByteTrack default for current wizard context."""
+        default_use_bytetrack = True
+        if self.settings and hasattr(self.settings, "tracking"):
+            default_use_bytetrack = bool(self.settings.tracking.use_bytetrack)
+
+        animals_per_aquarium = int(self.wizard_data.get("animals_per_aquarium", 1) or 1)
+        method_key = self._method_key_from_label(animal_method)
+
+        # Performance-oriented default for simple scenario:
+        # single animal + detection (det) in one aquarium context.
+        if animals_per_aquarium == 1 and method_key == "det":
+            return False
+
+        return default_use_bytetrack
+
     def _prefill_from_wizard_data(self) -> None:
         """Initialise state variables from wizard data or global defaults."""
         selection = dict(self.wizard_data.get("model_selection", {}) or {})
@@ -177,13 +193,11 @@ class ModelSelectionStep(WizardStep):
         # Get default thresholds from settings or use hardcoded defaults
         default_confidence = 0.25
         default_nms = 0.45
-        default_use_bytetrack = True
+        default_use_bytetrack = self._recommended_use_bytetrack(animal_method)
 
         if self.settings and hasattr(self.settings, "yolo_model"):
             default_confidence = self.settings.yolo_model.confidence_threshold
             default_nms = self.settings.yolo_model.nms_threshold
-        if self.settings and hasattr(self.settings, "tracking"):
-            default_use_bytetrack = self.settings.tracking.use_bytetrack
 
         confidence_threshold = float(
             detector_params.get("confidence_threshold", default_confidence)
@@ -969,6 +983,7 @@ class ModelSelectionStep(WizardStep):
         # Set default values
         self.confidence_var.set(f"{default_confidence:.3f}")
         self.nms_var.set(f"{default_nms:.3f}")
+        self.use_bytetrack_var.set(self._recommended_use_bytetrack(self.animal_method_var.get()))
         self.track_var.set(f"{DEFAULT_TRACK_THRESHOLD:.3f}")
         self.match_var.set(f"{DEFAULT_MATCH_THRESHOLD:.3f}")
 

@@ -9,7 +9,6 @@ This is part of the v4.0 Event-Driven Architecture refactoring (PLANO_ACAO_V4.md
 from __future__ import annotations
 
 from collections.abc import Callable
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -800,7 +799,7 @@ class UICoordinator:
     def _on_batch_analysis_completed(self, event_data: dict[str, Any]) -> None:
         """Handle batch analysis completed event (v2.3.0).
 
-        Shows success notification and opens file explorer to report location.
+        Updates status and refreshes views without blocking popups.
 
         Args:
             event_data: Event payload with batch_id, report_path, session_count
@@ -817,39 +816,6 @@ class UICoordinator:
                 session_count=session_count,
             )
 
-            # Show success notification
-            def _show_notification():
-                try:
-                    import platform
-                    import subprocess
-                    from tkinter import messagebox
-
-                    message = (
-                        f"✅ Relatório de Lote Gerado!\n\n"
-                        f"Lote: {batch_id}\n"
-                        f"Sessões: {session_count}\n\n"
-                        f"Relatório salvo em:\n{report_path}"
-                    )
-
-                    messagebox.showinfo(
-                        title="Análise de Lote Completa",
-                        message=message,
-                    )
-
-                    # Open file explorer to report location
-                    if report_path and Path(report_path).exists():
-                        if platform.system() == "Windows":
-                            subprocess.run(["explorer", "/select,", str(report_path)], check=False)
-                        elif platform.system() == "Darwin":  # macOS
-                            subprocess.run(["open", "-R", str(report_path)], check=False)
-                        else:  # Linux
-                            subprocess.run(["xdg-open", str(Path(report_path).parent)], check=False)
-
-                except Exception as e:
-                    log.error("ui_coordinator.batch_notification_failed", error=str(e))
-
-            self._safe_ui_call(_show_notification)
-
             # Refresh project views to show new unified report
             if self.project_view_manager:
                 project_view_manager = self.project_view_manager
@@ -865,7 +831,7 @@ class UICoordinator:
 
                 def update_status():
                     state_synchronizer.update_status(
-                        f"Relatório unificado gerado: {session_count} sessões"
+                        f"Relatório de lote gerado ({session_count} sessão(ões)): {batch_id}"
                     )
 
                 self._safe_ui_call(update_status)

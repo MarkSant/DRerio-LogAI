@@ -134,19 +134,53 @@ class TrajectoryQualityValidator:
         if "frame" not in df.columns:
             return
 
-        frame_diffs = df["frame"].diff()
-        gaps = frame_diffs[frame_diffs > 1]
-        if len(gaps) > 0:
-            max_gap = int(gaps.max())
-            avg_gap = gaps.mean()
+        frame_series = df["frame"].reset_index(drop=True)
+        frame_diffs = frame_series.diff()
+        expected_step = self._estimate_expected_frame_step(df)
+        tolerance = self._gap_tolerance(expected_step)
+
+        expected_skips = frame_diffs[(frame_diffs > 1) & (frame_diffs <= expected_step + tolerance)]
+        anomalous_gaps = frame_diffs[frame_diffs > expected_step + tolerance]
+
+        if expected_step > 1 and len(expected_skips) > 0:
             warnings.append(
-                f"Found {len(gaps)} temporal gaps (frames missing). "
+                f"Detected regular frame skipping consistent with processing interval "
+                f"(~{expected_step} frames)."
+            )
+
+        if len(anomalous_gaps) > 0:
+            max_gap = int(anomalous_gaps.max())
+            avg_gap = anomalous_gaps.mean()
+            anomalous_intervals: list[dict[str, int]] = []
+
+            for idx in anomalous_gaps.index:
+                if idx <= 0:
+                    continue
+                prev_frame = int(frame_series.iloc[idx - 1])
+                current_frame = int(frame_series.iloc[idx])
+                gap_frames = current_frame - prev_frame
+                anomalous_intervals.append(
+                    {
+                        "from_frame": prev_frame,
+                        "to_frame": current_frame,
+                        "gap_frames": int(gap_frames),
+                        "missing_frames": int(max(gap_frames - expected_step, 0)),
+                    }
+                )
+
+            warnings.append(
+                f"Found {len(anomalous_gaps)} anomalous temporal gaps (frames missing). "
                 f"Max gap: {max_gap} frames, Avg gap: {avg_gap:.1f} frames"
             )
             stats["temporal_gaps"] = {
-                "count": len(gaps),
+                "count": len(anomalous_gaps),
+                "anomalous_count": len(anomalous_gaps),
                 "max_gap_frames": max_gap,
                 "avg_gap_frames": float(avg_gap),
+                "expected_frame_step": expected_step,
+                "expected_gap_frames": expected_step,
+                "expected_skip_count": len(expected_skips),
+                "anomalous_intervals": anomalous_intervals,
             }
 
     def _check_speed_violations(
@@ -409,11 +443,12 @@ class TrajectoryQualityValidator:
         """
         warnings: list[str] = []
         stats: dict = {}
+        expected_step = self._estimate_expected_frame_step(df)
 
         # Get overall frame range
         frame_min = int(df["frame"].min())
         frame_max = int(df["frame"].max())
-        all_frames = set(range(frame_min, frame_max + 1))
+        all_frames = set(range(frame_min, frame_max + 1, expected_step))
 
         per_aquarium_stats = {}
 
@@ -446,6 +481,7 @@ class TrajectoryQualityValidator:
                     "gap_count": len(gaps),
                     "longest_gap_frames": longest_gap[2],
                     "longest_gap_range": [longest_gap[0], longest_gap[1]],
+                    "expected_frame_step": expected_step,
                 }
 
                 # Warn if coverage is low
@@ -463,8 +499,33 @@ class TrajectoryQualityValidator:
                     "gap_count": 0,
                     "longest_gap_frames": 0,
                     "longest_gap_range": None,
+                    "expected_frame_step": expected_step,
                 }
 
         stats["per_aquarium"] = per_aquarium_stats
+        stats["expected_frame_step"] = expected_step
 
         return {"warnings": warnings, "stats": stats}
+
+    @staticmethod
+    def _gap_tolerance(expected_step: int) -> int:
+        """Return tolerance (in frames) for classifying anomalous gaps."""
+        return max(1, expected_step // 2)
+
+    @staticmethod
+    def _estimate_expected_frame_step(df: pd.DataFrame) -> int:
+        """Estimate expected frame step from observed frame differences."""
+        if "frame" not in df.columns:
+            return 1
+        frame_diffs = df["frame"].diff().dropna()
+        positive_diffs = frame_diffs[frame_diffs > 0]
+        if positive_diffs.empty:
+            return 1
+
+        try:
+            mode_value = positive_diffs.mode().iloc[0]
+            estimated = round(float(mode_value))
+            return max(1, estimated)
+        except (TypeError, ValueError, IndexError):
+            median_value = positive_diffs.median()
+            return max(1, round(float(median_value)))

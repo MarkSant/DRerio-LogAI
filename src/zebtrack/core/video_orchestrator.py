@@ -801,8 +801,14 @@ class VideoOrchestrator:
                     self.view, "Cancelado", "A análise de vídeo foi cancelada."
                 )
         elif eligible_videos:
-            msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
-            self.ui_coordinator.show_info(self.view, "Sucesso", msg)
+            if len(eligible_videos) > 1:
+                self.ui_coordinator.set_status(
+                    self.view,
+                    f"Lote concluído: {len(eligible_videos)} vídeo(s) processados.",
+                )
+            else:
+                msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
+                self.ui_coordinator.show_info(self.view, "Sucesso", msg)
             self._cancel_feedback_displayed = False
         else:
             self._cancel_feedback_displayed = False

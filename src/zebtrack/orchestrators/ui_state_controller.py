@@ -354,6 +354,13 @@ class UIStateController:
         """
         if mode_override:
             mode = mode_override
+        elif self.main_view_model and hasattr(self.main_view_model, "processing_coordinator"):
+            # Read from processing_coordinator which holds the ground-truth mode
+            coord = self.main_view_model.processing_coordinator
+            if coord is not None:
+                mode = getattr(coord, "_active_processing_mode", ProcessingMode.MULTI_TRACK)
+            else:
+                mode = ProcessingMode.MULTI_TRACK
         elif self.main_view_model and hasattr(self.main_view_model, "_active_processing_mode"):
             mode = self.main_view_model._active_processing_mode
         else:

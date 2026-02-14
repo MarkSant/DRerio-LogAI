@@ -679,6 +679,7 @@ class VideoProcessingService:
                         "total": total_videos,
                         "experiment_id": experiment_id,
                         "step": status_message,
+                        "progress_fraction": float(progress_fraction),
                     }
                 },
             )
@@ -712,7 +713,7 @@ class VideoProcessingService:
                 if self.ui_event_bus:
                     self.ui_event_bus.publish_event(
                         Events.UI_DISPLAY_FRAME,
-                        {"frame": frame},
+                        {"frame": frame, "detections": detections or []},
                     )
 
         return progress_callback
@@ -831,7 +832,7 @@ class VideoProcessingService:
                 if self.ui_event_bus:
                     self.ui_event_bus.publish_event(
                         Events.UI_DISPLAY_FRAME,
-                        {"frame": frame},
+                        {"frame": frame, "detections": detections or []},
                     )
 
         def on_video_completed(idx, total, exp_id, success):
@@ -1204,7 +1205,7 @@ class VideoProcessingService:
                 if self.ui_event_bus:
                     self.ui_event_bus.publish_event(
                         Events.UI_DISPLAY_FRAME,
-                        {"frame": frame},
+                        {"frame": frame, "detections": detections or []},
                     )
 
         return progress_callback

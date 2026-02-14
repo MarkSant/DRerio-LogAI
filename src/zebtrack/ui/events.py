@@ -177,6 +177,7 @@ class Events:
     ZONE_TEMPLATE_APPLY = "zone.template_apply"
     ZONE_TEMPLATE_SAVE = "zone.template_save"
     ZONE_TEMPLATE_IMPORT = "zone.template_import"
+    ZONE_TEMPLATE_CLEAR_APPLIED = "zone.template_clear_applied"
     ZONE_VIDEO_SEARCH_CHANGED = "zone.video_search_changed"
     ZONE_VIDEO_REFRESH = "zone.video_refresh"
     ZONE_VIDEO_DOUBLE_CLICK = "zone.video_double_click"

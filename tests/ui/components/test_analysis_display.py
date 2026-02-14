@@ -54,7 +54,7 @@ class TestAnalysisDisplayWidget:
         assert widget.day_var.get() == "Dia: --"
         assert widget.subject_var.get() == "Indivíduo: --"
         assert widget.profile_var.get() == "Perfil de análise: default"
-        assert widget.tracking_mode_var.get() == "Modo de rastreamento: Multi-indivíduos"
+        assert widget.tracking_mode_var.get() == "Modo de rastreamento: --"
         assert widget.track_selector_var.get() == "Todos"
 
         # Verify widget references are created
@@ -267,7 +267,7 @@ class TestAnalysisDisplayWidget:
         assert widget.group_var.get() == "Grupo: --"
         assert widget.day_var.get() == "Dia: --"
         assert widget.subject_var.get() == "Indivíduo: --"
-        assert widget.tracking_mode_var.get() == "Modo de rastreamento: Multi-indivíduos"
+        assert widget.tracking_mode_var.get() == "Modo de rastreamento: --"
         assert widget.profile_var.get() == "Perfil de análise: default"
         assert widget.track_selector_var.get() == "Todos"
         assert not widget.progress_frame.winfo_ismapped()

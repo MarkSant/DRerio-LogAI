@@ -8,6 +8,7 @@ import gettext
 import io
 import locale
 import os
+import tempfile
 import warnings
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -526,12 +527,24 @@ class Reporter:
         """Prepare a docx document using template if available, return (doc_template, document)."""
         doc_template: DocxTemplate | None = None
         document: DocxDocument | None = None
+        template_rendered = False
 
         if template_path.exists():
             try:
                 doc_template = DocxTemplate(str(template_path))
                 doc_template.render({"title": heading_text})
-                document = doc_template.docx
+                with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp_file:
+                    tmp_path = Path(tmp_file.name)
+
+                try:
+                    doc_template.save(str(tmp_path))
+                    document = Document(str(tmp_path))
+                    template_rendered = True
+                finally:
+                    tmp_path.unlink(missing_ok=True)
+
+                # Continue using python-docx document API for append operations
+                doc_template = None
             except Exception:
                 log.warning(
                     "analysis.reporter.template_render_failed",
@@ -549,7 +562,7 @@ class Reporter:
         if document is None:
             document = Document()
 
-        if doc_template is None:
+        if doc_template is None and not template_rendered:
             document.add_heading(heading_text, level=1)
 
         return doc_template, document
@@ -675,8 +688,12 @@ class Reporter:
             (self.viz_generator.generate_cumulative_distance_plot, _("Cumulative Distance")),
             (self.viz_generator.generate_angular_velocity_plot, _("Angular Velocity")),
             (self.viz_generator.generate_thigmotaxis_plot, _("Thigmotaxis (Wall Distance)")),
-            (self.viz_generator.generate_geotaxis_plot, _("Geotaxis (Bottom Distance)")),
         ]
+
+        if self._should_include_geotaxis_visualization():
+            plot_configs.append(
+                (self.viz_generator.generate_geotaxis_plot, _("Geotaxis (Bottom Distance)"))
+            )
 
         log.info("reporter.plots.parallel_generation.start", count=len(plot_configs))
         plot_results = self.viz_generator.generate_plots_parallel(plot_configs)
@@ -696,6 +713,26 @@ class Reporter:
                 (4 + i) / total_steps,
                 _("Visualization added: {name}").format(name=name),
             )
+
+    @staticmethod
+    def _normalize_aquarium_perspective(perspective: str | None) -> str:
+        """Normalize perspective aliases to canonical names."""
+        value = str(perspective or "").strip().lower()
+        if not value:
+            return "lateral"
+        if value in {"top", "topdown", "top_down", "dorsal", "overhead"}:
+            return "top_down"
+        return "lateral"
+
+    def _should_include_geotaxis_visualization(self) -> bool:
+        """Return whether geotaxis plots should be included in DOC visualizations."""
+        config = getattr(self, "behavioral_config", {}) or {}
+        perspective = self._normalize_aquarium_perspective(config.get("aquarium_perspective"))
+        if perspective == "top_down":
+            return False
+        if config.get("geotaxis_enabled") is False:
+            return False
+        return True
 
     def _append_roi_event_log(
         self,
@@ -787,6 +824,34 @@ class Reporter:
                     f"{gaps.get('count', 0)} (Max: {gaps.get('max_gap_frames', 0)} frames)",
                 )
 
+                expected_gap_frames = gaps.get("expected_gap_frames")
+                if expected_gap_frames is not None:
+                    add_stat_row(_("Expected Gap (interval)"), f"{expected_gap_frames} frames")
+
+                expected_count = gaps.get("expected_skip_count")
+                if expected_count is not None:
+                    add_stat_row(_("Expected Temporal Gaps"), str(expected_count))
+
+                anomalous_count = gaps.get("anomalous_count")
+                if anomalous_count is not None:
+                    add_stat_row(_("Anomalous Temporal Gaps"), str(anomalous_count))
+
+                anomalous_intervals = gaps.get("anomalous_intervals")
+                if isinstance(anomalous_intervals, list) and anomalous_intervals:
+                    document.add_paragraph(_("Anomalous gap intervals:"))
+                    for interval in anomalous_intervals:
+                        if not isinstance(interval, dict):
+                            continue
+                        from_frame = interval.get("from_frame", "?")
+                        to_frame = interval.get("to_frame", "?")
+                        gap_frames = interval.get("gap_frames", "?")
+                        missing_frames = interval.get("missing_frames", "?")
+                        document.add_paragraph(
+                            f"{from_frame} → {to_frame} "
+                            f"(gap={gap_frames}, missing≈{missing_frames})",
+                            style="List Bullet",
+                        )
+
             document.add_paragraph()  # Spacer
 
         # 2. Detailed Warnings
@@ -806,7 +871,7 @@ class Reporter:
                 "- Max Gap: The largest consecutive sequence of lost frames."
             )
             for warning in self.validation_warnings:
-                document.add_paragraph(f"• {warning}", style="List Bullet")
+                document.add_paragraph(str(warning), style="List Bullet")
         else:
             document.add_paragraph(
                 _("No significant issues were detected during trajectory validation.")

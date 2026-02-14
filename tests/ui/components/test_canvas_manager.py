@@ -742,8 +742,27 @@ class TestFrameDisplay:
 class TestDetectionOverlay:
     """Tests for detection overlay methods."""
 
-    # These tests target methods that were in CanvasManager but might have moved.
-    # If they are still there or moved to a helper, they need updating.
-    # Based on recent file read, these methods seem missing from the new CanvasManager.
-    # They might have been refactored into renderer or elsewhere.
-    pass
+    def test_filter_detections_by_track_supports_six_tuple(self, canvas_manager):
+        detections = [
+            (10, 10, 20, 20, 0.9, 1),
+            (30, 30, 40, 40, 0.8, 2),
+        ]
+
+        filtered = canvas_manager._filter_detections_by_track(detections, "2")
+
+        assert filtered == [(30, 30, 40, 40, 0.8, 2)]
+
+    def test_update_track_options_supports_six_tuple(self, canvas_manager, mock_gui):
+        mock_gui.state_synchronizer = Mock()
+        mock_gui.state_synchronizer._update_track_options = Mock()
+
+        detections = [
+            (10, 10, 20, 20, 0.9, 3),
+            (30, 30, 40, 40, 0.8, 1),
+        ]
+
+        canvas_manager._update_analysis_track_options_from_detections(detections)
+
+        mock_gui.state_synchronizer._update_track_options.assert_called_once_with(
+            ["Todos", "1", "3"]
+        )

@@ -970,7 +970,9 @@ class TestConfirmationDialogs:
         mock_gui.controller.project_manager.copy_zone_parquet_files.return_value = []
         mock_gui._zone_prompt_history = set()
 
-        dialog_manager.offer_zone_reuse("video1.mp4")
+        with patch.object(dialog_manager, "show_warning") as mock_warning:
+            dialog_manager.offer_zone_reuse("video1.mp4")
+            assert mock_warning.call_count >= 1
 
         mock_messagebox.askyesno.assert_called_once()
         call_args = mock_messagebox.askyesno.call_args

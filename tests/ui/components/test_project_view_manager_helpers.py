@@ -1,11 +1,13 @@
 """Tests for ProjectViewManager helper formatting methods."""
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
 from zebtrack.ui.components.project_view_manager import ProjectViewManager
+from zebtrack.ui.events import Events
 
 pytestmark = pytest.mark.gui
 
@@ -21,7 +23,13 @@ def _make_manager():
     controller = SimpleNamespace(project_manager=pm)
     validation_manager = Mock()
     validation_manager._build_day_title.return_value = "Dia 01"
-    gui = SimpleNamespace(controller=controller, validation_manager=validation_manager)
+    gui = SimpleNamespace(
+        controller=controller,
+        validation_manager=validation_manager,
+        dialog_manager=Mock(),
+        event_dispatcher=Mock(),
+        set_status=Mock(),
+    )
 
     return ProjectViewManager(gui), gui, pm
 
@@ -124,3 +132,69 @@ def test_build_day_title_delegates():
 def test_video_sort_key_numeric_and_text():
     assert ProjectViewManager._video_sort_key("5")[0] == 0
     assert ProjectViewManager._video_sort_key("abc")[0] == 1
+
+
+def test_resolve_unified_strategy_no_project_path_defaults_append():
+    manager, _gui, pm = _make_manager()
+    pm.project_path = None
+
+    assert manager._resolve_unified_generation_strategy() is False
+
+
+def test_resolve_unified_strategy_existing_yes_means_replace(tmp_path):
+    manager, gui, pm = _make_manager()
+    pm.project_path = str(tmp_path)
+    unified_dir = Path(tmp_path) / "unified_reports"
+    unified_dir.mkdir()
+    (unified_dir / "unified.parquet").write_text("x")
+    gui.dialog_manager.ask_yes_no_cancel.return_value = True
+
+    assert manager._resolve_unified_generation_strategy() is True
+
+
+def test_resolve_unified_strategy_existing_no_means_append(tmp_path):
+    manager, gui, pm = _make_manager()
+    pm.project_path = str(tmp_path)
+    unified_dir = Path(tmp_path) / "unified_reports"
+    unified_dir.mkdir()
+    (unified_dir / "unified.xlsx").write_text("x")
+    gui.dialog_manager.ask_yes_no_cancel.return_value = False
+
+    assert manager._resolve_unified_generation_strategy() is False
+
+
+def test_resolve_unified_strategy_existing_cancel_returns_none(tmp_path):
+    manager, gui, pm = _make_manager()
+    pm.project_path = str(tmp_path)
+    unified_dir = Path(tmp_path) / "unified_reports"
+    unified_dir.mkdir()
+    (unified_dir / "unified.docx").write_text("x")
+    gui.dialog_manager.ask_yes_no_cancel.return_value = None
+
+    assert manager._resolve_unified_generation_strategy() is None
+    gui.set_status.assert_called_once()
+
+
+def test_processing_reports_generate_partial_dispatches_unified_selected_payload():
+    manager, gui, pm = _make_manager()
+    pm.get_all_videos.return_value = [{"path": "/videos/v1.mp4", "status": "complete"}]
+
+    gui.processing_reports_widget = Mock()
+    gui.processing_reports_widget.get_selection.return_value = ("video_item_1",)
+    gui._processing_reports_tree_metadata = {
+        "video_item_1": {"type": "video", "video_path": "/videos/v1.mp4"}
+    }
+
+    manager._resolve_unified_generation_strategy = Mock(return_value=True)
+
+    manager.on_processing_reports_generate_partial()
+
+    gui.event_dispatcher.publish_event.assert_called_once_with(
+        Events.REPORT_GENERATE,
+        {
+            "videos": [{"path": "/videos/v1.mp4", "status": "complete"}],
+            "report_type": "unified",
+            "report_scope": "selected",
+            "replace_existing": True,
+        },
+    )

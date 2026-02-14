@@ -254,6 +254,12 @@ class EventDispatcher:
             ),
         )
         event_bus.subscribe(
+            Events.UI_UPDATE_ANALYSIS_METADATA,
+            lambda d: gui.update_analysis_metadata(
+                metadata=d.get("metadata") if isinstance(d, dict) else None
+            ),
+        )
+        event_bus.subscribe(
             Events.UI_UPDATE_SOCIAL_SUMMARY,
             lambda d: gui.state_synchronizer.update_social_summary(
                 **d if isinstance(d, dict) else {}
@@ -487,6 +493,10 @@ class EventDispatcher:
         event_bus.subscribe(Events.ZONE_TEMPLATE_SAVE, lambda d: gui._on_save_roi_template())
         event_bus.subscribe(
             Events.ZONE_TEMPLATE_IMPORT, lambda d: gui._on_import_and_apply_roi_template()
+        )
+        event_bus.subscribe(
+            Events.ZONE_TEMPLATE_CLEAR_APPLIED,
+            lambda d: gui._on_clear_applied_roi_template(),
         )
 
         # Video Selector

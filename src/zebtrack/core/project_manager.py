@@ -3012,39 +3012,30 @@ class ProjectManager:
                 if meta.get("group") or meta.get("group_id"):
                     return meta
 
-        # 2. Internal Project Data Lookup (if video_path provided)
-        if video_path and self.project_data:
-            videos_map = self.project_data.get("videos", {})
-            # Normalized lookup
-            norm_path = os.path.normpath(video_path)
-
-            # Try exact match, then normalized match
-            video_info = videos_map.get(video_path) or videos_map.get(norm_path)
-
-            # Try matching by filename if full path fails (common if paths move)
-            if not video_info:
-                filename = os.path.basename(norm_path)
-                for vpath, vdata in videos_map.items():
-                    if os.path.basename(vpath) == filename:
-                        video_info = vdata
-                        break
+        # 2. Internal Project Data Lookup
+        # Use find_video_entry() which correctly iterates through the batches
+        # structure (project_data["batches"][N]["videos"]).
+        # NOTE: The old code used self.project_data.get("videos", {}) which was
+        # always empty because videos are stored in the batches hierarchy,
+        # NOT in a top-level "videos" dict.
+        if self.project_data:
+            video_info = self.find_video_entry(path=video_path, experiment_id=experiment_id)
 
             if video_info:
-                # Extract hierarchical data
-                if "day" in video_info and "day" not in meta:
-                    meta["day"] = video_info["day"]
-
-                # Check group/group_id
-                info_group = video_info.get("group") or video_info.get("group_id")
-                if info_group and not (meta.get("group") or meta.get("group_id")):
-                    meta["group"] = info_group
-
-                # Check subject/subject_id
-                info_subj = video_info.get("subject") or video_info.get("subject_id")
-                if info_subj is not None and not (
-                    meta.get("subject") or meta.get("subject_id") is not None
+                # Read nested metadata sub-dict first (where wizard stores group/subject)
+                nested_meta = video_info.get("metadata") or {}
+                for key in (
+                    "day",
+                    "group",
+                    "group_id",
+                    "group_display_name",
+                    "subject",
+                    "subject_id",
                 ):
-                    meta["subject"] = info_subj
+                    # Priority: nested metadata > top-level video entry
+                    val = nested_meta.get(key) or video_info.get(key)
+                    if val is not None and key not in meta:
+                        meta[key] = val
 
                 # Return if we have sufficient info now
                 if meta.get("group") or meta.get("group_id"):

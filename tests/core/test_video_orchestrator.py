@@ -636,6 +636,16 @@ class TestVideoOrchestratorProcessingCallbacks(unittest.TestCase):
         refresh_callback = cast(Mock, self.orchestrator._refresh_project_views_callback)
         assert refresh_callback.called
 
+    def test_on_completed_callback_batch_does_not_show_blocking_success_dialog(self):
+        """Batch completion should not require a modal OK click to continue workflow."""
+        eligible_videos = [{"path": "/path/to/video1.mp4"}, {"path": "/path/to/video2.mp4"}]
+        callbacks = self.orchestrator._create_processing_callbacks(eligible_videos)
+
+        callbacks.on_completed(False, "/output", {})
+
+        self.ui_coordinator.show_info.assert_not_called()
+        self.ui_coordinator.set_status.assert_called()
+
     def test_on_error_callback(self):
         """Test on_error callback behavior."""
         eligible_videos = [{"path": "/path/to/video1.mp4"}]
