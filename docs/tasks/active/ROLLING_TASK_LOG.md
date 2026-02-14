@@ -6,6 +6,24 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-14] CI remaining failures stabilization (PR #343)
+
+**ID:** TASK-030
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** In Progress 🔄
+**Description:**
+Investigate and fix the remaining PR #343 CI failures after initial commitlint-permission
+correction, including commitlint false negatives and Domain Tests instability on headless Linux.
+
+### Subtasks (TASK-030)
+
+- [x] Diagnose all failing checks from PR #343 and extract failed logs.
+- [x] Fix domain workflow coverage-gate coupling (`--no-cov` in domain shards).
+- [x] Stabilize Windows timing assertion in threading test.
+- [ ] Resolve residual commitlint failure mode and re-validate check.
+- [ ] Resolve headless Tkinter errors in multi-aquarium domain shard.
+- [ ] Re-run CI and confirm all required checks pass.
+
 ### [2026-02-13] Batch UX, ROI template safeguards, processing-mode label, and unified reports hardening
 
 **ID:** TASK-029

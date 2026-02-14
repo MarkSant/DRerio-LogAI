@@ -169,7 +169,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libavcodec-extra ffmpeg libopencv-dev python3-opencv
+          sudo apt-get install -y xvfb libavcodec-extra ffmpeg libopencv-dev python3-opencv
 
       - name: Install Poetry
         run: pip install poetry
@@ -243,7 +243,7 @@ jobs:
 
       - name: Run multi-aquarium tests
         run: |
-          poetry run pytest -k "multi_aquarium or partitioned" -v --no-cov --timeout=300
+          xvfb-run --auto-servernum poetry run pytest -k "multi_aquarium or partitioned" -v --no-cov --timeout=300
 
   test-events:
     runs-on: ubuntu-latest
