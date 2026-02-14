@@ -22,7 +22,7 @@ correction, including commitlint false negatives and Domain Tests instability on
 - [x] Stabilize Windows timing assertion in threading test.
 - [x] Resolve residual commitlint failure mode and re-validate check.
 - [x] Resolve headless Tkinter errors in multi-aquarium domain shard.
-- [ ] Re-run CI and confirm all required checks pass.
+- [x] Re-run CI and confirm all required checks pass.
 
 ### [2026-02-13] Batch UX, ROI template safeguards, processing-mode label, and unified reports hardening
 
