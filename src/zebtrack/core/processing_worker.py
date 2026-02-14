@@ -180,6 +180,8 @@ class ProcessingWorker:
         self.callbacks.on_started()
 
         cancel_sent = False  # Track if we've sent cancel command
+        completed_received = False
+        worker_exit_detected_at: float | None = None
 
         # Log cancel_event details for debugging
         log.info(
@@ -205,8 +207,27 @@ class ProcessingWorker:
                     msg = self.result_queue.get(timeout=0.1)
                 except queue.Empty:
                     if self.process and not self.process.is_alive():
+                        # Give a short grace window for queue feeder flush after process exit.
+                        if worker_exit_detected_at is None:
+                            worker_exit_detected_at = time.monotonic()
+                            continue
+
+                        if time.monotonic() - worker_exit_detected_at < 1.0:
+                            continue
+
+                        if not completed_received:
+                            log.error("worker.monitor_loop.missing_completed_signal")
+                            if self.callbacks.on_fatal_error is not None:
+                                self.callbacks.on_fatal_error(
+                                    Exception("Worker exited without completion signal"),
+                                    "Worker monitor",
+                                    {"affected_videos": []},
+                                )
                         break
                     continue
+
+                # Reset exit grace timer when messages still arrive.
+                worker_exit_detected_at = None
 
                 msg_type = msg.get("type")
 
@@ -240,6 +261,7 @@ class ProcessingWorker:
                         )
 
                 elif msg_type == "completed":
+                    completed_received = True
                     if self.callbacks.on_completed is not None:
                         self.callbacks.on_completed(
                             msg.get("cancelled", False),
@@ -268,6 +290,14 @@ class ProcessingWorker:
 
             except Exception as e:
                 log.error("worker.monitor_loop_error", error=str(e))
+                if self.callbacks.on_fatal_error is not None:
+                    self.callbacks.on_fatal_error(
+                        e,
+                        "Monitor loop failure",
+                        {"affected_videos": []},
+                    )
+                elif self.callbacks.on_error is not None:
+                    self.callbacks.on_error(e, "Monitor loop failure")
                 break
 
         if self.process:
@@ -481,14 +511,14 @@ class _WorkerProcess(multiprocessing.Process):
         # This ensures SingleSubjectTracker is used when configured, preventing ID switches
         single_mode = False
 
-        # Check animals_per_aquarium first
+        # Check single_animal_per_aquarium flag
         if hasattr(settings, "video_processing") and hasattr(
-            settings.video_processing, "animals_per_aquarium"
+            settings.video_processing, "single_animal_per_aquarium"
         ):
-            if settings.video_processing.animals_per_aquarium == 1:
+            if settings.video_processing.single_animal_per_aquarium:
                 single_mode = True
 
-        # Check legacy/explicit override
+        # Check explicit single-subject tracker override
         if hasattr(settings, "tracking") and hasattr(
             settings.tracking, "use_single_subject_tracker"
         ):
@@ -532,7 +562,20 @@ class _WorkerProcess(multiprocessing.Process):
             # Store as 'default' zones for the detector
             self._default_zone_data = zd
         else:
-            log.warning("worker.zone_data_missing", reason="config.zone_data is None")
+            has_per_video_zone_data = any(
+                isinstance(task, dict) and bool(task.get("zone_data"))
+                for task in getattr(self.config, "tasks", [])
+            )
+            if has_per_video_zone_data:
+                log.info(
+                    "worker.zone_data_missing",
+                    reason="config.zone_data is None; using per-video zone_data from tasks",
+                )
+            else:
+                log.warning(
+                    "worker.zone_data_missing",
+                    reason="config.zone_data is None and no per-video zone_data found",
+                )
             self._default_zone_data = ZoneData()
 
         return detector
@@ -872,12 +915,15 @@ class _WorkerProcess(multiprocessing.Process):
 
                     # Display Update?
                     if frame_num % self.config.display_interval_frames == 0:
-                        # Draw overlay (arena, ROIs, bboxes) on frame for display
-                        detector.draw_overlay(frame, detections)
+                        # Draw static arena/ROI overlays in worker.
+                        # Bounding boxes stay UI-side to support Track ID filtering.
+                        detector.draw_overlay(frame, [])
 
+                        # Prepare preview frame for UI-side bbox rendering.
                         # Resize for preview if needed
                         # OPTIMIZATION: Use INTER_NEAREST for faster resizing
                         preview_frame = frame
+                        preview_detections = detections
                         if width > 1280:
                             scale = 1280 / width
                             preview_frame = cv2.resize(
@@ -887,6 +933,35 @@ class _WorkerProcess(multiprocessing.Process):
                                 fy=scale,
                                 interpolation=cv2.INTER_NEAREST,
                             )
+
+                            scaled_detections: list[tuple] = []
+                            for det in detections:
+                                if len(det) == 7:
+                                    x1, y1, x2, y2, confidence, track_id, class_id = det
+                                    scaled_detections.append(
+                                        (
+                                            round(float(x1) * scale),
+                                            round(float(y1) * scale),
+                                            round(float(x2) * scale),
+                                            round(float(y2) * scale),
+                                            float(confidence),
+                                            track_id,
+                                            int(class_id),
+                                        )
+                                    )
+                                elif len(det) == 6:
+                                    x1, y1, x2, y2, confidence, track_id = det
+                                    scaled_detections.append(
+                                        (
+                                            round(float(x1) * scale),
+                                            round(float(y1) * scale),
+                                            round(float(x2) * scale),
+                                            round(float(y2) * scale),
+                                            float(confidence),
+                                            track_id,
+                                        )
+                                    )
+                            preview_detections = scaled_detections
 
                         # Calculate stats
                         elapsed = time.time() - start_time
@@ -904,7 +979,7 @@ class _WorkerProcess(multiprocessing.Process):
                             {
                                 "type": "frame",
                                 "frame": preview_frame,
-                                "detections": detections,
+                                "detections": preview_detections,
                                 "info": stats,
                                 "experiment_id": experiment_id,
                             }

@@ -18,7 +18,7 @@ import structlog
 log = structlog.get_logger()
 
 if not hasattr(os, "startfile"):
-    os.startfile = None  # type: ignore[attr-defined]
+    os.startfile = None  # type: ignore[attr-defined,assignment]
 
 
 class DialogManager:
@@ -33,6 +33,28 @@ class DialogManager:
         """
         self.gui = gui
         self.event_bus_v2 = event_bus_v2
+        self._suppress_batch_dialogs: bool = False
+
+    # =========================================================================
+    # Batch Dialog Suppression
+    # =========================================================================
+
+    def set_dialog_suppression(self, suppress: bool) -> None:
+        """Enable or disable batch dialog suppression.
+
+        When suppressed, show_info/show_warning/show_error will log the
+        message and update the status bar instead of opening a modal
+        messagebox.  This prevents blocking dialogs during batch
+        video processing.
+
+        Args:
+            suppress: True to suppress dialogs, False to restore normal behavior.
+        """
+        self._suppress_batch_dialogs = suppress
+        log.info(
+            "dialog_manager.suppression_changed",
+            suppress=suppress,
+        )
 
     # =========================================================================
     # MessageBox Wrappers
@@ -41,29 +63,75 @@ class DialogManager:
     def show_error(self, title: str, message: str) -> None:
         """Show an error message box.
 
+        When batch dialog suppression is active, logs the error and
+        updates the status bar instead of opening a modal dialog.
+
         Args:
             title: Dialog title
             message: Error message to display
         """
+        if self._suppress_batch_dialogs:
+            log.warning(
+                "dialog_manager.show_error.suppressed",
+                title=title,
+                message=message,
+            )
+            self._update_status_bar(f"[Erro] {title}: {message}")
+            return
         messagebox.showerror(title, message)
 
     def show_warning(self, title: str, message: str) -> None:
         """Show a warning message box.
 
+        When batch dialog suppression is active, logs the warning and
+        updates the status bar instead of opening a modal dialog.
+
         Args:
             title: Dialog title
             message: Warning message to display
         """
+        if self._suppress_batch_dialogs:
+            log.warning(
+                "dialog_manager.show_warning.suppressed",
+                title=title,
+                message=message,
+            )
+            self._update_status_bar(f"[Aviso] {title}: {message}")
+            return
         messagebox.showwarning(title, message)
 
     def show_info(self, title: str, message: str) -> None:
         """Show an info message box.
 
+        When batch dialog suppression is active, logs the info and
+        updates the status bar instead of opening a modal dialog.
+
         Args:
             title: Dialog title
             message: Info message to display
         """
+        if self._suppress_batch_dialogs:
+            log.info(
+                "dialog_manager.show_info.suppressed",
+                title=title,
+                message=message,
+            )
+            self._update_status_bar(f"{title}: {message}")
+            return
         messagebox.showinfo(title, message)
+
+    def _update_status_bar(self, text: str) -> None:
+        """Update the GUI status bar with a message (truncated to 200 chars).
+
+        Used as a non-blocking alternative to modal dialogs during batch
+        processing.
+        """
+        truncated = text[:200] if len(text) > 200 else text
+        try:
+            if self.gui and hasattr(self.gui, "status_var"):
+                self.gui.status_var.set(truncated)
+        except Exception:
+            log.debug("dialog_manager._update_status_bar.failed", text=truncated)
 
     def ask_ok_cancel(self, title: str, message: str) -> bool:
         """Show a confirmation dialog with OK/Cancel buttons.
@@ -719,6 +787,25 @@ class DialogManager:
             "Cancelar: Voltar para edição",
         )
 
+    def confirm_pending_zone_edit_before_navigation(self, *, context: str) -> bool | None:
+        """Confirm whether to save pending zone edits before navigation.
+
+        Args:
+            context: Human-readable navigation context (e.g., "abrir outro vídeo")
+
+        Returns:
+            True to save and proceed, False to discard and proceed, None to cancel navigation
+        """
+        return self.ask_yes_no_cancel(
+            "Salvar edição de zonas?",
+            "Há um desenho/edição de zona em andamento.\n\n"
+            f"Deseja salvar antes de {context}?\n\n"
+            "Sim: Salvar alterações e continuar\n"
+            "Não: Descartar alterações e continuar\n"
+            "Cancelar: Permanecer no vídeo atual",
+            icon="warning",
+        )
+
     # =========================================================================
     # Notification Dialogs
     # =========================================================================
@@ -896,6 +983,14 @@ class DialogManager:
 
             status_message = f'Zonas reutilizadas de "{last_name}" para "{current_name}".'
             self.gui.set_status(status_message)
+            self.show_warning(
+                "Zonas reutilizadas",
+                (
+                    f'As zonas de "{last_name}" foram aplicadas em "{current_name}".\n\n'
+                    "Revise os contornos antes de iniciar a análise para garantir que "
+                    "correspondem ao vídeo atual."
+                ),
+            )
 
             if self.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents

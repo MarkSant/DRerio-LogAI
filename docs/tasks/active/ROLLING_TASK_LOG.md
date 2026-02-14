@@ -6,6 +6,156 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-13] Batch UX, ROI template safeguards, processing-mode label, and unified reports hardening
+
+**ID:** TASK-029
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** In Progress 🔄
+**Description:**
+Implement an integrated fix set for user-reported issues across pre-recorded processing and
+reporting: incorrect multi-individual tracking mode label in single-animal runs, missing
+save/discard/cancel guard when switching videos with pending ROI edits, missing action to clear
+applied template drawings on current video, popup-blocking notifications during batch runs,
+selected-item unified-report PermissionError handling, missing group metadata in unified DOC/XLSX,
+and temporal-gap listing consistency in individual DOC reports.
+
+### Subtasks (TASK-029)
+
+- [x] Register task and run mandatory impact analysis before code changes.
+- [x] Fix tracking-mode UI source-of-truth to avoid false multi-individual label.
+- [ ] Add tri-state confirmation (Save/Discard/Cancel) when leaving pending ROI edit on video switch.
+- [ ] Add separate action to clear applied template drawings on current video.
+- [ ] Suppress per-video success popups during batch; keep status updates and final consolidated summary.
+- [ ] Harden selected-item unified report generation against Windows/OneDrive lock conflicts.
+- [ ] Ensure unified DOC/XLSX group metadata is preserved (no unintended `unassigned`).
+- [ ] Align temporal-gap keys/section rendering in individual DOC report appendices.
+- [ ] Add/adjust targeted tests and run focused + fast regression validation.
+
+**2026-02-13 Follow-up (chat continuation):** Added targeted regression coverage for
+zone-tab navigation guard, ensuring tab switch is reverted when user cancels
+"Salvar/Descartar/Cancelar" flow with pending zone edits.
+
+**2026-02-13 Follow-up 2 (chat continuation):** Fixed single-animal tracker-mode
+consistency by inferring tracker preference from resolved single-animal mode when
+explicit preference is absent, and added regression tests for legacy project
+`animals_per_aquarium` fallback plus temporary-mode tracker inference.
+
+**2026-02-13 Follow-up 3 (chat continuation):** Removed blocking success dialog
+for multi-video completion in `VideoOrchestrator` to avoid manual OK gates during
+batch workflows, and added explicit user warnings after accepting zone reuse from
+previous video and after template application, with focused regression tests.
+
+**2026-02-13 Follow-up 4 (chat continuation):** Fixed silent unified-report
+failure path where UI could show success even when no artifact was exported.
+`ProcessingCoordinator._export_unified_reports` now validates exported files,
+raises error when zero files are generated, emits partial-generation warnings,
+and logs export failures with traceback. Added regression test for all-export
+failure to enforce UI error and prevent false success messages.
+
+**2026-02-13 Follow-up 5 (chat continuation):** Implemented unified-report
+generation strategy alignment for repeated runs and selected-scope behavior:
+`ProjectViewManager` now resolves overwrite/append/cancel via tri-state dialog
+for existing unified artifacts and routes selected generation through
+`report_type="unified"` + `report_scope="selected"` with strategy flags.
+`ProcessingReportsWidget` now opens Word/Excel/Parquet using
+`latest_unified_run.json` first (same-run consistency) with legacy fallback to
+latest-by-extension. Added focused regression tests for manifest-priority open,
+manifest-missing fallback, strategy resolution, and selected unified payload.
+
+**2026-02-13 Follow-up 6 (chat continuation):** Definitively fixed the recurring
+tracking-mode label bug ("Multi-indivíduos" shown for single-animal projects).
+
+**2026-02-14 Follow-up 7 (chat continuation):** Executed full CI-equivalent
+validation and stabilized gates before PR: ran pytest fast/slow/gui suites,
+Windows-style coverage commands (`not gui` and `gui` with thresholds),
+markdownlint/ruff/format/public API/mypy/bandit/pip-audit, fixed lint and
+typing regressions, upgraded `Pillow` to patched version (`>=12.1.1`) for
+`pip-audit --strict`, and added GUI-marked coverage tests for
+`zebtrack.ui.format_utils` to make GUI coverage threshold pass reliably.
+
+**Root Cause:** Race condition between deferred UI scheduling paths.
+`_publish_processing_mode()` scheduled the mode update via `UIScheduler.schedule()`
+→ `event_bus.publish_callable()` → enqueued on event bus queue (polled every ~50ms).
+Meanwhile `state_manager.update_processing_state(is_processing=True)` triggered
+observers via `ThreadPoolExecutor` → `root.after(0, ...)` (runs on next Tkinter
+iteration ~0ms). So `start_analysis_view_mode()` ran BEFORE the event bus queue
+was polled, reading the stale `MULTI_TRACK` default.
+
+**Fix (3-layer defense):**
+
+1. `processing_coordinator._publish_processing_mode()` now sets
+   `self.view._active_processing_mode = mode` **synchronously** (bypassing the
+   deferred event-bus queue) before scheduling the full UI update.
+2. `gui.start_analysis_view_mode()` adds a defensive fallback: if its local
+   `_active_processing_mode` is still the init default (`MULTI_TRACK`), it reads
+   the authoritative value from `processing_coordinator._active_processing_mode`.
+3. `ui_state_controller._publish_processing_mode()` now reads from
+   `processing_coordinator._active_processing_mode` (ground-truth) instead of
+   `main_view_model._active_processing_mode` (dead field, never updated).
+
+**Files Modified:**
+
+- `src/zebtrack/coordinators/processing_coordinator.py` (synchronous mode set)
+- `src/zebtrack/ui/gui.py` (defensive mode sync in `start_analysis_view_mode`)
+- `src/zebtrack/orchestrators/ui_state_controller.py` (read from coordinator)
+- `tests/ui/components/test_analysis_display.py` (update test expectations)
+
+**Tests:** 2802 non-GUI + 893 GUI = 3695 passed, 0 failed.
+
+### [2026-02-12] Fix analysis overlay/mode sync, ROI template UX, top-down geotaxis DOC, and processing reset
+
+**ID:** TASK-028
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** Completed ✅
+**Description:**
+Implement integrated fixes for five user-reported behaviors: missing bbox/confidence during
+analysis, incorrect multi/social UI text for single-animal projects, ROI template list/import/
+delete and conclude-flow UX inconsistencies, incorrect geotaxis section in DOC reports for
+top-down videos, and stale processing state that blocks restarting analysis after completion.
+
+### Subtasks (TASK-028)
+
+- [x] Run mandatory impact analysis for all touched files/classes/events.
+- [x] Fix detection overlay parsing/rendering for analysis frames (bbox + confidence).
+- [x] Fix processing mode/social summary synchronization for single-subject runs.
+- [x] Fix ROI template loading/refresh behavior and keep delete action visible/wired.
+- [x] Add non-blocking warning when leaving video/tab without concluding zone edit.
+- [x] Skip geotaxis visuals in DOC when perspective is top-down.
+- [x] Ensure processing lifecycle always resets state flags and restart eligibility.
+- [x] Add/adjust targeted tests and run fast regression suite.
+
+### [2026-02-12] Fix pre-recorded analysis startup warnings + analysis UI progress + DOCX report failure
+
+**ID:** TASK-027
+**Agent:** GitHub Copilot (GPT-5.3-Codex)
+**Status:** In Progress 🔄
+**Description:**
+Investigate and fix the pre-recorded project analysis flow where startup emits incorrect
+"video not found / not in project" warnings, analysis view shows frames/overlays but keeps
+progress/statistics and metadata placeholders (`-`), and report generation fails with
+`'lxml.etree._Element' object has no attribute 'add_p'` for `CECT_4.mp4`.
+Current extension scope (same task): fix analysis progress bar fill behavior, normalize
+`experiment_id`/perspective propagation to reports, audit and ensure Wizard parameter
+persistence/application (pre-recorded + live), remove interval-field duplication conflict,
+preserve image aspect ratio in DOCX report visuals, clarify Track ID/social-summary pipeline,
+and classify trajectory gaps as expected (downsampling) vs anomalous.
+
+### Subtasks (TASK-027)
+
+- [x] Run mandatory impact analysis for coordinator/UI/reporter affected components.
+- [x] Remove duplicate trajectory trigger path that causes false targeted-selection warnings.
+- [x] Restore analysis metadata event wiring in UI dispatcher.
+- [x] Restore analysis task/progress/statistics event propagation to analysis tab.
+- [x] Fix DOCX generation path to avoid `lxml` element misuse and preserve template fallback.
+- [ ] Fix analysis progress bar visual filling in Analysis tab.
+- [ ] Normalize report metadata (`experiment_id`) and perspective semantics (`top_down` vs `lateral`).
+- [ ] Audit all Wizard parameters (pre-recorded + live) for save/load/apply consistency.
+- [ ] Remove duplicate interval capture in pre-recorded Wizard flow.
+- [ ] Preserve plot aspect ratio in DOCX report image insertions.
+- [ ] Verify and clarify Track ID/social summary data pipeline in Analysis tab.
+- [ ] Distinguish expected frame-skip gaps from anomalous trajectory gaps in warnings.
+- [ ] Validate with targeted tests and regression run on the same debug scenario.
+
 ### [2026-02-08] Reports Final Polish (Layperson Sections)
 
 **ID:** TASK-026

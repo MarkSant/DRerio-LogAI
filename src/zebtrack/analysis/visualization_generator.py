@@ -161,13 +161,40 @@ class VisualizationGenerator:
 
         return geometry
 
+    @staticmethod
+    def _normalize_perspective(perspective: str | None) -> str:
+        """Normalize perspective aliases to canonical values.
+
+        Canonical values are ``lateral`` and ``top_down``.
+        """
+        raw = str(perspective or "").strip().lower().replace("-", "_")
+        if raw in {"top_down", "top_down_view", "topdown", "top"}:
+            return "top_down"
+        return "lateral"
+
+    @staticmethod
+    def _figure_size_from_bounds(
+        min_x: float,
+        min_y: float,
+        max_x: float,
+        max_y: float,
+    ) -> tuple[float, float]:
+        """Return an aspect-aware figure size based on arena bounds."""
+        width = max(float(max_x - min_x), 1e-6)
+        height = max(float(max_y - min_y), 1e-6)
+        aspect = width / height
+        base_height = 5.5
+        fig_width = max(5.0, min(10.0, base_height * aspect))
+        return fig_width, base_height
+
     def _draw_geotaxis_zones(self, ax: Any):
         """Draw geotaxis separation lines if configured (Lateral view only)."""
         try:
             # Check perspective (default lateral)
-            perspective = self.behavioral_config.get("aquarium_perspective", "lateral")
-            # If explicit "top-down", skip. If missing, assume lateral (default).
-            if str(perspective).lower() == "top-down_view":
+            perspective = self._normalize_perspective(
+                self.behavioral_config.get("aquarium_perspective", "lateral")
+            )
+            if perspective != "lateral":
                 return
 
             num_zones = int(self.behavioral_config.get("geotaxis_num_zones", 3))
@@ -250,17 +277,21 @@ class VisualizationGenerator:
         Returns:
             matplotlib.figure.Figure: Generated figure
         """
-        fig_obj = ax.get_figure() if ax else plt.figure(figsize=(6, 6))
-        fig = cast(Figure, fig_obj)
-        ax = ax or fig.add_subplot(111)
-        ax.clear()
-        ax.set_facecolor("lightgray")
-
         traj_data = self.b_analyzer.trajectory_data
         x = traj_data["x_cm_smoothed"]
         y = traj_data["y_cm_smoothed"]
         arena_poly_cm = self.b_analyzer.arena_polygon_cm
         min_x, min_y, max_x, max_y = arena_poly_cm.bounds
+
+        fig_obj = (
+            ax.get_figure()
+            if ax
+            else plt.figure(figsize=self._figure_size_from_bounds(min_x, min_y, max_x, max_y))
+        )
+        fig = cast(Figure, fig_obj)
+        ax = ax or fig.add_subplot(111)
+        ax.clear()
+        ax.set_facecolor("lightgray")
 
         # Get video dimensions if available
         if video_path and Path(video_path).exists():
@@ -301,6 +332,9 @@ class VisualizationGenerator:
                     # Apply perspective warp if calibration is available
                     if self.calibration:
                         frame = self.calibration.warp_frame(frame)
+                    if frame is None:
+                        return fig
+                    frame = cast(np.ndarray, frame)
 
                     # Track crop offset for extent calculation
                     crop_x_offset = 0
@@ -448,16 +482,20 @@ class VisualizationGenerator:
         Returns:
             matplotlib.figure.Figure: Generated figure
         """
-        fig_obj = ax.get_figure() if ax else plt.figure(figsize=(6, 6))
-        fig = cast(Figure, fig_obj)
-        ax = ax or fig.add_subplot(111)
-        ax.clear()
-
         traj_data = self.b_analyzer.trajectory_data
         x = traj_data["x_cm_smoothed"]
         y = traj_data["y_cm_smoothed"]
         arena_poly_cm = self.b_analyzer.arena_polygon_cm
         min_x, min_y, max_x, max_y = arena_poly_cm.bounds
+
+        fig_obj = (
+            ax.get_figure()
+            if ax
+            else plt.figure(figsize=self._figure_size_from_bounds(min_x, min_y, max_x, max_y))
+        )
+        fig = cast(Figure, fig_obj)
+        ax = ax or fig.add_subplot(111)
+        ax.clear()
 
         heatmap, xedges, yedges = np.histogram2d(
             x, y, bins=50, range=[[min_x, max_x], [min_y, max_y]]
@@ -513,14 +551,18 @@ class VisualizationGenerator:
         Returns:
             matplotlib.figure.Figure: Generated figure
         """
-        fig_obj = ax.get_figure() if ax else plt.figure(figsize=(6, 6))
+        arena_poly_cm = self.b_analyzer.arena_polygon_cm
+        min_x, min_y, max_x, max_y = arena_poly_cm.bounds
+
+        fig_obj = (
+            ax.get_figure()
+            if ax
+            else plt.figure(figsize=self._figure_size_from_bounds(min_x, min_y, max_x, max_y))
+        )
         fig = cast(Figure, fig_obj)
         ax = ax or fig.add_subplot(111)
         ax.clear()
         ax.set_facecolor("lightgray")
-
-        arena_poly_cm = self.b_analyzer.arena_polygon_cm
-        min_x, min_y, max_x, max_y = arena_poly_cm.bounds
 
         px_per_cm_x = getattr(self.b_analyzer, "_pixelcm_x", 1.0) or 1.0
         px_per_cm_y = getattr(self.b_analyzer, "_pixelcm_y", 1.0) or 1.0
@@ -581,6 +623,9 @@ class VisualizationGenerator:
                     # Apply warp if calibration is available
                     if calibration and hasattr(calibration, "warp_frame"):
                         frame = calibration.warp_frame(frame)
+                    if frame is None:
+                        return fig
+                    frame = cast(np.ndarray, frame)
 
                     # Track crop offset for extent calculation
                     crop_x_offset = 0

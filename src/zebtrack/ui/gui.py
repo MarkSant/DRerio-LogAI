@@ -12,7 +12,7 @@ from tkinter import (
     ttk,
 )
 from tkinter import font as tkfont
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import structlog
@@ -20,7 +20,7 @@ import structlog
 try:
     import ttkbootstrap as ttkb
 except ImportError:  # pragma: no cover - optional dependency fallback
-    ttkb = None
+    ttkb = cast(Any, None)
 
 # Import custom modules
 from zebtrack.core.detector import ZoneData
@@ -230,6 +230,7 @@ class ApplicationGUI:
         self.viz_bottom_container: ttk.Frame | None = None  # Added for TabBuilder
         self._project_status_containers: dict[str, Any] = {}
         self._last_overview_counts: dict[str, int] = {}
+        self._last_selected_tab_id: str | None = None
         # -----------------------------------------------------
 
         # Dynamic widgets / state variables
@@ -326,6 +327,7 @@ class ApplicationGUI:
         self._dragged_handle_index = None
         self._drag_offset = (0, 0)
         self.current_editing_zone = None  # Track what zone is being edited
+        self._zones_dirty = False  # Track unsaved zone changes (template applied, ROI drawn, etc.)
         self.project_overview_widget: ProjectOverviewWidget | None = None
         # Backward compatibility - delegate to widget
         self._project_status_containers = {}
@@ -519,7 +521,10 @@ class ApplicationGUI:
             except TypeError:
                 # Older versions might require master or behave differently
                 try:
-                    self._ttkbootstrap_style = ttkb.Style(theme=theme_name, master=self.root)
+                    self._ttkbootstrap_style = ttkb.Style(  # type: ignore[call-arg]
+                        theme=theme_name,
+                        master=self.root,
+                    )
                 except Exception as e:
                     log.warning(
                         "ui.theme.bootstrap_failed_internal",
@@ -579,12 +584,141 @@ class ApplicationGUI:
             return
 
         current_tab = self.notebook.select()
+        previous_tab = self._last_selected_tab_id
         analysis_tab_id = str(self.analysis_tab_frame) if self.analysis_tab_frame else ""
+        zone_tab_id = str(self.zone_tab_frame) if self.zone_tab_frame else ""
+
+        is_leaving_zone_tab = (
+            bool(zone_tab_id) and previous_tab == zone_tab_id and current_tab != zone_tab_id
+        )
+
+        if is_leaving_zone_tab and not self._confirm_pending_zone_edit_before_navigation(
+            context="trocar de aba"
+        ):
+            # Revert tab switch when user cancels navigation.
+            self.notebook.select(zone_tab_id)
+            self._last_selected_tab_id = zone_tab_id
+            return
+
+        if zone_tab_id and current_tab == zone_tab_id:
+            combobox = getattr(self, "roi_template_combobox", None)
+            values = combobox.cget("values") if combobox else ()
+            if not values:
+                self._refresh_roi_templates()
 
         if self.analysis_active:
             self.canvas_view_mode = (
                 "analysis" if analysis_tab_id and current_tab == analysis_tab_id else "zones"
             )
+
+        self._last_selected_tab_id = current_tab
+
+    def _has_pending_zone_edit(self) -> bool:
+        """Return True when there is an active zone drawing/editing session or unsaved zones."""
+        drawing_manager = getattr(self, "drawing_state_manager", None)
+        drawing_mode = getattr(drawing_manager, "mode", None) if drawing_manager else None
+        drawing_active = drawing_mode is not None
+        drawing_points_active = bool(drawing_manager and drawing_manager.has_points())
+        editing_active = bool(getattr(self, "current_editing_zone", None))
+        edited_polygon_active = bool(getattr(self, "edited_polygon_points", None))
+        zones_dirty = getattr(self, "_zones_dirty", False)
+        return (
+            drawing_active
+            or drawing_points_active
+            or editing_active
+            or edited_polygon_active
+            or zones_dirty
+        )
+
+    def _warn_about_pending_zone_edit(self, *, context: str) -> None:
+        """Show a non-blocking warning if user navigates with an unfinished zone edit."""
+        if not self._has_pending_zone_edit():
+            return
+        self.show_warning(
+            "Edição de zonas em andamento",
+            (
+                "Há uma edição/desenho de zona em andamento. "
+                "Clique em 'Concluir Edição do Vídeo' quando terminar, "
+                f"antes de {context}."
+            ),
+        )
+
+    def _confirm_pending_zone_edit_before_navigation(self, *, context: str) -> bool:
+        """Confirm and resolve pending zone edits before navigation.
+
+        Returns:
+            True when navigation should proceed, False when it should be cancelled.
+        """
+        if not self._has_pending_zone_edit():
+            return True
+
+        # If only the _zones_dirty flag is set (template applied, arena saved, but not
+        # yet committed via "Concluir"), show a tailored warning and allow proceed/cancel.
+        has_active_drawing = False
+        drawing_manager = getattr(self, "drawing_state_manager", None)
+        if drawing_manager:
+            drawing_mode = getattr(drawing_manager, "mode", None)
+            has_active_drawing = (
+                drawing_mode is not None
+                or drawing_manager.has_points()
+                or bool(getattr(self, "current_editing_zone", None))
+                or bool(getattr(self, "edited_polygon_points", None))
+            )
+
+        if not has_active_drawing and getattr(self, "_zones_dirty", False):
+            # Zones were saved in memory but not committed to project via "Concluir"
+            from tkinter import messagebox
+
+            response = messagebox.askyesnocancel(
+                "Zonas não finalizadas",
+                "As zonas foram desenhadas/aplicadas mas não foram finalizadas "
+                "com o botão 'Concluir Edição do Vídeo'.\n\n"
+                "Deseja finalizar agora antes de prosseguir?\n\n"
+                "• Sim: Finaliza e prossegue\n"
+                "• Não: Prossegue sem finalizar\n"
+                "• Cancelar: Permanece no vídeo atual",
+            )
+            if response is None:
+                # Cancel — stay on current video
+                self.set_status("Troca de vídeo cancelada.")
+                return False
+            if response is True:
+                # Auto-conclude: trigger the same logic as "Concluir"
+                if hasattr(self, "zone_control_builder") and self.zone_control_builder:
+                    self.zone_control_builder._on_conclude_video()
+                else:
+                    self._zones_dirty = False
+            else:
+                # Discard — clear dirty flag, proceed without saving project
+                self._zones_dirty = False
+            return True
+
+        response = self.dialog_manager.confirm_pending_zone_edit_before_navigation(context=context)
+        if response is None:
+            self.set_status("Troca de vídeo cancelada para manter a edição atual.")
+            return False
+
+        if response is True:
+            # Save only when a concrete editable polygon exists.
+            if self.edited_polygon_points:
+                self.canvas_manager.save_arena()
+                self._zones_dirty = False
+                self.set_status("Edição salva. Prosseguindo para o próximo vídeo...")
+                return True
+
+            self.show_warning(
+                "Salvar edição",
+                (
+                    "Não foi possível salvar automaticamente porque o desenho ainda não foi "
+                    "finalizado. Finalize o desenho ou use 'Concluir' antes de trocar de vídeo."
+                ),
+            )
+            return False
+
+        self.canvas_manager.discard_arena()
+        self._zones_dirty = False
+        self.set_status("Edição descartada. Prosseguindo para o próximo vídeo...")
+        return True
 
     def _create_main_control_frame(self):
         """Create the main UI with tabs for controlling the app."""
@@ -606,6 +740,8 @@ class ApplicationGUI:
         self.tab_builder.build_processing_reports_tab()  # New unified tab
         self.tab_builder.build_analysis_tab()
         self.tab_builder.build_configuration_tab()
+
+        self._last_selected_tab_id = self.notebook.select()
 
         # Status frame below the notebook
         project_type_str = self.controller.project_manager.get_project_type()
@@ -864,6 +1000,10 @@ class ApplicationGUI:
         """Delete the currently selected template. Delegates to ROITemplateManager."""
         self.roi_template_manager.delete_template()
 
+    def _on_clear_applied_roi_template(self) -> None:
+        """Clear template-applied drawings from the active video only."""
+        self.roi_template_manager.clear_applied_template_drawings()
+
     def _on_import_roi_template(self) -> None:
         """Import a template file into the library. Delegates to ROITemplateManager."""
         self.roi_template_manager.import_template()
@@ -892,6 +1032,8 @@ class ApplicationGUI:
     def _on_apply_roi_template(self) -> None:
         """Apply template. Delegates to ROITemplateManager."""
         self.roi_template_manager.apply_template()
+        # Mark zones as dirty so user is warned if they switch videos without clicking "Concluir"
+        self._zones_dirty = True
 
     def _filter_video_tree(self) -> None:
         """Filter video tree based on search text. Delegates to ProjectViewManager."""
@@ -1647,6 +1789,27 @@ class ApplicationGUI:
             self.analysis_display_widget.enable_cancel_button()
         self._switch_to_analysis_view()
 
+        # ── Defensive mode sync (race-condition guard) ─────────────────
+        # _active_processing_mode should already have been set synchronously
+        # by processing_coordinator._publish_processing_mode().  As a second
+        # line of defense, if our local value is still the init default
+        # (MULTI_TRACK), try reading the authoritative value from the
+        # processing coordinator which has the ground-truth.
+        mode = self._active_processing_mode
+        if mode is ProcessingMode.MULTI_TRACK and hasattr(self, "controller"):
+            coordinator = getattr(self.controller, "processing_coordinator", None)
+            if coordinator is not None:
+                coord_mode = getattr(coordinator, "_active_processing_mode", None)
+                if coord_mode is not None and coord_mode is not mode:
+                    mode = coord_mode
+                    self._active_processing_mode = mode
+
+        if self.analysis_display_widget:
+            self.analysis_display_widget.set_tracking_mode(mode.display_name)
+            if self.analysis_display_widget.track_selector_widget:
+                state = "disabled" if mode is ProcessingMode.SINGLE_SUBJECT else "readonly"
+                self.analysis_display_widget.track_selector_widget.configure(state=state)
+
     def stop_analysis_view_mode(self):
         """Stop analysis - disable toggle and return to zones view."""
         self.analysis_active = False
@@ -1922,6 +2085,8 @@ class ApplicationGUI:
     def _on_save_arena(self):
         """Save arena."""
         self.canvas_manager.save_arena()
+        # Mark zones as dirty — saved in memory but not committed via "Concluir"
+        self._zones_dirty = True
 
     def _on_discard_arena(self):
         """Discard arena changes."""
