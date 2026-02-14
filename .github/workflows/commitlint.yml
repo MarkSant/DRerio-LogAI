@@ -5,6 +5,10 @@ on:
     branches: [main]
     types: [opened, edited, synchronize, reopened]
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   commitlint:
     runs-on: ubuntu-latest
@@ -17,3 +21,4 @@ jobs:
         uses: wagoid/commitlint-github-action@v6
         with:
           configFile: .commitlintrc.json
+          token: ${{ secrets.GITHUB_TOKEN }}
