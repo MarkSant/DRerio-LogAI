@@ -280,8 +280,9 @@ class TestMainViewModelThreadLifecycle:
         wait_for_thread_exit(main_view_model.processing_thread, timeout=0.5)
         elapsed = time.time() - start_time
 
-        # Should timeout in ~0.5s, not wait for full 10s
-        assert elapsed < 1.0
+        # Should timeout quickly and never wait for full 10s.
+        # On busy Windows CI runners, scheduling jitter can exceed 1s.
+        assert elapsed < 2.0
 
 
 class TestMainViewModelConcurrentOperations:

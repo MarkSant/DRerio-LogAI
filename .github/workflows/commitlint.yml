@@ -22,3 +22,4 @@ jobs:
         with:
           configFile: .commitlintrc.json
           token: ${{ secrets.GITHUB_TOKEN }}
+          commitDepth: 1
