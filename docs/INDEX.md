@@ -46,6 +46,7 @@ docs/
 - **[Getting Started](guides/developer/getting_started.md)** - Setting up the development environment.
 - **[Debugging Guide](guides/developer/debugging.md)** - Troubleshooting common tracking issues.
 - **[GUI Testing (Windows)](guides/developer/testing_gui_windows.md)** - Running Tkinter tests safely.
+- **[MCP Configuration](guides/developer/MCP_CONFIGURATION.md)** - Model Context Protocol setup and Docker MCP troubleshooting.
 
 ## 🎓 Tutorials (Learning-Oriented)
 
