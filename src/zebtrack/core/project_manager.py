@@ -2049,7 +2049,11 @@ class ProjectManager:
                     if group_digits and int(group_digits.group()) == val:
                         return group
             except (ValueError, TypeError):
-                pass
+                log.debug(
+                    "project.resolve_group.parse_error",
+                    regex_value=regex_value,
+                    exc_info=True,
+                )
         return regex_value
 
     def derive_processing_metadata(
@@ -3192,7 +3196,7 @@ class ProjectManager:
                     completed.add((day, group_name, subject_id))
                     continue
                 except (ValueError, IndexError):
-                    pass
+                    log.debug("project.scan.new_format_parse_error", name=item.name, exc_info=True)
 
             # Try legacy format
             match = pattern_legacy.match(item.name)

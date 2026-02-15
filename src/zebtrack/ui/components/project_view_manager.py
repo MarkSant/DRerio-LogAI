@@ -1040,7 +1040,7 @@ class ProjectViewManager:
                     for child in tree.get_children(item_id):
                         _collect(child)
             except Exception:
-                pass
+                log.debug("project_view_manager.collect_video_paths.suppressed", exc_info=True)
 
         for item in selection:
             _collect(item)
@@ -1312,7 +1312,11 @@ class ProjectViewManager:
                 os.chmod(path, stat.S_IWRITE)
                 func(path)
             except Exception:
-                pass
+                log.debug(
+                    "project_view_manager.rmtree_retry.suppressed",
+                    path=path,
+                    exc_info=True,
+                )
 
         if os.path.exists(unified_dir):
             success = False
@@ -1679,7 +1683,7 @@ class ProjectViewManager:
                 if canonical_entry and isinstance(canonical_entry, dict):
                     multi_outputs = canonical_entry.get("multi_aquarium_outputs")
             except Exception:
-                pass
+                log.debug("project_view_manager.multi_outputs_fallback.suppressed", exc_info=True)
 
         if multi_outputs and isinstance(multi_outputs, dict) and len(multi_outputs) > 0:
             self._insert_multi_aquarium_nodes(

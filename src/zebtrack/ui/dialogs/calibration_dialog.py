@@ -155,7 +155,7 @@ class CalibrationDialog(simpledialog.Dialog):
                 child.destroy()
         except tk.TclError:
             # Frame already destroyed
-            pass
+            log.debug("calibration_dialog.clear_frame.suppressed", exc_info=True)
 
     def _build_calibration_section(self) -> None:
         if not self.calibration_section:
@@ -811,7 +811,7 @@ class CalibrationDialog(simpledialog.Dialog):
             try:
                 widget.configure(state=state)
             except Exception:
-                pass
+                log.debug("calibration_dialog.widget_state_config.suppressed", exc_info=True)
 
         if not enabled:
             self.bytetrack_hint_var.set(
@@ -823,7 +823,7 @@ class CalibrationDialog(simpledialog.Dialog):
                 try:
                     widget.configure(state="normal")
                 except Exception:
-                    pass
+                    log.debug("calibration_dialog.widget_reenable.suppressed", exc_info=True)
         else:
             self.bytetrack_hint_var.set(
                 "💡 ByteTrack ativo (Filtro de Kalman). Recomendado para maior estabilidade."

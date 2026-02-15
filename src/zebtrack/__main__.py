@@ -127,7 +127,7 @@ def main():  # noqa: C901
             if windll is not None:
                 cast(Any, windll).shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         except Exception:
-            pass  # Fail silently if not on Windows or other issue
+            log.debug("main.app_user_model_id.suppressed", exc_info=True)
 
     try:
         # Create Tkinter root FIRST (required for Toplevel widgets)
@@ -585,20 +585,21 @@ def main():  # noqa: C901
             if "splash" in locals():
                 splash.destroy()
         except Exception:
-            pass  # Ignore errors; app is already in fatal error state
+            log.debug("main.splash_destroy.suppressed", exc_info=True)
 
         # Show main window if hidden
         try:
             if "root" in locals():
                 root.deiconify()
         except Exception:
-            pass  # Ignore errors; avoid cascading failures
+            log.debug("main.root_deiconify.suppressed", exc_info=True)
 
         try:
             from zebtrack.logging_config import resolve_log_path
 
             log_path = resolve_log_path("analysis.log")
         except Exception:
+            log.debug("main.resolve_log_path.fallback", exc_info=True)
             log_path = "analysis.log"
 
         messagebox.showerror(

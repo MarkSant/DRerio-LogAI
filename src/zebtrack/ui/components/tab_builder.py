@@ -141,7 +141,7 @@ class TabBuilder:
                 if current_pos < 420:  # Minimum width for left panel
                     main_pane.sashpos(0, 420)
             except Exception:
-                pass
+                log.debug("tab_builder.pane_configure_sash.suppressed", exc_info=True)
 
         main_pane.bind("<Configure>", _on_pane_configure)
 
@@ -169,7 +169,7 @@ class TabBuilder:
                 # Set sash position to a comfortable default
                 main_pane.sashpos(0, 450)
             except Exception:
-                pass
+                log.debug("tab_builder.initial_sash_set.suppressed", exc_info=True)
 
         main_pane.after(10, _set_initial_sash)
         main_pane.after(50, _set_initial_sash)

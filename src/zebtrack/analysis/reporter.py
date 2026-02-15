@@ -607,7 +607,7 @@ class Reporter:
                         else:
                             rename_geo[col] = f"Geotaxis Zona {idx + 1} (%)"
                     except (IndexError, ValueError):
-                        pass
+                        log.debug("reporter.geotaxis_rename.parse_error", column=col, exc_info=True)
             if rename_geo:
                 df = df.rename(columns=rename_geo)
 

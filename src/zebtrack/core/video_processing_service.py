@@ -790,7 +790,7 @@ class VideoProcessingService:
                 elif "path" in props:
                     actual_path = str(props["path"])
             except Exception:
-                pass
+                log.debug("video_processing.resolve_path.get_properties_error", exc_info=True)
 
         task = {
             "path": actual_path,

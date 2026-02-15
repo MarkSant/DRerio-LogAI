@@ -1101,7 +1101,7 @@ class ZoneControlsWidget(BaseWidget):
                         self.single_analysis_options_frame.pack(fill="x", pady=5)
             except (tk.TclError, IndexError):
                 # Frame destroyed or invalid state
-                pass
+                log.debug("zone_controls.show_single_analysis_options.suppressed", exc_info=True)
 
     def hide_single_analysis_options(self) -> None:
         """Hide the single analysis options frame."""
@@ -1145,7 +1145,7 @@ class ZoneControlsWidget(BaseWidget):
                     self.zone_listbox.delete(item)
         except Exception:
             # Widget might have been destroyed during teardown
-            pass
+            log.debug("zone_controls.clear_zone_listbox.suppressed", exc_info=True)
 
     def add_zone_to_list(
         self, zone_id: str, name: str, zone_type: str, color: str, color_hex: str | None = None

@@ -297,7 +297,7 @@ class ArduinoDashboardWidget(BaseWidget):
                     self.log_text.delete("1.0", f"{start_line}.0")
             except Exception:
                 # If parsing fails, ignore trimming and keep log growing temporarily
-                pass
+                log.debug("arduino_dashboard.log_trim.suppressed", exc_info=True)
 
             self.log_text.see("end")
             self.log_text.configure(state="disabled")
@@ -314,7 +314,7 @@ class ArduinoDashboardWidget(BaseWidget):
                 self.after(0, _update_log)
             except Exception:
                 # Widget not ready or mainloop not running - silently skip
-                pass
+                log.debug("arduino_dashboard.schedule_log_update.suppressed", exc_info=True)
 
     def update_status(self, connected: bool, port: str | None) -> None:
         """
@@ -333,14 +333,14 @@ class ArduinoDashboardWidget(BaseWidget):
         try:
             self.status_var.set(status_text)
         except Exception:
-            pass
+            log.debug("arduino_dashboard.status_var_set.suppressed", exc_info=True)
 
         if self.status_indicator:
             color = "#16a34a" if connected else "#b91c1c"  # Green or red
             try:
                 self.status_indicator.config(foreground=color)
             except Exception:
-                pass
+                log.debug("arduino_dashboard.status_indicator_config.suppressed", exc_info=True)
 
     def set_last_command(self, command: str) -> None:
         """
@@ -352,7 +352,7 @@ class ArduinoDashboardWidget(BaseWidget):
         try:
             self.last_command_var.set(command or "-")
         except Exception:
-            pass
+            log.debug("arduino_dashboard.last_command_set.suppressed", exc_info=True)
 
     def clear_log(self) -> None:
         """Clear all log entries."""

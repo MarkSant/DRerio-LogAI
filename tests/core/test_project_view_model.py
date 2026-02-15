@@ -9,7 +9,6 @@ from unittest.mock import Mock
 import pytest
 
 from zebtrack.core.viewmodels.project_view_model import ProjectViewModel
-from zebtrack.ui.events import Events
 
 
 @pytest.fixture

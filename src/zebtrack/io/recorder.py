@@ -626,7 +626,7 @@ class Recorder:
             try:
                 recorder.stop_recording(force_stop=True, reason="Cleanup on error")
             except Exception:
-                pass  # Best effort cleanup
+                log.debug("recorder.aquarium_cleanup.error", aq_id=_aq_id, exc_info=True)
         self._aquarium_recorders.clear()
         self._multi_aquarium_mode = False
 

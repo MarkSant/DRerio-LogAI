@@ -520,8 +520,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 {
                     "title": "Sucesso",
                     "message": (
-                        f"{len(videos_to_process)} vídeo(s)"
-                        " adicionado(s) para processamento."
+                        f"{len(videos_to_process)} vídeo(s) adicionado(s) para processamento."
                     ),
                 },
             )
@@ -1576,21 +1575,21 @@ class ProcessingCoordinator(BaseCoordinator):
                 n_aq = int(config.get("num_aquariums", 1))
                 self.settings.analysis_config.num_aquariums = n_aq
             except (TypeError, ValueError):
-                pass
+                log.debug("processing_coordinator.parse_num_aquariums.suppressed", exc_info=True)
 
             try:
                 raw_w = config.get("aquarium_width_cm")
                 if raw_w is not None and str(raw_w).strip():
                     w_cm = float(raw_w)
             except (TypeError, ValueError):
-                pass
+                log.debug("processing_coordinator.parse_aquarium_width.suppressed", exc_info=True)
 
             try:
                 raw_h = config.get("aquarium_height_cm")
                 if raw_h is not None and str(raw_h).strip():
                     h_cm = float(raw_h)
             except (TypeError, ValueError):
-                pass
+                log.debug("processing_coordinator.parse_aquarium_height.suppressed", exc_info=True)
 
         return {"w": w_cm, "h": h_cm, "n": n_aq}
 
@@ -3731,9 +3730,7 @@ class ProcessingCoordinator(BaseCoordinator):
             if use_single:
                 return ProcessingMode.SINGLE_SUBJECT
         except AttributeError:
-            pass
-
-        # Third fallback: check project data directly (covers case where
+            log.debug("processing_coordinator.determine_mode.settings_attr_missing", exc_info=True)
         # resolver returned None and settings were never synced).
         try:
             resolved = self._resolve_single_animal_mode(None)
@@ -3744,7 +3741,9 @@ class ProcessingCoordinator(BaseCoordinator):
                 )
                 return ProcessingMode.SINGLE_SUBJECT
         except Exception:
-            pass
+            log.warning(
+                "processing_coordinator.determine_mode.resolve_fallback_failed", exc_info=True
+            )
 
         return ProcessingMode.MULTI_TRACK
 
@@ -4660,7 +4659,11 @@ class ProcessingCoordinator(BaseCoordinator):
                         try:
                             metadata[dim_key] = float(str(val))
                         except (TypeError, ValueError):
-                            pass
+                            log.debug(
+                                "processing_coordinator.metadata_dim_parse.suppressed",
+                                dim_key=dim_key,
+                                exc_info=True,
+                            )
 
         # Set defaults
         if "group" not in metadata:
@@ -5006,7 +5009,9 @@ class ProcessingCoordinator(BaseCoordinator):
                     cv2.imwrite(bg_path, frame)
                     return bg_path
                 except Exception:
-                    pass
+                    log.warning(
+                        "processing_coordinator.save_background_frame.failed", exc_info=True
+                    )
         return video_file
 
     def _export_individual_outputs(self, analysis_result, results_dir, exp_id):

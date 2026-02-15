@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from zebtrack.core.state_manager import StateCategory
-from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
     from zebtrack.core.application_bootstrapper import BootstrapResult

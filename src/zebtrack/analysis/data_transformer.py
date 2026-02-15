@@ -619,7 +619,11 @@ class DataTransformer:
                         else:
                             rename_geo[col] = f"Geotaxis Zona {idx + 1} (%)"
                     except (IndexError, ValueError):
-                        pass
+                        log.debug(
+                            "data_transformer.geotaxis_rename.error",
+                            column=col,
+                            exc_info=True,
+                        )
             if rename_geo:
                 display_df = display_df.rename(columns=rename_geo)
 
@@ -674,7 +678,11 @@ class DataTransformer:
                 idx = int(parts[2])
                 return f"Geotaxis Zone {idx + 1} (%)"
             except (IndexError, ValueError):
-                pass
+                log.debug(
+                    "data_transformer.format_column.geo_error",
+                    col_name=col_name,
+                    exc_info=True,
+                )
 
         return col_name
 

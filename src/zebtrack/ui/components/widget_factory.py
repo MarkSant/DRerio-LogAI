@@ -206,7 +206,7 @@ class WidgetFactory:
             try:
                 self.gui.zone_summary_frame.destroy()
             except Exception:
-                pass
+                log.debug("widget_factory.zone_summary_destroy.suppressed", exc_info=True)
 
         self.gui.zone_summary_frame, self.gui.zone_summary_cards = (
             PanelBuilder.create_zone_summary_cards(
@@ -480,7 +480,7 @@ class WidgetFactory:
             try:
                 self.gui.processing_reports_tab_frame.destroy()
             except Exception:
-                pass
+                log.debug("widget_factory.reports_tab_destroy.suppressed", exc_info=True)
 
         # Create tab frame
         self.gui.processing_reports_tab_frame = ttk.Frame(self.gui.notebook, padding="10")
@@ -526,7 +526,7 @@ class WidgetFactory:
             try:
                 self.gui.project_overview_frame.destroy()
             except Exception:
-                pass
+                log.debug("widget_factory.overview_frame_destroy.suppressed", exc_info=True)
 
         self.gui.project_overview_frame = ttk.LabelFrame(
             parent, text="Resumo do Projeto", padding=10
@@ -1261,7 +1261,7 @@ class WidgetFactory:
                     self.gui.grid_container, text=f"Erro ao renderizar grade: {e}", foreground="red"
                 ).pack(pady=20)
             except Exception:
-                pass
+                log.debug("widget_factory.error_label.double_fault", exc_info=True)
 
     def reload_config_editor_values(self) -> None:
         """Load current settings into ConfigEditorWidget."""

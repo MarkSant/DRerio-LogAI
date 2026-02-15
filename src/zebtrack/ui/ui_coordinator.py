@@ -769,7 +769,10 @@ class UICoordinator:
                             try:
                                 self._aquarium_detection_dialog.destroy()
                             except Exception:
-                                pass
+                                log.debug(
+                                    "ui_coordinator.detection_dialog_destroy.suppressed",
+                                    exc_info=True,
+                                )
                             finally:
                                 self._aquarium_detection_dialog = None
 

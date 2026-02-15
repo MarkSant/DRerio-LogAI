@@ -480,7 +480,7 @@ class ApplicationGUI:
             try:
                 zone_controls.hide_single_analysis_options()
             except Exception:
-                pass
+                log.warning("gui.hide_single_analysis_options.suppressed", exc_info=True)
 
     def _reset_analysis_widgets(self) -> None:
         """Encapsula a limpeza e destruição de widgets da aba de análise."""
@@ -512,9 +512,9 @@ class ApplicationGUI:
                 try:
                     _pkg_version("ttkbootstrap")
                 except PackageNotFoundError:
-                    pass
+                    log.debug("gui.ttkbootstrap_version.not_found")
             except Exception:
-                pass
+                log.debug("gui.ttkbootstrap_version_check.suppressed", exc_info=True)
 
             try:
                 self._ttkbootstrap_style = ttkb.Style(theme=theme_name)
@@ -1101,7 +1101,7 @@ class ApplicationGUI:
                 self.analysis_display_widget.video_label.configure(image="")
                 self._analysis_overlay_image = None
             except Exception:
-                pass
+                log.debug("gui.video_label_clear.suppressed", exc_info=True)
 
         pm = self.controller.project_manager
 
@@ -1110,7 +1110,7 @@ class ApplicationGUI:
             project_name = pm.get_project_name() if hasattr(pm, "get_project_name") else None
             self._update_window_title(project_name)
         except Exception:
-            pass  # Keep default title if name unavailable
+            log.debug("gui.update_window_title.suppressed", exc_info=True)
 
         # Load persisted user preferences if present
         if pm.get_project_type() == "pre-recorded":
@@ -1136,14 +1136,14 @@ class ApplicationGUI:
                     str(int(pm.project_data["last_processing_interval"]))
                 )
             except (ValueError, TypeError):
-                pass
+                log.debug("gui.restore_processing_interval.suppressed", exc_info=True)
         if pm.project_data.get("last_show_preview") is not None:
             try:
                 self.show_preview_var.set(
                     bool(pm.project_data["last_show_preview"])  # type: ignore[arg-type]
                 )
             except Exception:
-                pass
+                log.debug("gui.restore_show_preview.suppressed", exc_info=True)
 
         # Restore analysis and display intervals
         if pm.project_data.get("analysis_interval_frames") is not None:
@@ -1152,12 +1152,12 @@ class ApplicationGUI:
                     str(int(pm.project_data["analysis_interval_frames"]))
                 )
             except (ValueError, TypeError):
-                pass
+                log.debug("gui.restore_analysis_interval.suppressed", exc_info=True)
         if pm.project_data.get("display_interval_frames") is not None:
             try:
                 self.display_interval_var.set(str(int(pm.project_data["display_interval_frames"])))
             except (ValueError, TypeError):
-                pass
+                log.debug("gui.restore_display_interval.suppressed", exc_info=True)
 
         # Synchronize num_aquariums from project calibration to settings
         # This ensures multi-aquarium detection mode works correctly
@@ -1529,7 +1529,7 @@ class ApplicationGUI:
                 self.analysis_display_widget.video_label.configure(image="")
                 self._analysis_overlay_image = None
             except Exception:
-                pass
+                log.debug("gui.video_label_clear.suppressed", exc_info=True)
 
         self.pending_single_video_path = video_path
         self.pending_single_video_config = config
@@ -1853,7 +1853,7 @@ class ApplicationGUI:
                         self.controller._active_processing_mode == ProcessingMode.SINGLE_SUBJECT
                     )
             except Exception:
-                pass
+                log.warning("gui.processing_mode_fallback.suppressed", exc_info=True)
 
         self.canvas_manager.renderer.update_overlay(detections, is_single_subject)
 

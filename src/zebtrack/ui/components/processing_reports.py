@@ -573,7 +573,7 @@ class ProcessingReportsWidget(BaseWidget):
                 if path:
                     video_selection.append(item)
             except Exception:
-                pass
+                log.debug("processing_reports.tree_video_path.suppressed", exc_info=True)
 
         has_selection = len(video_selection) > 0
 

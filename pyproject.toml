@@ -88,6 +88,7 @@ select = [
   "N",    # pep8-naming
   "UP",   # pyupgrade
   "RUF",  # ruff-specific rules
+  "S110", # flake8-bandit: try-except-pass (Phase 1 guard)
 ]
 ignore = [
   "N802",    # function name should be lowercase (methods like setUp)
@@ -101,6 +102,10 @@ ignore = [
 ]
 "tests/**" = [
     "B007", # unused-loop-control-variable common in tests
+    "S110", # try-except-pass acceptable in test fixtures/cleanup
+]
+"scripts/**" = [
+    "S110", # try-except-pass acceptable in debug/utility scripts
 ]
 
 [tool.ruff.lint.mccabe]

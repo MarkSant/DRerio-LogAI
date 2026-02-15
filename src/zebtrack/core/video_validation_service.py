@@ -122,7 +122,10 @@ class VideoValidationService:
                         if has_multi_rois:
                             info["has_rois"] = True
                 except Exception:
-                    pass
+                    log.warning(
+                        "video_validation.multi_aquarium_zone_scan.suppressed",
+                        exc_info=True,
+                    )
 
                 # Trajectory Data (Multi)
                 multi_outputs = video_entry.get("multi_aquarium_outputs", {})

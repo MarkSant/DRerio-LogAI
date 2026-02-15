@@ -90,14 +90,14 @@ def configure_logging(log_file: str = "analysis.log"):
         try:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
         except Exception:
-            pass
+            logging.debug("logging_config.truncate.mkdir_failed: %s", path, exc_info=True)
 
         try:
             with open(path, "w", encoding="utf-8"):
                 pass
         except Exception:
             # Best-effort: do not crash the app if the filesystem is read-only/locked.
-            pass
+            logging.debug("logging_config.truncate.write_failed: %s", path, exc_info=True)
 
     def _truncate_if_exists_in_cwd(filename: str) -> None:
         cwd_path = str(Path.cwd() / filename)
@@ -183,7 +183,7 @@ def configure_logging(log_file: str = "analysis.log"):
             try:
                 handler.close()
             except Exception:
-                pass
+                logging.debug("logging_config.handler_close.error", exc_info=True)
         root_logger.handlers.clear()
 
     root_logger.addHandler(file_handler)

@@ -288,7 +288,7 @@ class OpenVINOPlugin(DetectorPlugin):
                             num_classes = int(output_channels) - 4
                         num_classes = max(1, num_classes)  # At least 1 class
                 except Exception:
-                    pass  # Keep default
+                    log.debug("openvino.output_channels.parse_error", exc_info=True)
 
             self.class_names = {i: f"class_{i}" for i in range(num_classes)}
             log.warning(

@@ -153,7 +153,7 @@ class Camera(FrameSource):
                     break
         except Exception:
             # v2.3: Catch-all for any shutdown/GC race conditions
-            pass
+            log.debug("camera.reader_thread.shutdown_race", exc_info=True)
         finally:
             # v2.2: ONLY _reader_thread calls cap.release() (prevents deadlock)
             try:
@@ -161,13 +161,13 @@ class Camera(FrameSource):
                     self.cap.release()
                     log.info("camera.released_by_reader_thread")
             except Exception:
-                # v2.3: Silently ignore errors during cleanup (GC/shutdown)
-                pass
+                # v2.3: Log errors during cleanup (GC/shutdown)
+                log.debug("camera.cleanup.release_error", exc_info=True)
 
         try:
             log.info("camera.reader_thread.stopped")
         except Exception:
-            pass
+            log.debug("camera.reader_thread.stopped_log_error", exc_info=True)
 
     def _attempt_reconnect(self) -> bool:
         """Try to reconnect the camera. Returns False when the thread should exit."""

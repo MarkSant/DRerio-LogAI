@@ -10,6 +10,10 @@ from collections.abc import Callable
 from tkinter import TclError, ttk
 from typing import Any, cast
 
+import structlog
+
+log = structlog.get_logger()
+
 try:
     import ttkbootstrap as ttkb
 except Exception:  # pragma: no cover - optional dependency
@@ -22,6 +26,7 @@ def _try_actions(window: Any, actions: tuple[Callable[[], None], ...]) -> bool:
             action()
             return True
         except Exception:
+            log.debug("window_utils.try_actions.action_failed", exc_info=True)
             continue
     return False
 
@@ -31,7 +36,7 @@ def maximize_window(window: Any) -> None:
     try:
         window.update_idletasks()
     except Exception:
-        pass
+        log.debug("window_utils.maximize.update_idletasks_failed", exc_info=True)
 
     def _state_zoomed() -> None:
         window.state("zoomed")
@@ -47,7 +52,7 @@ def maximize_window(window: Any) -> None:
         screen_h = window.winfo_screenheight()
         window.geometry(f"{screen_w}x{screen_h}+0+0")
     except Exception:
-        pass
+        log.debug("window_utils.maximize.geometry_fallback_failed", exc_info=True)
 
 
 def schedule_maximize(window: Any) -> None:
@@ -55,7 +60,7 @@ def schedule_maximize(window: Any) -> None:
     try:
         window.after(0, lambda: maximize_window(window))
     except Exception:
-        pass
+        log.debug("window_utils.schedule_maximize.suppressed", exc_info=True)
 
 
 def reset_geometry_if_not_maximized(window: Any) -> None:
@@ -71,7 +76,7 @@ def reset_geometry_if_not_maximized(window: Any) -> None:
     try:
         window.geometry("")
     except Exception:
-        pass
+        log.debug("window_utils.reset_geometry.suppressed", exc_info=True)
 
 
 def set_geometry_if_not_maximized(window: Any, geometry: str) -> None:
@@ -87,7 +92,7 @@ def set_geometry_if_not_maximized(window: Any, geometry: str) -> None:
     try:
         window.geometry(geometry)
     except Exception:
-        pass
+        log.debug("window_utils.set_geometry.suppressed", exc_info=True)
 
 
 def _ttkbootstrap_style_needs_reset() -> bool:

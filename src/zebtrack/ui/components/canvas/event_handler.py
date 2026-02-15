@@ -233,7 +233,7 @@ class CanvasEventHandler:
             try:
                 self.gui.video_display.canvas.after_cancel(self._motion_debounce_id)
             except Exception:
-                pass
+                log.debug("event_handler.motion_debounce_cancel.suppressed", exc_info=True)
             self._motion_debounce_id = None
 
         # Schedule the actual motion handling with debounce

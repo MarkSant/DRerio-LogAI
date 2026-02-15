@@ -191,7 +191,7 @@ class Arduino:
             try:
                 ser.reset_input_buffer()
             except Exception:  # pragma: no cover - not all drivers support it
-                pass
+                log.debug("arduino.probe.reset_buffer_unsupported", port=port, exc_info=True)
 
             if warmup_delay:
                 time.sleep(warmup_delay)
@@ -216,7 +216,7 @@ class Arduino:
             try:
                 ser.close()
             except Exception:  # pragma: no cover - best effort close
-                pass
+                log.debug("arduino.probe.close_error", port=port, exc_info=True)
 
     @classmethod
     def scan_available_ports(

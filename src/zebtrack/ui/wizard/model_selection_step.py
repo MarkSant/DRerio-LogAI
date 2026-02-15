@@ -771,7 +771,7 @@ class ModelSelectionStep(WizardStep):
             try:
                 entry.configure(background="#FFE0E0")  # Light red
             except Exception:
-                pass  # Some themes may not allow background config
+                log.debug("model_selection.entry_highlight.error", exc_info=True)
             error_label.configure(text="❌ Valor deve ser decimal (ex: 0.25)")
             return False
 
@@ -780,7 +780,7 @@ class ModelSelectionStep(WizardStep):
             try:
                 entry.configure(background="#FFE0E0")  # Light red
             except Exception:
-                pass
+                log.debug("model_selection.entry_highlight_range.error", exc_info=True)
             error_label.configure(text=f"❌ {label.capitalize()} deve estar entre 0 e 1")
             return False
 
@@ -797,7 +797,7 @@ class ModelSelectionStep(WizardStep):
             try:
                 entry.configure(background="white")  # Reset to default
             except Exception:
-                pass  # Some themes may not allow background config
+                log.debug("model_selection.entry_reset.error", exc_info=True)
         if error_label:
             error_label.configure(text="")
 
@@ -879,7 +879,7 @@ class ModelSelectionStep(WizardStep):
             try:
                 self.after_cancel(self._resize_after_id)
             except Exception:
-                pass
+                log.debug("model_selection.cancel_resize.error", exc_info=True)
             self._resize_after_id = None
 
         # Schedule actual resize update after a short delay (debouncing)

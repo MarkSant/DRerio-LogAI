@@ -52,6 +52,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed 2-line TODO comment about multi-aquarium tracking dispatch
   (already handled by `detect_partitioned*` methods)
 
+#### Phase 1 — Eliminate Silent Exceptions (February 2026)
+
+Replaced **all ~94 `except...pass`** blocks across the codebase with
+structured `log.debug()`/`log.warning()` calls using structlog, enabling
+full debugging visibility without changing control flow.
+
+##### Scope
+
+- **31 source files** modified across `src/zebtrack/`
+- **0 `except...pass` remaining** in production code (verified via Ruff S110)
+- **2778 tests passing**, 12 skipped, 0 failures
+
+##### Key changes
+
+- **DANGEROUS patterns** (8): Changed to `log.warning()` — silent mode
+  fallbacks in `processing_coordinator.py`, data loss in
+  `video_validation_service.py`, hidden failures in `gui.py`
+- **Moderate UI/Tkinter** (29): Widget teardown, config guards, dialog
+  destroy — changed to `log.debug()` with `exc_info=True`
+- **I/O & hardware** (9): Camera shutdown, recorder cleanup, Arduino
+  probing, OpenVINO metadata parsing — changed to `log.debug()`
+- **Config/input parsing** (11): Day/group parsing, geotaxis column
+  renaming, validation fallbacks — changed to `log.debug()`
+- **TclError dialog guards** (2): Destroy-already-destroyed dialogs —
+  changed to `log.debug()`
+- **Logging bootstrap** (3): `logging_config.py` uses stdlib
+  `logging.debug()` since structlog isn't configured yet
+
+##### Ruff S110 guard rail
+
+- Added `"S110"` (flake8-bandit try-except-pass) to Ruff `select` in
+  `pyproject.toml` — prevents future regressions
+- Tests and scripts exempted via `per-file-ignores`
+
+##### Pre-commit hook
+
+- Added `astral-sh/ruff-pre-commit` (v0.9.7) to `.pre-commit-config.yaml`
+  with `ruff` (lint + auto-fix) and `ruff-format` hooks
+
 ### �🟢 New Features
 
 #### LiveBatchCoordinator v2.3.0 Integration (January 2026)

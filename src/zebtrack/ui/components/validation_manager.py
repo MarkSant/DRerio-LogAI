@@ -953,7 +953,7 @@ class ValidationManager:
                 day_num = int(match.group(1))
                 return f"Dia_{day_num}"
             except ValueError:
-                pass
+                log.debug("validation.format_day.parse_error", value=value_str, exc_info=True)
 
         # Fallback: use original value
         return f"Dia_{value_str}"

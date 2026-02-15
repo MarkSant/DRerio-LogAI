@@ -113,7 +113,11 @@ class BaseWidget(ttk.Frame):
             cast(Any, widget).configure(state=state)
         except Exception:
             # Some widgets don't support state configuration
-            pass
+            log.debug(
+                "base.set_widget_state.unsupported",
+                widget=type(widget).__name__,
+                exc_info=True,
+            )
 
         for child in widget.winfo_children():
             self._set_widget_state(child, state)  # type: ignore[arg-type]

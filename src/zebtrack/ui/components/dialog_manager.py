@@ -859,7 +859,7 @@ class DialogManager:
                 foreground=highlight_fg,
             )
         except Exception:
-            pass
+            log.debug("dialog_manager.trigger_notice_highlight.suppressed", exc_info=True)
 
     def clear_external_trigger_notice(self) -> None:
         """Clear the external trigger notice."""
@@ -881,7 +881,7 @@ class DialogManager:
             )
             self.gui.external_trigger_notice_label.config(background=bg, foreground=fg)
         except Exception:
-            pass
+            log.debug("dialog_manager.trigger_notice_clear.suppressed", exc_info=True)
 
     # =========================================================================
     # Utility Dialogs & Helpers
