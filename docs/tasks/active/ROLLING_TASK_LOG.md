@@ -43,6 +43,10 @@ cross-job coupling: CI uploads now use `core-linux`, `core-windows`, and
 (`core_linux` required, `core_windows` informational, `gui_linux`
 informational), with explicit `flags` mapping and carryforward enabled.
 
+**2026-02-15 Follow-up 3 (chat continuation):** Enabled conservative Codecov PR
+comment reporting in `codecov.yml` using `layout: "diff, flags, files"` and
+`require_changes: true` to surface coverage context with low noise.
+
 ### [2026-02-13] Batch UX, ROI template safeguards, processing-mode label, and unified reports hardening
 
 **ID:** TASK-029

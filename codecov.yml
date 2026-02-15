@@ -29,6 +29,11 @@ coverage:
         target: auto
         threshold: 1%
 
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: true
+
 flags:
   core-linux:
     paths:
