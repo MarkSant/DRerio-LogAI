@@ -10,7 +10,7 @@
 ![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
 ![Tests](https://img.shields.io/badge/tests-2568%20passing-brightgreen.svg)
-[![Codecov](https://codecov.io/gh/MarkSant/ZebTrack-AI/branch/main/graph/badge.svg)](https://codecov.io/gh/MarkSant/ZebTrack-AI)
+[![Codecov](https://codecov.io/gh/MarkSant/ZebTrack-AI/branch/main/graph/badge.svg?token=XH937YKEOU)](https://codecov.io/gh/MarkSant/ZebTrack-AI)
 
 [Documentação](docs/) | [Guia de Contribuição](docs/guides/developer/DEVELOPER_GUIDE.md) | [Arquitetura](docs/architecture/ARCHITECTURE.md) | [Changelog](CHANGELOG.md)
 
