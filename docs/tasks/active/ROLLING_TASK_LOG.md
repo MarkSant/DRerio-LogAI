@@ -47,6 +47,11 @@ informational), with explicit `flags` mapping and carryforward enabled.
 comment reporting in `codecov.yml` using `layout: "diff, flags, files"` and
 `require_changes: true` to surface coverage context with low noise.
 
+**2026-02-15 Follow-up 4 (chat continuation):** Reduced duplicate PR check noise
+by changing `CI` workflow trigger scope in `.github/workflows/ci.yml` from
+`push` on all branches to `push` on `main` only, keeping full execution on
+`pull_request` to `main`.
+
 ### [2026-02-13] Batch UX, ROI template safeguards, processing-mode label, and unified reports hardening
 
 **ID:** TASK-029
