@@ -604,6 +604,7 @@ class ZoneManager:
 
             log.info("zone_manager.polygon.saved_successfully")
 
+        # except Exception justified: polygon update + data mutation — re-raises after logging
         except Exception as e:
             log.error(
                 "zone_manager.polygon.update_failed",
@@ -712,6 +713,7 @@ class ZoneManager:
 
             return zone_data
 
+        # except Exception justified: pandas parquet zone loading — heterogeneous data errors
         except Exception as e:
             log.error(
                 "zone_manager.load_zones.error",
@@ -887,6 +889,7 @@ class ZoneManager:
 
             return True
 
+        # except Exception justified: multi-aquarium zone persistence — parquet + project save
         except Exception as e:
             log.error(
                 "zone_manager.multi_aquarium.save_failed",

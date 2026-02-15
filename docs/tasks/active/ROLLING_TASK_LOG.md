@@ -6,6 +6,45 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-15] Phase 2 — Narrow Generic Exception Catches
+
+**ID:** TASK-031
+**Agent:** GitHub Copilot (Claude Opus 4.6)
+**Status:** Completed ✅
+**Branch:** `refactor/phase-2-narrow-exception-catches`
+**Completed:** 2026-02-15
+**Description:**
+Replaced ~344 `except Exception` catches with specific exception types across
+6 priority UI files and the coordinators/core/I/O layers. Each remaining
+`except Exception` carries a mandatory justification comment
+(`# except Exception justified: <reason>`). Deferred: `analysis/`, `utils/`,
+`plugins/` (~150 instances) — registered in backlog for post-Phase 4 rework.
+
+**Results:**
+
+- ~130 catches narrowed to specific types (TclError, OSError, ValueError, etc.)
+- ~155 catches justified with mandatory comment
+- ~45 catches already justified from Phase 1
+- 10 test files updated to raise matching exception types
+- 1 bug fix: `detector_service.py` L851 widened to `(OSError, ValueError)`
+- Full test suite: 2778 passed, 12 skipped, 0 failures
+
+### Subtasks (TASK-031)
+
+- [x] 2.1 `ui_coordinator.py` — 19 instances (1 narrowed, 18 justified)
+- [x] 2.2 `project_view_manager.py` — 13 instances (all narrowed)
+- [x] 2.3 `state_synchronizer.py` — 9 instances (all narrowed)
+- [x] 2.4 `window_utils.py` — 12 instances (11 narrowed, 1 justified)
+- [x] 2.5 `widget_factory.py` — 11 instances (all narrowed)
+- [x] 2.6 `gui.py` — 16 instances (all narrowed, removed duplicate raise)
+- [x] 2.7.1 `coordinators/` — 87 instances (15 narrowed, 68 justified)
+- [x] 2.7.2 `core/` — 136 instances (50 narrowed, 70 justified)
+- [x] 2.7.3 `io/` — 40 instances (8 narrowed, 17 justified)
+- [x] Validation: 2778 tests pass, ruff clean, E501 fixed
+- [x] CHANGELOG, commit, push, PR
+
+---
+
 ### [2026-02-14] CI remaining failures stabilization (PR #343)
 
 **ID:** TASK-030

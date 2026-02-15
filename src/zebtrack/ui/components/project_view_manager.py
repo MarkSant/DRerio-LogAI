@@ -17,6 +17,7 @@ Categories:
 import os
 import subprocess
 import sys
+import tkinter as tk
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -322,7 +323,7 @@ class ProjectViewManager:
             if append_summary and hasattr(self.gui, "set_status"):
                 try:
                     self.gui.set_status(reason)
-                except Exception:
+                except (tk.TclError, AttributeError):
                     log.warning("project_view_manager.refresh_project_views.status_failed")
 
         # Refresh project overview
@@ -672,7 +673,7 @@ class ProjectViewManager:
                 tags = tree.item(selection[0], "tags")
                 if tags:
                     selected_tag = tags[0]
-            except Exception:
+            except tk.TclError:
                 selected_tag = None
 
         # Clear tree
@@ -686,7 +687,8 @@ class ProjectViewManager:
 
         try:
             all_videos = pm.get_all_videos()
-        except Exception:
+        except (OSError, ValueError, KeyError) as e:
+            log.warning("project_view_manager.get_all_videos.failed", error=str(e))
             all_videos = []
 
         # Build hierarchy using ValidationManager helper (delegation)
@@ -1039,7 +1041,7 @@ class ProjectViewManager:
                     # If empty, might be a container, iterate children
                     for child in tree.get_children(item_id):
                         _collect(child)
-            except Exception:
+            except tk.TclError:
                 log.debug("project_view_manager.collect_video_paths.suppressed", exc_info=True)
 
         for item in selection:
@@ -1203,7 +1205,7 @@ class ProjectViewManager:
                             raise OSError("startfile not available")
                     elif os.name == "posix":  # macOS, Linux
                         subprocess.Popen(["xdg-open", results_dir])
-                except Exception as e:
+                except OSError as e:
                     log.error("gui.open_results_folder.failed", error=str(e))
                     self.gui.show_error("Erro", f"Não foi possível abrir a pasta: {e}")
             return
@@ -1226,7 +1228,7 @@ class ProjectViewManager:
                             raise OSError("startfile not available")
                     elif os.name == "posix":  # macOS, Linux
                         subprocess.Popen(["xdg-open", results_dir])
-                except Exception as e:
+                except OSError as e:
                     log.error("gui.open_aquarium_results_folder.failed", error=str(e))
                     self.gui.show_error("Erro", f"Não foi possível abrir a pasta: {e}")
             return
@@ -1254,7 +1256,7 @@ class ProjectViewManager:
                 subprocess.Popen(["open", file_path])
             else:  # Linux
                 subprocess.Popen(["xdg-open", file_path])
-        except Exception as e:
+        except OSError as e:
             log.error("gui.open_report_file.failed", error=str(e))
             self.gui.show_error("Erro", f"Não foi possível abrir o arquivo: {e}")
 
@@ -1311,7 +1313,7 @@ class ProjectViewManager:
             try:
                 os.chmod(path, stat.S_IWRITE)
                 func(path)
-            except Exception:
+            except OSError:
                 log.debug(
                     "project_view_manager.rmtree_retry.suppressed",
                     path=path,
@@ -1328,7 +1330,7 @@ class ProjectViewManager:
                     shutil.rmtree(unified_dir, onerror=on_rm_error)
                     success = True
                     break
-                except Exception as e:
+                except OSError as e:
                     last_error = e
                     time.sleep(0.5)
 
@@ -1682,7 +1684,7 @@ class ProjectViewManager:
                 canonical_entry = pm.find_video_entry(path=video_path) if pm else None
                 if canonical_entry and isinstance(canonical_entry, dict):
                     multi_outputs = canonical_entry.get("multi_aquarium_outputs")
-            except Exception:
+            except (AttributeError, KeyError, TypeError):
                 log.debug("project_view_manager.multi_outputs_fallback.suppressed", exc_info=True)
 
         if multi_outputs and isinstance(multi_outputs, dict) and len(multi_outputs) > 0:
@@ -1722,7 +1724,7 @@ class ProjectViewManager:
             try:
                 aq_id_int = int(aq_digits)
                 normalized_outputs[aq_id_int] = dict(raw_output)
-            except Exception:
+            except (ValueError, TypeError):
                 continue
 
         video_path = video.get("path")
@@ -1917,7 +1919,7 @@ class ProjectViewManager:
                         raise OSError("startfile not available")
                 elif os.name == "posix":  # macOS, Linux
                     subprocess.Popen(["xdg-open", results_dir])
-            except Exception as e:
+            except OSError as e:
                 log.error("gui.open_results_folder.failed", error=str(e))
                 self.gui.show_error("Erro", f"Não foi possível abrir a pasta: {e}")
 
@@ -2093,7 +2095,7 @@ class ProjectViewManager:
                 subprocess.run(["open", results_dir], check=False)
             else:  # Linux and other Unix-like systems
                 subprocess.run(["xdg-open", results_dir], check=False)
-        except Exception as exc:
+        except OSError as exc:
             log.error("project_view.open_explorer_failed", path=results_dir, error=str(exc))
             self.gui.show_error("Erro", f"Não foi possível abrir a pasta:\n{exc}")
 

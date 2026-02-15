@@ -361,6 +361,7 @@ class ProjectService:
                 rows=len(df),
             )
             return df
+        # except Exception justified: project operations boundary — wraps I/O + data parsing
         except Exception as e:
             self.log.error(
                 "project_service.load_metadata.failed",
@@ -490,7 +491,7 @@ class ProjectService:
                 count=len(templates),
             )
             return sorted(templates)
-        except Exception as e:
+        except OSError as e:
             self.log.error(
                 "project_service.list_roi_templates.failed",
                 path=str(template_dir),

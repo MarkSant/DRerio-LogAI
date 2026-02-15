@@ -468,13 +468,13 @@ class WeightManager:
                         model_path = target_path  # Use the new copied path
                         stored_path = target_path.absolute()
                         log.info("weights.add.external_file.copied", target=str(target_path))
-                except Exception as e:
+                except OSError as e:
                     log.error("weights.add.external_file.copy_failed", error=str(e))
                     raise ValueError(f"Falha ao copiar o arquivo de peso externo: {e}") from e
         except FileNotFoundError:
             log.error("weights.add.not_found", path=new_path)
             raise FileNotFoundError(f"O arquivo de modelo não foi encontrado: {new_path}") from None
-        except Exception as e:
+        except OSError as e:
             # This can catch issues like invalid path formats or permissions
             log.error("weights.add.invalid_path", path=new_path, error=str(e))
             raise ValueError(f"O caminho do modelo é inválido ou inacessível: {e}") from e
@@ -688,6 +688,7 @@ class WeightManager:
             )
             return openvino_model_path
 
+        # except Exception justified: OpenVINO model export
         except Exception as e:
             log.error("openvino.export.failed", exc_info=e)
             # Clean up any partial export directory if it exists

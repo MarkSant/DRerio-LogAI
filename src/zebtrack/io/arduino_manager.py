@@ -83,6 +83,7 @@ class ArduinoManager:
                     self._notify_status(False, port)
                     self._notify_log(f"Não foi possível conectar ao Arduino na porta {port}.")
                     return False
+            # except Exception justified: Arduino handshake - serial I/O
             except Exception:
                 log.error(
                     "arduino_manager.connect.failed",
@@ -167,7 +168,7 @@ class ArduinoManager:
         try:
             assert self.arduino is not None
             success = bool(self.arduino.send_command(command_value))
-        except Exception:
+        except Exception:  # except Exception justified: serial command send — hardware I/O boundary
             log.error(
                 "arduino_manager.command.error",
                 command=command,
@@ -230,6 +231,7 @@ class ArduinoManager:
                 self._notify_log("Conexão serial com Arduino perdida.")
                 self.disconnect()
                 break
+            # except Exception justified: serial reader fallback
             except Exception:
                 log.warning("arduino_manager.reader.generic_error", exc_info=True)
                 time.sleep(0.5)
@@ -240,6 +242,7 @@ class ArduinoManager:
 
             try:
                 decoded = raw_line.decode("utf-8", errors="ignore").strip()
+            # except Exception justified: serial decode — encoding errors from corrupted data
             except Exception:
                 continue
 

@@ -9,6 +9,7 @@ from tkinter import (
     Label,
     Menu,
     StringVar,
+    TclError,
     ttk,
 )
 from tkinter import font as tkfont
@@ -390,7 +391,7 @@ class ApplicationGUI:
             self.set_active_weight_in_dropdown(active_weight)
             self.update_openvino_checkbox(use_openvino)
             self.update_openvino_status_display(ov_status)
-        except Exception:
+        except (AttributeError, RuntimeError):
             log.warning("gui.post_init.controller_sync_failed", exc_info=True)
 
     def handle_request_weight_type(self, filepath: str) -> None:
@@ -479,7 +480,7 @@ class ApplicationGUI:
         if zone_controls:
             try:
                 zone_controls.hide_single_analysis_options()
-            except Exception:
+            except (TclError, AttributeError):
                 log.warning("gui.hide_single_analysis_options.suppressed", exc_info=True)
 
     def _reset_analysis_widgets(self) -> None:
@@ -513,7 +514,7 @@ class ApplicationGUI:
                     _pkg_version("ttkbootstrap")
                 except PackageNotFoundError:
                     log.debug("gui.ttkbootstrap_version.not_found")
-            except Exception:
+            except ImportError:
                 log.debug("gui.ttkbootstrap_version_check.suppressed", exc_info=True)
 
             try:
@@ -532,7 +533,6 @@ class ApplicationGUI:
                         error=str(e),
                     )
                     raise e  # Re-raise to be caught by outer block
-                    raise e  # Re-raise to be caught by outer block
 
             # Configure theme usage and root background
             active_theme = self._ttkbootstrap_style.theme_use()
@@ -544,7 +544,7 @@ class ApplicationGUI:
 
             log.debug("ui.theme.bootstrap_applied", theme=active_theme)
 
-        except Exception:
+        except (TclError, TypeError, RuntimeError):
             log.error(
                 "ui.theme.bootstrap_failed_global",
                 theme=theme_name,
@@ -795,7 +795,7 @@ class ApplicationGUI:
                     self.config_editor_widget.set_values(self.settings.model_dump())
                 else:
                     self.config_editor_widget.set_values(vars(self.settings))
-            except Exception as e:
+            except (AttributeError, TypeError, ValueError) as e:
                 log.error("gui.config_reload_error", error=str(e))
 
     def _on_roi_rule_change_widget(self, rule: str) -> None:
@@ -963,7 +963,7 @@ class ApplicationGUI:
                     video_path=active_video,
                     fallback_to_global=is_live_project,  # v2.3.1: Fallback for Live projects
                 )
-            except Exception:
+            except (KeyError, ValueError, TypeError, FileNotFoundError):
                 zone_data = ZoneData()
 
             if zone_data and (zone_data.polygon or zone_data.roi_polygons):
@@ -1075,7 +1075,7 @@ class ApplicationGUI:
 
         except ValueError:
             self.show_error("Erro", "Valores inválidos para parâmetros de ROI.")
-        except Exception as e:
+        except (AttributeError, OSError) as e:
             log.error("gui.apply_roi_settings.error", error=str(e))
             self.show_error("Erro", f"Falha ao aplicar configurações: {e!s}")
 
@@ -1100,7 +1100,7 @@ class ApplicationGUI:
             try:
                 self.analysis_display_widget.video_label.configure(image="")
                 self._analysis_overlay_image = None
-            except Exception:
+            except (TclError, AttributeError):
                 log.debug("gui.video_label_clear.suppressed", exc_info=True)
 
         pm = self.controller.project_manager
@@ -1109,7 +1109,7 @@ class ApplicationGUI:
         try:
             project_name = pm.get_project_name() if hasattr(pm, "get_project_name") else None
             self._update_window_title(project_name)
-        except Exception:
+        except (AttributeError, TclError):
             log.debug("gui.update_window_title.suppressed", exc_info=True)
 
         # Load persisted user preferences if present
@@ -1142,7 +1142,7 @@ class ApplicationGUI:
                 self.show_preview_var.set(
                     bool(pm.project_data["last_show_preview"])  # type: ignore[arg-type]
                 )
-            except Exception:
+            except (ValueError, TypeError):
                 log.debug("gui.restore_show_preview.suppressed", exc_info=True)
 
         # Restore analysis and display intervals
@@ -1445,7 +1445,7 @@ class ApplicationGUI:
 
                 if torch.cuda.is_available():
                     gpu_name = torch.cuda.get_device_name(0)
-            except Exception:
+            except (ImportError, RuntimeError):
                 gpu_name = "NVIDIA GPU"
         # Then check for Intel/OpenVINO GPU
         elif hardware_summary.get("has_intel_gpu", False):
@@ -1507,7 +1507,7 @@ class ApplicationGUI:
         try:
             self.event_dispatcher.handle_analyze_single_video_clicked()
             log.info("gui._on_analyze_single_video_clicked.END")
-        except Exception as e:
+        except Exception as e:  # except Exception justified: UI error boundary for button click
             log.error("gui._on_analyze_single_video_clicked.ERROR", error=str(e))
             # We don't raise here to avoid crashing the UI loop for a single button click
             # raise
@@ -1528,7 +1528,7 @@ class ApplicationGUI:
             try:
                 self.analysis_display_widget.video_label.configure(image="")
                 self._analysis_overlay_image = None
-            except Exception:
+            except (TclError, AttributeError):
                 log.debug("gui.video_label_clear.suppressed", exc_info=True)
 
         self.pending_single_video_path = video_path
@@ -1539,7 +1539,7 @@ class ApplicationGUI:
         if config and "num_aquariums" in config and self.settings:
             try:
                 self.settings.analysis_config.num_aquariums = int(config["num_aquariums"])
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError) as e:
                 log.warning("gui.setup_zone_definition.update_settings_failed", error=str(e))
 
         # Ensure zone edits persist under the selected video
@@ -1852,7 +1852,7 @@ class ApplicationGUI:
                     is_single_subject = (
                         self.controller._active_processing_mode == ProcessingMode.SINGLE_SUBJECT
                     )
-            except Exception:
+            except AttributeError:
                 log.warning("gui.processing_mode_fallback.suppressed", exc_info=True)
 
         self.canvas_manager.renderer.update_overlay(detections, is_single_subject)

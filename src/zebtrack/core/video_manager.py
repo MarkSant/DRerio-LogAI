@@ -173,7 +173,7 @@ class VideoManager:
                             video=video_path.name,
                             metadata=recording_metadata,
                         )
-                except Exception as e:
+                except (OSError, json.JSONDecodeError, KeyError, ValueError) as e:
                     log.warning(
                         "video_manager.scan.metadata_load_failed",
                         video=video_path.name,
@@ -527,7 +527,7 @@ class VideoManager:
         try:
             # Standardize to absolute POSIX lowercase path
             return os.path.abspath(str(path)).replace("\\", "/").lower()
-        except Exception:
+        except (OSError, ValueError):
             return str(path).replace("\\", "/").lower()
 
     @staticmethod

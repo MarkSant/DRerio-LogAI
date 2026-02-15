@@ -314,13 +314,13 @@ class ROITemplateManager:
                     )
 
                     templates.append(template_info)
-                except Exception as e:
+                except (OSError, json.JSONDecodeError, KeyError) as e:
                     log.warning(
                         "roi_template_manager.template_read_error",
                         file=str(template_file),
                         error=str(e),
                     )
-        except Exception as e:
+        except OSError as e:
             log.error(
                 "roi_template_manager.list_templates_error",
                 error=str(e),
@@ -362,11 +362,11 @@ class ROITemplateManager:
                     log.info(
                         "roi_template_manager.cleanup.removed_invalid_json", file=str(template_file)
                     )
-                except Exception as e:
+                except OSError as e:
                     log.warning(
                         "roi_template_manager.cleanup.error", file=str(template_file), error=str(e)
                     )
-        except Exception as e:
+        except OSError as e:
             log.error("roi_template_manager.cleanup.failed", error=str(e), exc_info=True)
 
         log.info("roi_template_manager.cleanup.completed", removed=removed, kept=kept)
@@ -404,7 +404,7 @@ class ROITemplateManager:
             )
             return True
 
-        except Exception as e:
+        except OSError as e:
             log.error(
                 "roi_template_manager.delete_error",
                 path=str(template_path),

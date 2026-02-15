@@ -493,6 +493,7 @@ class DetectorService:
                 persist_project=persist_project,
                 reset_overrides=reset_overrides,
             )
+        # except Exception justified: plugin boundary — heterogeneous detector implementations
         except Exception as e:
             log.error("detector_service.update_params.failed", error=str(e), exc_info=True)
             return False
@@ -603,6 +604,7 @@ class DetectorService:
         try:
             self.detector.reset_tracking_state()
             log.info("detector_service.reset_tracking.success")
+        # except Exception justified: ML inference wrapper — heterogeneous framework errors
         except Exception as e:
             log.warning("detector_service.reset_tracking.failed", error=str(e), exc_info=True)
 
@@ -622,7 +624,7 @@ class DetectorService:
         try:
             self.detector.set_single_subject_mode(bool(enabled))
             log.info("detector_service.single_subject.configured", enabled=enabled)
-        except Exception as e:
+        except (AttributeError, ValueError) as e:
             log.error("detector_service.single_subject.failed", error=str(e), enabled=enabled)
 
     def get_detector_parameters(self) -> dict[str, Any]:
@@ -846,7 +848,7 @@ class DetectorService:
         # Force save to config.local.yaml so changes persist across restarts
         try:
             save_settings(self.settings)
-        except Exception as e:
+        except (OSError, ValueError) as e:
             log.error("detector_service.persist_global.save_failed", error=str(e))
 
     def _persist_project_detector_overrides(self, detector_config: dict[str, Any]) -> bool:
@@ -856,6 +858,7 @@ class DetectorService:
 
         try:
             return bool(self.project_manager.save_detector_state(detector_config))
+        # except Exception justified: YOLO/OpenVINO model initialization — heterogeneous ML errors
         except Exception:
             log.warning(
                 "detector_service.project_overrides.persist_failed",

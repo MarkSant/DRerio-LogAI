@@ -693,6 +693,7 @@ class StateManager:
                     key=key,
                     observer=observer_name,
                 )
+            # except Exception justified: state notification boundary
             except Exception as e:
                 # Observer raised exception - log and continue
                 log.error(

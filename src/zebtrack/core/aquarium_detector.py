@@ -51,6 +51,7 @@ class AquariumDetector:
         try:
             self.model = YOLO(model_path)
             log.info("aquarium_detector.init.success", model_path=model_path, mode=mode)
+        # except Exception justified: cv2 contour detection — poorly-typed errors
         except Exception as e:
             log.error(
                 "aquarium_detector.init.failed",
@@ -76,6 +77,7 @@ class AquariumDetector:
                 return 0.0
 
             return intersection_area / union_area
+        # except Exception justified: cv2 morphological image processing — hardware-dependent
         except Exception as e:
             log.warning(
                 "aquarium_detector.iou_calculation_failed",
@@ -387,7 +389,7 @@ class AquariumDetector:
                         bbox=[margin_x, margin_y, w - margin_x, h - margin_y],
                     )
                     return [default_polygon]
-            except Exception as e:
+            except (ValueError, TypeError) as e:
                 log.error("aquarium_detector.default_polygon_failed", error=str(e))
 
             return []
@@ -528,6 +530,7 @@ class AquariumDetector:
             # Apply the same consensus logic regardless of mode
             return self._find_consensus_polygon(good_polygons, source)
 
+        # except Exception justified: cv2/numpy aquarium detection pipeline — heterogeneous failures
         except Exception as e:
             log.error("aquarium_detector.detect.failed", video_path=video_path, error=str(e))
             return []
@@ -662,6 +665,7 @@ class AquariumDetector:
                 best_frame.sort(key=lambda x: x[1])
                 return [p[0] for p in best_frame]
 
+        # except Exception justified: cv2 image filtering + contour analysis pipeline
         except Exception as e:
             log.warning(
                 "aquarium_detector.detect_multiple.yolo_failed",
@@ -770,6 +774,7 @@ class ContourBasedMultiAquariumDetector:
                 )
                 return []
 
+        # except Exception justified: cv2 multi-aquarium detection — heterogeneous failures
         except Exception as e:
             log.error("contour_detector.detect.failed", video_path=video_path, error=str(e))
             return []

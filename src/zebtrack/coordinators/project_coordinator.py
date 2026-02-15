@@ -306,7 +306,7 @@ class ProjectCoordinator(BaseCoordinator):
                 project_name=project_name,
             ) from e
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.error(
                 "project_coordinator.create_from_wizard.failed",
                 project_name=project_name,
@@ -492,7 +492,7 @@ class ProjectCoordinator(BaseCoordinator):
                 project_path=project_path_str,
             ) from e
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.error(
                 "project_coordinator.load_project.failed",
                 project_path=project_path_str,
@@ -547,7 +547,7 @@ class ProjectCoordinator(BaseCoordinator):
                     "project_coordinator.close_project.skip_save",
                     reason="project_not_loaded",
                 )
-            except Exception:
+            except Exception:  # except Exception justified: re-raise pattern
                 # Re-raise to outer handler so we return False
                 raise
 
@@ -582,7 +582,7 @@ class ProjectCoordinator(BaseCoordinator):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: graceful stop must not crash
             log.error(
                 "project_coordinator.close_project.failed",
                 project_name=project_name,
@@ -660,7 +660,7 @@ class ProjectCoordinator(BaseCoordinator):
 
             return True
 
-        except Exception as e:
+        except OSError as e:
             log.warning(
                 "project_coordinator.validate_structure.failed",
                 project_path=str(project_path),

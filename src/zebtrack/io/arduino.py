@@ -157,6 +157,7 @@ class Arduino:
             self.ser.flush()
             log.info("arduino.command.sent", command=command_clean)
             return True
+        # except Exception justified: serial write/flush — hardware I/O with diverse driver errors
         except Exception as e:
             log.error("arduino.command.error", error=str(e), exc_info=True)
             return False
@@ -261,7 +262,7 @@ def main():
         from zebtrack.settings import load_settings
 
         settings = load_settings()
-    except Exception as e:
+    except (RuntimeError, ImportError) as e:
         print(f"Settings could not be loaded: {e}. Aborting test.")
         return
 

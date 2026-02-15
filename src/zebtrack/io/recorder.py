@@ -514,6 +514,7 @@ class Recorder:
                     self._cleanup_aquarium_recorders()
                     return False
 
+            # except Exception justified: multi-aquarium recorder init
             except Exception as e:
                 log.error(
                     "recorder.multi_aquarium.recorder_error",
@@ -600,6 +601,7 @@ class Recorder:
                     "recorder.multi_aquarium.recorder_stopped",
                     aquarium_id=aq_id,
                 )
+            # except Exception justified: stop_recording per aquarium
             except Exception as e:
                 log.error(
                     "recorder.multi_aquarium.stop_failed",
@@ -625,6 +627,7 @@ class Recorder:
         for _aq_id, recorder in list(self._aquarium_recorders.items()):
             try:
                 recorder.stop_recording(force_stop=True, reason="Cleanup on error")
+            # except Exception justified: emergency cleanup — must not raise during error handling
             except Exception:
                 log.debug("recorder.aquarium_cleanup.error", aq_id=_aq_id, exc_info=True)
         self._aquarium_recorders.clear()
@@ -990,7 +993,7 @@ class Recorder:
                     "recorder.save_parquet.empty",
                     path=self._parquet_filename,
                 )
-            except Exception as e:
+            except (OSError, pa.ArrowInvalid, pa.ArrowIOError) as e:
                 log.error(
                     "recorder.save_parquet.error",
                     path=self._parquet_filename,
@@ -1032,6 +1035,7 @@ class Recorder:
                     # Phase 8: Use configured compression
                     pq.write_table(table, parquet_path, compression=self._parquet_compression)
                     log.info("recorder.save_parquet.success", path=parquet_path)
+            # except Exception justified: DataFrame/Arrow/Parquet pipeline
             except Exception as e:
                 log.error(
                     "recorder.save_parquet.error",
@@ -1055,7 +1059,7 @@ class Recorder:
                             "You can manually convert this to Parquet if needed."
                         ),
                     )
-                except Exception as backup_error:
+                except OSError as backup_error:
                     log.critical(
                         "recorder.backup.failed",
                         backup_path=backup_path,
@@ -1085,7 +1089,7 @@ class Recorder:
             # Phase 8: Use configured compression
             pq.write_table(table, processing_area_filename, compression=self._parquet_compression)
             log.info("recorder.save_processing_area.success", path=processing_area_filename)
-        except Exception as e:
+        except (OSError, pa.ArrowInvalid, pa.ArrowIOError) as e:
             log.error(
                 "recorder.save_processing_area.error",
                 path=processing_area_filename,
@@ -1112,7 +1116,7 @@ class Recorder:
                     "recorder.save_areas_of_interest.success",
                     path=areas_of_interest_filename,
                 )
-        except Exception as e:
+        except (OSError, pa.ArrowInvalid, pa.ArrowIOError) as e:
             log.error(
                 "recorder.save_areas_of_interest.error",
                 path=areas_of_interest_filename,
@@ -1148,6 +1152,7 @@ class Recorder:
                 else:
                     # Normal cleanup
                     self.stop_recording()
+        # except Exception justified: context manager exit — wraps stop_recording facade boundary
         except Exception as e:
             log.error("recorder.cleanup.failed", error=str(e))
 

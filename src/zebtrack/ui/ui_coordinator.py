@@ -8,6 +8,7 @@ This is part of the v4.0 Event-Driven Architecture refactoring (PLANO_ACAO_V4.md
 
 from __future__ import annotations
 
+import tkinter as tk
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -233,7 +234,7 @@ class UICoordinator:
                 total_handled=self._events_handled,
             )
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception(
                 "ui_coordinator.zones_updated.error",
@@ -270,7 +271,7 @@ class UICoordinator:
                     has_filter=filter_text is not None,
                 )
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.video_tree_refresh.error", error=str(e))
 
@@ -307,7 +308,7 @@ class UICoordinator:
                 )
                 log.debug("ui_coordinator.readiness_snapshot.updated")
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.readiness_snapshot.error", error=str(e))
 
@@ -335,7 +336,7 @@ class UICoordinator:
                 self._safe_ui_call(lambda: canvas_manager.setup_interactive_polygon(polygon))
                 log.debug("ui_coordinator.polygon_edit.setup_completed")
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.polygon_edit.error", error=str(e))
 
@@ -365,7 +366,7 @@ class UICoordinator:
                 self._safe_ui_call(_build_snapshot)
                 log.debug("ui_coordinator.video_hierarchy_snapshot.built")
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.video_hierarchy_snapshot.error", error=str(e))
 
@@ -406,7 +407,7 @@ class UICoordinator:
                 self._safe_ui_call(lambda: dialog_manager.offer_zone_reuse(video_path))
                 log.debug("ui_coordinator.video_loaded.zone_reuse_offered")
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.video_loaded.error", error=str(e))
 
@@ -444,7 +445,7 @@ class UICoordinator:
                 )
                 log.debug("ui_coordinator.project_views_refresh.completed", reason=reason)
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.project_views_refresh.error", error=str(e))
 
@@ -455,7 +456,7 @@ class UICoordinator:
             if self.state_synchronizer:
                 state_synchronizer = self.state_synchronizer
                 self._safe_ui_call(lambda: state_synchronizer.update_processing_stats(**data))
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.processing_stats_updated.error", error=str(e))
 
@@ -466,7 +467,7 @@ class UICoordinator:
             if self.state_synchronizer:
                 state_synchronizer = self.state_synchronizer
                 self._safe_ui_call(lambda: state_synchronizer.update_social_summary(**data))
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.social_summary_updated.error", error=str(e))
 
@@ -477,7 +478,7 @@ class UICoordinator:
             if self.state_synchronizer:
                 state_synchronizer = self.state_synchronizer
                 self._safe_ui_call(lambda: state_synchronizer.update_analysis_task_status(**data))
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.analysis_task_status_updated.error", error=str(e))
 
@@ -492,7 +493,7 @@ class UICoordinator:
                         data.get("session_label", ""), **data
                     )
                 )
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.external_trigger_notice.error", error=str(e))
 
@@ -503,7 +504,7 @@ class UICoordinator:
             if self.dialog_manager:
                 dialog_manager = self.dialog_manager
                 self._safe_ui_call(lambda: dialog_manager.clear_external_trigger_notice())
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.external_trigger_notice_cleared.error", error=str(e))
 
@@ -547,7 +548,7 @@ class UICoordinator:
 
             log.debug("ui_coordinator.zone_display_cleared.completed")
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             self._errors_count += 1
             log.exception("ui_coordinator.zone_display_cleared.error", error=str(e))
 
@@ -666,7 +667,7 @@ class UICoordinator:
             self._safe_ui_call(show_dialog)
             self._events_handled += 1
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             log.error(
                 "ui_coordinator.camera_disconnect.error",
                 error=str(e),
@@ -705,7 +706,7 @@ class UICoordinator:
 
             self._events_handled += 1
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             log.error(
                 "ui_coordinator.camera_reconnected.error",
                 error=str(e),
@@ -768,7 +769,7 @@ class UICoordinator:
                         if frame_number >= 100:
                             try:
                                 self._aquarium_detection_dialog.destroy()
-                            except Exception:
+                            except tk.TclError:
                                 log.debug(
                                     "ui_coordinator.detection_dialog_destroy.suppressed",
                                     exc_info=True,
@@ -791,7 +792,7 @@ class UICoordinator:
 
             self._events_handled += 1
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             log.error(
                 "ui_coordinator.aquarium_detection_progress.error",
                 error=str(e),
@@ -841,7 +842,7 @@ class UICoordinator:
 
             self._events_handled += 1
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event-bus fault-isolation boundary
             log.error(
                 "ui_coordinator.batch_analysis_completed.error",
                 error=str(e),

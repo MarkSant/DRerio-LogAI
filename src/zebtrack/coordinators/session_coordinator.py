@@ -432,7 +432,7 @@ class SessionCoordinator(BaseCoordinator):
             log.info("session_coordinator.stop_recording.success")
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: graceful stop must not crash
             log.error(
                 "session_coordinator.stop_recording.failed",
                 error=str(e),
@@ -877,7 +877,7 @@ class SessionCoordinator(BaseCoordinator):
                 operation="start_live_session",
             ) from e
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.error(
                 "session_coordinator.start_live_session.failed",
                 experiment_id=experiment_id,
@@ -972,7 +972,7 @@ class SessionCoordinator(BaseCoordinator):
 
             return success
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: graceful stop must not crash
             log.error(
                 "session_coordinator.stop_live_session.failed",
                 error=str(e),
@@ -1048,7 +1048,7 @@ class SessionCoordinator(BaseCoordinator):
                 log.info("session_coordinator.batch_marked_complete", batch_id=batch_id)
                 self.live_batch_coordinator.mark_batch_complete(batch_id)
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: non-critical fallback
             log.error(
                 "session_coordinator.batch_registration_failed",
                 error=str(e),
@@ -1747,7 +1747,7 @@ class SessionCoordinator(BaseCoordinator):
 
             detected_polygons = good_polygons[:1] if good_polygons else []
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: ML inference heterogeneous errors
             log.error(
                 "session_coordinator.live_calibration.detection_failed", error=str(e), exc_info=True
             )
@@ -1784,7 +1784,7 @@ class SessionCoordinator(BaseCoordinator):
                                 ),
                             },
                         )
-                except Exception as fallback_err:
+                except OSError as fallback_err:
                     log.error(
                         "session_coordinator.live_calibration.fallback_failed",
                         error=str(fallback_err),
@@ -1829,7 +1829,7 @@ class SessionCoordinator(BaseCoordinator):
                                 ),
                             },
                         )
-                except Exception as e:
+                except OSError as e:
                     log.error("session_coordinator.live_calibration.fallback_failed", error=str(e))
 
             return False

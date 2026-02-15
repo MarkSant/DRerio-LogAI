@@ -10,6 +10,7 @@ Responsabilidades:
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -70,7 +71,7 @@ class ZoneManagementFacade:
             log.info("zone_facade.arena_drawing.started", video=str(video_path))
             return True
 
-        except Exception as e:
+        except (AttributeError, ValueError, KeyError) as e:
             log.error("zone_facade.arena_drawing.failed", error=str(e), exc_info=True)
             return False
 
@@ -135,7 +136,7 @@ class ZoneManagementFacade:
             log.info("zone_facade.template.loaded", name=template_name)
             return cast(dict[str, Any], template_data)
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, KeyError) as e:
             log.error("zone_facade.load_template.failed", error=str(e), exc_info=True)
             return {}
 
@@ -221,7 +222,7 @@ class ZoneManagementFacade:
         try:
             arena = self.project_manager.get_arena_for_video(str(video_path))  # type: ignore[attr-defined]
             return arena
-        except Exception as e:
+        except (KeyError, AttributeError) as e:
             log.error("zone_facade.get_arena.failed", error=str(e), exc_info=True)
             return None
 
@@ -238,7 +239,7 @@ class ZoneManagementFacade:
         try:
             rois = self.project_manager.get_rois_for_video(str(video_path))  # type: ignore[attr-defined]
             return rois if rois else {}
-        except Exception as e:
+        except (KeyError, AttributeError) as e:
             log.error("zone_facade.get_rois.failed", error=str(e), exc_info=True)
             return {}
 
@@ -259,7 +260,7 @@ class ZoneManagementFacade:
             )
             log.info("zone_facade.arena.cleared", video=str(video_path))
             return True
-        except Exception as e:
+        except (KeyError, AttributeError) as e:
             log.error("zone_facade.clear_arena.failed", error=str(e), exc_info=True)
             return False
 
@@ -282,7 +283,7 @@ class ZoneManagementFacade:
             )
             log.info("zone_facade.rois.cleared", video=str(video_path))
             return True
-        except Exception as e:
+        except (KeyError, AttributeError) as e:
             log.error("zone_facade.clear_rois.failed", error=str(e), exc_info=True)
             return False
 
@@ -296,7 +297,7 @@ class ZoneManagementFacade:
         try:
             templates = self.project_manager.roi_template_manager.list_templates()  # type: ignore[attr-defined]
             return templates
-        except Exception as e:
+        except OSError as e:
             log.error("zone_facade.list_templates.failed", error=str(e), exc_info=True)
             return []
 
@@ -355,6 +356,6 @@ class ZoneManagementFacade:
 
             return scaled_rois
 
-        except Exception as e:
+        except (ValueError, TypeError, IndexError) as e:
             log.warning("zone_facade.scaling_failed", error=str(e))
             return rois

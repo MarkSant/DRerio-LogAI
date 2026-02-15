@@ -205,7 +205,7 @@ class WidgetFactory:
         if self.gui.zone_summary_frame and self.gui.zone_summary_frame.winfo_exists():
             try:
                 self.gui.zone_summary_frame.destroy()
-            except Exception:
+            except tk.TclError:
                 log.debug("widget_factory.zone_summary_destroy.suppressed", exc_info=True)
 
         self.gui.zone_summary_frame, self.gui.zone_summary_cards = (
@@ -328,7 +328,7 @@ class WidgetFactory:
             # After updating the background, redraw any zones that exist
             if hasattr(self.gui, "controller") and self.gui.controller:
                 self.gui.canvas_manager.redraw_zones_from_project_data()
-        except Exception as e:
+        except (tk.TclError, AttributeError) as e:
             log.warning("gui.canvas.configure_error", error=str(e))
 
     def create_scrollable_controls_frame(self, parent):
@@ -479,7 +479,7 @@ class WidgetFactory:
         ):
             try:
                 self.gui.processing_reports_tab_frame.destroy()
-            except Exception:
+            except tk.TclError:
                 log.debug("widget_factory.reports_tab_destroy.suppressed", exc_info=True)
 
         # Create tab frame
@@ -525,7 +525,7 @@ class WidgetFactory:
         if self.gui.project_overview_frame and self.gui.project_overview_frame.winfo_exists():
             try:
                 self.gui.project_overview_frame.destroy()
-            except Exception:
+            except tk.TclError:
                 log.debug("widget_factory.overview_frame_destroy.suppressed", exc_info=True)
 
         self.gui.project_overview_frame = ttk.LabelFrame(
@@ -880,7 +880,7 @@ class WidgetFactory:
             # Refresh UI to confirm values
             self.reload_config_editor_values_widget()
 
-        except Exception as e:
+        except (OSError, ValueError, AttributeError) as e:
             self.gui.show_error(
                 "Erro ao Salvar no Projeto", f"Falha ao atualizar configurações do projeto: {e}"
             )
@@ -903,7 +903,7 @@ class WidgetFactory:
                     sort_keys=False,
                     allow_unicode=True,
                 )
-        except Exception as exc:
+        except (OSError, yaml.YAMLError) as exc:
             self.gui.show_error("Erro", f"Não foi possível salvar config.local.yaml: {exc}")
             return
 
@@ -995,7 +995,7 @@ class WidgetFactory:
             )
             return True
 
-        except Exception as e:
+        except (OSError, ValueError, KeyError, AttributeError) as e:
             log.error("config.save.project_sync_failed", error=str(e))
             self.gui.show_warning(
                 "Aviso", f"Configuração global salva, mas erro ao atualizar projeto atual: {e}"
@@ -1031,7 +1031,7 @@ class WidgetFactory:
 
         try:
             style.theme_use()
-        except Exception:  # pragma: no cover - defensive safeguard
+        except tk.TclError:  # pragma: no cover - defensive safeguard
             style.theme_use("default")
 
         base_background = (
@@ -1253,14 +1253,14 @@ class WidgetFactory:
                 self.gui.grid_container.columnconfigure(col_index, weight=1)
             for row_index in range(days + 1):
                 self.gui.grid_container.rowconfigure(row_index, weight=1)
-        except Exception as e:
+        except (tk.TclError, KeyError, AttributeError) as e:
             log.error("widget_factory.render_progress_grid.failed", error=str(e), exc_info=True)
             # Add error label to container so user knows it failed but UI continues
             try:
                 ttk.Label(
                     self.gui.grid_container, text=f"Erro ao renderizar grade: {e}", foreground="red"
                 ).pack(pady=20)
-            except Exception:
+            except tk.TclError:
                 log.debug("widget_factory.error_label.double_fault", exc_info=True)
 
     def reload_config_editor_values(self) -> None:
@@ -1423,7 +1423,7 @@ class WidgetFactory:
                 ).pack(pady=(0, 15))
                 log.warning("welcome.logo.not_found", attempted_path=str(logo_path))
 
-        except Exception as e:
+        except (OSError, tk.TclError, ImportError) as e:
             # Fallback to text on any error
             import ttkbootstrap as ttk
 

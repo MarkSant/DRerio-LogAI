@@ -20,6 +20,7 @@ import queue
 import shutil
 import threading
 import time
+import tkinter as tk
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal
@@ -91,7 +92,7 @@ class DetectorContextManager:
             try:
                 self.detector_service.detector.set_context(self.saved_context)
                 log.debug("detector_context.restored", context=self.saved_context)
-            except Exception as e:
+            except (AttributeError, ValueError) as e:
                 log.warning(
                     "detector_context.restore_failed",
                     saved_context=self.saved_context,
@@ -299,7 +300,7 @@ class LiveCameraService:
                         "live_camera_service.cleanup.folder_removed",
                         folder=str(folder),
                     )
-                except Exception as e:
+                except OSError as e:
                     log.warning(
                         "live_camera_service.cleanup.folder_remove_failed",
                         folder=str(folder),
@@ -716,6 +717,7 @@ class LiveCameraService:
                         base_name=f"{experiment_id}_{timestamp}",
                     )
 
+                # except Exception justified: recording subsystem boundary — heterogeneous I/O
                 except Exception as e:
                     log.error(
                         "live_camera_service.recorder_init_error",
@@ -754,7 +756,7 @@ class LiveCameraService:
             try:
                 self.root.after_cancel(self.timer_id)
                 log.info("live_camera_service.timer_cancelled")
-            except Exception as e:
+            except tk.TclError as e:
                 log.warning("live_camera_service.timer_cancel_error", error=str(e))
 
         # ✅ NOVO: Parar recorder diretamente (não via RecordingService)
@@ -762,6 +764,7 @@ class LiveCameraService:
             try:
                 self.recorder.stop_recording()
                 log.info("live_camera_service.recorder_stopped")
+            # except Exception justified: graceful shutdown — cleanup must not propagate
             except Exception as e:
                 log.warning("live_camera_service.recorder_stop_error", error=str(e))
 
@@ -793,7 +796,7 @@ class LiveCameraService:
                 # MELHORIA #2: Set flag before destroying to prevent race conditions
                 self._preview_window_destroyed = True
                 self.preview_window.destroy()
-            except Exception as e:
+            except tk.TclError as e:
                 log.warning("live_camera_service.preview_close_error", error=str(e))
             self.preview_window = None
 
@@ -811,7 +814,7 @@ class LiveCameraService:
                         "live_camera_service.detector_context_restored",
                         restored_context=self._saved_detector_context,
                     )
-                except Exception as e:
+                except (AttributeError, ValueError) as e:
                     log.warning(
                         "live_camera_service.detector_context_restore_failed",
                         saved_context=self._saved_detector_context,
@@ -953,6 +956,7 @@ class LiveCameraService:
 
             return True
 
+        # except Exception justified: camera hardware I/O — heterogeneous failures
         except Exception as e:
             log.error(
                 "live_camera_service.camera_setup_failed",
@@ -1042,6 +1046,7 @@ class LiveCameraService:
 
             return True
 
+        # except Exception justified: camera hardware I/O — heterogeneous failures
         except Exception as e:
             log.error("live_camera_service.thread_start_failed", error=str(e), exc_info=True)
             return False
@@ -1132,6 +1137,7 @@ class LiveCameraService:
                 fps = self.settings.video_processing.fps if self.settings else default_fps
                 time.sleep(1 / (fps * 1.5))
 
+            # except Exception justified: daemon thread fault-isolation
             except Exception as e:
                 log.error("live_camera_service.capture_error", error=str(e), exc_info=True)
                 time.sleep(0.5)
@@ -1187,7 +1193,7 @@ class LiveCameraService:
                                 count=self._video_frames_written,
                                 queue_size=self.video_queue.qsize(),
                             )
-                    except Exception as e:
+                    except OSError as e:
                         log.warning(
                             "live_camera_service.video_write_error",
                             error=str(e),
@@ -1197,6 +1203,7 @@ class LiveCameraService:
             except queue.Empty:
                 # Timeout - check exit condition and continue
                 continue
+            # except Exception justified: daemon thread fault-isolation
             except Exception as e:
                 log.error(
                     "live_camera_service.video_recording_error",
@@ -1616,6 +1623,7 @@ class LiveCameraService:
                 # MELHORIA #4: Explicit frame cleanup to hint garbage collector
                 del frame
 
+            # except Exception justified: daemon thread fault-isolation
             except Exception as e:
                 log.error("live_camera_service.processing_error", error=str(e), exc_info=True)
                 # MELHORIA #4: Clean up frame even on exception
@@ -1959,6 +1967,7 @@ class LiveCameraService:
                     }
                     self.root.after(0, self._show_completion_message, output_dir, True, stats, None)
 
+            # except Exception justified: recording subsystem boundary — heterogeneous I/O
             except Exception as e:
                 log.error("live_camera_service.post_analysis_error", error=str(e), exc_info=True)
                 if self.root:
@@ -2092,6 +2101,7 @@ class LiveCameraService:
                     multi_aquarium=is_multi_aquarium,
                 )
 
+            # except Exception justified: recording subsystem boundary — heterogeneous I/O
             except Exception as e:
                 log.error(
                     "live_camera_service.recorder_init_error_after_arena",
@@ -2312,6 +2322,7 @@ class LiveCameraService:
 
             return flat_detections
 
+        # except Exception justified: cv2 frame processing — poorly-typed errors
         except Exception as e:
             log.error(
                 "live_camera_service.multi_aquarium_detection_failed",
@@ -2355,7 +2366,7 @@ class LiveCameraService:
                 except AttributeError:
                     # Recorder doesn't support pause yet (will implement next)
                     log.warning("live_camera_service.recorder_pause_not_supported")
-                except Exception as e:
+                except OSError as e:
                     log.error("live_camera_service.recorder_pause_failed", error=str(e))
 
             # Publish disconnect event
@@ -2402,7 +2413,7 @@ class LiveCameraService:
                 log.info("live_camera_service.recorder_resumed")
             except AttributeError:
                 log.warning("live_camera_service.recorder_resume_not_supported")
-            except Exception as e:
+            except OSError as e:
                 log.error("live_camera_service.recorder_resume_failed", error=str(e))
 
         # Publish reconnect event
@@ -2536,6 +2547,7 @@ class LiveCameraService:
                 self._on_session_complete(self.current_output_dir)
             else:
                 self.stop_session()
+        # except Exception justified: graceful shutdown — cleanup must not propagate
         except Exception as e:
             # Context managers should always clean up gracefully
             # Log but don't raise - prevents masking original exception

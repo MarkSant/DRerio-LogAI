@@ -121,6 +121,7 @@ class VideoValidationService:
                             info["is_multi_aquarium"] = True
                         if has_multi_rois:
                             info["has_rois"] = True
+                # except Exception justified: multi-aquarium zone scan — must not prevent validation
                 except Exception:
                     log.warning(
                         "video_validation.multi_aquarium_zone_scan.suppressed",

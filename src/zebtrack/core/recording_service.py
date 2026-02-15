@@ -172,7 +172,7 @@ class RecordingService:
                     metadata=metadata_to_save,
                     path=str(metadata_file),
                 )
-            except Exception as e:
+            except (OSError, TypeError, ValueError) as e:
                 log.warning(
                     "recording_service.metadata_save_failed",
                     error=str(e),

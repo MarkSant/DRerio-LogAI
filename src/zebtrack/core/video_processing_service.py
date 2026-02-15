@@ -252,6 +252,7 @@ class VideoProcessingService:
             ret, frame = cap.read()
             if ret:
                 self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
+        # except Exception justified: cv2 VideoCapture frame display — poorly-typed errors
         except Exception as exc:
             log.warning("video_processing.frame_display_error", error=str(exc))
         finally:
@@ -374,7 +375,7 @@ class VideoProcessingService:
                             source="VideoProcessingService.load_trajectory_dataframe",
                         )
                     )
-                except Exception:
+                except (TypeError, AttributeError):
                     publish(payload)
 
         if not trajectory_path.exists():
@@ -389,6 +390,7 @@ class VideoProcessingService:
 
         try:
             return pd.read_parquet(trajectory_path)
+        # except Exception justified: pandas parquet read — heterogeneous data errors
         except Exception as exc:
             log.error(
                 "video_processing.trajectory_read_failed",
@@ -697,6 +699,7 @@ class VideoProcessingService:
             if processing_report_callback:
                 try:
                     processing_report = processing_report_callback()
+                # except Exception justified: user-provided callback execution
                 except Exception as exc:
                     log.warning("progress_callback.report_failed", error=str(exc))
 
@@ -789,7 +792,7 @@ class VideoProcessingService:
                     actual_path = str(props.get("camera_index", 0))
                 elif "path" in props:
                     actual_path = str(props["path"])
-            except Exception:
+            except AttributeError:
                 log.debug("video_processing.resolve_path.get_properties_error", exc_info=True)
 
         task = {
@@ -1023,7 +1026,7 @@ class VideoProcessingService:
                         item.unlink(missing_ok=True)
                 except FileNotFoundError:
                     continue
-                except Exception:
+                except OSError:
                     log.warning(
                         "controller.results.cleanup_failed",
                         path=str(item),
@@ -1191,6 +1194,7 @@ class VideoProcessingService:
             if processing_report_callback:
                 try:
                     processing_report = processing_report_callback()
+                # except Exception justified: user-provided callback execution
                 except Exception as exc:
                     log.warning("progress_callback.report_failed", error=str(exc))
 

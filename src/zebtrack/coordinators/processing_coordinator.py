@@ -339,7 +339,7 @@ class ProcessingCoordinator(BaseCoordinator):
         try:
             if self.view and hasattr(self.view, "dialog_manager"):
                 self.view.dialog_manager.set_dialog_suppression(suppress)
-        except Exception:
+        except AttributeError:
             log.debug(
                 "processing_coordinator._set_dialog_suppression.failed",
                 suppress=suppress,
@@ -1243,7 +1243,7 @@ class ProcessingCoordinator(BaseCoordinator):
         """Generate reports after video completion."""
         try:
             self.generate_project_reports([video_path])
-        except Exception as e:
+        except Exception as e:  # except Exception justified: non-critical fallback
             log.error(
                 f"controller.video_completed.report_failed_{'multi' if is_multi else 'single'}",
                 video=experiment_id,
@@ -1668,7 +1668,7 @@ class ProcessingCoordinator(BaseCoordinator):
                     subject_pattern=custom_patterns.get("subject_pattern"),
                 )
 
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
             log.error(
                 "calibration.multi_aquarium.conversion_failed",
                 error=str(e),
@@ -2041,7 +2041,7 @@ class ProcessingCoordinator(BaseCoordinator):
                     {"message": "Gerando relatórios para todos os aquários..."},
                 )
                 self.generate_project_reports([video_path])
-            except Exception as e:
+            except Exception as e:  # except Exception justified: non-critical fallback
                 log.error(
                     "workflow.sequential_multi.report_failed",
                     error=str(e),
@@ -2538,7 +2538,7 @@ class ProcessingCoordinator(BaseCoordinator):
                         )
 
                         final_tasks.append(aq_task)
-                except Exception as exc:
+                except Exception as exc:  # except Exception justified: non-critical fallback
                     log.exception(
                         "workflow.project_processing.sequential_explosion_failed",
                         video=video_info.get("path", ""),
@@ -2578,7 +2578,7 @@ class ProcessingCoordinator(BaseCoordinator):
 
             self.processing_worker = ProcessingWorker(context, callbacks)
             self.processing_thread = self.processing_worker.start_in_thread()
-        except Exception as exc:
+        except Exception as exc:  # except Exception justified: service boundary catch-all
             log.exception(
                 "workflow.project_processing.worker_creation_failed",
                 error=str(exc),
@@ -2660,7 +2660,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 with_zones=len(ready_with_zones),
                 targeted=bool(video_paths),
             )
-        except Exception as e:
+        except Exception as e:  # except Exception justified: non-critical fallback
             log.exception("workflow.project_processing.post_worker_error", error=str(e))
             self._publish_event(
                 Events.UI_SHOW_ERROR,
@@ -2838,6 +2838,7 @@ class ProcessingCoordinator(BaseCoordinator):
                                                     :50
                                                 ],
                                             )
+                                    # except Exception justified: non-critical fallback
                                     except Exception as e:
                                         log.warning(
                                             "run_aquarium_detection.multi_aquarium_config_parse_failed",
@@ -2905,7 +2906,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 )
                 return
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event handler fault isolation
             log.error("controller.aquarium_detection.error", exc_info=True)
             self._publish_event(
                 Events.UI_SHOW_ERROR,
@@ -3029,6 +3030,7 @@ class ProcessingCoordinator(BaseCoordinator):
                                         "multi_auto_detect.multi_aquarium_config_loaded",
                                         regex_pattern=multi_aquarium_config.regex_pattern[:50],
                                     )
+                            # except Exception justified: non-critical fallback
                             except Exception as e:
                                 log.warning(
                                     "multi_auto_detect.multi_aquarium_config_parse_failed",
@@ -3061,7 +3063,7 @@ class ProcessingCoordinator(BaseCoordinator):
                     {"video_path": str(video_path), "reason": reason},
                 )
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event handler fault isolation
             log.error("multi_auto_detect.failed", error=str(e), exc_info=True)
             self._publish_event(
                 Events.ZONE_MULTI_AUTO_DETECT_FAILED,
@@ -3160,7 +3162,7 @@ class ProcessingCoordinator(BaseCoordinator):
                             aq_id=aq_id,
                             new_folder=str(new_folder),
                         )
-                    except Exception as e:
+                    except OSError as e:
                         log.error(
                             "relocate_folders.copy_failed",
                             file=old_file.name,
@@ -3183,7 +3185,7 @@ class ProcessingCoordinator(BaseCoordinator):
                     group_parent = parent.parent
                     if group_parent.exists() and not any(group_parent.iterdir()):
                         group_parent.rmdir()
-        except Exception as e:
+        except OSError as e:
             log.warning("relocate_folders.cleanup_failed", folder=str(old_folder), error=str(e))
 
         # IMPORTANT: Update video entry with new folder paths
@@ -3411,7 +3413,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 # 4. Refresh UI to show new groups/subjects (optional but good)
                 self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {})
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event handler fault isolation
             log.error("assignment_complete.error", error=str(e), exc_info=True)
 
     def generate_parquet_summaries(
@@ -3441,7 +3443,7 @@ class ProcessingCoordinator(BaseCoordinator):
                     settings_obj,
                     expected_roi_names=expected_roi_names,
                 )
-            except Exception as exc:
+            except Exception as exc:  # except Exception justified: non-critical fallback
                 state, info_msg, _ppath, changed = "failed", str(exc), None, False
 
             if state == "completed":
@@ -3550,7 +3552,7 @@ class ProcessingCoordinator(BaseCoordinator):
             log.info("controller.polygon.saved", points=len(points))
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: non-critical fallback
             log.error("controller.polygon.save_error", error=str(e))
             return False
 
@@ -3697,7 +3699,7 @@ class ProcessingCoordinator(BaseCoordinator):
             log.info("controller.zone.add_roi.success", name=name)
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: non-critical fallback
             log.error("controller.zone.add_roi.error", name=name, error=str(e))
             return False
 
@@ -3714,7 +3716,7 @@ class ProcessingCoordinator(BaseCoordinator):
             try:
                 if self.detector.is_single_subject_mode():
                     return ProcessingMode.SINGLE_SUBJECT
-            except Exception:
+            except (AttributeError, RuntimeError):
                 log.warning(
                     "controller.processing_mode.detector_probe_failed",
                     exc_info=True,
@@ -3740,7 +3742,7 @@ class ProcessingCoordinator(BaseCoordinator):
                     result="SINGLE_SUBJECT",
                 )
                 return ProcessingMode.SINGLE_SUBJECT
-        except Exception:
+        except Exception:  # except Exception justified: non-critical fallback
             log.warning(
                 "processing_coordinator.determine_mode.resolve_fallback_failed", exc_info=True
             )
@@ -4110,7 +4112,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 is_active = is_active_fn()
                 if isinstance(is_active, bool):
                     return is_active
-            except Exception:
+            except (AttributeError, RuntimeError):
                 log.warning(
                     "processing_coordinator.validation.live_session_probe_failed",
                     exc_info=True,
@@ -4144,7 +4146,7 @@ class ProcessingCoordinator(BaseCoordinator):
                             roi_names=zone_data.roi_names,
                         )
                         return list(zone_data.roi_names)
-            except Exception as e:
+            except (OSError, KeyError, ValueError) as e:
                 log.debug("processing_coordinator.zone_lookup_failed", video=path, error=str(e))
                 continue
 
@@ -4199,7 +4201,7 @@ class ProcessingCoordinator(BaseCoordinator):
                         # Store first color encountered for each ROI name
                         if roi_name not in roi_colors_map:
                             roi_colors_map[roi_name] = color
-            except Exception as e:
+            except (OSError, KeyError, ValueError) as e:
                 log.debug(
                     "workflow.unified_report.color_collection_failed", path=path, error=str(e)
                 )
@@ -4266,7 +4268,7 @@ class ProcessingCoordinator(BaseCoordinator):
                         if entry_meta:
                             df = self._enrich_unified_report_metadata(df, entry_meta, process_entry)
                         dfs.append(df)
-                    except Exception as e:
+                    except Exception as e:  # except Exception justified: non-critical fallback
                         log.warning(
                             "workflow.unified_report.read_failed", file=summary_path, error=str(e)
                         )
@@ -4294,7 +4296,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 all_columns,
                 report_scope=scope,
             )
-        except Exception as e:
+        except Exception as e:  # except Exception justified: complex multi-subsystem pipeline
             log.error("workflow.unified_report.failed", error=str(e), exc_info=True)
             self._publish_event(
                 Events.UI_SHOW_ERROR,
@@ -4420,7 +4422,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 try:
                     artifact.unlink(missing_ok=True)
                     removed += 1
-                except Exception:
+                except OSError:
                     log.warning(
                         "workflow.unified_report.cleanup_failed",
                         file=str(artifact),
@@ -4466,7 +4468,7 @@ class ProcessingCoordinator(BaseCoordinator):
             exported_artifacts.append(parquet_path.name)
             exported_paths["parquet"] = str(parquet_path)
             log.info("workflow.unified_report.parquet_exported", path=str(parquet_path))
-        except Exception as e:
+        except (OSError, ValueError) as e:
             export_failures.append(f"Parquet: {e}")
             log.error("workflow.unified_report.parquet_failed", error=str(e), exc_info=True)
 
@@ -4481,7 +4483,7 @@ class ProcessingCoordinator(BaseCoordinator):
             exported_artifacts.append(excel_path.name)
             exported_paths["excel"] = str(excel_path)
             log.info("workflow.unified_report.excel_exported", path=str(excel_path))
-        except Exception as e:
+        except Exception as e:  # except Exception justified: non-critical fallback
             export_failures.append(f"Excel: {e}")
             log.error("workflow.unified_report.excel_failed", error=str(e), exc_info=True)
 
@@ -4508,7 +4510,7 @@ class ProcessingCoordinator(BaseCoordinator):
             exported_artifacts.append(f"{word_path.name}.docx")
             exported_paths["word"] = f"{word_path}.docx"
             log.info("workflow.unified_report.word_exported", path=str(word_path) + ".docx")
-        except Exception as e:
+        except Exception as e:  # except Exception justified: non-critical fallback
             export_failures.append(f"Word: {e}")
             log.error("workflow.unified_report.word_failed", error=str(e), exc_info=True)
 
@@ -4634,7 +4636,7 @@ class ProcessingCoordinator(BaseCoordinator):
             try:
                 self._generate_single_video_reports(path)
                 count += 1
-            except Exception as e:
+            except Exception as e:  # except Exception justified: non-critical fallback
                 log.exception("workflow.reports.video_failed", video=path, error=str(e))
                 errors.append(f"{os.path.basename(path)}: {e}")
 
@@ -5008,7 +5010,7 @@ class ProcessingCoordinator(BaseCoordinator):
                     bg_path = os.path.join(results_dir, f"{exp_id}_bg.png")
                     cv2.imwrite(bg_path, frame)
                     return bg_path
-                except Exception:
+                except OSError:
                     log.warning(
                         "processing_coordinator.save_background_frame.failed", exc_info=True
                     )
@@ -5299,7 +5301,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 )
                 try:
                     zone_data = ProjectManager.load_zones_from_parquet(video_info)
-                except Exception as exc:
+                except Exception as exc:  # except Exception justified: non-critical fallback
                     log.warning(
                         "workflow.project_processing.zone_load_failed",
                         video=os.path.basename(video_info.get("path", "")),
@@ -5393,7 +5395,7 @@ class ProcessingCoordinator(BaseCoordinator):
                     True,
                 )
             return "skipped", f"{exp_id}: nenhum aquário processado.", None, False
-        except Exception as e:
+        except Exception as e:  # except Exception justified: complex multi-subsystem pipeline
             log.error("processing.multi_summary_failed", error=str(e))
             return "failed", f"{exp_id}: erro multi-aquário {e}", None, False
 
@@ -5527,7 +5529,7 @@ class ProcessingCoordinator(BaseCoordinator):
             video.setdefault("parquet_files", {})["summary"] = s_path
             video["has_complete_data"] = True
             return "completed", exp_id, s_path, True
-        except Exception as e:
+        except Exception as e:  # except Exception justified: complex multi-subsystem pipeline
             return "failed", f"{exp_id}: erro {e}", None, False
         finally:
             self.project_manager.set_active_zone_video(None)

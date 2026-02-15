@@ -163,6 +163,7 @@ class AnalysisControlViewModel:
                 if self.session_coordinator:
                     self.session_coordinator.live_camera_service.stop_session()
                 log.info("cancel_current_analysis.live_session_stopped")
+            # except Exception justified: live camera stop — hardware + thread cleanup boundary
             except Exception as e:
                 log.error("cancel_current_analysis.live_session_stop_error", error=str(e))
 
@@ -332,7 +333,7 @@ class AnalysisControlViewModel:
                             ROI(name=name, geometry=Polygon(poly), coordinate_space="px")
                         )
                         roi_colors_dict[name] = color_rgb
-                    except Exception as e:
+                    except (ValueError, TypeError) as e:
                         log.warning(f"Skipping invalid ROI {name}: {e}")
 
                 # Retrieve analysis profile params
@@ -468,6 +469,7 @@ class AnalysisControlViewModel:
                     summary_parquet=parquet_summary_path,
                 )
 
+            # except Exception justified: multi-step analysis pipeline — data + reporting subsystem
             except Exception as e:
                 log.error(
                     "generate_summaries.failed", video=video_path, error=str(e), exc_info=True

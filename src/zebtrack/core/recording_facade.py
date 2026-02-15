@@ -117,6 +117,7 @@ class RecordingFacade:
             )
             return True
 
+        # except Exception justified: recording subsystem boundary — wraps recorder + video writer
         except Exception as e:
             log.error("recording_facade.start.failed", error=str(e), exc_info=True)
             return False
@@ -149,6 +150,7 @@ class RecordingFacade:
             log.info("recording_facade.stop.success")
             return True
 
+        # except Exception justified: recording subsystem boundary — wraps recorder + video writer
         except Exception as e:
             log.error("recording_facade.stop.failed", error=str(e), exc_info=True)
             return False

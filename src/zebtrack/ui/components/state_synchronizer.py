@@ -184,22 +184,22 @@ class StateSynchronizer:
         # Also reset internal state vars that might be used elsewhere
         try:
             self.gui.hide_progress_bar()
-        except Exception:
+        except (tk.TclError, AttributeError):
             log.debug("state_sync.hide_progress_bar.suppressed", exc_info=True)
 
         try:
             self.gui.analysis_status_var.set("Nenhuma análise em andamento.")
-        except Exception:
+        except (tk.TclError, AttributeError):
             log.debug("state_sync.analysis_status_reset.suppressed", exc_info=True)
 
         try:
             self.gui.analysis_task_var.set(self._default_analysis_task_text())
-        except Exception:
+        except (tk.TclError, AttributeError):
             log.debug("state_sync.analysis_task_reset.suppressed", exc_info=True)
 
         try:
             self._set_analysis_metadata_defaults()
-        except Exception:
+        except (tk.TclError, AttributeError):
             log.debug("state_sync.metadata_defaults.suppressed", exc_info=True)
 
     def _reset_roi_and_visual_frames(self) -> None:
@@ -261,7 +261,7 @@ class StateSynchronizer:
         elif hasattr(self.gui, "analysis_status_var"):
             try:
                 self.gui.analysis_status_var.set(message)
-            except Exception:
+            except (tk.TclError, AttributeError):
                 log.debug("state_sync.analysis_status_set.suppressed", exc_info=True)
             # Note: project_overview_tree is a read-only property derived from
             # project_overview_widget. Clear the widget reference instead.
@@ -274,7 +274,7 @@ class StateSynchronizer:
                     and self.gui.project_status_vars is not None
                 ):
                     self.gui.project_status_vars.clear()
-            except Exception:
+            except (AttributeError, TypeError):
                 log.debug("state_sync.project_status_vars_clear.suppressed", exc_info=True)
 
             try:
@@ -283,13 +283,13 @@ class StateSynchronizer:
                     and self.gui._project_status_containers is not None
                 ):
                     self.gui._project_status_containers.clear()
-            except Exception:
+            except (AttributeError, TypeError):
                 log.debug("state_sync.status_containers_clear.suppressed", exc_info=True)
 
             try:
                 if hasattr(self.gui, "_last_overview_counts"):
                     self.gui._last_overview_counts = {}
-            except Exception:
+            except AttributeError:
                 log.debug("state_sync.overview_counts_reset.suppressed", exc_info=True)
 
     # ========================================================================
@@ -409,7 +409,7 @@ class StateSynchronizer:
 
         try:
             zone_controls.show_single_analysis_options()
-        except Exception:
+        except (tk.TclError, AttributeError):
             log.warning("state_sync.show_single_analysis_options.suppressed", exc_info=True)
 
         analysis_interval = None

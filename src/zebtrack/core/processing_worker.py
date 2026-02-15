@@ -288,6 +288,7 @@ class ProcessingWorker:
                         self.callbacks.on_error(error, context_str)
                     break
 
+            # except Exception justified: worker thread fault-isolation
             except Exception as e:
                 log.error("worker.monitor_loop_error", error=str(e))
                 if self.callbacks.on_fatal_error is not None:
@@ -432,6 +433,7 @@ class _WorkerProcess(multiprocessing.Process):
                         }
                     )
 
+                # except Exception justified: worker thread fault-isolation
                 except Exception as e:
                     log.error(
                         "worker.process.video_error",
@@ -453,6 +455,7 @@ class _WorkerProcess(multiprocessing.Process):
 
                 gc.collect()
 
+        # except Exception justified: graceful shutdown — cleanup must not propagate
         except Exception as e:
             log.critical("worker.process.fatal_error", error=str(e), exc_info=True)
             self.result_queue.put(
@@ -764,7 +767,7 @@ class _WorkerProcess(multiprocessing.Process):
                             if calibration is None:
                                 calibration = cal
                                 pixel_ratio = cal.pixel_per_cm_ratio
-                        except Exception as e:
+                        except ValueError as e:
                             log.error("worker.calibration.multi.failed", aq_id=aq.id, error=str(e))
 
                 if calibration_by_aquarium:
@@ -787,7 +790,7 @@ class _WorkerProcess(multiprocessing.Process):
                         calibration = Calibration(np.array(poly_points), width_cm, height_cm)
                         pixel_ratio = calibration.pixel_per_cm_ratio
                         log.info("worker.calibration.created", ratio=pixel_ratio)
-                    except Exception as e:
+                    except ValueError as e:
                         log.error("worker.calibration.failed", error=str(e))
 
         if isinstance(video_zone_data, MultiAquariumZoneData):

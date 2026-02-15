@@ -166,6 +166,7 @@ class BatchConfigurationService:
             self._save_zone_data(results_path, experiment_id, config)
             return True
 
+        # except Exception justified: batch configuration validation — heterogeneous data sources
         except Exception as e:
             self.log.error(
                 "batch_config.settings_save_error",

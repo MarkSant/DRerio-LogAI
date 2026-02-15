@@ -52,6 +52,7 @@ class ArduinoFacade:
             ports = self.arduino.list_available_ports()
             log.info("arduino_facade.scan.found", ports=ports)
             return ports
+        # except Exception justified: serial hardware initialization — heterogeneous failures
         except Exception as e:
             log.error("arduino_facade.scan.failed", error=str(e), exc_info=True)
             return []
@@ -82,6 +83,7 @@ class ArduinoFacade:
 
             return success
 
+        # except Exception justified: serial command send — hardware I/O boundary
         except Exception as e:
             log.error("arduino_facade.connect.error", error=str(e), exc_info=True)
             return False
@@ -100,6 +102,7 @@ class ArduinoFacade:
             log.info("arduino_facade.disconnect.success")
             return True
 
+        # except Exception justified: serial port close — cleanup must not propagate
         except Exception as e:
             log.error("arduino_facade.disconnect.error", error=str(e), exc_info=True)
             return False
@@ -123,6 +126,7 @@ class ArduinoFacade:
             log.info("arduino_facade.command.sent", command=command)
             return True
 
+        # except Exception justified: serial connection check — hardware-dependent
         except Exception as e:
             log.error("arduino_facade.send.failed", error=str(e), exc_info=True)
             return False

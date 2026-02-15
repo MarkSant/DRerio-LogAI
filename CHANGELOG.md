@@ -91,6 +91,61 @@ full debugging visibility without changing control flow.
 - Added `astral-sh/ruff-pre-commit` (v0.9.7) to `.pre-commit-config.yaml`
   with `ruff` (lint + auto-fix) and `ruff-format` hooks
 
+#### Phase 2 — Narrow Generic Exception Catches (February 2026)
+
+Narrowed **~130 `except Exception`** blocks to specific exception types
+and justified **~155** remaining ones with greppable inline comments
+across the priority scope (6 UI files + coordinators + core + I/O).
+
+##### Scope
+
+- **~60 source files** modified across `src/zebtrack/`
+- **~130 catches narrowed** to specific types (`OSError`, `tk.TclError`,
+  `ValueError`, `KeyError`, `AttributeError`, `TypeError`,
+  `json.JSONDecodeError`, `pa.ArrowInvalid`, `re.error`, etc.)
+- **~155 catches justified** with `# except Exception justified: <reason>`
+  inline comments (greppable)
+- **~45 catches already justified** via `# pragma: no cover` comments
+- **2778 tests passing**, 12 skipped, 0 failures
+- **10 test files updated** to raise specific exception types matching
+  narrowed production catches
+
+##### By directory
+
+- **6 priority UI files** (80 instances): `window_utils.py`,
+  `state_synchronizer.py`, `widget_factory.py`,
+  `project_view_manager.py`, `gui.py`, `ui_coordinator.py`
+- **coordinators/** (87 instances across 10 files): 15 narrowed,
+  68 justified, 4 already justified
+- **core/** (136 instances across 30 files): 50 narrowed,
+  70 justified, 16 already justified
+- **io/** (40 instances across 6 files): 8 narrowed,
+  17 justified, 15 already justified
+
+##### Common narrowing patterns
+
+- Tkinter widget operations: `except tk.TclError`
+- File/network I/O: `except OSError`
+- Data parsing: `except (ValueError, TypeError, KeyError)`
+- JSON I/O: `except (OSError, json.JSONDecodeError, KeyError)`
+- Parquet I/O: `except (OSError, pa.ArrowInvalid, pa.ArrowIOError)`
+- Attribute probing: `except (AttributeError, TypeError)`
+
+##### Justification categories
+
+- Service/facade boundaries wrapping heterogeneous subsystems
+- Daemon/worker thread fault-isolation loops
+- Hardware I/O (camera, serial, OpenVINO)
+- YOLO/cv2 operations (poorly-typed errors)
+- Pandas/parquet pipelines (heterogeneous data errors)
+- Event-bus handler fault-isolation boundaries
+
+##### Bug fixes during Phase 2
+
+- Fixed `detector_service.py` persist catch: widened `OSError` to
+  `(OSError, ValueError)` to handle YAML serialization errors
+- Removed duplicate `raise e` dead code at `gui.py` line 535
+
 ### �🟢 New Features
 
 #### LiveBatchCoordinator v2.3.0 Integration (January 2026)

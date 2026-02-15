@@ -117,6 +117,7 @@ class ThreadCoordinator:
             self.log.info("thread_coordinator.release_camera")
             try:
                 self.camera.release()
+            # except Exception justified: thread cleanup boundary
             except Exception as e:
                 self.log.warning(
                     "thread_coordinator.camera_release_error",

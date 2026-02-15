@@ -44,6 +44,7 @@ class VideoMetadataService:
 
             return width, height
 
+        # except Exception justified: cv2 VideoCapture - re-raises
         except Exception as e:
             log.error(
                 "video_metadata.dimensions_error",
@@ -78,6 +79,7 @@ class VideoMetadataService:
             cap.release()
             return info
 
+        # except Exception justified: cv2 VideoCapture - re-raises
         except Exception as e:
             log.error(
                 "video_metadata.info_error",

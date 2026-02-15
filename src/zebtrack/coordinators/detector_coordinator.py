@@ -204,7 +204,7 @@ class DetectorCoordinator(BaseCoordinator):
 
             return success, error_message
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
                 "detector_coordinator.setup_detector.exception",
                 error=str(e),
@@ -348,7 +348,7 @@ class DetectorCoordinator(BaseCoordinator):
 
             return success
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             count = 0
             if isinstance(zones_data, list):
                 count = len(zones_data)
@@ -473,7 +473,7 @@ class DetectorCoordinator(BaseCoordinator):
 
             return success
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
                 "detector_coordinator.update_tracking_parameters.exception",
                 error=str(e),
@@ -574,7 +574,7 @@ class DetectorCoordinator(BaseCoordinator):
                 f"Parameter validation failed: {e}",
                 context={"params": params, "scope": scope},
             ) from e
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.error(
                 "detector_coordinator.update_detector_parameters.failed",
                 error=str(e),
@@ -630,7 +630,7 @@ class DetectorCoordinator(BaseCoordinator):
             log.info("detector_coordinator.reset_tracking_state.success")
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception("detector_coordinator.reset_tracking_state.exception", error=str(e))
             raise DetectorCoordinatorError(
                 f"Failed to reset tracking state: {e}",
@@ -694,7 +694,7 @@ class DetectorCoordinator(BaseCoordinator):
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
                 "detector_coordinator.set_single_subject_mode.exception",
                 error=str(e),
@@ -735,7 +735,7 @@ class DetectorCoordinator(BaseCoordinator):
             log.debug("detector_coordinator.get_detector_parameters", params=params)
             return params
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception("detector_coordinator.get_detector_parameters.exception", error=str(e))
             raise DetectorCoordinatorError(
                 f"Failed to get detector parameters: {e}",
@@ -772,7 +772,7 @@ class DetectorCoordinator(BaseCoordinator):
             log.debug("detector_coordinator.get_factory_detector_parameters", params=params)
             return params
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
                 "detector_coordinator.get_factory_detector_parameters.exception",
                 error=str(e),
@@ -838,7 +838,7 @@ class DetectorCoordinator(BaseCoordinator):
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
                 "detector_coordinator.restore_detector_settings.exception",
                 error=str(e),
@@ -885,7 +885,7 @@ class DetectorCoordinator(BaseCoordinator):
         if self.is_detector_initialized():
             try:
                 params = self.get_detector_parameters()
-            except Exception as e:
+            except Exception as e:  # except Exception justified: non-critical fallback
                 log.warning(
                     "detector_coordinator.get_detector_info.params_unavailable",
                     error=str(e),

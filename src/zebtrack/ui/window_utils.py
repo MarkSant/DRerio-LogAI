@@ -16,7 +16,7 @@ log = structlog.get_logger()
 
 try:
     import ttkbootstrap as ttkb
-except Exception:  # pragma: no cover - optional dependency
+except ImportError:  # pragma: no cover - optional dependency
     ttkb = cast(Any, None)
 
 
@@ -25,7 +25,7 @@ def _try_actions(window: Any, actions: tuple[Callable[[], None], ...]) -> bool:
         try:
             action()
             return True
-        except Exception:
+        except Exception:  # except Exception justified: platform-variable Tk actions
             log.debug("window_utils.try_actions.action_failed", exc_info=True)
             continue
     return False
@@ -35,7 +35,7 @@ def maximize_window(window: Any) -> None:
     """Attempt to maximize a Tk window across platforms."""
     try:
         window.update_idletasks()
-    except Exception:
+    except TclError:
         log.debug("window_utils.maximize.update_idletasks_failed", exc_info=True)
 
     def _state_zoomed() -> None:
@@ -51,7 +51,7 @@ def maximize_window(window: Any) -> None:
         screen_w = window.winfo_screenwidth()
         screen_h = window.winfo_screenheight()
         window.geometry(f"{screen_w}x{screen_h}+0+0")
-    except Exception:
+    except TclError:
         log.debug("window_utils.maximize.geometry_fallback_failed", exc_info=True)
 
 
@@ -59,7 +59,7 @@ def schedule_maximize(window: Any) -> None:
     """Schedule maximization after the window is mapped."""
     try:
         window.after(0, lambda: maximize_window(window))
-    except Exception:
+    except TclError:
         log.debug("window_utils.schedule_maximize.suppressed", exc_info=True)
 
 
@@ -67,7 +67,7 @@ def reset_geometry_if_not_maximized(window: Any) -> None:
     """Reset geometry only when window isn't already maximized."""
     try:
         state = window.state()
-    except Exception:
+    except TclError:
         state = None
 
     if state == "zoomed":
@@ -75,7 +75,7 @@ def reset_geometry_if_not_maximized(window: Any) -> None:
 
     try:
         window.geometry("")
-    except Exception:
+    except TclError:
         log.debug("window_utils.reset_geometry.suppressed", exc_info=True)
 
 
@@ -83,7 +83,7 @@ def set_geometry_if_not_maximized(window: Any, geometry: str) -> None:
     """Apply geometry changes only if the window isn't maximized."""
     try:
         state = window.state()
-    except Exception:
+    except TclError:
         state = None
 
     if state == "zoomed":
@@ -91,7 +91,7 @@ def set_geometry_if_not_maximized(window: Any, geometry: str) -> None:
 
     try:
         window.geometry(geometry)
-    except Exception:
+    except TclError:
         log.debug("window_utils.set_geometry.suppressed", exc_info=True)
 
 
@@ -101,7 +101,7 @@ def _ttkbootstrap_style_needs_reset() -> bool:
 
     try:
         from ttkbootstrap.style import Style
-    except Exception:
+    except ImportError:
         return False
 
     style = getattr(Style, "instance", None)
@@ -111,7 +111,7 @@ def _ttkbootstrap_style_needs_reset() -> bool:
     try:
         master = getattr(style, "master", None)
         return not (master and master.winfo_exists())
-    except Exception:
+    except TclError:
         return True
 
 
@@ -121,7 +121,7 @@ def _clear_ttkbootstrap_style() -> None:
 
     try:
         from ttkbootstrap.style import Style
-    except Exception:
+    except ImportError:
         return
 
     Style.instance = None

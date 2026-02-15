@@ -268,7 +268,7 @@ class RecordingCoordinator(BaseCoordinator):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.error(
                 "recording_coordinator.start_recording.failed",
                 folder_name=folder_name,
@@ -282,6 +282,7 @@ class RecordingCoordinator(BaseCoordinator):
                         StateCategory.RECORDING,
                         is_recording=False,
                     )
+                # except Exception justified: service boundary catch-all
                 except Exception as revert_error:
                     log.error(
                         "recording_coordinator.start_recording.revert_failed",
@@ -338,7 +339,7 @@ class RecordingCoordinator(BaseCoordinator):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: graceful stop must not crash
             log.error(
                 "recording_coordinator.stop_recording.failed",
                 error=str(e),
@@ -406,7 +407,7 @@ class RecordingCoordinator(BaseCoordinator):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: non-critical fallback
             log.error(
                 "recording_coordinator.trigger_recording.failed",
                 zone_name=zone_name,

@@ -262,7 +262,7 @@ class DialogCoordinator:
                             )
                             # Trigger redraw
                             self.event_bus.publish_event(Events.UI_REDRAW_ZONES)
-                    except Exception as e:
+                    except Exception as e:  # except Exception justified: non-critical fallback
                         self.show_error("Erro", f"Não foi possível criar arena padrão: {e}")
                         return False
                 else:

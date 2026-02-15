@@ -135,7 +135,7 @@ class TestZoneManagementFacadeROITemplates:
     def test_load_roi_template_not_found(self, zone_facade, mock_project_manager):
         """Test load_roi_template when template doesn't exist."""
         template_name = "nonexistent"
-        mock_project_manager.roi_template_manager.load_template.side_effect = Exception("Not found")
+        mock_project_manager.roi_template_manager.load_template.side_effect = OSError("Not found")
 
         result = zone_facade.load_roi_template(template_name)
 
@@ -279,7 +279,7 @@ class TestZoneManagementFacadeClearOperations:
     def test_clear_arena_handles_exception(self, zone_facade, mock_project_manager, tmp_path):
         """Test clear_arena handles exceptions gracefully."""
         video_path = tmp_path / "test_video.mp4"
-        mock_project_manager.set_arena_for_video.side_effect = RuntimeError("Test error")
+        mock_project_manager.set_arena_for_video.side_effect = KeyError("Test error")
 
         result = zone_facade.clear_arena(video_path)
 
@@ -297,7 +297,7 @@ class TestZoneManagementFacadeClearOperations:
     def test_clear_rois_handles_exception(self, zone_facade, mock_project_manager, tmp_path):
         """Test clear_rois handles exceptions gracefully."""
         video_path = tmp_path / "test_video.mp4"
-        mock_project_manager.set_rois_for_video.side_effect = RuntimeError("Test error")
+        mock_project_manager.set_rois_for_video.side_effect = AttributeError("Test error")
 
         result = zone_facade.clear_rois(video_path)
 

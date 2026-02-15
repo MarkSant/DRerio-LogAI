@@ -127,6 +127,7 @@ class HardwareStatusViewModel:
         try:
             if self.arduino_manager:
                 self.arduino_manager.shutdown()
+        # except Exception justified: serial hardware shutdown — cleanup must not propagate
         except Exception as e:
             log.warning("controller.arduino.shutdown_failed", error=str(e))
         self.arduino_manager = None

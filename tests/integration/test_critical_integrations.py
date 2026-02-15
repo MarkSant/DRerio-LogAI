@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 
 from tests.utils.wait_helpers import wait_for_condition
+from zebtrack.core.detector import ZoneData
 from zebtrack.core.state_manager import StateCategory, StateManager
 from zebtrack.io.camera import Camera
 from zebtrack.io.recorder import Recorder
@@ -31,15 +32,12 @@ def temp_results_dir(tmp_path):
 @pytest.fixture
 def sample_zones():
     """Return sample zone definitions for testing."""
-    return [
-        {
-            "name": "Zone A",
-            "polygon": [(100, 100), (300, 100), (300, 300), (100, 300)],
-            "color": "red",
-            "enter_commands": [],
-            "exit_commands": [],
-        }
-    ]
+    return ZoneData(
+        polygon=[(100, 100), (300, 100), (300, 300), (100, 300)],
+        roi_polygons=[[(100, 100), (300, 100), (300, 300), (100, 300)]],
+        roi_names=["Zone A"],
+        roi_colors=[(255, 0, 0)],
+    )
 
 
 @pytest.mark.integration

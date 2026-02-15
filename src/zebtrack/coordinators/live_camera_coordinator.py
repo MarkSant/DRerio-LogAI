@@ -289,7 +289,7 @@ class LiveCameraCoordinator(BaseCoordinator):
                 operation="start_live_session",
             ) from e
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.error(
                 "live_camera_coordinator.start_session.failed",
                 experiment_id=experiment_id,
@@ -347,7 +347,7 @@ class LiveCameraCoordinator(BaseCoordinator):
 
             return success
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: graceful stop must not crash
             log.error(
                 "live_camera_coordinator.stop_session.failed",
                 error=str(e),
@@ -408,7 +408,7 @@ class LiveCameraCoordinator(BaseCoordinator):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.error(
                 "live_camera_coordinator.initialize_camera.failed",
                 camera_index=camera_index,
@@ -442,7 +442,7 @@ class LiveCameraCoordinator(BaseCoordinator):
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: hardware cleanup must not crash
             log.error(
                 "live_camera_coordinator.release_camera.failed",
                 error=str(e),

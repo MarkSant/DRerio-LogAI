@@ -336,6 +336,7 @@ class ProjectManager:
                                 if loaded_zones.roi_polygons:
                                     video_entry["has_rois"] = True
 
+            # except Exception justified: pandas parquet I/O — heterogeneous data errors
             except Exception as e:
                 log.warning("project.set_active.load_failed", error=str(e))
 
@@ -427,6 +428,7 @@ class ProjectManager:
                         if "rois" in exported:
                             video_entry["has_rois"] = True
 
+                # except Exception justified: pandas data pipeline — heterogeneous failures
                 except Exception as e:
                     log.error("project.save_zone_data.parquet_export_failed", error=str(e))
 
@@ -812,6 +814,7 @@ class ProjectManager:
                 exc_info=True,
             )
             return False
+        # except Exception justified: pandas parquet I/O — heterogeneous data errors
         except Exception as e:
             # Catch pandas parquet errors and other unforeseen issues
             log.error(
@@ -1260,6 +1263,7 @@ class ProjectManager:
                             subject_pattern=custom_patterns.get("subject_pattern"),
                         )
 
+                # except Exception justified: legacy data migration — unknown data format variants
                 except Exception as e:
                     log.error(
                         "project.create.multi_aquarium_conversion_failed",
@@ -1631,6 +1635,7 @@ class ProjectManager:
                 path=self.project_path,
                 cause=e,
             ) from e
+        # except Exception justified: project persistence boundary — heterogeneous I/O
         except Exception as e:
             log.error("project.save.unexpected_error", path=self.project_path, exc_info=e)
             raise ProjectInvalidError(
@@ -1942,7 +1947,7 @@ class ProjectManager:
                             results_dir=str(results_path),
                         )
                         changed = True
-                    except Exception as e:
+                    except OSError as e:
                         log.warning(
                             "project_manager.results_dir_delete_failed",
                             results_dir=str(results_path),
@@ -1965,7 +1970,7 @@ class ProjectManager:
                     shutil.rmtree(video_dir, ignore_errors=True)
                     log.info("project_manager.video_folder_deleted", folder=str(video_dir))
                     changed = True
-                except Exception as e:
+                except OSError as e:
                     log.warning("project_manager.folder_cleanup_failed", error=str(e))
 
             # v2.3.2: Delete multi-aquarium output directories if present
@@ -1983,7 +1988,7 @@ class ProjectManager:
                                     aquarium=aq_key,
                                     results_dir=str(aq_results_path),
                                 )
-                            except Exception as e:
+                            except OSError as e:
                                 log.warning(
                                     "project_manager.multi_aquarium_results_dir_delete_failed",
                                     aquarium=aq_key,
@@ -2117,7 +2122,7 @@ class ProjectManager:
                                 video=filename,
                                 metadata=metadata,
                             )
-                except Exception as e:
+                except (re.error, ValueError, KeyError) as e:
                     log.debug("project.metadata.regex_derivation_failed", error=str(e))
 
         metadata.setdefault("experiment_id", experiment_id)
@@ -2863,6 +2868,7 @@ class ProjectManager:
                         has_rois=has_rois,
                         parquet_count=len(exported) if exported else 0,
                     )
+            # except Exception justified: pandas data pipeline — heterogeneous failures
             except Exception as e:
                 log.error("project_manager.multi_aquarium.parquet_export_failed", error=str(e))
 
@@ -2963,6 +2969,7 @@ class ProjectManager:
                     path=metadata_path,
                     error=str(e),
                 )
+            # except Exception justified: pandas parquet I/O — heterogeneous data errors
             except Exception as e:
                 # Catch pandas-specific errors and other unforeseen issues
                 self.metadata = None

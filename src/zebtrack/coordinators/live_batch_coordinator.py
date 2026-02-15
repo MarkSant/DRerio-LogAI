@@ -366,7 +366,7 @@ class LiveBatchCoordinator:
 
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: complex multi-subsystem pipeline
             self.logger.error(
                 "live_batch.unified_report.exception",
                 batch_id=batch.batch_id,

@@ -193,7 +193,7 @@ if __name__ == "__main__":
         print(f"   Created: {type(camera_source).__name__}")
         print(f"   Properties: {camera_source.get_properties()}")
         camera_source.release()
-    except Exception as e:
+    except (OSError, RuntimeError) as e:
         print(f"   Error: {e}")
 
     # Test 2: Create from dict config (camera with duration)
@@ -207,7 +207,7 @@ if __name__ == "__main__":
         print(f"   Created: {type(live_source).__name__}")
         print(f"   Properties: {live_source.get_properties()}")
         live_source.release()
-    except Exception as e:
+    except (OSError, RuntimeError) as e:
         print(f"   Error: {e}")
 
     # Test 3: Create from video file (if test video exists)
@@ -219,7 +219,7 @@ if __name__ == "__main__":
             print(f"   Created: {type(video_source).__name__}")
             print(f"   Properties: {video_source.get_properties()}")
             video_source.release()
-        except Exception as e:
+        except (OSError, RuntimeError) as e:
             print(f"   Error: {e}")
     else:
         print(f"   Skipped (test video not found: {test_video})")

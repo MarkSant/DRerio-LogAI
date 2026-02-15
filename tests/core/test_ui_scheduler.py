@@ -5,6 +5,7 @@ Phase 4: UI Coordination Consolidation tests for UI scheduling,
 event bus integration, and convenience methods.
 """
 
+import tkinter as tk
 import unittest
 from unittest.mock import Mock
 
@@ -281,7 +282,7 @@ class TestUISchedulerErrorHandling(unittest.TestCase):
     def test_schedule_handles_after_exception(self):
         """Test that schedule handles root.after exceptions gracefully."""
         mock_root = Mock()
-        mock_root.after.side_effect = Exception("Tk error")
+        mock_root.after.side_effect = tk.TclError("Tk error")
         coordinator = UIScheduler(root=mock_root)
 
         mock_func = Mock()
@@ -301,7 +302,7 @@ class TestUISchedulerErrorHandling(unittest.TestCase):
     def test_schedule_after_handles_exception(self):
         """Test that schedule_after handles exceptions gracefully."""
         mock_root = Mock()
-        mock_root.after.side_effect = Exception("Tk error")
+        mock_root.after.side_effect = tk.TclError("Tk error")
         coordinator = UIScheduler(root=mock_root)
 
         result = coordinator.schedule_after(100, Mock())
@@ -311,7 +312,7 @@ class TestUISchedulerErrorHandling(unittest.TestCase):
     def test_cancel_scheduled_handles_exception(self):
         """Test that cancel_scheduled handles exceptions gracefully."""
         mock_root = Mock()
-        mock_root.after_cancel.side_effect = Exception("Cancel error")
+        mock_root.after_cancel.side_effect = tk.TclError("Cancel error")
         coordinator = UIScheduler(root=mock_root)
 
         # Should not raise error

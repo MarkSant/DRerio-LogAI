@@ -41,7 +41,7 @@ def test_context_manager_restore_failure_is_suppressed():
 
     def failing_set_context(value: str) -> None:
         if value == "default":
-            raise RuntimeError("restore failed")
+            raise AttributeError("restore failed")
         detector._context = value
 
     detector.set_context.side_effect = failing_set_context

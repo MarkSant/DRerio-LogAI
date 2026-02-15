@@ -668,6 +668,7 @@ class VideoOrchestrator:
             if video_info.get("has_arena") or video_info.get("has_rois"):
                 try:
                     zone_data = ProjectManager.load_zones_from_parquet(video_info)
+                # except Exception justified: pandas parquet - heterogeneous errors
                 except Exception as exc:
                     log.warning(
                         "video_orchestrator.zone_load.failed",

@@ -223,6 +223,7 @@ class WizardService:
                                 with lock:
                                     result["success"] = ret
                                     result["frame"] = frame
+                            # except Exception justified: cv2 camera probe - hardware I/O
                             except Exception as e:
                                 log.warning(
                                     "wizard_service.camera_read_exception",
@@ -329,6 +330,7 @@ class WizardService:
                             )
                             break
 
+                # except Exception justified: cv2 VideoCapture probe per index — hardware-dependent
                 except Exception as e:
                     log.debug("wizard_service.detect_cameras.error", index=i, error=str(e))
                     consecutive_failures += 1
@@ -427,7 +429,7 @@ class WizardService:
                     # Ensure we still list raw ports if probe yielded nothing
                     try:
                         fallback_ports = list(serial.tools.list_ports.comports())
-                    except Exception:
+                    except OSError:
                         fallback_ports = []
 
                 for port in fallback_ports:
@@ -450,6 +452,7 @@ class WizardService:
                 handshake_count=len(handshake_ports),
             )
 
+        # except Exception justified: serial probing + handshake — hardware I/O boundary
         except Exception as e:
             log.warning("wizard_service.detect_arduino.error", error=str(e))
 
@@ -729,7 +732,7 @@ class WizardService:
                     if hasattr(config, "get")
                     else getattr(config, "enabled", False)
                 )
-            except Exception:
+            except (AttributeError, TypeError):
                 errors.append("Configuração multi-aquário inválida")
                 return False, errors, warnings
         else:

@@ -340,6 +340,7 @@ class Detector:
                             iou_threshold=iou_thresh,
                             single_animal_mode=True,
                         )
+                    # except Exception justified: ByteTrack init - heterogeneous errors
                     except Exception as e:
                         log.error(
                             "detector.bytetracker_init_failed",
@@ -1562,6 +1563,7 @@ class Detector:
                     if aq.id in self._single_subject_trackers_multi:
                         del self._single_subject_trackers_multi[aq.id]
 
+                # except Exception justified: ByteTrack init - heterogeneous errors
                 except Exception as e:
                     log.error(
                         "detector.multi_aquarium.bytetracker_init_failed",
@@ -1713,6 +1715,7 @@ class Detector:
 
             self._multi_tracker_params = params if params is not None else None
 
+        # except Exception justified: YOLO inference — heterogeneous ML framework errors
         except Exception as e:
             # Rollback: clear partially created trackers
             new_byte_trackers.clear()
@@ -2160,6 +2163,7 @@ class Detector:
                     )
 
                 return aq_id, adjusted, None
+            # except Exception justified: zone/ROI processing — heterogeneous geometry errors
             except Exception as e:
                 # Log but don't raise - allow other aquariums to continue
                 log.warning(
@@ -2218,6 +2222,7 @@ class Detector:
                         results[aq_id] = offset_tracked
                     else:
                         results[aq_id] = []
+                # except Exception justified: zone/ROI processing — heterogeneous geometry errors
                 except Exception as e:
                     # Handle executor-level failures
                     aq_id = futures[future]

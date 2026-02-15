@@ -151,6 +151,7 @@ class Camera(FrameSource):
                     # become a garbage-collected Mock or None, raising
                     # AttributeError/TypeError. Exit the loop gracefully.
                     break
+        # except Exception justified: reader thread catch-all — cv2 GC/shutdown race conditions
         except Exception:
             # v2.3: Catch-all for any shutdown/GC race conditions
             log.debug("camera.reader_thread.shutdown_race", exc_info=True)
@@ -160,12 +161,14 @@ class Camera(FrameSource):
                 if hasattr(self, "cap") and self.cap is not None and self.cap.isOpened():
                     self.cap.release()
                     log.info("camera.released_by_reader_thread")
+            # except Exception justified: cap.release() during shutdown — cv2 errors unpredictable
             except Exception:
                 # v2.3: Log errors during cleanup (GC/shutdown)
                 log.debug("camera.cleanup.release_error", exc_info=True)
 
         try:
             log.info("camera.reader_thread.stopped")
+        # except Exception justified: logging during thread teardown — structlog may be torn down
         except Exception:
             log.debug("camera.reader_thread.stopped_log_error", exc_info=True)
 
@@ -390,6 +393,7 @@ class Camera(FrameSource):
             try:
                 if self.cap.isOpened():
                     self.cap.release()
+            # except Exception justified: camera close after timeout
             except Exception as e:
                 log.error("camera.release.force_close_failed", error=str(e))
 
@@ -407,6 +411,7 @@ class Camera(FrameSource):
                 if self.cap.isOpened():
                     self.cap.release()
                     log.info("camera.released")
+            # except Exception justified: normal cap.release() in shutdown — cv2 errors in cleanup
             except Exception as e:
                 log.error("camera.release.normal_close_failed", error=str(e))
 
@@ -433,6 +438,7 @@ class Camera(FrameSource):
         """
         try:
             self.release()
+        # except Exception justified: context manager exit — wraps release() facade boundary
         except Exception as e:
             log.warning("camera.cleanup.failed", error=str(e))
         return False  # Don't suppress exceptions

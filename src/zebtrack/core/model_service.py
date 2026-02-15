@@ -74,6 +74,7 @@ class ModelService:
             self.weight_manager.convert_to_openvino(weight_name)
             log.info("model_service.convert_success", weight=weight_name)
             return True
+        # except Exception justified: YOLO/OpenVINO model operations — heterogeneous ML errors
         except Exception as e:
             log.error(
                 "model_service.convert_failed",
@@ -550,6 +551,7 @@ class ModelService:
 
             return result
 
+        # except Exception justified: YOLO/OpenVINO model operations — heterogeneous ML errors
         except Exception as e:
             log.error(
                 "model_service.inspect.failed",

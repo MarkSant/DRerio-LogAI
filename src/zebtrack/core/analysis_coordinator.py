@@ -118,6 +118,7 @@ class AnalysisCoordinator:
             log.warning("analysis_coordinator.worker.cancelled")
         except FutureTimeoutError as exc:
             log.error("analysis_coordinator.worker.timeout", error=str(exc))
+        # except Exception justified: service boundary wrapping analysis subsystem
         except Exception as exc:
             # Last resort for unexpected errors in callback
             log.error("analysis_coordinator.worker.callback_error", error=str(exc), exc_info=True)

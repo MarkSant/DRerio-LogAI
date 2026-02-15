@@ -304,7 +304,7 @@ class HardwareCoordinator(BaseCoordinator):
 
             return success, error_message
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
                 "hardware_coordinator.setup_detector.exception",
                 error=str(e),
@@ -441,7 +441,7 @@ class HardwareCoordinator(BaseCoordinator):
 
             return success
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             # Fallback count calculation for error context
             count = 0
             if isinstance(zones_data, list):
@@ -560,7 +560,7 @@ class HardwareCoordinator(BaseCoordinator):
 
             return success
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
                 "hardware_coordinator.update_tracking_parameters.exception",
                 error=str(e),
@@ -671,7 +671,7 @@ class HardwareCoordinator(BaseCoordinator):
                 f"Parameter validation failed: {e}",
                 context={"params": params, "scope": scope},
             ) from e
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.error(
                 "hardware_coordinator.update_detector_parameters.failed",
                 error=str(e),
@@ -726,7 +726,7 @@ class HardwareCoordinator(BaseCoordinator):
             log.info("hardware_coordinator.reset_tracking_state.success")
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception("hardware_coordinator.reset_tracking_state.exception", error=str(e))
             raise HardwareCoordinatorError(
                 f"Failed to reset tracking state: {e}",
@@ -789,7 +789,7 @@ class HardwareCoordinator(BaseCoordinator):
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
                 "hardware_coordinator.set_single_subject_mode.exception",
                 error=str(e),
@@ -829,7 +829,7 @@ class HardwareCoordinator(BaseCoordinator):
             log.debug("hardware_coordinator.get_detector_parameters", params=params)
             return params
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception("hardware_coordinator.get_detector_parameters.exception", error=str(e))
             raise HardwareCoordinatorError(
                 f"Failed to get detector parameters: {e}",
@@ -865,7 +865,7 @@ class HardwareCoordinator(BaseCoordinator):
             log.debug("hardware_coordinator.get_factory_detector_parameters", params=params)
             return params
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
                 "hardware_coordinator.get_factory_detector_parameters.exception",
                 error=str(e),
@@ -930,7 +930,7 @@ class HardwareCoordinator(BaseCoordinator):
             )
             return True
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
                 "hardware_coordinator.restore_detector_settings.exception",
                 error=str(e),
@@ -975,7 +975,7 @@ class HardwareCoordinator(BaseCoordinator):
         if self.is_detector_initialized():
             try:
                 params = self.get_detector_parameters()
-            except Exception as e:
+            except Exception as e:  # except Exception justified: non-critical fallback
                 log.warning(
                     "hardware_coordinator.get_detector_info.params_unavailable",
                     error=str(e),
@@ -1081,7 +1081,7 @@ class HardwareCoordinator(BaseCoordinator):
                     try:
                         shutil.rmtree(ov_path, ignore_errors=True)
                         log.info("diagnostic.openvino.corrupted_directory_removed", path=ov_path)
-                    except Exception as e:
+                    except OSError as e:
                         log.warning(
                             "diagnostic.openvino.cleanup_failed", path=ov_path, error=str(e)
                         )
@@ -1198,7 +1198,7 @@ class HardwareCoordinator(BaseCoordinator):
             # DiagnosticAbortError is raised to abort diagnostics (e.g., user cancellation).
             # No further action needed; abort is intentional and handled gracefully.
             pass
-        except Exception as e:
+        except Exception as e:  # except Exception justified: ML inference heterogeneous errors
             log.error("diagnostic.thread.load_error", exc_info=True)
             self._finish_progress_dialog(progress_dialog)
             if self.event_bus:
@@ -1244,7 +1244,7 @@ class HardwareCoordinator(BaseCoordinator):
             if hasattr(progress_dialog, "destroy"):
                 try:
                     progress_dialog.destroy()
-                except Exception as e:
+                except Exception as e:  # except Exception justified: cross-platform Tk teardown
                     log.warning("hardware_coordinator.finish_progress.error", error=str(e))
 
         self.root.after(0, _finish)

@@ -208,7 +208,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                 video_path=str(video_path),
             )
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: event handler fault isolation
             log.error(
                 "aquarium_config_update.failed",
                 aquarium_id=aquarium_id,
@@ -325,6 +325,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                     if not success:
                         self.logger.error("project.create.detector_setup_failed", error=error)
                     return success
+                # except Exception justified: ML inference heterogeneous errors
                 except Exception as e:
                     self.logger.error("project.create.detector_setup_failed", error=str(e))
                     return False
@@ -374,7 +375,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                             params=detector_params,
                             scope="project",
                         )
-                    except Exception as e:
+                    except Exception as e:  # except Exception justified: non-critical fallback
                         self.logger.warning("project.create.wizard_overrides_failed", error=str(e))
 
         # Delegate to adapter which handles all UI coordination
@@ -449,6 +450,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                     if not success:
                         self.logger.error("project.open.detector_setup_failed", error=error)
                     return success
+                # except Exception justified: ML inference heterogeneous errors
                 except Exception as e:
                     self.logger.error("project.open.detector_setup_failed", error=str(e))
                     return False
@@ -479,7 +481,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             if self.detector_service and settings:
                 try:
                     self.detector_service.restore_detector_settings(settings)
-                except Exception as e:
+                except Exception as e:  # except Exception justified: non-critical fallback
                     self.logger.warning("project.open.restore_detector_failed", error=str(e))
 
         def _default_get_active_weight_name() -> str:

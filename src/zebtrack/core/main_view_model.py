@@ -651,6 +651,7 @@ class MainViewModel:
         if camera:
             try:
                 camera_release_success = bool(camera.release())
+            # except Exception justified: service orchestration boundary
             except Exception as exc:
                 camera_release_success = False
                 log.error("controller.camera.release_failed", error=str(exc))
@@ -777,6 +778,7 @@ class MainViewModel:
             if service and hasattr(service, "_on_project_manager_replaced"):
                 try:
                     service._on_project_manager_replaced(data)
+                # except Exception justified: service orchestration boundary
                 except Exception as e:
                     log.error(
                         "main_view_model.project_manager_replaced.service_update_failed",
@@ -786,7 +788,7 @@ class MainViewModel:
             elif service and hasattr(service, "project_manager"):
                 try:
                     service.project_manager = new_manager
-                except Exception as e:
+                except AttributeError as e:
                     log.error(
                         "main_view_model.project_manager_replaced.direct_update_failed",
                         service=name,
