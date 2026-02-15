@@ -93,3 +93,7 @@ docs/api/build/
 
 .gemini/
 gha-creds-*.json
+
+# Test/runtime artifacts
+.hypothesis/
+kernel.errors.txt
