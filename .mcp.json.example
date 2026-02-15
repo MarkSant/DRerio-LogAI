@@ -1,11 +1,3 @@
 {
-  "mcpServers": {
-    "comment": "Model Context Protocol (MCP) server configuration for VS Code Copilot",
-    "instructions": [
-      "Copy this file to .mcp.json and configure your MCP servers",
-      "Note: Docker MCP gateway requires Docker Desktop with MCP support",
-      "As of Docker 29.1.5, the 'docker mcp gateway' command is not available",
-      "If you have a newer version with MCP support, you can uncomment the configuration below"
-    ]
-  }
+  "mcpServers": {}
 }

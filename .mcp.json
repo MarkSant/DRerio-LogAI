@@ -1,5 +1,3 @@
 {
-  "mcpServers": {
-    "comment": "Docker MCP gateway removed due to schema errors. Add MCP servers here as needed."
-  }
+  "mcpServers": {}
 }
