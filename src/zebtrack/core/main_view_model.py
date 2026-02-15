@@ -106,7 +106,6 @@ class MainViewModel:
             Events.PROJECT_CLOSE: (self.project_vm.close_project, [], "no_params"),
             # NOTE: PROJECT_PROCESS_VIDEOS is handled by ProcessingCoordinator
             # which properly accepts video_paths parameter
-            Events.PROJECT_ADD_VIDEOS: (self.project_vm.add_videos_to_project, [], "no_params"),
             Events.MODEL_SET_OPENVINO: (self.hardware_vm.set_openvino_usage, [], "kwargs_all"),
             Events.MODEL_SET_WEIGHT: (self.hardware_vm.set_active_weight, [], "kwargs_all"),
             Events.MODEL_RUN_DIAGNOSTIC: (
@@ -238,7 +237,7 @@ class MainViewModel:
         self.cancel_event = result.cancel_event
 
         # Legacy Orchestrators
-        self.video_processing_orchestrator = result.video_processing_orchestrator
+        # Phase 0.3: VideoProcessingOrchestrator removed (migrated to ProcessingCoordinator)
         self.ui_state_controller = result.ui_state_controller
         # Phase 3A/B/C/D: Removed superseded orchestrators (see BootstrapResult)
 
@@ -357,9 +356,6 @@ class MainViewModel:
     def start_project_processing_workflow(self) -> None:
         self.analysis_vm.start_project_processing_workflow()
 
-    def add_videos_to_project(self) -> None:
-        self.project_vm.add_videos_to_project()
-
     def run_model_diagnostic(self, config: dict) -> None:
         self.hardware_vm.run_model_diagnostic(config)
 
@@ -439,8 +435,7 @@ class MainViewModel:
         """Binds all UI events."""
         if self._use_event_bus:
             self._register_event_handlers()
-            if self.video_processing_orchestrator:
-                self.video_processing_orchestrator.register_event_handlers()
+            # Phase 0.3: VideoProcessingOrchestrator.register_event_handlers was no-op, removed
             if self.processing_coordinator:
                 self.processing_coordinator.register_event_handlers()
 
@@ -774,7 +769,7 @@ class MainViewModel:
         ]
 
         orchestrators_to_update = [
-            ("video_processing_orchestrator", self.video_processing_orchestrator),
+            # Phase 0.3: VideoProcessingOrchestrator removed
             # Phase 3A/B/C/D: Removed superseded orchestrators
         ]
 

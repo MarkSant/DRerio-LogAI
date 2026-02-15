@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -73,29 +73,6 @@ def test_on_video_selected_sets_active_zone_video(view_model):
     view_model.on_video_selected("/video.mp4")
 
     view_model.project_manager.set_active_zone_video.assert_called_once_with("/video.mp4")
-
-
-def test_add_videos_to_project_without_project(view_model):
-    view_model.project_manager.project_path = None
-
-    view_model.add_videos_to_project()
-
-    view_model.ui_event_bus.publish_event.assert_called_once_with(
-        Events.UI_SHOW_WARNING,
-        {
-            "title": "Nenhum Projeto",
-            "message": "Crie ou abra um projeto antes de adicionar vídeos.",
-        },
-    )
-
-
-def test_add_videos_to_project_empty_selection(view_model):
-    view_model.project_manager.project_path = "/project"
-
-    with patch("tkinter.filedialog.askopenfilenames", return_value=()):
-        view_model.add_videos_to_project()
-
-    view_model.ui_event_bus.publish_event.assert_not_called()
 
 
 def test_handle_delete_project_asset_delegates(view_model):

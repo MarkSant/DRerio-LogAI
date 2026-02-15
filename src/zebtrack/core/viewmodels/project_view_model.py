@@ -59,40 +59,6 @@ class ProjectViewModel:
         if self.project_manager:
             self.project_manager.set_active_zone_video(video_path)
 
-    def add_videos_to_project(self):
-        """Adds videos to the current project via file dialog."""
-        if not self.project_manager.project_path:
-            if self.ui_event_bus:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SHOW_WARNING,
-                    {
-                        "title": "Nenhum Projeto",
-                        "message": "Crie ou abra um projeto antes de adicionar vídeos.",
-                    },
-                )
-            return
-
-        from tkinter import filedialog
-
-        file_paths = filedialog.askopenfilenames(
-            title="Adicionar Vídeos ao Projeto",
-            filetypes=[("Arquivos de Vídeo", "*.mp4 *.avi *.mov *.mkv")],
-        )
-
-        if not file_paths:
-            return
-
-        # Note: add_video is deprecated - videos are added through wizard/scan
-        # for path in file_paths:
-        #     if self.project_manager.add_video(path):
-        #         added_count += 1
-
-        # TODO: Implement proper video addition via project workflow
-        log.warning(
-            "project_view_model.add_videos_deprecated",
-            message="Direct video addition is deprecated. Use wizard workflow.",
-        )
-
     def handle_delete_project_asset(self, video_path: str, asset: str, delete_source: bool = False):
         if self.project_lifecycle_coordinator:
             self.project_lifecycle_coordinator.delete_project_asset(

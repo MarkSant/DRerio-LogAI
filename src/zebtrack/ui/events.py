@@ -129,7 +129,6 @@ class Events:
     PROJECT_CLOSED = "project:closed"  # Internal event after project is closed
     PROJECT_MANAGER_REPLACED = "project:manager_replaced"  # Internal event for service updates
     PROJECT_PROCESS_VIDEOS = "project:process_videos"
-    PROJECT_ADD_VIDEOS = "project:add_videos"
     PROJECT_GENERATE_SUMMARIES = "project:generate_summaries"
     PROJECT_APPLY_SETTINGS = "project:apply_settings_to_batch"
     PROJECT_DELETE_ASSET = "project:delete_asset"
