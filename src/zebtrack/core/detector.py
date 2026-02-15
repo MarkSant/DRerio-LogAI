@@ -677,9 +677,6 @@ class Detector:
         width = self._last_width or self.base_width
         frame_shape = (height, width, 3)
 
-        # TODO: Implement proper multi-aquarium tracking dispatch if needed here
-        # Currently _apply_byte_tracking seems designed for single/global context
-
         if self.settings and self.settings.tracking.use_bytetrack:
             tracks = self._apply_byte_tracking(predictions, frame_shape)
         else:
