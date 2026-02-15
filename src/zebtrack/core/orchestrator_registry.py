@@ -32,7 +32,8 @@ class OrchestratorRegistry:
 
     Attributes:
         ui_state: UIStateController (23 facades removidos)
-        video_processing: VideoProcessingOrchestrator (7 facades removidos)
+        video_processing: VideoProcessingOrchestrator | None
+            (Phase 0.3: migrated to ProcessingCoordinator)
         live_camera: LiveCameraCoordinator (1 facade removido)
 
     Removed in Phase 3A/3B/3C/3D (superseded by Super Coordinators):
@@ -48,14 +49,15 @@ class OrchestratorRegistry:
     def __init__(
         self,
         ui_state_controller: "UIStateController",
-        video_processing_orchestrator: "VideoProcessingOrchestrator",
-        live_camera_coordinator: "LiveCameraCoordinator",
+        video_processing_orchestrator: "VideoProcessingOrchestrator | None" = None,
+        live_camera_coordinator: "LiveCameraCoordinator | None" = None,
     ):
         """Initialize registry with all orchestrators.
 
         Args:
             ui_state_controller: Controller para estado da UI
-            video_processing_orchestrator: Orchestrator para processamento de vídeo
+            video_processing_orchestrator: DEPRECATED (Phase 0.3)
+                Migrated to ProcessingCoordinator
             live_camera_coordinator: Coordinator para câmera ao vivo
         """
         # Atribuir com nomes curtos e descritivos

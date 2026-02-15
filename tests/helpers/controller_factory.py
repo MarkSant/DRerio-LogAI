@@ -179,8 +179,6 @@ def create_test_controller(root, **overrides):
     else:
         project_workflow_adapter = overrides.get("project_workflow_adapter", MagicMock())
 
-    video_processing_orchestrator = overrides.get("video_processing_orchestrator", MagicMock())
-
     # Configure event dispatcher with event bus
     event_bus = overrides.get("event_bus", MagicMock())
     event_dispatcher = overrides.get("event_dispatcher", MagicMock())
@@ -212,7 +210,7 @@ def create_test_controller(root, **overrides):
         # Use a real threading.Event so thread lifecycle tests behave correctly
         cancel_event=cancel_event,
         view=MagicMock(),  # Added missing view argument
-        video_processing_orchestrator=video_processing_orchestrator,
+        video_processing_orchestrator=None,  # Phase 0.3: Migrated to ProcessingCoordinator
         ui_state_controller=overrides.get("ui_state_controller", MagicMock()),
         # Phase 3A/3B/3C/3D/3E: Removed unused orchestrators (superseded by Super Coordinators)
         legacy_coordinators={

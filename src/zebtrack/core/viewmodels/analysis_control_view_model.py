@@ -26,7 +26,6 @@ class AnalysisControlViewModel:
         bootstrap_result: BootstrapResult,
         event_bus: Any,
     ) -> None:
-        self.video_processing_orchestrator = bootstrap_result.video_processing_orchestrator
         self.video_processing_service = dependencies.video_processing_service
         self.processing_coordinator = dependencies.processing_coordinator
         self.session_coordinator = dependencies.session_coordinator
@@ -50,11 +49,13 @@ class AnalysisControlViewModel:
         return self.state_manager.get_processing_state().is_processing
 
     def start_project_processing_workflow(self) -> None:
-        # TODO Phase 3.4: Migrate to ProcessingCoordinator after extracting dialog logic
-        # This method involves complex UI interaction (file picker, zone dialogs)
-        # that needs to be factored out before migration
-        if self.video_processing_orchestrator:
-            self.video_processing_orchestrator.start_project_processing_workflow()
+        """Start the project-level processing workflow.
+
+        Delegates to ProcessingCoordinator which handles file selection,
+        zone validation, and batch video processing.
+        """
+        if self.processing_coordinator:
+            self.processing_coordinator.start_project_processing_workflow()
 
     def start_single_video_workflow(
         self, video_path: str | Path, config: dict[str, Any], detector_vm: Any | None = None

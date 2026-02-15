@@ -555,6 +555,10 @@ def main():  # noqa: C901
         processing_coordinator.view = controller.view  # type: ignore[attr-defined]
         session_coordinator.view = controller.view  # type: ignore[attr-defined]
 
+        # Phase 0.3: Inject dialog_coordinator into ProcessingCoordinator
+        # (created by ApplicationBootstrapper, injected post-construction like view)
+        processing_coordinator.dialog_coordinator = bootstrap_result.dialog_coordinator
+
         # Bind events
         controller.bind_events()
 

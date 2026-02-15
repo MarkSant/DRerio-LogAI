@@ -38,7 +38,6 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.analysis_coordinator = None  # type: ignore
             controller.hardware_coordinator = None  # type: ignore
             controller.processing_coordinator = None  # type: ignore
-            controller.video_processing_orchestrator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
             controller.processing_config_orchestrator = None  # type: ignore
@@ -70,7 +69,6 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.analysis_coordinator = None  # type: ignore
             controller.hardware_coordinator = None  # type: ignore
             controller.processing_coordinator = None  # type: ignore
-            controller.video_processing_orchestrator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
             controller.processing_config_orchestrator = None  # type: ignore
@@ -95,7 +93,6 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.analysis_coordinator = None  # type: ignore
             controller.hardware_coordinator = None  # type: ignore
             controller.processing_coordinator = None  # type: ignore
-            controller.video_processing_orchestrator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
             controller.processing_config_orchestrator = None  # type: ignore
@@ -125,7 +122,6 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.analysis_coordinator = None  # type: ignore
             controller.hardware_coordinator = None  # type: ignore
             controller.processing_coordinator = None  # type: ignore
-            controller.video_processing_orchestrator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
             controller.processing_config_orchestrator = None  # type: ignore

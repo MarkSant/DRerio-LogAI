@@ -135,7 +135,7 @@ def mock_bootstrap_result():
     }
 
     # Mocks for orchestrators (Phase 3A/3B/3C/3D: Removed superseded orchestrators)
-    result.video_processing_orchestrator = Mock()
+    # Phase 0.3: video_processing_orchestrator removed (migrated to ProcessingCoordinator)
     result.ui_state_controller = Mock()
 
     # Mocks for services

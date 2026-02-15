@@ -41,7 +41,6 @@ def view_model():
         settings_obj=settings,
     )
     bootstrap_result = SimpleNamespace(
-        video_processing_orchestrator=Mock(),
         analysis_service=Mock(),
         ui_state_controller=Mock(),
         recorder=Mock(),

@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from threading import Event
 
     from zebtrack.analysis.analysis_service import AnalysisService
+    from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
     from zebtrack.core.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
@@ -163,6 +164,7 @@ class ProcessingCoordinator(BaseCoordinator):
         analysis_service: AnalysisService | None = None,
         recorder_factory: RecorderFactory | None = None,
         event_bus: EventBus | None = None,
+        dialog_coordinator: DialogCoordinator | None = None,
         # UI components (for callbacks)
         view: Any = None,
         root: Any = None,
@@ -185,6 +187,7 @@ class ProcessingCoordinator(BaseCoordinator):
             analysis_service: Optional AnalysisService
             recorder_factory: Optional RecorderFactory
             event_bus: Optional EventBus for publishing events
+            dialog_coordinator: Optional DialogCoordinator for UI dialog interactions
             view: Optional GUI view reference (for UI callbacks)
             root: Optional Tkinter root (for threading)
             detector: Optional detector instance (for zone setup)
@@ -201,6 +204,7 @@ class ProcessingCoordinator(BaseCoordinator):
         self.ui_state_controller = ui_state_controller
         self.cancel_event = cancel_event
         self.recorder_factory = recorder_factory
+        self.dialog_coordinator = dialog_coordinator
 
         # Services
         self.video_selection_service = video_selection_service
@@ -407,6 +411,125 @@ class ProcessingCoordinator(BaseCoordinator):
     # ========================================================================
     # Group A: Video Processing Workflows (VideoProcessingOrchestrator)
     # ========================================================================
+
+    def start_project_processing_workflow(self) -> None:
+        """Add and process videos with robust zone validation.
+
+        Migrated from VideoProcessingOrchestrator (Phase 3E → Phase 0.3).
+        Handles:
+        1. Validation via validate_can_start_processing()
+        2. Zone validation via DialogCoordinator
+        3. File picker for video selection
+        4. Scanning and batching via ProjectManager
+        5. Mixed data scenario handling via DialogCoordinator
+        6. Processing worker creation and thread start
+        """
+        log.info("workflow.project_processing.start")
+
+        coordinator = self
+        view = self.view
+        dialog_coordinator = self.dialog_coordinator
+
+        if not view:
+            log.error("workflow.project_processing.no_view")
+            return
+
+        if not dialog_coordinator:
+            log.error("workflow.project_processing.no_dialog_coordinator")
+            return
+
+        # Validate processing preconditions (project loaded, not already processing)
+        validation_result = coordinator.validate_can_start_processing(
+            check_project_loaded=True,
+            check_zones=False,  # Zone validation is complex with UI, handled below
+            check_videos_exist=False,
+        )
+
+        if not dialog_coordinator.handle_validation_error(validation_result):
+            return
+
+        # Validate zones with UI interaction (arena creation, ROI warnings)
+        if not dialog_coordinator.validate_zones_with_ui():
+            return
+
+        # 1. Ask user to select files or folders
+        paths = view.ask_open_filenames(
+            "Selecione Vídeos ou Pastas para Adicionar ao Projeto",
+            [
+                ("Todos os arquivos", "*.*"),
+                ("Arquivos de vídeo", "*.mp4 *.avi *.mov"),
+                ("Pastas", "*/"),
+            ],
+        )
+        if not paths:
+            return
+
+        # 2. Scan the inputs
+        scanned_videos = self.project_manager.scan_input_paths(paths)
+        if not scanned_videos:
+            if self.event_bus:
+                self.event_bus.publish_event(
+                    Events.UI_SHOW_WARNING,
+                    {
+                        "title": "Nenhum Vídeo Encontrado",
+                        "message": "Nenhum novo arquivo de vídeo foi encontrado nos caminhos selecionados.",  # noqa: E501
+                    },
+                )
+            return
+
+        # 3. Handle mixed data scenario (processed vs unprocessed videos)
+        videos_to_process = dialog_coordinator.handle_mixed_data_scenario(scanned_videos)
+        if videos_to_process is None:
+            return  # User cancelled or videos already added
+
+        if not videos_to_process:
+            if self.event_bus:
+                self.event_bus.publish_event(
+                    Events.UI_SHOW_INFO,
+                    {
+                        "title": "Processamento Concluído",
+                        "message": "Nenhum novo vídeo para processar.",
+                    },
+                )
+            return
+
+        # 4. Add the batch to the project
+        self.project_manager.add_video_batch(scanned_videos)
+
+        # 5. Process the videos that need it using worker
+        self.cancel_event.clear()
+
+        callbacks = coordinator.create_processing_callbacks(videos_to_process)
+        context = coordinator.create_processing_context(
+            videos_to_process, str(self.project_manager.project_path or "")
+        )
+
+        coordinator.processing_worker = ProcessingWorker(context, callbacks)
+        coordinator.processing_thread = coordinator.processing_worker.start_in_thread()
+
+        if self.ui_state_controller:
+            self.ui_state_controller.activate_analysis_view_mode()
+
+        # 6. Update statuses in project file
+        for video in videos_to_process:
+            self.project_manager.update_video_status(video["path"], "complete")
+
+        if self.event_bus:
+            self.event_bus.publish_event(
+                Events.UI_SHOW_INFO,
+                {
+                    "title": "Sucesso",
+                    "message": (
+                        f"{len(videos_to_process)} vídeo(s)"
+                        " adicionado(s) para processamento."
+                    ),
+                },
+            )
+
+        log.info(
+            "workflow.project_processing.started",
+            videos_count=len(videos_to_process),
+        )
 
     def register_event_handlers(self) -> None:
         """Subscribe to video processing events.

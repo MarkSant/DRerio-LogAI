@@ -45,14 +45,14 @@ from zebtrack.io.recorder import Recorder
 
 # Phase 3A/3B/3C/3D: Removed imports for superseded orchestrators
 from zebtrack.orchestrators.ui_state_controller import UIStateController
-from zebtrack.orchestrators.video_processing_orchestrator import VideoProcessingOrchestrator
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
 from zebtrack.ui.gui import ApplicationGUI
 from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 from zebtrack.utils.hardware_detection import get_hardware_summary, recommend_backend
 
 if TYPE_CHECKING:
-    pass
+    # Phase 0.3: Import only for type annotation (BootstrapResult field)
+    from zebtrack.orchestrators.video_processing_orchestrator import VideoProcessingOrchestrator
 
 log = structlog.get_logger()
 
@@ -90,14 +90,17 @@ class BootstrapResult:
     view: ApplicationGUI
 
     # Legacy Orchestrators (required)
-    video_processing_orchestrator: VideoProcessingOrchestrator
     ui_state_controller: UIStateController
-
-    # Phase 3D: Removed recording_session_orchestrator (superseded by SessionCoordinator)
 
     # Registry & Adapter
     orchestrators: OrchestratorRegistry
     project_workflow_adapter: ProjectWorkflowAdapter
+
+    # Phase 3E → Phase 0.3: VideoProcessingOrchestrator removed
+    # (migrated to ProcessingCoordinator.start_project_processing_workflow)
+    video_processing_orchestrator: VideoProcessingOrchestrator | None = None
+
+    # Phase 3D: Removed recording_session_orchestrator (superseded by SessionCoordinator)
 
     # Legacy Coordinators (created internally if not injected)
     legacy_coordinators: dict[str, Any] = field(default_factory=dict)
@@ -239,7 +242,7 @@ class ApplicationBootstrapper:
             program_exit_event=self._runtime_state["program_exit_event"],
             cancel_event=self._runtime_state["cancel_event"],
             view=self.view,
-            video_processing_orchestrator=self._orchestrators["video_processing_orchestrator"],
+            video_processing_orchestrator=None,  # Phase 0.3: Migrated to ProcessingCoordinator
             ui_state_controller=self._orchestrators["ui_state_controller"],
             orchestrators=self._orchestrators["registry"],
             project_workflow_adapter=self._orchestrators["project_workflow_adapter"],
@@ -568,8 +571,8 @@ class ApplicationBootstrapper:
         # Phase 3D: Removed RecordingSessionOrchestrator (superseded by SessionCoordinator)
         # Recording service callbacks are now handled by SessionCoordinator
 
-        video_processing_orchestrator = VideoProcessingOrchestrator(controller_proxy)
-        controller_proxy.video_processing_orchestrator = video_processing_orchestrator
+        # Phase 0.3: VideoProcessingOrchestrator removed
+        # (migrated to ProcessingCoordinator.start_project_processing_workflow)
 
         # Phase 3A/B/C/D: Removed superseded orchestrators (see BootstrapResult)
 
@@ -604,14 +607,13 @@ class ApplicationBootstrapper:
         # Phase 3D: Removed RecordingSessionOrchestrator (superseded by SessionCoordinator)
 
         self._orchestrators = {
-            "video_processing_orchestrator": video_processing_orchestrator,
             "ui_state_controller": ui_state_controller,
         }
 
         # Registry
         registry = OrchestratorRegistry(
             ui_state_controller=ui_state_controller,
-            video_processing_orchestrator=video_processing_orchestrator,
+            video_processing_orchestrator=None,  # Phase 0.3: Migrated to ProcessingCoordinator
             live_camera_coordinator=legacy_coords["live_camera_coordinator"],
         )
         self._orchestrators["registry"] = registry
