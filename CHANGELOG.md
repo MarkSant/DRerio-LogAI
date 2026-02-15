@@ -9,7 +9,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 🟢 New Features
+### � Refactored
+
+#### Phase 0 — Placeholder & Dead Code Cleanup (February 2026)
+
+##### Phase 0.1: Fix placeholder URL in About dialog
+
+- Replaced `YOUR_USERNAME` with `MarkSant` in GitHub/PyPI URLs
+  in `ui/components/menu_manager.py`
+
+##### Phase 0.2: Fix placeholder author metadata
+
+- Updated `pyproject.toml` author from
+  `"The Project Developers <placeholder@example.com>"` to
+  `"Marco A. S. Camargos <marco.sant@unesp.br>"`
+- Updated `CITATION.cff`: author name, ORCID (`0009-0000-0014-1485`),
+  and `repository-code` URL
+
+##### Phase 0.3 TODO 1: Remove dead `add_videos_to_project` code path
+
+- Removed `ProjectViewModel.add_videos_to_project()` (no UI emits event)
+- Removed `PROJECT_ADD_VIDEOS` event constant from `ui/events.py`
+- Removed proxy method and handler registration in `MainViewModel`
+- Removed 2 associated tests in `test_project_view_model.py`
+
+##### Phase 0.3 TODO 2: Migrate VideoProcessingOrchestrator → ProcessingCoordinator
+
+- Ported `start_project_processing_workflow()` (~120 lines) from
+  `VideoProcessingOrchestrator` into `ProcessingCoordinator`
+- Added `dialog_coordinator` param to `ProcessingCoordinator` constructor
+  (post-construction injection in `__main__.py`)
+- `AnalysisControlViewModel` now delegates to
+  `processing_coordinator.start_project_processing_workflow()`
+- Stubbed `VideoProcessingOrchestrator` with `DeprecationWarning`
+- Made `BootstrapResult.video_processing_orchestrator` optional (`None`)
+- Updated `OrchestratorRegistry` to accept optional `video_processing`
+- Migrated 6 tests to exercise `ProcessingCoordinator` directly
+- Updated 5 test/helper files to remove orchestrator mocks
+
+##### Phase 0.3 TODO 3: Remove stale comment in detector.py
+
+- Removed 2-line TODO comment about multi-aquarium tracking dispatch
+  (already handled by `detect_partitioned*` methods)
+
+### �🟢 New Features
 
 #### LiveBatchCoordinator v2.3.0 Integration (January 2026)
 
