@@ -31,6 +31,11 @@ hardening by injecting `secrets.CODECOV_TOKEN` into all Codecov upload steps in
 `ci.yml` (Linux core/gui and Windows core) while keeping `fail_ci_if_error: false`
 to avoid introducing hard failures before upload stability is fully observed.
 
+**2026-02-15 Follow-up (chat continuation):** Stabilized Codecov required patch
+status by replacing fixed patch target (`60%`) with `target: auto` in
+`codecov.yml`, preserving patch checks while avoiding brittle failures on
+low-signal infra/docs-heavy diffs.
+
 ### [2026-02-13] Batch UX, ROI template safeguards, processing-mode label, and unified reports hardening
 
 **ID:** TASK-029
