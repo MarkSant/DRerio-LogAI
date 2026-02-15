@@ -36,6 +36,13 @@ status by replacing fixed patch target (`60%`) with `target: auto` in
 `codecov.yml`, preserving patch checks while avoiding brittle failures on
 low-signal infra/docs-heavy diffs.
 
+**2026-02-15 Follow-up 2 (chat continuation):** Implemented second-phase
+Codecov hardening with OS/suite-specific flags to improve diagnostics and reduce
+cross-job coupling: CI uploads now use `core-linux`, `core-windows`, and
+`gui-linux`, and `codecov.yml` project statuses were split accordingly
+(`core_linux` required, `core_windows` informational, `gui_linux`
+informational), with explicit `flags` mapping and carryforward enabled.
+
 ### [2026-02-13] Batch UX, ROI template safeguards, processing-mode label, and unified reports hardening
 
 **ID:** TASK-029

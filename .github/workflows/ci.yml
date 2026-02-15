@@ -291,7 +291,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-core.xml
-          flags: core
+          flags: core-linux
           fail_ci_if_error: false
 
       - name: Upload Codecov gui coverage (Linux)
@@ -300,7 +300,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-gui.xml
-          flags: gui
+          flags: gui-linux
           fail_ci_if_error: false
 
       - name: Upload Codecov core coverage (Windows)
@@ -309,7 +309,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage-core.xml
-          flags: core
+          flags: core-windows
           fail_ci_if_error: false
 
       - name: Archive coverage results

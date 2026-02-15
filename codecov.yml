@@ -6,21 +6,39 @@ coverage:
   round: down
   status:
     project:
-      core:
+      core_linux:
         target: auto
         threshold: 1%
         if_ci_failed: error
         flags:
-          - core
-        # Ratchet: never allow coverage to decrease
-        # Auto target uses the base commit coverage as minimum
-      gui:
+          - core-linux
+      core_windows:
         target: auto
         threshold: 1%
         flags:
-          - gui
+          - core-windows
+        informational: true
+      gui_linux:
+        target: auto
+        threshold: 1%
+        flags:
+          - gui-linux
         informational: true
     patch:
       default:
         target: auto
         threshold: 1%
+
+flags:
+  core-linux:
+    paths:
+      - src/**
+    carryforward: true
+  core-windows:
+    paths:
+      - src/**
+    carryforward: true
+  gui-linux:
+    paths:
+      - src/zebtrack/ui/**
+    carryforward: true
