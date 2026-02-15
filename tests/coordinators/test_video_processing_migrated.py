@@ -154,9 +154,7 @@ def test_workflow_no_videos_found(coordinator_setup):
 
     coordinator.start_project_processing_workflow()
 
-    warning_events = [
-        evt for evt in event_bus.events if evt[0] == Events.UI_SHOW_WARNING
-    ]
+    warning_events = [evt for evt in event_bus.events if evt[0] == Events.UI_SHOW_WARNING]
     assert len(warning_events) == 1
     assert "Nenhum Vídeo Encontrado" in warning_events[0][1]["title"]
 
@@ -188,8 +186,6 @@ def test_workflow_processes_videos(coordinator_setup):
         coordinator.start_project_processing_workflow()
 
     # Should show success message
-    info_events = [
-        evt for evt in event_bus.events if evt[0] == Events.UI_SHOW_INFO
-    ]
+    info_events = [evt for evt in event_bus.events if evt[0] == Events.UI_SHOW_INFO]
     assert len(info_events) == 1
     assert "Sucesso" in info_events[0][1]["title"]

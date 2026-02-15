@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING, Any, cast
 import cv2
 import structlog
 
-from zebtrack.coordinators.base import BaseCoordinator, CoordinatorValidationError
+from zebtrack.coordinators.base_coordinator import BaseCoordinator, CoordinatorValidationError
 from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
 from zebtrack.core.state_manager import StateCategory
 from zebtrack.plugins import DETECTOR_PLUGINS

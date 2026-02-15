@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from unittest.mock import Mock
 
-from zebtrack.coordinators.base import (
+from zebtrack.coordinators.base_coordinator import (
     BaseCoordinator,
     CoordinatorDependencyError,
     CoordinatorError,
@@ -29,7 +29,7 @@ class ConcreteCoordinator(BaseCoordinator):
         self.validate_called = False
 
     def validate_dependencies(self) -> bool:
-        """Implement abstract method."""
+        """Override base default."""
         self.validate_called = True
         return True
 
@@ -59,17 +59,15 @@ def test_init_with_event_bus():
     print("✓ test_init_with_event_bus passed")
 
 
-def test_cannot_instantiate_base_coordinator():
-    """Should not allow instantiating BaseCoordinator directly."""
+def test_can_instantiate_base_coordinator_directly():
+    """BaseCoordinator is now concrete and can be instantiated directly."""
     state_manager = Mock(spec=StateManager)
-    from typing import Any, cast
 
-    try:
-        cast(Any, BaseCoordinator)(state_manager=state_manager)
-        raise AssertionError("Should have raised TypeError")
-    except TypeError as e:
-        assert "abstract" in str(e).lower()
-        print("✓ test_cannot_instantiate_base_coordinator passed")
+    coordinator = BaseCoordinator(state_manager=state_manager)
+
+    assert coordinator.state_manager is state_manager
+    assert coordinator.validate_dependencies() is True
+    print("✓ test_can_instantiate_base_coordinator_directly passed")
 
 
 def test_validate_dependencies_is_called():
@@ -250,7 +248,7 @@ if __name__ == "__main__":
     tests = [
         test_init_with_state_manager,
         test_init_with_event_bus,
-        test_cannot_instantiate_base_coordinator,
+        test_can_instantiate_base_coordinator_directly,
         test_validate_dependencies_is_called,
         test_update_state_calls_state_manager,
         test_publish_event_with_event_bus,

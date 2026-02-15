@@ -91,6 +91,52 @@ full debugging visibility without changing control flow.
 - Added `astral-sh/ruff-pre-commit` (v0.9.7) to `.pre-commit-config.yaml`
   with `ruff` (lint + auto-fix) and `ruff-format` hooks
 
+#### Phase 3 — Structural Unification (February 2026)
+
+Eliminated duplicate base classes, removed the legacy `orchestrators/`
+package, and cleaned dead deprecated fields.
+
+##### 3.1 Unified BaseCoordinator
+
+- Merged ABC-based `coordinators/base.py` (305 lines) features into
+  concrete `coordinators/base_coordinator.py` — single base class for
+  all 10 coordinators
+- `validate_dependencies()` changed from `@abstractmethod` to concrete
+  default (`return True`)
+- `_update_state(category, **kwargs)` signature preserved (31 call sites)
+- Exception hierarchy (`CoordinatorError`, `CoordinatorValidationError`,
+  `CoordinatorDependencyError`) consolidated in one module
+- Deleted `coordinators/base.py`; updated 6 coordinator imports + 7 test
+  files
+
+##### 3.2 Removed `orchestrators/` package
+
+- Moved `UIStateController` (653 lines) to
+  `coordinators/ui_state_coordinator.py`
+- Deleted `VideoProcessingOrchestrator` stub (62 lines, dead code)
+- Deleted `orchestrators/__init__.py`
+- Updated 7 production imports + 1 test import
+- Moved 2 test files to `tests/coordinators/`
+- Removed `video_processing` field from `OrchestratorRegistry`
+
+##### 3.3 Removed dead `project_coordinator` field
+
+- Removed dead `project_coordinator` field from
+  `MainViewModelDependencies`, `ApplicationBootstrapper` (proxy +
+  legacy dict), `MainViewModel`, and 2 test helpers
+- Relabelled remaining 5 deprecated fields as `# LEGACY: Migrate to X
+  (Phase 4)` to clarify they are still in active use
+
+##### 3.4 Cleaned `ApplicationBootstrapper`
+
+- Removed `VideoProcessingOrchestrator` TYPE_CHECKING import
+- Removed `video_processing_orchestrator` from `BootstrapResult`
+  dataclass and its construction sites
+- Removed empty `TYPE_CHECKING` block and unused `TYPE_CHECKING` import
+- Updated `OrchestratorRegistry` instantiation (removed
+  `video_processing_orchestrator=None`)
+- **2778 tests passing**, 12 skipped, 0 failures, lint clean
+
 #### Phase 2 — Narrow Generic Exception Catches (February 2026)
 
 Narrowed **~130 `except Exception`** blocks to specific exception types

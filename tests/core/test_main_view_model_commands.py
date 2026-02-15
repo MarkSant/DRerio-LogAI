@@ -129,7 +129,6 @@ def mock_bootstrap_result():
         "detector_coordinator": Mock(),
         "video_orchestrator": Mock(),
         "analysis_coordinator": Mock(),
-        "project_coordinator": Mock(),
         "recording_coordinator": Mock(),
         "live_camera_coordinator": Mock(),
     }

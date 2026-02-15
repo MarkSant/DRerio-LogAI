@@ -20,7 +20,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from zebtrack.coordinators.base import CoordinatorValidationError
+from zebtrack.coordinators.base_coordinator import CoordinatorValidationError
 from zebtrack.coordinators.live_camera_coordinator import (
     LiveCameraCoordinator,
     LiveCameraCoordinatorError,

@@ -376,10 +376,10 @@ def main():  # noqa: C901
         _t0_proc = time.perf_counter()
 
         # Import additional services for ProcessingCoordinator
+        from zebtrack.coordinators.ui_state_coordinator import UIStateController
         from zebtrack.core.video_classification_service import VideoClassificationService
         from zebtrack.core.video_selection_service import VideoSelectionService
         from zebtrack.core.video_validation_service import VideoValidationService
-        from zebtrack.orchestrators.ui_state_controller import UIStateController
 
         video_selection_service = VideoSelectionService()
         video_validation_service = VideoValidationService()

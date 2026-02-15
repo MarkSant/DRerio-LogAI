@@ -13,6 +13,7 @@ from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
 from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
 from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
 from zebtrack.coordinators.session_coordinator import SessionCoordinator
+from zebtrack.coordinators.ui_state_coordinator import UIStateController
 from zebtrack.core.detector_service import DetectorService
 from zebtrack.core.live_camera_service import LiveCameraService
 from zebtrack.core.model_service import ModelService
@@ -23,7 +24,6 @@ from zebtrack.core.state_manager import StateManager
 from zebtrack.core.ui_scheduler import UIScheduler
 from zebtrack.core.video_processing_service import VideoProcessingService
 from zebtrack.core.weight_manager import WeightManager
-from zebtrack.orchestrators.ui_state_controller import UIStateController
 from zebtrack.settings import Settings
 from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
@@ -72,14 +72,12 @@ class MainViewModelDependencies:
     project_workflow_adapter: ProjectWorkflowAdapter | None = None
     live_batch_coordinator: LiveBatchCoordinator | None = None  # v2.3.0
 
-    # Legacy coordinators (DEPRECATED - will be removed in Phase 4)
-    # Kept temporarily for backward compatibility during gradual migration
-    analysis_coordinator: Any = None  # DEPRECATED: Use processing_coordinator
-    video_orchestrator: Any = None  # DEPRECATED: Use processing_coordinator
-    recording_coordinator: Any = None  # DEPRECATED: Use session_coordinator
-    live_camera_coordinator: Any = None  # DEPRECATED: Use session_coordinator
-    detector_coordinator: Any = None  # DEPRECATED: Use hardware_coordinator
-    project_coordinator: Any = None  # DEPRECATED: Use project_lifecycle_coordinator
+    # LEGACY coordinators — still used at runtime; migrate consumers in Phase 4
+    analysis_coordinator: Any = None  # LEGACY: Migrate to processing_coordinator
+    video_orchestrator: Any = None  # LEGACY: Migrate to processing_coordinator
+    recording_coordinator: Any = None  # LEGACY: Migrate to session_coordinator
+    live_camera_coordinator: Any = None  # LEGACY: Migrate to session_coordinator
+    detector_coordinator: Any = None  # LEGACY: Migrate to hardware_coordinator
 
     # Runtime State
     cancel_event: Any = None

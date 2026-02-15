@@ -21,7 +21,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from zebtrack.coordinators.base import CoordinatorValidationError
+from zebtrack.coordinators.base_coordinator import CoordinatorValidationError
 from zebtrack.coordinators.project_coordinator import (
     ProjectCoordinator,
     ProjectCoordinatorError,

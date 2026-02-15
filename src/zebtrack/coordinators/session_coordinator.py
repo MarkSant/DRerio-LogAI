@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING, Any
 import cv2
 import structlog
 
-from zebtrack.coordinators.base import (
+from zebtrack.coordinators.base_coordinator import (
     BaseCoordinator,
     CoordinatorError,
     CoordinatorValidationError,

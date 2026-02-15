@@ -19,7 +19,7 @@ import os
 import queue
 import threading
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import structlog
 
@@ -30,6 +30,9 @@ from zebtrack.coordinators.detector_coordinator import DetectorCoordinator
 from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
 from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
 from zebtrack.coordinators.recording_coordinator import RecordingCoordinator
+
+# Phase 3A/3B/3C/3D: Removed imports for superseded orchestrators
+from zebtrack.coordinators.ui_state_coordinator import UIStateController
 from zebtrack.core.analysis_coordinator import AnalysisCoordinator
 from zebtrack.core.batch_configuration_service import BatchConfigurationService
 from zebtrack.core.dependency_container import MainViewModelDependencies
@@ -42,17 +45,10 @@ from zebtrack.core.video_selection_service import VideoSelectionService
 from zebtrack.core.video_validation_service import VideoValidationService
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
-
-# Phase 3A/3B/3C/3D: Removed imports for superseded orchestrators
-from zebtrack.orchestrators.ui_state_controller import UIStateController
 from zebtrack.ui.components.event_dispatcher import EventDispatcher
 from zebtrack.ui.gui import ApplicationGUI
 from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 from zebtrack.utils.hardware_detection import get_hardware_summary, recommend_backend
-
-if TYPE_CHECKING:
-    # Phase 0.3: Import only for type annotation (BootstrapResult field)
-    from zebtrack.orchestrators.video_processing_orchestrator import VideoProcessingOrchestrator
 
 log = structlog.get_logger()
 
@@ -95,12 +91,6 @@ class BootstrapResult:
     # Registry & Adapter
     orchestrators: OrchestratorRegistry
     project_workflow_adapter: ProjectWorkflowAdapter
-
-    # Phase 3E → Phase 0.3: VideoProcessingOrchestrator removed
-    # (migrated to ProcessingCoordinator.start_project_processing_workflow)
-    video_processing_orchestrator: VideoProcessingOrchestrator | None = None
-
-    # Phase 3D: Removed recording_session_orchestrator (superseded by SessionCoordinator)
 
     # Legacy Coordinators (created internally if not injected)
     legacy_coordinators: dict[str, Any] = field(default_factory=dict)
@@ -188,7 +178,6 @@ class ApplicationBootstrapper:
         controller_proxy.recording_coordinator = self.deps.recording_coordinator
         controller_proxy.live_camera_coordinator = self.deps.live_camera_coordinator
         controller_proxy.detector_coordinator = self.deps.detector_coordinator
-        controller_proxy.project_coordinator = self.deps.project_coordinator
         controller_proxy.video_orchestrator = self.deps.video_orchestrator
         controller_proxy.analysis_coordinator = self.deps.analysis_coordinator
         controller_proxy.ui_state_controller = self.deps.ui_state_controller
@@ -242,7 +231,6 @@ class ApplicationBootstrapper:
             program_exit_event=self._runtime_state["program_exit_event"],
             cancel_event=self._runtime_state["cancel_event"],
             view=self.view,
-            video_processing_orchestrator=None,  # Phase 0.3: Migrated to ProcessingCoordinator
             ui_state_controller=self._orchestrators["ui_state_controller"],
             orchestrators=self._orchestrators["registry"],
             project_workflow_adapter=self._orchestrators["project_workflow_adapter"],
@@ -515,13 +503,6 @@ class ApplicationBootstrapper:
             legacy_coords["analysis_coordinator"] = analysis_coord
         controller_proxy.analysis_coordinator = legacy_coords["analysis_coordinator"]
 
-        # Project Coordinator
-        if self.deps.project_coordinator:
-            legacy_coords["project_coordinator"] = self.deps.project_coordinator
-        else:
-            legacy_coords["project_coordinator"] = None
-        controller_proxy.project_coordinator = legacy_coords["project_coordinator"]
-
         # Recording Coordinator
         if self.deps.recording_coordinator:
             legacy_coords["recording_coordinator"] = self.deps.recording_coordinator
@@ -613,7 +594,6 @@ class ApplicationBootstrapper:
         # Registry
         registry = OrchestratorRegistry(
             ui_state_controller=ui_state_controller,
-            video_processing_orchestrator=None,  # Phase 0.3: Migrated to ProcessingCoordinator
             live_camera_coordinator=legacy_coords["live_camera_coordinator"],
         )
         self._orchestrators["registry"] = registry

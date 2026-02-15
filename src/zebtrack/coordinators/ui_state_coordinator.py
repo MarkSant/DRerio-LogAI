@@ -1,6 +1,7 @@
-"""UI state and controller logic extracted from MainViewModel.
+"""UI state coordinator — extracted from MainViewModel (Sprint 28).
 
-Sprint 28 - Extracted to reduce MainViewModel complexity.
+Moved from orchestrators.ui_state_controller to coordinators.ui_state_coordinator
+in Phase 3 structural unification.
 """
 
 from __future__ import annotations

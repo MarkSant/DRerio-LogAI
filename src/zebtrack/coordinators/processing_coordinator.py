@@ -51,6 +51,7 @@ if TYPE_CHECKING:
 
     from zebtrack.analysis.analysis_service import AnalysisService
     from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
+    from zebtrack.coordinators.ui_state_coordinator import UIStateController
     from zebtrack.core.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
@@ -59,7 +60,6 @@ if TYPE_CHECKING:
     from zebtrack.core.video_validation_service import VideoValidationService
     from zebtrack.core.weight_manager import WeightManager
     from zebtrack.io.recorder_factory import RecorderFactory
-    from zebtrack.orchestrators.ui_state_controller import UIStateController
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus
 

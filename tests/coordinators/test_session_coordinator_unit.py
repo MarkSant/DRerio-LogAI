@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from zebtrack.coordinators.base import CoordinatorValidationError
+from zebtrack.coordinators.base_coordinator import CoordinatorValidationError
 from zebtrack.coordinators.session_coordinator import SessionCoordinator
 from zebtrack.ui.events import Events
 

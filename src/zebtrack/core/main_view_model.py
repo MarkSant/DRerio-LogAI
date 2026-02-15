@@ -245,7 +245,6 @@ class MainViewModel:
         self.detector_coordinator = result.legacy_coordinators.get("detector_coordinator")
         self.video_orchestrator = result.legacy_coordinators.get("video_orchestrator")
         self.analysis_coordinator = result.legacy_coordinators.get("analysis_coordinator")
-        self.project_coordinator = result.legacy_coordinators.get("project_coordinator")
         self.recording_coordinator = result.legacy_coordinators.get("recording_coordinator")
         self.live_camera_coordinator = result.legacy_coordinators.get("live_camera_coordinator")
 

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from zebtrack.coordinators.base import CoordinatorValidationError
+from zebtrack.coordinators.base_coordinator import CoordinatorValidationError
 from zebtrack.coordinators.detector_coordinator import (
     DetectorCoordinator,
     DetectorCoordinatorError,

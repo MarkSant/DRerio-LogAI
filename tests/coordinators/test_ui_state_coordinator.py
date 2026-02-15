@@ -8,7 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from zebtrack.orchestrators.ui_state_controller import UIStateController
+from zebtrack.coordinators.ui_state_coordinator import UIStateController
 from zebtrack.ui.events import Events
 
 

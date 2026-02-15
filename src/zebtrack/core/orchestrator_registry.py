@@ -11,16 +11,17 @@ Phase 3A/3B/3C/3D: Removed unused orchestrators:
 - ModelDiagnosticsOrchestrator → HardwareCoordinator
 - ProjectOrchestrator → ProjectLifecycleCoordinator
 - RecordingSessionOrchestrator → SessionCoordinator
+
+Phase 3 Structural Unification:
+- VideoProcessingOrchestrator removed (dead stub)
+- UIStateController moved to coordinators.ui_state_coordinator
 """
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
-    from zebtrack.orchestrators.ui_state_controller import UIStateController
-    from zebtrack.orchestrators.video_processing_orchestrator import (
-        VideoProcessingOrchestrator,
-    )
+    from zebtrack.coordinators.ui_state_coordinator import UIStateController
 
 
 class OrchestratorRegistry:
@@ -32,8 +33,6 @@ class OrchestratorRegistry:
 
     Attributes:
         ui_state: UIStateController (23 facades removidos)
-        video_processing: VideoProcessingOrchestrator | None
-            (Phase 0.3: migrated to ProcessingCoordinator)
         live_camera: LiveCameraCoordinator (1 facade removido)
 
     Removed in Phase 3A/3B/3C/3D (superseded by Super Coordinators):
@@ -44,25 +43,24 @@ class OrchestratorRegistry:
         - model_diagnostics: Superseded by HardwareCoordinator
         - project: Superseded by ProjectLifecycleCoordinator
         - recording: Superseded by SessionCoordinator
+
+    Removed in Phase 3 Structural Unification:
+        - video_processing: Dead stub, logic in ProcessingCoordinator
     """
 
     def __init__(
         self,
         ui_state_controller: "UIStateController",
-        video_processing_orchestrator: "VideoProcessingOrchestrator | None" = None,
         live_camera_coordinator: "LiveCameraCoordinator | None" = None,
     ):
         """Initialize registry with all orchestrators.
 
         Args:
             ui_state_controller: Controller para estado da UI
-            video_processing_orchestrator: DEPRECATED (Phase 0.3)
-                Migrated to ProcessingCoordinator
             live_camera_coordinator: Coordinator para câmera ao vivo
         """
         # Atribuir com nomes curtos e descritivos
         self.ui_state = ui_state_controller
-        self.video_processing = video_processing_orchestrator
         self.live_camera = live_camera_coordinator
 
     def get_all_orchestrators(self) -> dict[str, object]:
@@ -73,6 +71,5 @@ class OrchestratorRegistry:
         """
         return {
             "ui_state": self.ui_state,
-            "video_processing": self.video_processing,
             "live_camera": self.live_camera,
         }
