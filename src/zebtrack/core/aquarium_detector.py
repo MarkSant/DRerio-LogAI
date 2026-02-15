@@ -9,6 +9,7 @@ for videos with 2 aquariums.
 """
 
 from pathlib import Path
+from typing import Any
 
 import cv2
 import numpy as np
@@ -85,8 +86,8 @@ class AquariumDetector:
 
     def _extract_polygon_from_detection(
         self,
-        frame,
-        results,
+        frame: np.ndarray,
+        results: list[Any],
         min_area_ratio: float = 0.1,
         max_area_ratio: float = 0.98,
     ) -> np.ndarray | None:
@@ -171,8 +172,8 @@ class AquariumDetector:
 
     def _process_segmentation_results(
         self,
-        frame,
-        results,
+        frame: np.ndarray,
+        results: list[Any],
         frame_index: int,
         min_area_ratio: float = 0.1,
         max_area_ratio: float = 0.98,
@@ -341,7 +342,11 @@ class AquariumDetector:
                             )
         return None
 
-    def _find_consensus_polygon(self, good_polygons: list, source) -> list:
+    def _find_consensus_polygon(
+        self,
+        good_polygons: list[np.ndarray],
+        source: Any,
+    ) -> list[np.ndarray]:
         """
         Find the most stable polygon using consensus approach.
 
@@ -429,7 +434,7 @@ class AquariumDetector:
         stabilization_frames: int = 10,
         min_area_ratio: float = 0.1,
         max_area_ratio: float = 0.98,
-    ) -> list:
+    ) -> list[np.ndarray]:
         """
         Analyzes initial frames of a video to find the most stable aquarium polygon.
 
@@ -480,6 +485,9 @@ class AquariumDetector:
                 analyzed_count += 1
                 if analyzed_count > stabilization_frames:
                     break
+
+                if frame is None:
+                    continue
 
                 # Detect aquarium (class 0) with optimized threshold
                 results = self.model.predict(frame, verbose=False, classes=[0], conf=0.05)
@@ -589,6 +597,9 @@ class AquariumDetector:
                 if analyzed_count > stabilization_frames:
                     break
 
+                if frame is None:
+                    continue
+
                 # Detect all aquariums (class 0) with lower threshold
                 results = self.model.predict(frame, verbose=False, classes=[0], conf=0.05)
 
@@ -597,7 +608,7 @@ class AquariumDetector:
                     boxes = results[0].boxes
                     frame_polygons = []
 
-                    for j, box in enumerate(boxes):
+                    for _j, box in enumerate(boxes):
                         conf = float(box.conf)
                         if conf < 0.05:
                             continue
@@ -609,6 +620,8 @@ class AquariumDetector:
                             x1, y1, x2, y2 = xyxy_data
 
                         # Validate area
+                        if frame is None:
+                            continue
                         frame_area = frame.shape[0] * frame.shape[1]
                         box_area = (x2 - x1) * (y2 - y1)
                         area_ratio = box_area / frame_area
@@ -675,7 +688,7 @@ class ContourBasedMultiAquariumDetector:
     specific multi-aquarium detection scenarios.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the ContourBasedMultiAquariumDetector."""
         log.info("contour_detector.init.success")
 
@@ -730,7 +743,8 @@ class ContourBasedMultiAquariumDetector:
                 if not ret:
                     log.warning("contour_detector.frame_read_failed", frame=i)
                     break
-                frames.append(frame)
+                if frame is not None:
+                    frames.append(frame)
 
             if not frames:
                 log.error("contour_detector.no_frames_read")

@@ -15,6 +15,7 @@ from tkinter import (
 from tkinter import (
     font as tkfont,
 )
+from typing import Any
 
 import structlog
 
@@ -71,13 +72,14 @@ class DetectionStep(WizardStep):
         self.step_id = WizardStepID.DETECTION_VALIDATION
 
         # State
-        self.scanned_videos = []
-        self.detected_design = None
+        # State
+        self.scanned_videos: list[dict] = []
+        self.detected_design: dict[str, Any] | None = None
         self.status_var = StringVar(value="Aguardando análise...")
-        self.custom_regex_patterns = None  # User-defined regex patterns
+        self.custom_regex_patterns: dict[str, str] | None = None  # User-defined regex patterns
         self.design_editor_confirmed = False
         self.template_info_var = StringVar(value="")
-        self.template_info_label = None
+        self.template_info_label: Label | None = None
 
     def build_ui(self):
         """Build detection step UI - horizontal 2-column layout for better space usage."""
@@ -416,9 +418,9 @@ class DetectionStep(WizardStep):
             log.warning("wizard.detection.custom_regex.no_group_pattern")
             return None
 
-        groups_found = set()
-        days_found = set()
-        subjects_per_group = {}
+        groups_found: set[str] = set()
+        days_found: set[str] = set()
+        subjects_per_group: dict[str, set[str]] = {}
         match_count = 0
         subject_mappings: dict[str, list[dict]] = {}
 
@@ -605,7 +607,7 @@ class DetectionStep(WizardStep):
         log.debug("pattern_groups_as_folders.common_ancestor", path=str(common_ancestor))
 
         # Extract relative paths from common ancestor
-        group_candidates = {}
+        group_candidates: dict[str, list[Path]] = {}
 
         for path in paths:
             try:
@@ -632,7 +634,7 @@ class DetectionStep(WizardStep):
 
         # Extract days and subjects
         days_found = set()
-        subjects_per_group = {}
+        subjects_per_group: dict[str, set[str]] = {}
 
         for group in groups:
             subjects_per_group[group] = set()  # Use set to avoid duplicates
@@ -653,7 +655,7 @@ class DetectionStep(WizardStep):
         }
 
         # Calculate confidence with penalty when no group shows repetition
-        total_grouped_videos = sum(len(group_candidates[g]) for g in groups)
+        total_grouped_videos = sum([len(group_candidates[g]) for g in groups])
         coverage = total_grouped_videos / len(paths)
 
         group_sizes = [len(group_candidates[g]) for g in groups]
@@ -684,7 +686,7 @@ class DetectionStep(WizardStep):
         # Extract from filenames only
         groups_found = set()
         days_found = set()
-        subjects_per_group = {}
+        subjects_per_group: dict[str, set[str]] = {}
 
         for path in paths:
             filename = path.stem

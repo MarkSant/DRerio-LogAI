@@ -8,7 +8,7 @@ Cache is invalidated when video selection changes (Step 2).
 """
 
 import hashlib
-from typing import Callable
+from collections.abc import Callable
 
 import structlog
 

@@ -59,8 +59,8 @@ class AnalysisDisplayWidget(BaseWidget):
         self.day_var = StringVar(value="Dia: --")
         self.subject_var = StringVar(value="Indivíduo: --")
         self.profile_var = StringVar(value="Perfil de análise: default")
-        self.tracking_mode_var = StringVar(value="Modo de rastreamento: Multi-indivíduos")
-        self.social_summary_var = StringVar(value="Interações sociais: aguardando dados.")
+        self.tracking_mode_var = StringVar(value="Modo de rastreamento: --")
+        self.social_summary_var = StringVar(value="Interações sociais: não aplicável no momento.")
         self.track_selector_var = StringVar(value="Todos")
 
         # Progress statistics
@@ -287,7 +287,7 @@ class AnalysisDisplayWidget(BaseWidget):
 
     def show_progress(self) -> None:
         """Show the progress bar and statistics section."""
-        if self.progress_frame:
+        if self.progress_frame and self.video_container:
             self.progress_frame.pack(fill="x", pady=(4, 0), before=self.video_container)
 
     def hide_progress(self) -> None:
@@ -352,7 +352,7 @@ class AnalysisDisplayWidget(BaseWidget):
         """Clear the video display."""
         if self.video_label:
             self.video_label.config(image="")
-            self.video_label.image = None
+            self.video_label.image = None  # type: ignore[attr-defined]
 
     def update_frame(self, image) -> None:
         """
@@ -375,7 +375,7 @@ class AnalysisDisplayWidget(BaseWidget):
                 tk_image = ImageTk.PhotoImage(image)
 
             self.video_label.configure(image=tk_image)
-            self.video_label.image = tk_image  # Keep reference to prevent garbage collection
+            self.video_label.image = tk_image  # type: ignore[attr-defined]  # Keep reference to prevent garbage collection
         except Exception as e:
             log.error("analysis_display.update_frame.error", error=str(e))
 
@@ -384,7 +384,7 @@ class AnalysisDisplayWidget(BaseWidget):
         self.set_status("Nenhuma análise em andamento.")
         self.set_task("Nenhuma tarefa em andamento.")
         self.set_metadata("--", "--", "--")
-        self.set_tracking_mode("Multi-indivíduos")
+        self.set_tracking_mode("--")
         self.set_profile("default")
         self.set_social_summary("Interações sociais: aguardando dados.")
         self.track_selector_var.set("Todos")

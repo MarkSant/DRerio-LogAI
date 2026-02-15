@@ -132,9 +132,9 @@ def test_experimental_design_summary_updates(step):
 
     summary = step.summary_var.get()
 
-    # Should calculate: 2 groups × 5 days × 3 subjects = 30 sessions
+    # Should calculate: 2 groups x 5 days x 3 subjects = 30 sessions
     assert "30" in summary  # Total sessions
-    assert "6" in summary  # Total animals (2 × 3)
+    assert "6" in summary  # Total animals (2 x 3)
     assert "5" in summary  # Days
 
 

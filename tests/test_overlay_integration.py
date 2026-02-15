@@ -5,6 +5,7 @@ Updated from string-based checks to proper mock-based tests after Phase 3 refact
 """
 
 # Check if YOLOv8 detector is available
+import importlib
 import importlib.util
 from unittest.mock import MagicMock, patch
 
@@ -47,15 +48,18 @@ class TestOverlayIntegration:
     @pytest.mark.skipif(not YOLOV8_AVAILABLE, reason="YOLOv8 detector not available")
     def test_bounding_box_drawing_in_detector(self):
         """Test that detector's draw_overlay draws bounding boxes."""
-        # Import a real detector to test its draw_overlay implementation
-        from zebtrack.plugins.yolov8_zebrafish_detector import YOLOv8ZebrafishDetector
+        if not YOLOV8_AVAILABLE:
+            pytest.skip("YOLOv8 detector not available")
+
+        module = importlib.import_module("zebtrack.plugins.yolov8_zebrafish_detector")
+        detector_cls = module.YOLOv8ZebrafishDetector
 
         # Create detector instance with mock model
         with patch("zebtrack.plugins.yolov8_zebrafish_detector.YOLO") as mock_yolo:
             mock_model = MagicMock()
             mock_yolo.return_value = mock_model
 
-            detector = YOLOv8ZebrafishDetector(weights_path="dummy.pt", device="cpu")
+            detector = detector_cls(weights_path="dummy.pt", device="cpu")
 
             # Create test frame and detections
             frame = np.zeros((480, 640, 3), dtype=np.uint8)

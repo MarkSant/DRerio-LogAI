@@ -1,5 +1,6 @@
 import sys
 import types
+from typing import Any, cast
 
 
 class FakeTree:
@@ -48,7 +49,8 @@ def _make_pvm_stub(gui):
     pvm.gui = gui
 
     # Avoid touching filesystem from this unit test.
-    pvm.append_processing_reports_artifacts = lambda *args, **kwargs: None
+    pvm_any = cast(Any, pvm)
+    pvm_any.append_processing_reports_artifacts = lambda *args, **kwargs: None
     return pvm
 
 
@@ -98,7 +100,7 @@ def test_reports_tree_includes_both_aquariums_via_canonical_fallback(monkeypatch
     pvm = _make_pvm_stub(gui)
 
     tree = FakeTree()
-    metadata_store = {}
+    metadata_store: dict[str, object] = {}
 
     pvm._populate_reports_tree_from_hierarchy(tree, hierarchy, "", metadata_store)
 
@@ -153,7 +155,7 @@ def test_reports_tree_normalizes_mixed_aquarium_keys(monkeypatch):
     pvm = _make_pvm_stub(gui)
 
     tree = FakeTree()
-    metadata_store = {}
+    metadata_store: dict[str, object] = {}
 
     pvm._populate_reports_tree_from_hierarchy(tree, hierarchy, "", metadata_store)
 
@@ -164,6 +166,6 @@ def test_reports_tree_normalizes_mixed_aquarium_keys(monkeypatch):
 
     # Ensure metadata for aquarium 0 was created (and didn't crash on mixed keys).
     assert any(
-        (meta.get("type") == "aquarium" and meta.get("aquarium_id") == 0)
+        (isinstance(meta, dict) and meta.get("type") == "aquarium" and meta.get("aquarium_id") == 0)
         for meta in metadata_store.values()
     )

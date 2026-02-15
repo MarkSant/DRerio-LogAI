@@ -300,7 +300,7 @@ Procure por:
 ```
 🔍 PATCH: _build_video_hierarchy completed
   groups_count=1
-  total_tree_entries=20  # ← 10 vídeos × 2 sujeitos = 20 entradas!
+  total_tree_entries=20  # ← 10 vídeos x 2 sujeitos = 20 entradas!
 ```
 
 ## Soluções Potenciais

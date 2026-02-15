@@ -19,7 +19,7 @@ def format_day_display(value):
     """
     if value in (None, ""):
         return ""
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
+    if isinstance(value, int | float) and not isinstance(value, bool):
         try:
             return f"{int(value):02d}"
         except (TypeError, ValueError):

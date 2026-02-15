@@ -90,10 +90,12 @@ def test_get_default_by_type():
         # Test getting defaults by type
         seg_name, seg_details = wm.get_default_seg_weight()
         assert seg_name == "best_seg.pt"
+        assert seg_details is not None
         assert seg_details["type"] == "seg"
 
         det_name, det_details = wm.get_default_det_weight()
         assert det_name == "best_oi.pt"
+        assert det_details is not None
         assert det_details["type"] == "det"
 
 

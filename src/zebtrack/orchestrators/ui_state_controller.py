@@ -146,10 +146,11 @@ class UIStateController:
             self.weight_manager.add_weight(path, set_as_default, weight_type)
             new_name = path.name
             # Refresh UI on success
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_WEIGHTS_LIST,
-                {"weights": self.main_view_model.get_all_weight_names()},
-            )
+            if self.main_view_model:
+                self.ui_event_bus.publish_event(
+                    Events.UI_UPDATE_WEIGHTS_LIST,
+                    {"weights": self.main_view_model.get_all_weight_names()},
+                )
             self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": new_name})
             self.set_active_weight(new_name)  # This will also trigger conversion check
         except (ValueError, FileNotFoundError, OSError) as e:
@@ -168,10 +169,11 @@ class UIStateController:
         try:
             self.weight_manager.delete_weight(name)
             # Refresh UI on success
-            self.ui_event_bus.publish_event(
-                Events.UI_UPDATE_WEIGHTS_LIST,
-                {"weights": self.main_view_model.get_all_weight_names()},
-            )
+            if self.main_view_model:
+                self.ui_event_bus.publish_event(
+                    Events.UI_UPDATE_WEIGHTS_LIST,
+                    {"weights": self.main_view_model.get_all_weight_names()},
+                )
             default_name, _ = self.weight_manager.get_default_weight()
             self.ui_event_bus.publish_event(
                 Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": default_name}
@@ -191,32 +193,35 @@ class UIStateController:
             name: Name of the weight to set as active.
             dialog: Optional dialog to update with OpenVINO status.
         """
-        candidate = name or ""
-        available = set(self.main_view_model.get_all_weight_names())
+        if self.main_view_model:
+            candidate = name or ""
+            available = set(self.main_view_model.get_all_weight_names())
 
-        if candidate and candidate in available:
-            # Property delegates to hardware_vm automatically
-            self.main_view_model.active_weight_name = candidate
+            if candidate and candidate in available:
+                # Property delegates to hardware_vm automatically
+                self.main_view_model.active_weight_name = candidate
 
-            logger.info("controller.active_weight.set", name=candidate)
-            self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": candidate})
-            self.update_openvino_status(dialog)
-            if self.main_view_model.use_openvino:
-                self.convert_active_weight_to_openvino(dialog)
-        else:
-            if candidate:
-                logger.warning("controller.active_weight.not_found", name=name)
-            # Property delegates to hardware_vm automatically
-            self.main_view_model.active_weight_name = ""
+                logger.info("controller.active_weight.set", name=candidate)
+                self.ui_event_bus.publish_event(
+                    Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": candidate}
+                )
+                self.update_openvino_status(dialog)
+                if self.main_view_model.use_openvino:
+                    self.convert_active_weight_to_openvino(dialog)
+            else:
+                if candidate:
+                    logger.warning("controller.active_weight.not_found", name=name)
+                # Property delegates to hardware_vm automatically
+                self.main_view_model.active_weight_name = ""
 
-            self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": ""})
-            self.update_openvino_status(dialog)
+                self.ui_event_bus.publish_event(Events.UI_SET_ACTIVE_WEIGHT, {"weight_name": ""})
+                self.update_openvino_status(dialog)
 
-        if not self.main_view_model._using_project_overrides:
-            self.project_workflow_service.set_global_model_defaults(
-                active_weight=self.main_view_model.active_weight_name,
-                use_openvino=self.main_view_model.use_openvino,
-            )
+            if not self.main_view_model._using_project_overrides:
+                self.project_workflow_service.set_global_model_defaults(
+                    active_weight=self.main_view_model.active_weight_name,
+                    use_openvino=self.main_view_model.use_openvino,
+                )
 
     def load_new_weight(
         self,
@@ -268,21 +273,23 @@ class UIStateController:
             use_openvino: True to enable OpenVINO, False to use PyTorch.
             dialog: Optional dialog to update with status.
         """
-        self.main_view_model.use_openvino = bool(use_openvino)
-        logger.info("controller.openvino_usage.set", enabled=self.main_view_model.use_openvino)
-        self.ui_event_bus.publish_event(
-            Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": self.main_view_model.use_openvino}
-        )
-        if self.main_view_model.use_openvino and self.main_view_model.active_weight_name:
-            # Trigger conversion if switching to OpenVINO and model isn't converted
-            self.convert_active_weight_to_openvino(dialog)
-        self.update_openvino_status(dialog)
-
-        if not self.main_view_model._using_project_overrides:
-            self.project_workflow_service.set_global_model_defaults(
-                active_weight=self.main_view_model.active_weight_name,
-                use_openvino=self.main_view_model.use_openvino,
+        if self.main_view_model:
+            self.main_view_model.use_openvino = bool(use_openvino)
+            logger.info("controller.openvino_usage.set", enabled=self.main_view_model.use_openvino)
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_OPENVINO_CHECKBOX,
+                {"is_checked": self.main_view_model.use_openvino},
             )
+            if self.main_view_model.use_openvino and self.main_view_model.active_weight_name:
+                # Trigger conversion if switching to OpenVINO and model isn't converted
+                self.convert_active_weight_to_openvino(dialog)
+            self.update_openvino_status(dialog)
+
+            if not self.main_view_model._using_project_overrides:
+                self.project_workflow_service.set_global_model_defaults(
+                    active_weight=self.main_view_model.active_weight_name,
+                    use_openvino=self.main_view_model.use_openvino,
+                )
 
     def convert_active_weight_to_openvino(self, dialog):
         """
@@ -291,7 +298,7 @@ class UIStateController:
         Delegates conversion logic to ModelService (Phase 2.1).
         MainViewModel only handles UI updates and status feedback.
         """
-        if not self.main_view_model.active_weight_name:
+        if not self.main_view_model or not self.main_view_model.active_weight_name:
             return
 
         if self.ui_event_bus:
@@ -347,6 +354,13 @@ class UIStateController:
         """
         if mode_override:
             mode = mode_override
+        elif self.main_view_model and hasattr(self.main_view_model, "processing_coordinator"):
+            # Read from processing_coordinator which holds the ground-truth mode
+            coord = self.main_view_model.processing_coordinator
+            if coord is not None:
+                mode = getattr(coord, "_active_processing_mode", ProcessingMode.MULTI_TRACK)
+            else:
+                mode = ProcessingMode.MULTI_TRACK
         elif self.main_view_model and hasattr(self.main_view_model, "_active_processing_mode"):
             mode = self.main_view_model._active_processing_mode
         else:
@@ -357,7 +371,10 @@ class UIStateController:
 
     def update_openvino_status(self, dialog=None):
         """Update the status label in the GUI based on the current state."""
-        status = self.main_view_model.get_openvino_status()
+        main_view_model = self.main_view_model
+        if main_view_model is None:
+            return
+        status = main_view_model.get_openvino_status()
         if dialog:
             dialog.update_openvino_status_label(status)
         self.ui_event_bus.publish_event(Events.UI_UPDATE_OPENVINO_STATUS, {"status": status})
@@ -536,21 +553,25 @@ class UIStateController:
 
     def _show_cancel_feedback(self) -> None:
         """Update UI immediately after a cancellation request."""
-        if self.main_view_model._cancel_feedback_displayed:
+        main_view_model = self.main_view_model
+        view = self.view
+        if main_view_model is None or view is None:
+            return
+        if main_view_model._cancel_feedback_displayed:
             return
 
-        self.main_view_model._cancel_feedback_displayed = True
+        main_view_model._cancel_feedback_displayed = True
 
         # Switch back to zone view and clear progress indicators right away
-        self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
+        self.ui_coordinator.update_view(view, "stop_analysis_view_mode")
         self.ui_coordinator.set_status(
-            self.view,
+            view,
             "Cancelamento solicitado. Finalizando tarefas em segundo plano...",
         )
 
         # Provide immediate dialog feedback so the user knows reports won't be generated
         self.ui_coordinator.show_info(
-            self.view,
+            view,
             "Análise cancelada",
             "A análise de vídeo foi cancelada. Nenhum relatório será gerado.",
         )
@@ -568,10 +589,13 @@ class UIStateController:
 
     def _prepare_processing_ui(self, total_videos: int) -> None:
         # Phase 4: Use UICoordinator for UI updates
-        self.ui_coordinator.show_progress_bar(self.view)
+        view = self.view
+        if view is None:
+            return
+        self.ui_coordinator.show_progress_bar(view)
         self.ui_coordinator.schedule_after(
             0,
-            lambda: self.view.set_status(f"Iniciando processamento para {total_videos} vídeos..."),
+            lambda: view.set_status(f"Iniciando processamento para {total_videos} vídeos..."),
         )
         self.project_manager.set_active_zone_video(None)
 
@@ -583,6 +607,8 @@ class UIStateController:
         final_output_dir: str,
     ) -> None:
         # Phase 4: Use UICoordinator for UI updates
+        if not self.view:
+            return
         self.project_manager.set_active_zone_video(None)
         self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
         self.ui_coordinator.hide_progress_bar(self.view)

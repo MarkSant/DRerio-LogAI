@@ -983,7 +983,7 @@ def finalize_recording(self, archive: bool = False):
    - [Deep learning-assisted comparative analysis of animal trajectories with DeepHL](https://www.nature.com/articles/s41467-020-19105-0) - Nature Communications, 2020
 
 3. **Data Pipeline Best Practices**:
-   - [10 Parquet, DuckDB, and Arrow – Scalable and Computationally Reproducible Approaches](https://learning.nceas.ucsb.edu/2025-04-arctic/sections/parquet-arrow.html) - NCEAS, 2025
+   - [10 Parquet, DuckDB, and Arrow - Scalable and Computationally Reproducible Approaches](https://learning.nceas.ucsb.edu/2025-04-arctic/sections/parquet-arrow.html) - NCEAS, 2025
    - [A compilation pipeline for wildlife tracking datasets](https://www.sciencedirect.com/science/article/pii/S1574954125002298) - ScienceDirect, 2025
 
 ### Documentação Técnica

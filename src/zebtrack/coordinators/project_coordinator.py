@@ -18,6 +18,7 @@ Related:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -148,8 +149,8 @@ class ProjectCoordinator(BaseCoordinator):
     def create_project_from_wizard(
         self,
         wizard_data: dict[str, Any],
-        setup_detector_callback: callable | None = None,
-        setup_zones_callback: callable | None = None,
+        setup_detector_callback: Callable[[], bool] | None = None,
+        setup_zones_callback: Callable[[], None] | None = None,
     ) -> bool:
         """
         Create project from wizard data.
@@ -220,8 +221,18 @@ class ProjectCoordinator(BaseCoordinator):
                 # Preserve caller-provided path string to maintain display formatting
                 project_path_obj: Path | str = project_path
             else:
-                # Generate project path if not provided
-                project_path_obj = self.project_service.get_project_path(project_name)
+                # Generate project path from settings
+                if self.project_manager.settings and hasattr(
+                    self.project_manager.settings, "paths"
+                ):
+                    projects_dir = self.project_manager.settings.paths.projects_dir
+                    if isinstance(projects_dir, Path):
+                        project_path_obj = projects_dir / project_name
+                    else:
+                        project_path_obj = Path(str(projects_dir)) / project_name
+                else:
+                    # Fallback default if settings not available (unlikely)
+                    project_path_obj = Path.home() / "ZebTrack" / "Projects" / project_name
 
             project_path_str = (
                 project_path_obj if isinstance(project_path_obj, str) else str(project_path_obj)
@@ -361,9 +372,9 @@ class ProjectCoordinator(BaseCoordinator):
     def load_project(
         self,
         project_path: str | Path,
-        setup_detector_callback: callable | None = None,
-        setup_zones_callback: callable | None = None,
-        restore_detector_callback: callable | None = None,
+        setup_detector_callback: Callable[[], bool] | None = None,
+        setup_zones_callback: Callable[[], None] | None = None,
+        restore_detector_callback: Callable[[dict], None] | None = None,
     ) -> bool:
         """
         Load existing project and configure everything.
@@ -501,7 +512,7 @@ class ProjectCoordinator(BaseCoordinator):
 
     def close_project(
         self,
-        restore_defaults_callback: callable | None = None,
+        restore_defaults_callback: Callable[[], None] | None = None,
     ) -> bool:
         """
         Close the current project.

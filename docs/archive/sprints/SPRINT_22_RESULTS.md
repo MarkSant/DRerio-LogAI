@@ -395,7 +395,7 @@ Recommendations:    1 (optional future extraction)
 
 **Expected Impact**:
 - Main method: 146 → ~40 lines (-106 lines)
-- New methods: 3 × ~30-50 lines (+120 lines)
+- New methods: 3 x ~30-50 lines (+120 lines)
 - Net change: +14 lines (more methods, better organization)
 
 **Benefits**:

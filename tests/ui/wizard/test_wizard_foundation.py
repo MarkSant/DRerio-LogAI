@@ -9,6 +9,8 @@ Validates:
 - Navigation (forward only in Phase W1)
 """
 
+from typing import Any
+
 import pytest
 
 from zebtrack.ui.wizard.discovery_step import DiscoveryStep
@@ -34,14 +36,14 @@ class TestWizardFoundation:
         """Wizard should initialize with wizard_schema_version: 1."""
         # Note: We can't fully test WizardDialog in headless mode
         # because Dialog is modal. Test the data structure instead.
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "wizard_schema_version": 1,
         }
         assert wizard_data["wizard_schema_version"] == 1
 
     def test_discovery_step_builds_ui_without_error(self):
         """Discovery step should build UI without errors."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DiscoveryStep(self.root, wizard_data)
         step.build_ui()
 
@@ -50,7 +52,7 @@ class TestWizardFoundation:
 
     def test_discovery_step_default_data_is_experimental(self):
         """Discovery step defaults to experimental project type."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DiscoveryStep(self.root, wizard_data)
         step.build_ui()
 
@@ -64,7 +66,7 @@ class TestWizardFoundation:
 
     def test_discovery_step_exploratory_excludes_folder_fields(self):
         """Exploratory projects should not have folder organization fields."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DiscoveryStep(self.root, wizard_data)
         step.build_ui()
 
@@ -78,7 +80,7 @@ class TestWizardFoundation:
 
     def test_discovery_step_parquet_scope_arena(self):
         """Selecting 'import arena' should set parquet_import_scope to 'arena'."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DiscoveryStep(self.root, wizard_data)
         step.build_ui()
 
@@ -91,7 +93,7 @@ class TestWizardFoundation:
 
     def test_discovery_step_parquet_scope_zones(self):
         """Selecting 'import zones' should set parquet_import_scope to 'zones'."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DiscoveryStep(self.root, wizard_data)
         step.build_ui()
 
@@ -104,7 +106,7 @@ class TestWizardFoundation:
 
     def test_discovery_step_parquet_scope_all(self):
         """Selecting 'import all' should set parquet_import_scope to 'all'."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DiscoveryStep(self.root, wizard_data)
         step.build_ui()
 
@@ -119,7 +121,7 @@ class TestWizardFoundation:
         """
         Discovery step validation should always succeed (all fields have defaults).
         """
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DiscoveryStep(self.root, wizard_data)
         step.build_ui()
 
@@ -130,7 +132,7 @@ class TestWizardFoundation:
 
     def test_discovery_step_set_data_restores_ui(self):
         """set_data should restore UI from previously collected data."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = DiscoveryStep(self.root, wizard_data)
         step.build_ui()
 
@@ -149,7 +151,7 @@ class TestWizardFoundation:
 
     def test_discovery_step_template_banner(self):
         """Template metadata should surface in the discovery banner."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "template_metadata": {
                 "name": "Template Inicial",
                 "path": "C:/temp/template_inicial.json",
@@ -164,7 +166,7 @@ class TestWizardFoundation:
 
     def test_file_selection_step_template_banner(self):
         """Template metadata should surface in the file selection banner."""
-        wizard_data = {
+        wizard_data: dict[str, Any] = {
             "template_metadata": {
                 "name": "Template Seleção",
                 "path": "C:/temp/template_selecao.json",

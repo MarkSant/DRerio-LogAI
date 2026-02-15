@@ -95,7 +95,7 @@ class CanvasEventHandler:
                 canvas_arena_poly = []
                 for point in main_arena_poly:
                     canvas_pt = self.manager._video_to_canvas(point[0], point[1])
-                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+                    canvas_arena_poly.append((canvas_pt[0], canvas_pt[1]))
 
                 canvas_x, canvas_y = GeometryService.clamp_point_to_polygon(
                     (canvas_x, canvas_y), canvas_arena_poly
@@ -159,7 +159,7 @@ class CanvasEventHandler:
                 canvas_arena_poly = []
                 for point in main_arena_poly:
                     canvas_pt = self.manager._video_to_canvas(point[0], point[1])
-                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+                    canvas_arena_poly.append((canvas_pt[0], canvas_pt[1]))
 
                 canvas_x, canvas_y = GeometryService.clamp_point_to_polygon(
                     (canvas_x, canvas_y), canvas_arena_poly
@@ -202,7 +202,7 @@ class CanvasEventHandler:
                 canvas_arena_poly = []
                 for point in main_arena_poly:
                     canvas_pt = self.manager._video_to_canvas(point[0], point[1])
-                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+                    canvas_arena_poly.append((canvas_pt[0], canvas_pt[1]))
 
                 canvas_x, canvas_y = GeometryService.clamp_point_to_polygon(
                     (canvas_x, canvas_y), canvas_arena_poly
@@ -287,7 +287,7 @@ class CanvasEventHandler:
                 canvas_arena_poly = []
                 for point in main_arena_poly:
                     canvas_pt = self.manager._video_to_canvas(point[0], point[1])
-                    canvas_arena_poly.append([canvas_pt[0], canvas_pt[1]])
+                    canvas_arena_poly.append((canvas_pt[0], canvas_pt[1]))
 
                 canvas_x, canvas_y = GeometryService.clamp_point_to_polygon(
                     (display_x, display_y), canvas_arena_poly

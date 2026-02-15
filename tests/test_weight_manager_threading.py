@@ -86,7 +86,7 @@ class TestWeightManagerConcurrentAccess:
             assert not getter.is_alive()
 
         # Verify accesses occurred
-        assert len(weight_lists) == 15  # 3 threads × 5 calls each
+        assert len(weight_lists) == 15  # 3 threads x 5 calls each
         # All should see the same number of weights
         for _, count in weight_lists:
             assert count == 3
@@ -217,7 +217,7 @@ class TestWeightManagerConcurrentModifications:
             assert not updater.is_alive()
 
         # Verify updates occurred
-        assert update_count[0] == 9  # 3 threads × 3 updates each
+        assert update_count[0] == 9  # 3 threads x 3 updates each
         # Original weights + new weights
         assert len(weight_manager.weights) >= 12
 
@@ -360,7 +360,7 @@ class TestWeightManagerRaceConditions:
 
     def test_mixed_read_write_operations(self, weight_manager):
         """Test mixed concurrent read and write operations."""
-        operations = []
+        operations: list[tuple[int, str, int | str]] = []
 
         def reader_worker(thread_id):
             for i in range(3):
@@ -404,7 +404,7 @@ class TestWeightManagerRaceConditions:
             assert not worker.is_alive()
 
         # Verify operations occurred
-        assert len(operations) == 12  # 2 readers × 3 + 2 writers × 3
+        assert len(operations) == 12  # 2 readers x 3 + 2 writers x 3
 
 
 class TestWeightManagerErrorHandling:

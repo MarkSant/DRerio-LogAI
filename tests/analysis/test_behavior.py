@@ -472,8 +472,13 @@ class TestSpeedBursts:
         assert "episodes" in result
 
         # Check episodes structure if they exist
-        if result["count"] > 0:
-            for episode in result["episodes"]:
+        count_value = result["count"]
+        assert isinstance(count_value, int | float)
+        episodes = result["episodes"]
+        assert isinstance(episodes, list)
+
+        if count_value > 0:
+            for episode in episodes:
                 assert "start_time" in episode
                 assert "end_time" in episode
                 assert "duration" in episode
@@ -519,8 +524,13 @@ class TestInactivityPeriods:
         assert "percentage_of_recording" in result
         assert "episodes" in result
 
-        if result["count"] > 0:
-            for episode in result["episodes"]:
+        count_value = result["count"]
+        assert isinstance(count_value, int | float)
+        episodes = result["episodes"]
+        assert isinstance(episodes, list)
+
+        if count_value > 0:
+            for episode in episodes:
                 assert "start_time" in episode
                 assert "end_time" in episode
                 assert "duration" in episode
@@ -775,7 +785,7 @@ class TestBehaviorEdgeCases:
         # Smoothing should help - distance shouldn't be wildly off
         distance = analyzer.calculate_total_distance()
         # Base distance is sqrt(50^2 + 20^2) ≈ 53.85 cm
-        # With seeded noise, the smoothed path stays within ~2× baseline distance
+        # With seeded noise, the smoothed path stays within ~2x baseline distance
         assert 40 <= distance <= 120
 
         # Velocity calculation should not crash
@@ -911,11 +921,15 @@ class TestBehaviorEdgeCases:
 
         # Should calculate high velocity
         stats = analyzer.get_velocity_stats()
-        assert stats["mean"] > 100  # cm/s
+        mean_velocity = stats["mean"]
+        assert isinstance(mean_velocity, int | float)
+        assert mean_velocity > 100  # cm/s
 
         # Should detect as speed burst
         bursts = analyzer.calculate_speed_bursts(threshold_cm_s=50.0, min_duration=0.1)
-        assert bursts["count"] > 0
+        burst_count = bursts["count"]
+        assert isinstance(burst_count, int | float)
+        assert burst_count > 0
 
     def test_boundary_position_at_arena_edge(self, arena_polygon_80x72):
         """Test analysis when subject is at arena boundary."""

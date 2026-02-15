@@ -189,7 +189,9 @@ def test_strack_multi_predict_thread_safety(mock_detections):
     # multi_predict should require kalman_filter parameter
     try:
         # Old signature (should fail)
-        STrack.multi_predict(tracks)
+        from typing import Any, cast
+
+        cast(Any, STrack).multi_predict(tracks)
         pytest.fail("multi_predict should require kalman_filter parameter")
     except TypeError as e:
         # Expected: missing required argument
@@ -231,7 +233,10 @@ def test_concurrent_multi_predict_calls(mock_detections):
             STrack.multi_predict(tracks, kf)
 
             # Collect covariance diagonal sum (should be consistent)
-            cov_sum = sum(np.trace(track.covariance) for track in tracks)
+            cov_sum = 0.0
+            for track in tracks:
+                assert track.covariance is not None
+                cov_sum += float(np.trace(track.covariance))
             results.append(cov_sum)
 
         return {"worker_id": worker_id, "cov_sums": results}

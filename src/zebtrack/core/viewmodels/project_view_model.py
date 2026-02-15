@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.core.state_manager import StateCategory
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
@@ -39,13 +40,19 @@ class ProjectViewModel:
         self.settings = dependencies.settings_obj
 
     def create_project_workflow(self, **wizard_data):
-        return self.project_lifecycle_coordinator.create_project(**wizard_data)
+        if self.project_lifecycle_coordinator:
+            return self.project_lifecycle_coordinator.create_project(**wizard_data)
+        return None
 
     def open_project_workflow(self, project_path):
-        return self.project_lifecycle_coordinator.open_project(project_path)
+        if self.project_lifecycle_coordinator:
+            return self.project_lifecycle_coordinator.open_project(project_path)
+        return None
 
     def close_project(self):
-        return self.project_lifecycle_coordinator.close_project()
+        if self.project_lifecycle_coordinator:
+            return self.project_lifecycle_coordinator.close_project()
+        return None
 
     def on_video_selected(self, video_path: str):
         """Handle video selection event."""
@@ -75,13 +82,16 @@ class ProjectViewModel:
         if not file_paths:
             return
 
-        added_count = 0
-        for path in file_paths:
-            if self.project_manager.add_video(path):
-                added_count += 1
+        # Note: add_video is deprecated - videos are added through wizard/scan
+        # for path in file_paths:
+        #     if self.project_manager.add_video(path):
+        #         added_count += 1
 
-        if added_count > 0:
-            self.project_manager.save_project()
+        # TODO: Implement proper video addition via project workflow
+        log.warning(
+            "project_view_model.add_videos_deprecated",
+            message="Direct video addition is deprecated. Use wizard workflow.",
+        )
 
     def handle_delete_project_asset(self, video_path: str, asset: str, delete_source: bool = False):
         if self.project_lifecycle_coordinator:
@@ -90,7 +100,9 @@ class ProjectViewModel:
             )
 
     def can_remove_project_asset(self, video_path: str, asset: str) -> tuple[bool, str | None]:
-        return self.project_lifecycle_coordinator.can_remove_project_asset(video_path, asset)
+        if self.project_lifecycle_coordinator:
+            return self.project_lifecycle_coordinator.can_remove_project_asset(video_path, asset)
+        return (False, "ProjectLifecycleCoordinator not available")
 
     def apply_project_settings_to_batch(self, videos: list):
         return self.batch_configuration_service.apply_settings(videos)
@@ -112,12 +124,16 @@ class ProjectViewModel:
 
         def get_active_weight_name() -> str | None:
             if self.state_manager:
-                return self.state_manager.get("active_weight_name")
+                return self.state_manager.get_state(StateCategory.DETECTOR).get(
+                    "active_weight_name"
+                )
             return None
 
         def get_use_openvino() -> bool:
             if self.state_manager:
-                return self.state_manager.get("use_openvino", False)
+                return self.state_manager.get_state(StateCategory.DETECTOR).get(
+                    "use_openvino", False
+                )
             return False
 
         self.project_lifecycle_coordinator.save_project_model_overrides(
@@ -139,13 +155,17 @@ class ProjectViewModel:
 
         def get_global_defaults() -> dict:
             return {
-                "active_weight": self.settings.detection.default_weight if self.settings else None,
-                "use_openvino": self.settings.detection.use_openvino if self.settings else False,
+                "active_weight": self.settings.weights.det_filename if self.settings else None,
+                "use_openvino": self.settings.model_selection.use_openvino
+                if self.settings
+                else False,
             }
 
         def get_active_weight_name() -> str | None:
             if self.state_manager:
-                return self.state_manager.get("active_weight_name")
+                return self.state_manager.get_state(StateCategory.DETECTOR).get(
+                    "active_weight_name"
+                )
             return None
 
         self.project_lifecycle_coordinator.copy_global_model_settings_to_project(
@@ -160,12 +180,16 @@ class ProjectViewModel:
 
         def get_active_weight_name() -> str | None:
             if self.state_manager:
-                return self.state_manager.get("active_weight_name")
+                return self.state_manager.get_state(StateCategory.DETECTOR).get(
+                    "active_weight_name"
+                )
             return None
 
         def get_use_openvino() -> bool:
             if self.state_manager:
-                return self.state_manager.get("use_openvino", False)
+                return self.state_manager.get_state(StateCategory.DETECTOR).get(
+                    "use_openvino", False
+                )
             return False
 
         self.project_lifecycle_coordinator.save_current_calibration_to_project(
@@ -185,7 +209,9 @@ class ProjectViewModel:
 
         def get_active_weight_name() -> str | None:
             if self.state_manager:
-                return self.state_manager.get("active_weight_name")
+                return self.state_manager.get_state(StateCategory.DETECTOR).get(
+                    "active_weight_name"
+                )
             return None
 
         return self.project_lifecycle_coordinator.get_calibration_scope_info(

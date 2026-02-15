@@ -21,7 +21,7 @@ from tkinter import (
     ttk,
 )
 from tkinter.simpledialog import Dialog
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -77,10 +77,10 @@ class LiveAnalysisDialog(Dialog):
 
     def __init__(
         self,
-        parent,
+        parent: Any,
         settings_obj: "Settings | None" = None,
         event_bus: "EventBus | None" = None,
-    ):
+    ) -> None:
         """
         Initialize live analysis dialog.
 
@@ -91,12 +91,12 @@ class LiveAnalysisDialog(Dialog):
         """
         self.settings = settings_obj
         self.event_bus = event_bus
-        self.result = None
-        self.behavioral_config_widget = None
+        self.result: dict[str, Any] | None = None
+        self.behavioral_config_widget: BehavioralConfigWidget | None = None
 
         # UI state
         self.camera_selection_var = StringVar(value="")
-        self.camera_index_map = {}
+        self.camera_index_map: dict[str, int] = {}
         self.duration_var = DoubleVar(
             value=settings_obj.live_analysis.default_duration_s if settings_obj else 300.0
         )
@@ -154,7 +154,7 @@ class LiveAnalysisDialog(Dialog):
 
         set_window_icon(self)
 
-    def body(self, master):
+    def body(self, master: Frame) -> Any:
         """Create dialog body."""
         # Main container with padding
         container = ttk.Frame(master, padding=10)
@@ -419,12 +419,12 @@ class LiveAnalysisDialog(Dialog):
         )
         self.behavioral_config_widget.pack(fill="x", expand=True)
 
-        # Auto-detect on open
-        self.after(100, self._detect_cameras)
+        # Auto-detect on open (schedule immediately for test determinism)
+        self.after(0, self._detect_cameras)
 
         return self.camera_combo
 
-    def buttonbox(self):
+    def buttonbox(self) -> None:
         """Create custom button box with Start and Cancel."""
         box = Frame(self)
 
@@ -440,7 +440,7 @@ class LiveAnalysisDialog(Dialog):
 
         box.pack()
 
-    def _detect_cameras(self):
+    def _detect_cameras(self) -> None:
         """Detect available cameras using WizardService."""
         self.camera_status_label.config(text="Detectando...", fg="blue")
         self.update_idletasks()
@@ -490,7 +490,7 @@ class LiveAnalysisDialog(Dialog):
                 parent=self,
             )
 
-    def validate(self):
+    def validate(self) -> bool:
         """Validate inputs before accepting."""
         # Check camera selection
         selected = self.camera_selection_var.get().strip()
@@ -615,10 +615,14 @@ class LiveAnalysisDialog(Dialog):
                 parent=self,
             )
             return False
-
         return True
 
-    def apply(self):
+    def cancel(self, event: Any | None = None) -> None:
+        """Override Dialog.cancel to ensure proper cleanup."""
+        self.result = None
+        super().cancel(event)
+
+    def apply(self) -> None:
         """Build result dictionary and update settings."""
         selected = self.camera_selection_var.get().strip()
         camera_index = self.camera_index_map[selected]
@@ -663,8 +667,14 @@ class LiveAnalysisDialog(Dialog):
                     )
 
                 if hasattr(self.settings, "model_selection"):
-                    self.settings.model_selection.aquarium_method = self.aquarium_method_var.get()
-                    self.settings.model_selection.animal_method = self.animal_method_var.get()
+                    from typing import Literal, cast
+
+                    self.settings.model_selection.aquarium_method = cast(
+                        Literal["seg", "det"], self.aquarium_method_var.get()
+                    )
+                    self.settings.model_selection.animal_method = cast(
+                        Literal["seg", "det"], self.animal_method_var.get()
+                    )
                     self.settings.model_selection.use_openvino = bool(self.use_openvino_var.get())
 
                 if hasattr(self.settings, "analysis_config"):
@@ -704,14 +714,15 @@ class LiveAnalysisDialog(Dialog):
             "behavioral_analysis": behavioral_config,
         }
 
-        log.info(
-            "live_analysis_dialog.configured",
-            camera_index=camera_index,
-            duration_s=self.result["duration_s"],
-            experiment_id=experiment_id,
-            num_aquariums=self.result["num_aquariums"],
-            animals_per_aquarium=self.result["animals_per_aquarium"],
-        )
+        if self.result is not None:
+            log.info(
+                "live_analysis_dialog.configured",
+                camera_index=camera_index,
+                duration_s=self.result["duration_s"],
+                experiment_id=experiment_id,
+                num_aquariums=self.result["num_aquariums"],
+                animals_per_aquarium=self.result["animals_per_aquarium"],
+            )
 
 
 if __name__ == "__main__":

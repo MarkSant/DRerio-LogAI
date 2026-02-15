@@ -8,6 +8,11 @@ import cv2
 import numpy as np
 import structlog
 
+from zebtrack.plugins.base import DetectorPlugin
+from zebtrack.utils import IntegrityError, calculate_sha256
+
+ov: Any | None
+
 try:
     import openvino as ov
 
@@ -21,7 +26,7 @@ try:
 
     TORCH_AVAILABLE = True
 except ImportError:
-    torch = None
+    torch = None  # type: ignore
     TORCH_AVAILABLE = False
 
 # Substitui imports diretos por bloco compatível com múltiplas versões do ultralytics
@@ -47,9 +52,6 @@ except ImportError:
             "Falha ao importar utilitários da biblioteca ultralytics. "
             "Atualize a dependência ou ajuste o caminho do import."
         ) from e
-
-from zebtrack.plugins.base import DetectorPlugin
-from zebtrack.utils import IntegrityError, calculate_sha256
 
 log = structlog.get_logger()
 
@@ -94,6 +96,9 @@ class OpenVINOPlugin(DetectorPlugin):
             # Fallback defaults when settings not injected
             self.conf_threshold = 0.25
             self.nms_threshold = 0.45
+
+        self._context: str = "tracking"
+        self._aquarium_region_defined: bool = False
 
         xml_files = glob.glob(os.path.join(model_path, "*.xml"))
         if not xml_files:
@@ -299,11 +304,21 @@ class OpenVINOPlugin(DetectorPlugin):
     def get_context_info(self) -> dict:
         """Get current context and aquarium region status for debugging."""
         return {
+            "context": self._context,
+            "aquarium_region_defined": self._aquarium_region_defined,
             "conf_threshold": self.conf_threshold,
             "nms_threshold": self.nms_threshold,
             "track_threshold": self.track_threshold,
             "match_threshold": self.match_threshold,
         }
+
+    def set_context(self, context: str) -> None:
+        """Set the execution context (tracking/analysis)."""
+        self._context = context
+
+    def set_aquarium_region_defined(self, defined: bool) -> None:
+        """Update aquarium region flag for downstream logic."""
+        self._aquarium_region_defined = bool(defined)
 
     def set_tracking_parameters(
         self,
@@ -487,6 +502,8 @@ class OpenVINOPlugin(DetectorPlugin):
         if has_mask and decode_masks and len(det) > 0:
             # Process masks using Ultralytics ops
             # process_mask returns [N, H, W] masks in input_shape
+            # proto_tensor is guaranteed not None here due to has_mask check, but mypy doesn't know
+            assert proto_tensor is not None
             masks = process_mask(
                 torch.from_numpy(proto_tensor[0]),
                 det[:, 6:],
@@ -521,13 +538,13 @@ class OpenVINOPlugin(DetectorPlugin):
                 else:
                     final_masks_contours.append(None)
         else:
-            final_masks_contours = None
+            final_masks_contours = []
 
         # Scale boxes
         det[:, :4] = scale_boxes(input_shape, det[:, :4], original_frame_shape).round()
 
         final_detections = []
-        for i, row in enumerate(det):
+        for _, row in enumerate(det):
             # Ultralytics NMS returns [x1, y1, x2, y2, conf, cls]
             # (plus masks if not consumed by process_mask?)
             # Actually process_mask consumes the mask coeffs if passed separately?

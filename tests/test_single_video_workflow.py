@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import cv2
@@ -16,7 +17,7 @@ from zebtrack.plugins.base import DetectorPlugin
 def generate_mock_video(filepath: str, duration_s: int = 2, fps: int = 10):
     """Generates a simple dummy video file with a moving square."""
     width, height = 640, 480
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    fourcc = cast(Any, cv2).VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(filepath, fourcc, fps, (width, height))
 
     for i in range(duration_s * fps):
@@ -33,21 +34,22 @@ class MockPlugin(DetectorPlugin):
     def __init__(self, model_path: str, expected_hash: str | None = None):
         pass  # No model to load
 
-    def detect(self, frame: np.ndarray) -> list:
+    def detect(
+        self, frame: np.ndarray, conf_threshold: float | None = None
+    ) -> list[tuple[int, int, int, int, float, int | None, int]]:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if not contours:
             return []
         x, y, w, h = cv2.boundingRect(contours[0])
-        # Return format: [x1, y1, x2, y2, confidence, track_id]
-        return [[x, y, x + w, y + h, 0.99, 1]]
+        return [(x, y, x + w, y + h, 0.99, 1, 1)]
 
     @staticmethod
     def get_name() -> str:
         return "MockPlugin"
 
     @property
-    def model_input_shape(self):
+    def model_input_shape(self) -> tuple[int, int]:
         return (640, 480)
 
 

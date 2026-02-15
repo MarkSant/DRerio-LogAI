@@ -1116,24 +1116,40 @@ class WidgetFactory:
         rois_to_add = []
         template = dialog.result
         if template["type"] == "vertical":
-            lane_width = width / template["lanes"]
-            for i in range(template["lanes"]):
+            lanes_value = template.get("lanes")
+            lanes = 0
+            if isinstance(lanes_value, int | float | str):
+                lanes = int(lanes_value)
+            lane_width = width / lanes if lanes else width
+            for i in range(lanes):
                 x1 = x_min + i * lane_width
                 x2 = x1 + lane_width
                 coords = [(x1, y_min), (x2, y_min), (x2, y_max), (x1, y_max)]
                 rois_to_add.append({"name": f"V_Lane_{i + 1}", "type": "polygon", "coords": coords})
         elif template["type"] == "horizontal":
-            lane_height = height / template["lanes"]
-            for i in range(template["lanes"]):
+            lanes_value = template.get("lanes")
+            lanes = 0
+            if isinstance(lanes_value, int | float | str):
+                lanes = int(lanes_value)
+            lane_height = height / lanes if lanes else height
+            for i in range(lanes):
                 y1 = y_min + i * lane_height
                 y2 = y1 + lane_height
                 coords = [(x_min, y1), (x_max, y1), (x_max, y2), (x_min, y2)]
                 rois_to_add.append({"name": f"H_Lane_{i + 1}", "type": "polygon", "coords": coords})
         elif template["type"] == "grid":
-            col_width = width / template["cols"]
-            row_height = height / template["rows"]
-            for r in range(template["rows"]):
-                for c in range(template["cols"]):
+            cols_value = template.get("cols")
+            rows_value = template.get("rows")
+            cols = 0
+            rows = 0
+            if isinstance(cols_value, int | float | str):
+                cols = int(cols_value)
+            if isinstance(rows_value, int | float | str):
+                rows = int(rows_value)
+            col_width = width / cols if cols else width
+            row_height = height / rows if rows else height
+            for r in range(rows):
+                for c in range(cols):
                     x1 = x_min + c * col_width
                     y1 = y_min + r * row_height
                     x2 = x1 + col_width
@@ -1219,14 +1235,17 @@ class WidgetFactory:
                     else:
                         color = "#90EE90"  # LightGreen - Completed
 
+                    from functools import partial
+
                     cell_btn = Button(
                         self.gui.grid_container,
                         text=status_text,
                         background=color,
                         width=15,
                         height=3,
-                        command=lambda d=day,
-                        g=group_name: self.gui.dialog_manager.handle_grid_cell_click(d, g),
+                        command=partial(
+                            self.gui.dialog_manager.handle_grid_cell_click, day, group_name
+                        ),
                     )
                     cell_btn.grid(row=i + 1, column=j + 1, padx=2, pady=2, sticky="nsew")
 
@@ -1330,7 +1349,7 @@ class WidgetFactory:
             value="det",
         ).pack(anchor="w", padx=20)
 
-        result = [None]  # Use list to allow modification in nested function
+        result: list[str | None] = [None]  # Use list to allow modification in nested function
 
         def on_ok():
             result[0] = weight_type_var.get()

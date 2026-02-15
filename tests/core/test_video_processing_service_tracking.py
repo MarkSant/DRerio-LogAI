@@ -8,16 +8,18 @@ and calibration integration.
 
 import threading
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import cv2
 import numpy as np
 import pytest
 
+from zebtrack.core.detector import ZoneData
 from zebtrack.core.video_processing_service import VideoProcessingService
 
 # Global mock recorder instance that will be returned by MockRecorderClass
-_mock_recorder_instance = None
+_mock_recorder_instance: Any | None = None
 
 
 class MockRecorderClass:
@@ -25,7 +27,8 @@ class MockRecorderClass:
 
     def __init__(self, **kwargs):
         # Store ref to global mock for delegation
-        self._mock = _mock_recorder_instance
+        self._mock = cast(Mock, _mock_recorder_instance)
+        assert self._mock is not None
 
     def start_recording(self, **kwargs):
         return self._mock.start_recording(**kwargs)
@@ -85,6 +88,9 @@ class TestRunTrackingIfNeeded:
     def test_skips_existing_trajectory(self, mock_exists, video_processing_service):
         """Test that existing trajectory file skips tracking generation."""
         mock_exists.return_value = True  # Trajectory already exists
+        video_processing_service.project_manager.get_zone_data = Mock(
+            return_value=ZoneData(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
+        )
 
         success, polygon = video_processing_service.run_tracking_if_needed(
             video_path="/fake/video.mp4",
@@ -104,6 +110,9 @@ class TestRunTrackingIfNeeded:
         """Test that missing detector returns False."""
         mock_exists.return_value = False  # No existing trajectory
         video_processing_service.detector = None
+        video_processing_service.project_manager.get_zone_data = Mock(
+            return_value=ZoneData(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
+        )
 
         success, polygon = video_processing_service.run_tracking_if_needed(
             video_path="/fake/video.mp4",
@@ -129,6 +138,9 @@ class TestRunTrackingIfNeeded:
         mock_videocap.return_value = mock_cap
 
         video_processing_service.detector = Mock()
+        video_processing_service.project_manager.get_zone_data = Mock(
+            return_value=ZoneData(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
+        )
 
         success, polygon = video_processing_service.run_tracking_if_needed(
             video_path="/fake/video.mp4",
@@ -156,7 +168,7 @@ class TestRunTrackingIfNeeded:
 
         # Setup project manager
         video_processing_service.project_manager.get_zone_data = Mock(
-            return_value=Mock(polygon=[[0, 0], [640, 0], [640, 480]])
+            return_value=ZoneData(polygon=[[0, 0], [640, 0], [640, 480]])
         )
 
         _success, _polygon = video_processing_service.run_tracking_if_needed(
@@ -194,7 +206,7 @@ class TestRunTrackingIfNeeded:
         mock_worker_instance.start_in_thread.return_value = Mock()
 
         video_processing_service.project_manager.get_zone_data = Mock(
-            return_value=Mock(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
+            return_value=ZoneData(polygon=[[0, 0], [640, 0], [640, 480], [0, 480]])
         )
 
         video_processing_service.run_tracking_if_needed(

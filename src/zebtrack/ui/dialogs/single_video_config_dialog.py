@@ -12,7 +12,7 @@ from tkinter import (
     simpledialog,
     ttk,
 )
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import structlog
 
@@ -45,7 +45,7 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
             event_bus: Optional event bus.
         """
         log.info("single_video_dialog.__init__")
-        self.result = None
+        self.result: dict[str, Any] | None = None
         self.settings = settings_obj
         self.event_bus = event_bus
         super().__init__(parent, "Configuração de Análise de Vídeo Único")
@@ -547,8 +547,12 @@ class SingleVideoConfigDialog(simpledialog.Dialog):
                     )
 
                 if hasattr(self.settings, "model_selection"):
-                    self.settings.model_selection.aquarium_method = self.aquarium_method_var.get()
-                    self.settings.model_selection.animal_method = self.animal_method_var.get()
+                    self.settings.model_selection.aquarium_method = cast(
+                        Literal["seg", "det"], self.aquarium_method_var.get()
+                    )
+                    self.settings.model_selection.animal_method = cast(
+                        Literal["seg", "det"], self.animal_method_var.get()
+                    )
                     self.settings.model_selection.use_openvino = self.use_openvino_var.get()
 
                 if hasattr(self.settings, "analysis_config"):

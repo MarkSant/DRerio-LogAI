@@ -247,6 +247,20 @@ class StateSynchronizer:
                     pass
                 self.gui._overview_refresh_job = None
             self.gui.project_overview_frame = None
+
+    def update_status(self, message: str) -> None:
+        """Update the status bar message in the GUI.
+
+        Args:
+            message: The message to display.
+        """
+        if hasattr(self.gui, "set_status") and callable(self.gui.set_status):
+            self.gui.set_status(message)
+        elif hasattr(self.gui, "analysis_status_var"):
+            try:
+                self.gui.analysis_status_var.set(message)
+            except Exception:
+                pass
             # Note: project_overview_tree is a read-only property derived from
             # project_overview_widget. Clear the widget reference instead.
             if hasattr(self.gui, "project_overview_widget"):
@@ -443,7 +457,7 @@ class StateSynchronizer:
                     percentages.items(),
                     key=lambda item: str(item[0]),
                 ):
-                    if isinstance(value, (int, float)):
+                    if isinstance(value, int | float):
                         formatted.append(f"ID {key}: {value:.1f}%")
                 if formatted:
                     if self.gui.analysis_display_widget:
@@ -462,9 +476,27 @@ class StateSynchronizer:
                     )
         else:
             if self.gui.analysis_display_widget:
-                self.gui.analysis_display_widget.set_social_summary(
-                    "Interações sociais: aguardando dados."
-                )
+                normalized_tracks = [
+                    str(track).strip() for track in (tracks or []) if str(track).strip()
+                ]
+                single_track_context = bool(normalized_tracks) and len(set(normalized_tracks)) <= 1
+
+                if self.gui._active_processing_mode is ProcessingMode.SINGLE_SUBJECT:
+                    self.gui.analysis_display_widget.set_social_summary(
+                        "Interações sociais: não aplicável no modo de sujeito único."
+                    )
+                elif profile != "social_interaction":
+                    self.gui.analysis_display_widget.set_social_summary(
+                        "Interações sociais: perfil atual não gera métricas sociais."
+                    )
+                elif single_track_context:
+                    self.gui.analysis_display_widget.set_social_summary(
+                        "Interações sociais: não aplicável para um único animal monitorado."
+                    )
+                else:
+                    self.gui.analysis_display_widget.set_social_summary(
+                        "Interações sociais: aguardando dados."
+                    )
 
         if tracks and self.gui._active_processing_mode is not ProcessingMode.SINGLE_SUBJECT:
             normalized_tracks = [str(track).strip() for track in tracks if str(track).strip()]
@@ -516,12 +548,14 @@ class StateSynchronizer:
             percent = None
             elapsed_str = None
             eta_str = None
+            progress_value = None
 
             # Calculate percentage based on video position (how far through video)
             # Use video_position for progress, as that shows actual playback position
             if total_frames and video_position is not None:
                 percent_val = (video_position / total_frames) * 100
                 percent = f"{percent_val:.1f}%"
+                progress_value = max(0.0, min(1.0, float(percent_val / 100.0)))
 
             # Calculate elapsed time and ETA
             # Strategy 1: Use start_time if provided (Legacy/Local)
@@ -570,6 +604,8 @@ class StateSynchronizer:
                 elapsed=elapsed_str,
                 eta=eta_str,
             )
+            if progress_value is not None:
+                self.gui.analysis_display_widget.update_progress(progress_value)
 
     @staticmethod
     def _format_time(seconds: float) -> str:
@@ -587,6 +623,41 @@ class StateSynchronizer:
     def update_processing_mode(self, report: dict | None = None) -> None:
         """Update UI for processing mode (metadata, task status)."""
         # Logic extracted/adapted to replace legacy _publish_processing_mode
+
+        mode = None
+        if report is not None:
+            if hasattr(report, "mode"):
+                mode = report.mode
+            elif isinstance(report, dict):
+                mode = report.get("mode")
+
+        if isinstance(mode, str):
+            normalized_mode = mode.strip().upper()
+            if normalized_mode == ProcessingMode.SINGLE_SUBJECT.name:
+                mode = ProcessingMode.SINGLE_SUBJECT
+            elif normalized_mode == ProcessingMode.MULTI_TRACK.name:
+                mode = ProcessingMode.MULTI_TRACK
+
+        if mode not in (ProcessingMode.SINGLE_SUBJECT, ProcessingMode.MULTI_TRACK):
+            fallback_mode = getattr(self.gui, "_active_processing_mode", None)
+            if fallback_mode in (ProcessingMode.SINGLE_SUBJECT, ProcessingMode.MULTI_TRACK):
+                mode = fallback_mode
+
+        if mode in (ProcessingMode.SINGLE_SUBJECT, ProcessingMode.MULTI_TRACK):
+            self.gui._active_processing_mode = mode
+            if self.gui.analysis_display_widget:
+                self.gui.analysis_display_widget.set_tracking_mode(mode.display_name)
+                if self.gui.analysis_display_widget.track_selector_widget:
+                    state = "disabled" if mode is ProcessingMode.SINGLE_SUBJECT else "readonly"
+                    self.gui.analysis_display_widget.track_selector_widget.configure(state=state)
+
+            if mode is ProcessingMode.SINGLE_SUBJECT:
+                if self.gui.analysis_display_widget:
+                    self.gui.analysis_display_widget.track_selector_var.set("Todos")
+                    self.gui.analysis_display_widget.set_social_summary(
+                        "Interações sociais: não aplicável no modo de sujeito único."
+                    )
+                self._update_track_options(["Todos"])
 
         # 1. Get current active video from ProjectManager via Controller
         if hasattr(self.gui, "controller") and self.gui.controller:
@@ -612,6 +683,7 @@ class StateSynchronizer:
         total: int | None = None,
         experiment_id: str | None = None,
         step: str | None = None,
+        progress_fraction: float | None = None,
         group: str | None = None,
         day: str | None = None,
         subject: str | None = None,
@@ -647,6 +719,17 @@ class StateSynchronizer:
                     parts.append(f"• {step_text}")
 
         task_var.set(" ".join(parts))
+
+        if (
+            progress_fraction is not None
+            and analysis_widget
+            and getattr(analysis_widget, "update_progress", None) is not None
+        ):
+            try:
+                clamped_progress = max(0.0, min(1.0, float(progress_fraction)))
+                analysis_widget.update_progress(clamped_progress)
+            except (TypeError, ValueError):
+                pass
 
         # Update metadata display (group, day, subject)
         group_str = str(group) if group else "Sem Grupo"

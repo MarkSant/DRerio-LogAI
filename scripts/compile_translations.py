@@ -48,10 +48,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Force UTF-8 for stdout and stderr on Windows to avoid charmap errors
+    if sys.platform == "win32":
+        import io
+
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
+
     args = parse_args(argv)
     if not args.locales_root.exists():
         print(
-            f"[WARNING] Locales directory '{args.locales_root}' not found – nothing to compile.",
+            f"[WARNING] Locales directory '{args.locales_root}' not found - nothing to compile.",
             file=sys.stderr,
         )
         return 0
@@ -69,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "[SUCCESS] Compiled "
             f"{po_file.relative_to(args.locales_root)} "
-            f"→ {mo_path.relative_to(args.locales_root)}"
+            f"-> {mo_path.relative_to(args.locales_root)}"
         )
 
     return 0

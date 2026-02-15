@@ -57,13 +57,13 @@ class Recorder:
             settings_obj: Settings instance (optional, uses defaults if None).
         """
         self.is_recording = False
-        self.video_writer = None
+        self.video_writer: cv2.VideoWriter | None = None
         self.base_name = ""
         self.output_folder = ""
-        self.start_time = 0
+        self.start_time: float = 0.0
         self.frame_count = 0
         self.recording_start_frame = 0
-        self.detection_data = []
+        self.detection_data: list[dict[str, Any]] = []
         # BUG FIX #3: Use private attributes for protected properties
         self._pixel_per_cm_ratio = None
         self._calibration = None
@@ -268,7 +268,7 @@ class Recorder:
                 self._fps,
                 (frame_width, frame_height),
             )
-            if not self.video_writer.isOpened():
+            if self.video_writer is not None and not self.video_writer.isOpened():
                 log.error("recorder.video_writer.open_error", path=video_filename)
                 return False
         else:
@@ -622,7 +622,7 @@ class Recorder:
 
     def _cleanup_aquarium_recorders(self) -> None:
         """Cleanup all aquarium recorders on error."""
-        for aq_id, recorder in list(self._aquarium_recorders.items()):
+        for _aq_id, recorder in list(self._aquarium_recorders.items()):
             try:
                 recorder.stop_recording(force_stop=True, reason="Cleanup on error")
             except Exception:
@@ -681,7 +681,7 @@ class Recorder:
             # This aligns with COORDINATE_SYSTEMS.md: Original → Warped → CM
             if self.calibration:
                 x1, y1, x2, y2 = self.calibration.transform_bbox(x1, y1, x2, y2)
-                # Now coordinates are in warped space (e.g., 600×266 px)
+                # Now coordinates are in warped space (e.g., 600x266 px)
 
             data_point = {
                 "timestamp": timestamp,
@@ -741,9 +741,9 @@ class Recorder:
     def _normalise_track_id(value: Any) -> int | None:
         if value is None:
             return None
-        if isinstance(value, (np.integer, int)):
+        if isinstance(value, np.integer | int):
             return int(value)
-        if isinstance(value, (float, np.floating)):
+        if isinstance(value, float | np.floating):
             if np.isnan(value):  # type: ignore[arg-type]
                 return None
             return int(value)
@@ -1131,17 +1131,14 @@ class Recorder:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> None:
         """
         Exit context manager - close all files and save data.
 
         Args:
             exc_type: Exception type if raised
             exc_val: Exception value if raised
-            exc_tb: Exception traceback if raised
-
-        Returns:
-            False to propagate exceptions
+            exc_tb: Traceback for diagnostic purposes
         """
         try:
             if self.is_recording:
@@ -1153,7 +1150,6 @@ class Recorder:
                     self.stop_recording()
         except Exception as e:
             log.error("recorder.cleanup.failed", error=str(e))
-        return False  # Don't suppress exceptions
 
 
 if __name__ == "__main__":

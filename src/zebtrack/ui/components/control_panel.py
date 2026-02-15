@@ -133,15 +133,18 @@ class ControlPanelWidget(BaseWidget):
 
     def _on_start_recording_clicked(self) -> None:
         """Handle start recording button click."""
-        self.event_bus.publish_event(Events.RECORDING_START, {})
+        if self.event_bus:
+            self.event_bus.publish_event(Events.RECORDING_START, {})
 
     def _on_stop_recording_clicked(self) -> None:
         """Handle stop recording button click."""
-        self.event_bus.publish_event(Events.RECORDING_STOP, {})
+        if self.event_bus:
+            self.event_bus.publish_event(Events.RECORDING_STOP, {})
 
     def _on_process_video_clicked(self) -> None:
         """Handle process video button click."""
-        self.event_bus.publish_event(Events.UI_REQUEST_PROCESS_VIDEOS, {})
+        if self.event_bus:
+            self.event_bus.publish_event(Events.UI_REQUEST_PROCESS_VIDEOS, {})
 
     def _on_preview_toggled(self) -> None:
         """Handle preview checkbox toggle."""

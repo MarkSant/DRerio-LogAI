@@ -237,6 +237,77 @@ class TestValidation:
         assert result.error_code == "TEST_ERROR"
         assert result.error_message == "Test error message"
 
+    def test_validate_can_start_processing_recovers_stale_processing_state(
+        self, processing_coordinator
+    ):
+        """Should self-heal stale is_processing=True when no worker/thread is active."""
+        processing_state = MagicMock()
+        processing_state.is_processing = True
+        processing_state.current_video = "video_a.mp4"
+        processing_state.is_live_session_active = False
+        processing_coordinator.state_manager.get_processing_state.return_value = processing_state
+
+        processing_coordinator.processing_worker = None
+        processing_coordinator.processing_thread = None
+
+        result = processing_coordinator.validate_can_start_processing()
+
+        assert result.is_valid is True
+        processing_coordinator.state_manager.update_processing_state.assert_called_once()
+
+    def test_validate_can_start_processing_blocks_when_live_session_active(
+        self, processing_coordinator
+    ):
+        """Must keep blocking when processing state belongs to active live session."""
+        processing_state = MagicMock()
+        processing_state.is_processing = True
+        processing_state.current_video = "live_session"
+        processing_state.is_live_session_active = True
+        processing_coordinator.state_manager.get_processing_state.return_value = processing_state
+
+        processing_coordinator.processing_worker = None
+        processing_coordinator.processing_thread = None
+
+        result = processing_coordinator.validate_can_start_processing()
+
+        assert result.is_valid is False
+        assert result.error_code == "processing_already_active"
+
+    def test_validate_can_start_processing_recovers_when_live_flag_is_stale(
+        self, processing_coordinator
+    ):
+        """Should recover when state live flag is true but session coordinator says inactive."""
+        processing_state = MagicMock()
+        processing_state.is_processing = True
+        processing_state.current_video = "video_stale.mp4"
+        processing_state.is_live_session_active = True
+        processing_coordinator.state_manager.get_processing_state.return_value = processing_state
+
+        processing_coordinator.processing_worker = None
+        processing_coordinator.processing_thread = None
+
+        processing_coordinator.view = MagicMock()
+        processing_coordinator.view.controller = MagicMock()
+        processing_coordinator.view.controller.session_coordinator = MagicMock()
+        session_coordinator = processing_coordinator.view.controller.session_coordinator
+        session_coordinator.is_live_session_active.return_value = False
+
+        result = processing_coordinator.validate_can_start_processing()
+
+        assert result.is_valid is True
+        processing_coordinator.state_manager.update_processing_state.assert_called_once()
+
+    def test_on_processing_started_does_not_require_root(self, processing_coordinator):
+        """Should initialize UI/mode updates even when root is None."""
+        processing_coordinator.view = MagicMock()
+        processing_coordinator.root = None
+        processing_coordinator._publish_processing_mode = MagicMock()
+
+        processing_coordinator._on_processing_started([{"path": "video.mp4"}])
+
+        processing_coordinator.ui_coordinator.show_progress_bar.assert_called_once()
+        processing_coordinator._publish_processing_mode.assert_called_once()
+
 
 # =============================================================================
 # SINGLE VIDEO PROCESSING TESTS

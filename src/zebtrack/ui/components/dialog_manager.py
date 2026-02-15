@@ -9,13 +9,16 @@ import subprocess
 import sys
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog
-from typing import Any
+from typing import Any, Literal
 
 import structlog
 
 # Dialogs are imported locally within methods to avoid circular dependencies
 
 log = structlog.get_logger()
+
+if not hasattr(os, "startfile"):
+    os.startfile = None  # type: ignore[attr-defined,assignment]
 
 
 class DialogManager:
@@ -30,6 +33,28 @@ class DialogManager:
         """
         self.gui = gui
         self.event_bus_v2 = event_bus_v2
+        self._suppress_batch_dialogs: bool = False
+
+    # =========================================================================
+    # Batch Dialog Suppression
+    # =========================================================================
+
+    def set_dialog_suppression(self, suppress: bool) -> None:
+        """Enable or disable batch dialog suppression.
+
+        When suppressed, show_info/show_warning/show_error will log the
+        message and update the status bar instead of opening a modal
+        messagebox.  This prevents blocking dialogs during batch
+        video processing.
+
+        Args:
+            suppress: True to suppress dialogs, False to restore normal behavior.
+        """
+        self._suppress_batch_dialogs = suppress
+        log.info(
+            "dialog_manager.suppression_changed",
+            suppress=suppress,
+        )
 
     # =========================================================================
     # MessageBox Wrappers
@@ -38,29 +63,75 @@ class DialogManager:
     def show_error(self, title: str, message: str) -> None:
         """Show an error message box.
 
+        When batch dialog suppression is active, logs the error and
+        updates the status bar instead of opening a modal dialog.
+
         Args:
             title: Dialog title
             message: Error message to display
         """
+        if self._suppress_batch_dialogs:
+            log.warning(
+                "dialog_manager.show_error.suppressed",
+                title=title,
+                message=message,
+            )
+            self._update_status_bar(f"[Erro] {title}: {message}")
+            return
         messagebox.showerror(title, message)
 
     def show_warning(self, title: str, message: str) -> None:
         """Show a warning message box.
 
+        When batch dialog suppression is active, logs the warning and
+        updates the status bar instead of opening a modal dialog.
+
         Args:
             title: Dialog title
             message: Warning message to display
         """
+        if self._suppress_batch_dialogs:
+            log.warning(
+                "dialog_manager.show_warning.suppressed",
+                title=title,
+                message=message,
+            )
+            self._update_status_bar(f"[Aviso] {title}: {message}")
+            return
         messagebox.showwarning(title, message)
 
     def show_info(self, title: str, message: str) -> None:
         """Show an info message box.
 
+        When batch dialog suppression is active, logs the info and
+        updates the status bar instead of opening a modal dialog.
+
         Args:
             title: Dialog title
             message: Info message to display
         """
+        if self._suppress_batch_dialogs:
+            log.info(
+                "dialog_manager.show_info.suppressed",
+                title=title,
+                message=message,
+            )
+            self._update_status_bar(f"{title}: {message}")
+            return
         messagebox.showinfo(title, message)
+
+    def _update_status_bar(self, text: str) -> None:
+        """Update the GUI status bar with a message (truncated to 200 chars).
+
+        Used as a non-blocking alternative to modal dialogs during batch
+        processing.
+        """
+        truncated = text[:200] if len(text) > 200 else text
+        try:
+            if self.gui and hasattr(self.gui, "status_var"):
+                self.gui.status_var.set(truncated)
+        except Exception:
+            log.debug("dialog_manager._update_status_bar.failed", text=truncated)
 
     def ask_ok_cancel(self, title: str, message: str) -> bool:
         """Show a confirmation dialog with OK/Cancel buttons.
@@ -74,7 +145,13 @@ class DialogManager:
         """
         return messagebox.askokcancel(title, message)
 
-    def ask_yes_no(self, title: str, message: str, *, icon: str = "question") -> bool:
+    def ask_yes_no(
+        self,
+        title: str,
+        message: str,
+        *,
+        icon: Literal["error", "info", "question", "warning"] = "question",
+    ) -> bool:
         """Show a confirmation dialog with Yes/No buttons.
 
         Args:
@@ -87,7 +164,13 @@ class DialogManager:
         """
         return messagebox.askyesno(title, message, icon=icon)
 
-    def ask_yes_no_cancel(self, title: str, message: str, *, icon: str = "question") -> bool | None:
+    def ask_yes_no_cancel(
+        self,
+        title: str,
+        message: str,
+        *,
+        icon: Literal["error", "info", "question", "warning"] = "question",
+    ) -> bool | None:
         """Show a confirmation dialog with Yes/No/Cancel buttons.
 
         Args:
@@ -114,7 +197,7 @@ class DialogManager:
         Returns:
             Selected directory path or empty string if cancelled
         """
-        kwargs = {"title": title}
+        kwargs: dict[str, Any] = {"title": title}
         if initial_dir:
             kwargs["initialdir"] = initial_dir
         return filedialog.askdirectory(**kwargs)
@@ -135,7 +218,7 @@ class DialogManager:
         Returns:
             Selected file path or empty string if cancelled
         """
-        kwargs = {"title": title, "filetypes": filetypes}
+        kwargs: dict[str, Any] = {"title": title, "filetypes": filetypes}
         if initial_dir:
             kwargs["initialdir"] = initial_dir
         return filedialog.askopenfilename(**kwargs)
@@ -156,10 +239,13 @@ class DialogManager:
         Returns:
             Tuple of selected file paths or empty tuple if cancelled
         """
-        kwargs = {"title": title, "filetypes": filetypes}
+        kwargs: dict[str, Any] = {"title": title, "filetypes": filetypes}
         if initial_dir:
             kwargs["initialdir"] = initial_dir
-        return filedialog.askopenfilenames(**kwargs)
+        result = filedialog.askopenfilenames(**kwargs)
+        if isinstance(result, str) and not result:
+            return ()
+        return result
 
     def ask_save_filename(self, **options) -> str:
         """Show a dialog to select a save file path.
@@ -601,7 +687,7 @@ class DialogManager:
 
             from zebtrack.ui.dialogs.subject_selection_dialog import SubjectSelectionDialog
 
-            dialog = SubjectSelectionDialog(
+            dialog: Any = SubjectSelectionDialog(
                 self.gui.root, day, group_name, subjects_per_group, completed_subjects
             )
 
@@ -701,6 +787,25 @@ class DialogManager:
             "Cancelar: Voltar para edição",
         )
 
+    def confirm_pending_zone_edit_before_navigation(self, *, context: str) -> bool | None:
+        """Confirm whether to save pending zone edits before navigation.
+
+        Args:
+            context: Human-readable navigation context (e.g., "abrir outro vídeo")
+
+        Returns:
+            True to save and proceed, False to discard and proceed, None to cancel navigation
+        """
+        return self.ask_yes_no_cancel(
+            "Salvar edição de zonas?",
+            "Há um desenho/edição de zona em andamento.\n\n"
+            f"Deseja salvar antes de {context}?\n\n"
+            "Sim: Salvar alterações e continuar\n"
+            "Não: Descartar alterações e continuar\n"
+            "Cancelar: Permanecer no vídeo atual",
+            icon="warning",
+        )
+
     # =========================================================================
     # Notification Dialogs
     # =========================================================================
@@ -722,7 +827,20 @@ class DialogManager:
 
         descriptors = []
         if day is not None and group is not None and cobaia is not None:
-            day_display = self.gui.validation_manager._format_day_display(day) or day
+            day_display = day
+            formatted_day = None
+            if getattr(self.gui, "validation_manager", None):
+                try:
+                    formatted_day = self.gui.validation_manager._format_day_display(day)
+                except Exception:
+                    formatted_day = None
+            if isinstance(formatted_day, str) and formatted_day.strip():
+                day_display = formatted_day
+            else:
+                try:
+                    day_display = f"{int(day):02d}"
+                except (TypeError, ValueError):
+                    day_display = str(day)
             descriptors.append(f"Dia {day_display}, Grupo {group}, Sujeito {cobaia}")
         if port:
             descriptors.append(f"Porta {port}")
@@ -802,7 +920,11 @@ class DialogManager:
         """
         try:
             if sys.platform.startswith("win"):
-                os.startfile(target_path)  # type: ignore[attr-defined]
+                startfile = getattr(os, "startfile", None)
+                if callable(startfile):
+                    startfile(target_path)
+                else:
+                    raise OSError("startfile not available")
             elif sys.platform == "darwin":
                 subprocess.Popen(["open", target_path])
             else:
@@ -861,6 +983,14 @@ class DialogManager:
 
             status_message = f'Zonas reutilizadas de "{last_name}" para "{current_name}".'
             self.gui.set_status(status_message)
+            self.show_warning(
+                "Zonas reutilizadas",
+                (
+                    f'As zonas de "{last_name}" foram aplicadas em "{current_name}".\n\n'
+                    "Revise os contornos antes de iniciar a análise para garantir que "
+                    "correspondem ao vídeo atual."
+                ),
+            )
 
             if self.event_bus_v2:
                 from zebtrack.ui.event_bus_v2 import Event, UIEvents

@@ -8,6 +8,7 @@ as required by CLAUDE.md for all public API changes (minimum 70% coverage).
 from unittest.mock import MagicMock
 
 import pytest
+from PIL import Image, ImageTk
 
 from zebtrack.ui.components.analysis_display import AnalysisDisplayWidget
 from zebtrack.ui.event_bus import EventBus
@@ -53,7 +54,7 @@ class TestAnalysisDisplayWidget:
         assert widget.day_var.get() == "Dia: --"
         assert widget.subject_var.get() == "Indivíduo: --"
         assert widget.profile_var.get() == "Perfil de análise: default"
-        assert widget.tracking_mode_var.get() == "Modo de rastreamento: Multi-indivíduos"
+        assert widget.tracking_mode_var.get() == "Modo de rastreamento: --"
         assert widget.track_selector_var.get() == "Todos"
 
         # Verify widget references are created
@@ -74,6 +75,7 @@ class TestAnalysisDisplayWidget:
         tkinter_root.update_idletasks()
 
         assert widget._available_track_options == custom_tracks
+        assert widget.track_selector_widget is not None
         assert widget.track_selector_widget["values"] == tuple(custom_tracks)
 
     def test_widget_without_event_bus(self, tkinter_root):
@@ -228,6 +230,23 @@ class TestAnalysisDisplayWidget:
         assert widget.video_label.cget("image") == ""
         assert widget.video_label.image is None
 
+    def test_update_frame_with_pil_image(self, widget):
+        """Test update_frame accepts a PIL Image and stores a PhotoImage."""
+        image = Image.new("RGB", (16, 12), color=(120, 10, 10))
+
+        widget.update_frame(image)
+
+        assert isinstance(widget.video_label.image, ImageTk.PhotoImage)
+
+    def test_update_frame_with_photoimage(self, widget):
+        """Test update_frame accepts an ImageTk.PhotoImage directly."""
+        image = Image.new("RGB", (16, 12), color=(10, 120, 10))
+        photo = ImageTk.PhotoImage(image)
+
+        widget.update_frame(photo)
+
+        assert widget.video_label.image is photo
+
     def test_reset_to_defaults(self, widget):
         """Test reset_to_defaults resets all values to initial state."""
         # Change some values first
@@ -248,7 +267,7 @@ class TestAnalysisDisplayWidget:
         assert widget.group_var.get() == "Grupo: --"
         assert widget.day_var.get() == "Dia: --"
         assert widget.subject_var.get() == "Indivíduo: --"
-        assert widget.tracking_mode_var.get() == "Modo de rastreamento: Multi-indivíduos"
+        assert widget.tracking_mode_var.get() == "Modo de rastreamento: --"
         assert widget.profile_var.get() == "Perfil de análise: default"
         assert widget.track_selector_var.get() == "Todos"
         assert not widget.progress_frame.winfo_ismapped()

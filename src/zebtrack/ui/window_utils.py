@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from tkinter import TclError, ttk
-from typing import Any
+from typing import Any, cast
 
 try:
     import ttkbootstrap as ttkb
 except Exception:  # pragma: no cover - optional dependency
-    ttkb = None
+    ttkb = cast(Any, None)
 
 
 def _try_actions(window: Any, actions: tuple[Callable[[], None], ...]) -> bool:

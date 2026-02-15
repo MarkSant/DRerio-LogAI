@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import pytest
 
 from zebtrack.ui import gui
@@ -75,7 +77,7 @@ def test_application_gui_wiring(monkeypatch):
     monkeypatch.setattr(gui, "PanelBuilder", _Dummy)
 
     root = _RootStub()
-    controller = _Dummy()
+    controller = cast(Any, _Dummy())
     controller.on_close = lambda *a, **k: None
 
     app = gui.ApplicationGUI(root=root, controller=controller)

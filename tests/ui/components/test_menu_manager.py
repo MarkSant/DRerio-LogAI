@@ -1,6 +1,7 @@
 """Tests for MenuManager component."""
 
 from tkinter import Menu
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -254,11 +255,8 @@ class TestOverviewBadgeFont:
     def test_get_overview_badge_font_creates_font(self, menu_manager, tkinter_root):
         """Test that font is created on first call."""
         import tkinter.font as tkfont
-        from tkinter import ttk
 
-        tree = ttk.Treeview(tkinter_root)
-        # Mock cget to return a font name since Treeview doesn't have -font option
-        tree.cget = Mock(return_value="TkDefaultFont")
+        tree = SimpleNamespace(cget=lambda _name: "TkDefaultFont")
         menu_manager.gui.project_overview_tree = tree
 
         font = menu_manager.get_overview_badge_font()
@@ -269,11 +267,7 @@ class TestOverviewBadgeFont:
 
     def test_get_overview_badge_font_caches_font(self, menu_manager, tkinter_root):
         """Test that font is cached and reused."""
-        from tkinter import ttk
-
-        tree = ttk.Treeview(tkinter_root)
-        # Mock cget to return a font name
-        tree.cget = Mock(return_value="TkDefaultFont")
+        tree = SimpleNamespace(cget=lambda _name: "TkDefaultFont")
         menu_manager.gui.project_overview_tree = tree
 
         font1 = menu_manager.get_overview_badge_font()
@@ -563,3 +557,149 @@ class TestCreateRoiContextMenu:
         assert hasattr(menu_manager.gui, "_rename_selected_roi")
         assert hasattr(menu_manager.gui, "_change_roi_color")
         assert hasattr(menu_manager.gui, "_remove_selected_roi_confirm")
+
+
+@pytest.mark.gui
+class TestShowProcessingReportsContextMenu:
+    """Tests for processing reports context menu."""
+
+    def test_show_processing_reports_context_menu_builds_entries(
+        self, menu_manager, tkinter_root
+    ) -> None:
+        """Ensure menu items are added based on available assets."""
+        from tkinter import Menu as TkMenu
+
+        menu_manager.gui.root = tkinter_root
+        menu_manager.gui.controller.project_manager = Mock()
+        pm = menu_manager.gui.controller.project_manager
+        pm.has_arena_data.return_value = True
+        pm.has_roi_data.return_value = False
+        pm.has_trajectory_data.return_value = True
+        pm.has_summary_data.return_value = False
+
+        callbacks = {
+            "delete_asset": Mock(),
+            "delete_all_processing": Mock(),
+            "delete_video": Mock(),
+        }
+
+        created_menus = []
+
+        def menu_factory(*args, **kwargs):
+            menu = TkMenu(*args, **kwargs)
+            created_menus.append(menu)
+            return menu
+
+        with (
+            patch("zebtrack.ui.components.menu_manager.Menu", side_effect=menu_factory),
+            patch.object(TkMenu, "post"),
+        ):
+            menu_manager.show_processing_reports_context_menu(
+                "/path/to/video.mp4",
+                "#1",
+                120,
+                200,
+                callbacks,
+            )
+
+        assert created_menus
+        menu = created_menus[0]
+        labels = []
+        end_index = menu.index("end")
+        assert end_index is not None
+        for idx in range(end_index + 1):
+            entry_type = menu.type(idx)
+            if entry_type in {"separator", "tearoff"}:
+                continue
+            label = menu.entrycget(idx, "label")
+            if label:
+                labels.append(label)
+
+        assert "🗑️ Apagar Arena (Selecionado)" in labels
+        assert "🧹 Apagar Todos os Dados de Processamento" in labels
+        assert "❌ Remover Vídeo do Projeto" in labels
+        assert "🗑️ Apagar Item Específico..." in labels
+
+        # Second menu should be the delete submenu
+        assert len(created_menus) >= 2
+        delete_menu = created_menus[1]
+        delete_labels = []
+        delete_end_index = delete_menu.index("end")
+        assert delete_end_index is not None
+        for idx in range(delete_end_index + 1):
+            entry_type = delete_menu.type(idx)
+            if entry_type in {"separator", "tearoff"}:
+                continue
+            label = delete_menu.entrycget(idx, "label")
+            if label:
+                delete_labels.append(label)
+
+        assert "🏛️ Apagar Arena" in delete_labels
+        assert "📈 Apagar Trajetória" in delete_labels
+
+
+@pytest.mark.gui
+class TestShowRoiContextMenu:
+    """Tests for ROI context menu display."""
+
+    def test_show_roi_context_menu_no_coords(self, menu_manager):
+        """If no coordinates are available, menu should not show."""
+        menu_manager.gui.zone_controls = SimpleNamespace(zone_listbox=Mock())
+        menu_manager.gui.roi_context_menu = Mock()
+
+        menu_manager.show_roi_context_menu()
+
+        menu_manager.gui.roi_context_menu.post.assert_not_called()
+
+    def test_show_roi_context_menu_no_listbox(self, menu_manager, tkinter_root):
+        """If listbox is missing, menu should not show."""
+        menu_manager.gui.root = tkinter_root
+        menu_manager.gui.zone_controls = SimpleNamespace()
+        menu_manager.gui.roi_context_menu = Mock()
+
+        menu_manager.show_roi_context_menu(x=10, y=20)
+
+        menu_manager.gui.roi_context_menu.post.assert_not_called()
+
+    def test_show_roi_context_menu_roi_item(self, menu_manager, tkinter_root):
+        """ROI items should use the existing ROI context menu."""
+        listbox = Mock()
+        listbox.identify_row.return_value = "roi-1"
+        listbox.item.return_value = {"values": ["ROI 1"]}
+
+        menu_manager.gui.root = tkinter_root
+        menu_manager.gui.zone_controls = SimpleNamespace(zone_listbox=listbox)
+        menu_manager.gui.roi_context_menu = Mock()
+
+        event = Mock()
+        event.x_root = 50
+        event.y_root = 60
+        event.y = 10
+
+        menu_manager.show_roi_context_menu(event=event)
+
+        listbox.selection_set.assert_called_once_with("roi-1")
+        menu_manager.gui.roi_context_menu.post.assert_called_once_with(50, 60)
+
+    def test_show_roi_context_menu_arena_item(self, menu_manager, tkinter_root):
+        """Arena items should show a limited menu."""
+        from tkinter import Menu as TkMenu
+
+        listbox = Mock()
+        listbox.identify_row.return_value = "arena-1"
+        listbox.item.return_value = {"values": ["Arena Principal"]}
+
+        menu_manager.gui.root = tkinter_root
+        menu_manager.gui.zone_controls = SimpleNamespace(zone_listbox=listbox)
+        menu_manager.gui.roi_context_menu = Mock()
+
+        event = Mock()
+        event.x_root = 90
+        event.y_root = 100
+        event.y = 12
+
+        with patch.object(TkMenu, "post") as mock_post:
+            menu_manager.show_roi_context_menu(event=event)
+
+        menu_manager.gui.roi_context_menu.post.assert_not_called()
+        mock_post.assert_called_once_with(90, 100)

@@ -1,8 +1,8 @@
 # MainViewModel Class - Comprehensive Structural Analysis
 
-**File**: `/home/user/ZebTrack-AI/src/zebtrack/core/main_view_model.py`  
-**Total Methods**: ~140 methods (incl. properties, nested functions)  
-**Size**: 5588 lines  
+**File**: `/home/user/ZebTrack-AI/src/zebtrack/core/main_view_model.py`
+**Total Methods**: ~140 methods (incl. properties, nested functions)
+**Size**: 5588 lines
 
 ---
 
@@ -534,4 +534,3 @@ Each coordinator should:
 - Publish events to ui_event_bus
 - Update state via state_manager (not directly)
 - Have comprehensive tests
-

@@ -1,7 +1,9 @@
+from collections.abc import Sequence
+
 import cv2
 import numpy as np
 
-from zebtrack.utils import polygon_centroid, snap_point_to_axes
+from zebtrack.utils import Point, polygon_centroid, snap_point_to_axes
 
 
 class GeometryService:
@@ -11,7 +13,7 @@ class GeometryService:
     def apply_snapping(
         canvas_x: float,
         canvas_y: float,
-        existing_polygons: list[list[tuple]],
+        existing_polygons: Sequence[Sequence[Sequence[float]]],
         threshold: float = 10.0,
         exclude_polygon_index: int | None = None,
     ) -> tuple[float, float] | None:
@@ -31,37 +33,39 @@ class GeometryService:
             ]
 
         # Encontra vértice ou aresta mais próxima
-        closest_point = None
+        closest_point: Point | None = None
         min_distance = threshold
 
         # Coleta âncoras e centros para axis snapping
-        anchors = []
-        axis_centers = []
+        anchors: list[Point] = []
+        axis_centers: list[Point] = []
 
         for polygon in existing_polygons:
+            polygon_points: list[Point] = [
+                (float(vertex[0]), float(vertex[1])) for vertex in polygon
+            ]
             # Add vertices to anchors
-            for vertex in polygon:
-                anchors.append(vertex)
+            anchors.extend(polygon_points)
 
             # Calculate centroid for axis snapping
-            centroid = polygon_centroid(polygon)
+            centroid = polygon_centroid(polygon_points)
             if centroid:
                 axis_centers.append(centroid)
 
             # Snap para vértices
-            for vertex in polygon:
-                dist = np.sqrt((canvas_x - vertex[0]) ** 2 + (canvas_y - vertex[1]) ** 2)
+            for vx, vy in polygon_points:
+                dist = np.sqrt((canvas_x - vx) ** 2 + (canvas_y - vy) ** 2)
                 if dist < min_distance:
                     min_distance = dist
-                    closest_point = vertex
+                    closest_point = (vx, vy)
 
             # Snap para arestas
-            for i in range(len(polygon)):
-                p1 = polygon[i]
-                p2 = polygon[(i + 1) % len(polygon)]
+            for i in range(len(polygon_points)):
+                p1x, p1y = polygon_points[i]
+                p2x, p2y = polygon_points[(i + 1) % len(polygon_points)]
 
                 edge_snap = GeometryService._point_to_segment_distance(
-                    canvas_x, canvas_y, p1[0], p1[1], p2[0], p2[1]
+                    canvas_x, canvas_y, p1x, p1y, p2x, p2y
                 )
 
                 if edge_snap and edge_snap["distance"] < min_distance:
@@ -85,11 +89,12 @@ class GeometryService:
 
     @staticmethod
     def clamp_point_to_polygon(
-        point: tuple[float, float], polygon: list[tuple[float, float]]
+        point: tuple[float, float], polygon: Sequence[Sequence[float]]
     ) -> tuple[float, float]:
         """Clamp ponto para borda mais próxima do polígono se estiver fora."""
         px, py = point
-        poly_array = np.array(polygon, dtype=np.float32)
+        polygon_points: list[Point] = [(float(p[0]), float(p[1])) for p in polygon]
+        poly_array = np.array(polygon_points, dtype=np.float32)
 
         # Verifica se está dentro
         result = cv2.pointPolygonTest(poly_array, point, True)
@@ -100,9 +105,9 @@ class GeometryService:
         min_dist = float("inf")
         closest = point
 
-        for i in range(len(polygon)):
-            p1 = polygon[i]
-            p2 = polygon[(i + 1) % len(polygon)]
+        for i in range(len(polygon_points)):
+            p1 = polygon_points[i]
+            p2 = polygon_points[(i + 1) % len(polygon_points)]
 
             edge_snap = GeometryService._point_to_segment_distance(
                 px, py, p1[0], p1[1], p2[0], p2[1]

@@ -1,8 +1,8 @@
 # Phase 3 Refactoring - Session Progress Report
 
 ## Executive Summary
-**Goal**: Reduce `gui.py` from 8,286 lines to ~4,000 lines  
-**Current Status**: 4,710 lines (83.42% complete)  
+**Goal**: Reduce `gui.py` from 8,286 lines to ~4,000 lines
+**Current Status**: 4,710 lines (83.42% complete)
 **Remaining**: 710 lines to target
 
 ## Session Metrics

@@ -5,12 +5,16 @@ All notable changes to DRerio LogAI (zebtrack) will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+<!-- markdownlint-disable MD024 --><!-- justification: repeated standard headings per release section -->
+
 ## [Unreleased]
+
 ### 🟢 New Features
 
 #### LiveBatchCoordinator v2.3.0 Integration (January 2026)
 
-**Unified Batch Reporting**
+##### Unified Batch Reporting
+
 - Activated dormant `LiveBatchCoordinator` (433 lines, fully implemented in v2.2.0)
 - Instantiated in composition root (`__main__.py`) with dependency injection
 - Integrated with `SessionCoordinator` for automatic session registration after live camera stops
@@ -20,55 +24,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `subject_id`: Subject/cobaia identifier (e.g., "Peixe_01")
   - `is_batch_last_session`: Checkbox to mark last session and trigger unified report
 
-**Experiment Progress Dashboard**
+##### Experiment Progress Dashboard
+
 - Enhanced existing "Progresso do Experimento" tab with batch integration
 - Replaced `SubjectSelectionDialog` with `BlockDetailDialog` for detailed session management
-- Day × Group grid shows session completion status per experimental block
+- Day x Group grid shows session completion status per experimental block
 - Click Day/Group cell → Opens `BlockDetailDialog` with subject list and batch actions
 - Dialog allows starting new sessions, viewing results, and marking batch complete
 
-**Multi-Aquarium Batch Support**
+##### Multi-Aquarium Batch Support
+
 - Each aquarium treated as separate `subject_id` (e.g., `Peixe_01_Aquario_0`, `Peixe_01_Aquario_1`)
 - Automatic batch key generation: `{group}_{day}_{subject_id}`
 - Batch ID includes microseconds for uniqueness: `batch_20260103_113918_048070`
 - Separate batches per aquarium enable independent reporting
 
-**Event-Driven Completion**
+##### Event-Driven Completion
+
 - `BATCH_ANALYSIS_COMPLETED` event published when batch marked complete
 - `UICoordinator` handler shows success messagebox and opens file explorer with unified report
 - Batch completion triggers `AnalysisService.generate_unified_report()` across all sessions
 
-**Testing**
+##### Testing
+
 - 4 integration tests covering wizard → batch coordinator flow
 - Multi-aquarium batch registration validation
 - Incomplete metadata handling (graceful skips)
 - Session coordinator integration with LiveBatchCoordinator
+
 ### � Fixed
 
 #### Live Camera v2.2.0 - Audit Fixes (January 2026)
 
-**Dependency Injection Compliance (BLOCKER)**
+##### Dependency Injection Compliance (BLOCKER)
+
 - Fixed `LiveConfigStep` importing singleton `settings` instead of using constructor injection
 - Added `settings_obj` parameter to `LiveConfigStep.__init__()`
 - Updated `WizardDialog` to pass settings via constructor
 - Eliminates architectural violation preventing headless tests
 
-**Multi-Aquarium Preview Window (HIGH)**
+##### Multi-Aquarium Preview Window (HIGH)
+
 - Fixed `MultiAquariumLivePreviewWindow` never being instantiated
 - Added conditional logic in `LiveCameraService._create_preview_window()` to detect `MultiAquariumZoneData`
 - Multi-aquarium sessions now correctly show side-by-side preview windows
 
-**FPS Dynamic Adjustment (MEDIUM)**
+##### FPS Dynamic Adjustment (MEDIUM)
+
 - Fixed `_adjust_fps_dynamically()` return value being ignored in processing loop
 - Now correctly applies dynamic frame skip under heavy load
 - Expected 20-40% performance improvement when processing is slow
 
-**Test Fixes**
+##### Test Fixes
+
 - Fixed hardware capability detection mocks returning 2 values instead of 4
 - Fixed zone control builder undefined variable (`controls_container` → `video_selector_frame`)
 - Fixed GUI state observer assertion to use `assert_any_call` for flexibility
 
-**Documentation**
+##### Documentation
+
 - Added `ADR-006-live-batch-coordinator-future.md` documenting deferred batch coordinator integration
 - Created comprehensive audit fixes report in `docs/guides/developer/LIVE_CAMERA_AUDIT_FIXES_REPORT.md`
 
@@ -785,3 +799,5 @@ New fields (experimental design) will use defaults if not present in old templat
 - Report issues: <https://github.com/anthropics/claude-code/issues>
 - Documentation: See `docs/` directory
 - Developer Guide: `docs/DEVELOPER_GUIDE_WIZARD.md`
+
+<!-- markdownlint-enable MD024 -->

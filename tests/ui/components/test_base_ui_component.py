@@ -15,6 +15,7 @@ Test Coverage:
 
 from copy import deepcopy
 from tkinter import Frame
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -174,7 +175,7 @@ class TestBaseUIComponentAbstractMethods:
     ):
         """Should not allow instantiating BaseUIComponent directly."""
         with pytest.raises(TypeError) as exc_info:
-            BaseUIComponent(
+            cast(Any, BaseUIComponent)(
                 parent=tk_parent,
                 controller=mock_controller,
                 event_bus=None,
@@ -195,7 +196,7 @@ class TestBaseUIComponentAbstractMethods:
             # Missing setup_widgets
 
         with pytest.raises(TypeError):
-            IncompleteComponent(
+            cast(Any, IncompleteComponent)(
                 parent=tk_parent,
                 controller=mock_controller,
                 event_bus=None,
@@ -214,7 +215,7 @@ class TestBaseUIComponentAbstractMethods:
             # Missing bind_events
 
         with pytest.raises(TypeError):
-            IncompleteComponent(
+            cast(Any, IncompleteComponent)(
                 parent=tk_parent,
                 controller=mock_controller,
                 event_bus=None,
@@ -421,7 +422,8 @@ class TestBaseUIComponentValidation:
             settings_obj=settings_obj,
         )
 
-        component.parent = None
+        component_any = cast(Any, component)
+        component_any.parent = None
 
         assert component._validate_dependencies() is False
 
@@ -436,7 +438,8 @@ class TestBaseUIComponentValidation:
             settings_obj=settings_obj,
         )
 
-        component.controller = None
+        component_any = cast(Any, component)
+        component_any.controller = None
 
         assert component._validate_dependencies() is False
 
@@ -451,7 +454,8 @@ class TestBaseUIComponentValidation:
             settings_obj=settings_obj,
         )
 
-        component.settings = None
+        component_any = cast(Any, component)
+        component_any.settings = None
 
         assert component._validate_dependencies() is False
 

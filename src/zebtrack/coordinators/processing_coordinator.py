@@ -16,13 +16,14 @@ Total: ~2600 lines consolidated → ~1400 lines (smart delegation to services)
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import cv2
 import numpy as np
@@ -35,7 +36,7 @@ from zebtrack.analysis.roi import ROI
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.aquarium_detector import AquariumDetector
 from zebtrack.core.calibration import Calibration
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.core.processing_worker import (
     ProcessingCallbacks,
@@ -226,6 +227,9 @@ class ProcessingCoordinator(BaseCoordinator):
         # Batch processing context - suppresses per-video dialogs during batch
         self._batch_context: dict | None = None
 
+        # New: Sequential context for multi-aquarium processing
+        self._sequential_context: dict[str, Any] | None = None
+
         log.info("processing_coordinator.initialized.phase3")
 
     def reset_multi_aquarium_state(self) -> None:
@@ -315,7 +319,27 @@ class ProcessingCoordinator(BaseCoordinator):
         )
 
         self._batch_context = None
+        # Restore dialog suppression when batch finishes
+        self._set_dialog_suppression(False)
         return summary
+
+    def _set_dialog_suppression(self, suppress: bool) -> None:
+        """Toggle dialog suppression on the GUI DialogManager.
+
+        During batch processing, modal messagebox dialogs are suppressed and
+        replaced with status-bar updates and log entries.
+
+        Args:
+            suppress: True to suppress, False to restore normal behavior.
+        """
+        try:
+            if self.view and hasattr(self.view, "dialog_manager"):
+                self.view.dialog_manager.set_dialog_suppression(suppress)
+        except Exception:
+            log.debug(
+                "processing_coordinator._set_dialog_suppression.failed",
+                suppress=suppress,
+            )
 
     def _on_processing_mode_changed(self, data: dict) -> None:
         """Handle processing mode change (Parallel vs Sequential).
@@ -399,9 +423,12 @@ class ProcessingCoordinator(BaseCoordinator):
         bus.subscribe(
             Events.VIDEO_START_SINGLE_PROCESSING,
             lambda data: self.start_single_video_processing(
-                data.get("video_path") if isinstance(data, dict) else None,
-                data.get("config") if isinstance(data, dict) else {},
-                data.get("zone_data") if isinstance(data, dict) else None,
+                video_path=str(data.get("video_path", "")) if isinstance(data, dict) else "",
+                config=data.get("config", {}) if isinstance(data, dict) else {},
+                zone_data=cast(
+                    Any,
+                    data.get("zone_data") if isinstance(data, dict) else None,
+                ),
             ),
         )
         bus.subscribe(
@@ -482,9 +509,15 @@ class ProcessingCoordinator(BaseCoordinator):
             report_type = data.get("report_type")
             videos = data.get("videos", [])
             paths = [v.get("path") for v in videos if v.get("path")]
+            replace_existing = bool(data.get("replace_existing", False))
+            report_scope = str(data.get("report_scope", "all"))
 
             if report_type == "unified":
-                self.generate_unified_report(paths)
+                self.generate_unified_report(
+                    paths,
+                    replace_existing=replace_existing,
+                    report_scope=report_scope,
+                )
             else:
                 self.generate_project_reports(paths)
 
@@ -618,7 +651,12 @@ class ProcessingCoordinator(BaseCoordinator):
         if behavioral_config and hasattr(snapshot, "behavioral_analysis"):
             ba = snapshot.behavioral_analysis
             if "aquarium_perspective" in behavioral_config:
-                ba.aquarium_perspective = behavioral_config["aquarium_perspective"]
+                perspective_raw = str(behavioral_config["aquarium_perspective"]).strip().lower()
+                perspective_raw = perspective_raw.replace("-", "_")
+                if perspective_raw in {"top_down", "top_down_view", "topdown", "top"}:
+                    ba.aquarium_perspective = "top_down"
+                else:
+                    ba.aquarium_perspective = "lateral"
             if "thigmotaxis_distance_cm" in behavioral_config:
                 ba.default_thigmotaxis_distance_cm = behavioral_config["thigmotaxis_distance_cm"]
             if "geotaxis_distance_cm" in behavioral_config:
@@ -663,6 +701,17 @@ class ProcessingCoordinator(BaseCoordinator):
                 # Also sync legacy flag for compatibility
                 settings_snapshot.video_processing.single_animal_per_aquarium = use_single_subject
 
+            # Keep runtime settings aligned with snapshot so UI mode label reflects
+            # the effective tracker mode selected by wizard/project configuration.
+            if use_single_subject != self.settings.tracking.use_single_subject_tracker:
+                log.info(
+                    "processing_coordinator.sync_runtime_tracking_mode",
+                    use_single_subject_tracker=use_single_subject,
+                    reason="ui_mode_sync",
+                )
+                self.settings.tracking.use_single_subject_tracker = use_single_subject
+                self.settings.video_processing.single_animal_per_aquarium = use_single_subject
+
         # Calculate processing intervals from config or project settings
         analysis_interval, display_interval = self._determine_processing_intervals(
             single_video_config
@@ -704,12 +753,16 @@ class ProcessingCoordinator(BaseCoordinator):
         def _on_started_wrapper():
             self._on_processing_started(videos_to_process)
 
-        def _on_progress_wrapper(idx, total, exp_id, fraction, msg, stats):
+        def _on_progress_wrapper(
+            idx: int, total: int, exp_id: str | None, fraction: float, msg: str, stats: dict | None
+        ) -> None:
             self._on_processing_progress(
                 videos_to_process, idx, total, exp_id, fraction, msg, stats
             )
 
-        def _on_video_completed_wrapper(idx, total, exp_id, success):
+        def _on_video_completed_wrapper(
+            idx: int, total: int, exp_id: str | None, success: bool
+        ) -> None:
             self._on_video_completed(videos_to_process, idx, total, exp_id, success)
 
         def _on_completed_wrapper(cancelled, output_dir, summary=None):
@@ -729,11 +782,14 @@ class ProcessingCoordinator(BaseCoordinator):
 
     def _on_processing_started(self, videos_to_process: list[dict]):
         """Internal handler for processing start."""
-        if not self.view or not self.root:
+        if not self.view:
             return
 
-        # Initialize batch context to track progress and suppress per-video dialogs
-        self._init_batch_context(len(videos_to_process))
+        # Initialize batch context to track progress and suppress per-video dialogs.
+        # Guard: only initialize if not already set (it may have been pre-initialized
+        # by process_pending_project_videos before the worker started).
+        if self._batch_context is None:
+            self._init_batch_context(len(videos_to_process))
 
         self.ui_coordinator.show_progress_bar(self.view)
         self.ui_coordinator.set_status(
@@ -741,35 +797,52 @@ class ProcessingCoordinator(BaseCoordinator):
             f"Iniciando processamento para {len(videos_to_process)} vídeos...",
         )
         self.project_manager.set_active_zone_video(None)
-        self._publish_processing_mode(source="worker.started", force=True)
+
+        # Guard: if the main thread already determined SINGLE_SUBJECT mode
+        # (e.g. via batch_pre_start_sync), preserve it — the worker callback
+        # would otherwise re-determine from the main-thread detector (which
+        # is never configured for single mode) and overwrite with MULTI_TRACK.
+        current_mode = getattr(self, "_active_processing_mode", None)
+        if current_mode is ProcessingMode.SINGLE_SUBJECT:
+            self._publish_processing_mode(
+                source="worker.started",
+                force=True,
+                mode_override=ProcessingMode.SINGLE_SUBJECT,
+            )
+        else:
+            self._publish_processing_mode(source="worker.started", force=True)
 
     def _on_processing_progress(
         self,
         videos_to_process: list[dict],
         index: int,
         total: int,
-        experiment_id: str,
+        experiment_id: str | None,
         fraction: float,
         message: str,
         stats: dict | None,
-    ):
+    ) -> None:
         """Internal handler for progress updates."""
-        if self.cancel_event.is_set() or not self.view:
+        if self.cancel_event.is_set():
             return
 
-        overall_progress = f"Processando {index + 1}/{total}: {experiment_id}"
+        display_exp_id = experiment_id or "Video"
+        overall_progress = f"Processando {index + 1}/{total}: {display_exp_id}"
         step_status = f"Etapa: {message}"
-        self.ui_coordinator.set_status(self.view, f"{overall_progress} - {step_status}")
-        self.ui_coordinator.update_progress(self.view, fraction)
-        self.ui_coordinator.update_view(
-            self.view, "update_analysis_progress", fraction, step_status
-        )
+        if self.view:
+            self.ui_coordinator.set_status(self.view, f"{overall_progress} - {step_status}")
+            self.ui_coordinator.update_progress(self.view, fraction)
+            self.ui_coordinator.update_view(
+                self.view, "update_analysis_progress", fraction, step_status
+            )
 
         # Extract video metadata
         video_metadata = {}
         if 0 <= index < len(videos_to_process):
             current_video = videos_to_process[index]
-            video_metadata = current_video.get("metadata", {})
+            metadata = current_video.get("metadata")
+            if isinstance(metadata, dict):
+                video_metadata = metadata
 
         log.debug(
             "on_progress.metadata_extracted",
@@ -786,8 +859,9 @@ class ProcessingCoordinator(BaseCoordinator):
                 "payload": {
                     "index": index,
                     "total": total,
-                    "experiment_id": experiment_id,
+                    "experiment_id": experiment_id or "Unknown",
                     "step": message,
+                    "progress_fraction": float(fraction),
                     "group": video_metadata.get("group"),
                     "day": video_metadata.get("day"),
                     "subject": video_metadata.get("subject"),
@@ -806,7 +880,13 @@ class ProcessingCoordinator(BaseCoordinator):
     def _on_frame_processed(self, frame, detections, processing_info):
         """Internal handler for display frame updates."""
         if frame is not None:
-            self._publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
+            self._publish_event(
+                Events.UI_DISPLAY_FRAME,
+                {
+                    "frame": frame,
+                    "detections": detections,
+                },
+            )
 
         if detections is not None and processing_info:
             self._publish_event(
@@ -819,9 +899,9 @@ class ProcessingCoordinator(BaseCoordinator):
         videos_to_process: list[dict],
         index: int,
         total: int,
-        experiment_id: str,
+        experiment_id: str | None,
         success: bool,
-    ):
+    ) -> None:
         """Internal handler for single video completion."""
         log.info(
             "controller.video_completed",
@@ -841,9 +921,12 @@ class ProcessingCoordinator(BaseCoordinator):
             video_results_dir = video_info.get("results_dir")
             # Use original experiment_id (base filename) for parquet names
             # but allow override if stored in video_info
-            v_exp_id = (
-                video_info.get("experiment_id") or os.path.splitext(os.path.basename(video_path))[0]
-            )
+            v_exp_id = video_info.get("experiment_id")
+            if not v_exp_id and video_path:
+                v_exp_id = os.path.splitext(os.path.basename(str(video_path)))[0]
+
+            if not v_exp_id:
+                v_exp_id = "Unknown"
         else:
             log.warning("controller.video_completed.index_out_of_bounds", index=index)
             return
@@ -852,7 +935,8 @@ class ProcessingCoordinator(BaseCoordinator):
         if video_results_dir:
             results_dir = video_results_dir
         else:
-            results_dir = os.path.join(os.path.dirname(video_path), f"{v_exp_id}_results")
+            base_dir = os.path.dirname(str(video_path)) if video_path else "."
+            results_dir = os.path.join(base_dir, f"{v_exp_id}_results")
 
         trajectory_path = os.path.join(results_dir, f"3_CoordMovimento_{v_exp_id}.parquet")
         # Check if worker used the suffixed experiment_id for the file
@@ -971,7 +1055,8 @@ class ProcessingCoordinator(BaseCoordinator):
 
         if outputs_by_aquarium:
             self.project_manager.register_multi_aquarium_outputs(
-                video_path=video_path, outputs_by_aquarium=outputs_by_aquarium
+                video_path=video_path,
+                outputs_by_aquarium=cast(dict[int, dict], outputs_by_aquarium),
             )
             log.info(
                 "controller.video_completed.multi_aquarium_registered",
@@ -1017,12 +1102,15 @@ class ProcessingCoordinator(BaseCoordinator):
 
     def _handle_sequential_multi_aquarium(self, outputs_by_aquarium):
         """Handle advancement in sequential multi-aquarium mode."""
-        if hasattr(self, "_sequential_context") and self._sequential_context:
+        if hasattr(self, "_sequential_context") and isinstance(self._sequential_context, dict):
             ctx = self._sequential_context
-            ctx_outputs = ctx.get("outputs_by_aquarium", {})
-            ctx_outputs.update(outputs_by_aquarium)
-            ctx["outputs_by_aquarium"] = ctx_outputs
-            ctx["current_aquarium_index"] = ctx.get("current_aquarium_index", 0) + 1
+            ctx_outputs = ctx.setdefault("outputs_by_aquarium", {})
+            if isinstance(ctx_outputs, dict):
+                ctx_outputs.update(outputs_by_aquarium)
+
+            current_idx = ctx.get("current_aquarium_index", 0)
+            if isinstance(current_idx, int):
+                ctx["current_aquarium_index"] = current_idx + 1
 
             if self.view and self.root:
                 self.root.after(50, self._process_next_aquarium_in_sequence)
@@ -1044,9 +1132,13 @@ class ProcessingCoordinator(BaseCoordinator):
         """Internal handler for processing errors."""
         log.error("controller.processing.worker_error", context=context, error=str(error))
         if self.root and self.view:
-            self.ui_coordinator.schedule(
-                lambda: self.view.show_error("Erro na Análise", f"{context}: {error}")
-            )
+            if self._is_batch_processing():
+                # In batch mode, update status bar instead of blocking dialog
+                self.ui_coordinator.set_status(self.view, f"Erro: {context}: {error}")
+            else:
+                self.ui_coordinator.schedule(
+                    lambda: self.view.show_error("Erro na Análise", f"{context}: {error}")
+                )
 
     def _on_processing_fatal_error(self, exc, context, recovery_info):
         """Internal handler for fatal processing errors."""
@@ -1057,17 +1149,35 @@ class ProcessingCoordinator(BaseCoordinator):
             affected_videos=len(recovery_info["affected_videos"]),
         )
         if self.view:
-            self.ui_coordinator.schedule(
-                lambda: self.view.show_error(
-                    "Erro Crítico de Processamento",
-                    f"{context}\n\nErro: {exc}\n\n"
-                    f"Vídeos afetados: {len(recovery_info['affected_videos'])}\n"
-                    f"Verifique os logs para detalhes.",
+            if self._is_batch_processing():
+                # In batch mode, update status bar instead of blocking dialog
+                self.ui_coordinator.set_status(
+                    self.view,
+                    f"Erro crítico: {context}"
+                    f" — {len(recovery_info['affected_videos'])}"
+                    " vídeo(s) afetados",
                 )
-            )
+            else:
+                view_ref = self.view
+                self.ui_coordinator.schedule(
+                    lambda: view_ref.show_error(
+                        "Erro Crítico de Processamento",
+                        f"{context}\n\nErro: {exc}\n\n"
+                        f"Vídeos afetados: {len(recovery_info['affected_videos'])}\n"
+                        f"Verifique os logs para detalhes.",
+                    )
+                )
         self.state_manager.update_processing_state(
-            source="worker.fatal_error", is_processing=False, error=str(exc)
+            source="worker.fatal_error",
+            is_processing=False,
+            error=str(exc),
+            current_video=None,
+            cancel_requested=False,
+            is_live_session_active=False,
         )
+        if self.view:
+            self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
+            self.ui_coordinator.hide_progress_bar(self.view)
         if self.view:
             self.ui_coordinator.set_status(self.view, "Processamento falhou")
 
@@ -1092,15 +1202,25 @@ class ProcessingCoordinator(BaseCoordinator):
             is_processing=False,
             cancel_requested=was_cancelled,
             current_video=None,
+            is_live_session_active=False,
+        )
+
+        # Capture batch state BEFORE finalizing (which clears the context)
+        was_batch = (
+            self._batch_context is not None and self._batch_context.get("total_videos", 0) > 1
         )
 
         # Finalize batch context and get summary
         batch_summary = self._finalize_batch_context()
+        final_status = "Pronto."
 
         if was_cancelled:
-            self.ui_coordinator.show_info(
-                self.view, "Cancelado", "A análise de vídeo foi cancelada."
-            )
+            if not was_batch:
+                self.ui_coordinator.show_info(
+                    self.view, "Cancelado", "A análise de vídeo foi cancelada."
+                )
+            else:
+                final_status = "Processamento em lote cancelado."
         elif videos_to_process:
             # Show consolidated batch summary dialog
             if batch_summary and batch_summary["total"] > 1:
@@ -1109,28 +1229,24 @@ class ProcessingCoordinator(BaseCoordinator):
                 fail_count = batch_summary["failed"]
 
                 if fail_count == 0:
-                    msg = (
-                        f"Processamento em lote concluído com sucesso!\n\n"
-                        f"✓ {success_count} vídeo(s) processado(s)\n"
-                        f"Resultados salvos em:\n{output_dir}"
+                    final_status = (
+                        f"Lote concluído: {success_count}/{batch_summary['total']} vídeo(s) com "
+                        "sucesso."
                     )
-                    title = "Processamento Concluído"
                 else:
-                    msg = (
-                        f"Processamento em lote concluído.\n\n"
-                        f"✓ {success_count} vídeo(s) com sucesso\n"
-                        f"✗ {fail_count} vídeo(s) com falha\n\n"
-                        f"Resultados salvos em:\n{output_dir}"
+                    final_status = (
+                        f"Lote concluído com pendências: {success_count} sucesso, "
+                        f"{fail_count} falha(s)."
                     )
-                    title = "Processamento Parcial"
-
-                self.ui_coordinator.show_info(self.view, title, msg)
-            else:
-                # Single video - show simple message
+            elif not was_batch:
+                # Single video (not part of a batch) — show simple message
                 msg = f"Análise concluída. Resultados salvos em:\n{output_dir}"
                 self.ui_coordinator.show_info(self.view, "Sucesso", msg)
+            else:
+                # Was part of a batch but only 1 video succeeded — use status bar only
+                final_status = f"Análise concluída. Resultados salvos em: {output_dir}"
 
-        self.ui_coordinator.set_status(self.view, "Pronto.")
+        self.ui_coordinator.set_status(self.view, final_status)
         self._publish_processing_mode(source="worker.completed", force=True)
 
         self._publish_event(
@@ -1218,7 +1334,7 @@ class ProcessingCoordinator(BaseCoordinator):
         self,
         video_path: Path | str,
         config: dict,
-        zone_data: ZoneData,
+        zone_data: ZoneData | MultiAquariumZoneData,
     ):
         """Start the actual processing for a single video after zone setup."""
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
@@ -1240,24 +1356,26 @@ class ProcessingCoordinator(BaseCoordinator):
                 )
 
             # Bug fix: Validate that all aquariums have subject_id defined
-            for aq in zone_data.aquariums:
-                if not aq.subject_id:
-                    log.warning(
-                        "processing.missing_subject_id",
-                        aquarium_id=aq.id,
-                        video=str(video_path),
-                    )
-                    self._publish_event(
-                        Events.UI_SHOW_ERROR,
-                        {
-                            "title": "Configuração Incompleta",
-                            "message": (
-                                f"Aquário {aq.id} não tem sujeito definido. "
-                                "Configure os aquários antes de processar."
-                            ),
-                        },
-                    )
-                    return
+            # Bug fix: Validate that all aquariums have subject_id defined
+            if isinstance(zone_data, MultiAquariumZoneData):
+                for aq in zone_data.aquariums:
+                    if not aq.subject_id:
+                        log.warning(
+                            "processing.missing_subject_id",
+                            aquarium_id=aq.id,
+                            video=str(video_path),
+                        )
+                        self._publish_event(
+                            Events.UI_SHOW_ERROR,
+                            {
+                                "title": "Configuração Incompleta",
+                                "message": (
+                                    f"Aquário {aq.id} não tem sujeito definido. "
+                                    "Configure os aquários antes de processar."
+                                ),
+                            },
+                        )
+                        return
 
         use_seq = is_multi_aq and getattr(zone_data, "sequential_processing", False)
 
@@ -1270,7 +1388,10 @@ class ProcessingCoordinator(BaseCoordinator):
             return
 
         # 3. Validate
-        val = self.validate_can_start_processing(False, False, False)
+        # 3. Validate
+        val = self.validate_can_start_processing(
+            check_project_loaded=False, check_zones=False, check_videos_exist=False
+        )
         if not val.is_valid:
             self._show_validation_error(val)
             return
@@ -1293,6 +1414,31 @@ class ProcessingCoordinator(BaseCoordinator):
         if not self._setup_detector_for_single_video(video_path, zone_data):
             return
 
+        single_video_config = config if isinstance(config, dict) else None
+        resolved_tracker_pref = self._resolve_single_subject_tracker_preference(single_video_config)
+        if (
+            resolved_tracker_pref is not None
+            and resolved_tracker_pref != self.settings.tracking.use_single_subject_tracker
+        ):
+            self.settings.tracking.use_single_subject_tracker = resolved_tracker_pref
+            self.settings.video_processing.single_animal_per_aquarium = resolved_tracker_pref
+            log.info(
+                "processing_coordinator.single_video_tracker_pref_applied",
+                use_single_subject_tracker=resolved_tracker_pref,
+            )
+
+        self._configure_single_subject_tracker(self.settings.tracking.use_single_subject_tracker)
+        effective_mode = (
+            ProcessingMode.SINGLE_SUBJECT
+            if self.settings.tracking.use_single_subject_tracker
+            else ProcessingMode.MULTI_TRACK
+        )
+        self._publish_processing_mode(
+            source="single_video.preflight",
+            force=True,
+            mode_override=effective_mode,
+        )
+
         # 9. Final Start
         self._execute_single_video_analysis(video_path)
 
@@ -1311,13 +1457,15 @@ class ProcessingCoordinator(BaseCoordinator):
 
             try:
                 raw_w = config.get("aquarium_width_cm")
-                w_cm = float(raw_w) if raw_w not in (None, "") else None
+                if raw_w is not None and str(raw_w).strip():
+                    w_cm = float(raw_w)
             except (TypeError, ValueError):
                 pass
 
             try:
                 raw_h = config.get("aquarium_height_cm")
-                h_cm = float(raw_h) if raw_h not in (None, "") else None
+                if raw_h is not None and str(raw_h).strip():
+                    h_cm = float(raw_h)
             except (TypeError, ValueError):
                 pass
 
@@ -1484,7 +1632,9 @@ class ProcessingCoordinator(BaseCoordinator):
                 aqs = [AquariumData(id=i) for i in range(n_aq)]
                 new_m = MultiAquariumZoneData(aquariums=aqs)
                 persist = bool(self.project_manager.project_path)
-                self.project_manager.save_multi_aquarium_zone_data(video_path, new_m, persist)
+                self.project_manager.save_multi_aquarium_zone_data(
+                    video_path, new_m, persist=persist
+                )
                 zone_data = new_m
 
             if self.view and hasattr(self.view, "zone_controls"):
@@ -1606,9 +1756,55 @@ class ProcessingCoordinator(BaseCoordinator):
                 self.view.show_error("Erro", "Não foi possível identificar vídeo válido.")
             return
 
-        out_dir = self.project_manager.get_results_directory()
+        video_stem = Path(video_path).stem
+        out_dir = self.project_manager.resolve_results_directory(
+            video_stem, video_path=str(video_path)
+        )
         log.info("controller.single_video.analysing", video=str(video_path), out=out_dir)
         self.process_videos(scanned, out_dir)
+
+    def process_videos(self, videos_to_process: list[dict], output_base_dir: Path | str) -> None:
+        """Execute processing for a list of videos (legacy support)."""
+        output_dir_str = str(output_base_dir)
+
+        # Define wrapper callbacks to match ProcessingCallbacks signature
+        def _on_started_wrapper() -> None:
+            self._on_processing_started(videos_to_process)
+
+        def _on_progress_wrapper(
+            idx: int, tot: int, eid: str | None, frac: float, msg: str, st: dict | None
+        ) -> None:
+            self._on_processing_progress(videos_to_process, idx, tot, eid, frac, msg, st)
+
+        def _on_video_completed_wrapper(
+            index: int, total: int, exp_id: str | None, success: bool
+        ) -> None:
+            self._on_video_completed(videos_to_process, index, total, exp_id, success)
+
+        def _on_finished_wrapper(cancelled: bool, o_dir: str, summary: dict | None = None) -> None:
+            self._on_processing_complete(videos_to_process, cancelled, o_dir, summary, None)
+
+        def _on_fatal_error_wrapper(exc: Exception, context: str, info: dict) -> None:
+            self._on_processing_fatal_error(exc, context, info)
+
+        callbacks = ProcessingCallbacks(
+            on_started=_on_started_wrapper,
+            on_progress=_on_progress_wrapper,
+            on_frame_processed=self._on_frame_processed,
+            on_video_completed=_on_video_completed_wrapper,
+            on_error=self._on_processing_error,
+            on_completed=_on_finished_wrapper,
+            on_fatal_error=_on_fatal_error_wrapper,
+        )
+
+        context = self.create_processing_context(videos_to_process, output_dir_str)
+
+        if self.cancel_event:
+            self.cancel_event.clear()
+
+        # Initialize and start worker
+        self.processing_worker = ProcessingWorker(context, callbacks)
+        self.processing_thread = self.processing_worker.start_in_thread()
 
     # =========================================================================
     # Sequential Multi-Aquarium Processing
@@ -1683,15 +1879,20 @@ class ProcessingCoordinator(BaseCoordinator):
 
         ctx = self._sequential_context
 
-        if ctx["current_aquarium_index"] >= ctx["total_aquariums"]:
+        current_index = cast(int, ctx["current_aquarium_index"])
+        total = cast(int, ctx["total_aquariums"])
+
+        if current_index >= total:
             # All aquariums processed - finalize and generate reports
             log.info(
                 "workflow.sequential_multi.complete",
-                total_aquariums=ctx["total_aquariums"],
+                total_aquariums=total,
             )
 
             video_path = str(ctx["video_path"])
-            outputs_by_aquarium = ctx.get("outputs_by_aquarium", {})
+            outputs_by_aquarium = cast(
+                dict[int, dict[Any, Any]], ctx.get("outputs_by_aquarium", {})
+            )
 
             # Register all aquarium outputs with project manager
             if outputs_by_aquarium:
@@ -1748,8 +1949,9 @@ class ProcessingCoordinator(BaseCoordinator):
             self._sequential_context = None
             return
 
-        aquarium_index = ctx["current_aquarium_index"]
-        aquarium = ctx["multi_zone_data"].aquariums[aquarium_index]
+        aquarium_index = cast(int, ctx["current_aquarium_index"])
+        multi_zone_data = cast("MultiAquariumZoneData", ctx["multi_zone_data"])
+        aquarium = multi_zone_data.aquariums[aquarium_index]
 
         log.info(
             "workflow.sequential_multi.aquarium_start",
@@ -1856,8 +2058,11 @@ class ProcessingCoordinator(BaseCoordinator):
         # Create callbacks with completion handler
         callbacks = self.create_processing_callbacks([video_to_process])
 
+        if not self._sequential_context:
+            return
+
         # Get aquarium info for output registration
-        current_aquarium = self._sequential_context["multi_zone_data"].aquariums[
+        current_aquarium = self._sequential_context["multi_zone_data"].aquariums[  # type: ignore
             self._sequential_context["current_aquarium_index"]
         ]
         experiment_id = os.path.splitext(os.path.basename(str(video_path)))[0]
@@ -1955,6 +2160,7 @@ class ProcessingCoordinator(BaseCoordinator):
             is_processing=True,
             current_video=f"{os.path.basename(str(video_path))} (Aquário {aquarium_id + 1})",
             processing_start_time=datetime.now(),
+            is_live_session_active=False,
         )
 
     def process_pending_project_videos(  # noqa: C901
@@ -2103,10 +2309,13 @@ class ProcessingCoordinator(BaseCoordinator):
                     if not aq.subject_id:
                         missing_subjects.append(f"Aquário {aq.id}")
 
+                if not video_path:
+                    continue
+
                 if missing_subjects:
                     log.error(
                         "workflow.multi_aquarium.incomplete_metadata",
-                        video=os.path.basename(video_path),
+                        video=os.path.basename(str(video_path)),
                         missing=missing_subjects,
                     )
                     self._publish_event(
@@ -2114,7 +2323,7 @@ class ProcessingCoordinator(BaseCoordinator):
                         {
                             "title": "Configuração Incompleta",
                             "message": (
-                                f"O vídeo '{os.path.basename(video_path)}' tem aquários "
+                                f"O vídeo '{os.path.basename(str(video_path))}' tem aquários "
                                 f"sem sujeito definido:\n\n"
                                 f"{', '.join(missing_subjects)}\n\n"
                                 f"Por favor:\n"
@@ -2222,6 +2431,16 @@ class ProcessingCoordinator(BaseCoordinator):
 
         self.cancel_event.clear()
 
+        # Pre-initialize batch context BEFORE starting the worker so that
+        # _is_batch_processing() returns True from the very start and any
+        # early errors (worker creation, context setup) can be checked.
+        self._init_batch_context(len(eligible_videos))
+
+        # Enable dialog suppression for multi-video batches to prevent
+        # modal messagebox windows from blocking the automated flow.
+        if len(eligible_videos) > 1 and self.view:
+            self._set_dialog_suppression(True)
+
         # Create and start processing worker
         try:
             callbacks = self.create_processing_callbacks(eligible_videos)
@@ -2251,6 +2470,16 @@ class ProcessingCoordinator(BaseCoordinator):
             )
             return
 
+        # Synchronously resolve and publish processing mode BEFORE UI switches
+        # to analysis view, so the label shows the correct mode from the start.
+        resolved_mode = self._determine_processing_mode()
+        self._active_processing_mode = resolved_mode
+        self._publish_processing_mode(
+            source="batch_pre_start_sync",
+            force=True,
+            mode_override=resolved_mode,
+        )
+
         try:
             # Update processing state to trigger UI navigation to analysis view
             first_video = eligible_videos[0] if eligible_videos else {}
@@ -2259,6 +2488,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 is_processing=True,
                 current_video=os.path.basename(str(first_video.get("path", ""))),
                 processing_start_time=datetime.now(),
+                is_live_session_active=False,
             )
 
             for video_info in eligible_videos:
@@ -2285,9 +2515,21 @@ class ProcessingCoordinator(BaseCoordinator):
             if preview_lines:
                 message += "\n\nFila:\n" + "\n".join(preview_lines)
 
-            self._publish_event(
-                Events.UI_SHOW_INFO, {"title": "Processamento Iniciado", "message": message}
-            )
+            # Use non-blocking status bar for multi-video batches to avoid
+            # interrupting the automated flow. Show dialog only for single video.
+            if len(eligible_videos) > 1:
+                self._publish_event(
+                    Events.UI_SET_STATUS,
+                    {
+                        "message": (
+                            f"Processamento em lote iniciado: {len(eligible_videos)} vídeo(s)."
+                        ),
+                    },
+                )
+            else:
+                self._publish_event(
+                    Events.UI_SHOW_INFO, {"title": "Processamento Iniciado", "message": message}
+                )
 
             log.info(
                 "workflow.project_processing.resume_started",
@@ -2784,7 +3026,7 @@ class ProcessingCoordinator(BaseCoordinator):
         # The arena parquet should be copied to BOTH aquarium folders
         for aq_id, new_folder in new_folders.items():
             # Copy arena parquet to each aquarium folder
-            for key, old_file_path in parquet_files.items():
+            for _key, old_file_path in parquet_files.items():
                 old_file = Path(old_file_path)
                 if old_file.exists() and old_file.parent == old_folder:
                     new_file = new_folder / old_file.name
@@ -2925,7 +3167,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 if target_aq:
                     target_aq.group = group
                     target_aq.subject_id = subject_id
-                    target_aq.day = str(day) if day else "1"
+                    target_aq.day = int(day) if day else 1
                     updated = True
                     log.info(
                         "assignment_complete.aquarium_updated",
@@ -3066,8 +3308,8 @@ class ProcessingCoordinator(BaseCoordinator):
         data_changed = False
 
         # Get expected ROI names from first video for schema standardization
-        video_paths = [v.get("path") for v in target_videos if v.get("path")]
-        expected_roi_names = self._find_project_roi_names(video_paths) if video_paths else None
+        valid_paths = [str(v.get("path")) for v in target_videos if v.get("path")]
+        expected_roi_names = self._find_project_roi_names(valid_paths) if valid_paths else None
 
         for video in target_videos:
             state = None
@@ -3090,11 +3332,16 @@ class ProcessingCoordinator(BaseCoordinator):
         if data_changed and self.project_manager.project_path:
             self.project_manager.save_project()
 
+        # Capture batch state BEFORE scheduling finalize via root.after,
+        # because _finalize_batch_context() may clear _batch_context before
+        # finalize() runs on the main thread, causing a race condition.
+        is_batch = self._is_batch_processing()
+
         def finalize() -> None:
             if completed:
                 status_msg = f"Σ Sumários atualizados: {len(completed)} vídeo(s)."
                 # CORREÇÃO: Suprimir diálogos em modo batch
-                if not self._is_batch_processing():
+                if not is_batch:
                     self._publish_event(
                         Events.UI_SHOW_INFO,
                         {
@@ -3109,7 +3356,7 @@ class ProcessingCoordinator(BaseCoordinator):
 
             if details:
                 # CORREÇÃO: Suprimir diálogos em modo batch
-                if not self._is_batch_processing():
+                if not is_batch:
                     self._publish_event(
                         Events.UI_SHOW_WARNING,
                         {
@@ -3239,14 +3486,14 @@ class ProcessingCoordinator(BaseCoordinator):
 
                 # Validate adjusted points
                 points_outside = 0
-                for point in adjusted_points:
-                    result = cv2.pointPolygonTest(arena_poly, tuple(point), False)
+                for apt in adjusted_points:
+                    result = cv2.pointPolygonTest(arena_poly, tuple(apt), False)
                     if result < 0:
                         points_outside += 1
 
                 # If adjustment worked, use adjusted points
                 if points_outside == 0:
-                    roi_points = adjusted_points
+                    roi_points = [[int(pt[0]), int(pt[1])] for pt in adjusted_points]
 
                 if points_outside > 0:
                     outside_percent = (points_outside / len(roi_points)) * 100
@@ -3303,6 +3550,9 @@ class ProcessingCoordinator(BaseCoordinator):
                                     return False
 
             # Add ROI after validations
+            zone_data.roi_polygons = list(zone_data.roi_polygons)
+            zone_data.roi_names = list(zone_data.roi_names)
+            zone_data.roi_colors = list(zone_data.roi_colors)
             zone_data.roi_polygons.append(roi_points)
             zone_data.roi_names.append(name)
             zone_data.roi_colors.append(color)
@@ -3360,6 +3610,19 @@ class ProcessingCoordinator(BaseCoordinator):
         except AttributeError:
             pass
 
+        # Third fallback: check project data directly (covers case where
+        # resolver returned None and settings were never synced).
+        try:
+            resolved = self._resolve_single_animal_mode(None)
+            if resolved is True:
+                log.info(
+                    "controller.determine_processing_mode.project_data_fallback",
+                    result="SINGLE_SUBJECT",
+                )
+                return ProcessingMode.SINGLE_SUBJECT
+        except Exception:
+            pass
+
         return ProcessingMode.MULTI_TRACK
 
     def _publish_processing_mode(
@@ -3372,6 +3635,12 @@ class ProcessingCoordinator(BaseCoordinator):
         """Notify the GUI about current processing mode when it changes.
 
         Phase 3: Consolidated from ProcessingConfigOrchestrator._publish_processing_mode
+
+        IMPORTANT (race-condition fix): We set view._active_processing_mode
+        SYNCHRONOUSLY here so that any deferred code that reads it (e.g.
+        start_analysis_view_mode triggered by StateManager observers) will
+        see the correct value immediately.  The full UI update (label text,
+        selector state) is still scheduled via the event-bus queue.
         """
         mode = mode_override or self._determine_processing_mode()
         if not force and mode == getattr(self, "_active_processing_mode", None):
@@ -3379,6 +3648,15 @@ class ProcessingCoordinator(BaseCoordinator):
 
         self._active_processing_mode = mode
         report = ProcessingReport(mode=mode, source=source)
+
+        # ── Synchronous attribute set (race-condition fix) ──────────────
+        # The deferred schedule (event-bus queue polled every ~50 ms) can
+        # arrive AFTER start_analysis_view_mode() reads the field.  Setting
+        # the attribute directly ensures the correct value is always
+        # available, regardless of scheduling order.
+        if self.view and hasattr(self.view, "_active_processing_mode"):
+            self.view._active_processing_mode = mode
+
         if self.view and hasattr(self.view, "update_processing_mode"):
             self.ui_state_controller._schedule_on_ui(self.view.update_processing_mode, report)
         return report
@@ -3536,6 +3814,14 @@ class ProcessingCoordinator(BaseCoordinator):
 
         previous_tracker_pref = self.settings.tracking.use_single_subject_tracker
         resolved_tracker_pref = self._resolve_single_subject_tracker_preference(single_video_config)
+        if resolved_tracker_pref is None and resolved_mode is not None:
+            resolved_tracker_pref = bool(resolved_mode)
+            log.info(
+                "controller.processing.single_subject_tracker.inferred_from_single_animal",
+                enabled=resolved_tracker_pref,
+                scope="single_video" if single_video_config else "project",
+            )
+
         if resolved_tracker_pref is None:
             resolved_tracker_pref = previous_tracker_pref
 
@@ -3614,13 +3900,35 @@ class ProcessingCoordinator(BaseCoordinator):
         # Validation 1: Processing already active?
         processing_state = self.state_manager.get_processing_state()
         if processing_state.is_processing:
-            log.warning("processing_coordinator.validation.already_active")
-            return ValidationResult.failure(
-                error_code="processing_already_active",
-                error_message="Uma análise de vídeo já está em andamento. "
-                "Por favor, aguarde ou cancele a análise atual.",
-                context={"current_video": processing_state.current_video},
-            )
+            worker_running = bool(self.processing_worker and self.processing_worker.is_running)
+            thread_running = bool(self.processing_thread and self.processing_thread.is_alive())
+            live_session_active = self._is_live_session_currently_active(processing_state)
+
+            if not live_session_active and not worker_running and not thread_running:
+                log.warning(
+                    "processing_coordinator.validation.stale_processing_state",
+                    current_video=processing_state.current_video,
+                )
+                self.state_manager.update_processing_state(
+                    source="processing_coordinator.validation.stale_reset",
+                    is_processing=False,
+                    current_video=None,
+                    cancel_requested=False,
+                    is_live_session_active=False,
+                )
+                if self.view:
+                    self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
+                    self.ui_coordinator.hide_progress_bar(self.view)
+                    self.ui_coordinator.set_status(self.view, "Pronto.")
+                self._publish_processing_mode(source="validation.stale_reset", force=True)
+            else:
+                log.warning("processing_coordinator.validation.already_active")
+                return ValidationResult.failure(
+                    error_code="processing_already_active",
+                    error_message="Uma análise de vídeo já está em andamento. "
+                    "Por favor, aguarde ou cancele a análise atual.",
+                    context={"current_video": processing_state.current_video},
+                )
 
         # Validation 2: Project loaded?
         if check_project_loaded:
@@ -3661,6 +3969,35 @@ class ProcessingCoordinator(BaseCoordinator):
         log.debug("processing_coordinator.validate_can_start_processing.success")
         return ValidationResult.success()
 
+    def _is_live_session_currently_active(self, processing_state: Any) -> bool:
+        """Return whether a live session is truly active (not only a stale state flag)."""
+        state_flag = bool(getattr(processing_state, "is_live_session_active", False))
+        if not state_flag:
+            return False
+
+        controller = getattr(self.view, "controller", None) if self.view else None
+        session_coordinator = (
+            getattr(controller, "session_coordinator", None) if controller else None
+        )
+        if session_coordinator is None:
+            return state_flag
+
+        is_active_fn = getattr(session_coordinator, "is_live_session_active", None)
+        if callable(is_active_fn):
+            try:
+                is_active = is_active_fn()
+                if isinstance(is_active, bool):
+                    return is_active
+            except Exception:
+                log.warning(
+                    "processing_coordinator.validation.live_session_probe_failed",
+                    exc_info=True,
+                )
+
+        live_camera_service = getattr(session_coordinator, "live_camera_service", None)
+        camera = getattr(live_camera_service, "camera", None) if live_camera_service else None
+        return camera is not None
+
     def _find_project_roi_names(self, video_paths: list[str]) -> list[str] | None:
         """Find ROI names from the first video in project that has zone data defined.
 
@@ -3692,22 +4029,35 @@ class ProcessingCoordinator(BaseCoordinator):
         log.warning("processing_coordinator.no_project_rois_found")
         return None
 
-    def generate_unified_report(self, video_paths: list[str] | None = None) -> None:
+    def generate_unified_report(
+        self,
+        video_paths: list[str] | None = None,
+        *,
+        replace_existing: bool = False,
+        report_scope: str = "all",
+    ) -> None:
         """Generate a unified report aggregating data from multiple videos."""
         if not video_paths:
             return
 
-        log.info("workflow.unified_report.start", count=len(video_paths))
+        scope = "selected" if report_scope == "selected" else "all"
+        log.info(
+            "workflow.unified_report.start",
+            count=len(video_paths),
+            scope=scope,
+            replace_existing=replace_existing,
+        )
         self._publish_event(Events.UI_SET_STATUS, {"message": "Gerando relatório unificado..."})
 
-        if not self.project_manager.project_path:
-            self._publish_event(
-                Events.UI_SHOW_ERROR, {"title": "Erro", "message": "Nenhum projeto carregado."}
-            )
+        project_path = self.project_manager.project_path
+        if not project_path:
             return
 
-        unified_dir = self.project_manager.project_path / "unified_reports"
+        unified_dir = Path(project_path) / "unified_reports"
         unified_dir.mkdir(parents=True, exist_ok=True)
+
+        if replace_existing:
+            self._cleanup_unified_reports(unified_dir)
 
         dfs = []
         roi_colors_map = {}  # Collect ROI colors from all videos
@@ -3738,15 +4088,20 @@ class ProcessingCoordinator(BaseCoordinator):
 
             entries_to_process = []
             if multi_outputs:
+                exp_id = entry.get("experiment_id", os.path.splitext(os.path.basename(path))[0])
+                fresh_meta = self.project_manager.get_metadata_for_experiment(
+                    exp_id, video_path=path
+                )
                 # Add sub-entries
                 for aq_id, out_info in multi_outputs.items():
                     entries_to_process.append(
                         {
                             "parquet_files": out_info.get("parquet_files", {}),
                             "metadata": {
-                                "group": out_info.get("group"),
-                                "subject": out_info.get("subject_id"),
-                                "day": out_info.get("day"),
+                                "group": out_info.get("group") or fresh_meta.get("group"),
+                                "group_id": out_info.get("group") or fresh_meta.get("group_id"),
+                                "subject": out_info.get("subject_id") or fresh_meta.get("subject"),
+                                "day": out_info.get("day") or fresh_meta.get("day"),
                                 # Use a unique experiment ID for the sub-entry
                                 "experiment_id": (
                                     f"{os.path.splitext(os.path.basename(path))[0]}_aq{aq_id}"
@@ -3810,7 +4165,12 @@ class ProcessingCoordinator(BaseCoordinator):
 
             # 2. Export Word and Excel
             self._export_unified_reports(
-                final_df, unified_dir, roi_colors_map, schema_mismatch, all_columns
+                final_df,
+                unified_dir,
+                roi_colors_map,
+                schema_mismatch,
+                all_columns,
+                report_scope=scope,
             )
         except Exception as e:
             log.error("workflow.unified_report.failed", error=str(e), exc_info=True)
@@ -3920,6 +4280,33 @@ class ProcessingCoordinator(BaseCoordinator):
                 final_df = pd.concat(non_empty_dfs, ignore_index=True)
         return final_df, schema_mismatch, all_columns
 
+    def _cleanup_unified_reports(self, unified_dir: Path) -> None:
+        """Remove previous unified report artifacts before a fresh export run."""
+        patterns = [
+            "*.docx",
+            "*.xlsx",
+            "*.parquet",
+            "unified_run_*.json",
+            "latest_unified_run.json",
+        ]
+
+        removed = 0
+        for pattern in patterns:
+            for artifact in unified_dir.glob(pattern):
+                if not artifact.is_file():
+                    continue
+                try:
+                    artifact.unlink(missing_ok=True)
+                    removed += 1
+                except Exception:
+                    log.warning(
+                        "workflow.unified_report.cleanup_failed",
+                        file=str(artifact),
+                        exc_info=True,
+                    )
+
+        log.info("workflow.unified_report.cleanup_completed", removed=removed, dir=str(unified_dir))
+
     def _export_unified_reports(
         self,
         final_df,
@@ -3927,6 +4314,8 @@ class ProcessingCoordinator(BaseCoordinator):
         roi_colors_map: dict,
         schema_mismatch: bool,
         all_columns: list,
+        *,
+        report_scope: str = "all",
     ) -> None:
         """Export unified reports (Parquet, Excel, and Word) from concatenated DataFrame.
 
@@ -3941,30 +4330,41 @@ class ProcessingCoordinator(BaseCoordinator):
 
         from zebtrack.analysis.reporter import Reporter
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        scope_prefix = "unified_partial" if report_scope == "selected" else "unified"
+
+        exported_artifacts: list[str] = []
+        export_failures: list[str] = []
+        exported_paths: dict[str, str] = {}
 
         # 1. Export Parquet (raw data)
-        parquet_path = unified_dir / f"unified_summary_{timestamp}.parquet"
+        parquet_path = unified_dir / f"{scope_prefix}_summary_{run_id}.parquet"
         try:
             final_df.to_parquet(parquet_path, index=False)
+            exported_artifacts.append(parquet_path.name)
+            exported_paths["parquet"] = str(parquet_path)
             log.info("workflow.unified_report.parquet_exported", path=str(parquet_path))
         except Exception as e:
-            log.error("workflow.unified_report.parquet_failed", error=str(e))
+            export_failures.append(f"Parquet: {e}")
+            log.error("workflow.unified_report.parquet_failed", error=str(e), exc_info=True)
 
         # 2. Export Excel
-        excel_path = unified_dir / f"unified_summary_{timestamp}.xlsx"
+        excel_path = unified_dir / f"{scope_prefix}_summary_{run_id}.xlsx"
         try:
             # Apply display formatting for Excel
             from zebtrack.analysis.data_transformer import DataTransformer
 
             display_df = DataTransformer().prepare_for_display(final_df)
             display_df.to_excel(excel_path, index=False, engine="openpyxl")
+            exported_artifacts.append(excel_path.name)
+            exported_paths["excel"] = str(excel_path)
             log.info("workflow.unified_report.excel_exported", path=str(excel_path))
         except Exception as e:
-            log.error("workflow.unified_report.excel_failed", error=str(e))
+            export_failures.append(f"Excel: {e}")
+            log.error("workflow.unified_report.excel_failed", error=str(e), exc_info=True)
 
         # 3. Export Word using Reporter.export_project_report
-        word_path = unified_dir / f"unified_report_{timestamp}"
+        word_path = unified_dir / f"{scope_prefix}_report_{run_id}"
         try:
             # BUGFIX: Reporter cannot handle pandas NA values - convert to np.nan
             # This happens when DataFrames with different schemas are merged (schema mismatch)
@@ -3973,7 +4373,9 @@ class ProcessingCoordinator(BaseCoordinator):
             word_df = final_df.copy()
             # Replace pandas NA with numpy nan which Reporter can handle
             for col in word_df.columns:
-                word_df[col] = word_df[col].replace({pd.NA: np.nan}).infer_objects(copy=False)
+                word_df[col] = (
+                    word_df[col].where(word_df[col].notna(), np.nan).infer_objects(copy=False)
+                )
 
             Reporter.export_project_report(
                 aggregated_df=word_df,
@@ -3981,9 +4383,43 @@ class ProcessingCoordinator(BaseCoordinator):
                 roi_colors=roi_colors_map if roi_colors_map else None,
                 detector_params=None,
             )
+            exported_artifacts.append(f"{word_path.name}.docx")
+            exported_paths["word"] = f"{word_path}.docx"
             log.info("workflow.unified_report.word_exported", path=str(word_path) + ".docx")
         except Exception as e:
-            log.error("workflow.unified_report.word_failed", error=str(e))
+            export_failures.append(f"Word: {e}")
+            log.error("workflow.unified_report.word_failed", error=str(e), exc_info=True)
+
+        if not exported_artifacts:
+            failure_details = "\n".join(f"• {item}" for item in export_failures[:3])
+            raise RuntimeError(
+                "Não foi possível gerar nenhum arquivo do relatório unificado."
+                + (f"\n\nDetalhes:\n{failure_details}" if failure_details else "")
+            )
+
+        if export_failures:
+            self._publish_event(
+                Events.UI_SHOW_WARNING,
+                {
+                    "title": "Relatório Unificado Parcial",
+                    "message": (
+                        "Alguns arquivos não puderam ser gerados.\n"
+                        "Gerados: "
+                        + ", ".join(exported_artifacts)
+                        + "\n\nFalhas:\n"
+                        + "\n".join(f"• {item}" for item in export_failures[:3])
+                    ),
+                },
+            )
+
+        self._write_unified_run_manifest(
+            unified_dir=unified_dir,
+            run_id=run_id,
+            report_scope=report_scope,
+            exported_paths=exported_paths,
+            export_failures=export_failures,
+            row_count=len(final_df),
+        )
 
         # 4. Log schema mismatch warning if applicable
         if schema_mismatch:
@@ -4011,10 +4447,51 @@ class ProcessingCoordinator(BaseCoordinator):
             self._publish_event(
                 Events.UI_SHOW_INFO,
                 {
-                    "title": "Relatório Unificado",
-                    "message": f"Relatório unificado gerado com sucesso em:\n{unified_dir}",
+                    "title": "Relatório Unificado Parcial"
+                    if report_scope == "selected"
+                    else "Relatório Unificado",
+                    "message": (
+                        f"Relatório unificado gerado com sucesso em:\n{unified_dir}\n\n"
+                        f"Arquivos: {', '.join(exported_artifacts)}"
+                    ),
                 },
             )
+
+    def _write_unified_run_manifest(
+        self,
+        *,
+        unified_dir: Path,
+        run_id: str,
+        report_scope: str,
+        exported_paths: dict[str, str],
+        export_failures: list[str],
+        row_count: int,
+    ) -> None:
+        """Persist a run manifest so UI can open a consistent file set from same generation."""
+        manifest = {
+            "run_id": run_id,
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+            "scope": report_scope,
+            "row_count": row_count,
+            "artifacts": exported_paths,
+            "failures": export_failures,
+        }
+
+        manifest_path = unified_dir / f"unified_run_{run_id}.json"
+        latest_path = unified_dir / "latest_unified_run.json"
+
+        with manifest_path.open("w", encoding="utf-8") as fp:
+            json.dump(manifest, fp, ensure_ascii=False, indent=2)
+
+        with latest_path.open("w", encoding="utf-8") as fp:
+            json.dump(manifest, fp, ensure_ascii=False, indent=2)
+
+        log.info(
+            "workflow.unified_report.manifest_written",
+            run_id=run_id,
+            path=str(manifest_path),
+            artifacts=list(exported_paths.keys()),
+        )
 
     def generate_project_reports(self, video_paths: list[str] | None = None) -> None:
         """Generate reports (Word, Excel, Parquet) for specified videos."""
@@ -4036,7 +4513,7 @@ class ProcessingCoordinator(BaseCoordinator):
                 self._generate_single_video_reports(path)
                 count += 1
             except Exception as e:
-                log.error("workflow.reports.video_failed", video=path, error=str(e))
+                log.exception("workflow.reports.video_failed", video=path, error=str(e))
                 errors.append(f"{os.path.basename(path)}: {e}")
 
         self._finalize_report_generation(count, errors)
@@ -4054,11 +4531,13 @@ class ProcessingCoordinator(BaseCoordinator):
                     metadata[key] = config[key]
 
             for dim_key in ("aquarium_width_cm", "aquarium_height_cm"):
-                if dim_key in config and config.get(dim_key) not in (None, ""):
-                    try:
-                        metadata[dim_key] = float(config.get(dim_key))
-                    except (TypeError, ValueError):
-                        pass
+                if dim_key in config:
+                    val = config.get(dim_key)
+                    if val not in (None, ""):
+                        try:
+                            metadata[dim_key] = float(str(val))
+                        except (TypeError, ValueError):
+                            pass
 
         # Set defaults
         if "group" not in metadata:
@@ -4146,12 +4625,20 @@ class ProcessingCoordinator(BaseCoordinator):
     def _generate_multi_aquarium_reports(self, path, exp_id, entry, multi_outputs):
         """Generate reports for multi-aquarium videos."""
         project_data = getattr(self.project_manager, "project_data", {}) or {}
+
+        self._ensure_analysis_service_ready()
+        if not self.analysis_service:
+            log.error("workflow.reports.service_not_ready")
+            return
+
         analysis_params = self.analysis_service.collect_analysis_parameters(project_data)
         calib = project_data.get("calibration", {})
         fps = float(self.settings.video_processing.fps)
         probed_w, probed_h = self._probe_video_dimensions(str(path))
 
-        zone_data = self.project_manager.get_multi_aquarium_zone_data(video_path=path)
+        zone_data: ZoneData | MultiAquariumZoneData | None = (
+            self.project_manager.get_multi_aquarium_zone_data(video_path=path)
+        )
         if not zone_data:
             zone_data = self.project_manager.get_zone_data(video_path=path)
 
@@ -4193,7 +4680,7 @@ class ProcessingCoordinator(BaseCoordinator):
         }
 
         # Geometry
-        arena_polygon = []
+        arena_polygon: list[tuple[float, float]] = []
         if hasattr(zone_data, "aquariums") and zone_data.aquariums:
             for aq in zone_data.aquariums:
                 if aq.id == aq_id:
@@ -4233,7 +4720,11 @@ class ProcessingCoordinator(BaseCoordinator):
         else:
             frame_crop_for_viz = frame_crop
 
-        analysis_result = self.analysis_service.run_full_analysis_as_dto(
+        service = self.analysis_service
+        if not service:
+            return
+
+        analysis_result = service.run_full_analysis_as_dto(
             trajectory_df=df,
             pixelcm_x=px_x,
             pixelcm_y=px_y,
@@ -4254,6 +4745,13 @@ class ProcessingCoordinator(BaseCoordinator):
 
     def _generate_standard_report(self, path, exp_id, entry, metadata):
         """Generate report for a standard (single aquarium) video."""
+        metadata = dict(metadata) if isinstance(metadata, dict) else {}
+        metadata.setdefault("experiment_id", exp_id)
+        metadata.setdefault("video_name", exp_id)
+        metadata.setdefault("group", "single_video")
+        metadata.setdefault("day", "1")
+        metadata.setdefault("subject", "1")
+
         results_path = self.project_manager.resolve_results_directory(
             exp_id, video_path=path, metadata=metadata
         )
@@ -4267,7 +4765,13 @@ class ProcessingCoordinator(BaseCoordinator):
         df = pd.read_parquet(traj_path)
         zone_data = self.project_manager.get_zone_data(video_path=path)
         project_data = getattr(self.project_manager, "project_data", {}) or {}
-        analysis_params = self.analysis_service.collect_analysis_parameters(project_data)
+        project_data = getattr(self.project_manager, "project_data", {}) or {}
+
+        service = self.analysis_service
+        if service:
+            analysis_params = service.collect_analysis_parameters(project_data)
+        else:
+            analysis_params = {}
         calib = project_data.get("calibration", {})
         px_x_orig, px_y_orig = (
             float(calib.get("pixel_per_cm_x", 1.0)),
@@ -4294,7 +4798,11 @@ class ProcessingCoordinator(BaseCoordinator):
         frame_crop = (off_x, off_y, loc_w, loc_h)
         video_path_report = self._prepare_background_image(path, exp_id, results_path, frame_crop)
 
-        analysis_result = self.analysis_service.run_full_analysis_as_dto(
+        service = self.analysis_service
+        if not service:
+            return
+
+        analysis_result = service.run_full_analysis_as_dto(
             trajectory_df=df,
             pixelcm_x=px_x,
             pixelcm_y=px_y,
@@ -4791,9 +5299,12 @@ class ProcessingCoordinator(BaseCoordinator):
             "day": out.get("day"),
             "aquarium_id": aq_id,
         }
-        behavioral_config = self.analysis_service.collect_analysis_parameters(
-            self.project_manager.project_data
-        ).get("behavioral_config", {})
+
+        behavioral_config = {}
+        if self.analysis_service:
+            behavioral_config = self.analysis_service.collect_analysis_parameters(
+                self.project_manager.project_data
+            ).get("behavioral_config", {})
 
         # Behavioral parameters are now correctly collected by AnalysisService
         # which respects project overrides (synced from UI) > global defaults.
@@ -4856,9 +5367,12 @@ class ProcessingCoordinator(BaseCoordinator):
             meta = self.project_manager.get_metadata_for_experiment(exp_id, video_path=path) or {
                 "experiment_id": exp_id
             }
-            behavioral_config = self.analysis_service.collect_analysis_parameters(
-                self.project_manager.project_data
-            ).get("behavioral_config", {})
+            behavioral_config = {}
+            service = self.analysis_service
+            if service:
+                behavioral_config = service.collect_analysis_parameters(
+                    self.project_manager.project_data
+                ).get("behavioral_config", {})
 
             # Behavioral parameters are now correctly collected by AnalysisService
             # which respects project overrides (synced from UI) > global defaults.

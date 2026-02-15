@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import structlog
 
-from zebtrack.core.detector import Detector, ZoneData
+from zebtrack.core.detector import Detector, MultiAquariumZoneData, ZoneData
 from zebtrack.settings import save_settings
 from zebtrack.utils import IntegrityError
 
@@ -55,7 +55,7 @@ class DetectorService:
         weight_manager: WeightManager,
         model_service: ModelService,
         settings_obj: Settings,
-    ):
+    ) -> None:
         """
         Initialize DetectorService.
 
@@ -164,7 +164,7 @@ class DetectorService:
 
             # Instantiate plugin with settings
             if use_openvino:
-                expected_hash = weight_details.get("openvino_hash")
+                expected_hash = weight_details.get("openvino_hash") if weight_details else None
                 plugin_instance = plugin_class(
                     model_path=model_path, expected_hash=expected_hash, settings_obj=self.settings
                 )
@@ -226,9 +226,46 @@ class DetectorService:
             error_msg = f"Falha ao inicializar o detector: {e}"
             return False, error_msg
 
+    def get_params(self) -> dict[str, Any]:
+        """Return current detector parameters."""
+        return self.get_detector_parameters()
+
+    def get_parameter_definitions(self, config_name: str | None = None) -> dict[str, str]:
+        """Return parameter definitions (type, range, defaults) for the UI."""
+        return {
+            "conf_threshold": "float",
+            "nms_threshold": "float",
+            "use_bytetrack": "bool",
+            "track_threshold": "float",
+            "match_threshold": "float",
+            "track_buffer": "int",
+            "max_center_distance": "float",
+            "iou_threshold": "float",
+        }
+
+    def get_available_configs(self) -> list[str]:
+        """Return a list of available model weight names."""
+        return self.model_service.list_available_weights()
+
+    def get_active_config(self) -> str | None:
+        """Return the name of the currently active model weight."""
+        if self.detector and self.detector.plugin:
+            return getattr(self.detector.plugin, "name", "None")  # type: ignore[union-attr]
+        return None
+
+    def set_active_config(self, weight_name: str) -> bool:
+        """Switch the active detector configuration."""
+        success, _ = self.initialize_detector(active_weight_name=weight_name)
+        return success
+
+    def set_context(self, context: str) -> None:
+        """Set the context for the detector plugin."""
+        if self.detector:
+            self.detector.set_context(context)
+
     def configure_zones(
         self,
-        zones_data: ZoneData | None = None,
+        zones_data: ZoneData | MultiAquariumZoneData | None = None,
         *legacy_dimensions: int,
         video_width: int | None = None,
         video_height: int | None = None,
@@ -280,10 +317,21 @@ class DetectorService:
 
         # Set zones on detector
         self.detector.set_zones(resolved_zone_data, resolved_width, resolved_height)
-        log.info("detector_service.zones.configured", count=len(resolved_zone_data.roi_polygons))
+
+        # Check zone count - handle both ZoneData and MultiAquariumZoneData
+        if isinstance(resolved_zone_data, MultiAquariumZoneData):
+            zone_count = sum(len(aq_data.roi_polygons) for aq_data in resolved_zone_data.aquariums)
+        else:
+            zone_count = len(resolved_zone_data.roi_polygons) if resolved_zone_data else 0
+        log.info("detector_service.zones.configured", count=zone_count)
 
         # Inform detector about aquarium region status
-        has_aquarium = bool(resolved_zone_data and resolved_zone_data.polygon)
+        if isinstance(resolved_zone_data, ZoneData):
+            has_aquarium = bool(resolved_zone_data and resolved_zone_data.polygon)
+        elif isinstance(resolved_zone_data, MultiAquariumZoneData):
+            has_aquarium = any(bool(aq.polygon) for aq in resolved_zone_data.aquariums)
+        else:
+            has_aquarium = False
         self.detector.set_aquarium_region_defined(has_aquarium)
         log.info(
             "detector_service.aquarium_status.updated",
@@ -304,6 +352,8 @@ class DetectorService:
         track_buffer: int | None = None,
         max_center_distance: float | None = None,
         iou_threshold: float | None = None,
+        persist_global: bool = True,
+        persist_project: bool = False,
         reset_overrides: bool = False,
         scope: Literal["global", "project"] = "global",
     ) -> bool:
@@ -357,7 +407,7 @@ class DetectorService:
         # Validation helper
         def _validate_range(
             param_name: str, value: Any, min_val: float = 0.0, max_val: float = 1.0
-        ):
+        ) -> None:
             if value is not None:
                 try:
                     val = float(value)
@@ -449,8 +499,8 @@ class DetectorService:
 
     def _apply_tracking_params_to_plugin(  # noqa: C901
         self,
-        plugin,
-        params: dict,
+        plugin: DetectorPlugin,
+        params: dict[str, Any],
         *,
         persist_global: bool,
         persist_project: bool,
@@ -658,7 +708,7 @@ class DetectorService:
             "iou_threshold": 0.1,
         }
 
-    def restore_detector_settings(self, saved_detector_config: dict) -> None:
+    def restore_detector_settings(self, saved_detector_config: dict[str, Any]) -> None:
         """
         Restore detector settings from saved configuration.
 
@@ -708,7 +758,7 @@ class DetectorService:
 
     # === Private Helper Methods ===
 
-    def _build_detector_config(self, plugin: DetectorPlugin, use_openvino: bool) -> dict:
+    def _build_detector_config(self, plugin: DetectorPlugin, use_openvino: bool) -> dict[str, Any]:
         """
         Build detector configuration dict for persistence.
 
@@ -868,6 +918,19 @@ class DetectorService:
                 except (TypeError, ValueError):
                     pref = None
 
+        if pref is None:
+            animals = project_data.get("animals_per_aquarium")
+            if animals is None:
+                video_processing = project_data.get("video_processing")
+                if isinstance(video_processing, dict):
+                    animals = video_processing.get("animals_per_aquarium")
+
+            if animals is not None:
+                try:
+                    pref = int(animals) == 1
+                except (TypeError, ValueError):
+                    pref = None
+
         if pref is not None:
             return bool(pref)
 
@@ -906,7 +969,7 @@ class DetectorService:
         has_aquarium = False
         has_animal = False
 
-        for class_id, name in plugin_classes.items():
+        for _class_id, name in plugin_classes.items():
             name_lower = name.lower()
             if name_lower in aquarium_names:
                 has_aquarium = True

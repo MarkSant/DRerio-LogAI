@@ -212,7 +212,7 @@
 ## Benefícios
 
 ### ✅ Compatibilidade com 1080p
-- Funciona perfeitamente em 1920×1080 mesmo com escalonamento 125%-150%
+- Funciona perfeitamente em 1920x1080 mesmo com escalonamento 125%-150%
 - Margem de segurança para taskbar do Windows (70px)
 - Margem de segurança para bordas/decorações (~160px)
 
@@ -231,22 +231,22 @@
 
 ## Dimensões Finais Recomendadas
 
-### Para Telas 1080p (1920×1080):
+### Para Telas 1080p (1920x1080):
 ```
-Screen: 1920×1080
+Screen: 1920x1080
 Taskbar: -70px
 Decorations: -160px
 ───────────────────
-Disponível: 1840×850
+Disponível: 1840x850
 
-Wizard: 1050×780 (✅ Cabe confortavelmente)
-Regex:  800×780  (✅ Cabe confortavelmente)
+Wizard: 1050x780 (✅ Cabe confortavelmente)
+Regex:  800x780  (✅ Cabe confortavelmente)
 ```
 
 ### Para Telas Maiores (1440p+):
 - Wizard e dialogs se expandem até maxsize
-- Max Width: 1207px (1050 × 1.15)
-- Max Height: 858px (780 × 1.1)
+- Max Width: 1207px (1050 x 1.15)
+- Max Height: 858px (780 x 1.1)
 
 ### Para Telas Menores (768p):
 - Wizard reduz até minsize
@@ -259,9 +259,9 @@ Regex:  800×780  (✅ Cabe confortavelmente)
 ## Testes Realizados
 
 ### ✅ Resoluções Testadas:
-- [x] 1920×1080 @ 100% scaling
-- [x] 1920×1080 @ 125% scaling (comum)
-- [x] 1920×1080 @ 150% scaling
+- [x] 1920x1080 @ 100% scaling
+- [x] 1920x1080 @ 125% scaling (comum)
+- [x] 1920x1080 @ 150% scaling
 
 ### ✅ Sistemas Operacionais:
 - [x] Windows 10/11 (taskbar inferior)
@@ -315,7 +315,7 @@ def build_ui(self):
    - Linhas 344-347: min/max bounds ajustados
 
 2. **[custom_regex_dialog.py](../../src/zebtrack/ui/wizard/custom_regex_dialog.py)**
-   - Linhas 556-574: Dimensões reduzidas (800×780)
+   - Linhas 556-574: Dimensões reduzidas (800x780)
    - Linhas 72-485: Layout completo reorganizado em 2 colunas (55%/45%)
    - Tips, Examples, Pattern fields → Coluna esquerda
    - Test, Results, Preview tree → Coluna direita
@@ -395,16 +395,16 @@ def build_ui(self):
 
 | Resolução | Escalonamento | Status |
 |-----------|---------------|--------|
-| 1920×1080 | 100% | ✅ Perfeito (sobra 70px) |
-| 1920×1080 | 125% | ✅ Confortável (ajustado) |
-| 1920×1080 | 150% | ✅ Funcional (tight fit) |
-| 1600×900 | 100% | ✅ Funcional (minsize) |
-| 2560×1440 | 100% | ✅ Perfeito (maxsize) |
+| 1920x1080 | 100% | ✅ Perfeito (sobra 70px) |
+| 1920x1080 | 125% | ✅ Confortável (ajustado) |
+| 1920x1080 | 150% | ✅ Funcional (tight fit) |
+| 1600x900 | 100% | ✅ Funcional (minsize) |
+| 2560x1440 | 100% | ✅ Perfeito (maxsize) |
 
 ### Arquivos Impactados
 
-- ✅ `wizard_dialog.py` - Dimensões 1050×780
-- ✅ `custom_regex_dialog.py` - Dimensões 800×780 + layout horizontal
+- ✅ `wizard_dialog.py` - Dimensões 1050x780
+- ✅ `custom_regex_dialog.py` - Dimensões 800x780 + layout horizontal
 - ✅ `calibration_step.py` - Layout horizontal + padding compactado
 - ✅ `detection_step.py` - Layout horizontal 70%/30%
 

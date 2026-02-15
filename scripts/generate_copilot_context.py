@@ -266,19 +266,19 @@ pipeline:
 
 # === TESTING STRATEGY ===
 testing:
-  fast_feedback: "pytest -q (< 30s)"
-  gui_validation: "pytest -m gui -n0 (single thread)"
-  full_coverage: "pytest --cov=zebtrack"
-  minimum_coverage: "70%"
-  scenario_tests: "tests/test_scenarios/"
+    fast_feedback: "pytest -q (< 30s)"
+    gui_validation: "pytest -m gui -n0 (single thread)"
+    full_coverage: "pytest --cov=zebtrack"
+    minimum_coverage: "40% (Linux CI), 0% (Windows CI)"
+    scenario_tests: "tests/test_scenarios/"
 
 # === DOCS PRIORITY ===
 # Read these docs first before making architectural changes
 critical_docs:
-  - "docs/ARCHITECTURE.md"
-  - "docs/DEPENDENCY_INJECTION_GUIDE.md"
-  - "docs/REFERENCE_GUIDE.md"
-  - ".github/copilot-instructions.md"
+    - "docs/explanation/architecture.md"
+    - "docs/explanation/dependency_injection.md"
+    - "docs/reference/operational_reference.md"
+    - ".github/copilot-instructions.md"
 
 # === FILE STATS ===
 # Auto-discovered classes and entry points
@@ -294,7 +294,7 @@ def main():
 
     context = generate_yaml_context()
 
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    with open(OUTPUT_FILE, "w", encoding="utf-8", newline="\n") as f:
         f.write(context)
 
     print(f"Contexto gerado: {OUTPUT_FILE}")

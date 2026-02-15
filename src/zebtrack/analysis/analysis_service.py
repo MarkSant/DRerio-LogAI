@@ -11,7 +11,7 @@ Now handles batch processing, single video processing, and all coordination logi
 """
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -77,13 +77,24 @@ class AnalysisService:
             self.metrics_cache = MetricsCache(cache_dir)
             self.log.info("analysis_service.metrics_cache_enabled", cache_dir=str(cache_dir))
 
+    @staticmethod
+    def _normalize_aquarium_perspective(perspective: str | None) -> str:
+        """Normalize perspective aliases to canonical values.
+
+        Canonical values are ``lateral`` and ``top_down``.
+        """
+        raw = str(perspective or "").strip().lower().replace("-", "_")
+        if raw in {"top_down", "top_down_view", "topdown", "top"}:
+            return "top_down"
+        return "lateral"
+
     def run_full_analysis(
         self,
         trajectory_df: pd.DataFrame,
         pixelcm_x: float,
         pixelcm_y: float,
         video_height_px: int,
-        arena_polygon_px: list[tuple[float, float]],
+        arena_polygon_px: Sequence[Sequence[float]],
         rois: list[ROI],
         fps: float,
         # Analysis-specific parameters
@@ -302,7 +313,7 @@ class AnalysisService:
         pixelcm_x: float,
         pixelcm_y: float,
         video_height_px: int,
-        arena_polygon_px: list[tuple[float, float]],
+        arena_polygon_px: Sequence[Sequence[float]],
         rois: list[ROI],
         fps: float,
         metadata: dict[str, Any],
@@ -489,7 +500,7 @@ class AnalysisService:
                     roi_color = (
                         aq_data.roi_colors[i] if i < len(aq_data.roi_colors) else (255, 0, 0)
                     )
-                    rois.append(ROI(name=roi_name, polygon=roi_polygon))
+                    rois.append(ROI(name=roi_name, geometry=roi_polygon, coordinate_space="px"))
                     roi_colors[roi_name] = roi_color
 
                 # Build aquarium-specific metadata
@@ -502,13 +513,15 @@ class AnalysisService:
                 }
 
                 # Run analysis using existing method
-                result = self.run_full_analysis_as_dto(
-                    trajectory_df=trajectory_df,
-                    pixelcm_x=pixelcm_x,
-                    pixelcm_y=pixelcm_y,
-                    video_height_px=video_height_px,
-                    arena_polygon_px=aq_data.polygon,
-                    rois=rois,
+                analysis_result = self.run_full_analysis_as_dto(
+                    trajectory_df=trajectory_df,  # Assuming aq_traj refers to trajectory_df
+                    pixelcm_x=pixelcm_x,  # Assuming aq_pixelcm_x refers to pixelcm_x
+                    pixelcm_y=pixelcm_y,  # Assuming aq_pixelcm_y refers to pixelcm_y
+                    video_height_px=video_height_px,  # Assuming aq_height refers to video_height_px
+                    arena_polygon_px=[
+                        (float(x), float(y)) for x, y in aq_data.polygon
+                    ],  # Assuming roi_polygon refers to aq_data.polygon
+                    rois=rois,  # Not supporting sub-ROIs per aquarium yet
                     fps=fps,
                     metadata=aq_metadata,
                     roi_colors=roi_colors,
@@ -521,7 +534,7 @@ class AnalysisService:
                     behavioral_config=behavioral_config,
                 )
 
-                results[aq_id] = result
+                results[aq_id] = analysis_result
 
                 self.log.info(
                     "analysis.multi_aquarium.completed",
@@ -723,19 +736,47 @@ class AnalysisService:
             dict: Analysis parameters including thresholds, smoothing, etc.
         """
         # Start with settings defaults
-        params = {
-            "freezing_vel_threshold": self.settings.video_processing.freezing_velocity_threshold,
-            "freezing_min_duration": self.settings.video_processing.freezing_min_duration_s,
-            "smoothing_window_length": self.settings.trajectory_smoothing.window_length,
-            "smoothing_polyorder": self.settings.trajectory_smoothing.polyorder,
-            "behavioral_config": {},
-        }
+        if not self.settings:
+            # Fallback defaults if settings not available
+            params: dict[str, Any] = {
+                "freezing_vel_threshold": 1.0,
+                "freezing_min_duration": 1.0,
+                "smoothing_window_length": 5,
+                "smoothing_polyorder": 2,
+                "behavioral_config": {},
+            }
+        else:
+            params = {
+                "freezing_vel_threshold": (
+                    self.settings.video_processing.freezing_velocity_threshold
+                ),
+                "freezing_min_duration": self.settings.video_processing.freezing_min_duration_s,
+                "smoothing_window_length": self.settings.trajectory_smoothing.window_length,
+                "smoothing_polyorder": self.settings.trajectory_smoothing.polyorder,
+                "behavioral_config": {},
+            }
+
+        if self.settings:
+            params["preprocessing"] = {
+                "pixel_cm": float(self.settings.video_processing.pixel_cm or 1.0),
+                "calculate_angles": self.settings.video_processing.calculate_angles,
+                "smooth_coords": self.settings.trajectory_smoothing.enabled,
+                "smooth_window": self.settings.trajectory_smoothing.window_length,
+            }
+            params["analysis"] = {
+                "freezing_threshold": self.settings.video_processing.freezing_velocity_threshold,
+                "freezing_min_duration": self.settings.video_processing.freezing_min_duration_s,
+                "sharp_turn_threshold": self.settings.video_processing.sharp_turn_threshold_deg_s,
+            }
 
         # Add behavioral defaults if available
-        if hasattr(self.settings, "behavioral_analysis"):
-            ba_cfg = self.settings.behavioral_analysis
+        settings = self.settings
+        if settings is not None and hasattr(settings, "behavioral_analysis"):
+            ba_cfg = settings.behavioral_analysis
             # Get perspective - lateral enables geotaxis by default
-            perspective = getattr(ba_cfg, "aquarium_perspective", "lateral")
+            perspective = self._normalize_aquarium_perspective(
+                getattr(ba_cfg, "aquarium_perspective", "lateral")
+            )
             params["behavioral_config"] = {
                 "thigmotaxis_distance_cm": ba_cfg.default_thigmotaxis_distance_cm,
                 "geotaxis_distance_cm": ba_cfg.default_geotaxis_distance_cm,
@@ -763,6 +804,14 @@ class AnalysisService:
                 params["behavioral_config"].update(project_data["behavioral_config"])
             elif "behavioral_analysis" in project_data:  # Handle legacy/alternate key
                 params["behavioral_config"].update(project_data["behavioral_analysis"])
+
+        if params.get("behavioral_config"):
+            perspective = self._normalize_aquarium_perspective(
+                params["behavioral_config"].get("aquarium_perspective")
+            )
+            params["behavioral_config"]["aquarium_perspective"] = perspective
+            if "geotaxis_enabled" not in params["behavioral_config"]:
+                params["behavioral_config"]["geotaxis_enabled"] = perspective == "lateral"
 
         self.log.debug(
             "analysis_service.collect_parameters",
@@ -858,13 +907,37 @@ class AnalysisService:
         Returns:
             dict: Default analysis profile
         """
-        return {
+        profile: dict[str, Any] = {
             "name": "default",
-            "freezing_vel_threshold": self.settings.video_processing.freezing_velocity_threshold,
-            "freezing_min_duration": self.settings.video_processing.freezing_min_duration_s,
-            "smoothing_window_length": self.settings.trajectory_smoothing.window_length,
-            "smoothing_polyorder": self.settings.trajectory_smoothing.polyorder,
+            "freezing_vel_threshold": self.settings.video_processing.freezing_velocity_threshold
+            if self.settings
+            else 1.5,
+            "freezing_min_duration": self.settings.video_processing.freezing_min_duration_s
+            if self.settings
+            else 1.0,
+            "smoothing_window_length": self.settings.trajectory_smoothing.window_length
+            if self.settings
+            else 7,
+            "smoothing_polyorder": self.settings.trajectory_smoothing.polyorder
+            if self.settings
+            else 3,
         }
+
+        if not self.settings:
+            return profile
+
+        profile["preprocessing"] = {
+            "pixel_cm": float(self.settings.video_processing.pixel_cm or 1.0),
+            "calculate_angles": self.settings.video_processing.calculate_angles,
+            "smooth_coords": self.settings.trajectory_smoothing.enabled,
+            "smooth_window": self.settings.trajectory_smoothing.window_length,
+        }
+        profile["analysis"] = {
+            "freezing_threshold": self.settings.video_processing.freezing_velocity_threshold,
+            "freezing_min_duration": self.settings.video_processing.freezing_min_duration_s,
+            "sharp_turn_threshold": self.settings.video_processing.sharp_turn_threshold_deg_s,
+        }
+        return profile
 
     # -------------------------------------------------------------------------
     # Video Processing Orchestration (Phase 3)

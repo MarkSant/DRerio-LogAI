@@ -4,13 +4,14 @@ Main wizard dialog orchestrator.
 Manages 5-step wizard flow, navigation, and data accumulation.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from tkinter import Frame, messagebox
 from tkinter.simpledialog import Dialog
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
+from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.cache import WizardCache
 
 if TYPE_CHECKING:
@@ -85,15 +86,19 @@ class WizardDialog(Dialog):
             settings_obj: Settings instance (optional)
             event_bus: EventBus instance (optional)
         """
-        self.all_steps = {}  # All possible steps indexed by WizardStepID
-        self.active_steps = []  # Steps for current project type (updated dynamically)
+        self.all_steps: dict[
+            WizardStepID, WizardStep
+        ] = {}  # All possible steps indexed by WizardStepID
+        self.active_steps: list[
+            WizardStep
+        ] = []  # Steps for current project type (updated dynamically)
         self.current_step_index = 0
-        self.wizard_data = {
+        self.wizard_data: dict[str, Any] = {
             "wizard_schema_version": 3,  # v3.0: Model selection & detector params
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
         self.cache = WizardCache()
-        self.result = None  # Will be set on successful completion
+        self.result: dict[str, Any] | None = None  # Will be set on successful completion
         self._geometry_initialized = False
         self.settings = settings_obj  # Store settings for steps
         self.event_bus = event_bus
@@ -327,8 +332,8 @@ class WizardDialog(Dialog):
         usable_h = screen_h - 220
 
         # FIXED SIZE STRATEGY: Optimized for 1080p screens with taskbar/scaling
-        # Previous: 1150×850 (can overflow on 1080p with 125%+ scaling)
-        # New: 1050×780 (fits 1080p reliably, increased 30px for calibration step)
+        # Previous: 1150x850 (can overflow on 1080p with 125%+ scaling)
+        # New: 1050x780 (fits 1080p reliably, increased 30px for calibration step)
 
         target_width = 1050
         target_height = 780
@@ -368,8 +373,8 @@ class WizardDialog(Dialog):
         self._geometry_initialized = True
         log.info(
             "wizard.geometry_initialized",
-            size=f"{int(width)}×{int(height)}",
-            screen=f"{screen_w}×{screen_h}",
+            size=f"{int(width)}x{int(height)}",
+            screen=f"{screen_w}x{screen_h}",
             position=f"+{int(x)}+{int(y)}",
             centered=True,
         )
@@ -408,7 +413,7 @@ class WizardDialog(Dialog):
 
         log.info(
             "wizard.window_centered",
-            size=f"{width}×{height}",
+            size=f"{width}x{height}",
             position=f"+{int(x)}+{int(y)}",
         )
 
@@ -417,7 +422,7 @@ class WizardDialog(Dialog):
         Maintain fixed window size when step changes.
 
         With fixed-size strategy, we DON'T resize the window between steps.
-        Steps should be designed to fit within the allocated space (950×620).
+        Steps should be designed to fit within the allocated space (950x620).
         """
         # No-op: window maintains fixed size
         pass
@@ -430,7 +435,11 @@ class WizardDialog(Dialog):
 
             # Restore previous step with data
             prev_step = self.active_steps[self.current_step_index - 1]
-            prev_data = self.wizard_data.get(prev_step.step_id.name.lower(), {})
+            step_id = prev_step.step_id
+            if step_id:
+                prev_data: dict[str, Any] = self.wizard_data.get(step_id.name.lower(), {})
+            else:
+                prev_data = {}
             prev_step.set_data(prev_data)
 
             # Show previous step

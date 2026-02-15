@@ -7,6 +7,7 @@ Purpose: Separate analysis execution from report generation via dependency inver
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -34,7 +35,7 @@ class CalibrationParams:
     video_height_px: int
     """Video height in pixels."""
 
-    arena_polygon_px: list[tuple[float, float]]
+    arena_polygon_px: Sequence[Sequence[float]]
     """Arena polygon vertices in pixel coordinates."""
 
     fps: float

@@ -416,6 +416,7 @@ class TestSaveROITemplateDialog:
 
         dialog.apply()
 
+        assert dialog.result is not None
         assert dialog.result["name"] == "GlobalTemplate"
         assert dialog.result["save_arena"] is False
         assert dialog.result["save_rois"] is True
@@ -441,6 +442,7 @@ class TestSaveROITemplateDialog:
 
         dialog.apply()
 
+        assert dialog.result is not None
         assert dialog.result["name"] == "CustomTemplate"
         assert dialog.result["save_arena"] is True
         assert dialog.result["save_rois"] is False
@@ -465,6 +467,7 @@ class TestSaveROITemplateDialog:
         dialog.apply()
 
         # Verify path is constructed correctly (normalize for cross-platform compatibility)
+        assert dialog.result is not None
         result_path = Path(dialog.result["custom_path"])
         expected_path = Path("/path/to/template.json")
         assert result_path == expected_path
@@ -683,6 +686,7 @@ class TestColorSelectionDialog:
         dialog.selected_color.set("azul")
         dialog.apply()
 
+        assert dialog.result is not None
         assert dialog.result["name"] == "Azul"
         assert dialog.result["rgb"] == (255, 0, 0)
         assert dialog.result["hex"] == "#0000FF"
@@ -695,6 +699,7 @@ class TestColorSelectionDialog:
         dialog.selected_color.set("vermelho")
         dialog.apply()
 
+        assert dialog.result is not None
         assert dialog.result["name"] == "Vermelho"
         assert dialog.result["rgb"] == (0, 0, 255)
         assert dialog.result["hex"] == "#FF0000"
@@ -707,6 +712,7 @@ class TestColorSelectionDialog:
         dialog.selected_color.set("amarelo")
         dialog.apply()
 
+        assert dialog.result is not None
         assert dialog.result["name"] == "Amarelo"
         assert dialog.result["rgb"] == (0, 204, 204)
         assert dialog.result["hex"] == "#CCCC00"
@@ -719,6 +725,7 @@ class TestColorSelectionDialog:
         dialog.selected_color.set("magenta")
         dialog.apply()
 
+        assert dialog.result is not None
         assert dialog.result["name"] == "Magenta"
         assert dialog.result["rgb"] == (255, 0, 255)
         assert dialog.result["hex"] == "#FF00FF"
@@ -731,6 +738,7 @@ class TestColorSelectionDialog:
         dialog.selected_color.set("ciano")
         dialog.apply()
 
+        assert dialog.result is not None
         assert dialog.result["name"] == "Ciano"
         assert dialog.result["rgb"] == (255, 255, 0)
         assert dialog.result["hex"] == "#00FFFF"

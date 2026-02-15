@@ -13,8 +13,9 @@ from zebtrack.core.project_manager import ProjectManager
 def project_manager(tmp_path):
     settings = SimpleNamespace(tracking=SimpleNamespace(use_single_subject_tracker=True))
     pm = ProjectManager(settings_obj=settings)
-    pm.project_path = tmp_path / "project"
-    pm.project_path.mkdir(parents=True, exist_ok=True)
+    project_path = tmp_path / "project"
+    project_path.mkdir(parents=True, exist_ok=True)
+    pm.project_path = project_path
     pm.project_data = {"batches": [], "zones_by_video": {}, "detection_zones": {}, "tracking": {}}
     return pm
 
@@ -111,7 +112,8 @@ def test_copy_zone_parquet_files_updates_project_entry(scan_input_paths, project
     copied = project_manager.copy_zone_parquet_files("src.mp4", str(target_video_path))
 
     assert copied
-    parquet_map = video_entry.get("parquet_files", {})
+    parquet_map = video_entry.get("parquet_files")
+    assert isinstance(parquet_map, dict)
     assert os.path.exists(parquet_map["arena"])
     assert os.path.exists(parquet_map["rois"])
 

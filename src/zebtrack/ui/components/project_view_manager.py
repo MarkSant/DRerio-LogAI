@@ -360,7 +360,7 @@ class ProjectViewManager:
         all_videos = pm.get_all_videos()
 
         # Count videos by status
-        status_counts = Counter()
+        status_counts: Counter[str] = Counter()
         for video in all_videos:
             has_trajectory = pm.has_trajectory_data(video["path"])
             has_summary = pm.has_summary_data(video["path"])
@@ -701,7 +701,7 @@ class ProjectViewManager:
         # Populate tree
         from zebtrack.ui.gui import STATUS_SYMBOLS
 
-        for group_id, group_data in sorted(
+        for _group_id, group_data in sorted(
             hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
         ):
             group_display = f"🏷️ {group_data['display']}"
@@ -796,7 +796,7 @@ class ProjectViewManager:
         selections = []
         if selection is not None:
             # Selection passed directly (e.g. from callback args)
-            selections = self.gui._resolve_processing_reports_video_paths(selection)
+            selections = self._resolve_processing_reports_video_paths(selection)
         else:
             # Try to resolve from active widget
             selections = self.resolve_processing_reports_video_paths()
@@ -865,10 +865,61 @@ class ProjectViewManager:
                 "Não há vídeos processados neste projeto para gerar um relatório.",
             )
             return
+
+        replace_existing = self._resolve_unified_generation_strategy()
+        if replace_existing is None:
+            return
+
         self.gui.event_dispatcher.publish_event(
             Events.REPORT_GENERATE,
-            {"videos": all_videos, "report_type": "unified"},
+            {
+                "videos": all_videos,
+                "report_type": "unified",
+                "report_scope": "all",
+                "replace_existing": replace_existing,
+            },
         )
+
+    def _resolve_unified_generation_strategy(self) -> bool | None:
+        """Resolve conflict strategy when unified reports already exist.
+
+        Returns:
+            True to overwrite existing artifacts,
+            False to keep previous files and append a new generation,
+            None if user cancels.
+        """
+        pm = self.gui.controller.project_manager
+        if not pm.project_path:
+            return False
+
+        unified_dir = Path(pm.project_path) / "unified_reports"
+        if not unified_dir.exists():
+            return False
+
+        has_existing = (
+            any(unified_dir.glob("*.parquet"))
+            or any(unified_dir.glob("*.xlsx"))
+            or any(unified_dir.glob("*.docx"))
+        )
+        if not has_existing:
+            return False
+
+        response = self.gui.dialog_manager.ask_yes_no_cancel(
+            "Relatórios Unificados Existentes",
+            (
+                "Já existem relatórios unificados neste projeto.\n\n"
+                "Sim: apagar os anteriores e gerar novo\n"
+                "Não: manter anteriores e gerar outro com novo nome\n"
+                "Cancelar: abortar geração"
+            ),
+            icon="warning",
+        )
+
+        if response is None:
+            self.gui.set_status("Geração de relatório unificado cancelada pelo usuário.")
+            return None
+
+        return bool(response)
 
     def _resolve_selection_from_project_overview(self) -> list[str]:
         """Resolve selected video paths from Project Overview tree."""
@@ -961,6 +1012,40 @@ class ProjectViewManager:
         )
         # This functionality has been moved to ZoneControlsWidget
         # Kept here for backward compatibility
+
+    def _resolve_processing_reports_video_paths(self, selection: tuple[str, ...]) -> list[str]:
+        """
+        Resolve selection item IDs to video paths, handling groups recursively.
+        """
+        if (
+            not hasattr(self.gui, "processing_reports_widget")
+            or not self.gui.processing_reports_widget
+        ):
+            return []
+
+        tree = self.gui.processing_reports_widget.tree
+        if not tree:
+            return []
+
+        paths: set[str] = set()
+
+        def _collect(item_id: str) -> None:
+            try:
+                # Try getting video_path column
+                p = tree.set(item_id, "video_path")
+                if p:
+                    paths.add(p)
+                else:
+                    # If empty, might be a container, iterate children
+                    for child in tree.get_children(item_id):
+                        _collect(child)
+            except Exception:
+                pass
+
+        for item in selection:
+            _collect(item)
+
+        return list(paths)
 
     # ===========================================================================
     # CATEGORIA 5: PROCESSING REPORTS MANAGEMENT
@@ -1111,7 +1196,11 @@ class ProjectViewManager:
                 log.info("gui.open_results_folder", path=results_dir)
                 try:
                     if os.name == "nt":  # Windows
-                        os.startfile(results_dir)
+                        startfile = getattr(os, "startfile", None)
+                        if callable(startfile):
+                            startfile(results_dir)
+                        else:
+                            raise OSError("startfile not available")
                     elif os.name == "posix":  # macOS, Linux
                         subprocess.Popen(["xdg-open", results_dir])
                 except Exception as e:
@@ -1130,7 +1219,11 @@ class ProjectViewManager:
                 )
                 try:
                     if os.name == "nt":  # Windows
-                        os.startfile(results_dir)
+                        startfile = getattr(os, "startfile", None)
+                        if callable(startfile):
+                            startfile(results_dir)
+                        else:
+                            raise OSError("startfile not available")
                     elif os.name == "posix":  # macOS, Linux
                         subprocess.Popen(["xdg-open", results_dir])
                 except Exception as e:
@@ -1152,7 +1245,11 @@ class ProjectViewManager:
         log.info("gui.open_report_file", path=file_path)
         try:
             if sys.platform == "win32":
-                os.startfile(file_path)
+                startfile = getattr(os, "startfile", None)
+                if callable(startfile):
+                    startfile(file_path)
+                else:
+                    raise OSError("startfile not available")
             elif sys.platform == "darwin":  # macOS
                 subprocess.Popen(["open", file_path])
             else:  # Linux
@@ -1280,13 +1377,22 @@ class ProjectViewManager:
                     break
 
         if selected_videos:
+            replace_existing = self._resolve_unified_generation_strategy()
+            if replace_existing is None:
+                return
+
             self.gui.event_dispatcher.publish_event(
                 Events.REPORT_GENERATE,
-                {"videos": selected_videos, "report_type": "partial"},
+                {
+                    "videos": selected_videos,
+                    "report_type": "unified",
+                    "report_scope": "selected",
+                    "replace_existing": replace_existing,
+                },
             )
 
     def generate_partial_report(self) -> None:
-        """Gather selected videos and generate a partial report from reports tree."""
+        """Gather selected videos and generate a unified partial report from reports tree."""
         from zebtrack.ui.events import Events
 
         if not hasattr(self.gui, "reports_tree") or not self.gui.reports_tree:
@@ -1315,9 +1421,18 @@ class ProjectViewManager:
                     break
 
         if selected_videos:
+            replace_existing = self._resolve_unified_generation_strategy()
+            if replace_existing is None:
+                return
+
             self.gui.event_dispatcher.publish_event(
                 Events.REPORT_GENERATE,
-                {"videos": selected_videos, "report_type": "partial"},
+                {
+                    "videos": selected_videos,
+                    "report_type": "unified",
+                    "report_scope": "selected",
+                    "replace_existing": replace_existing,
+                },
             )
 
     # ===========================================================================
@@ -1791,7 +1906,11 @@ class ProjectViewManager:
             log.info("gui.open_results_folder", path=results_dir)
             try:
                 if os.name == "nt":  # Windows
-                    os.startfile(results_dir)
+                    startfile = getattr(os, "startfile", None)
+                    if callable(startfile):
+                        startfile(results_dir)
+                    else:
+                        raise OSError("startfile not available")
                 elif os.name == "posix":  # macOS, Linux
                     subprocess.Popen(["xdg-open", results_dir])
             except Exception as e:
@@ -1961,11 +2080,15 @@ class ProjectViewManager:
         # Open directory in file explorer
         try:
             if sys.platform.startswith("win"):
-                os.startfile(results_dir)  # type: ignore[attr-defined]
+                startfile = getattr(os, "startfile", None)
+                if callable(startfile):
+                    startfile(results_dir)
+                else:
+                    raise OSError("startfile not available")
             elif sys.platform == "darwin":
-                os.system(f'open "{results_dir}"')
+                subprocess.run(["open", results_dir], check=False)
             else:  # Linux and other Unix-like systems
-                os.system(f'xdg-open "{results_dir}"')
+                subprocess.run(["xdg-open", results_dir], check=False)
         except Exception as exc:
             log.error("project_view.open_explorer_failed", path=results_dir, error=str(exc))
             self.gui.show_error("Erro", f"Não foi possível abrir a pasta:\n{exc}")

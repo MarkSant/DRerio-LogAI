@@ -98,11 +98,16 @@ class BaseCoordinator:
         from zebtrack.core.state_manager import StateCategory
 
         # Convert string to StateCategory enum if needed
+        cat_enum: StateCategory
         if isinstance(category, str):
-            category = StateCategory(category)
+            cat_enum = StateCategory[category.upper()]
+        else:
+            # Assuming it's already a StateCategory member if not a string
+            cat_enum = category  # type: ignore
 
-        self.state_manager.update(category, key, value)
-        self.logger.debug("state.updated", category=category.value, key=key)
+        # StateManager.update_state expects kwargs for the fields to update
+        self.state_manager.update_state(cat_enum, **{key: value})
+        self.logger.debug("state.updated", category=cat_enum.value, key=key)
 
     def _get_state(self, category: str, key: str, default=None):
         """Get value from state manager.
@@ -120,8 +125,11 @@ class BaseCoordinator:
         """
         from zebtrack.core.state_manager import StateCategory
 
+        cat_enum: StateCategory
         if isinstance(category, str):
-            category = StateCategory(category)
+            cat_enum = StateCategory[category.upper()]
+        else:
+            cat_enum = category  # type: ignore
 
-        state = self.state_manager.get_state(category)
+        state = self.state_manager.get_state(cat_enum)
         return state.get(key, default)

@@ -10,7 +10,7 @@ from typing import TypeVar
 F = TypeVar("F", bound=Callable)
 
 
-def public_api(func: F) -> F:
+def public_api[F: Callable](func: F) -> F:
     """Mark a method as part of the public GUI API.
 
     Methods decorated with @public_api are considered stable interfaces that:

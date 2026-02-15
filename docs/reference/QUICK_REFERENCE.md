@@ -1,48 +1,49 @@
 # ZebTrack-AI Quick Reference
 
-**Ultra-compact reference for AI assistants and developers**
+Ultra-compact reference for AI assistants and developers.
 
 ## 🎯 One-Liners
 
 ```bash
 poetry install && poetry run zebtrack              # Setup & run
-poetry run pytest                                   # Test (712 tests, fast only)
+poetry run pytest                                   # Test (~3100 tests)
 poetry run ruff check --fix .                       # Lint & auto-fix
 ```
 
-## 🏗️ Architecture (MVVM-S + DI)
+## 🏗️ Architecture (MVVM-S + EDA v4.1)
 
-```
-# Pre-recorded
-User → EventBus → MainViewModel → StateManager → UI (root.after)
+```text
+# Pre-recorded Workflow
+User → EventBus → UI Components → Coordinators → Core Services → Data I/O
                          ↓
-         VideoSource → DetectorService → Recorder → AnalysisService → Reporter
+         ProcessingCoordinator → DetectorService → Recorder → AnalysisService
 
-# Live Camera Analysis (v2.0+)
-User → LiveAnalysisDialog → LiveCameraService → [CaptureThread, ProcessingThread]
+# Live Camera Workflow
+User → SessionCoordinator → LiveCameraService → [CaptureThread, ProcessingThread]
                                     ↓
                     Camera → DetectorService → Recorder + LivePreviewWindow
 ```
 
-**DI Root**: `__main__.py` (lines 140-280) - inject `settings_obj` everywhere
+**DI Root**: `src/zebtrack/__main__.py` (lines 70-500) - inject `settings_obj` everywhere
 
 ## 📁 Critical Files
 
-| Path | Purpose |
-|------|---------|
-| `core/main_view_model.py` | Orchestrator (11+ deps) |
-| `core/state_manager.py` | Thread-safe state |
-| `core/wizard_service.py` | Wizard logic + HW caching (30s TTL) |
-| `io/recorder.py` | Parquet schema (IMMUTABLE) |
-| `ui/gui.py` | Main window (10759 lines) |
-| `ui/wizard/models.py` | Pydantic validation |
-| `settings.py` | Config models (Pydantic v2) |
+| Path                                     | Purpose                             |
+| ---------------------------------------- | ----------------------------------- |
+| `coordinators/processing_coordinator.py` | Processing Orchestrator             |
+| `core/state_manager.py`                  | Thread-safe state (Source of Truth) |
+| `core/detector_service.py`               | Detector & Zone Management          |
+| `analysis/analysis_service.py`           | Behavioral calculations             |
+| `io/recorder.py`                         | Parquet schema (IMMUTABLE)          |
+| `ui/ui_coordinator.py`                   | UI Mediator (EventBusV2)            |
+| `settings.py`                            | Config models (Pydantic v2)         |
 
 ## 🔒 IMMUTABLE Parquet Schema
 
-```
+```text
 timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_px, x_cm, y_cm]*
 ```
+
 **DO NOT REORDER** - Tests: `tests/test_recorder.py`
 
 ## ⚡ Critical Rules
@@ -136,7 +137,7 @@ results = analyzer.run_full_analysis(parquet_path, zones)
 
 ## 🔧 Configuration Hierarchy
 
-```
+```text
 config.yaml (base)
     ↓ overrides
 config.local.yaml (machine-specific, git-ignored)
@@ -144,32 +145,32 @@ config.local.yaml (machine-specific, git-ignored)
 ProjectManager.project_data (per-project)
 ```
 
-**Access**: `from zebtrack import settings` (after `load_settings()`)
+**Access**: Use injected `settings_obj` from the composition root; avoid singleton imports.
 
 ## 🚨 Common Pitfalls
 
-| Issue | Solution |
-|-------|----------|
-| UI freeze | Use `root.after(0, ...)` |
-| Zone mismatch | Call `Detector.set_zones()` |
-| Missing track_id | Use `.get("track_id", -1)` |
-| Hardcoded values | Inject `settings_obj` |
-| Schema changes | Update `tests/test_recorder.py` |
+| Issue            | Solution                        |
+| ---------------- | ------------------------------- |
+| UI freeze        | Use `root.after(0, ...)`        |
+| Zone mismatch    | Call `Detector.set_zones()`     |
+| Missing track_id | Use `.get("track_id", -1)`      |
+| Hardcoded values | Inject `settings_obj`           |
+| Schema changes   | Update `tests/test_recorder.py` |
 
 ## 📚 Documentation Index
 
-| Need | See |
-|------|-----|
-| **Quick commands** | `docs/CHEATSHEET.md` |
-| **Architecture deep-dive** | `docs/ARCHITECTURE.md` |
-| **Wizard dev** | `docs/DEVELOPER_GUIDE_WIZARD.md` |
-| **Testing guide** | `README_TESTS.md` |
-| **Coordinates** | `docs/COORDINATE_SYSTEMS.md` |
-| **State mgmt** | `docs/STATE_MANAGER_GUIDE.md` |
-| **DI patterns** | `docs/DEPENDENCY_INJECTION_GUIDE.md` |
-| **Full reference** | `docs/REFERENCE_GUIDE.md` |
-| **Debug tips** | `docs/QUICK_DEBUG_GUIDE.md` |
-| **Historical** | `docs/archive/` |
+| Need                       | See                                            |
+| -------------------------- | ---------------------------------------------- |
+| **Quick commands**         | `docs/guides/developer/CHEATSHEET.md`          |
+| **Architecture deep-dive** | `docs/explanation/architecture.md`             |
+| **Wizard dev**             | `docs/guides/developer/wizard.md`              |
+| **Testing guide**          | `docs/guides/developer/testing_gui_windows.md` |
+| **Coordinates**            | `docs/reference/COORDINATE_SYSTEMS.md`         |
+| **State mgmt**             | `docs/explanation/state_management.md`         |
+| **DI patterns**            | `docs/explanation/dependency_injection.md`     |
+| **Full reference**         | `docs/reference/operational_reference.md`      |
+| **Debug tips**             | `docs/guides/developer/debugging.md`           |
+| **Historical**             | `docs/archive/`                                |
 
 ## 🔍 Quick Debugging
 
@@ -207,22 +208,26 @@ performance:
 **Quick Access**: Menu File → "Analisar Câmera ao Vivo..." or `controller.start_live_camera_analysis()`
 
 **Architecture**:
+
 - **LiveCameraService**: Coordinates capture & processing threads
 - **LiveAnalysisDialog**: Configuration UI
 - **LivePreviewWindow**: Real-time preview
 - **Output**: `live_analysis_sessions/{experiment_id}_{timestamp}/`
 
 **Key Files**:
+
 - `core/live_camera_service.py` - Service (446 lines)
 - `ui/dialogs/live_analysis_dialog.py` - Dialog
 - `io/live_stream_source.py` - Time-limited Camera wrapper
 
 **Threading**:
+
 - `_capture_loop()`: Frame acquisition from Camera
 - `_processing_loop()`: Detection processing
 - Integrated with `RecordingService` for timed sessions
 
 **Data Flow**:
+
 1. User configures via `LiveAnalysisDialog`
 2. `LiveCameraService.start_session()` creates threads + preview
 3. Capture thread: Camera → frame_queue

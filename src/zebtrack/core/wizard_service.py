@@ -12,8 +12,9 @@ import os
 import sys
 import threading
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
@@ -39,14 +40,14 @@ class WizardService:
     """
 
     # Class-level cache for hardware detection results
-    _camera_cache: dict | None = None
+    _camera_cache: list[dict[str, Any]] | None = None
     _camera_cache_time: float = 0.0
-    _arduino_cache: dict | None = None
+    _arduino_cache: list[dict[str, Any]] | None = None
     _arduino_cache_time: float = 0.0
     _cache_ttl_seconds: float = 30.0  # Cache results for 30 seconds
 
     @staticmethod
-    def validate_live_config(data: dict) -> tuple[bool, str]:
+    def validate_live_config(data: dict[str, Any]) -> tuple[bool, str]:
         """
         Validate live configuration data.
 
@@ -89,7 +90,7 @@ class WizardService:
         # Timed recording validation
         if data.get("use_timed_recording", False):
             duration = data.get("recording_duration_s", 0)
-            if not isinstance(duration, (int, float)) or duration <= 0:
+            if not isinstance(duration, int | float) or duration <= 0:
                 return (False, "Duração de gravação deve ser maior que zero")
             if duration > 7200:  # 2 hours max
                 return (False, "Duração de gravação não pode exceder 2 horas (7200 segundos)")
@@ -104,7 +105,7 @@ class WizardService:
 
     @staticmethod
     @contextmanager
-    def suppress_opencv_logs():
+    def suppress_opencv_logs() -> Generator[None, None, None]:
         """
         Context manager to suppress OpenCV verbose output during camera detection.
 
@@ -137,7 +138,7 @@ class WizardService:
             cv2.setLogLevel(3)  # LOG_LEVEL_ERROR
 
     @classmethod
-    def clear_hardware_cache(cls):
+    def clear_hardware_cache(cls) -> None:
         """Clear all hardware detection caches. Useful for testing or manual refresh."""
         cls._camera_cache = None
         cls._camera_cache_time = 0.0
@@ -154,7 +155,7 @@ class WizardService:
         return elapsed < cls._cache_ttl_seconds
 
     @classmethod
-    def detect_available_cameras(cls, use_cache: bool = True) -> list[dict]:
+    def detect_available_cameras(cls, use_cache: bool = True) -> list[dict[str, Any]]:
         """
         Detect available cameras with early stopping optimization and caching.
 
@@ -186,7 +187,7 @@ class WizardService:
             return cls._camera_cache
 
         log.info("wizard_service.detect_cameras.start")
-        cameras: list[dict[str, int | str]] = []
+        cameras: list[dict[str, Any]] = []
         consecutive_failures = 0
         max_consecutive_failures = 3
 
@@ -206,7 +207,7 @@ class WizardService:
                     if cap.isOpened():
                         # CRITICAL: Verify camera can actually capture frames with timeout
                         # Some cameras report isOpened=True but never return frames (ghost cameras)
-                        test_result = {"success": False, "frame": None}
+                        test_result: dict[str, Any] = {"success": False, "frame": None}
                         result_lock = threading.Lock()
                         read_event = threading.Event()
 
@@ -280,7 +281,9 @@ class WizardService:
                             log.info(
                                 "wizard_service.camera_validated",
                                 index=i,
-                                frame_shape=test_result["frame"].shape,
+                                frame_shape=test_result["frame"].shape
+                                if test_result["frame"] is not None
+                                else None,
                                 frame_mean=frame_mean,
                             )
 
@@ -311,8 +314,8 @@ class WizardService:
                                 "index": i,
                                 "width": width,
                                 "height": height,
-                                "fps": fps,
-                                "description": description,
+                                "fps": float(fps),
+                                "description": str(description),
                             }
                         )
                         cap.release()
@@ -347,7 +350,7 @@ class WizardService:
     @classmethod
     def detect_arduino_ports(
         cls, use_cache: bool = True, settings_obj: Settings | None = None
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """
         Detect available Arduino serial ports with descriptions and caching.
 
@@ -482,7 +485,9 @@ class WizardService:
         return suggested
 
     @staticmethod
-    def calculate_experiment_structure(groups: int, days: int, subjects: int) -> dict:
+    def calculate_experiment_structure(
+        groups: int, days: int, subjects: int
+    ) -> dict[str, int | float]:
         """
         Calculate experiment size and structure metrics.
 
@@ -525,7 +530,7 @@ class WizardService:
         return metrics
 
     @staticmethod
-    def validate_experimental_design(data: dict) -> tuple[bool, str]:
+    def validate_experimental_design(data: dict[str, Any]) -> tuple[bool, str]:
         """
         Validate experimental design data.
 
@@ -573,7 +578,7 @@ class WizardService:
         return (True, "")
 
     @staticmethod
-    def validate_calibration_data(data: dict) -> tuple[bool, str]:
+    def validate_calibration_data(data: dict[str, Any]) -> tuple[bool, str]:
         """
         Validate calibration step data.
 
@@ -602,11 +607,11 @@ class WizardService:
 
         # Dimensions validation
         width = data.get("aquarium_width_cm")
-        if not isinstance(width, (int, float)) or width <= 0:
+        if not isinstance(width, int | float) or width <= 0:
             return (False, "Largura do aquário deve ser maior que zero")
 
         height = data.get("aquarium_height_cm")
-        if not isinstance(height, (int, float)) or height <= 0:
+        if not isinstance(height, int | float) or height <= 0:
             return (False, "Altura do aquário deve ser maior que zero")
 
         # Intervals validation
@@ -639,7 +644,7 @@ class WizardService:
         return (True, "")
 
     @staticmethod
-    def validate_basic_calibration(data: dict) -> tuple[bool, str]:
+    def validate_basic_calibration(data: dict[str, Any]) -> tuple[bool, str]:
         """
         Validate basic calibration data (without intervals and ROI rules).
 
@@ -674,11 +679,11 @@ class WizardService:
 
         # Dimensions validation
         width = data.get("aquarium_width_cm")
-        if not isinstance(width, (int, float)) or width <= 0:
+        if not isinstance(width, int | float) or width <= 0:
             return (False, "A largura do aquário deve ser maior que zero")
 
         height = data.get("aquarium_height_cm")
-        if not isinstance(height, (int, float)) or height <= 0:
+        if not isinstance(height, int | float) or height <= 0:
             return (False, "A altura do aquário deve ser maior que zero")
 
         return (True, "")

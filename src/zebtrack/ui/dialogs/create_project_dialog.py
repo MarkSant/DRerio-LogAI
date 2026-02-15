@@ -18,6 +18,7 @@ from tkinter import (
     simpledialog,
     ttk,
 )
+from typing import Any
 
 from zebtrack.ui.window_utils import schedule_maximize
 
@@ -31,8 +32,9 @@ class CreateProjectDialog(simpledialog.Dialog):
         Args:
             parent: Parent widget.
         """
-        self.project_path = None
-        self.result = None
+        self.project_path: str | None = None
+        self.result: dict[str, Any] | None = None
+        self.video_paths: list[str] = []
         super().__init__(parent, "Criar Novo Projeto")
 
     def body(self, master):
@@ -80,7 +82,7 @@ class CreateProjectDialog(simpledialog.Dialog):
 
         # --- Base Path ---
         Label(master, text="Pasta do Projeto:").grid(row=1, column=0, sticky="w", padx=5, pady=2)
-        self.path_entry = Entry(master, text="", width=40)
+        self.path_entry = Entry(master, width=40)
         self.path_entry.grid(row=1, column=1, columnspan=2, sticky="ew", padx=5)
         Button(master, text="Procurar...", command=self._select_path).grid(row=1, column=3, padx=5)
 
@@ -472,7 +474,7 @@ class CreateProjectDialog(simpledialog.Dialog):
 
     def apply(self):
         """Apply the project configuration and store in result dictionary."""
-        duration = 0
+        duration = 0.0
         if self.use_timed_recording_var.get():
             try:
                 # Duration in minutes, convert to seconds for internal use
@@ -502,7 +504,7 @@ class CreateProjectDialog(simpledialog.Dialog):
             "aquarium_width_cm": float(self.aquarium_width_var.get()),
             "aquarium_height_cm": float(self.aquarium_height_var.get()),
             "use_timed_recording": self.use_timed_recording_var.get(),
-            "recording_duration_s": duration,
+            "recording_duration_s": float(duration),
             "use_countdown": self.use_countdown_var.get(),
             "countdown_duration_s": countdown_duration,
             "analysis_interval_frames": int(self.analysis_interval_var.get()),

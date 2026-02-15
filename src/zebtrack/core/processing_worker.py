@@ -23,13 +23,13 @@ import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import cv2
 import numpy as np
 import structlog
 
-from zebtrack.core.detector import Detector, ZoneData
+from zebtrack.core.detector import Detector, MultiAquariumZoneData, ZoneData
 from zebtrack.io.recorder import Recorder
 
 # Settings is used at runtime in WorkerConfig
@@ -96,10 +96,10 @@ class ProcessingWorker:
     def __init__(self, context: ProcessingContext, callbacks: ProcessingCallbacks):
         self.context = context
         self.callbacks = callbacks
-        self.result_queue = multiprocessing.Queue()
-        self.command_queue = multiprocessing.Queue()
-        self.process = None
-        self._monitor_thread = None
+        self.result_queue: multiprocessing.Queue = multiprocessing.Queue()
+        self.command_queue: multiprocessing.Queue = multiprocessing.Queue()
+        self.process: _WorkerProcess | None = None
+        self._monitor_thread: threading.Thread | None = None
 
     @property
     def is_running(self) -> bool:
@@ -109,6 +109,7 @@ class ProcessingWorker:
     def start_in_thread(self) -> threading.Thread:
         """Start the worker process and the monitoring thread."""
         if self.is_running:
+            assert self._monitor_thread is not None
             return self._monitor_thread
 
         # Prepare zone data dictionary
@@ -157,12 +158,14 @@ class ProcessingWorker:
         )
 
         self.process = _WorkerProcess(config, self.result_queue, self.command_queue)
-        self.process.start()
+        if self.process:  # Guard against None
+            self.process.start()
 
-        self._monitor_thread = threading.Thread(target=self._monitor_loop, name="ProcessingMonitor")
-        self._monitor_thread.daemon = True
-        self._monitor_thread.start()
-        return self._monitor_thread
+        thread = threading.Thread(target=self._monitor_loop, name="ProcessingMonitor")
+        thread.daemon = True
+        thread.start()
+        self._monitor_thread = thread
+        return thread
 
     def cancel(self, timeout: float | None = None) -> bool:
         """Cancel processing."""
@@ -172,11 +175,13 @@ class ProcessingWorker:
             return not self._monitor_thread.is_alive()
         return True
 
-    def _monitor_loop(self):  # noqa: C901
+    def _monitor_loop(self) -> None:  # noqa: C901
         """Monitor results from the worker process."""
         self.callbacks.on_started()
 
         cancel_sent = False  # Track if we've sent cancel command
+        completed_received = False
+        worker_exit_detected_at: float | None = None
 
         # Log cancel_event details for debugging
         log.info(
@@ -202,13 +207,32 @@ class ProcessingWorker:
                     msg = self.result_queue.get(timeout=0.1)
                 except queue.Empty:
                     if self.process and not self.process.is_alive():
+                        # Give a short grace window for queue feeder flush after process exit.
+                        if worker_exit_detected_at is None:
+                            worker_exit_detected_at = time.monotonic()
+                            continue
+
+                        if time.monotonic() - worker_exit_detected_at < 1.0:
+                            continue
+
+                        if not completed_received:
+                            log.error("worker.monitor_loop.missing_completed_signal")
+                            if self.callbacks.on_fatal_error is not None:
+                                self.callbacks.on_fatal_error(
+                                    Exception("Worker exited without completion signal"),
+                                    "Worker monitor",
+                                    {"affected_videos": []},
+                                )
                         break
                     continue
+
+                # Reset exit grace timer when messages still arrive.
+                worker_exit_detected_at = None
 
                 msg_type = msg.get("type")
 
                 if msg_type == "progress":
-                    if self.callbacks.on_progress:
+                    if self.callbacks.on_progress is not None:
                         self.callbacks.on_progress(
                             msg.get("index", 0),
                             msg.get("total", 1),
@@ -220,7 +244,7 @@ class ProcessingWorker:
 
                 elif msg_type == "frame":
                     # Pass frame to callback
-                    if self.callbacks.on_frame_processed:
+                    if self.callbacks.on_frame_processed is not None:
                         self.callbacks.on_frame_processed(
                             msg["frame"],
                             msg.get("detections"),
@@ -228,7 +252,7 @@ class ProcessingWorker:
                         )
 
                 elif msg_type == "video_completed":
-                    if self.callbacks.on_video_completed:
+                    if self.callbacks.on_video_completed is not None:
                         self.callbacks.on_video_completed(
                             msg["index"],
                             0,  # Total not always passed back in this msg
@@ -237,7 +261,8 @@ class ProcessingWorker:
                         )
 
                 elif msg_type == "completed":
-                    if self.callbacks.on_completed:
+                    completed_received = True
+                    if self.callbacks.on_completed is not None:
                         self.callbacks.on_completed(
                             msg.get("cancelled", False),
                             self.context.output_base_dir,
@@ -246,7 +271,7 @@ class ProcessingWorker:
                     break
 
                 elif msg_type == "error":
-                    if self.callbacks.on_error:
+                    if self.callbacks.on_error is not None:
                         self.callbacks.on_error(
                             Exception(msg["error"]), msg.get("experiment_id", "unknown")
                         )
@@ -254,17 +279,25 @@ class ProcessingWorker:
                 elif msg_type == "fatal_error":
                     error = Exception(msg["error"])
                     context_str = "Fatal Worker Error"
-                    info = {"affected_videos": []}
+                    info: dict[str, Any] = {"affected_videos": []}
 
-                    if self.callbacks.on_fatal_error:
+                    if self.callbacks.on_fatal_error is not None:
                         self.callbacks.on_fatal_error(error, context_str, info)
-                    elif self.callbacks.on_error:
+                    elif self.callbacks.on_error is not None:
                         # Fallback to normal error callback
                         self.callbacks.on_error(error, context_str)
                     break
 
             except Exception as e:
                 log.error("worker.monitor_loop_error", error=str(e))
+                if self.callbacks.on_fatal_error is not None:
+                    self.callbacks.on_fatal_error(
+                        e,
+                        "Monitor loop failure",
+                        {"affected_videos": []},
+                    )
+                elif self.callbacks.on_error is not None:
+                    self.callbacks.on_error(e, "Monitor loop failure")
                 break
 
         if self.process:
@@ -290,6 +323,7 @@ class _WorkerProcess(multiprocessing.Process):
         self.result_queue = result_queue
         self.command_queue = command_queue
         self._cancel_requested = False
+        self._default_zone_data: ZoneData | MultiAquariumZoneData | None = None
 
     @staticmethod
     def _sanitize_component(value: str) -> str:
@@ -332,7 +366,7 @@ class _WorkerProcess(multiprocessing.Process):
                 return f"{int(match.group()):02d}"
             return str(value)
 
-    def run(self):
+    def run(self) -> None:
         """Main entry point for the worker process."""
         # Configure logging for worker process (multiprocessing doesn't inherit parent config)
         # Use a separate log file for the worker to avoid file lock issues on Windows
@@ -355,7 +389,7 @@ class _WorkerProcess(multiprocessing.Process):
                 if self._check_cancellation():
                     break
 
-                video_path = video_info.get("path")
+                video_path = str(video_info.get("path") or "")
                 # Support experiment_id override (useful for sequential multi-aquarium)
                 experiment_id = video_info.get("experiment_id")
                 if not experiment_id:
@@ -456,6 +490,7 @@ class _WorkerProcess(multiprocessing.Process):
             # Fallback to settings
             model_path = settings.yolo_model.path
 
+        plugin: Any
         if self.config.model_type == "openvino":
             from zebtrack.plugins.openvino_detector import OpenVINOPlugin
 
@@ -476,14 +511,14 @@ class _WorkerProcess(multiprocessing.Process):
         # This ensures SingleSubjectTracker is used when configured, preventing ID switches
         single_mode = False
 
-        # Check animals_per_aquarium first
+        # Check single_animal_per_aquarium flag
         if hasattr(settings, "video_processing") and hasattr(
-            settings.video_processing, "animals_per_aquarium"
+            settings.video_processing, "single_animal_per_aquarium"
         ):
-            if settings.video_processing.animals_per_aquarium == 1:
+            if settings.video_processing.single_animal_per_aquarium:
                 single_mode = True
 
-        # Check legacy/explicit override
+        # Check explicit single-subject tracker override
         if hasattr(settings, "tracking") and hasattr(
             settings.tracking, "use_single_subject_tracker"
         ):
@@ -495,7 +530,7 @@ class _WorkerProcess(multiprocessing.Process):
 
         # Restore ZoneData
         if self.config.zone_data:
-            zd = None
+            zd: ZoneData | MultiAquariumZoneData
             # Check for MultiAquariumZoneData (dictionary key)
             if "aquariums" in self.config.zone_data:
                 from zebtrack.core.zone_manager import ZoneManager
@@ -527,12 +562,27 @@ class _WorkerProcess(multiprocessing.Process):
             # Store as 'default' zones for the detector
             self._default_zone_data = zd
         else:
-            log.warning("worker.zone_data_missing", reason="config.zone_data is None")
+            has_per_video_zone_data = any(
+                isinstance(task, dict) and bool(task.get("zone_data"))
+                for task in getattr(self.config, "tasks", [])
+            )
+            if has_per_video_zone_data:
+                log.info(
+                    "worker.zone_data_missing",
+                    reason="config.zone_data is None; using per-video zone_data from tasks",
+                )
+            else:
+                log.warning(
+                    "worker.zone_data_missing",
+                    reason="config.zone_data is None and no per-video zone_data found",
+                )
             self._default_zone_data = ZoneData()
 
         return detector
 
-    def _get_zone_data_for_video(self, video_metadata: dict) -> ZoneData:
+    def _get_zone_data_for_video(
+        self, video_metadata: dict[str, Any]
+    ) -> ZoneData | MultiAquariumZoneData:
         """Get zone data for a specific video.
 
         Uses per-video zone_data from video_metadata if available (batch processing),
@@ -575,13 +625,22 @@ class _WorkerProcess(multiprocessing.Process):
             return zd
         else:
             # Fall back to default zone data (single video mode)
+            if self._default_zone_data is None:
+                return ZoneData()  # Return empty instead of None
+
+            poly_points = 0
+            if hasattr(self._default_zone_data, "polygon"):
+                poly_points = len(self._default_zone_data.polygon)
+            elif (
+                hasattr(self._default_zone_data, "aquariums") and self._default_zone_data.aquariums
+            ):
+                poly_points = len(self._default_zone_data.aquariums[0].polygon)
+
             log.info(
                 "worker.using_default_zone_data",
                 video=os.path.basename(video_metadata.get("path", "")),
                 is_multi=hasattr(self._default_zone_data, "aquariums"),
-                polygon_points=len(self._default_zone_data.polygon)
-                if hasattr(self._default_zone_data, "polygon")
-                else 0,
+                polygon_points=poly_points,
             )
             return self._default_zone_data
 
@@ -622,12 +681,12 @@ class _WorkerProcess(multiprocessing.Process):
         # 2. Setup Zones
         is_multi_aquarium = hasattr(video_zone_data, "aquariums")
 
-        if is_multi_aquarium:
+        if isinstance(video_zone_data, MultiAquariumZoneData):
             # Multi-aquarium mode logic
             detector.set_zones(video_zone_data, width, height)
             has_aquarium = bool(video_zone_data.aquariums)
             detector.set_aquarium_region_defined(has_aquarium)
-        else:
+        elif isinstance(video_zone_data, ZoneData):
             # Single aquarium legacy logic
             detector.set_zones(video_zone_data, width, height)
             # Fix: Ensure detector knows aquarium is defined if we have a polygon
@@ -641,9 +700,9 @@ class _WorkerProcess(multiprocessing.Process):
             video=experiment_id,
             video_dimensions=(width, height),
             polygon_points=len(video_zone_data.aquariums[0].polygon)
-            if is_multi_aquarium and video_zone_data.aquariums
+            if isinstance(video_zone_data, MultiAquariumZoneData) and video_zone_data.aquariums
             else len(video_zone_data.polygon)
-            if hasattr(video_zone_data, "polygon")
+            if isinstance(video_zone_data, ZoneData)
             else 0,
             has_aquarium=has_aquarium,
             scaled_polygon_size=detector.scaled_polygon.size
@@ -660,7 +719,7 @@ class _WorkerProcess(multiprocessing.Process):
             results_dir = self.config.output_base_dir
         else:
             # Use pre-calculated results_dir if provided (batch processing with project metadata)
-            results_dir = video_metadata.get("results_dir")
+            results_dir = cast(str, video_metadata.get("results_dir", ""))
             if not results_dir:
                 # Fallback: Create results directory next to the video file
                 video_dir = os.path.dirname(video_path)
@@ -694,7 +753,7 @@ class _WorkerProcess(multiprocessing.Process):
         if width_cm > 0 and height_cm > 0:
             from zebtrack.core.calibration import Calibration
 
-            if is_multi_aquarium:
+            if isinstance(video_zone_data, MultiAquariumZoneData):
                 # Create per-aquarium calibration
                 for aq in video_zone_data.aquariums:
                     if aq.polygon and len(aq.polygon) >= 4:
@@ -713,12 +772,15 @@ class _WorkerProcess(multiprocessing.Process):
             else:
                 # Determine which polygon to use for calibration
                 poly_points = None
-                if hasattr(video_zone_data, "polygon") and video_zone_data.polygon:
+                if isinstance(video_zone_data, ZoneData) and video_zone_data.polygon:
                     poly_points = video_zone_data.polygon
-                elif hasattr(video_zone_data, "aquariums") and video_zone_data.aquariums:
+                elif (
+                    isinstance(video_zone_data, MultiAquariumZoneData) and video_zone_data.aquariums
+                ):
                     # Use first aquarium's polygon for calibration if main polygon is missing
-                    if video_zone_data.aquariums[0].polygon:
-                        poly_points = video_zone_data.aquariums[0].polygon
+                    first_aq = video_zone_data.aquariums[0]
+                    if first_aq.polygon:
+                        poly_points = first_aq.polygon
 
                 if poly_points and len(poly_points) >= 4:
                     try:
@@ -728,7 +790,7 @@ class _WorkerProcess(multiprocessing.Process):
                     except Exception as e:
                         log.error("worker.calibration.failed", error=str(e))
 
-        if is_multi_aquarium:
+        if isinstance(video_zone_data, MultiAquariumZoneData):
             zones_by_aq = {aq.id: aq.to_zone_data() for aq in video_zone_data.aquariums}
 
             # Calculate per-aquarium output folders using AquariumData metadata
@@ -807,7 +869,7 @@ class _WorkerProcess(multiprocessing.Process):
                     return False
 
                 should_process = frame_num % self.config.analysis_interval_frames == 0
-                detections = []
+                detections: list[tuple[Any, ...]] = []
 
                 if should_process:
                     # OPTIMIZATION: Only decode frames that will be processed
@@ -823,9 +885,10 @@ class _WorkerProcess(multiprocessing.Process):
                     # Detect
                     if is_multi_aquarium:
                         log.debug("worker.detect_multi.start", frame=frame_num)
-                        partitioned_detections = detector.detect_partitioned_optimized(frame)
+                        partitioned_detections: dict[int, list[tuple[Any, ...]]] = (
+                            detector.detect_partitioned_optimized(frame)
+                        )
                         log.debug("worker.detect_multi.end", frame=frame_num)
-                        detections = []
                         for aq_dets in partitioned_detections.values():
                             detections.extend(aq_dets)
                     else:
@@ -852,12 +915,15 @@ class _WorkerProcess(multiprocessing.Process):
 
                     # Display Update?
                     if frame_num % self.config.display_interval_frames == 0:
-                        # Draw overlay (arena, ROIs, bboxes) on frame for display
-                        detector.draw_overlay(frame, detections)
+                        # Draw static arena/ROI overlays in worker.
+                        # Bounding boxes stay UI-side to support Track ID filtering.
+                        detector.draw_overlay(frame, [])
 
+                        # Prepare preview frame for UI-side bbox rendering.
                         # Resize for preview if needed
                         # OPTIMIZATION: Use INTER_NEAREST for faster resizing
                         preview_frame = frame
+                        preview_detections = detections
                         if width > 1280:
                             scale = 1280 / width
                             preview_frame = cv2.resize(
@@ -867,6 +933,35 @@ class _WorkerProcess(multiprocessing.Process):
                                 fy=scale,
                                 interpolation=cv2.INTER_NEAREST,
                             )
+
+                            scaled_detections: list[tuple] = []
+                            for det in detections:
+                                if len(det) == 7:
+                                    x1, y1, x2, y2, confidence, track_id, class_id = det
+                                    scaled_detections.append(
+                                        (
+                                            round(float(x1) * scale),
+                                            round(float(y1) * scale),
+                                            round(float(x2) * scale),
+                                            round(float(y2) * scale),
+                                            float(confidence),
+                                            track_id,
+                                            int(class_id),
+                                        )
+                                    )
+                                elif len(det) == 6:
+                                    x1, y1, x2, y2, confidence, track_id = det
+                                    scaled_detections.append(
+                                        (
+                                            round(float(x1) * scale),
+                                            round(float(y1) * scale),
+                                            round(float(x2) * scale),
+                                            round(float(y2) * scale),
+                                            float(confidence),
+                                            track_id,
+                                        )
+                                    )
+                            preview_detections = scaled_detections
 
                         # Calculate stats
                         elapsed = time.time() - start_time
@@ -884,7 +979,7 @@ class _WorkerProcess(multiprocessing.Process):
                             {
                                 "type": "frame",
                                 "frame": preview_frame,
-                                "detections": detections,
+                                "detections": preview_detections,
                                 "info": stats,
                                 "experiment_id": experiment_id,
                             }
@@ -922,13 +1017,28 @@ class _WorkerProcess(multiprocessing.Process):
 
     def _check_cancellation(self) -> bool:
         """Check for cancellation messages."""
+        if self._cancel_requested:
+            return True
+
+        msg = None
         try:
             msg = self.command_queue.get_nowait()
-            if msg == "cancel":
-                self._cancel_requested = True
-                log.info("worker.process.cancelled_by_command")
         except queue.Empty:
-            pass
+            try:
+                msg = self.command_queue.get(timeout=0.005)
+            except queue.Empty:
+                return self._cancel_requested
+        except (OSError, EOFError, ValueError) as exc:
+            self._cancel_requested = True
+            log.warning("worker.process.cancelled_by_queue_error", error=str(exc))
+            return True
+
+        if msg == "cancel":
+            self._cancel_requested = True
+            log.info("worker.process.cancelled_by_command")
+        elif msg is not None:
+            log.warning("worker.process.unknown_command", command=msg)
+
         return self._cancel_requested
 
     def _send_progress(self, index, total, fraction, message, experiment_id, stats=None):

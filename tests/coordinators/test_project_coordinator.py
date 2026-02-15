@@ -16,6 +16,7 @@ Total: 80 tests planned
 """
 
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -132,7 +133,7 @@ class TestProjectCoordinatorInitialization:
         """Should fail validation without project_manager."""
         coordinator = ProjectCoordinator(
             state_manager=mock_state_manager,
-            project_manager=None,
+            project_manager=cast(Any, None),
             project_service=mock_project_service,
         )
 
@@ -145,7 +146,7 @@ class TestProjectCoordinatorInitialization:
         coordinator = ProjectCoordinator(
             state_manager=mock_state_manager,
             project_manager=mock_project_manager,
-            project_service=None,
+            project_service=cast(Any, None),
         )
 
         assert coordinator.validate_dependencies() is False
@@ -252,7 +253,7 @@ class TestProjectCreationFromWizard:
         """Should raise validation error if dependencies invalid."""
         coordinator = ProjectCoordinator(
             state_manager=mock_state_manager,
-            project_manager=None,  # Missing required dependency
+            project_manager=cast(Any, None),  # Missing required dependency
             project_service=mock_project_service,
         )
 
@@ -666,6 +667,7 @@ class TestProjectCoordinatorIntegration:
 
         # Verify project info
         info = coordinator.get_current_project_info()
+        assert info is not None
         assert info["project_name"] == "integration_test"
 
         # Close project

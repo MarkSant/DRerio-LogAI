@@ -9,7 +9,7 @@
   - [x] Added test: `test_status_clears_after_unified_report_success`
 
 - [x] **Fix 2: Metadata Re-Enrichment**
-  - [x] Added metadata lookup after `pd.read_parquet()` 
+  - [x] Added metadata lookup after `pd.read_parquet()`
   - [x] Implemented selective update for "unassigned" group_id
   - [x] Implemented selective update for "unknown" experiment_id
   - [x] Added tests: `test_metadata_enrichment_updates_unassigned_group_id`, `test_metadata_enrichment_updates_unknown_experiment_id`
@@ -147,7 +147,7 @@
    ```bash
    # Run fast tests
    poetry run pytest -q
-   
+
    # Run unified report tests specifically
    poetry run pytest tests/coordinators/test_unified_report.py -v
    ```
@@ -184,6 +184,6 @@
 
 ---
 
-**Status**: ✅ **IMPLEMENTATION COMPLETE**  
-**Ready for**: User testing and validation  
+**Status**: ✅ **IMPLEMENTATION COMPLETE**
+**Ready for**: User testing and validation
 **Estimated effort**: ~4 hours (analysis + implementation + testing)

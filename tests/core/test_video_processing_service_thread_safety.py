@@ -13,7 +13,6 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
-
 from tests.utils.wait_helpers import wait_for_condition
 
 
@@ -155,7 +154,7 @@ class TestThreadSafety:
 
         # Act: Create recorders from multiple threads
         threads = []
-        results = []
+        results: list[bool] = []
 
         def worker():
             recorder = create_recorder_instance()
@@ -214,7 +213,7 @@ class TestThreadSafety:
         original_polygon = zone_data.polygon.copy()
 
         # Act: Multiple threads access zone data
-        results = []
+        results: list[bool] = []
 
         def access_zone_data():
             data = pm.get_zone_data()
@@ -245,7 +244,7 @@ class TestThreadSafety:
             )
             results.append(True)
 
-        results = []
+        results: list[bool] = []
         t1 = threading.Thread(target=setter)
         t2 = threading.Thread(target=checker, args=(results,))
 

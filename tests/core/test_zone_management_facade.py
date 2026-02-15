@@ -539,7 +539,11 @@ class TestZoneManagementEdgeCases:
         video_path = tmp_path / "test_video.mp4"
 
         # Empty ROI data
-        empty_roi_data = {"roi_polygons": [], "roi_names": [], "roi_colors": []}
+        empty_roi_data: dict[str, object] = {
+            "roi_polygons": [],
+            "roi_names": [],
+            "roi_colors": [],
+        }
 
         mock_project_manager.roi_template_manager.load_template.return_value = empty_roi_data
 

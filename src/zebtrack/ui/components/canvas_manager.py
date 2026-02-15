@@ -542,8 +542,16 @@ class CanvasManager:
         self._last_detections = detections
 
         try:
+            frame_for_display = frame.copy()
+
+            if detections:
+                selected_track = self._get_selected_analysis_track()
+                filtered_detections = self._filter_detections_by_track(detections, selected_track)
+                self._update_analysis_track_options_from_detections(detections)
+                self._draw_detection_overlay_on_frame(frame_for_display, filtered_detections)
+
             # Convert the frame for display (BGR -> RGB)
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_rgb = cv2.cvtColor(frame_for_display, cv2.COLOR_BGR2RGB)
             pil_image = Image.fromarray(frame_rgb)
 
             # ONLY display on Analysis Tab widget during analysis
@@ -559,7 +567,14 @@ class CanvasManager:
                     if w > 100 and h > 100:
                         target_w, target_h = w, h
 
-                pil_image.thumbnail((target_w, target_h), Image.LANCZOS)
+                try:
+                    resampling = Image.Resampling.LANCZOS
+                except AttributeError:
+                    # Fallback for older Pillow versions if needed,
+                    # though pyproject specifies ^10.4.0
+                    resampling = Image.LANCZOS  # type: ignore[attr-defined]
+
+                pil_image.thumbnail((target_w, target_h), resampling)
                 self.gui.analysis_display_widget.update_frame(pil_image)
             else:
                 log.debug(
@@ -572,6 +587,87 @@ class CanvasManager:
 
         except Exception as e:
             log.error("canvas_manager.update_video_frame.error", error=str(e))
+
+    def _get_selected_analysis_track(self) -> str:
+        """Return currently selected Track ID in analysis widget."""
+        widget = getattr(self.gui, "analysis_display_widget", None)
+        if widget and getattr(widget, "track_selector_var", None) is not None:
+            selected = str(widget.track_selector_var.get()).strip()
+            if selected:
+                return selected
+        return "Todos"
+
+    def _filter_detections_by_track(self, detections: list, selected_track: str) -> list:
+        """Filter detections according to selected Track ID."""
+        if selected_track == "Todos":
+            return detections
+
+        filtered: list = []
+        for det in detections:
+            if not isinstance(det, tuple | list) or len(det) < 6:
+                continue
+
+            # Supported contracts:
+            # - 6-tuple: (x1, y1, x2, y2, conf, track_id)
+            # - 7-tuple: (x1, y1, x2, y2, conf, track_id, class_id)
+            track_id = det[5]
+            if len(det) >= 7:
+                track_id = det[5]
+            if str(track_id) == selected_track:
+                filtered.append(det)
+        return filtered
+
+    def _update_analysis_track_options_from_detections(self, detections: list) -> None:
+        """Refresh track selector options from current detections."""
+        track_ids: set[str] = set()
+        for det in detections:
+            if isinstance(det, tuple | list) and len(det) >= 6:
+                track_id = str(det[5]).strip()
+                if track_id:
+                    track_ids.add(track_id)
+
+        options = ["Todos", *sorted(track_ids, key=lambda value: (len(value), value))]
+        normalized = tuple(options)
+        if getattr(self.gui, "_available_track_options", ("Todos",)) == normalized:
+            return
+
+        synchronizer = getattr(self.gui, "state_synchronizer", None)
+        if synchronizer is not None and hasattr(synchronizer, "_update_track_options"):
+            synchronizer._update_track_options(options)
+
+    @staticmethod
+    def _draw_detection_overlay_on_frame(frame: np.ndarray, detections: list) -> None:
+        """Draw detection rectangles and labels directly on frame."""
+        for det in detections:
+            if not isinstance(det, tuple | list) or len(det) < 6:
+                continue
+
+            x1, y1, x2, y2 = map(int, det[:4])
+            class_id = 0
+            track_id = det[5]
+            if len(det) >= 7:
+                class_id = int(det[6])
+            confidence = float(det[4]) if len(det) >= 5 else None
+
+            color = (0, 255, 255) if class_id == 0 else (255, 0, 255)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+
+            if track_id is not None:
+                label = f"ID {track_id}"
+            else:
+                label = "Object"
+            if confidence is not None:
+                label = f"{label} ({int(confidence * 100)}%)"
+            cv2.putText(
+                frame,
+                label,
+                (x1, max(0, y1 - 8)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                color,
+                1,
+                cv2.LINE_AA,
+            )
 
     def _render_last_analysis_frame(self) -> None:
         """Re-render the last analysis frame with current settings."""
@@ -592,8 +688,8 @@ class CanvasManager:
         if video_path is None:
             # 1. Try to use currently active zone video (e.g. just set by display_roi_video_frame)
             active_video = self.gui.controller.project_manager.get_active_zone_video()
-            if active_video and os.path.exists(active_video):
-                video_path = active_video
+            if isinstance(active_video, str | os.PathLike) and os.path.exists(active_video):
+                video_path = os.fspath(active_video)
 
             # 2. Try to use pending video (e.g. from wizard)
             elif (
@@ -608,7 +704,15 @@ class CanvasManager:
                 if videos:
                     video_path = videos[0].get("path")
 
-        if not video_path or not os.path.exists(video_path):
+        if video_path is not None and not isinstance(video_path, str | os.PathLike):
+            log.error(
+                "gui.load_frame.invalid_video_path_type",
+                path_type=type(video_path).__name__,
+            )
+            self.gui.controller.project_manager.set_active_zone_video(None)
+            return False
+
+        if not video_path or not os.path.exists(os.fspath(video_path)):
             log.error("gui.load_frame.no_video")
             self.gui.controller.project_manager.set_active_zone_video(None)
             return False
@@ -855,6 +959,13 @@ class CanvasManager:
     def load_selected_video_frame(self, event=None):
         """Load the frame from the selected video to the main canvas."""
         import os
+
+        if hasattr(self.gui, "_confirm_pending_zone_edit_before_navigation"):
+            should_continue = self.gui._confirm_pending_zone_edit_before_navigation(
+                context="abrir outro vídeo"
+            )
+            if not should_continue:
+                return
 
         tree = self.gui.zone_controls.video_selector_tree if self.gui.zone_controls else None
         if not tree:
@@ -1339,13 +1450,13 @@ class CanvasManager:
         if multi_data:
             aquarium = multi_data.get_aquarium(other_id)
             if aquarium and aquarium.polygon:
-                return aquarium.polygon
+                return [list(point) for point in aquarium.polygon]
 
         # Fallback: if other_id=0, try regular zone data
         if other_id == 0:
             zone_data = self.gui.controller.project_manager.get_zone_data(video_path)
             if zone_data and hasattr(zone_data, "polygon") and zone_data.polygon:
-                return zone_data.polygon
+                return [list(point) for point in zone_data.polygon]
 
         return None
 
@@ -1598,7 +1709,8 @@ class CanvasManager:
             Portuguese color name or hex code if not found
         """
         # Normalize to tuple of ints
-        bgr_tuple = tuple(int(c) for c in bgr)
+        # Explicitly construct tuple of length 3 to satisfy dict key type
+        bgr_tuple: tuple[int, int, int] = (int(bgr[0]), int(bgr[1]), int(bgr[2]))
         if bgr_tuple in self._BGR_COLOR_MAP:
             return self._BGR_COLOR_MAP[bgr_tuple]
         # Fallback to hex code if color not in standard palette
@@ -1804,7 +1916,9 @@ class CanvasManager:
 
         for aq in zone_data.aquariums:
             colors = self.AQUARIUM_COLORS.get(aq.id, self.AQUARIUM_COLORS[0])
-            border_color = colors["border"]  # BGR tuple
+            # Explicit cast to ensure MyPy knows it's a color tuple,
+            # not a string from the dict union
+            border_color = typing.cast(tuple[int, int, int], colors["border"])
 
             # Draw aquarium polygon border
             if aq.polygon:
@@ -1960,9 +2074,12 @@ class CanvasManager:
             crop = frame[y1:y2, x1:x2].copy()
 
             # Draw detections on crop (adjusting coordinates)
+            # Draw detections on crop (adjusting coordinates)
             if detections_by_aquarium and aq.id in detections_by_aquarium:
-                border_color = self.AQUARIUM_COLORS.get(aq.id, ("#AAAAAA", f"Aq{aq.id}"))
-                border_color = self.hex_to_bgr(border_color[0])
+                colors = self.AQUARIUM_COLORS.get(aq.id, self.AQUARIUM_COLORS[0])
+                # Explicit cast for border color
+                border_color = typing.cast(tuple[int, int, int], colors["border"])
+
                 for det in detections_by_aquarium[aq.id]:
                     if len(det) >= 6:
                         dx1, dy1, dx2, dy2, _conf, track_id = det[:6]
@@ -1985,8 +2102,9 @@ class CanvasManager:
 
             # Add label
             if show_labels:
-                colors = self.AQUARIUM_COLORS.get(aq.id, ("#AAAAAA", f"Aq{aq.id}"))
-                label = colors[1]
+                colors = self.AQUARIUM_COLORS.get(aq.id, self.AQUARIUM_COLORS[0])
+                # Explicit cast for text label
+                label = str(colors["text"])
                 if aq.group:
                     label += f" ({aq.group})"
                 cv2.putText(
@@ -1998,7 +2116,7 @@ class CanvasManager:
                     (10, 25),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.7,
-                    self.hex_to_bgr(colors[0]),
+                    typing.cast(tuple[int, int, int], colors["border"]),
                     1,
                 )
 

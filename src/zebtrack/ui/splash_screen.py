@@ -131,11 +131,11 @@ class SplashScreen:
 
                 img = Image.open(logo_path)
                 # Resize to reasonable splash size (keep aspect ratio)
-                img.thumbnail((200, 200), Image.LANCZOS)
+                img.thumbnail((200, 200), Image.LANCZOS)  # type: ignore[attr-defined]
                 photo = ImageTk.PhotoImage(img)
 
                 label = tk.Label(parent, image=photo, bg=BG_COLOR)
-                label.image = photo  # Keep reference
+                label.image = photo  # type: ignore[attr-defined]
                 label.pack()
 
                 log.info("splash.logo.loaded", path=str(logo_path))

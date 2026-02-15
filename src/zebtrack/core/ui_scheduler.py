@@ -22,7 +22,7 @@ import structlog
 if TYPE_CHECKING:
     from tkinter import Tk
 
-    from zebtrack.event_bus import EventBus
+    from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
 
@@ -205,31 +205,65 @@ class UIScheduler:
         """
         self.update_view(view, "set_status", message)
 
-    def show_error(self, view: Any, title: str, message: str) -> None:
-        """
-        Show error dialog in view.
+    def show_error(
+        self, view_or_title: Any, title_or_message: str | None = None, message: str | None = None
+    ) -> None:
+        """Show error dialog in a view or directly via messagebox."""
+        if message is None and isinstance(view_or_title, str) and title_or_message is not None:
+            title = view_or_title
+            try:
+                from tkinter import messagebox
 
-        Phase 4: Convenience method for error dialogs.
+                messagebox.showerror(title, title_or_message)
+            except Exception as e:
+                log.error("ui_scheduler.show_error.failed", title=title, error=str(e))
+            return
 
-        Args:
-            view: View object with show_error method
-            title: Error dialog title
-            message: Error message
-        """
-        self.update_view(view, "show_error", title, message)
+        if title_or_message is None or message is None:
+            log.error("ui_scheduler.show_error.invalid_args")
+            return
 
-    def show_info(self, view: Any, title: str, message: str) -> None:
-        """
-        Show info dialog in view.
+        self.update_view(view_or_title, "show_error", title_or_message, message)
 
-        Phase 4: Convenience method for info dialogs.
+    def show_warning(
+        self, view_or_title: Any, title_or_message: str | None = None, message: str | None = None
+    ) -> None:
+        """Show warning dialog in a view or directly via messagebox."""
+        if message is None and isinstance(view_or_title, str) and title_or_message is not None:
+            title = view_or_title
+            try:
+                from tkinter import messagebox
 
-        Args:
-            view: View object with show_info method
-            title: Info dialog title
-            message: Info message
-        """
-        self.update_view(view, "show_info", title, message)
+                messagebox.showwarning(title, title_or_message)
+            except Exception as e:
+                log.error("ui_scheduler.show_warning.failed", title=title, error=str(e))
+            return
+
+        if title_or_message is None or message is None:
+            log.error("ui_scheduler.show_warning.invalid_args")
+            return
+
+        self.update_view(view_or_title, "show_warning", title_or_message, message)
+
+    def show_info(
+        self, view_or_title: Any, title_or_message: str | None = None, message: str | None = None
+    ) -> None:
+        """Show info dialog in a view or directly via messagebox."""
+        if message is None and isinstance(view_or_title, str) and title_or_message is not None:
+            title = view_or_title
+            try:
+                from tkinter import messagebox
+
+                messagebox.showinfo(title, title_or_message)
+            except Exception as e:
+                log.error("ui_scheduler.show_info.failed", title=title, error=str(e))
+            return
+
+        if title_or_message is None or message is None:
+            log.error("ui_scheduler.show_info.invalid_args")
+            return
+
+        self.update_view(view_or_title, "show_info", title_or_message, message)
 
     def update_progress(self, view: Any, value: float) -> None:
         """

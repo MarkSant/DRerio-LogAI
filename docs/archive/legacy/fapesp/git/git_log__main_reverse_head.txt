@@ -1,0 +1,50 @@
+﻿2024-11-13 5fb36f3 Add files via upload
+2025-08-08 997baf2 Vers├úo_Aplicada_Exp
+2025-08-08 026ea06 Refactor monolithic script into a modular application
+2025-08-08 66c2668 I've implemented video analysis and project management.
+2025-08-08 df58d8c I've implemented the new video analysis and project management features.
+2025-08-08 c40e562 feat: Add requirements.txt for dependency management
+2025-08-09 3385005 refactor: Refine file analysis and make model path relative
+2025-08-09 efe4096 fix: Restore correct object detection logic
+2025-08-09 6be2f6d This commit addresses your feedback to fix a detection regression and improve your experience for pre-recorded video analysis.
+2025-08-09 23b5f13 fix: Correct detection logic and end-of-video crash
+2025-08-10 b8b14c8 Implement Dynamic Coordinate Scaling (detector.py): I will add an update_scaling(width, height) method to the Detector class. This method will calculate scaling factors based on a 1280x720 reference and create scaled versions of the polygon and square coordinates. The process_frame and draw_overlay methods will be updated to use these new, dynamically scaled coordinates.
+2025-08-10 61f5d77 copilot instructions
+2025-08-11 1c90bd0 Merge pull request #1 from MarkSant/refactor/modularize-script
+2025-08-12 00abec9 Fix video analysis workflow and freezing issues
+2025-08-12 198052d Fix video processing, synchronization, and freezing issues
+2025-08-12 109084d feat: Add comprehensive code comments and docstrings
+2025-08-12 cc88ec8 refactor: Overhaul video processing to fix frame skipping
+2025-08-12 1fe0153 refactor: Overhaul file processing to use an efficient single-thread model
+2025-08-12 1775195 Processamento de identifica├º├úo corrigido
+2025-08-12 a42bacf I've corrected an `AttributeError` that was occurring on shutdown and refactored the closing logic.
+2025-08-12 d545ab7 feat(gui): Add performance options for pre-recorded video analysis
+2025-08-12 7d601e5 Merge pull request #3 from MarkSant/fix-shutdown-error
+2025-08-12 5f5fa4f feat: Adicionar suporte para infer├¬ncia com OpenVINO
+2025-08-12 5be14b8 Exclui arquivo original
+2025-08-12 158e1f4 updated requeriments
+2025-08-12 7477706 Fix OpenVINO export error and deprecation warning
+2025-08-12 5ce5541 Fix OpenVINO model loading and path handling
+2025-08-12 b35ee8b Feat: Improve OpenVINO performance and correctness
+2025-08-12 d566394 Fix: Correct bounding box format for NMS in OpenVINO post-processing
+2025-08-12 ef3faaf Refactor: Overhaul OpenVINO post-processing logic
+2025-08-12 b56e8d8 Refactor: Align OpenVINO pipeline with ultralytics standards
+2025-08-12 fd1dac4 Fix: Ensure correct static shape in OpenVINO preprocessing
+2025-08-13 8813cc7 Feat: Implement multiple UI and logic improvements
+2025-08-13 fa42aa6 Fix: Add missing logging import in arduino.py
+2025-08-13 c41a86f Fix: Resolve TypeError in file processing loop
+2025-08-13 ee41728 Update detector.py
+2025-08-13 18155b2 Update detector.py
+2025-08-13 ae0e35f Refactor: Improve code quality and implement review suggestions
+2025-08-13 81d997a Merge pull request #6 from MarkSant/fix-openvino-errors
+2025-08-15 bf9b944 Delete best12.pt
+2025-08-15 6ccedc6 Fix: Update OpenVINO inference API call in Detector
+2025-08-15 9b99d46 Merge pull request #7 from MarkSant/fix-openvino-infer-api
+2025-08-15 022370c Feat: Add .gitignore to exclude common files
+2025-08-15 56d3bcc Merge pull request #8 from MarkSant/fix-openvino-infer-api
+2025-08-15 6dc74ae feat: Complete project refactor and modernization
+2025-08-15 da4ad4b Merge pull request #9 from MarkSant/feat/project-refactor-and-setup
+2025-08-15 c016429 Refatora a classe `Arduino` em `src/zebtrack/io/arduino.py` para abordar uma lista de pontos de uma auditoria de c├│digo, melhorando significativamente sua robustez, manutenibilidade e usabilidade.
+2025-08-15 67f5664 Merge pull request #10 from MarkSant/refactor-arduino-class
+2025-08-16 75fc647 Refactor I/O sources with threading and tests
+2025-08-15 ea6229f Merge pull request #11 from MarkSant/feat/refactor-io-sources

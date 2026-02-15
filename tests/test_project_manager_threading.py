@@ -82,7 +82,7 @@ class TestProjectManagerConcurrentUpdates:
             assert not worker.is_alive()
 
         # Verify updates occurred
-        assert update_count[0] == 15  # 3 threads × 5 updates each
+        assert update_count[0] == 15  # 3 threads x 5 updates each
 
     def test_concurrent_zone_data_access(self, project_manager):
         """Test concurrent access to zone data."""
@@ -98,7 +98,7 @@ class TestProjectManagerConcurrentUpdates:
             },
         }
 
-        zone_accesses = []
+        zone_accesses: list[tuple[int, int | str]] = []
 
         def zone_reader(thread_id):
             for i in range(5):
@@ -125,7 +125,7 @@ class TestProjectManagerConcurrentUpdates:
             assert not reader.is_alive()
 
         # Verify accesses occurred
-        assert len(zone_accesses) == 15  # 3 threads × 5 accesses each
+        assert len(zone_accesses) == 15  # 3 threads x 5 accesses each
 
     def test_concurrent_video_status_updates(self, project_manager):
         """Test concurrent video status updates."""
@@ -136,7 +136,7 @@ class TestProjectManagerConcurrentUpdates:
             {"path": "/path/to/video3.mp4", "status": "pending"},
         ]
 
-        status_updates = []
+        status_updates: list[tuple[int, int, int | str]] = []
 
         def status_updater(thread_id, video_index):
             for i in range(3):
@@ -177,7 +177,7 @@ class TestProjectManagerConcurrentUpdates:
             }
         )
 
-        metadata_reads = []
+        metadata_reads: list[tuple[int, int | str]] = []
 
         def metadata_reader(thread_id):
             for i in range(5):
@@ -241,7 +241,7 @@ class TestProjectManagerSaveLoadOperations:
             assert not worker.is_alive()
 
         # Verify save attempts
-        assert len(save_attempts) == 9  # 3 threads × 3 attempts each
+        assert len(save_attempts) == 9  # 3 threads x 3 attempts each
 
     def test_concurrent_zone_manager_operations(self, project_manager):
         """Test concurrent zone manager operations."""
@@ -340,7 +340,7 @@ class TestProjectManagerRaceConditions:
 
     def test_concurrent_state_manager_notifications(self, project_manager):
         """Test concurrent state manager notifications."""
-        notifications = []
+        notifications: list[tuple[int, int | str]] = []
 
         def notifier(thread_id):
             for i in range(5):

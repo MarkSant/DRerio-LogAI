@@ -1,0 +1,3 @@
+from typing import Any
+
+def bbox_overlaps(a: Any, b: Any) -> Any: ...

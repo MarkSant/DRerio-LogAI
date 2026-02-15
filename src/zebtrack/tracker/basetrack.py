@@ -20,7 +20,7 @@ class BaseTrack:
 
     history: ClassVar[OrderedDict] = OrderedDict()
     features: ClassVar[list] = []
-    curr_feature = None
+    curr_feature: np.ndarray | None = None
     score = 0
     start_frame = 0
     frame_id = 0
@@ -42,6 +42,11 @@ class BaseTrack:
     def reset_id_counter():
         """Reset the global track ID counter. Call before processing a new video."""
         BaseTrack._count = 0
+
+    @staticmethod
+    def set_id_counter(value: int):
+        """Set the global track ID counter to a specific value."""
+        BaseTrack._count = value
 
     def activate(self, *args):
         raise NotImplementedError

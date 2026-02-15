@@ -8,16 +8,20 @@ readme = "README.md"
 packages = [{include = "zebtrack", from = "src"}]
 
 [tool.poetry.dependencies]
-python = ">=3.12"
+python = ">=3.12,<3.15"
+filelock = ">=3.20.3"
+fonttools = ">=4.60.2"
 numpy = "~=2.2.6"
 opencv-python = "~=4.12.0"
 pyserial = "~=3.5"
 openvino = "~=2025.1"
+torch = ">=2.8.0"
 ultralytics = ">=8.3.179,<9.0.0"
 pyyaml = "^6.0.2"
 pydantic = "^2.11.7"
 structlog = "^25.4.0"
-Pillow = "^10.4.0"
+Pillow = ">=12.1.1"
+urllib3 = ">=2.6.3"
 pyarrow = "^21.0.0"
 pandas = "^2.3.1"
 scipy = "^1.16.1"
@@ -56,6 +60,10 @@ pytest-timeout = "^2.4.0"
 mypy = "^1.11.2"
 types-polib = "^1.2.0"
 types-pyyaml = "^6.0.12.20250915"
+types-pyserial = "^3.5.0.20251001"
+types-psutil = "^7.2.2.20260130"
+hypothesis = "^6.100.0"
+pytest-rerunfailures = "^14.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -63,6 +71,11 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+extend-exclude = [
+  "docs/archive/legacy/fapesp/notebooks/**",
+]
 
 [tool.ruff.lint]
 select = [
@@ -80,45 +93,22 @@ ignore = [
   "N802",    # function name should be lowercase (methods like setUp)
   "N803",    # argument name should be lowercase (Tkinter conventions)
   "N806",    # variable in function should be lowercase (Mock* in tests)
-  "RUF001",  # ambiguous-unicode-character-string (Portuguese comments)
-  "RUF002",  # ambiguous-unicode-character-docstring (Portuguese docs)
-  "RUF003",  # ambiguous-unicode-character-comment (Portuguese comments)
-  "B007",    # unused-loop-control-variable (common in tests)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/zebtrack/**" = [
+    "RUF001", "RUF002", "RUF003", # Allow Portuguese in core temporarily during migration
+]
+"tests/**" = [
+    "B007", # unused-loop-control-variable common in tests
 ]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 20
 
-[tool.pytest.ini_options]
-pythonpath = [
-  "src"
-]
-filterwarnings = [
-  "ignore::UserWarning",
-  # Suppress pkg_resources deprecation from docxcompose (setuptools pinned to <81)
-  "ignore:pkg_resources is deprecated:UserWarning:docxcompose.properties",
-]
-addopts = [
-  "--cov=zebtrack",
-  "--cov-report=term-missing",
-  "--cov-report=html",
-  "--cov-report=xml",
-  "--cov-fail-under=70",
-  # Timeout configuration (CRITICAL for Windows to prevent hangs)
-  "--timeout=300",  # 5 minute timeout per test
-  "--timeout-method=thread",  # Thread-based timeout (safer on Windows)
-  # Parallel execution with pytest-xdist, but exclude problematic tests by default
-  # GUI tests use Tkinter which doesn't work well with multiprocessing
-  # ttkbootstrap_singleton tests have Style cleanup issues in full suite
-  # To run all non-problematic tests: pytest
-  # To run only GUI tests: pytest -m gui -n0
-  # To run ttkbootstrap tests in isolation: pytest tests/ui/test_components.py
-  "-n=auto",
-  "-m=not (gui or slow or ttkbootstrap_singleton)",
-]
-
 [tool.coverage.run]
 source = ["src"]
+parallel = true
 omit = [
   "*/tests/*",
   "*/conftest.py",
@@ -141,10 +131,34 @@ exclude_lines = [
 python_version = "3.12"
 warn_return_any = false
 warn_unused_configs = true
-ignore_missing_imports = true
+ignore_missing_imports = false
 check_untyped_defs = true
-disallow_untyped_defs = false  # Too strict for existing codebase, enable gradually
+disallow_untyped_defs = false
+exclude = '(^analyze_mypy_.*\.py$)'
+mypy_path = "src:typings/third_party"
 
 [[tool.mypy.overrides]]
-module = "zebtrack.core.*"
-disallow_untyped_defs = true
+module = [
+    "cv2.*",
+    "ultralytics.*",
+    "pyvirtualdisplay.*",
+    "tomli.*",
+    "polib.*",
+    "scipy.*",
+    "shapely.*",
+    "networkx.*",
+    "seaborn.*",
+    "docxcompose.*",
+    "docxtpl.*",
+    "ttkbootstrap.*",
+    "plotly.*",
+    "matplotlib.*",
+    "pandas.*",
+    "pyarrow.*",
+    "pytest_timeout.*"
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false

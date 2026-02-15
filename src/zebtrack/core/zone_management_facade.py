@@ -10,6 +10,7 @@ Responsabilidades:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -73,7 +74,7 @@ class ZoneManagementFacade:
             log.error("zone_facade.arena_drawing.failed", error=str(e), exc_info=True)
             return False
 
-    def save_arena(self, polygon: list[tuple[float, float]], video_path: Path) -> bool:
+    def save_arena(self, polygon: Sequence[tuple[float, float]], video_path: Path) -> bool:
         """
         Save arena polygon for video.
 
@@ -96,7 +97,7 @@ class ZoneManagementFacade:
             # Save to project
             self.project_manager.set_arena_for_video(  # type: ignore[attr-defined]
                 video_path=str(video_path),
-                polygon=polygon,
+                polygon=list(polygon),
             )
 
             # Update state
@@ -207,7 +208,7 @@ class ZoneManagementFacade:
             log.error("zone_facade.apply_template.failed", error=str(e), exc_info=True)
             return False
 
-    def get_arena_for_video(self, video_path: Path) -> list[tuple[float, float]] | None:
+    def get_arena_for_video(self, video_path: Path) -> Sequence[tuple[float, float]] | None:
         """
         Get arena polygon for a video.
 
@@ -302,8 +303,8 @@ class ZoneManagementFacade:
     def _scale_rois_to_arena(
         self,
         rois: list[Any],
-        target_arena: list[tuple[float, float]],
-        source_arena: list[tuple[float, float]] | None = None,
+        target_arena: Sequence[tuple[float, float]],
+        source_arena: Sequence[tuple[float, float]] | None = None,
     ) -> list[Any]:
         """
         Scale ROIs to fit within target arena bounds relative to source arena.

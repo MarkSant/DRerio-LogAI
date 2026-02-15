@@ -46,13 +46,13 @@ class [ComponentName]:
 class ApplicationGUI:
     def __init__(self, ...):
         # ... existing code ...
-        
+
         # Create component managers
         self.dialog_manager = DialogManager(self)
         self.validation_manager = ValidationManager(self)
         self.widget_factory = WidgetFactory(self)
         self.project_view_manager = ProjectViewManager(self)
-        
+
         # ... rest of initialization ...
 ```
 
@@ -106,10 +106,10 @@ def _on_auto_detect_clicked(self, stabilization_frames: int | str | None = None)
 
 **Depois (em validation_manager.py - extract validation):**
 ```python
-def validate_positive_integer(self, value: int | str | None, 
+def validate_positive_integer(self, value: int | str | None,
                              field_name: str) -> int | None:
     """Validate that value is a positive integer.
-    
+
     Returns None if invalid (showing warning automatically).
     Returns the validated integer if valid.
     """
@@ -135,10 +135,10 @@ def _on_auto_detect_clicked(self, stabilization_frames: int | str | None = None)
         return
 
     raw_value = stabilization_frames or self.stabilization_frames_var.get()
-    
+
     # Use validation manager
     frames = self.validation_manager.validate_positive_integer(
-        raw_value, 
+        raw_value,
         "Número de frames para análise"
     )
     if frames is None:
@@ -157,10 +157,10 @@ def _create_main_controls_tab(self):
     self.notebook.add(self.main_controls_frame, text="Controle Principal")
 
     project_type = self.controller.project_manager.get_project_type()
-    
+
     controls_container = ttk.Frame(self.main_controls_frame)
     controls_container.pack(fill="x", pady=(0, 10))
-    
+
     if project_type == "live":
         # ... create live controls ...
     elif project_type == "pre-recorded":
@@ -175,10 +175,10 @@ def create_main_controls_tab(self):
     self.gui.notebook.add(self.gui.main_controls_frame, text="Controle Principal")
 
     project_type = self.gui.controller.project_manager.get_project_type()
-    
+
     controls_container = ttk.Frame(self.gui.main_controls_frame)
     controls_container.pack(fill="x", pady=(0, 10))
-    
+
     if project_type == "live":
         self._create_live_controls(controls_container)
     elif project_type == "pre-recorded":
@@ -202,10 +202,10 @@ class TestDialogManager:
     def test_show_error_calls_messagebox(self, mocker):
         gui_mock = mocker.Mock()
         manager = DialogManager(gui_mock)
-        
+
         mock_showerror = mocker.patch("tkinter.messagebox.showerror")
         manager.show_error("Test", "Message")
-        
+
         mock_showerror.assert_called_once_with("Test", "Message")
 ```
 
@@ -227,15 +227,15 @@ class TestDialogManager:
 1. **ValidationManager** (PRIMEIRO)
    - Sem dependências
    - Base para outros componentes
-   
+
 2. **DialogManager** (SEGUNDO)
    - Usa ValidationManager
    - Padrão direto (wrapper para tkinter)
-   
+
 3. **WidgetFactory** (TERCEIRO)
    - Usa ValidationManager e DialogManager
    - Maior volume de código
-   
+
 4. **ProjectViewManager** (QUARTO)
    - Usa ValidationManager
    - Bastante independente
@@ -267,7 +267,7 @@ Sempre armazene referência ao gui:
 class [ComponentName]:
     def __init__(self, gui):
         self.gui = gui  # Always keep this
-        
+
     def some_method(self):
         # Access gui's attributes like this:
         self.gui.controller
@@ -283,28 +283,27 @@ Se o método faz múltiplas operações relacionadas:
 ```python
 def handle_roi_import_workflow(self, file_path: str) -> dict | None:
     """Complete workflow: validate → import → save → update UI.
-    
+
     Returns the result dict or None if failed.
     """
     # 1. Validate input
     if not self.validation_manager.validate_file_exists(file_path):
         self.gui.dialog_manager.show_error(...)
         return None
-    
+
     # 2. Load data
     data = self._load_template_file(file_path)
     if not data:
         return None
-    
+
     # 3. Save to project
     self._save_to_project(data)
-    
+
     # 4. Update UI
     self.gui.project_view_manager.refresh_templates()
-    
+
     # 5. Confirm to user
     self.gui.dialog_manager.show_info("Success", "...")
-    
+
     return data
 ```
-

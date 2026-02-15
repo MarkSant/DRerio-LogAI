@@ -3,23 +3,24 @@
 
 # ZebTrack-AI
 
-  **Plataforma Inteligente de Rastreamento e Análise Comportamental para *Danio rerio* (Zebrafish)**
+**Plataforma Inteligente de Rastreamento e Análise Comportamental para _Danio rerio_ (Zebrafish)**
 
-  ![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)
-  ![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
-  ![Python](https://img.shields.io/badge/python-3.11%2B-yellow.svg)
-  ![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
-  ![Tests](https://img.shields.io/badge/tests-2568%20passing-brightgreen.svg)
-  ![Coverage](https://img.shields.io/badge/coverage-61%25-orange.svg)
+![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)
+![Architecture](https://img.shields.io/badge/architecture-Event--Driven-green.svg)
+![Python](https://img.shields.io/badge/python-3.12%2B-yellow.svg)
+![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
+![Tests](https://img.shields.io/badge/tests-2568%20passing-brightgreen.svg)
+[![Codecov](https://codecov.io/gh/MarkSant/ZebTrack-AI/branch/main/graph/badge.svg)](https://codecov.io/gh/MarkSant/ZebTrack-AI)
 
-  [Documentação](docs/) | [Guia de Contribuição](docs/guides/developer/DEVELOPER_GUIDE.md) | [Arquitetura](docs/architecture/ARCHITECTURE.md) | [Changelog](docs/changelog.md)
+[Documentação](docs/) | [Guia de Contribuição](docs/guides/developer/DEVELOPER_GUIDE.md) | [Arquitetura](docs/architecture/ARCHITECTURE.md) | [Changelog](CHANGELOG.md)
+
 </div>
 
 ---
 
 ## 📋 Sobre o Projeto
 
-O **ZebTrack-AI** é uma solução completa e de código aberto para análise automatizada de comportamento de peixes zebrafish (*Danio rerio*) em experimentos científicos. Desenvolvido com foco em **reprodutibilidade**, **precisão** e **facilidade de uso**, o sistema combina técnicas avançadas de visão computacional com Deep Learning para rastreamento multi-objeto em tempo real.
+O **ZebTrack-AI** é uma solução completa e de código aberto para análise automatizada de comportamento de peixes zebrafish (_Danio rerio_) em experimentos científicos. Desenvolvido com foco em **reprodutibilidade**, **precisão** e **facilidade de uso**, o sistema combina técnicas avançadas de visão computacional com Deep Learning para rastreamento multi-objeto em tempo real.
 
 ### 🎯 Motivação
 
@@ -33,9 +34,9 @@ O **ZebTrack-AI** resolve esses problemas oferecendo análise automatizada, obje
 
 ### ✨ Diferenciais
 
-- **🤖 Deep Learning Otimizado**: Modelos YOLO v8/v11 com aceleração OpenVINO para detecção em tempo real
+- **🤖 Deep Learning Otimizado**: Ultralytics YOLO (detecção e segmentação) com opção de aceleração via OpenVINO
 - **📊 Métricas Científicas**: Cálculo automático de velocidade, distância percorrida, tempo em zonas, imobilidade, proximidade social
-- **🎨 Interface Intuitiva**: Wizard de 5 etapas para configuração de projetos sem necessidade de programação
+- **🎨 Interface Intuitiva**: Wizard dinâmico (6–7 etapas) para criação de projetos (pré-gravado ou ao vivo) sem necessidade de programação
 - **🔬 Reprodutibilidade**: Todas as configurações e parâmetros de análise são salvos junto com os dados
 - **📹 Análise ao Vivo**: Captura e análise em tempo real com câmeras USB/webcams
 - **🏗️ Arquitetura Event-Driven**: Sistema modular e extensível baseado em eventos
@@ -94,52 +95,91 @@ Suporte avançado para análise simultânea de múltiplos aquários:
 - **📏 Demarcação Visual**: Linhas de zona automáticas em plots de trajetória e heatmaps para visualização clara de preferência de altura
 - **📄 Relatórios Contextuais**: Nomenclatura adaptativa de colunas baseada na perspectiva da câmera
 
+## 📚 Histórico de versões (v1–v3)
+
+O README destaca o estado atual (v4.0). Para detalhes completos por release, consulte o
+[CHANGELOG.md](CHANGELOG.md). Abaixo fica um resumo (marcos principais) das versões anteriores.
+
+### v3.0.0 (2025-01-11)
+
+- Remoção completa do sistema legado de threads para projetos ao vivo.
+- Fluxo de câmera ao vivo passa a ser exclusivamente via `LiveCameraService`.
+- Limpeza e simplificação do carregamento de projetos Live (separação mais clara entre vídeo e
+   câmera).
+
+### v2.x (2025)
+
+#### v2.1.0 (2025-01-11)
+
+- Migração de projetos Live para arquitetura unificada do `LiveCameraService`.
+- Correções críticas: `camera_index` respeitado (não força câmera 0) e intervalos de análise/display
+   respeitados.
+- Redução de threads e memória (de 4 → 2 threads; buffer menor).
+
+#### v2.0.0 (2025-10-XX)
+
+- Camada de serviço do Wizard (`zebtrack.core.wizard_service`) com lógica de negócio testável e
+   centralizada (hardware, validação, utilitários e sugestões).
+- Modelos Pydantic para validação tipada (`LiveConfigData`, `ExperimentalDesignData`, etc.).
+- Modularização de UI: extração de diálogos do `gui.py` para `zebtrack.ui.dialogs/` e melhoria de
+   testabilidade/manutenibilidade.
+- Cache de detecção de hardware (TTL 30s) para reduzir latência na navegação do Wizard.
+- Evolução do Wizard (Express/Advanced, trigger externo, templates, regras de inclusão em ROI).
+
+### v1.x (baseline)
+
+#### v1.6.0 (previous release)
+
+- Criação de projetos via Wizard (fluxo em etapas) e suporte a projetos Live com câmera/Arduino.
+- Campos de desenho experimental (grupos/dias/sujeitos) e persistência de templates.
+- Diálogos legados mantidos por compatibilidade.
+
 ## 🛠️ Instalação
 
 ### Requisitos do Sistema
 
-| Componente | Versão Mínima | Recomendado |
-|-----------|---------------|-------------|
-| Python | 3.11 | 3.12+ |
-| RAM | 4 GB | 8 GB+ |
-| CPU | Dual-core | Quad-core+ |
-| GPU | Não requerida | NVIDIA com CUDA (opcional) |
-| SO | Windows 10, Linux, macOS | Ubuntu 22.04+ |
+| Componente | Versão Mínima            | Recomendado                |
+| ---------- | ------------------------ | -------------------------- |
+| Python     | 3.11                     | 3.12+                      |
+| RAM        | 4 GB                     | 8 GB+                      |
+| CPU        | Dual-core                | Quad-core+                 |
+| GPU        | Não requerida            | NVIDIA com CUDA (opcional) |
+| SO         | Windows 10, Linux, macOS | Ubuntu 22.04+              |
 
 ### Instalação Rápida
 
 1. **Pré-requisitos**: Certifique-se de ter Python 3.11+ e Poetry instalados
 
-    ```bash
-    # Verificar versão do Python
-    python --version
+   ```bash
+   # Verificar versão do Python
+   python --version
 
-    # Instalar Poetry (se necessário)
-    curl -sSL https://install.python-poetry.org | python3 -
-    ```
+   # Instalar Poetry (se necessário)
+   curl -sSL https://install.python-poetry.org | python3 -
+   ```
 
 2. **Clone o repositório**:
 
-    ```bash
-    git clone https://github.com/MarkSant/ZebTrack-AI.git
-    cd ZebTrack-AI
-    ```
+   ```bash
+   git clone https://github.com/MarkSant/ZebTrack-AI.git
+   cd ZebTrack-AI
+   ```
 
 3. **Instale as dependências**:
 
-    ```bash
-    poetry install
-    ```
+   ```bash
+   poetry install
+   ```
 
 4. **(Opcional) Configure parâmetros locais**:
 
-    ```bash
-    # Copie o template de configuração local
-    cp config.yaml config.local.yaml
+   ```bash
+   # Copie o template de configuração local
+   cp config.yaml config.local.yaml
 
-    # Edite config.local.yaml com suas preferências
-    # (índice da câmera, porta Arduino, parâmetros de detecção, etc.)
-    ```
+   # Edite config.local.yaml com suas preferências
+   # (índice da câmera, porta Arduino, parâmetros de detecção, etc.)
+   ```
 
 ### Instalação para Desenvolvimento
 
@@ -158,6 +198,39 @@ poetry run pre-commit install
 poetry run pytest -q
 ```
 
+### 🧩 Extensões VS Code (Desenvolvimento)
+
+Para consistência no ambiente local, siga estas boas práticas com as extensões instaladas:
+
+- **Python / Pylance**: use o interpretador do Poetry (venv) no editor e no terminal.
+- **Ruff**: use como **único** formatter/linter Python; evite Black/Pylint/Flake8 no VS Code.
+- **Mypy (Matan Gover) + Mypy Type Checker (Microsoft)**: mantenha a mesma configuração (`mypy.ini`/`pyproject`); se houver diagnósticos duplicados, desative um deles no workspace ou deixe um apenas “on-demand”.
+- **Python Debugger / Python Environments**: depure e gerencie ambientes usando o mesmo interpretador do Poetry.
+- **PowerShell**: use para scripts e automação; mantenha comandos no terminal PowerShell.
+- **GitHub Copilot / Chat / PRs / Actions**: faça mudanças incrementais e sempre com impacto analisado.
+- **Git History**: use para histórico/blame; diffs pequenos e objetivos.
+- **Docker / Container Tools / Dev Containers / WSL**: use apenas quando o projeto estiver rodando nesses ambientes.
+- **YAML / Markdown / markdownlint / Code Spell Checker**: mantenha lint ativo e corrija avisos.
+- **MATLAB / matlab-formatter**: use apenas em arquivos `.m`.
+- **vscode-pdf**: visualização somente leitura.
+
+Checklist rápido:
+
+- [ ] Interpretador ativo é o venv do Poetry.
+- [ ] Ruff é o único formatter Python.
+- [ ] Configuração do Mypy é única e compartilhada com o CLI.
+- [ ] Linters de YAML/Markdown estão ativos.
+
+Como configurar no VS Code:
+
+- Use “Python: Select Interpreter” para escolher o venv do Poetry.
+- Prefira `python.analysis.typeCheckingMode=basic` e use `strict` apenas em arquivos alvo.
+- Mypy: mantenha config em `mypy.ini`/pyproject e prefira `mypy.runUsingActiveInterpreter=true`.
+- Ruff: `editor.defaultFormatter=charliermarsh.ruff`, `editor.formatOnSave=true` e `editor.codeActionsOnSave` com `source.fixAll.ruff` e `source.organizeImports.ruff`.
+- Dev Containers/WSL: use apenas quando o projeto estiver rodando nesses ambientes.
+
+> Nota para agentes: as instruções de agentes têm **fonte de verdade** em AGENTS.md e mudanças devem começar por lá.
+
 ## ▶️ Execução
 
 ### Modo Gráfico (GUI)
@@ -170,17 +243,12 @@ poetry run zebtrack
 
 ### Modo Linha de Comando (CLI)
 
-O ZebTrack-AI também pode ser executado via linha de comando:
+Atualmente o entrypoint `zebtrack` é focado na execução da aplicação (GUI) e expõe apenas
+opções de diagnóstico/log via argumentos.
 
 ```bash
-# Processar um vídeo específico
-poetry run zebtrack process --video /caminho/para/video.mp4 --project meu_projeto
-
-# Análise ao vivo com câmera
-poetry run zebtrack live --camera 0 --duration 300
-
-# Gerar relatório de um projeto existente
-poetry run zebtrack report --project meu_projeto
+# Exemplo: aumentar verbosidade de um módulo específico
+poetry run zebtrack --log-level zebtrack.core.detector=DEBUG
 ```
 
 ### Primeira Execução
@@ -195,12 +263,16 @@ Na primeira execução, o sistema irá:
 
 ### Fluxo de Trabalho Típico
 
-1. **Criar Projeto** (Wizard de 5 Etapas)
-   - Configurar informações do experimento (nome, descrição, duração)
-   - Definir arena e ROIs (Regions of Interest)
-   - Configurar detector e parâmetros de rastreamento
-   - Selecionar vídeos para análise
-   - Configurar hardware (Arduino, câmera) se aplicável
+1. **Criar Projeto** (Wizard dinâmico: 6 etapas ao vivo, 7 etapas pré-gravado)
+    - **Discovery**: tipo de projeto (experimental/exploratório/ao vivo), organização de pastas e
+       escopo de importação de parquets (quando aplicável); suporte a templates
+    - **Pré-gravado**: seleção de arquivos/pastas → calibração física → detecção/validação de
+       design (auto-detecção por estrutura de pastas, regex customizada e editor de design)
+       → seleção de modelo/pesos/parâmetros → configuração de importação por vídeo
+       (arena/ROIs/trajetória + estratégia de merge de ROIs) → confirmação
+    - **Ao vivo**: design experimental (grupos/dias/sujeitos) → configuração de câmera/Arduino e
+       gravação (inclui modo de gatilho externo) → calibração física → seleção de modelo/pesos/
+       parâmetros → confirmação
 
 2. **Processar Vídeos**
    - Detecção automática de peixes com YOLO
@@ -218,46 +290,54 @@ Na primeira execução, o sistema irá:
    - Planilhas Excel com métricas agregadas
    - Gráficos de velocidade, distância e ocupação
 
-### Exemplo: Análise de Vídeo Pré-gravado
+## 🧩 Tour da Interface (abas do projeto)
 
-```bash
-# 1. Criar projeto via GUI
-poetry run zebtrack
+Após criar/abrir um projeto, a janela principal organiza o fluxo operacional em abas:
 
-# 2. Ou via CLI (avançado)
-poetry run zebtrack create-project \
-  --name "Experimento CBD" \
-  --arena-type circular \
-  --roi-count 4 \
-  --videos "video1.mp4,video2.mp4"
+- **Controle Principal**: ações por tipo de projeto (ao vivo: iniciar/parar gravação; pré-gravado:
+   adicionar e processar novos vídeos/pastas), fechar projeto, visão geral hierárquica
+   (grupo/dia/sujeito/vídeo), e painel de estado do modelo (peso ativo e OpenVINO)
+- **Configuração de Zonas**: definição de arena e ROIs com desenho por polígono, desfazer/refazer,
+   estabilização (ignorar frames iniciais), regras de inclusão em zona (centroide/intersecção/sobreposição)
+   e suporte a templates/reuso
+- **Análise de Vídeo**: acompanhamento de análise e seleção de `track_id` (todos ou específicos)
+- **Processamento e Relatórios**: centraliza geração de trajetórias, exportação de sumários e
+   geração de relatórios (parciais e unificado), com árvore de status por vídeo e abertura por duplo clique
+- **Config. Avançadas**: editor in-app para parâmetros do `config.yaml` com persistência em
+   `config.local.yaml` e sincronização por eventos
+- **Progresso do Experimento** (ao vivo): grade visual de progresso e atualização sob demanda
 
-# 3. Processar vídeos
-poetry run zebtrack process --project "Experimento CBD"
-
-# 4. Gerar relatório
-poetry run zebtrack report --project "Experimento CBD" --format docx
-```
-
-### Exemplo: Análise ao Vivo
-
-```bash
-# Iniciar sessão de análise ao vivo (5 minutos)
-poetry run zebtrack live \
-  --camera 0 \
-  --duration 300 \
-  --project "Teste Live" \
-  --preview
-```
+Em projetos ao vivo, o **Arduino Dashboard** também é integrado ao fluxo para status de conexão,
+comandos e rechecagem de portas.
 
 ## 🔬 Funcionalidades Científicas
 
 ### Detecção e Rastreamento
 
-- **Modelos de Detecção**: YOLO v8/v11 (nano, small, medium)
+- **Modelos**: Ultralytics YOLO (detecção e/ou segmentação conforme o objetivo)
 - **Aceleração**: OpenVINO para CPUs Intel (3-5x mais rápido)
 - **Multi-objeto**: Rastreamento simultâneo de até 96 peixes
 - **Filtragem**: Savitzky-Golay para suavização de trajetórias
 - **Persistência**: Manutenção de IDs através de oclusões temporárias
+
+### Pesos, backends e reprodutibilidade de modelo
+
+- **Catálogo persistente de pesos**: gerenciamento via `weights_config.json`
+- **Tipos de peso**: separação explícita entre segmentação (`seg`) e detecção (`det`)
+- **Padrões independentes por tipo**: um peso padrão para segmentação e outro para detecção
+- **Seleção por tarefa**: no Wizard, método/peso podem ser definidos separadamente para “aquário”
+   e “animal”
+- **OpenVINO**: conversão/caching com estados explícitos (não convertido, convertendo, pronto, falhou)
+
+### Detecção (det) vs Segmentação (seg): quando usar
+
+- **Detecção (det)**: representa o alvo como _bounding box_; tende a ser mais leve e adequada quando
+   a localização aproximada é suficiente
+- **Segmentação (seg)**: representa o alvo como máscara; tende a ser mais adequada quando a análise
+   depende de precisão espacial (bordas/ROIs pequenas) e/ou quando há múltiplos animais
+
+O ZebTrack-AI expõe na UI os parâmetros críticos (confiança/NMS e ByteTrack) para documentar e
+reproduzir o trade-off escolhido em cada experimento.
 
 ### Métricas Comportamentais
 
@@ -285,7 +365,7 @@ poetry run zebtrack live \
 
 ### Calibração e Coordenadas
 
-- **Calibração Espacial**: Conversão pixels → cm usando arUco markers
+- **Calibração Espacial**: Conversão pixels → cm via dimensões físicas informadas (largura/altura em cm)
 - **Sistemas de Coordenadas**: Referência (original) e display (redimensionado)
 - **Geometria de ROIs**: Suporte a polígonos, círculos e retângulos
 - **Buffer de ROIs**: Expansão/contração de regiões para análises de proximidade
@@ -304,7 +384,8 @@ A documentação técnica está disponível na pasta `docs/`:
 
 ### Guias Essenciais
 
-* 📚 [**CHEATSHEET.md**](docs/guides/developer/CHEATSHEET.md) - Referência rápida de comandos e padrões
+- 📚 [**CHEATSHEET.md**](docs/guides/developer/CHEATSHEET.md) - Referência rápida de comandos e padrões
+
 - 🏗️ [**ARCHITECTURE.md**](docs/architecture/ARCHITECTURE.md) - Arquitetura Event-Driven e Mediator
 - 👨‍💻 [**DEVELOPER_GUIDE.md**](docs/guides/developer/DEVELOPER_GUIDE.md) - Guia completo para contribuidores
 - 🧙 [**DEVELOPER_GUIDE_WIZARD.md**](docs/guides/developer/DEVELOPER_GUIDE_WIZARD.md) - Desenvolvimento do Wizard
@@ -312,7 +393,8 @@ A documentação técnica está disponível na pasta `docs/`:
 
 ### Guias Técnicos
 
-* 🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/architecture/DEPENDENCY_INJECTION_GUIDE.md) - Padrões de DI
+- 🔌 [**DEPENDENCY_INJECTION_GUIDE.md**](docs/architecture/DEPENDENCY_INJECTION_GUIDE.md) - Padrões de DI
+
 - 📡 [**EVENT_BUS_GUIDE.md**](docs/architecture/EVENT_BUS_GUIDE.md) - Sistema de eventos
 - 🗺️ [**COORDINATE_SYSTEMS.md**](docs/reference/COORDINATE_SYSTEMS.md) - Sistemas de coordenadas
 - 🎯 [**STATE_MANAGEMENT_GUIDE.md**](docs/architecture/STATE_MANAGEMENT_GUIDE.md) - Gerenciamento de estado
@@ -320,21 +402,22 @@ A documentação técnica está disponível na pasta `docs/`:
 
 ### Guias Operacionais
 
-* 📋 [**REFERENCE_GUIDE.md**](docs/reference/REFERENCE_GUIDE.md) - Guia operacional completo
+- 📋 [**REFERENCE_GUIDE.md**](docs/reference/REFERENCE_GUIDE.md) - Guia operacional completo
+
 - 🔄 [**WORKFLOWS.md**](docs/guides/developer/WORKFLOWS.md) - Fluxos de trabalho detalhados
 - 🐛 [**QUICK_DEBUG_GUIDE.md**](docs/guides/developer/QUICK_DEBUG_GUIDE.md) - Solução de problemas
 - ⚠️ [**KNOWN_ISSUES.md**](docs/reference/KNOWN_ISSUES.md) - Problemas conhecidos e soluções
-- 📝 [**CHANGELOG.md**](docs/changelog.md) - Histórico de versões
+- 📝 [**CHANGELOG.md**](CHANGELOG.md) - Histórico de versões
 
 ### Documentos Históricos
 
-* 📦 [**archive/**](docs/archive/) - Documentação de versões anteriores
+- 📦 [**archive/**](docs/archive/) - Documentação de versões anteriores
 
 ## 🏗️ Estrutura do Projeto
 
 ### Organização de Diretórios
 
-```
+```text
 ZebTrack-AI/
 ├── src/zebtrack/               # Código-fonte principal
 │   ├── __main__.py            # Entry point e Composition Root (DI)
@@ -357,7 +440,7 @@ ZebTrack-AI/
 │   │   ├── live_stream_source.py # Fonte limitada por tempo
 │   │   └── frame_source_factory.py # Factory de fontes
 │   ├── ui/                     # Interface gráfica
-│   │   ├── gui.py              # Janela principal (10759 linhas)
+│   │   ├── gui.py              # Janela principal
 │   │   ├── ui_coordinator.py   # Mediator (Event-Driven)
 │   │   ├── components/         # Gerenciadores de UI
 │   │   │   ├── canvas_manager.py
@@ -369,9 +452,16 @@ ZebTrack-AI/
 │   │   │   ├── live_preview_window.py
 │   │   │   └── ...
 │   │   ├── wizard/             # Wizard de 5 etapas
-│   │   │   ├── models.py       # Modelos Pydantic
-│   │   │   ├── wizard_step1.py
-│   │   │   └── ...
+│   │   │   ├── wizard_dialog.py
+│   │   │   ├── discovery_step.py
+│   │   │   ├── file_selection_step.py
+│   │   │   ├── experimental_design_step.py
+│   │   │   ├── live_config_step.py
+│   │   │   ├── calibration_step.py
+│   │   │   ├── detection_step.py
+│   │   │   ├── model_selection_step.py
+│   │   │   ├── import_config_step.py
+│   │   │   └── confirmation_step.py
 │   │   └── assets/             # Recursos visuais (logos)
 │   ├── analysis/               # Análise comportamental
 │   │   ├── analysis_service.py
@@ -406,16 +496,16 @@ ZebTrack-AI/
 
 #### Camadas Principais
 
-| Camada | Responsabilidade | Componentes Chave |
-|--------|------------------|-------------------|
-| **Model** | Estado e dados | `StateManager`, `ProjectManager`, `DetectorService` |
-| **View** | Interface Tkinter | `GUI`, `Dialogs`, `Wizard` |
-| **ViewModel** | Orquestração | `MainViewModel`, `UICoordinator` |
-| **Services** | Lógica de negócios | `WizardService`, `AnalysisService`, `LiveCameraService` |
+| Camada        | Responsabilidade   | Componentes Chave                                       |
+| ------------- | ------------------ | ------------------------------------------------------- |
+| **Model**     | Estado e dados     | `StateManager`, `ProjectManager`, `DetectorService`     |
+| **View**      | Interface Tkinter  | `GUI`, `Dialogs`, `Wizard`                              |
+| **ViewModel** | Orquestração       | `MainViewModel`, `UICoordinator`                        |
+| **Services**  | Lógica de negócios | `WizardService`, `AnalysisService`, `LiveCameraService` |
 
 #### Fluxo de Dados (Event-Driven)
 
-```
+```text
 User → UI Event → EventBus → Handler → StateManager → UI Update
                                 ↓
                           Services/Model
@@ -451,14 +541,14 @@ poetry run pytest --cov=src/zebtrack --cov-report=html
 
 ### Estatísticas de Testes
 
-| Categoria | Quantidade | Tempo |
-|-----------|-----------|-------|
-| **Testes Unitários** | 1586 | ~2 min |
-| **Testes de GUI** | 949 | ~3 min |
-| **Testes de Integração** | 33 | ~1 min |
-| **Testes E2E** | 16 | ~30s |
-| **Testes Lentos** | 35 | ~1 min |
-| **TOTAL** | **2568** | **6-7 min** |
+| Categoria                | Quantidade | Tempo       |
+| ------------------------ | ---------- | ----------- |
+| **Testes Unitários**     | 1586       | ~2 min      |
+| **Testes de GUI**        | 949        | ~3 min      |
+| **Testes de Integração** | 33         | ~1 min      |
+| **Testes E2E**           | 16         | ~30s        |
+| **Testes Lentos**        | 35         | ~1 min      |
+| **TOTAL**                | **2568**   | **6-7 min** |
 
 ### Cobertura
 
@@ -549,7 +639,7 @@ Consulte o [DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) para diretrizes complet
 
 Este software foi desenvolvido para suportar pesquisas científicas com zebrafish. Se você usar o ZebTrack-AI em suas publicações, por favor cite:
 
-```
+```text
 Santos, M. (2025). ZebTrack-AI: Automated Behavioral Tracking and Analysis
 Platform for Danio rerio. GitHub repository.
 https://github.com/MarkSant/ZebTrack-AI
@@ -596,9 +686,9 @@ Agradecimentos especiais a todos os contribuidores e à comunidade open source q
 
 <div align="center">
 
-**Desenvolvido com ❤️ para pesquisa científica**
+<h4>Desenvolvido com ❤️ para pesquisa científica</h4>
 
-**UNESP - Laboratório de Pesquisa de Canabidiol**
+<h4>UNESP - Laboratório de Pesquisa de Canabidiol</h4>
 
 [⬆ Voltar ao topo](#zebtrack-ai)
 

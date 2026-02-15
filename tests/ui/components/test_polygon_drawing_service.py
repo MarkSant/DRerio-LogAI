@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 from zebtrack.ui.components.polygon_drawing_service import (
     ArenaCompletionStrategy,
@@ -51,6 +51,23 @@ def test_polygon_service_completion_arena():
     # mock_gui.update_zone_listbox.assert_called_once() # Replaced by event
 
 
+def test_polygon_service_completion_arena_publishes_event():
+    """Testa publicação de evento ao completar arena."""
+    service = PolygonDrawingService()
+    mock_gui = MagicMock()
+    mock_gui.controller.set_main_arena_polygon.return_value = True
+    mock_gui.event_bus_v2 = Mock()
+
+    result = service.complete_polygon("arena", [(0, 0), (100, 0), (100, 100)], mock_gui)
+
+    assert result is True
+    assert mock_gui.event_bus_v2.publish.call_count == 1
+    event = mock_gui.event_bus_v2.publish.call_args[0][0]
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    assert event.type == UIEvents.ZONES_UPDATED
+
+
 def test_polygon_service_completion_roi_cancel_name():
     """Testa cancelamento de ROI se nome não fornecido."""
     service = PolygonDrawingService()
@@ -61,6 +78,47 @@ def test_polygon_service_completion_roi_cancel_name():
 
     assert result is False
     mock_gui.controller.add_roi_polygon.assert_not_called()
+
+
+def test_polygon_service_completion_roi_color_cancelled():
+    """Testa cancelamento na seleção de cor."""
+    service = PolygonDrawingService()
+    mock_gui = MagicMock()
+    mock_gui.ask_string.return_value = "ROI 1"
+
+    dialog_instance = Mock()
+    dialog_instance.result = None
+
+    with patch("zebtrack.ui.dialogs.ColorSelectionDialog", return_value=dialog_instance):
+        result = service.complete_polygon("roi", [(0, 0), (100, 0), (100, 100)], mock_gui)
+
+    assert result is False
+    mock_gui.controller.add_roi_polygon.assert_not_called()
+
+
+def test_polygon_service_completion_roi_success():
+    """Testa conclusão de ROI com sucesso e evento."""
+    service = PolygonDrawingService()
+    mock_gui = MagicMock()
+    mock_gui.ask_string.return_value = "ROI 1"
+    mock_gui.controller.add_roi_polygon.return_value = True
+    mock_gui.event_bus_v2 = Mock()
+
+    dialog_instance = Mock()
+    dialog_instance.result = {"rgb": "#123456"}
+
+    with patch("zebtrack.ui.dialogs.ColorSelectionDialog", return_value=dialog_instance):
+        result = service.complete_polygon("roi", [(0, 0), (100, 0), (100, 100)], mock_gui)
+
+    assert result is True
+    mock_gui.controller.add_roi_polygon.assert_called_once_with(
+        [(0, 0), (100, 0), (100, 100)], "ROI 1", "#123456"
+    )
+    assert mock_gui.event_bus_v2.publish.call_count == 1
+    event = mock_gui.event_bus_v2.publish.call_args[0][0]
+    from zebtrack.ui.event_bus_v2 import UIEvents
+
+    assert event.type == UIEvents.ZONES_UPDATED
 
 
 def test_polygon_service_invalid_type():

@@ -65,7 +65,7 @@ class ConfirmationStep(WizardStep):
         self.summary_text = ""
         self.template_manager = TemplateManager()
         self.template_info_var = StringVar(value="")
-        self.template_info_label = None
+        self.template_info_label: Label | None = None
         self._responsive_labels: list[Label] = []
 
     def build_ui(self):
@@ -105,7 +105,8 @@ class ConfirmationStep(WizardStep):
             bg=background_color,
         )
         self.template_info_label.pack_forget()
-        self._responsive_labels.append(self.template_info_label)
+        if self.template_info_label:  # Conditional append for type safety
+            self._responsive_labels.append(self.template_info_label)
         self._update_template_banner()
 
         # Project name
@@ -342,7 +343,7 @@ class ConfirmationStep(WizardStep):
                 total_sessions = num_groups * subjects_per_group * experiment_days
                 total_animals = num_groups * subjects_per_group
                 lines.append(
-                    f"  • {num_groups} grupos × {experiment_days} dias × "
+                    f"  • {num_groups} grupos x {experiment_days} dias x "
                     f"{subjects_per_group} animais/grupo"
                 )
                 lines.append(f"  • Total: {total_sessions} gravações ({total_animals} animais)")
@@ -538,7 +539,7 @@ class ConfirmationStep(WizardStep):
 
         lines.append(f"  • Aquários: {num_aquariums}")
         lines.append(f"  • Animais por aquário: {animals_per_aquarium}")
-        lines.append(f"  • Dimensões: {width} × {height} cm")
+        lines.append(f"  • Dimensões: {width} x {height} cm")
 
     def _append_processing_plan(self, lines: list[str]) -> None:
         lines.append("")
@@ -766,9 +767,17 @@ class ConfirmationStep(WizardStep):
 
         # Check if project directory already exists
         project_path = Path(location) / project_name
-        if project_path.exists():
-            if project_path.is_file():
-                return (False, f"Já existe um arquivo com esse nome em: {location}")
+        try:
+            project_exists = project_path.exists()
+        except OSError:
+            return (False, "Nome do projeto é muito longo para o sistema de arquivos.")
+
+        if project_exists:
+            try:
+                if project_path.is_file():
+                    return (False, f"Já existe um arquivo com esse nome em: {location}")
+            except OSError:
+                return (False, "Nome do projeto é muito longo para o sistema de arquivos.")
 
             # Allow reusing an empty directory so long as it has no content
             try:

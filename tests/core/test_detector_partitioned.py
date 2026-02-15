@@ -427,7 +427,10 @@ class TestDrawMultiAquariumOverlay:
         )
 
         frame = np.zeros((720, 1280, 3), dtype=np.uint8)
-        detections = {0: [], 1: []}
+        detections: dict[int, list[tuple[int, int, int, int, float, int | None, int]]] = {
+            0: [],
+            1: [],
+        }
 
         result = detector.draw_multi_aquarium_overlay(frame, detections)
 

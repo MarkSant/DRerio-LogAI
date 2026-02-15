@@ -52,4 +52,4 @@ class CenterPeripheryDialog(simpledialog.Dialog):
                 "value": float(self.value.get()),
             }
         except (ValueError, TypeError):
-            self.result = None
+            self.result = None  # type: ignore[assignment]

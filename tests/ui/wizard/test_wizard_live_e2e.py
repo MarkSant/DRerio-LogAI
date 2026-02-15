@@ -11,6 +11,8 @@ This test suite focuses on service layer integration rather than UI implementati
 Phase 4 wizard improvements (v2.0).
 """
 
+from typing import Any
+
 import pytest
 from pydantic import ValidationError
 
@@ -27,7 +29,7 @@ class TestWizardServiceIntegration:
 
     def test_live_config_validation_valid_basic(self):
         """Test LiveConfigData validates with minimal required fields."""
-        data = {
+        data: dict[str, Any] = {
             "camera_index": 0,
             "use_arduino": False,
             "arduino_port": "",
@@ -45,7 +47,7 @@ class TestWizardServiceIntegration:
 
     def test_live_config_validation_with_arduino(self):
         """Test LiveConfigData validates correctly with Arduino enabled."""
-        data = {
+        data: dict[str, Any] = {
             "camera_index": 0,
             "use_arduino": True,
             "arduino_port": "COM3",
@@ -61,7 +63,7 @@ class TestWizardServiceIntegration:
 
     def test_live_config_validation_external_trigger_requires_arduino(self):
         """Test that external trigger mode requires Arduino to be enabled."""
-        data = {
+        data: dict[str, Any] = {
             "camera_index": 0,
             "use_arduino": False,
             "arduino_port": "",
@@ -80,7 +82,7 @@ class TestWizardServiceIntegration:
 
     def test_live_config_validation_arduino_requires_port(self):
         """Test that Arduino enabled requires a port to be specified."""
-        data = {
+        data: dict[str, Any] = {
             "camera_index": 0,
             "use_arduino": True,
             "arduino_port": "",  # Invalid: Arduino enabled but no port
@@ -93,7 +95,7 @@ class TestWizardServiceIntegration:
 
     def test_live_config_validation_invalid_camera_index(self):
         """Test that camera index must be within valid range."""
-        data = {
+        data: dict[str, Any] = {
             "camera_index": -1,  # Invalid: negative index
             "use_arduino": False,
             "arduino_port": "",
@@ -105,7 +107,7 @@ class TestWizardServiceIntegration:
 
     def test_experimental_design_validation_valid(self):
         """Test ExperimentalDesignData validates with correct data."""
-        data = {
+        data: dict[str, Any] = {
             "experiment_days": 7,
             "num_groups": 2,
             "subjects_per_group": 5,
@@ -125,7 +127,7 @@ class TestWizardServiceIntegration:
 
     def test_experimental_design_validation_group_count_mismatch(self):
         """Test that number of group names must match num_groups."""
-        data = {
+        data: dict[str, Any] = {
             "experiment_days": 7,
             "num_groups": 3,
             "subjects_per_group": 5,
@@ -142,7 +144,7 @@ class TestWizardServiceIntegration:
 
     def test_experimental_design_validation_empty_group_name(self):
         """Test that group names cannot be empty."""
-        data = {
+        data: dict[str, Any] = {
             "experiment_days": 5,
             "num_groups": 2,
             "subjects_per_group": 4,
@@ -154,7 +156,7 @@ class TestWizardServiceIntegration:
 
     def test_experimental_design_validation_duplicate_group_names(self):
         """Test that group names must be unique."""
-        data = {
+        data: dict[str, Any] = {
             "experiment_days": 5,
             "num_groups": 2,
             "subjects_per_group": 4,
@@ -170,23 +172,23 @@ class TestWizardServiceIntegration:
     def test_experimental_design_validation_boundaries(self):
         """Test that experimental design values respect boundaries."""
         # Test minimum values
-        data = {
+        data_min: dict[str, Any] = {
             "experiment_days": 1,
             "num_groups": 1,
             "subjects_per_group": 1,
             "group_names": ["Group1"],
         }
-        is_valid, error = WizardService.validate_experimental_design(data)
+        is_valid, error = WizardService.validate_experimental_design(data_min)
         assert is_valid
 
         # Test maximum values
-        data = {
+        data_max: dict[str, Any] = {
             "experiment_days": 365,  # Maximum is 365 days
             "num_groups": 6,
             "subjects_per_group": 20,
             "group_names": [f"Group{i}" for i in range(1, 7)],
         }
-        is_valid, _error = WizardService.validate_experimental_design(data)
+        is_valid, _error = WizardService.validate_experimental_design(data_max)
         assert is_valid
 
         # Test out of bounds (days > 365)
@@ -218,7 +220,7 @@ class TestWizardServiceIntegration:
 
     def test_calibration_validation_valid(self):
         """Test CalibrationData validates with positive dimensions."""
-        data = {
+        data: dict[str, Any] = {
             "num_aquariums": 1,
             "animals_per_aquarium": 1,
             "aquarium_width_cm": 30.0,
@@ -238,7 +240,7 @@ class TestWizardServiceIntegration:
 
     def test_calibration_validation_minimal_values(self):
         """Test CalibrationData validates with minimal values."""
-        data = {
+        data: dict[str, Any] = {
             "num_aquariums": 1,
             "animals_per_aquarium": 1,
             "aquarium_width_cm": 0.1,  # Minimum positive value
@@ -252,7 +254,7 @@ class TestWizardServiceIntegration:
 
     def test_calibration_validation_negative_dimensions(self):
         """Test that negative dimensions are rejected."""
-        data = {
+        data: dict[str, Any] = {
             "num_aquariums": 1,
             "animals_per_aquarium": 1,
             "aquarium_width_cm": -10.0,  # Invalid: negative
@@ -267,7 +269,7 @@ class TestWizardServiceIntegration:
 
     def test_calibration_validation_zero_dimensions(self):
         """Test that zero or negative dimensions are rejected."""
-        data = {
+        data: dict[str, Any] = {
             "num_aquariums": 1,
             "animals_per_aquarium": 1,
             "aquarium_width_cm": 0.0,  # Invalid: must be > 0
@@ -283,21 +285,21 @@ class TestWizardServiceIntegration:
     def test_complete_wizard_data_integration(self):
         """Test that all wizard data can be validated together."""
         # Simulate complete wizard data
-        live_config_data = {
+        live_config_data: dict[str, Any] = {
             "camera_index": 0,
             "use_arduino": True,
             "arduino_port": "COM3",
             "external_trigger_mode": False,
         }
 
-        design_data = {
+        design_data: dict[str, Any] = {
             "experiment_days": 14,
             "num_groups": 3,
             "subjects_per_group": 8,
             "group_names": ["Control", "Low Dose", "High Dose"],
         }
 
-        calib_data = {
+        calib_data: dict[str, Any] = {
             "num_aquariums": 1,
             "animals_per_aquarium": 8,
             "aquarium_width_cm": 28.5,

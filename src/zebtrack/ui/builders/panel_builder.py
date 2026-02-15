@@ -41,17 +41,17 @@ class PanelBuilder:
 
         ttk.Label(
             model_status_frame,
-            textvariable=status_vars.get("active_weight"),
+            textvariable=status_vars["active_weight"],
         ).pack(anchor="w")
 
         ttk.Label(
             model_status_frame,
-            textvariable=status_vars.get("openvino_status"),
+            textvariable=status_vars["openvino_status"],
         ).pack(anchor="w", pady=(4, 0))
 
         ttk.Label(
             model_status_frame,
-            textvariable=status_vars.get("hardware_status"),
+            textvariable=status_vars["hardware_status"],
             foreground="gray",
         ).pack(anchor="w", pady=(4, 0))
 

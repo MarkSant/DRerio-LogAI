@@ -40,8 +40,8 @@ O fluxo de análise de vídeo único (`start_single_video_processing`) falhava a
 Alterada a chamada em `src/zebtrack/coordinators/processing_coordinator.py` para:
 ```python
 self.project_manager.save_zone_data(
-    zone_data, 
-    video_path, 
+    zone_data,
+    video_path,
     persist=bool(self.project_manager.project_path)  # Só persiste se houver projeto
 )
 ```

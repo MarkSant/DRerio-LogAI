@@ -50,7 +50,7 @@ class TestGUIComponentIntegration:
     def test_apply_pending_readiness_snapshot(self, gui_fixture):
         """Test apply_pending_readiness_snapshot delegation."""
         # Arrange
-        snapshot = {
+        snapshot: dict[str, list[str]] = {
             "ready_with_trajectory": [],
             "ready_with_zones": [],
             "arena_only": [],
@@ -144,7 +144,7 @@ class TestGUIComponentIntegration:
         gui_fixture.dialog_manager.confirm_remove_roi = MagicMock(return_value=True)
 
         # Mock data retrieval
-        zone_data = ZoneData(roi_names=["ROI 1"], roi_polygons=[[]], roi_colors=["red"])
+        zone_data = ZoneData(roi_names=["ROI 1"], roi_polygons=[[]], roi_colors=[(255, 0, 0)])
         gui_fixture._get_zone_data_for_active_context = MagicMock(return_value=zone_data)
 
         # Mock show_info to prevent modal dialog

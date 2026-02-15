@@ -19,7 +19,7 @@ import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import structlog
 
@@ -52,7 +52,7 @@ class ProjectService:
     Project state is managed by ProjectManager; this service handles persistence only.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the ProjectService."""
         self.log = structlog.get_logger(__name__)
 
@@ -65,8 +65,8 @@ class ProjectService:
         project_path: Path | str,
         project_name: str,
         project_type: str,
-        initial_data: dict | None = None,
-    ) -> dict:
+        initial_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Create a new project directory with initial configuration.
 
@@ -126,7 +126,7 @@ class ProjectService:
 
         return project_data
 
-    def load_project_config(self, project_path: Path | str) -> dict:
+    def load_project_config(self, project_path: Path | str) -> dict[str, Any]:
         """
         Load project configuration from JSON file.
 
@@ -172,7 +172,7 @@ class ProjectService:
             )
             raise
 
-    def save_project_config(self, project_path: Path | str, project_data: dict) -> None:
+    def save_project_config(self, project_path: Path | str, project_data: dict[str, Any]) -> None:
         """
         Save project configuration to JSON file with integrity hash.
 
@@ -210,7 +210,7 @@ class ProjectService:
             )
             raise
 
-    def _compute_project_hash(self, project_data: dict) -> str:
+    def _compute_project_hash(self, project_data: dict[str, Any]) -> str:
         """
         Compute SHA256 integrity hash of project data.
 
@@ -391,7 +391,7 @@ class ProjectService:
         self,
         project_path: Path | str,
         template_name: str,
-        template_data: dict,
+        template_data: dict[str, Any],
     ) -> Path:
         """
         Save an ROI template to JSON file.
@@ -425,7 +425,9 @@ class ProjectService:
             )
             raise
 
-    def load_roi_template(self, project_path: Path | str, template_name: str) -> dict | None:
+    def load_roi_template(
+        self, project_path: Path | str, template_name: str
+    ) -> dict[str, Any] | None:
         """
         Load an ROI template from JSON file.
 
@@ -503,10 +505,10 @@ class ProjectService:
     def save_model_overrides(
         self,
         project_path: Path | str,
-        project_data: dict,
+        project_data: dict[str, Any],
         active_weight: str | None,
         use_openvino: bool,
-    ) -> dict:
+    ) -> dict[str, Any | None]:
         """
         Save model configuration overrides to project.
 
@@ -549,7 +551,7 @@ class ProjectService:
     def save_arena_polygon(
         self,
         project_path: Path | str,
-        project_data: dict,
+        project_data: dict[str, Any],
         polygon_points: list[list[int]],
     ) -> None:
         """

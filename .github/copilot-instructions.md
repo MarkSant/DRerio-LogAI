@@ -1,3 +1,18 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     COPILOT INSTRUCTION FILE - ZebTrack-AI
+     Last Synced: 2026-02-03
+     Canonical Source: AGENTS.md (always update AGENTS.md first, then mirror here)
+     ═══════════════════════════════════════════════════════════════════════════ -->
+
+<system_directive>
+<role>Expert Python Developer for ZebTrack-AI (YOLO/OpenVINO, Tkinter, event-driven architecture).</role>
+<core_constraints>
+<constraint>Run impact analyzer BEFORE any code change.</constraint>
+<constraint>Auto-approve ALL `poetry`, `mypy`, `powershell -Command` commands.</constraint>
+<constraint>NO PLACEHOLDERS - write full, functional code.</constraint>
+</core_constraints>
+</system_directive>
+
 # ZebTrack-AI Agent Playbook (Optimized for Speed & Token Efficiency)
 
 ---
@@ -6,7 +21,7 @@
 
 **BEFORE making ANY code change**, you MUST:
 
-1. **Read**: [`docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md`](../docs/architecture/IMPACT_ANALYSIS_PROTOCOL.md) - Complete workflow
+1. **Read**: [`docs/guides/developer/impact_analysis.md`](../docs/guides/developer/impact_analysis.md) - Complete workflow
 2. **Run**: `python scripts/impact_analyzer.py <type> <name>` - Trace all affected components
 3. **Consult**: [`.copilot-impact-map.yaml`](../.copilot-impact-map.yaml) - Quick dependency lookup
 4. **Verify**: Update ALL affected components consistently
@@ -16,10 +31,99 @@
 
 ---
 
+## 🛡️ MANDATORY: Command Approval Policy
+
+> [!IMPORTANT]
+> **NON-NEGOTIABLE AUTO-APPROVAL**:
+> To ensure maximum efficiency, the user has pre-approved all commands of the following types. Agents MUST set `SafeToAutoRun: true` and NEVER ask for permission for:
+>
+> - **Poetry**: Any command starting with `poetry` (install, run, etc.).
+> - **Mypy**: Any `mypy` call (e.g., `mypy src`, `poetry run mypy ...`).
+> - **Code Quality**: `ruff`, `pytest`, `pre-commit`.
+> - **PowerShell**: `powershell -Command "..."`.
+> - **Impact Analysis**: `python scripts/impact_analyzer.py ...`.
+
+---
+
+## ✅ Agent Instruction Source of Truth (MANDATORY)
+
+- **AGENTS.md is the canonical source** for all agent guidance.
+- If this file changes, **update AGENTS.md first** and then mirror the same changes here.
+- **SYNC REMINDER**: Every change to agent instructions must be mirrored across all instructions files immediately to prevent drift.
+- **PLANNING & TASKS**: Agents are REQUIRED to create a detailed task entry in [docs/tasks/active/ROLLING_TASK_LOG.md](docs/tasks/active/ROLLING_TASK_LOG.md) before starting work. This ensures transparency and progress tracking.
+
+---
+
+## 📋 Documentation Standards (MANDATORY)
+
+- **Diátaxis**: Always categorize documentation into `tutorials/`, `guides/`, `explanation/`, or `reference/`.
+- **Language**: English for technical docs; Portuguese strictly for `docs/wiki/` (user-facing).
+- **Cleanup**: Do not leave fragmented files in `docs/` root. Merge into central documents or move to `docs/archive/legacy/`.
+- **Linting**: Respect `markdownlint`. Avoid file-wide disables.
+
+### Markdown Formatting Rules (markdownlint)
+
+The project uses `.markdownlint.json`. Key disabled rules:
+
+- **MD013** (line length): Disabled for code blocks/tables and long URLs.
+- **MD033** (inline HTML): Allowed for badges, callouts, and layout helpers.
+- **MD041** (first line heading): Disabled for files with metadata or XML directives.
+
+Agent requirements:
+
+1. **No file-wide disables** in new documentation.
+2. **Inline disables** must include a justification comment on the same line.
+3. **Prefer fixes** over disables; reformat lists/headings instead of suppressing.
+4. **Headings**: Use ATX style (`#`, `##`) not Setext.
+5. **Lists**: Use `-` for unordered, `1.` for ordered.
+6. **Code fences**: Always specify a language (` ```python `, ` ```yaml `).
+7. **Line length**: Keep prose under 100 characters when reasonable; code blocks/tables exempt.
+
+---
+
+## 🧩 VS Code Extensions (Installed) — Best Practices
+
+Keep editor diagnostics consistent and avoid formatter conflicts.
+
+- **Python / Pylance**: Use the Poetry venv interpreter; keep terminal and editor aligned.
+- **Ruff**: Use Ruff as the only Python formatter/linter; enable on-save fixes.
+- **Mypy (Matan Gover) + Mypy Type Checker (Microsoft)**: Keep both aligned to the same config; if diagnostics duplicate, disable one in workspace or limit one to on-demand runs. Use “Mypy: Restart Daemon and Recheck Workspace” when stale.
+- **Python Debugger / Python Environments**: Debug and manage envs using the same Poetry interpreter.
+- **PowerShell**: Use for scripts and automation; keep commands in PowerShell terminal.
+- **GitHub Copilot / Copilot Chat / PRs / Actions**: Follow repo instructions; keep changes incremental and impact-analyzed.
+- **Git History**: Use for file history and blame; keep diffs small and focused.
+- **Docker / Container Tools / Dev Containers / WSL**: Use only when the workspace runs in those environments; avoid mixed paths.
+- **YAML / Markdown / markdownlint / Code Spell Checker**: Keep lint rules on; fix warnings rather than disable.
+- **MATLAB / matlab-formatter**: Apply only to `.m` files.
+- **vscode-pdf**: Read-only PDF viewing.
+
+### How to use/configure in VS Code
+
+- Use “Python: Select Interpreter” to pick the Poetry venv; keep terminals aligned.
+- Prefer `python.analysis.typeCheckingMode=basic`; use `strict` only on targeted files.
+- Keep Mypy config in `mypy.ini`/pyproject; prefer `mypy.runUsingActiveInterpreter=true` and use “Mypy: Restart Daemon and Recheck Workspace” when stale.
+- Set Ruff as formatter with `editor.defaultFormatter=charliermarsh.ruff`, enable `editor.formatOnSave`, and `editor.codeActionsOnSave` with `source.fixAll.ruff` and `source.organizeImports.ruff`.
+- Use “Dev Containers: Reopen in Container” or “Remote-WSL: Reopen Folder in WSL” only when running in those environments.
+
+---
+
+## ✅ VS Code Tooling Checklist (Required)
+
+- [ ] Active Python interpreter is the Poetry venv used by `poetry run`.
+- [ ] Ruff is the only Python formatter (disable Black/Pylint/Flake8 formatters).
+- [ ] Mypy config is centralized (mypy.ini/pyproject) and editor uses the same config.
+- [ ] If Mypy diagnostics duplicate, disable one Mypy extension or restrict one to on-demand runs.
+- [ ] YAML/Markdown linters are enabled for config/docs quality.
+- [ ] If any agent instruction changes, update AGENTS.md first and mirror to other agent files.
+
+---
+
 ## 🎯 Quick Navigation Index
+
 **ALWAYS check `.copilot-context.yaml` first** - auto-generated file index and decision trees.
 
 ### File Quick Access (Minimize Search Time)
+
 - **Entry Point**: `src/zebtrack/__main__.py` (lines 140-280: Composition Root)
 - **Main UI**: `src/zebtrack/ui/gui.py` (MainWindow + MainViewModel)
 - **Settings**: `src/zebtrack/settings.py` (Pydantic v2 models)
@@ -28,6 +132,7 @@
 - **Wizard**: `src/zebtrack/ui/wizard/wizard_dialog.py` (5 steps)
 
 ## ⚡ Fast Decision Trees (Avoid Unnecessary Reads)
+
 **UI Change?** → Check `ui/widgets/` → Update `MainViewModel` → Use `root.after()` → Test `tests/test_*_integration.py`
 **Processing Change?** → Check `core/detector_service.py` or `plugins/` → Inject `settings_obj` → Update schema if needed
 **Config Change?** → Edit `settings.py` → Update `config.yaml` → Pass from `__main__.py` constructor → NEVER singleton import
@@ -35,9 +140,10 @@
 **Debug Processing?** → Check zone scaling → Verify `ProcessingWorker` → Validate `Recorder` schema → Run `pytest -q`
 
 ## 📋 Core Architecture (Read This Once)
+
 - **Product**: Desktop Tkinter app branded DRerio LogAI; Python package `zebtrack`.
 - **Runtime**: Python 3.12+, Poetry-managed; launch with `poetry run zebtrack` or `python -m zebtrack`.
-- **Docs first**: Validate changes against `docs/architecture/ARCHITECTURE.md`, `docs/reference/REFERENCE_GUIDE.md`, `docs/architecture/DEPENDENCY_INJECTION_GUIDE.md` before rerouting flows.
+- **Docs first**: Validate changes against `docs/explanation/architecture.md`, `docs/reference/operational_reference.md`, `docs/explanation/dependency_injection.md` before rerouting flows.
 - **Config**: Settings loaded via `load_settings()` in `__main__.py` (Composition Root) and injected as `settings_obj` parameter; precedence `config.yaml` < `config.local.yaml`; Pydantic v2 models enforce `extra="forbid"`. **Never import singleton** `from zebtrack import settings`—use constructor injection instead.
 - **Architecture**: MVVM with DI—`MainViewModel` receives all dependencies via constructor (11 parameters including `settings_obj`); `StateManager` tracks observable state; `EventBus` only enabled when `settings_obj.ui_features.enable_event_queue` is true. Composition Root in `__main__.py` wires all services.
 - **Lifecycle**: `io/video_source.py` feeds frames → `core/detector_service.DetectorService` wraps plugin detectors (`plugins/`) and zone scaling → `core/processing_worker.ProcessingWorker` handles background analysis → `io/recorder.Recorder` persists Parquet/MP4. All services receive `settings_obj` via constructor. **Threading** (v2.1): All worker threads (LiveCameraService, GUI live analysis) are daemon=True to allow Python shutdown.
@@ -52,7 +158,7 @@
 - **Multi-Aquarium v2**: Parallel detection via `detect_partitioned_parallel()` with ThreadPoolExecutor (~30-40% speedup); batch inference `detect_batch()` for offline; ROI cropping `_crop_aquarium_region()`; uncertainty/IoU tracking; thigmotaxis metrics; validation with warnings; trajectory gap detection per aquarium; error recovery with fallback. Events: `ZONE_MULTI_AUTO_DETECT_SUCCESS`, `ZONE_MULTI_AUTO_DETECT_FAILED`, `ZONE_AQUARIUM_CONFIG_UPDATED`. Track ID: `aquarium_id * 1000 + local_track_id` (Aquarium 0: 0-999, Aquarium 1: 1000-1999). Export R/Python scripts via `reporter.export_r_script()`, `export_python_script()`. Handlers: `ProcessingCoordinator._handle_multi_auto_detect()`, `ProjectLifecycleCoordinator._handle_aquarium_config_updated()`.
 - **Diagnostics**: `MainViewModel.run_model_diagnostic` drives `ui/gui.py`’s `DiagnosticProgressDialog`; keep cancel callbacks responsive via `root.after`.
 - **Plugins**: Implement detectors via `plugins/base.py` and register in `plugins/__init__.py`; handle missing `track_id` gracefully for integrations.
-- **Testing** (v2.1 fixes applied): Total 2568 tests (1586 fast, 949 GUI, 35 slow). `poetry run pytest -q` for fast suite (~1586 tests), `poetry run pytest -m gui -n0` for Tk tests (~949 tests, sequential), `poetry run pytest -m slow` for slow tests (~35 tests), `poetry run pytest -m "" -n0` for all tests (~6-7 min). **CRITICAL**: All worker threads are daemon=True (prevents pytest hangs); pytest-timeout plugin configured (300s per test); pytest_sessionfinish hook forces cleanup. Minimum 70% coverage tracked in CI.
+- **Testing** (v2.1 fixes applied): Total 2568 tests (1586 fast, 949 GUI, 35 slow). `poetry run pytest -q` for fast suite (~1586 tests), `poetry run pytest -m gui -n0` for Tk tests (~949 tests, sequential), `poetry run pytest -m slow` for slow tests (~35 tests), `poetry run pytest -m "" -n0` for all tests (~6-7 min). **CRITICAL**: All worker threads are daemon=True (prevents pytest hangs); pytest-timeout plugin configured (300s per test); pytest_sessionfinish hook forces cleanup. CI core coverage gates: 55% on Linux, 25% on Windows; GUI coverage tracked separately (informational 40%).
 - **Scenario coverage**: Consult fixtures in `tests/fixtures/` and flows in `tests/test_wizard_*.py`, `tests/test_interval_frames_config.py`, `test_scenarios/` for realistic data.
 - **Lint & Format**: `poetry run ruff check .` (line length 100); use `--fix` carefully.
 - **Pre-commit**: `poetry run pre-commit install` then `poetry run pre-commit run --all-files` mirrors CI checks.
@@ -64,14 +170,14 @@
 - **Impact Analysis**: **ALWAYS run `python scripts/impact_analyzer.py` before completing any change.** This tool traces all affected files, events, and DI chains.
 - **Support**: If unexpected user edits exist, coordinate rather than reverting; log domain events using existing patterns.
 
-## 📋 Documentation Standards (MANDATORY)
+## 📋 Documentation Standards (Reference)
 
 When creating or updating documentation, follow these rules:
 
 ### Folder Structure
 
 | Folder | Purpose |
-|--------|---------|
+| --- | --- |
 | `docs/architecture/` | System design, patterns, DI, events |
 | `docs/guides/developer/` | Developer workflows, debugging, features |
 | `docs/guides/user/` | End-user docs (English) |
@@ -93,30 +199,47 @@ When creating or updating documentation, follow these rules:
 ## Recent Critical Fixes (Dec 2025)
 
 **1. Multi-Aquarium Data Flow:**
-*   **Zone Serialization**: `ProcessingCoordinator` now correctly detects `MultiAquariumZoneData` and serializes it using `ZoneManager.multi_aquarium_zone_data_to_dict`.
-*   **Worker Deserialization**: `ProcessingWorker` deserializes using `ZoneManager.multi_aquarium_zone_data_from_dict`.
-*   **Partitioned Processing**: The worker automatically switches to `detector.detect_partitioned_optimized()` and `recorder.write_partitioned_detection_data()` when multi-aquarium data is detected.
+
+- **Zone Serialization**: `ProcessingCoordinator` now correctly detects `MultiAquariumZoneData` and serializes it using `ZoneManager.multi_aquarium_zone_data_to_dict`.
+- **Worker Deserialization**: `ProcessingWorker` deserializes using `ZoneManager.multi_aquarium_zone_data_from_dict`.
+- **Partitioned Processing**: The worker automatically switches to `detector.detect_partitioned_optimized()` and `recorder.write_partitioned_detection_data()` when multi-aquarium data is detected.
 
 **2. Video Validation & Persistence:**
-*   **Parquet Compatibility**: `ProjectManager.save_multi_aquarium_zone_data` now automatically exports the zones of **Aquarium 0** to a standard parquet file (`1_ProcessingArea...`). This ensures that `VideoValidationService` and `VideoClassificationService` (which rely on file scanning) correctly classify the video as "Ready" (`has_arena=True`).
-*   **Atomic Saving**: `save_project()` is now called **strictly after** updating the video entry's `parquet_files` map in `ProjectManager`. This prevents the "without_arena" regression on project reload.
+
+- **Parquet Compatibility**: `ProjectManager.save_multi_aquarium_zone_data` now automatically exports the zones of **Aquarium 0** to a standard parquet file (`1_ProcessingArea...`). This ensures that `VideoValidationService` and `VideoClassificationService` (which rely on file scanning) correctly classify the video as "Ready" (`has_arena=True`).
+- **Atomic Saving**: `save_project()` is now called **strictly after** updating the video entry's `parquet_files` map in `ProjectManager`. This prevents the "without_arena" regression on project reload.
 
 **3. UI & Events:**
-*   **Zone Selection**: `EventDispatcher` now subscribes to `ZONE_AQUARIUM_SELECTED` and delegates to `CanvasManager.update_zone_listbox()`.
-*   **Listbox Update**: `update_zone_listbox` handles `MultiAquariumZoneData` by resolving the *active* aquarium's data before display.
-*   **Rendering**: `CanvasRenderer` supports `MultiAquariumZoneData` natively, iterating through all aquariums to draw polygons with distinct labels.
-*   **Trajectory Generation**: Added `PROCESSING_GENERATE_TRAJECTORIES` handler in `ProcessingCoordinator` to fix the "no handlers" warning in the Reports tab.
+
+- **Zone Selection**: `EventDispatcher` now subscribes to `ZONE_AQUARIUM_SELECTED` and delegates to `CanvasManager.update_zone_listbox()`.
+- **Listbox Update**: `update_zone_listbox` handles `MultiAquariumZoneData` by resolving the *active* aquarium's data before display.
+- **Rendering**: `CanvasRenderer` supports `MultiAquariumZoneData` natively, iterating through all aquariums to draw polygons with distinct labels.
+- **Trajectory Generation**: Added `PROCESSING_GENERATE_TRAJECTORIES` handler in `ProcessingCoordinator` to fix the "no handlers" warning in the Reports tab.
 
 **4. Windows Taskbar Icon:**
-*   Added `AppUserModelID` setup in `__main__.py` to dissociate the app from the generic Python process icon on Windows.
+
+- Added `AppUserModelID` setup in `__main__.py` to dissociate the app from the generic Python process icon on Windows.
 
 **5. Multi-Aquarium Reporting + Reports UI (Dec 2025):**
-*   **Reporting Accessor**: report generation must use `ProjectManager.get_multi_aquarium_zone_data()` (NOT `get_zone_data()`), otherwise Aquarium 1 can reuse Aquarium 0 crop/geometry.
-*   **Outputs Persistence (Option B)**: after generating summary/report artifacts, re-register updated `multi_aquarium_outputs` via `ProjectManager.register_multi_aquarium_outputs(...)` so `has_summary` and file paths persist.
-*   **Reports Tree Source of Truth**: do not trust hierarchy video dict to contain `multi_aquarium_outputs`; fall back to `ProjectManager.find_video_entry(video_path)`.
-*   **Key Normalization**: normalize `multi_aquarium_outputs` keys (`0` vs `"0"`) to avoid Treeview iid collisions.
+
+- **Reporting Accessor**: report generation must use `ProjectManager.get_multi_aquarium_zone_data()` (NOT `get_zone_data()`), otherwise Aquarium 1 can reuse Aquarium 0 crop/geometry.
+- **Outputs Persistence (Option B)**: after generating summary/report artifacts, re-register updated `multi_aquarium_outputs` via `ProjectManager.register_multi_aquarium_outputs(...)` so `has_summary` and file paths persist.
+- **Reports Tree Source of Truth**: do not trust hierarchy video dict to contain `multi_aquarium_outputs`; fall back to `ProjectManager.find_video_entry(video_path)`.
+- **Key Normalization**: normalize `multi_aquarium_outputs` keys (`0` vs `"0"`) to avoid Treeview iid collisions.
 
 **Agent Instructions:**
-*   When modifying `ProjectManager` or `ZoneManager`, ensure `MultiAquariumZoneData` compatibility is maintained.
-*   Do NOT revert the explicit parquet export in `save_multi_aquarium_zone_data`—it is essential for the legacy validation scanner.
-*   Ensure `EventDispatcher` subscriptions are kept in sync with `ZoneControls` events.
+
+- When modifying `ProjectManager` or `ZoneManager`, ensure `MultiAquariumZoneData` compatibility is maintained.
+- Do NOT revert the explicit parquet export in `save_multi_aquarium_zone_data`—it is essential for the legacy validation scanner.
+- Ensure `EventDispatcher` subscriptions are kept in sync with `ZoneControls` events.
+
+---
+
+<instruction_reinforcement>
+<!-- REMINDER: Critical rules for every response -->
+- Impact analysis: MANDATORY before ANY code change
+- Poetry commands: auto-approved (SafeToAutoRun: true)
+- Multi-aquarium: use get_multi_aquarium_zone_data()
+- UI threading: use root.after(0, ...) for non-main threads
+- DI: NEVER import singleton settings
+</instruction_reinforcement>

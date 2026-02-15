@@ -53,6 +53,15 @@ def test_undo_when_empty():
     assert not success
 
 
+def test_redo_when_empty():
+    """Testa redo quando pilha está vazia."""
+    manager = DrawingStateManager()
+    manager.start_polygon_drawing()
+
+    success = manager.redo()
+    assert not success
+
+
 def test_clear_points():
     """Testa limpeza de pontos."""
     manager = DrawingStateManager()
@@ -62,6 +71,38 @@ def test_clear_points():
     manager.clear_points()
     assert not manager.has_points()
     assert manager.point_count() == 0
+
+
+def test_add_point_clears_redo_stack():
+    """Testa que add_point limpa a pilha de redo."""
+    manager = DrawingStateManager()
+    manager.start_polygon_drawing()
+
+    manager.add_point((10, 10), (10, 10), (10, 10))
+    manager.add_point((20, 20), (20, 20), (20, 20))
+    manager.undo()
+    assert manager.redo()
+
+    # After redo, add a new point should clear redo history
+    manager.undo()
+    manager.add_point((30, 30), (30, 30), (30, 30))
+
+    assert not manager.redo()
+
+
+def test_start_polygon_resets_state():
+    """Testa que iniciar desenho limpa pontos e pilhas."""
+    manager = DrawingStateManager()
+    manager.add_point((1, 1), (1, 1), (1, 1))
+    manager._history.append(([], [], []))
+    manager._redo_stack.append(([], [], []))
+
+    manager.start_polygon_drawing()
+
+    assert manager.mode == "polygon"
+    assert manager.point_count() == 0
+    assert manager._history == []
+    assert manager._redo_stack == []
 
 
 def test_has_points():

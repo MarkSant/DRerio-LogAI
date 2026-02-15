@@ -135,10 +135,11 @@ def test_docs_exist():
     base_dir = Path(__file__).parent.parent
     docs_dir = base_dir / "docs"
 
-    # Architecture docs in subdirectory
-    assert (docs_dir / "architecture" / "ARCHITECTURE.md").exists()
-    # Reference docs in subdirectory
-    assert (docs_dir / "reference" / "REFERENCE_GUIDE.md").exists()
+    # Diátaxis structure checks
+    # Explanation docs (architecture)
+    assert (docs_dir / "explanation" / "architecture.md").exists()
+    # Reference docs (metrics)
+    assert (docs_dir / "reference" / "metrics.md").exists()
     # GitHub instructions
     assert (base_dir / ".github" / "copilot-instructions.md").exists()
 

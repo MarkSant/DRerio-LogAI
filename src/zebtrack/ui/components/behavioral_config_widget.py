@@ -5,6 +5,7 @@ Used in Wizard CalibrationStep, SingleVideoConfigDialog, and LiveAnalysisDialog.
 """
 
 from tkinter import BooleanVar, DoubleVar, IntVar, StringVar, ttk
+from typing import Any
 
 import structlog
 
@@ -35,6 +36,20 @@ class BehavioralConfigWidget(BaseWidget):
     - behavioral_config.values_changed: Any configuration value changed
     """
 
+    @staticmethod
+    def _coerce_float(value: Any, fallback: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float(fallback)
+
+    @staticmethod
+    def _coerce_int(value: Any, fallback: int) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return int(fallback)
+
     def __init__(
         self,
         parent,
@@ -60,10 +75,10 @@ class BehavioralConfigWidget(BaseWidget):
             **kwargs: Additional arguments passed to BaseWidget
         """
         # Store defaults before super().__init__ calls _build_ui
-        self._default_thigmotaxis_cm = default_thigmotaxis_cm
-        self._default_geotaxis_cm = default_geotaxis_cm
-        self._default_num_zones = default_num_zones
-        self._default_bottom_zones = default_bottom_zones
+        self._default_thigmotaxis_cm = self._coerce_float(default_thigmotaxis_cm, 1.5)
+        self._default_geotaxis_cm = self._coerce_float(default_geotaxis_cm, 1.5)
+        self._default_num_zones = self._coerce_int(default_num_zones, 3)
+        self._default_bottom_zones = self._coerce_int(default_bottom_zones, 1)
         self._default_perspective = kwargs.pop(
             "default_perspective", AquariumPerspective.LATERAL.value
         )
@@ -71,14 +86,14 @@ class BehavioralConfigWidget(BaseWidget):
 
         # State variables - initialized before _build_ui
         self.perspective_var = StringVar(value=self._default_perspective)
-        self.thigmotaxis_distance_var = DoubleVar(value=default_thigmotaxis_cm)
+        self.thigmotaxis_distance_var = DoubleVar(value=self._default_thigmotaxis_cm)
         self.geotaxis_enabled_var = BooleanVar(
             value=True if self._default_perspective == AquariumPerspective.LATERAL.value else False
         )
         self.geotaxis_mode_var = StringVar(value=self._default_geotaxis_mode)
-        self.geotaxis_distance_var = DoubleVar(value=default_geotaxis_cm)
-        self.geotaxis_num_zones_var = IntVar(value=default_num_zones)
-        self.geotaxis_bottom_zones_var = IntVar(value=default_bottom_zones)
+        self.geotaxis_distance_var = DoubleVar(value=self._default_geotaxis_cm)
+        self.geotaxis_num_zones_var = IntVar(value=self._default_num_zones)
+        self.geotaxis_bottom_zones_var = IntVar(value=self._default_bottom_zones)
 
         # Widget references
         self.perspective_combo: ttk.Combobox | None = None
@@ -306,6 +321,9 @@ class BehavioralConfigWidget(BaseWidget):
 
     def _on_perspective_combo_changed(self, event=None) -> None:
         """Handle perspective combobox selection change."""
+        if not self.perspective_combo:
+            return
+
         display_value = self.perspective_combo.get()
         actual_value = self._perspective_mapping.get(
             display_value, AquariumPerspective.TOP_DOWN.value
@@ -320,13 +338,17 @@ class BehavioralConfigWidget(BaseWidget):
 
         # Enable/disable geotaxis section based on perspective
         if is_lateral:
-            self._set_widget_state(self.geotaxis_frame, "normal")
-            self.geotaxis_check.configure(state="normal")
+            if self.geotaxis_frame:
+                self._set_widget_state(self.geotaxis_frame, "normal")
+            if self.geotaxis_check:
+                self.geotaxis_check.configure(state="normal")
         else:
             # Disable geotaxis for top-down view
             self.geotaxis_enabled_var.set(False)
-            self._set_widget_state(self.geotaxis_frame, "disabled")
-            self.geotaxis_check.configure(state="disabled")
+            if self.geotaxis_frame:
+                self._set_widget_state(self.geotaxis_frame, "disabled")
+            if self.geotaxis_check:
+                self.geotaxis_check.configure(state="disabled")
 
         self._update_geotaxis_visibility()
         self.emit_event("behavioral_config.perspective_changed", {"perspective": perspective})
@@ -359,18 +381,24 @@ class BehavioralConfigWidget(BaseWidget):
 
         if enabled:
             # Show options frame
-            self.geotaxis_options_frame.pack(fill="x", pady=(5, 0))
+            if self.geotaxis_options_frame:
+                self.geotaxis_options_frame.pack(fill="x", pady=(5, 0))
 
             # Show appropriate mode frame
             if mode == GeotaxisMode.DISTANCE.value:
-                self.distance_frame.pack(fill="x", pady=(5, 0))
-                self.zones_frame.pack_forget()
+                if self.distance_frame:
+                    self.distance_frame.pack(fill="x", pady=(5, 0))
+                if self.zones_frame:
+                    self.zones_frame.pack_forget()
             else:
-                self.distance_frame.pack_forget()
-                self.zones_frame.pack(fill="x", pady=(5, 0))
+                if self.distance_frame:
+                    self.distance_frame.pack_forget()
+                if self.zones_frame:
+                    self.zones_frame.pack(fill="x", pady=(5, 0))
         else:
             # Hide options frame
-            self.geotaxis_options_frame.pack_forget()
+            if self.geotaxis_options_frame:
+                self.geotaxis_options_frame.pack_forget()
 
     # Public API
 

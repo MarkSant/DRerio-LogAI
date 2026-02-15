@@ -75,15 +75,15 @@ class MetricsCache:
             header = f.read(1024 * 1024)  # First 1MB
             f.seek(-min(1024 * 1024, parquet_path.stat().st_size), 2)  # Last 1MB
             footer = f.read()
-        parquet_hash = hashlib.md5(header + footer).hexdigest()[:16]
+        parquet_hash = hashlib.sha256(header + footer).hexdigest()[:16]
 
         # Hash calibration parameters
         calib_str = str(sorted(calibration.items()))
-        calib_hash = hashlib.md5(calib_str.encode()).hexdigest()[:8]
+        calib_hash = hashlib.sha256(calib_str.encode()).hexdigest()[:8]
 
         # Hash smoothing parameters
         smoothing_str = f"{smoothing_window}_{smoothing_polyorder}"
-        smoothing_hash = hashlib.md5(smoothing_str.encode()).hexdigest()[:4]
+        smoothing_hash = hashlib.sha256(smoothing_str.encode()).hexdigest()[:4]
 
         return f"{parquet_path.stem}_{parquet_hash}_{calib_hash}_{smoothing_hash}.pkl"
 
@@ -116,7 +116,7 @@ class MetricsCache:
 
         try:
             with cache_file.open("rb") as f:
-                cached = pickle.load(f)
+                cached = pickle.load(f)  # nosec B301 - local cache only
             log.info(
                 "metrics_cache.hit",
                 parquet_path=str(parquet_path),
@@ -158,7 +158,7 @@ class MetricsCache:
 
         try:
             with cache_file.open("wb") as f:
-                pickle.dump(metrics, f, protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump(metrics, f, protocol=pickle.HIGHEST_PROTOCOL)  # nosec B301 - local cache only
             log.info(
                 "metrics_cache.saved",
                 parquet_path=str(parquet_path),

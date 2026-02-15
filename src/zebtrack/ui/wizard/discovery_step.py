@@ -60,7 +60,7 @@ class DiscoveryStep(WizardStep):
         self.parquet_scope_var = IntVar(value=0)  # 0=none, 1=zones, 2=all
         self.template_manager = TemplateManager()
         self.template_info_var = StringVar(value="")
-        self.template_info_label = None
+        self.template_info_label: Label | None = None
 
     def build_ui(self):
         """Build discovery step UI."""

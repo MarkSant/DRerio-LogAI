@@ -12,6 +12,7 @@ Validates:
 import shutil
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -48,7 +49,7 @@ class TestFileSelectionStep:
 
     def test_file_selection_step_builds_ui_without_error(self):
         """File selection step should build UI without errors."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = FileSelectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -57,7 +58,7 @@ class TestFileSelectionStep:
 
     def test_file_selection_step_default_data_is_empty(self):
         """File selection step defaults to no videos selected."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = FileSelectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -71,7 +72,7 @@ class TestFileSelectionStep:
 
     def test_file_selection_step_validate_fails_when_no_videos(self):
         """Validation should fail when no videos are selected."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = FileSelectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -82,7 +83,7 @@ class TestFileSelectionStep:
 
     def test_file_selection_step_validate_succeeds_with_file(self):
         """Validation should succeed when at least one file is selected."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = FileSelectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -96,7 +97,7 @@ class TestFileSelectionStep:
 
     def test_file_selection_step_validate_succeeds_with_folder(self):
         """Validation should succeed when a folder is selected."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = FileSelectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -110,7 +111,7 @@ class TestFileSelectionStep:
 
     def test_file_selection_step_validate_fails_with_nonexistent_path(self):
         """Validation should fail when selected path doesn't exist."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = FileSelectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -124,7 +125,7 @@ class TestFileSelectionStep:
 
     def test_file_selection_step_get_data_with_mixed_selection(self):
         """get_data should correctly count files and folders."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = FileSelectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -141,7 +142,7 @@ class TestFileSelectionStep:
 
     def test_file_selection_step_set_data_restores_ui(self):
         """set_data should restore UI from previously collected data."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = FileSelectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -161,11 +162,12 @@ class TestFileSelectionStep:
         assert step.video_paths == [str(self.video1), str(self.video2)]
 
         # Verify listbox updated
+        assert step.paths_listbox is not None
         assert step.paths_listbox.size() == 2
 
     def test_file_selection_step_clear_selection(self):
         """Clear selection should remove all paths."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = FileSelectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -178,12 +180,13 @@ class TestFileSelectionStep:
 
         # Verify cleared
         assert step.video_paths == []
+        assert step.paths_listbox is not None
         assert step.paths_listbox.size() == 0
         assert "Nenhum" in step.summary_var.get()
 
     def test_file_selection_step_display_update(self):
         """Display should update correctly when paths are added."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = FileSelectionStep(self.root, wizard_data)
         step.build_ui()
 
@@ -208,7 +211,7 @@ class TestFileSelectionStep:
 
     def test_file_selection_step_folder_preview_tree_populates(self):
         """Folder preview tree should reflect selected directory structure."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = FileSelectionStep(self.root, wizard_data)
         step.build_ui()
 

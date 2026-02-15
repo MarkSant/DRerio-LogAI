@@ -28,7 +28,7 @@ class ArduinoFacade:
         self,
         arduino_manager: ArduinoManager,
         state_manager: StateManager,
-    ):
+    ) -> None:
         """
         Initialize ArduinoFacade.
 

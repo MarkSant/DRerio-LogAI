@@ -162,9 +162,9 @@ if self.preview_window and should_display:
 **Impacto**: Detection ROI checks incorretos se câmera real tem resolução diferente da configurada
 
 **Exemplo de Problema**:
-- Zones definidas para câmera 640×480
-- Live session inicia com câmera 1920×1080
-- Zones são rescaled para desired_width/height (640×480) ao invés de 1920×1080
+- Zones definidas para câmera 640x480
+- Live session inicia com câmera 1920x1080
+- Zones são rescaled para desired_width/height (640x480) ao invés de 1920x1080
 - Coordinate transformations e ROI checks ficam errados
 
 **Context** (linhas 145-149):

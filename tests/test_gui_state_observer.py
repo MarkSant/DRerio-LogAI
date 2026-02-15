@@ -71,7 +71,8 @@ class TestGUIStateObserver:
         from tests.helpers import create_test_controller
 
         controller = create_test_controller(root=mock_root)
-        return controller
+        yield controller
+        controller.state_manager.shutdown()
 
     @pytest.fixture
     def mock_gui(self, mock_root, controller):

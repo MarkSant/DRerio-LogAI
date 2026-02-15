@@ -339,7 +339,7 @@ class ExperimentalDesignStep(WizardStep):
                 "• Organizar gravações por Dia → Grupo → Animal\n"
                 "• Criar grid visual de progresso do experimento\n"
                 "• Facilitar análise comparativa entre grupos\n\n"
-                "Exemplo: 2 grupos × 5 dias × 3 animais = 30 gravações organizadas"
+                "Exemplo: 2 grupos x 5 dias x 3 animais = 30 gravações organizadas"
             ),
             justify="left",
             fg="#555",
@@ -411,7 +411,7 @@ class ExperimentalDesignStep(WizardStep):
         total_animals = num_groups * subjects
 
         self.summary_var.set(
-            f"📊 Total: {total_sessions} gravações ({total_animals} animais × {num_days} dias)"
+            f"📊 Total: {total_sessions} gravações ({total_animals} animais x {num_days} dias)"
         )
 
     def validate(self) -> tuple[bool, str]:
@@ -419,7 +419,7 @@ class ExperimentalDesignStep(WizardStep):
         num_groups = self.num_groups_var.get()
 
         # Trim all group names first
-        for i, var in enumerate(self.group_name_vars[:num_groups]):
+        for _i, var in enumerate(self.group_name_vars[:num_groups]):
             name = var.get().strip()
             var.set(name)
 

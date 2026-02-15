@@ -22,7 +22,7 @@ class HardwareStatusViewModel:
         dependencies: MainViewModelDependencies,
         bootstrap_result: BootstrapResult,
         event_bus: Any,
-    ):
+    ) -> None:
         self.detector_service = dependencies.detector_service
         self.model_service = dependencies.model_service
         self.hardware_coordinator = dependencies.hardware_coordinator
@@ -61,6 +61,9 @@ class HardwareStatusViewModel:
         return self.state_manager.get_detector_state().detector_initialized
 
     def setup_detector(self, temp_animal_method: str | None = None) -> bool:
+        if not self.detector_coordinator:
+            return False
+
         success, _ = self.detector_coordinator.setup_detector(
             animal_method=temp_animal_method,
             use_openvino=self.use_openvino,
@@ -93,34 +96,40 @@ class HardwareStatusViewModel:
             )
         return False
 
-    # --- Arduino ---
+        # --- Arduino ---
 
     def setup_arduino(self) -> bool:
-        success = self.hardware_coordinator.setup_arduino()
-        self.arduino = self.hardware_coordinator.arduino
-        self.arduino_manager = self.hardware_coordinator.arduino_manager
-        return success
+        # Note: Arduino setup is now handled differently in HardwareCoordinator
+        # These methods are deprecated
+        log.warning(
+            "hardware_status_view_model.arduino_deprecated",
+            message="Direct Arduino access via HardwareCoordinator is deprecated.",
+        )
+        return False
 
-    def log_arduino_event(self, message: str):
-        self.hardware_coordinator.log_arduino_event(message)
+    def log_arduino_event(self, message: str) -> None:
+        # Deprecated - logging moved to SessionCoordinator
+        pass
 
-    def on_arduino_status_change(self, connected: bool, port: str | None):
-        self.hardware_coordinator.on_arduino_status_change(connected, port)
+    def on_arduino_status_change(self, connected: bool, port: str | None) -> None:
+        # Deprecated - status handling moved to SessionCoordinator
+        pass
 
-    def on_arduino_command_sent(self, command: int, success: bool, source: str):
-        self.hardware_coordinator.on_arduino_command_sent(command, success, source)
+    def on_arduino_command_sent(self, command: int, success: bool, source: str) -> None:
+        # Deprecated - command handling moved to SessionCoordinator
+        pass
 
     def _get_arduino_manager(self):
         # Lazy init if needed, though passed in bootstrap
         return self.arduino_manager
 
-    def _shutdown_arduino_manager(self):
-        if self.arduino_manager:
-            try:
+    def _shutdown_arduino_manager(self) -> None:
+        try:
+            if self.arduino_manager:
                 self.arduino_manager.shutdown()
-            except Exception as e:
-                log.warning("controller.arduino.shutdown_failed", error=str(e))
-            self.arduino_manager = None
+        except Exception as e:
+            log.warning("controller.arduino.shutdown_failed", error=str(e))
+        self.arduino_manager = None
         self.arduino = None
 
     # --- Model / Weights ---
@@ -132,14 +141,14 @@ class HardwareStatusViewModel:
 
     def get_openvino_status(self) -> str:
         return self.model_service.get_openvino_status(
-            weight_name=self.active_weight_name, use_openvino=self.use_openvino
+            weight_name=self.active_weight_name or "", use_openvino=self.use_openvino
         )
 
     def get_openvino_cache_status(self, weight_name: str | None = None) -> dict:
         if not weight_name:
             weight_name = self.active_weight_name
         if self.model_service:
-            return self.model_service.check_openvino_conversion_status(weight_name)
+            return self.model_service.check_openvino_conversion_status(weight_name or "")
         return {"status": "unknown"}
 
     def set_active_weight(self, name: str | None, dialog=None):
@@ -187,8 +196,10 @@ class HardwareStatusViewModel:
 
     # --- Recording / Live Session ---
 
-    def start_live_camera_analysis(self, camera_index: int | None = None):
-        return self.session_coordinator.start_live_camera_analysis(camera_index)
+    def start_live_camera_analysis(self, camera_index: int | None = None) -> Any:
+        if self.session_coordinator:
+            return self.session_coordinator.start_live_camera_analysis(camera_index)
+        return None
 
     def start_live_project_session(
         self,
@@ -196,35 +207,43 @@ class HardwareStatusViewModel:
         group: str,
         subject: str,
         duration_s: float | None = None,
-    ):
-        return self.session_coordinator.start_live_project_session(
-            day=day, group=group, subject=subject, duration_s=duration_s
-        )
+    ) -> Any:
+        if self.session_coordinator:
+            return self.session_coordinator.start_live_project_session(
+                day=day, group=group, subject=subject, duration_s=duration_s
+            )
+        return None
 
-    def start_recording(self, **kwargs):
+    def start_live_session(self, **kwargs: Any) -> None:
+        """Start a live session (delegates to SessionCoordinator)."""
+        if self.session_coordinator:
+            self.session_coordinator.start_live_session(**kwargs)
+
+    def start_recording(self, **kwargs: Any) -> None:
         # Use SessionCoordinator for recording (consolidated from RecordingSessionOrchestrator)
         if self.session_coordinator:
             self.session_coordinator.start_recording(**kwargs)
 
-    def stop_recording(self):
+    def stop_recording(self) -> None:
         # Use SessionCoordinator for recording (consolidated from RecordingSessionOrchestrator)
         if self.session_coordinator:
             self.session_coordinator.stop_recording()
 
-    def toggle_recording(self):
+    def toggle_recording(self) -> None:
         if self.recording_service and self.recording_service.is_recording:
             self.stop_recording()
         else:
             self.start_recording()
 
     @property
-    def recording_service(self):
+    def recording_service(self) -> Any | None:
+        # Return Any | None because types might be circular or loaded dynamically
         if self._recording_service:
             return self._recording_service
         return getattr(self.session_coordinator, "recording_service", None)
 
     @recording_service.setter
-    def recording_service(self, value):
+    def recording_service(self, value: Any | None) -> None:
         self._recording_service = value
         if self.recording_coordinator:
             self.recording_coordinator.recording_service = value

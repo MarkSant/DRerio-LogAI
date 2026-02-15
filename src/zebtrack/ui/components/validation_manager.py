@@ -184,7 +184,7 @@ class ValidationManager:
 
         others = sum(count for status, count in counts.items() if status not in PROJECT_STATUS_META)
         if others:
-            parts.append(f"➕ {others}")
+            parts.append(f"+ {others}")
 
         return " • ".join(parts)
 
@@ -403,6 +403,24 @@ class ValidationManager:
     # Zone and Template Validation
     # ========================================================================
 
+    # ========================================================================
+    # Zone and Template Validation
+    # ========================================================================
+
+    def has_zones(self, video_path: str | Path) -> bool:
+        """Check if a video has defined zones.
+
+        Args:
+            video_path: Path to the video file.
+
+        Returns:
+            True if zones exist, False otherwise.
+        """
+        if not self.gui.project_manager:
+            return False
+
+        return self.gui.project_manager.has_arena_data(video_path)
+
     def get_zone_data_for_active_context(self) -> ZoneData:
         """Get zone data for the currently active context (video or global).
 
@@ -584,7 +602,7 @@ class ValidationManager:
 
         others = sum(count for status, count in counts.items() if status not in PROJECT_STATUS_META)
         if others:
-            parts.append(f"➕ {others}")
+            parts.append(f"+ {others}")
 
         return " | ".join(parts) if parts else "-"
 
@@ -741,7 +759,7 @@ class ValidationManager:
         """
         if value in (None, ""):
             return ""
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if isinstance(value, int | float) and not isinstance(value, bool):
             try:
                 return f"{int(value):02d}"
             except (TypeError, ValueError):
@@ -1189,7 +1207,7 @@ class ValidationManager:
         for group_id, group_data in sorted(
             hierarchy.items(), key=lambda item: str(item[1]["display"]).lower()
         ):
-            group_entry = {
+            group_entry: dict[str, Any] = {
                 "id": group_id,
                 "label": f"🏷️ {group_data['display']} ({group_id})",
                 "status_label": "",
@@ -1202,7 +1220,7 @@ class ValidationManager:
             ):
                 sample_metadata = videos[0].get("metadata") if videos else None
                 day_title = self._build_day_title(day_id, sample_metadata)
-                day_entry = {
+                day_entry: dict[str, Any] = {
                     "label": f"📅 {day_title}",
                     "status_label": "",
                     "children": [],
@@ -1300,7 +1318,7 @@ class ValidationManager:
                 if text:
                     return text
 
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
+            if isinstance(value, int | float) and not isinstance(value, bool):
                 if float(value).is_integer():
                     return f"{int(value):02d}"
                 return str(value)

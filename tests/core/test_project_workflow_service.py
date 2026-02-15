@@ -6,6 +6,7 @@ opening, configuration, and post-creation guide generation.
 """
 
 import unittest
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 from zebtrack.core.project_workflow_service import ProjectWorkflowService
@@ -94,6 +95,7 @@ class TestProjectWorkflowServiceValidation(unittest.TestCase):
         )
 
         assert is_valid is False
+        assert error_msg is not None
         assert "modo de detecção" in error_msg
         assert "1 animal por aquário" in error_msg
 
@@ -483,7 +485,7 @@ class TestProjectWorkflowServicePostCreationGuide(unittest.TestCase):
             {"path": "/video2.mp4", "has_arena": True, "has_rois": False, "has_trajectory": False},
         ]
 
-        wizard_metadata = {
+        wizard_metadata: dict[str, Any] = {
             "import_config": [],
             "scanned_videos": [],
         }
@@ -513,7 +515,7 @@ class TestProjectWorkflowServicePostCreationGuide(unittest.TestCase):
     def test_generate_guide_without_metadata(self):
         """Test guide generation without wizard metadata."""
         guide = self.service.generate_post_creation_guide(
-            wizard_metadata=None,
+            wizard_metadata=cast(dict[str, Any], None),
             check_suppression=False,
         )
 
@@ -534,7 +536,7 @@ class TestProjectWorkflowServicePostCreationGuide(unittest.TestCase):
         """Test guide generation considers import configuration."""
         self.mock_project_manager.get_all_videos.return_value = []
 
-        wizard_metadata = {
+        wizard_metadata: dict[str, Any] = {
             "import_config": [
                 {
                     "video": "/video1.mp4",
@@ -959,7 +961,7 @@ class TestProjectWorkflowServicePostCreationGuideEdgeCases(unittest.TestCase):
         """Test guide generation with empty scanned videos."""
         self.mock_project_manager.get_all_videos.return_value = []
 
-        wizard_metadata = {
+        wizard_metadata: dict[str, Any] = {
             "import_config": [],
             "scanned_videos": [],  # Empty
         }
@@ -978,7 +980,7 @@ class TestProjectWorkflowServicePostCreationGuideEdgeCases(unittest.TestCase):
             {"path": "/video1.mp4"},
         ]
 
-        wizard_metadata = {
+        wizard_metadata: dict[str, Any] = {
             "import_config": [
                 {"invalid_key": "value"},  # Missing 'video' key
             ],

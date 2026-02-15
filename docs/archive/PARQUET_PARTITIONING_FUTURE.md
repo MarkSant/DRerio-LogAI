@@ -144,7 +144,7 @@ def migrate_project_to_partitioned(project_path: Path) -> None:
 | Metric | Current | Partitioned | Improvement |
 |--------|---------|-------------|-------------|
 | File opens | 50 | 1 | **-98%** |
-| Metadata reads | 50 × 2KB = 100KB | 1 × 2KB = 2KB | **-98%** |
+| Metadata reads | 50 x 2KB = 100KB | 1 x 2KB = 2KB | **-98%** |
 | Total I/O time | ~500ms | ~150ms | **-70%** |
 
 ### Query Performance

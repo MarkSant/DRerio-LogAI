@@ -306,7 +306,11 @@ def test_multi_video_recording_session(temp_project_dir, sample_zones):
 
         # Wait for file to be flushed
         coords_file = results_dir / f"3_CoordMovimento_{video_name}.parquet"
-        wait_for_condition(lambda f=coords_file: f.exists(), timeout=1.0)
+
+        def _coords_exists(coords_file=coords_file) -> bool:
+            return coords_file.exists()
+
+        wait_for_condition(_coords_exists, timeout=1.0)
 
         # Verify files for this video
         assert coords_file.exists(), f"Missing coords file for {video_name}"

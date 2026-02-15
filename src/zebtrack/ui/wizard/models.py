@@ -381,7 +381,7 @@ class MultiAquariumData(BaseModel):
             Lista de dicionários com os campos extraídos (group, subject, day).
             Um dicionário por match encontrado.
         """
-        results = []
+        results: list[dict[str, str]] = []
 
         if not self.regex_pattern:
             return results

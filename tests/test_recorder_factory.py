@@ -147,6 +147,7 @@ def test_context_manager_cleanup_on_exception(settings_obj, mock_zones, tmp_path
         pass  # Expected
 
     # Recording should be cleaned up even after exception
+    assert factory._recorder is not None
     assert factory._recorder.is_recording is False
 
 

@@ -5,6 +5,8 @@ Handles drawing operations on the canvas, including background images,
 zones (arena/ROIs), detection overlays, and interactive polygons.
 """
 
+from typing import Any
+
 import cv2
 import numpy as np
 import structlog
@@ -80,7 +82,12 @@ class CanvasRenderer:
         self.manager._bg_offset = (offset_x, offset_y)
 
         # Scale the image
-        image = self.manager._raw_bg_image.resize((new_width, new_height), Image.LANCZOS)
+        resampling: Any
+        if hasattr(Image, "Resampling"):
+            resampling = Image.Resampling.LANCZOS
+        else:
+            resampling = getattr(Image, "NEAREST", 0)
+        image = self.manager._raw_bg_image.resize((new_width, new_height), resampling)
 
         # Clear canvas and display centered image
         canvas.delete("all")

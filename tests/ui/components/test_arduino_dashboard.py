@@ -9,8 +9,8 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from tests.utils.wait_helpers import wait_for_condition, wait_for_thread_exit
+
 from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.event_bus import EventBus
 
@@ -353,13 +353,6 @@ class TestArduinoDashboardWidget:
 
     # --- Thread Safety Tests ---
 
-    @pytest.mark.xfail(
-        reason=(
-            "Thread safety test is flaky - after() callbacks not reliably processed "
-            "in test environment. Real-world usage works correctly. "
-            "Issue: Tkinter mainloop not running during tests."
-        )
-    )
     def test_append_log_thread_safe(self, widget, tkinter_root):
         """Test append_log is thread-safe (uses root.after for UI updates)."""
         # This test verifies the fix for the thread safety issue

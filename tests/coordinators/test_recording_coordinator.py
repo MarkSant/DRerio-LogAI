@@ -14,6 +14,7 @@ Test Coverage (Sprint 4 - Target: 40 tests):
 Total: 40 tests
 """
 
+from typing import Any, cast
 from unittest.mock import Mock
 
 import pytest
@@ -116,7 +117,7 @@ class TestRecordingCoordinatorInitialization:
         """Should fail validation without recording_service."""
         coordinator = RecordingCoordinator(
             state_manager=mock_state_manager,
-            recording_service=None,
+            recording_service=cast(Any, None),
         )
 
         assert coordinator.validate_dependencies() is False
@@ -216,7 +217,7 @@ class TestRecordingStart:
         """Should raise validation error if dependencies invalid."""
         coordinator = RecordingCoordinator(
             state_manager=mock_state_manager,
-            recording_service=None,  # Missing
+            recording_service=cast(Any, None),  # Missing
         )
 
         with pytest.raises(CoordinatorValidationError):
@@ -464,6 +465,7 @@ class TestRecordingCoordinatorIntegration:
 
         # Get info
         info = coordinator.get_recording_info()
+        assert info is not None
         assert info["experiment_id"] == "int_001"
 
         # Stop recording

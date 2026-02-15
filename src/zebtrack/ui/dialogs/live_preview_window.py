@@ -13,6 +13,7 @@ from tkinter import ttk
 from typing import TYPE_CHECKING
 
 import structlog
+from PIL.ImageTk import PhotoImage
 
 if TYPE_CHECKING:
     import numpy as np
@@ -50,8 +51,9 @@ class LivePreviewWindow:
         self.window.protocol("WM_DELETE_WINDOW", self._on_window_close)
 
         # Start time for timer
-        self.start_time = None
+        self.start_time: float | None = None
         self.is_stopped = False
+        self._current_image: PhotoImage | None = None  # Hold reference to prevent GC
 
         # Create UI
         self._create_ui()
@@ -298,7 +300,7 @@ class LivePreviewWindow:
                 x = (canvas_width - new_w) // 2
                 y = (canvas_height - new_h) // 2
                 self.canvas.create_image(x, y, anchor=tk.NW, image=photo, tags="frame")
-                self.canvas.image = photo  # Keep reference
+                self._current_image = photo  # Keep reference
 
             # Update stats
             self.frame_count += 1

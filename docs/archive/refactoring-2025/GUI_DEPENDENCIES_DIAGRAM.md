@@ -280,7 +280,7 @@ DialogManager → GUI.update_zone_listbox() → CanvasManager.update_zone_listbo
 |--------|--------------|--------------|
 | `update_zone_listbox()` | 5 | Components (DM, PDS, RTM, ZCB, Renderer) |
 | `refresh_project_views()` | 3 | Orchestrators (Analysis, Project, VideoProcessing) |
-| `_populate_video_selector_tree()` | 3 | Components (ZCB×2, PVM) |
+| `_populate_video_selector_tree()` | 3 | Components (ZCBx2, PVM) |
 | `update_processing_stats()` | 2 | Services (AnalysisService, VPOrchestrator) |
 | `show_external_trigger_notice()` | 2 | Services (RecordingService, LiveCameraService) |
 

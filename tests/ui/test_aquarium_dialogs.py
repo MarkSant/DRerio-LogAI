@@ -181,9 +181,11 @@ class TestAquariumAssignmentDialog:
                 dialog = AquariumAssignmentDialog(parent=tkinter_root, available_groups=["Control"])
 
                 # Check default
+                assert dialog._apply_all_var is not None
                 assert dialog._apply_all_var.get() is False
 
                 # Set to True
+                assert dialog._apply_all_var is not None
                 dialog._apply_all_var.set(True)
 
                 # Call confirm handler which updates apply_to_all
@@ -212,7 +214,7 @@ class TestAquariumAssignmentDialog:
         """Test default group assignment logic without creating dialog."""
         # Test the logic directly without creating the full dialog
         groups_2 = ["Controle", "Tratamento"]
-        groups_empty = []
+        groups_empty: list[str] = []
 
         # For 2 groups, should assign alternating
         assert groups_2[0 % len(groups_2)] == "Controle"

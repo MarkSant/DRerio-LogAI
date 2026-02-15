@@ -66,6 +66,7 @@ def test_convert_to_openvino_failure_records_status(tmp_path):
     assert not cached_dir.exists()
 
     details = manager.get_weight_details(weight_file.name)
+    assert details is not None
     assert details["openvino_status"] == OPENVINO_STATUS_FAILED
     assert details["openvino_path"] == ""
     assert "boom" in details["last_conversion_error"]
@@ -101,6 +102,7 @@ def test_convert_to_openvino_success_updates_status(tmp_path):
     assert metadata["original_model"] == weight_file.name
 
     details = manager.get_weight_details(weight_file.name)
+    assert details is not None
     assert details["openvino_status"] == OPENVINO_STATUS_READY
     assert details["last_conversion_error"] is None
     assert Path(details["openvino_path"]) == cached_dir
@@ -108,5 +110,6 @@ def test_convert_to_openvino_success_updates_status(tmp_path):
     # ensure config persisted status
     reloaded = _bootstrap_manager(str(tmp_path))
     reloaded_details = reloaded.get_weight_details(weight_file.name)
+    assert reloaded_details is not None
     assert reloaded_details["openvino_status"] == OPENVINO_STATUS_READY
     assert reloaded_details["last_conversion_error"] is None

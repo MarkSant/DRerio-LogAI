@@ -6,6 +6,8 @@ import pytest
 from zebtrack.ui.components.tab_builder import TabBuilder
 from zebtrack.ui.gui import ApplicationGUI
 
+pytestmark = pytest.mark.gui
+
 
 @pytest.fixture
 def mock_app(tkinter_root):
@@ -18,6 +20,9 @@ def mock_app(tkinter_root):
     app.event_bus = MagicMock()  # Added missing mock
     app.event_bus_v2 = MagicMock()
     app.project_manager = MagicMock()
+    app.menu_manager = MagicMock()
+    app._subscribe_zone_component_events = MagicMock()
+    app._on_canvas_configure = MagicMock()
 
     # Use a real notebook because ttkbootstrap inspects parent widget class hierarchy
     app.notebook = ttk.Notebook(tkinter_root)
@@ -83,3 +88,31 @@ def test_build_main_controls_tab_live(mock_app):
 
     # Verify external trigger notice label was created
     assert mock_app.external_trigger_notice_label is not None
+
+
+def test_build_zone_tab_sets_up_components(mock_app):
+    """Test that build_zone_tab wires controls and subscriptions."""
+    builder = TabBuilder(mock_app)
+
+    with (
+        patch("zebtrack.ui.components.tab_builder.ZoneControlsWidget") as mock_zone_controls,
+        patch("zebtrack.ui.components.tab_builder.VideoDisplayWidget") as mock_video_display,
+    ):
+        mock_zone_instance = MagicMock()
+        mock_zone_instance.stabilization_frames_var = MagicMock()
+        mock_zone_instance.zone_controls_frame = MagicMock()
+        mock_zone_instance.fixed_button_frame = MagicMock()
+        mock_zone_instance.controls_canvas = MagicMock()
+        mock_zone_instance.controls_canvas_window = MagicMock()
+        mock_zone_controls.return_value = mock_zone_instance
+
+        mock_video_instance = MagicMock()
+        mock_video_instance.canvas = MagicMock()
+        mock_video_display.return_value = mock_video_instance
+
+        builder.build_zone_tab()
+
+    mock_app.menu_manager.create_roi_context_menu.assert_called_once()
+    mock_app._subscribe_zone_component_events.assert_called_once()
+    assert mock_app.zone_controls is mock_zone_instance
+    assert mock_app.video_display is mock_video_instance

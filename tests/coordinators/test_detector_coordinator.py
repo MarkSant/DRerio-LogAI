@@ -3,6 +3,7 @@
 Comprehensive test coverage for detector setup and configuration orchestration.
 """
 
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,6 +13,7 @@ from zebtrack.coordinators.detector_coordinator import (
     DetectorCoordinator,
     DetectorCoordinatorError,
 )
+from zebtrack.core.detector import ZoneData
 from zebtrack.core.state_manager import StateCategory, StateManager
 
 # =============================================================================
@@ -151,7 +153,7 @@ class TestDetectorCoordinatorInitialization:
         """Test that validate_dependencies raises error without detector_service."""
         coordinator = DetectorCoordinator(
             state_manager=mock_state_manager,
-            detector_service=None,
+            detector_service=cast(Any, None),
         )
 
         with pytest.raises(CoordinatorValidationError) as exc_info:
@@ -270,7 +272,7 @@ class TestDetectorSetup:
         """Test setup_detector fails validation with None detector_service."""
         coordinator = DetectorCoordinator(
             state_manager=mock_state_manager,
-            detector_service=None,
+            detector_service=cast(Any, None),
         )
 
         with pytest.raises(CoordinatorValidationError):
@@ -305,11 +307,14 @@ class TestZoneConfiguration:
         )
 
         assert success is True
-        mock_detector_service.configure_zones.assert_called_once_with(
-            zones_data=zones,
-            video_width=1920,
-            video_height=1080,
-        )
+        mock_detector_service.configure_zones.assert_called_once()
+        call_kwargs = mock_detector_service.configure_zones.call_args.kwargs
+        assert call_kwargs["video_width"] == 1920
+        assert call_kwargs["video_height"] == 1080
+        zones_arg = call_kwargs["zones_data"]
+        assert isinstance(zones_arg, ZoneData)
+        assert zones_arg.roi_names == ["Zone1"]
+        assert zones_arg.roi_polygons == [[[0, 0], [100, 0], [100, 100], [0, 100]]]
 
     def test_configure_zones_without_dimensions(
         self,

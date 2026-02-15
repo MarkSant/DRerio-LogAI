@@ -11,7 +11,7 @@ and weight management operations.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -83,7 +83,7 @@ class ModelService:
             )
             return False
 
-    def get_weight_details(self, weight_name: str) -> dict | None:
+    def get_weight_details(self, weight_name: str) -> dict[str, Any] | None:
         """
         Get details about a weight file.
 
@@ -213,7 +213,7 @@ class ModelService:
 
         return Path(openvino_path).exists()
 
-    def check_openvino_conversion_status(self, weight_name: str) -> dict:
+    def check_openvino_conversion_status(self, weight_name: str) -> dict[str, Any]:
         """
         Get detailed OpenVINO conversion status for a weight.
 
@@ -261,7 +261,9 @@ class ModelService:
             "error": last_error,
         }
 
-    def validate_model_configuration(self, weight_name: str | None, use_openvino: bool) -> dict:
+    def validate_model_configuration(
+        self, weight_name: str | None, use_openvino: bool
+    ) -> dict[str, Any]:
         """
         Validate a complete model configuration.
 
@@ -280,7 +282,7 @@ class ModelService:
                 - errors: list[str], list of validation error messages
                 - warnings: list[str], list of validation warnings
         """
-        result = {
+        result: dict[str, Any] = {
             "valid": True,
             "weight_exists": False,
             "weight_valid": False,
@@ -338,7 +340,7 @@ class ModelService:
 
         return result
 
-    def get_weight_configuration_summary(self, weight_name: str | None) -> dict:
+    def get_weight_configuration_summary(self, weight_name: str | None) -> dict[str, Any]:
         """
         Get a summary of weight configuration details.
 
@@ -390,7 +392,9 @@ class ModelService:
             "openvino_status": ov_status["status"],
         }
 
-    def find_weight_by_path(self, weight_path: Path | str) -> tuple[str, dict] | tuple[None, None]:
+    def find_weight_by_path(
+        self, weight_path: Path | str
+    ) -> tuple[str, dict[str, Any]] | tuple[None, None]:
         """
         Find a weight by its file path.
 
@@ -417,7 +421,7 @@ class ModelService:
 
     def get_model_path_for_inference(
         self, weight_name: str, use_openvino: bool
-    ) -> tuple[str, dict] | tuple[None, None]:
+    ) -> tuple[str, dict[str, Any]] | tuple[None, None]:
         """
         Get the appropriate model path for inference.
 
@@ -454,7 +458,7 @@ class ModelService:
                 return None, None
             return pt_path, details
 
-    def inspect_model(self, weight_name: str) -> dict:
+    def inspect_model(self, weight_name: str) -> dict[str, Any]:
         """
         Inspect a YOLO model and return detailed information.
 

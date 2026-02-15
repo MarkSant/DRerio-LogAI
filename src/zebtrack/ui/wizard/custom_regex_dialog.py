@@ -5,6 +5,7 @@ Allows user to define custom regex patterns for detecting groups, days, and subj
 from folder structure or filenames.
 """
 
+import functools
 import re
 from tkinter import (
     Button,
@@ -57,7 +58,7 @@ class CustomRegexDialog(Dialog):
                 - subject_pattern: str (regex for subjects)
         """
         self.current_patterns = current_patterns or {}
-        self.result_patterns = None
+        self.result_patterns: dict[str, str | None] | None = None
         self.sample_paths = (sample_paths or [])[:50]
         self._live_update_job: str | None = None
         self._compiled_patterns: dict[str, re.Pattern] = {}
@@ -181,7 +182,7 @@ class CustomRegexDialog(Dialog):
             },
         ]
 
-        for i, ex in enumerate(examples):
+        for _i, ex in enumerate(examples):
             row = Frame(examples_frame)
             row.pack(fill="x", pady=1)
 
@@ -210,7 +211,7 @@ class CustomRegexDialog(Dialog):
             use_btn = Button(
                 row,
                 text="Usar",
-                command=lambda p=ex["pattern"], f=ex["field"]: self._apply_example_pattern(f, p),
+                command=functools.partial(self._apply_example_pattern, ex["field"], ex["pattern"]),
                 width=5,
                 font=("TkDefaultFont", 8),
             )
@@ -568,8 +569,8 @@ class CustomRegexDialog(Dialog):
         usable_h = screen_h - 160
 
         # Target size: Reduced to fit 1080p screens with taskbar/scaling
-        # Previous: 800×960 (too tall for 1080p)
-        # New: 800×780 (fits comfortably with taskbar)
+        # Previous: 800x960 (too tall for 1080p)
+        # New: 800x780 (fits comfortably with taskbar)
         target_width = 800
         target_height = 780
 
@@ -598,8 +599,8 @@ class CustomRegexDialog(Dialog):
         self._geometry_initialized = True
         log.info(
             "custom_regex.geometry_initialized",
-            size=f"{int(width)}×{int(height)}",
-            screen=f"{screen_w}×{screen_h}",
+            size=f"{int(width)}x{int(height)}",
+            screen=f"{screen_w}x{screen_h}",
             position=f"+{int(x)}+{int(y)}",
         )
 
@@ -756,9 +757,9 @@ class CustomRegexDialog(Dialog):
             display_path = f"…{path[-64:]}"
 
         # Collect all matches for each pattern
-        all_group_matches = []
-        all_day_matches = []
-        all_subject_matches = []
+        all_group_matches: list[str] = []
+        all_day_matches: list[str] = []
+        all_subject_matches: list[str] = []
 
         for key, match_list in [
             ("group", all_group_matches),

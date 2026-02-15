@@ -8,8 +8,9 @@ import gettext
 import io
 import locale
 import os
+import tempfile
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -128,7 +129,7 @@ class Reporter:
         pixelcm_x: float | None = None,
         pixelcm_y: float | None = None,
         video_height_px: int | None = None,
-        arena_polygon_px: list[tuple[float, float]] | None = None,
+        arena_polygon_px: Sequence[Sequence[float]] | None = None,
         rois: list[ROI] | None = None,
         fps: float | None = None,
         # Optional params
@@ -256,12 +257,12 @@ class Reporter:
             self.validation_stats,
         ) = service.run_full_analysis(
             trajectory_df=trajectory_df,
-            pixelcm_x=pixelcm_x,
-            pixelcm_y=pixelcm_y,
-            video_height_px=video_height_px,
-            arena_polygon_px=arena_polygon_px,
-            rois=rois,
-            fps=fps,
+            pixelcm_x=pixelcm_x or 1.0,
+            pixelcm_y=pixelcm_y or 1.0,
+            video_height_px=video_height_px or 0,
+            arena_polygon_px=arena_polygon_px or [],
+            rois=rois or [],
+            fps=fps or 30.0,
             freezing_vel_threshold=freezing_threshold,
             freezing_min_duration=freezing_duration,
             smoothing_window_length=smoothing_window_length,
@@ -285,7 +286,7 @@ class Reporter:
         self.viz_generator = VisualizationGenerator(
             b_analyzer=self.b_analyzer,
             r_analyzer=self.r_analyzer,
-            metadata=self.metadata,
+            metadata=self.metadata or {},
             roi_colors=self.roi_colors,
             calibration=self.calibration,
             pixelcm_x=self._pixelcm_x,
@@ -300,14 +301,16 @@ class Reporter:
         # Generate the tidy dataframe from the report
         tidy_df = self.data_transformer.create_tidy_dataframe(
             report=self.report,
-            metadata=self.metadata,
+            metadata=self.metadata or {},
             b_analyzer=self.b_analyzer,
             r_analyzer=self.r_analyzer,
             roi_colors=self.roi_colors,
             validation_stats=self.validation_stats,
             behavioral_config=getattr(self, "behavioral_config", {}),
         )
-        self.tidy_data = self.data_transformer.standardize_tidy_dataframe(tidy_df, self.metadata)
+        self.tidy_data = self.data_transformer.standardize_tidy_dataframe(
+            tidy_df, self.metadata or {}
+        )
 
     @classmethod
     def from_analysis(cls, analysis: AnalysisResult) -> "Reporter":
@@ -447,8 +450,8 @@ class Reporter:
 
         # Apply Geotaxis column renaming if applicable
         # Requires behavioral info which might be in metadata or config
-        height_cm = float(self.metadata.get("aquarium_height_cm", 0) or 0)
-        num_zones = int(self.metadata.get("geotaxis_num_zones", 0) or 0)
+        height_cm = float((self.metadata or {}).get("aquarium_height_cm", 0) or 0)
+        num_zones = int((self.metadata or {}).get("geotaxis_num_zones", 0) or 0)
 
         # Try to fetch from behavioral config if available
         if num_zones == 0 and hasattr(self, "behavioral_config"):
@@ -494,7 +497,7 @@ class Reporter:
         total_steps = 11
         template_path = INDIVIDUAL_REPORT_TEMPLATE
         heading_text = _("Analysis Report - {experiment_id}").format(
-            experiment_id=self.metadata.get("experiment_id", "Unknown")
+            experiment_id=(self.metadata or {}).get("experiment_id", "Unknown")
         )
 
         doc_template, document = self._prepare_report_document(template_path, heading_text)
@@ -524,12 +527,24 @@ class Reporter:
         """Prepare a docx document using template if available, return (doc_template, document)."""
         doc_template: DocxTemplate | None = None
         document: DocxDocument | None = None
+        template_rendered = False
 
         if template_path.exists():
             try:
                 doc_template = DocxTemplate(str(template_path))
                 doc_template.render({"title": heading_text})
-                document = doc_template.docx
+                with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp_file:
+                    tmp_path = Path(tmp_file.name)
+
+                try:
+                    doc_template.save(str(tmp_path))
+                    document = Document(str(tmp_path))
+                    template_rendered = True
+                finally:
+                    tmp_path.unlink(missing_ok=True)
+
+                # Continue using python-docx document API for append operations
+                doc_template = None
             except Exception:
                 log.warning(
                     "analysis.reporter.template_render_failed",
@@ -547,7 +562,7 @@ class Reporter:
         if document is None:
             document = Document()
 
-        if doc_template is None:
+        if doc_template is None and not template_rendered:
             document.add_heading(heading_text, level=1)
 
         return doc_template, document
@@ -560,19 +575,19 @@ class Reporter:
     ) -> None:
         """Append the metadata section to the provided document and call progress callback."""
         document.add_heading(_("Experiment Metadata"), level=2)
-        for key, value in self.metadata.items():
+        for key, value in (self.metadata or {}).items():
             document.add_paragraph(f"{key.replace('_', ' ').title()}: {value}")
         progress_callback(1 / total_steps, _("Metadata added"))
 
         # Step 2: Summary table
         document.add_heading(_("Metrics Summary"), level=2)
         df = self.tidy_data.drop(
-            columns=[k for k in self.metadata.keys() if k in self.tidy_data.columns]
+            columns=[k for k in (self.metadata or {}).keys() if k in self.tidy_data.columns]
         )
 
         # Apply Geotaxis column renaming for Word report
-        height_cm = float(self.metadata.get("aquarium_height_cm", 0) or 0)
-        num_zones = int(self.metadata.get("geotaxis_num_zones", 0) or 0)
+        height_cm = float((self.metadata or {}).get("aquarium_height_cm", 0) or 0)
+        num_zones = int((self.metadata or {}).get("geotaxis_num_zones", 0) or 0)
         if hasattr(self, "behavioral_config") and num_zones == 0:
             num_zones = int(self.behavioral_config.get("geotaxis_num_zones", 0) or 0)
 
@@ -613,7 +628,7 @@ class Reporter:
             value = df[column_name].iloc[0]
             if pd.isna(value):
                 row_cells[1].text = _("N/A")
-            elif isinstance(value, (int, float)):
+            elif isinstance(value, int | float):
                 if column_name.endswith("_s"):
                     row_cells[1].text = _format_time_minutes_seconds(value)
                 else:
@@ -663,7 +678,7 @@ class Reporter:
     ) -> None:
         """Generate and append visualization plots in parallel."""
         document.add_heading(_("Visualizations"), level=2)
-        plot_configs = [
+        plot_configs: list[tuple[Callable[[Any], Any], str]] = [
             (
                 lambda ax: self.viz_generator.generate_trajectory_plot(ax, self.video_path),
                 _("Trajectory"),
@@ -673,8 +688,12 @@ class Reporter:
             (self.viz_generator.generate_cumulative_distance_plot, _("Cumulative Distance")),
             (self.viz_generator.generate_angular_velocity_plot, _("Angular Velocity")),
             (self.viz_generator.generate_thigmotaxis_plot, _("Thigmotaxis (Wall Distance)")),
-            (self.viz_generator.generate_geotaxis_plot, _("Geotaxis (Bottom Distance)")),
         ]
+
+        if self._should_include_geotaxis_visualization():
+            plot_configs.append(
+                (self.viz_generator.generate_geotaxis_plot, _("Geotaxis (Bottom Distance)"))
+            )
 
         log.info("reporter.plots.parallel_generation.start", count=len(plot_configs))
         plot_results = self.viz_generator.generate_plots_parallel(plot_configs)
@@ -694,6 +713,26 @@ class Reporter:
                 (4 + i) / total_steps,
                 _("Visualization added: {name}").format(name=name),
             )
+
+    @staticmethod
+    def _normalize_aquarium_perspective(perspective: str | None) -> str:
+        """Normalize perspective aliases to canonical names."""
+        value = str(perspective or "").strip().lower()
+        if not value:
+            return "lateral"
+        if value in {"top", "topdown", "top_down", "dorsal", "overhead"}:
+            return "top_down"
+        return "lateral"
+
+    def _should_include_geotaxis_visualization(self) -> bool:
+        """Return whether geotaxis plots should be included in DOC visualizations."""
+        config = getattr(self, "behavioral_config", {}) or {}
+        perspective = self._normalize_aquarium_perspective(config.get("aquarium_perspective"))
+        if perspective == "top_down":
+            return False
+        if config.get("geotaxis_enabled") is False:
+            return False
+        return True
 
     def _append_roi_event_log(
         self,
@@ -785,6 +824,34 @@ class Reporter:
                     f"{gaps.get('count', 0)} (Max: {gaps.get('max_gap_frames', 0)} frames)",
                 )
 
+                expected_gap_frames = gaps.get("expected_gap_frames")
+                if expected_gap_frames is not None:
+                    add_stat_row(_("Expected Gap (interval)"), f"{expected_gap_frames} frames")
+
+                expected_count = gaps.get("expected_skip_count")
+                if expected_count is not None:
+                    add_stat_row(_("Expected Temporal Gaps"), str(expected_count))
+
+                anomalous_count = gaps.get("anomalous_count")
+                if anomalous_count is not None:
+                    add_stat_row(_("Anomalous Temporal Gaps"), str(anomalous_count))
+
+                anomalous_intervals = gaps.get("anomalous_intervals")
+                if isinstance(anomalous_intervals, list) and anomalous_intervals:
+                    document.add_paragraph(_("Anomalous gap intervals:"))
+                    for interval in anomalous_intervals:
+                        if not isinstance(interval, dict):
+                            continue
+                        from_frame = interval.get("from_frame", "?")
+                        to_frame = interval.get("to_frame", "?")
+                        gap_frames = interval.get("gap_frames", "?")
+                        missing_frames = interval.get("missing_frames", "?")
+                        document.add_paragraph(
+                            f"{from_frame} → {to_frame} "
+                            f"(gap={gap_frames}, missing≈{missing_frames})",
+                            style="List Bullet",
+                        )
+
             document.add_paragraph()  # Spacer
 
         # 2. Detailed Warnings
@@ -804,7 +871,7 @@ class Reporter:
                 "- Max Gap: The largest consecutive sequence of lost frames."
             )
             for warning in self.validation_warnings:
-                document.add_paragraph(f"• {warning}", style="List Bullet")
+                document.add_paragraph(str(warning), style="List Bullet")
         else:
             document.add_paragraph(
                 _("No significant issues were detected during trajectory validation.")
@@ -843,10 +910,10 @@ class Reporter:
         output_path = Path(output_path) if isinstance(output_path, str) else output_path
 
         # Ensure we have necessary data
-        if self.behavior_analyzer is None:
+        if self.b_analyzer is None:
             raise ValueError("BehaviorAnalyzer not available. Cannot generate HTML report.")
 
-        trajectory_df = self.behavior_analyzer.trajectory_data
+        trajectory_df = self.b_analyzer.trajectory_data
 
         # Create subplots
         fig = make_subplots(
@@ -868,7 +935,7 @@ class Reporter:
 
         # 1. Trajectory plot (top-left)
         if "x_cm" in trajectory_df.columns and "y_cm" in trajectory_df.columns:
-            velocity = self.behavior_analyzer.calculate_velocity()
+            velocity = self.b_analyzer.calculate_velocity_timeseries()["v_mag"]
             fig.add_trace(
                 go.Scatter(
                     x=trajectory_df["x_cm"],
@@ -893,8 +960,9 @@ class Reporter:
             fig.update_yaxis(title_text="Y Position (cm)", row=1, col=1)
 
         # 2. Velocity over time (top-right)
-        velocity_ts = self.behavior_analyzer.calculate_velocity()
-        time_seconds = trajectory_df.index.to_numpy() / self.fps
+        velocity_ts = self.b_analyzer.calculate_velocity_timeseries()["v_mag"]
+        fps = float((self.metadata or {}).get("fps", 30.0) or 30.0)
+        time_seconds = trajectory_df.index.to_numpy() / fps
         fig.add_trace(
             go.Scatter(
                 x=time_seconds,
@@ -924,8 +992,8 @@ class Reporter:
         fig.update_yaxis(title_text="Velocity (cm/s)", row=1, col=2)
 
         # 3. ROI time spent (bottom-left)
-        if self.roi_analyzer is not None:
-            roi_time = self.roi_analyzer.get_time_spent_in_rois()
+        if self.r_analyzer is not None:
+            roi_time = self.r_analyzer.get_time_spent_in_rois()
             if roi_time:
                 roi_names = list(roi_time.keys())
                 roi_values = [roi_time[name] for name in roi_names]
@@ -945,14 +1013,16 @@ class Reporter:
                 fig.update_yaxis(title_text="Time Spent (seconds)", row=2, col=1)
 
         # 4. Freezing episodes (bottom-right)
-        freezing_episodes = self.behavior_analyzer.detect_freezing_episodes(
-            velocity_threshold=freezing_threshold,
-            min_duration_s=self.freezing_duration or 1.0,
+        freezing_list = self.b_analyzer.detect_freezing_episodes(
+            min_duration=self.freezing_duration or 1.0,
+            vel_threshold=freezing_threshold,
         )
+        freezing_episodes = pd.DataFrame(freezing_list)
 
         if not freezing_episodes.empty:
             # Plot freezing episodes as scatter points
-            freeze_times = freezing_episodes["start_frame"].to_numpy() / self.fps
+            fps = float((self.metadata or {}).get("fps", 30.0) or 30.0)
+            freeze_times = freezing_episodes["start_frame"].to_numpy() / fps
             freeze_durations = freezing_episodes["duration_s"].to_numpy()
 
             fig.add_trace(

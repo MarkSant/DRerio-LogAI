@@ -200,7 +200,7 @@ def test_detector_to_recorder_pipeline(temp_results_dir, sample_zones):
 
     table = pq.read_table(str(coords_file))
 
-    # Should have 50 frames × 2 objects = 100 rows
+    # Should have 50 frames x 2 objects = 100 rows
     assert len(table) == 100, f"Expected 100 rows, got {len(table)}"
 
     # Verify both track IDs are present

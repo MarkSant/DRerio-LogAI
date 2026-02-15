@@ -7,6 +7,7 @@ BaseStateObserver, ObserverAdapter, and formal registration methods.
 
 from unittest.mock import MagicMock
 
+from tests.utils.wait_helpers import wait_for_condition
 from zebtrack.core.state_manager import (
     BaseStateObserver,
     ObserverAdapter,
@@ -124,6 +125,7 @@ class TestExplicitRegistration:
 
         state_mgr.update_recording_state(source="test", is_recording=True)
 
+        assert wait_for_condition(lambda: observer.call_count == 1, timeout=1.0)
         observer.assert_called_once()
 
     def test_register_global_observer_alias(self):
@@ -135,6 +137,7 @@ class TestExplicitRegistration:
 
         state_mgr.update_recording_state(source="test", is_recording=True)
 
+        assert wait_for_condition(lambda: observer.call_count == 1, timeout=1.0)
         observer.assert_called_once()
 
     def test_multiple_observers_same_category(self):
@@ -150,6 +153,9 @@ class TestExplicitRegistration:
 
         state_mgr.update_recording_state(source="test", is_recording=True)
 
+        assert wait_for_condition(lambda: observer1.call_count == 1, timeout=1.0)
+        assert wait_for_condition(lambda: observer2.call_count == 1, timeout=1.0)
+        assert wait_for_condition(lambda: observer3.call_count == 1, timeout=1.0)
         observer1.assert_called_once()
         observer2.assert_called_once()
         observer3.assert_called_once()

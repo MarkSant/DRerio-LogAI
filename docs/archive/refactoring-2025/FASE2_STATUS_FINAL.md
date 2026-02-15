@@ -134,7 +134,7 @@ self.orchestrators = OrchestratorRegistry(
 ### Razões Técnicas
 
 1. **Escopo da Remoção é Grande**
-   - 86 facades × 4 linhas média = ~340 linhas a remover
+   - 86 facades x 4 linhas média = ~340 linhas a remover
    - Requer atualização de **centenas de callers** em:
      - `src/zebtrack/ui/gui.py` (10.759 linhas)
      - Event handlers no MainViewModel

@@ -3,22 +3,29 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 from zebtrack.io.arduino import Arduino
 
+if TYPE_CHECKING:
+    from zebtrack.core.main_view_model import MainViewModel
+
+SerialExceptionType: type[BaseException]
+
 try:  # pragma: no cover - serial may not be available during unit tests
-    from serial import SerialException  # type: ignore
+    from serial import SerialException as SerialExceptionType  # type: ignore
 except Exception:  # pragma: no cover - fallback when pyserial is missing
 
-    class SerialError(Exception):
-        """Fallback SerialError when pyserial is not installed."""
+    class _SerialExceptionError(Exception):
+        """Fallback SerialException when pyserial is not installed."""
 
         pass
 
-    # Backwards-compatible alias for callers expecting SerialException
-    SerialException = SerialError
+    SerialExceptionType = _SerialExceptionError
+
+SerialException = SerialExceptionType
 
 
 log = structlog.get_logger()
@@ -29,7 +36,7 @@ class ArduinoManager:
 
     def __init__(
         self,
-        controller,
+        controller: MainViewModel | Any,
         arduino_factory: Callable[[str, int], Arduino] = Arduino,
     ) -> None:
         self.controller = controller
@@ -126,20 +133,40 @@ class ArduinoManager:
             return bool(serial_conn and getattr(serial_conn, "is_open", False))
 
     def current_port(self) -> str | None:
-        """Returns the serial port in use, if any."""
+        """Return the currently connected port, if any."""
         return self._port
 
-    def send_command(self, command: int, *, source: str = "auto") -> bool:
+    def list_available_ports(self) -> list[str]:
+        """List available serial ports using WizardService.
+
+        Returns:
+            List of serial port names
+        """
+        from zebtrack.core.wizard_service import WizardService
+
+        ports = WizardService.detect_arduino_ports(use_cache=True)
+        return [port.get("device", "") for port in ports if port.get("device")]
+
+    def send_command(self, command: int | str, *, source: str = "auto") -> bool:
         """Sends a command to Arduino and reports outcome to controller."""
+        command_value: int
+        if isinstance(command, str):
+            if not command.isdigit():
+                self._notify_log(f"Comando inválido: {command}")
+                return False
+            command_value = int(command)
+        else:
+            command_value = command
+
         if not self.is_connected():
             self._notify_log("Não foi possível enviar comando: Arduino desconectado.")
-            self._notify_command(command, success=False, source=source)
+            self._notify_command(command_value, success=False, source=source)
             return False
 
         success = False
         try:
             assert self.arduino is not None
-            success = bool(self.arduino.send_command(command))
+            success = bool(self.arduino.send_command(command_value))
         except Exception:
             log.error(
                 "arduino_manager.command.error",
@@ -149,12 +176,12 @@ class ArduinoManager:
             success = False
 
         if success:
-            self._last_command = command
-            self._notify_log(f"Comando {command} enviado ao Arduino.")
+            self._last_command = command_value
+            self._notify_log(f"Comando {command_value} enviado ao Arduino.")
         else:
-            self._notify_log(f"Falha ao enviar comando {command} ao Arduino.")
+            self._notify_log(f"Falha ao enviar comando {command_value} ao Arduino.")
 
-        self._notify_command(command, success=success, source=source)
+        self._notify_command(command_value, success=success, source=source)
         return success
 
     def last_command(self) -> int | None:
@@ -172,7 +199,7 @@ class ArduinoManager:
         self._stop_event.set()
         thread = self._reader_thread
         self._reader_thread = None
-        if thread and thread.is_alive():
+        if thread and thread.is_alive() and thread is not threading.current_thread():
             thread.join(timeout=1.0)
         if self.arduino:
             try:
@@ -198,7 +225,7 @@ class ArduinoManager:
 
             try:
                 raw_line = serial_conn.readline()
-            except SerialException:
+            except SerialExceptionType:
                 log.warning("arduino_manager.reader.serial_exception", exc_info=True)
                 self._notify_log("Conexão serial com Arduino perdida.")
                 self.disconnect()

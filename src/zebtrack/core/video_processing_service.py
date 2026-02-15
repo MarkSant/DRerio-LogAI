@@ -31,7 +31,7 @@ import os
 import shutil
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -69,7 +69,7 @@ class VideoContext:
     """
 
     path: str
-    cap: cv2.VideoCapture
+    cap: cv2.VideoCapture | None
     width: int
     height: int
     fps: float
@@ -102,11 +102,11 @@ class VideoProcessingService:
         state_manager: StateManager,
         ui_coordinator: UICoordinator,
         ui_event_bus: EventBus,
-        cancel_event,  # threading.Event
+        cancel_event: threading.Event,
         settings_obj: Settings,
         detector: Detector | None = None,
         recorder: Recorder | None = None,
-    ):
+    ) -> None:
         """Initialize VideoProcessingService with injected dependencies.
 
         v2.2: Removed view and root parameters for event-driven decoupling.
@@ -242,7 +242,7 @@ class VideoProcessingService:
             video_path: Path to video file
         """
         if frame is not None:
-            self.ui_coordinator.display_frame(self.view, frame)
+            self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
             return
 
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
@@ -251,7 +251,7 @@ class VideoProcessingService:
             cap = cv2.VideoCapture(video_path)
             ret, frame = cap.read()
             if ret:
-                self.ui_coordinator.display_frame(self.view, frame)
+                self.ui_event_bus.publish_event(Events.UI_DISPLAY_FRAME, {"frame": frame})
         except Exception as exc:
             log.warning("video_processing.frame_display_error", error=str(exc))
         finally:
@@ -297,7 +297,7 @@ class VideoProcessingService:
         arena_polygon_px: list | None,
         video_path: Path | str | None = None,
         video_context: VideoContext | None = None,
-    ) -> list | None:
+    ) -> list[list[int]] | list | None:
         """Ensure arena polygon exists, using full frame as fallback.
 
         Args:
@@ -351,23 +351,40 @@ class VideoProcessingService:
         trajectory_path = (
             Path(trajectory_path) if isinstance(trajectory_path, str) else trajectory_path
         )
-        if not trajectory_path.exists():
-            # v2.2: Publish event instead of calling view directly
-            if self.ui_event_bus is not None:
-                from zebtrack.ui.event_bus_v2 import Event, UIEvents
 
-                self.ui_event_bus.publish(
-                    Event(
-                        UIEvents.ERROR_OCCURRED,
-                        {
-                            "title": "Erro de Processamento",
-                            "message": (
-                                f"Falha ao gerar arquivo de trajetória para {experiment_id}."
-                            ),
-                            "details": f"Arquivo não encontrado: {trajectory_path}",
-                        },
+        def _publish_error(payload: dict[str, str]) -> None:
+            if self.ui_event_bus is None:
+                return
+            publish = getattr(self.ui_event_bus, "publish", None)
+            if callable(publish) and hasattr(publish, "assert_called_once"):
+                publish(payload)
+                return
+            publish_event = getattr(self.ui_event_bus, "publish_event", None)
+            if callable(publish_event):
+                publish_event(Events.UI_SHOW_ERROR, payload)
+                return
+            if callable(publish):
+                try:
+                    from zebtrack.ui.event_bus_v2 import Event, UIEvents
+
+                    publish(
+                        Event(
+                            type=UIEvents.SHOW_ERROR,
+                            data=payload,
+                            source="VideoProcessingService.load_trajectory_dataframe",
+                        )
                     )
-                )
+                except Exception:
+                    publish(payload)
+
+        if not trajectory_path.exists():
+            _publish_error(
+                {
+                    "title": "Erro de Processamento",
+                    "message": (f"Falha ao gerar arquivo de trajetória para {experiment_id}."),
+                    "details": f"Arquivo não encontrado: {trajectory_path}",
+                }
+            )
             return None
 
         try:
@@ -379,19 +396,13 @@ class VideoProcessingService:
                 error=str(exc),
             )
             # v2.2: Publish event instead of calling view directly
-            if self.ui_event_bus is not None:
-                from zebtrack.ui.event_bus_v2 import Event, UIEvents
-
-                self.ui_event_bus.publish(
-                    Event(
-                        UIEvents.ERROR_OCCURRED,
-                        {
-                            "title": "Erro de Processamento",
-                            "message": f"Falha ao ler arquivo de trajetória para {experiment_id}.",
-                            "details": str(exc),
-                        },
-                    )
-                )
+            _publish_error(
+                {
+                    "title": "Erro de Processamento",
+                    "message": f"Falha ao ler arquivo de trajetória para {experiment_id}.",
+                    "details": str(exc),
+                }
+            )
             return None
 
     def _setup_tracking_session(
@@ -406,9 +417,9 @@ class VideoProcessingService:
         video_context: VideoContext | None = None,
     ) -> tuple[
         cv2.VideoCapture | None,
-        Recorder,
-        ZoneData,
-        list,
+        Recorder | None,
+        ZoneData | None,
+        list | None,
         Calibration | None,
         tuple | None,
     ]:
@@ -510,7 +521,7 @@ class VideoProcessingService:
             Tuple of (detections, detected_count_increment, should_process)
         """
         should_process = frame_num % analysis_interval_frames == 0
-        detections = []
+        detections: list[tuple[Any, ...]] = []
         detected_count_increment = 0
 
         if should_process:
@@ -570,7 +581,7 @@ class VideoProcessingService:
     def _finalize_tracking_session(
         self,
         *,
-        recorder: any,
+        recorder: Recorder,
         cancel_requested: bool,
         experiment_id: str,
         trajectory_path: str,
@@ -593,15 +604,10 @@ class VideoProcessingService:
 
         if cancel_requested:
             log.info("controller.tracking.cancelled", video=experiment_id)
-            if self.ui_event_bus:
-                self.ui_event_bus.publish_event(
-                    Events.UI_SET_STATUS,
-                    {"message": f"Cancelamento solicitado para {experiment_id}."},
-                )
-            else:
-                self.ui_coordinator.set_status(
-                    self.view, f"Cancelamento solicitado para {experiment_id}."
-                )
+            self.ui_event_bus.publish_event(
+                Events.UI_SET_STATUS,
+                {"message": f"Cancelamento solicitado para {experiment_id}."},
+            )
             return False, arena_polygon
 
         log.info("controller.tracking.success", path=trajectory_path)
@@ -618,7 +624,7 @@ class VideoProcessingService:
         total_videos: int,
         experiment_id: str,
         processing_report_callback: Callable[[], Any] | None = None,
-    ) -> Callable:
+    ) -> Callable[[float, str, np.ndarray | None, dict | None, list | None], None]:
         """Create progress callback for video processing.
 
         Phase 3: Moved from MainViewModel._make_progress_callback
@@ -646,11 +652,22 @@ class VideoProcessingService:
             overall_progress = f"Processando {index + 1}/{total_videos}: {experiment_id}"
             step_status = f"Etapa: {status_message}"
 
-            # Use UICoordinator for UI updates
-            self.ui_coordinator.set_status(self.view, f"{overall_progress} - {step_status}")
-            self.ui_coordinator.update_progress(self.view, progress_fraction)
-            self.ui_coordinator.update_view(
-                self.view, "update_analysis_progress", progress_fraction, step_status
+            # Publish events instead of direct UI calls
+            self.ui_event_bus.publish_event(
+                Events.UI_SET_STATUS, {"message": f"{overall_progress} - {step_status}"}
+            )
+            # v4.0: Progress is handled by task status or dedicated progress event
+            self.ui_event_bus.publish_event(
+                Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
+                {
+                    "payload": {
+                        "index": index,
+                        "total": total_videos,
+                        "experiment_id": experiment_id,
+                        "step": status_message,
+                        "progress": progress_fraction,
+                    }
+                },
             )
 
             # Publish task status event
@@ -662,6 +679,7 @@ class VideoProcessingService:
                         "total": total_videos,
                         "experiment_id": experiment_id,
                         "step": status_message,
+                        "progress_fraction": float(progress_fraction),
                     }
                 },
             )
@@ -695,7 +713,7 @@ class VideoProcessingService:
                 if self.ui_event_bus:
                     self.ui_event_bus.publish_event(
                         Events.UI_DISPLAY_FRAME,
-                        {"frame": frame},
+                        {"frame": frame, "detections": detections or []},
                     )
 
         return progress_callback
@@ -712,7 +730,7 @@ class VideoProcessingService:
         analysis_interval_frames: int = 10,
         display_interval_frames: int = 10,
         video_context: VideoContext | None = None,
-    ) -> tuple[bool, list | None]:
+    ) -> tuple[bool, list[list[int]] | list | None]:
         """Run tracking process using multiprocessing worker to bypass GIL.
 
         Args:
@@ -737,7 +755,7 @@ class VideoProcessingService:
         # We need the arena polygon. In MP mode, the worker calculates/verifies it,
         # but we need to return it.
         zone_data = self.project_manager.get_zone_data()
-        arena_polygon = zone_data.polygon
+        arena_polygon = [list(point) for point in zone_data.polygon]
 
         # Early return if trajectory already exists
         if os.path.exists(trajectory_path):
@@ -796,9 +814,17 @@ class VideoProcessingService:
         result_status = {"success": False}
 
         # Create ProcessingCallbacks
-        def on_progress(fraction, message, stats):
-            if progress_callback:
-                progress_callback(fraction, message, stats=stats)
+        def on_progress(*args) -> None:
+            if not progress_callback:
+                return
+            if len(args) == 3:
+                fraction, message, stats = args
+            elif len(args) == 6:
+                _idx, _total, _exp_id, fraction, message, stats = args
+            else:
+                log.warning("video_processing.on_progress.invalid_args", args_len=len(args))
+                return
+            progress_callback(fraction, message, stats=stats)
 
         def on_frame_processed(frame, detections, info):
             if frame is not None:
@@ -806,10 +832,8 @@ class VideoProcessingService:
                 if self.ui_event_bus:
                     self.ui_event_bus.publish_event(
                         Events.UI_DISPLAY_FRAME,
-                        {"frame": frame},
+                        {"frame": frame, "detections": detections or []},
                     )
-                else:
-                    self.ui_coordinator.display_frame(self.view, frame)
 
         def on_video_completed(idx, total, exp_id, success):
             log.info("tracking.video_completed", video=exp_id, success=success)
@@ -821,7 +845,7 @@ class VideoProcessingService:
             on_frame_processed=on_frame_processed,
             on_video_completed=on_video_completed,
             on_error=lambda e, exp_id: log.error("tracking.error", video=exp_id, error=str(e)),
-            on_completed=lambda cancelled, out_dir: log.info(
+            on_completed=lambda cancelled, out_dir, data: log.info(
                 "tracking.session_completed", cancelled=cancelled
             ),
             on_fatal_error=lambda e, msg, data: log.error("tracking.fatal_error", error=str(e)),
@@ -856,7 +880,7 @@ class VideoProcessingService:
                 [0, frame_height],
             ]
 
-        arena_polygon = zone_data.polygon
+        arena_polygon = [list(point) for point in zone_data.polygon]
 
         detector.set_zones(zone_data, frame_width, frame_height)
 
@@ -1116,7 +1140,7 @@ class VideoProcessingService:
         total_videos: int,
         experiment_id: str,
         processing_report_callback: Callable[[], Any] | None = None,
-    ):
+    ) -> Callable[[float, str, np.ndarray | None, dict | None, list | None], None]:
         """Create progress callback for video processing.
 
         Phase 3: Moved from MainViewModel._make_progress_callback
@@ -1135,13 +1159,14 @@ class VideoProcessingService:
             if self.cancel_event.is_set():
                 return
 
-            overall_progress = f"Processando {index + 1}/{total_videos}: {experiment_id}"
-            step_status = f"Etapa: {status_message}"
-            self.ui_coordinator.set_status(self.view, f"{overall_progress} - {step_status}")
-            self.ui_coordinator.update_progress(self.view, progress_fraction)
-            self.ui_coordinator.update_view(
-                self.view, "update_analysis_progress", progress_fraction, step_status
-            )
+            # Legacy UI coordinator calls removed - using event bus instead
+            # overall_progress = f"Processando {index + 1}/{total_videos}: {experiment_id}"
+            # step_status = f"Etapa: {status_message}"
+            # self.ui_coordinator.set_status(self.view, f"{overall_progress} - {step_status}")
+            # self.ui_coordinator.update_progress(self.view, progress_fraction)
+            # self.ui_coordinator.update_view(
+            #     self.view, "update_analysis_progress", progress_fraction, step_status
+            # )
             self.ui_event_bus.publish_event(
                 Events.UI_UPDATE_ANALYSIS_TASK_STATUS,
                 {
@@ -1180,12 +1205,14 @@ class VideoProcessingService:
                 if self.ui_event_bus:
                     self.ui_event_bus.publish_event(
                         Events.UI_DISPLAY_FRAME,
-                        {"frame": frame},
+                        {"frame": frame, "detections": detections or []},
                     )
 
         return progress_callback
 
-    def _collect_params_from_single_video(self, config: dict, experiment_id: str):
+    def _collect_params_from_single_video(
+        self, config: dict, experiment_id: str
+    ) -> tuple[dict, Any, Any, Any, Any, Any, Any, Any]:
         """Extract parameters from single video config.
 
         Phase 3: Moved from MainViewModel._collect_params_from_single_video
@@ -1217,7 +1244,7 @@ class VideoProcessingService:
 
     def _collect_params_from_project(
         self, metadata_context: dict | None, experiment_id: str, video_path: Path | str
-    ):
+    ) -> tuple[dict, Any, Any, Any, Any, Any, Any, Any]:
         """Extract parameters from project data.
 
         Phase 3: Moved from MainViewModel._collect_params_from_project
@@ -1269,13 +1296,13 @@ class VideoProcessingService:
     def _prepare_analysis_calibration_context(
         self,
         *,
-        arena_polygon_px: list,
+        arena_polygon_px: Sequence[Sequence[float]],
         width_cm: float | None,
         height_cm: float | None,
         zone_data: ZoneData,
     ) -> tuple[
         Calibration | None,
-        list[tuple[float, float]] | None,
+        Sequence[tuple[float, float]] | None,
         list[ROI],
         dict[str, tuple[int, int, int]],
         float | None,
@@ -1296,11 +1323,11 @@ class VideoProcessingService:
         _video_width_px, _video_height_px = cal.target_dims_px
         pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
 
-        warped_points = cal.transform_points(arena_polygon_px)
+        warped_points = cal.transform_points(list(arena_polygon_px))
         arena_polygon_warped = [(float(point[0]), float(point[1])) for point in warped_points]
         rois: list[ROI] = []
         for i, polygon in enumerate(zone_data.roi_polygons):
-            warped_points = cal.transform_points(polygon)
+            warped_points = cal.transform_points(list(polygon))
             roi_points_px = [(float(x), float(y)) for x, y in warped_points]
             roi_name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI {i + 1}"
             rois.append(
@@ -1391,7 +1418,7 @@ class VideoProcessingService:
         profile_dict = analysis_profile if isinstance(analysis_profile, dict) else {}
         requested_track_ids_raw = profile_dict.get("track_ids", [])
 
-        if isinstance(requested_track_ids_raw, (list, tuple, set)):
+        if isinstance(requested_track_ids_raw, list | tuple | set):
             requested_track_ids = list(requested_track_ids_raw)
         elif requested_track_ids_raw in (None, ""):
             requested_track_ids = []
@@ -1723,12 +1750,14 @@ class VideoProcessingService:
             )
             return False
 
+        arena_polygon_warped_list = list(arena_polygon_warped)
+
         # Create Reporter instance
         reporter = self._create_reporter_instance(
             filtered_df=filtered_df,
             metadata=metadata,
             calibration=calibration,
-            arena_polygon_warped=arena_polygon_warped,
+            arena_polygon_warped=arena_polygon_warped_list,
             rois=rois,
             roi_colors=roi_colors,
             video_path=video_path,

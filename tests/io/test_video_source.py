@@ -114,6 +114,7 @@ class TestVideoFileSource(unittest.TestCase):
 
         self.assertTrue(ret)
         self.assertIsNotNone(frame)
+        assert frame is not None
         self.assertEqual(frame.shape, (480, 640, 3))
 
     @patch("zebtrack.io.video_source.cv2.VideoCapture")
@@ -236,14 +237,17 @@ class TestVideoFileSource(unittest.TestCase):
 
         ret1, f1 = source.get_frame()
         self.assertTrue(ret1)
+        assert f1 is not None
         self.assertTrue(np.array_equal(f1, frame1))
 
         ret2, f2 = source.get_frame()
         self.assertTrue(ret2)
+        assert f2 is not None
         self.assertTrue(np.array_equal(f2, frame2))
 
         ret3, f3 = source.get_frame()
         self.assertTrue(ret3)
+        assert f3 is not None
         self.assertTrue(np.array_equal(f3, frame3))
 
         ret4, f4 = source.get_frame()

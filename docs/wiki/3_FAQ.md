@@ -10,7 +10,7 @@ Common answers and troubleshooting tips for ZebTrack-AI users.
 
 ```yaml
 ui_features:
- use_wizard_for_project_creation: true
+  use_wizard_for_project_creation: true
 ```
 
 Restart the application and the 5-step wizard will appear when you click **Create Project**.
@@ -28,7 +28,7 @@ Restart the application and the 5-step wizard will appear when you click **Creat
 
 ## Q: What's the recommended video format?
 
-**A:** MP4 (H.264) at 25–30 fps offers the best balance between size and quality. Higher bitrates improve detection, but ensure your storage and GPU can keep up. Other formats (AVI, MOV) work as long as OpenCV can decode them.
+**A:** MP4 (H.264) at 25-30 fps offers the best balance between size and quality. Higher bitrates improve detection, but ensure your storage and GPU can keep up. Other formats (AVI, MOV) work as long as OpenCV can decode them.
 
 ---
 
@@ -72,7 +72,7 @@ Templates include arena, ROI polygons, names, and colors. The wizard also reuses
 - **Intra-ROI metrics:** Distance, average speed, freezing, and transitions calculated solely within each ROI.
 - **Social proximity:** Percentage of time individuals remain inside dynamically computed proximity clusters (requires multi-animal tracking and calibration).
 
-See `docs/REFERENCE_GUIDE.md` Section 5 for formulas and exact definitions.
+See `docs/reference/operational_reference.md` Section 5 for formulas and exact definitions.
 
 ---
 
@@ -98,12 +98,12 @@ Open an issue on GitHub describing your environment (OS, Python version, GPU), a
 
 **A:** Reports now include enhanced velocity statistics:
 
-| Metric | Description |
-| --- | --- |
-| **Mean Speed (cm/s)** | Average swimming velocity |
-| **Max Speed (cm/s)** | Maximum instantaneous velocity |
+| Metric                  | Description                          |
+| ----------------------- | ------------------------------------ |
+| **Mean Speed (cm/s)**   | Average swimming velocity            |
+| **Max Speed (cm/s)**    | Maximum instantaneous velocity       |
 | **Median Speed (cm/s)** | Median velocity (robust to outliers) |
-| **Std Speed (cm/s)** | Standard deviation of velocity |
+| **Std Speed (cm/s)**    | Standard deviation of velocity       |
 
 Max Speed was added in v3.2 to help identify burst swimming behavior.
 
@@ -131,6 +131,7 @@ Zone names are 1-indexed for user display (Zona 1, 2, 3...) but stored as 0-inde
 2. **Re-process summaries** - Go to Reports tab and regenerate the unified report.
 
 Unified reports now include:
+
 - Subject columns (group, subject, day, experiment_id) appearing first
 - All geotaxis zone percentages properly populated
 - Proper column names with units

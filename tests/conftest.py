@@ -3,6 +3,7 @@ import os
 import platform
 import tkinter as tk
 import warnings
+from typing import Any
 
 import pytest
 import structlog
@@ -11,6 +12,7 @@ os.environ.setdefault("ZEBTRACK_SUPPRESS_POST_CREATION_GUIDE", "1")
 os.environ.setdefault("ZEBTRACK_SUPPRESS_WIZARD_DIALOGS", "1")
 # Suppress console logs during tests - this env var is checked by logging_config.py
 os.environ["ZEBTRACK_SUPPRESS_CONSOLE_LOGS"] = "1"
+HEADLESS_TESTS = os.environ.get("ZEBTRACK_HEADLESS_TESTS", "0") == "1"
 
 
 class _NullHandler(logging.Handler):
@@ -54,6 +56,23 @@ def _configure_silent_logging():
     )
 
 
+def _create_mock_tk_root():
+    from unittest.mock import MagicMock
+
+    root = MagicMock()
+    root._w = "."
+    root.children = {}
+    root.tk = MagicMock()
+    root.tk.call = MagicMock(return_value=())
+    root.winfo_id = MagicMock(return_value=12345)
+    root.destroy = MagicMock()
+    root.quit = MagicMock()
+    root.update_idletasks = MagicMock()
+    root.after = MagicMock()
+    root.after_cancel = MagicMock()
+    return root
+
+
 # Run IMMEDIATELY at import time, BEFORE any other imports
 _configure_silent_logging()
 
@@ -73,7 +92,7 @@ def suppress_tk_variable_finalizer_errors():
                 return
             raise
 
-    tk.Variable.__del__ = safe_del
+    tk.Variable.__del__ = safe_del  # type: ignore[method-assign]
     yield
 
 
@@ -171,6 +190,16 @@ def pytest_configure(config):
     )
 
 
+def pytest_collection_modifyitems(config, items):
+    if not HEADLESS_TESTS:
+        return
+
+    skip_gui = pytest.mark.skip(reason="GUI tests disabled in headless mode")
+    for item in items:
+        if "gui" in item.keywords:
+            item.add_marker(skip_gui)
+
+
 def pytest_sessionfinish(session, exitstatus):
     """
     Force cleanup of all resources before pytest exits.
@@ -243,7 +272,7 @@ def pytest_sessionfinish(session, exitstatus):
     try:
         import tkinter as tk
 
-        root = tk._default_root
+        root = tk._default_root  # type: ignore[attr-defined]
         if root:
             # Cancel ALL pending after() callbacks
             try:
@@ -303,9 +332,10 @@ def tkinter_session_root():
     can corrupt the Tcl/Tk library paths.
     """
     display = None
+    use_mock = HEADLESS_TESTS
 
     # Only use virtual display on Linux/Unix systems
-    if platform.system() == "Linux":
+    if platform.system() == "Linux" and not use_mock:
         try:
             from pyvirtualdisplay import Display  # type: ignore[attr-defined]
 
@@ -317,24 +347,20 @@ def tkinter_session_root():
             warnings.warn(f"Could not start virtual display: {e}", stacklevel=2)
 
     # Create the tkinter root window (once per session)
-    try:
-        root = tk.Tk()
-        root.withdraw()
-        root.update_idletasks()
-    except tk.TclError:
-        from unittest.mock import MagicMock
-
-        warnings.warn("Headless environment detected. Using Mock for Tkinter root.", stacklevel=2)
-        root = MagicMock()
-        root.tk = MagicMock()
-        root.tk.call = MagicMock(return_value=())
-        root.winfo_id = MagicMock(return_value=12345)
-        # Mock destroy/quit to prevent errors during cleanup
-        root.destroy = MagicMock()
-        root.quit = MagicMock()
-        root.update_idletasks = MagicMock()
-        root.after = MagicMock()
-        root.after_cancel = MagicMock()
+    if not use_mock:
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            root.update_idletasks()
+        except tk.TclError:
+            warnings.warn(
+                "Headless environment detected. Using Mock for Tkinter root.",
+                stacklevel=2,
+            )
+            root = _create_mock_tk_root()
+    else:
+        warnings.warn("Headless test mode enabled. Using Mock for Tkinter root.", stacklevel=2)
+        root = _create_mock_tk_root()
 
     yield root
 
@@ -462,9 +488,11 @@ def tkinter_root(tkinter_session_root):
     from unittest.mock import MagicMock
 
     if isinstance(tkinter_session_root, MagicMock):
-        test_window = MagicMock()
+        test_window: Any = MagicMock()
         test_window.master = tkinter_session_root
         test_window.tk = tkinter_session_root.tk
+        test_window._w = f"{tkinter_session_root._w}.toplevel"
+        test_window.children = {}
         test_window.winfo_id = MagicMock(return_value=67890)
         test_window.destroy = MagicMock()
         test_window.update_idletasks = MagicMock()
@@ -531,7 +559,7 @@ def single_aquarium_zone_data():
         aquariums=[
             AquariumData(
                 id=0,
-                polygon=[(0, 0), (1280, 0), (1280, 720), (0, 720)],
+                polygon=[[0, 0], [1280, 0], [1280, 720], [0, 720]],
                 roi_polygons=[],
                 roi_names=[],
                 roi_colors=[],
@@ -562,7 +590,7 @@ def multi_aquarium_zone_data():
         aquariums=[
             AquariumData(
                 id=0,
-                polygon=[(0, 0), (600, 0), (600, 720), (0, 720)],
+                polygon=[[0, 0], [600, 0], [600, 720], [0, 720]],
                 roi_polygons=[],
                 roi_names=[],
                 roi_colors=[],
@@ -572,7 +600,7 @@ def multi_aquarium_zone_data():
             ),
             AquariumData(
                 id=1,
-                polygon=[(680, 0), (1280, 0), (1280, 720), (680, 720)],
+                polygon=[[680, 0], [1280, 0], [1280, 720], [680, 720]],
                 roi_polygons=[],
                 roi_names=[],
                 roi_colors=[],
@@ -600,10 +628,10 @@ def multi_aquarium_zone_data_with_rois():
         aquariums=[
             AquariumData(
                 id=0,
-                polygon=[(0, 0), (600, 0), (600, 720), (0, 720)],
+                polygon=[[0, 0], [600, 0], [600, 720], [0, 720]],
                 roi_polygons=[
-                    [(50, 50), (200, 50), (200, 200), (50, 200)],  # Top-left ROI
-                    [(50, 520), (200, 520), (200, 670), (50, 670)],  # Bottom-left ROI
+                    [[50, 50], [200, 50], [200, 200], [50, 200]],  # Top-left ROI
+                    [[50, 520], [200, 520], [200, 670], [50, 670]],  # Bottom-left ROI
                 ],
                 roi_names=["Top", "Bottom"],
                 roi_colors=[(0, 255, 0), (255, 0, 0)],
@@ -613,9 +641,9 @@ def multi_aquarium_zone_data_with_rois():
             ),
             AquariumData(
                 id=1,
-                polygon=[(680, 0), (1280, 0), (1280, 720), (680, 720)],
+                polygon=[[680, 0], [1280, 0], [1280, 720], [680, 720]],
                 roi_polygons=[
-                    [(730, 50), (880, 50), (880, 200), (730, 200)],  # Top ROI
+                    [[730, 50], [880, 50], [880, 200], [730, 200]],  # Top ROI
                 ],
                 roi_names=["Top"],
                 roi_colors=[(0, 255, 0)],
@@ -671,7 +699,7 @@ def sample_multi_aquarium_trajectories(sample_trajectory_df):
     df_aq0 = sample_trajectory_df.copy()
     aq0 = AquariumData(
         id=0,
-        polygon=[(0, 0), (600, 0), (600, 720), (0, 720)],
+        polygon=[[0, 0], [600, 0], [600, 720], [0, 720]],
         group="Controle",
         subject_id="S01",
     )
@@ -684,7 +712,7 @@ def sample_multi_aquarium_trajectories(sample_trajectory_df):
     df_aq1["center_x"] = df_aq1["center_x"] + 680
     aq1 = AquariumData(
         id=1,
-        polygon=[(680, 0), (1280, 0), (1280, 720), (680, 720)],
+        polygon=[[680, 0], [1280, 0], [1280, 720], [680, 720]],
         group="Tratamento",
         subject_id="S02",
     )

@@ -6,6 +6,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -100,8 +101,9 @@ class TestProjectManager(unittest.TestCase):
         }
 
         if include_summary:
-            video_entry["parquet_files"]["summary"] = summary_path
-            video_entry["parquet_files"]["report_docx"] = report_path
+            parquet_files = cast(dict[str, Any], video_entry["parquet_files"])
+            parquet_files["summary"] = summary_path
+            parquet_files["report_docx"] = report_path
 
         pm.project_data = {
             "project_name": "test",

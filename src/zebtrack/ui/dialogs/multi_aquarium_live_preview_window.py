@@ -70,12 +70,12 @@ class MultiAquariumLivePreviewWindow:
 
         # Aquarium canvases
         self.aquarium_canvases: dict[int, tk.Canvas] = {}
-        self.aquarium_labels: dict[int, tk.Label] = {}
+        self.aquarium_labels: dict[int, ttk.Label] = {}
         self.aquarium_photo_images: dict[int, ImageTk.PhotoImage] = {}
 
         # Status labels
-        self.timer_label: tk.Label | None = None
-        self.status_label: tk.Label | None = None
+        self.timer_label: ttk.Label | None = None
+        self.status_label: ttk.Label | None = None
 
         # Create UI
         self._create_ui()
@@ -257,12 +257,13 @@ class MultiAquariumLivePreviewWindow:
             remaining_min = int(remaining // 60)
             remaining_sec = int(remaining % 60)
 
-            self.timer_label.config(
-                text=(
-                    f"Tempo: {elapsed_min:02d}:{elapsed_sec:02d} / "
-                    f"{remaining_min:02d}:{remaining_sec:02d}"
+            if self.timer_label:
+                self.timer_label.config(
+                    text=(
+                        f"Tempo: {elapsed_min:02d}:{elapsed_sec:02d} / "
+                        f"{remaining_min:02d}:{remaining_sec:02d}"
+                    )
                 )
-            )
 
             # Auto-stop if time expired
             if remaining <= 0 and self.on_stop_callback:
@@ -279,8 +280,10 @@ class MultiAquariumLivePreviewWindow:
             return
 
         self.is_stopped = True
-        self.stop_button.config(state=tk.DISABLED)
-        self.status_label.config(text="Status: Parando...", foreground="orange")
+        if self.stop_button:
+            self.stop_button.config(state=tk.DISABLED)
+        if self.status_label:
+            self.status_label.config(text="Status: Parando...", foreground="orange")
 
         log.info("multi_aquarium_preview.stop_clicked")
 

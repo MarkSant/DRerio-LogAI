@@ -13,6 +13,7 @@ Cenários cobertos:
 6. Estabilização temporal (temporal consistency, outlier detection)
 """
 
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import cv2
@@ -66,7 +67,7 @@ def mock_video_file(tmp_path):
     video_path = tmp_path / "test_video.mp4"
 
     # Criar vídeo simples com OpenCV
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    fourcc = cast(Any, cv2).VideoWriter_fourcc(*"mp4v")
     out = cv2.VideoWriter(str(video_path), fourcc, 30.0, (640, 480))
 
     # Escrever 15 frames
@@ -311,7 +312,7 @@ class TestAquariumDetectorExtraction:
         mock_box.conf = 0.85
         mock_box.xyxy = [np.array([100, 100, 540, 380])]
 
-        mock_results = [MagicMock()]
+        mock_results: list[MagicMock] = [MagicMock()]
         mock_results[0].boxes = [mock_box]
 
         polygon = detector._extract_polygon_from_detection(sample_frame, mock_results)
@@ -327,7 +328,7 @@ class TestAquariumDetectorExtraction:
     @pytest.mark.skipif(not ULTRALYTICS_AVAILABLE, reason="Ultralytics not available")
     def test_extract_polygon_empty_results(self, detector, sample_frame):
         """Teste de extração quando resultado está vazio."""
-        mock_results = []
+        mock_results: list[MagicMock] = []
 
         polygon = detector._extract_polygon_from_detection(sample_frame, mock_results)
 

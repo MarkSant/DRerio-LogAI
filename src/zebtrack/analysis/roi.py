@@ -74,7 +74,7 @@ class ROIAnalyzer:
         self._inclusion_rule = inclusion_rule
         self._buffer_radius_value = buffer_radius_value or 0.5
         self._min_bbox_overlap_ratio = min_bbox_overlap_ratio or 0.10
-        self._buffered_rois_cache = {}  # Cache for buffered ROI geometries
+        self._buffered_rois_cache: dict[str, Any] = {}  # Cache for buffered ROI geometries
         self._roi_geometries_px = self._normalize_roi_geometries()
         self._validate_rois()
         self._calculate_presence_in_rois()
@@ -88,7 +88,7 @@ class ROIAnalyzer:
         """Check for empty or invalid ROIs."""
         if not self._rois:
             raise ValueError("ROI list cannot be empty.")
-        for name, roi in self._rois.items():
+        for name, _roi in self._rois.items():
             geometry = self._roi_geometries_px[name]
             if not isinstance(geometry, BaseGeometry) or geometry.is_empty:
                 raise ValueError(f"ROI '{name}' has invalid geometry.")
@@ -544,7 +544,7 @@ class ROIAnalyzer:
             'median', and 'std_dev' keys, or None if no data available.
 
         """
-        results = {}
+        results: dict[str, dict[str, float] | None] = {}
         # Ensure velocity is calculated on the base analyzer
         if "v_mag" not in self._b_analyzer.trajectory_data.columns:
             self._b_analyzer.calculate_velocity_timeseries()
@@ -597,7 +597,7 @@ class ROIAnalyzer:
             by straight-line distance) or None if insufficient data.
 
         """
-        results = {}
+        results: dict[str, float | None] = {}
         for name in self._rois:
             roi_traj = self._get_filtered_trajectory(name)
             if len(roi_traj) < 2:

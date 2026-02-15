@@ -137,7 +137,7 @@ class PreviewPolygonDialog:
             ratio = min(max_width / width, max_height / height)
             new_width = int(width * ratio)
             new_height = int(height * ratio)
-            pil_image = pil_image.resize((new_width, new_height), Image.LANCZOS)
+            pil_image = pil_image.resize((new_width, new_height), Image.LANCZOS)  # type: ignore[attr-defined]
 
         # Convert to PhotoImage
         self.photo = ImageTk.PhotoImage(pil_image)

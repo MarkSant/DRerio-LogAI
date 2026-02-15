@@ -1,4 +1,4 @@
-# Sprint 27 – Project Lifecycle Extraction (Executive Summary)
+# Sprint 27 - Project Lifecycle Extraction (Executive Summary)
 
 > Detailed references:
 >
@@ -23,9 +23,9 @@
 
 ## Sequencing & Mitigations
 
-1. **Extract groups A & C first** – minimal state, quick wins.
-2. **Follow with group D** – context manager and zone helpers unblock overrides.
-3. **Finish with group B** – return updated flags/metadata so the ViewModel keeps
+1. **Extract groups A & C first** - minimal state, quick wins.
+2. **Follow with group D** - context manager and zone helpers unblock overrides.
+3. **Finish with group B** - return updated flags/metadata so the ViewModel keeps
    ownership of UI notifications.
 4. Keep `_using_project_overrides` flag in the ViewModel until Sprint 28 when we
    can hand it to `StateManager`.

@@ -71,8 +71,8 @@ Sprint 23 realizou uma **análise completa e profunda** do MainViewModel (5,642 
 
 | Métrica | Valor | Método |
 |---------|-------|--------|
-| **Método mais chamado** | 11× | `_publish_processing_mode` (núcleo) |
-| **2º mais chamado** | 9× | `refresh_project_views` (UI) |
+| **Método mais chamado** | 11x | `_publish_processing_mode` (núcleo) |
+| **2º mais chamado** | 9x | `refresh_project_views` (UI) |
 | **Maior fan-out** | 7 chamadas | `start_recording` (orchestration) |
 | **2º maior fan-out** | 6 chamadas | `start_single_video_processing` |
 | **Métodos sem dependências** | ~95 | Isolados, fáceis de extrair |

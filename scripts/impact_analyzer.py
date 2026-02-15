@@ -330,7 +330,7 @@ class ImpactAnalyzer:
                     self.import_graph[rel_path].add(imp)
                     self.reverse_import_graph[imp].add(rel_path)
 
-            for module, names in visitor.from_imports.items():
+            for module, _names in visitor.from_imports.items():
                 if module.startswith("zebtrack"):
                     self.import_graph[rel_path].add(module)
                     self.reverse_import_graph[module].add(rel_path)

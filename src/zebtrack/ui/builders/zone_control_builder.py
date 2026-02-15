@@ -65,6 +65,10 @@ class ZoneControlBuilder:
                 else:
                     log.error("zone_control_builder.save_project.failed", error=str(e))
 
+        # Clear the dirty flag — zones are now fully committed
+        if hasattr(self.gui, "_zones_dirty"):
+            self.gui._zones_dirty = False
+
         self._refresh_video_tree_dual_mode()
 
         # 2. Emit zone saved event to resume pending recording (if any)
@@ -453,7 +457,7 @@ class ZoneControlBuilder:
         ).pack(side="left")
 
         self.gui.overlap_frame = ttk.Frame(self.gui.roi_inclusion_frame)
-        ttk.Label(self.gui.overlap_frame, text="Mín. fração de sobreposição (0–1):").pack(
+        ttk.Label(self.gui.overlap_frame, text="Mín. fração de sobreposição (0-1):").pack(
             side="left", padx=(0, 5)
         )
         self.gui.overlap_entry = ttk.Entry(

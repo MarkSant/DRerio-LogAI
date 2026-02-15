@@ -1,0 +1,49 @@
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  precision: 2
+  round: down
+  status:
+    project:
+      core_linux:
+        target: auto
+        threshold: 1%
+        if_ci_failed: error
+        flags:
+          - core-linux
+      core_windows:
+        target: auto
+        threshold: 1%
+        flags:
+          - core-windows
+        informational: true
+      gui_linux:
+        target: auto
+        threshold: 1%
+        flags:
+          - gui-linux
+        informational: true
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: true
+
+flags:
+  core-linux:
+    paths:
+      - src/**
+    carryforward: true
+  core-windows:
+    paths:
+      - src/**
+    carryforward: true
+  gui-linux:
+    paths:
+      - src/zebtrack/ui/**
+    carryforward: true

@@ -6,11 +6,14 @@ Tests recording session lifecycle, Arduino integration, timed recording,
 and state management coordination.
 """
 
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import pytest
 
 from zebtrack.core.recording_service import RecordingService
+
+type ProjectData = dict[str, Any]
 
 
 @pytest.fixture
@@ -35,7 +38,7 @@ def mock_state_manager():
 def mock_project_manager():
     """Create mock ProjectManager."""
     pm = Mock()
-    pm.project_data = {}
+    pm.project_data = cast(ProjectData, {})
     pm.get_zone_data = Mock(return_value=Mock(polygon=[[0, 0], [100, 0], [100, 100], [0, 100]]))
     return pm
 
@@ -135,7 +138,7 @@ class TestScheduleRecording:
             "cobaia": "1",
             "arduino_enabled": False,
         }
-        project_data = {
+        project_data: ProjectData = {
             "use_countdown": False,
             "countdown_duration_s": 0,
         }
@@ -156,7 +159,7 @@ class TestScheduleRecording:
             "camera_width": 640,
             "camera_height": 480,
         }
-        project_data = {
+        project_data: ProjectData = {
             "use_countdown": True,
             "countdown_duration_s": 3,
         }
@@ -178,7 +181,7 @@ class TestScheduleRecording:
             "camera_width": 640,
             "camera_height": 480,
         }
-        project_data = {
+        project_data: ProjectData = {
             "use_countdown": True,
             "countdown_duration_s": 0,  # Zero duration = immediate start
         }
@@ -202,7 +205,7 @@ class TestStartSession:
             "camera_width": None,  # Missing dimension
             "camera_height": 480,
         }
-        project_data = {}
+        project_data: ProjectData = {}
 
         recording_service.start_session(context, project_data, "manual")
 
@@ -220,7 +223,7 @@ class TestStartSession:
             "camera_height": 480,
             "arduino_enabled": False,
         }
-        project_data = {}
+        project_data: ProjectData = {}
 
         mock_controller.recorder.start_recording = Mock(return_value=True)
 
@@ -244,7 +247,7 @@ class TestStartSession:
             "camera_height": 480,
             "arduino_enabled": False,
         }
-        project_data = {}
+        project_data: ProjectData = {}
 
         mock_controller.recorder.start_recording = Mock(return_value=True)
 
@@ -264,7 +267,7 @@ class TestStartSession:
             "camera_width": 640,
             "camera_height": 480,
         }
-        project_data = {}
+        project_data: ProjectData = {}
 
         mock_controller.recorder.start_recording = Mock(return_value=False)
 
@@ -287,7 +290,7 @@ class TestStartSession:
             "group": "G1",
             "cobaia": "3",  # Box number 3
         }
-        project_data = {}
+        project_data: ProjectData = {}
 
         mock_controller.recorder.start_recording = Mock(return_value=True)
         mock_controller.arduino_manager.send_command = Mock()
@@ -308,7 +311,7 @@ class TestStartSession:
             "camera_height": 480,
             "arduino_enabled": False,
         }
-        project_data = {
+        project_data: ProjectData = {
             "use_timed_recording": True,
             "recording_duration_s": 60,  # 60 seconds
         }
@@ -332,7 +335,7 @@ class TestStartSession:
             "camera_height": 480,
             "arduino_enabled": False,
         }
-        project_data = {}
+        project_data: ProjectData = {}
 
         mock_controller.recorder.start_recording = Mock(return_value=True)
 
@@ -383,7 +386,7 @@ class TestStopSession:
         self, recording_service, mock_controller, mock_project_manager
     ):
         """Test stop_session sends Arduino stop command."""
-        mock_project_manager.project_data = {"use_arduino": True}
+        mock_project_manager.project_data = cast(ProjectData, {"use_arduino": True})
         mock_controller.arduino_manager.is_connected = Mock(return_value=True)
         mock_controller.arduino_manager.send_command = Mock(return_value=True)
 
@@ -398,7 +401,7 @@ class TestStopSession:
         self, recording_service, mock_controller, mock_project_manager
     ):
         """Test stop_session handles Arduino not connected gracefully."""
-        mock_project_manager.project_data = {"use_arduino": True}
+        mock_project_manager.project_data = cast(ProjectData, {"use_arduino": True})
         mock_controller.arduino_manager.is_connected = Mock(return_value=False)
 
         # Should not raise exception
@@ -528,7 +531,7 @@ class TestIntegrationScenarios:
             "camera_height": 480,
             "arduino_enabled": False,
         }
-        project_data = {
+        project_data: ProjectData = {
             "use_countdown": False,
             "use_timed_recording": True,
             "recording_duration_s": 30,
@@ -565,7 +568,7 @@ class TestIntegrationScenarios:
             "group": "G1",
             "cobaia": "2",
         }
-        project_data = {"use_countdown": False}
+        project_data: ProjectData = {"use_countdown": False}
 
         mock_controller.recorder.start_recording = Mock(return_value=True)
         mock_controller.arduino_manager.send_command = Mock()
@@ -591,7 +594,7 @@ class TestRecordingServiceRecorderFailures:
             "camera_height": 480,
             "arduino_enabled": False,
         }
-        project_data = {}
+        project_data: ProjectData = {}
 
         mock_controller.recorder.start_recording = Mock(return_value=False)
 
@@ -615,7 +618,7 @@ class TestRecordingServiceRecorderFailures:
             "camera_height": 480,
             "arduino_enabled": False,
         }
-        project_data = {}
+        project_data: ProjectData = {}
 
         # Simulate disk full or permission error
         mock_controller.recorder.start_recording = Mock(
@@ -646,7 +649,7 @@ class TestRecordingServiceRecorderFailures:
             "camera_height": 480,
             "arduino_enabled": False,
         }
-        project_data = {}
+        project_data: ProjectData = {}
 
         recording_service.controller.recorder.start_recording = Mock(return_value=True)
 
@@ -674,7 +677,7 @@ class TestRecordingServiceArduinoFailures:
             "group": "G1",
             "cobaia": "3",
         }
-        project_data = {}
+        project_data: ProjectData = {}
 
         mock_controller.recorder.start_recording = Mock(return_value=True)
         mock_controller.arduino_manager.send_command = Mock(return_value=False)
@@ -700,7 +703,7 @@ class TestRecordingServiceArduinoFailures:
             "group": "G1",
             "cobaia": "2",
         }
-        project_data = {}
+        project_data: ProjectData = {}
 
         mock_controller.recorder.start_recording = Mock(return_value=True)
         mock_controller.arduino_manager.send_command = Mock(
@@ -715,7 +718,7 @@ class TestRecordingServiceArduinoFailures:
         self, recording_service, mock_controller, mock_project_manager
     ):
         """Test stop_session when Arduino is not connected."""
-        mock_project_manager.project_data = {"use_arduino": True}
+        mock_project_manager.project_data = cast(ProjectData, {"use_arduino": True})
         mock_controller.arduino_manager.is_connected = Mock(return_value=False)
 
         # Execute
@@ -728,7 +731,7 @@ class TestRecordingServiceArduinoFailures:
         self, recording_service, mock_controller, mock_project_manager
     ):
         """Test stop_session when Arduino stop command fails."""
-        mock_project_manager.project_data = {"use_arduino": True}
+        mock_project_manager.project_data = cast(ProjectData, {"use_arduino": True})
         mock_controller.arduino_manager.is_connected = Mock(return_value=True)
         mock_controller.arduino_manager.send_command = Mock(return_value=False)
 
@@ -769,7 +772,7 @@ class TestRecordingServiceStateManagerFailures:
             "camera_height": 480,
             "arduino_enabled": False,
         }
-        project_data = {}
+        project_data: ProjectData = {}
 
         mock_controller.recorder.start_recording = Mock(return_value=True)
         mock_state_manager.update_recording_state = Mock(
@@ -832,7 +835,7 @@ class TestRecordingServiceTimedRecordingEdgeCases:
             "camera_height": 480,
             "arduino_enabled": False,
         }
-        project_data = {
+        project_data: ProjectData = {
             "use_timed_recording": True,
             "recording_duration_s": 60,
         }
@@ -855,7 +858,7 @@ class TestRecordingServiceTimedRecordingEdgeCases:
             "camera_height": 480,
             "arduino_enabled": False,
         }
-        project_data = {
+        project_data: ProjectData = {
             "use_timed_recording": True,
             "recording_duration_s": 0,  # Zero duration
         }
@@ -878,7 +881,7 @@ class TestRecordingServiceTimedRecordingEdgeCases:
             "camera_height": 480,
             "arduino_enabled": False,
         }
-        project_data = {
+        project_data: ProjectData = {
             "use_timed_recording": True,
             "recording_duration_s": -10,  # Negative duration
         }

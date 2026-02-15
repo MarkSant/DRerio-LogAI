@@ -1,5 +1,6 @@
 from threading import Event
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -42,7 +43,7 @@ def coordinator_with_view(tmp_path):
         project_manager=project_manager,
         detector_service=detector_service,
         weight_manager=weight_manager,
-        settings_obj=settings,
+        settings_obj=cast(Any, settings),
         ui_coordinator=ui_coordinator,
         ui_state_controller=ui_state_controller,
         cancel_event=cancel_event,

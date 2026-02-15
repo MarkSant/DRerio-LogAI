@@ -1,6 +1,7 @@
 """Tests for CanvasManager component."""
 
 from tkinter import Canvas
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -8,6 +9,7 @@ import pytest
 from PIL import Image
 
 from zebtrack.ui.components.canvas_manager import CanvasManager
+from zebtrack.ui.events import Events
 
 
 @pytest.fixture
@@ -225,6 +227,106 @@ class TestCoordinateTransformation:
         assert abs(result["distance"] - 70.71) < 0.01
         assert result["x"] == 100.0
         assert result["y"] == 0.0
+
+
+@pytest.mark.gui
+class TestCanvasAccessAndEvents:
+    """Tests for canvas access and event handlers."""
+
+    def test_get_canvas_missing_video_display(self, tkinter_root):
+        """Return None when video_display is missing."""
+        gui = SimpleNamespace(root=tkinter_root)
+        manager = CanvasManager(gui)
+
+        assert manager._get_canvas() is None
+
+    def test_get_canvas_destroyed(self, canvas_manager, mock_gui):
+        """Return None when canvas is destroyed."""
+        mock_gui.video_display.canvas.winfo_exists.return_value = False
+
+        assert canvas_manager._get_canvas() is None
+
+    def test_on_zones_updated_invalid_data(self, canvas_manager):
+        """Ignore non-dict payloads."""
+        canvas_manager.update_zone_listbox = Mock()
+
+        canvas_manager._on_zones_updated(["invalid"])
+
+        canvas_manager.update_zone_listbox.assert_not_called()
+
+    def test_on_zones_updated_updates_listbox(self, canvas_manager):
+        """Update listbox with provided zone data."""
+        canvas_manager.update_zone_listbox = Mock()
+        zone_data = Mock()
+
+        canvas_manager._on_zones_updated({"zone_data": zone_data})
+
+        canvas_manager.update_zone_listbox.assert_called_once_with(zone_data)
+
+    def test_on_polygon_edit_requested_invalid_data(self, canvas_manager):
+        """Ignore non-dict payloads."""
+        canvas_manager.setup_interactive_polygon = Mock()
+
+        canvas_manager._on_polygon_edit_requested(["invalid"])
+
+        canvas_manager.setup_interactive_polygon.assert_not_called()
+
+    def test_on_polygon_edit_requested(self, canvas_manager):
+        """Set up polygon editing when payload is valid."""
+        canvas_manager.setup_interactive_polygon = Mock()
+        polygon = np.array([[0, 0], [10, 0], [10, 10]])
+
+        canvas_manager._on_polygon_edit_requested({"polygon": polygon})
+
+        canvas_manager.setup_interactive_polygon.assert_called_once_with(polygon)
+
+    def test_on_live_frame_update_invalid_data(self, canvas_manager):
+        """Ignore non-dict payloads for live frames."""
+        canvas_manager.update_video_frame = Mock()
+
+        canvas_manager._on_live_frame_update(["invalid"])
+
+        canvas_manager.update_video_frame.assert_not_called()
+
+    def test_on_live_frame_update_without_frame(self, canvas_manager):
+        """Ignore payloads without a frame."""
+        canvas_manager.update_video_frame = Mock()
+
+        canvas_manager._on_live_frame_update({"detections": []})
+
+        canvas_manager.update_video_frame.assert_not_called()
+
+    def test_on_live_frame_update_calls_update(self, canvas_manager):
+        """Forward valid frame and detections to update."""
+        canvas_manager.update_video_frame = Mock()
+        frame = np.zeros((2, 2, 3), dtype=np.uint8)
+
+        canvas_manager._on_live_frame_update({"frame": frame, "detections": [1, 2]})
+
+        canvas_manager.update_video_frame.assert_called_once_with(frame, [1, 2])
+
+    def test_setup_interactive_polygon_updates_gui(self, canvas_manager, mock_gui):
+        """Populate edited points and show interactive controls."""
+        polygon = np.array([[0, 0], [10, 0], [10, 10]])
+        canvas_manager.renderer.draw_interactive_polygon = Mock()
+
+        canvas_manager.setup_interactive_polygon(polygon)
+
+        assert mock_gui.edited_polygon_points == polygon.tolist()
+        assert mock_gui.root.after.called
+        mock_gui.zone_controls.show_interactive_buttons.assert_called_once()
+
+    def test_unsubscribe_from_live_frames(self, canvas_manager, mock_gui):
+        """Unsubscribe from live frame events when event bus is available."""
+        mock_gui.event_bus = Mock()
+        canvas_manager._live_frame_subscription = object()
+
+        canvas_manager.unsubscribe_from_live_frames()
+
+        mock_gui.event_bus.unsubscribe.assert_called_once_with(
+            Events.UI_UPDATE_LIVE_FRAME, canvas_manager._on_live_frame_update
+        )
+        assert canvas_manager._live_frame_subscription is None
 
 
 @pytest.mark.gui
@@ -640,8 +742,27 @@ class TestFrameDisplay:
 class TestDetectionOverlay:
     """Tests for detection overlay methods."""
 
-    # These tests target methods that were in CanvasManager but might have moved.
-    # If they are still there or moved to a helper, they need updating.
-    # Based on recent file read, these methods seem missing from the new CanvasManager.
-    # They might have been refactored into renderer or elsewhere.
-    pass
+    def test_filter_detections_by_track_supports_six_tuple(self, canvas_manager):
+        detections = [
+            (10, 10, 20, 20, 0.9, 1),
+            (30, 30, 40, 40, 0.8, 2),
+        ]
+
+        filtered = canvas_manager._filter_detections_by_track(detections, "2")
+
+        assert filtered == [(30, 30, 40, 40, 0.8, 2)]
+
+    def test_update_track_options_supports_six_tuple(self, canvas_manager, mock_gui):
+        mock_gui.state_synchronizer = Mock()
+        mock_gui.state_synchronizer._update_track_options = Mock()
+
+        detections = [
+            (10, 10, 20, 20, 0.9, 3),
+            (30, 30, 40, 40, 0.8, 1),
+        ]
+
+        canvas_manager._update_analysis_track_options_from_detections(detections)
+
+        mock_gui.state_synchronizer._update_track_options.assert_called_once_with(
+            ["Todos", "1", "3"]
+        )

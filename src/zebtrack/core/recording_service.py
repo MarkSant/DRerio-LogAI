@@ -304,6 +304,7 @@ class RecordingService:
         def update_timer(seconds_left):
             if seconds_left > 0:
                 countdown_label.config(text=str(seconds_left))
+            if self.root:
                 self.root.after(1000, lambda: update_timer(seconds_left - 1))
             else:
                 countdown_window.destroy()

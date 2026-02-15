@@ -243,6 +243,7 @@ class TestParquetImport(unittest.TestCase):
         zone_data: ZoneData | None = pm.load_zones_from_parquet(video_info)
 
         self.assertIsNotNone(zone_data)
+        assert zone_data is not None
         self.assertIsNotNone(zone_data.polygon)
         self.assertEqual(len(zone_data.polygon), 4)  # Rectangle has 4 points
         self.assertEqual(zone_data.polygon[0], [0, 0])
@@ -258,6 +259,7 @@ class TestParquetImport(unittest.TestCase):
         zone_data: ZoneData | None = pm.load_zones_from_parquet(video_info)
 
         self.assertIsNotNone(zone_data)
+        assert zone_data is not None
         self.assertIsNotNone(zone_data.polygon)
         self.assertEqual(len(zone_data.roi_polygons), 3)
         self.assertEqual(len(zone_data.roi_names), 3)
@@ -291,6 +293,7 @@ class TestParquetImport(unittest.TestCase):
 
         # Should load arena but skip invalid ROIs
         self.assertIsNotNone(zone_data)
+        assert zone_data is not None
         self.assertIsNotNone(zone_data.polygon)
         self.assertEqual(zone_data.roi_polygons, [])  # ROIs not loaded
 

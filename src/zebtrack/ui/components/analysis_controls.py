@@ -207,10 +207,10 @@ class AnalysisControlsWidget(BaseWidget):
         # Convert to PhotoImage and display
         photo = ImageTk.PhotoImage(image)
         self.analysis_video_label.config(image=photo)
-        self.analysis_video_label.image = photo  # Keep a reference
+        self.analysis_video_label.image = photo  # type: ignore[attr-defined]  # Keep a reference
 
     def clear_frame(self) -> None:
         """Clear the video display."""
         if self.analysis_video_label:
             self.analysis_video_label.config(image="")
-            self.analysis_video_label.image = None
+            self.analysis_video_label.image = None  # type: ignore[attr-defined]

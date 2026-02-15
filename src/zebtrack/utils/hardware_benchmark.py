@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -278,7 +279,7 @@ def detect_hardware_profile() -> HardwareProfile:
 
     # Generate fingerprint for cache invalidation
     fingerprint_data = f"{profile.cpu_name}|{profile.gpu_name}|{profile.gpu_memory_gb}"
-    profile.fingerprint = hashlib.md5(fingerprint_data.encode()).hexdigest()[:12]
+    profile.fingerprint = hashlib.sha256(fingerprint_data.encode()).hexdigest()[:12]
 
     log.info(
         "hardware.profile_detected",
@@ -329,7 +330,7 @@ def _find_openvino_model() -> Path | None:
 
 def _benchmark_video_decode(video_path: Path, num_frames: int = 50) -> dict[str, BenchmarkResult]:
     """Benchmark video decoding with different backends."""
-    results = {}
+    results: dict[str, BenchmarkResult] = {}
 
     backends = [
         ("FFMPEG", cv2.CAP_FFMPEG, "Software decode (FFmpeg)"),
@@ -457,7 +458,7 @@ def _benchmark_pytorch_cuda(
     num_iterations: int = 30,
 ) -> dict[str, BenchmarkResult]:
     """Benchmark PyTorch CUDA inference (for NVIDIA GPUs)."""
-    results = {}
+    results: dict[str, BenchmarkResult] = {}
 
     try:
         import torch
@@ -631,7 +632,7 @@ def _generate_recommendation(
     if profile.openvino_available:
         # Find best device for live (prioritize latency)
         best_live_fps = 0.0
-        for key, result in pipeline_live_results.items():
+        for _key, result in pipeline_live_results.items():
             if result.fps > best_live_fps:
                 best_live_fps = result.fps
                 recommendation.device_live = result.device
@@ -678,7 +679,7 @@ def _generate_recommendation(
 
 def run_adaptive_benchmark(
     quick_mode: bool = False,
-    progress_callback: callable | None = None,
+    progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> SystemBenchmarkResult:
     """
     Run adaptive benchmark based on detected hardware.
@@ -859,7 +860,7 @@ def save_benchmark_cache(result: SystemBenchmarkResult) -> None:
 def get_or_run_benchmark(
     force_rerun: bool = False,
     quick_mode: bool = False,
-    progress_callback: callable | None = None,
+    progress_callback: Callable[[int, int, str], None] | None = None,
 ) -> SystemBenchmarkResult:
     """
     Get benchmark results from cache or run new benchmark if needed.

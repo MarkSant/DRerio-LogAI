@@ -88,6 +88,7 @@ class TestDetectorServiceIntegration(unittest.TestCase):
 
         # Create REAL DetectorService for integration testing
         state_manager = StateManager()
+        self.state_manager = state_manager
         model_service = ModelService(self.mock_wm)
         detector_service = DetectorService(
             state_manager=state_manager,
@@ -125,6 +126,10 @@ class TestDetectorServiceIntegration(unittest.TestCase):
             "YOLO (Ultralytics)": MockDetectorPlugin,
             "OpenVINO": MockDetectorPlugin,
         }
+
+    def tearDown(self):
+        if hasattr(self, "state_manager") and self.state_manager:
+            self.state_manager.shutdown()
 
     def test_detector_initialization_workflow(self):
         """Test complete detector initialization through controller."""

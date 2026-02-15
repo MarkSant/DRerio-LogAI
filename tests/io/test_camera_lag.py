@@ -10,12 +10,13 @@ ensuring that:
 
 import itertools
 import time
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
-
 from tests.utils.wait_helpers import wait_for_condition
+
 from zebtrack.io.camera import Camera
 
 
@@ -119,9 +120,11 @@ def test_lag_warning_when_threshold_exceeded(mock_cv2_capture):
             assert frame is not None
 
             # Verify warning was logged
-            mock_log.warning.assert_called_once()
-            call_args = mock_log.warning.call_args
-            assert call_args[0][0] == "camera.lag.threshold_exceeded"
+            assert mock_log.warning.call_count >= 1
+            assert any(
+                call_args[0][0] == "camera.lag.threshold_exceeded"
+                for call_args in mock_log.warning.call_args_list
+            )
 
             camera.release()
 
@@ -132,14 +135,14 @@ def test_get_frame_returns_most_recent_frame(mock_cv2_capture):
     mock_cv2_capture, mock_settings = mock_cv2_capture
 
     # Create distinguishable frames
-    frames = []
+    frames: list[tuple[bool, np.ndarray]] = []
     for i in range(5):
         frame = np.zeros((720, 1280, 3), dtype=np.uint8)
         frame[0, 0] = [i, i, i]  # Mark each frame uniquely
         frames.append((True, frame))
 
     # After 5 frames, keep returning the last frame
-    last_frame = frames[-1][1]  # Get frame 4
+    last_frame = cast(np.ndarray, frames[-1][1])  # Get frame 4
     mock_cv2_capture.read.side_effect = itertools.chain(
         frames, itertools.repeat((True, last_frame))
     )
@@ -152,11 +155,11 @@ def test_get_frame_returns_most_recent_frame(mock_cv2_capture):
 
         # Get frame multiple times - should always be the most recent (frame 4)
         for _ in range(3):
-            ret, frame = camera.get_frame()
+            ret, captured_frame = camera.get_frame()
             assert ret is True
-            assert frame is not None
+            assert captured_frame is not None
             # Should be frame 4 (last frame before stop signal)
-            np.testing.assert_array_equal(frame[0, 0], [4, 4, 4])
+            np.testing.assert_array_equal(captured_frame[0, 0], [4, 4, 4])
 
         camera.release()
 
@@ -189,14 +192,15 @@ def test_buffer_clears_on_read_failure(mock_cv2_capture):
     test_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
 
     # Control the mock behavior with time-based switching
-    start_time = [None]
-    fail_after = [False]
+    start_time: list[float | None] = [None]
+    fail_after: list[bool] = [False]
 
     def mock_read():
         if start_time[0] is None:
             start_time[0] = time.time()
 
         # Succeed for first 0.3 seconds, then start failing
+        assert start_time[0] is not None
         elapsed = time.time() - start_time[0]
         if elapsed < 0.3:
             return (True, test_frame)

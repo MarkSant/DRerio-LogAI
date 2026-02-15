@@ -152,7 +152,9 @@ class SessionCoordinator(BaseCoordinator):
         self._active_wizard_data: dict | None = None  # v2.3.0: Store for batch tracking
         self.camera: Camera | None = None
         self._pending_zone_confirmation = False
-        self._pending_recording_context = None
+        self._pending_recording_context: dict[str, Any] | None = None
+        self._pending_recording_trigger_source: str | None = None
+        self._pending_recording_project_data: dict[str, Any] | None = None
 
         log.info(
             "session_coordinator.initialized",
@@ -267,12 +269,13 @@ class SessionCoordinator(BaseCoordinator):
                     return False
                 day, group, cobaia = details["day"], details["group"], details["cobaia"]
 
-            # Save session details
-            self.project_manager.save_last_session_details(day, group)
+            # Save session details if valid
+            if day is not None and group is not None:
+                self.project_manager.save_last_session_details(int(day), str(group))
 
             # Create output folder
             folder_name = f"D{day}_G{group}_S{cobaia}"
-            output_folder = os.path.join(self.project_manager.project_path, folder_name)
+            output_folder = os.path.join(str(self.project_manager.project_path or ""), folder_name)
             os.makedirs(output_folder, exist_ok=True)
 
             # Setup Arduino if needed
@@ -911,7 +914,9 @@ class SessionCoordinator(BaseCoordinator):
                 return False
 
             # Delegate to service
-            success = self.live_camera_service.stop_session()
+            # Delegate to service
+            self.live_camera_service.stop_session()
+            success = True
 
             # Update state
             self._active_live_session_id = None
@@ -1714,7 +1719,7 @@ class SessionCoordinator(BaseCoordinator):
             good_polygons = []
             frame_height, frame_width = frames[0].shape[:2] if frames else (0, 0)
 
-            for i, frame in enumerate(frames):
+            for _, frame in enumerate(frames):
                 # Detect aquarium (class 0) with low confidence threshold
                 results = detector.model.predict(frame, verbose=False, classes=[0], conf=0.05)
 
@@ -1760,7 +1765,8 @@ class SessionCoordinator(BaseCoordinator):
             if frames:
                 try:
                     reference_path = os.path.join(
-                        self.project_manager.project_path, "live_camera_reference_frame.png"
+                        str(self.project_manager.project_path or ""),
+                        "live_camera_reference_frame.png",
                     )
                     cv2.imwrite(reference_path, frames[-1])
 
@@ -1802,7 +1808,8 @@ class SessionCoordinator(BaseCoordinator):
             if frames:
                 try:
                     reference_path = os.path.join(
-                        self.project_manager.project_path, "live_camera_reference_frame.png"
+                        str(self.project_manager.project_path or ""),
+                        "live_camera_reference_frame.png",
                     )
                     cv2.imwrite(reference_path, frames[-1])
 
@@ -1844,7 +1851,11 @@ class SessionCoordinator(BaseCoordinator):
                 preview_frame = frames[-1]
 
                 dialog = PreviewPolygonDialog(
-                    parent=self.root, frame=preview_frame, polygon=polygon
+                    parent=self.root,
+                    frame=preview_frame,
+                    polygon=[
+                        [float(p[0]), float(p[1])] for p in polygon
+                    ],  # Convert to float for dialog
                 )
 
                 result = dialog.show()
@@ -1865,23 +1876,29 @@ class SessionCoordinator(BaseCoordinator):
         if approved:
             from zebtrack.core.zone_manager import ZoneData
 
+            metadata = {
+                "detection_method": "auto",
+                "stabilization_frames": stabilization_frames,
+                "timestamp": datetime.datetime.now().isoformat(),
+                "width_cm": None,
+                "height_cm": None,
+            }
+
+            # Ensure polygon is int for ZoneData
+            int_polygon = [[int(p[0]), int(p[1])] for p in polygon]
+
             zone_data = ZoneData(
-                polygon=polygon,
-                width_cm=None,
-                height_cm=None,
-                metadata={
-                    "detection_method": "auto",
-                    "stabilization_frames": stabilization_frames,
-                    "timestamp": datetime.datetime.now().isoformat(),
-                },
+                polygon=int_polygon,
+                metadata=metadata,
             )
 
             video_path = "live_camera"
-            self.project_manager.zone_manager.save_zone(video_path, zone_data)
+            # Use ProjectManager to save zone data generically
+            self.project_manager.save_zone_data(zone_data, video_path)
 
             # Save reference frame
             reference_frame_path = os.path.join(
-                self.project_manager.project_path, "live_camera_reference_frame.png"
+                str(self.project_manager.project_path or ""), "live_camera_reference_frame.png"
             )
             cv2.imwrite(reference_frame_path, frames[-1])
 
@@ -2008,7 +2025,7 @@ class SessionCoordinator(BaseCoordinator):
             return False
 
         reference_path = os.path.join(
-            self.project_manager.project_path, "live_camera_reference_frame.png"
+            str(self.project_manager.project_path or ""), "live_camera_reference_frame.png"
         )
         cv2.imwrite(reference_path, frame)
 
@@ -2033,6 +2050,9 @@ class SessionCoordinator(BaseCoordinator):
 
     def _setup_event_listeners(self):
         """Setup event listeners for coordination."""
+        if not self.event_bus:
+            return
+
         # Listen for zone saving events to resume pending recording
         self.event_bus.subscribe(Events.ZONE_SAVE_MANUAL_ARENA, self._on_zone_saved)
         self.event_bus.subscribe(Events.ZONE_SET_ARENA_POLYGON, self._on_zone_saved)

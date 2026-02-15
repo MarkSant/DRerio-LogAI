@@ -41,36 +41,36 @@ Estes métodos são **críticos** - muitos outros dependem deles. Devem ser extr
 
 | # | Método | Chamado por | Categoria | Estratégia |
 |---|--------|-------------|-----------|------------|
-| 1 | `_publish_processing_mode` | 11× | orchestration_internal | ⚠️ MANTER no MainViewModel (núcleo) |
-| 2 | `refresh_project_views` | 9× | ui_method | ✅ Extrair para UIStateController |
-| 3 | `update_openvino_status` | 4× | ui_method | ✅ Extrair para UIStateController |
-| 4 | `get_all_weight_names` | 4× | query | ✅ Extrair para DetectorOrchestrator |
-| 5 | `setup_detector_zones` | 4× | state_management | ✅ Extrair para DetectorOrchestrator |
-| 6 | `_finish_progress_dialog` | 4× | utility_internal | ✅ Extrair para UIStateController |
-| 7 | `_safe_get_default_weight` | 3× | utility_internal | ✅ Extrair para DetectorOrchestrator |
-| 8 | `set_active_weight` | 3× | mutator | ✅ Extrair para DetectorOrchestrator |
-| 9 | `convert_active_weight_to_openvino` | 3× | state_management | ✅ Extrair para DetectorOrchestrator |
-| 10 | `apply_project_model_overrides` | 3× | state_management | ✅ Extrair para ProjectOrchestrator |
-| 11 | `_create_processing_callbacks` | 3× | orchestration_internal | ✅ Extrair para VideoProcessingOrchestrator |
-| 12 | `_create_processing_context` | 3× | orchestration_internal | ✅ Extrair para VideoProcessingOrchestrator |
-| 13 | `_activate_analysis_view_mode` | 3× | utility_internal | ✅ Extrair para UIStateController |
-| 14 | `_handle_validation_error` | 3× | event_handler_internal | ✅ Extrair para ValidationHandler |
-| 15 | `_setup_recording_service_callbacks` | 2× | utility_internal | ⚠️ Manter (setup interno) |
-| 16 | `_show_cancel_feedback` | 2× | utility_internal | ✅ Extrair para UIStateController |
-| 17 | `_schedule_on_ui` | 2× | ui_internal | ⚠️ MANTER no MainViewModel (núcleo) |
-| 18 | `_schedule_recording` | 2× | utility_internal | ✅ Extrair para RecordingOrchestrator |
-| 19 | `_get_project_data_dict` | 2× | utility_internal | ✅ Extrair para ProjectOrchestrator |
-| 20 | `_ensure_project_overrides_record` | 2× | utility_internal | ✅ Extrair para ProjectOrchestrator |
-| 21 | `has_project_override_settings` | 2× | query | ✅ Extrair para ProjectOrchestrator |
-| 22 | `_persist_project_model_settings` | 2× | utility_internal | ✅ Extrair para ProjectOrchestrator |
-| 23 | `_apply_model_settings` | 2× | utility_internal | ✅ Extrair para DetectorOrchestrator |
-| 24 | `_clear_external_trigger_wait` | 2× | utility_internal | ✅ Extrair para RecordingOrchestrator |
-| 25 | `setup_detector` | 2× | state_management | ✅ Extrair para DetectorOrchestrator |
-| 26 | `_prepare_results_directory` | 2× | orchestration_internal | ✅ Extrair para VideoProcessingOrchestrator |
-| 27 | `_temporary_single_animal_mode` | 2× | utility_internal | ✅ Extrair para DetectorOrchestrator |
-| 28 | `_update_diagnostic_progress` | 2× | ui_internal | ✅ Extrair para UIStateController |
-| 29 | `_init_coordinators` | 1× | utility_internal | ⚠️ MANTER (inicialização) |
-| 30 | `_init_recording_service` | 1× | utility_internal | ⚠️ MANTER (inicialização) |
+| 1 | `_publish_processing_mode` | 11x | orchestration_internal | ⚠️ MANTER no MainViewModel (núcleo) |
+| 2 | `refresh_project_views` | 9x | ui_method | ✅ Extrair para UIStateController |
+| 3 | `update_openvino_status` | 4x | ui_method | ✅ Extrair para UIStateController |
+| 4 | `get_all_weight_names` | 4x | query | ✅ Extrair para DetectorOrchestrator |
+| 5 | `setup_detector_zones` | 4x | state_management | ✅ Extrair para DetectorOrchestrator |
+| 6 | `_finish_progress_dialog` | 4x | utility_internal | ✅ Extrair para UIStateController |
+| 7 | `_safe_get_default_weight` | 3x | utility_internal | ✅ Extrair para DetectorOrchestrator |
+| 8 | `set_active_weight` | 3x | mutator | ✅ Extrair para DetectorOrchestrator |
+| 9 | `convert_active_weight_to_openvino` | 3x | state_management | ✅ Extrair para DetectorOrchestrator |
+| 10 | `apply_project_model_overrides` | 3x | state_management | ✅ Extrair para ProjectOrchestrator |
+| 11 | `_create_processing_callbacks` | 3x | orchestration_internal | ✅ Extrair para VideoProcessingOrchestrator |
+| 12 | `_create_processing_context` | 3x | orchestration_internal | ✅ Extrair para VideoProcessingOrchestrator |
+| 13 | `_activate_analysis_view_mode` | 3x | utility_internal | ✅ Extrair para UIStateController |
+| 14 | `_handle_validation_error` | 3x | event_handler_internal | ✅ Extrair para ValidationHandler |
+| 15 | `_setup_recording_service_callbacks` | 2x | utility_internal | ⚠️ Manter (setup interno) |
+| 16 | `_show_cancel_feedback` | 2x | utility_internal | ✅ Extrair para UIStateController |
+| 17 | `_schedule_on_ui` | 2x | ui_internal | ⚠️ MANTER no MainViewModel (núcleo) |
+| 18 | `_schedule_recording` | 2x | utility_internal | ✅ Extrair para RecordingOrchestrator |
+| 19 | `_get_project_data_dict` | 2x | utility_internal | ✅ Extrair para ProjectOrchestrator |
+| 20 | `_ensure_project_overrides_record` | 2x | utility_internal | ✅ Extrair para ProjectOrchestrator |
+| 21 | `has_project_override_settings` | 2x | query | ✅ Extrair para ProjectOrchestrator |
+| 22 | `_persist_project_model_settings` | 2x | utility_internal | ✅ Extrair para ProjectOrchestrator |
+| 23 | `_apply_model_settings` | 2x | utility_internal | ✅ Extrair para DetectorOrchestrator |
+| 24 | `_clear_external_trigger_wait` | 2x | utility_internal | ✅ Extrair para RecordingOrchestrator |
+| 25 | `setup_detector` | 2x | state_management | ✅ Extrair para DetectorOrchestrator |
+| 26 | `_prepare_results_directory` | 2x | orchestration_internal | ✅ Extrair para VideoProcessingOrchestrator |
+| 27 | `_temporary_single_animal_mode` | 2x | utility_internal | ✅ Extrair para DetectorOrchestrator |
+| 28 | `_update_diagnostic_progress` | 2x | ui_internal | ✅ Extrair para UIStateController |
+| 29 | `_init_coordinators` | 1x | utility_internal | ⚠️ MANTER (inicialização) |
+| 30 | `_init_recording_service` | 1x | utility_internal | ⚠️ MANTER (inicialização) |
 
 ### 🔑 Métodos Núcleo (NÃO extrair)
 

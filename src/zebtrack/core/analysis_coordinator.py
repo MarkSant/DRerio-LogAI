@@ -13,7 +13,7 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from zebtrack.core.ui_coordinator import UICoordinator
+    from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.settings import Settings
     from zebtrack.ui.gui import ApplicationGUI
 
@@ -52,7 +52,7 @@ class AnalysisCoordinator:
         self,
         root,
         ui_event_bus: EventBus,
-        ui_coordinator: UICoordinator,
+        ui_coordinator: UIScheduler,
         settings_obj: Settings,
         project_manager: ProjectManager,
         analysis_service: AnalysisService,
@@ -64,7 +64,7 @@ class AnalysisCoordinator:
         Args:
             root: Tkinter root window
             ui_event_bus: Event bus for UI events
-            ui_coordinator: UI coordinator for thread-safe UI operations
+            ui_coordinator: UI scheduler for thread-safe UI operations
             settings_obj: Settings instance (injected)
             project_manager: Project manager
             analysis_service: Analysis service
@@ -81,7 +81,7 @@ class AnalysisCoordinator:
         self.video_processing_service = video_processing_service
 
         # Callback for refreshing project views (set by MainViewModel)
-        self._refresh_project_views_callback = None
+        self._refresh_project_views_callback: Callable[..., None] | None = None
 
         # Thread pool executor for background tasks
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="analysis_worker")
@@ -205,17 +205,19 @@ class AnalysisCoordinator:
         aggregated_df = pd.concat(non_empty_dfs, ignore_index=True)
 
         # Ask user for save location
-        save_path = self.view.ask_save_filename(
-            title=f"Salvar Relatório {report_type.capitalize()}",
-            defaultextension=".xlsx",
-            initialfile=f"{report_type}_report.xlsx",
-            filetypes=[
-                ("Pasta de Trabalho do Excel", "*.xlsx"),
-                ("Arquivo CSV", "*.csv"),
-                ("Arquivo Parquet", "*.parquet"),
-                ("Todos os arquivos", "*.*"),
-            ],
-        )
+        save_path = None
+        if self.view:
+            save_path = self.view.ask_save_filename(
+                title=f"Salvar Relatório {report_type.capitalize()}",
+                defaultextension=".xlsx",
+                initialfile=f"{report_type}_report.xlsx",
+                filetypes=[
+                    ("Pasta de Trabalho do Excel", "*.xlsx"),
+                    ("Arquivo CSV", "*.csv"),
+                    ("Arquivo Parquet", "*.parquet"),
+                    ("Todos os arquivos", "*.*"),
+                ],
+            )
         if not save_path:
             return
 
@@ -320,10 +322,11 @@ class AnalysisCoordinator:
             raw_lookup.setdefault(norm_path, raw_path)
 
         if not normalized_targets:
-            self.view.show_info(
-                "Sumários",
-                "Nenhum vídeo selecionado para geração de sumários.",
-            )
+            if self.view:
+                self.view.show_info(
+                    "Sumários",
+                    "Nenhum vídeo selecionado para geração de sumários.",
+                )
             return
 
         videos_by_norm = {
@@ -673,7 +676,7 @@ class AnalysisCoordinator:
             cal = Calibration(np.array(arena_polygon_px), width_cm, height_cm)
             _, video_height_px = cal.target_dims_px
             pixelcm_x, pixelcm_y = cal.pixel_per_cm_ratio
-            arena_polygon_warped = cal.transform_points(arena_polygon_px)
+            arena_polygon_warped = cal.transform_points(list(arena_polygon_px))
 
             # Load ROIs
             roi_polygons = list(zone_data.roi_polygons or [])
@@ -682,7 +685,7 @@ class AnalysisCoordinator:
 
             rois: list[ROI] = []
             for idx, roi_points in enumerate(roi_polygons):
-                warped_points = cal.transform_points(roi_points)
+                warped_points = cal.transform_points(list(roi_points))
                 roi_polygon_px = [(float(x), float(y)) for x, y in warped_points]
                 roi_name = roi_names[idx] if idx < len(roi_names) else f"ROI {idx + 1}"
                 rois.append(
@@ -724,7 +727,8 @@ class AnalysisCoordinator:
                 smoothing_polyorder=settings_obj.trajectory_smoothing.polyorder,
             )
 
-            os.makedirs(results_dir, exist_ok=True)
+            if not os.path.exists(results_dir):
+                os.makedirs(results_dir, exist_ok=True)
             parquet_path = os.path.join(results_dir, f"{experiment_id}_summary.parquet")
             reporter.export_summary_data(parquet_path, format="parquet")
 

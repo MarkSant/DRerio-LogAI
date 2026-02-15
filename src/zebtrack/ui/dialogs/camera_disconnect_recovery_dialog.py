@@ -69,7 +69,7 @@ class CameraDisconnectRecoveryDialog(tk.Toplevel):
         self.resizable(False, False)
 
         # Make modal
-        self.transient(parent)
+        self.transient(parent.winfo_toplevel())
         self.grab_set()
 
         self._create_widgets()

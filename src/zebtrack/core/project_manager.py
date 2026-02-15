@@ -12,15 +12,16 @@ import re
 import shutil
 import threading
 import unicodedata
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import structlog
 import yaml
 
 from zebtrack.core.asset_manager import AssetManager
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
 from zebtrack.core.project_service import ProjectService
 from zebtrack.core.state_manager import StateManager
 from zebtrack.core.types import AssetType
@@ -121,8 +122,8 @@ class ProjectManager:
         self.asset_manager = AssetManager()
 
         # In-memory project state
-        self.project_path = None
-        self.project_data = {}
+        self.project_path: Path | str | None = None
+        self.project_data: dict[str, Any] = {}
         self.metadata = None  # Will hold the DataFrame for metadata.csv
         # Compatibility: keep roi_template_manager reference for legacy code
         self.roi_template_manager = self.asset_manager.roi_template_manager
@@ -180,9 +181,13 @@ class ProjectManager:
     ) -> dict[str, Any]:
         """Save an ROI template. Delegates to AssetManager."""
         persist_callback = self.save_project if persist else None
+        if save_location in (None, "project") and self.project_path is None:
+            raise ValueError(
+                "Não é possível salvar o template no projeto atual: projeto não carregado."
+            )
         return self.asset_manager.save_roi_template(
             project_data=self.project_data,
-            project_path=self.project_path,
+            project_path=self.project_path or "",
             name=name,
             zone_data=zone_data,
             zone_data_to_dict_fn=self._zone_data_to_dict,
@@ -230,7 +235,7 @@ class ProjectManager:
             file_path=file_path,
         )
 
-    def _zone_data_to_dict(self, zone_data: ZoneData) -> dict:
+    def _zone_data_to_dict(self, zone_data: ZoneData | None) -> dict[str, Any]:
         """Serialize ZoneData into a JSON-friendly dictionary. Delegates to ZoneManager."""
         return ZoneManager.zone_data_to_dict(zone_data)
 
@@ -489,7 +494,7 @@ class ProjectManager:
         import pandas as pd
 
         video_path = str(Path(video_path) if isinstance(video_path, str) else video_path)
-        exported = {}
+        exported: dict[str, str] = {}
 
         if not self.project_path:
             return exported
@@ -885,6 +890,8 @@ class ProjectManager:
                             zone_data.roi_polygons = imported_roi_polygons
                             zone_data.roi_names = imported_roi_names
                         elif roi_merge_strategy == "merge":
+                            zone_data.roi_polygons = list(zone_data.roi_polygons)
+                            zone_data.roi_names = list(zone_data.roi_names)
                             existing_names = set(zone_data.roi_names)
                             for roi_poly, roi_name in zip(
                                 imported_roi_polygons, imported_roi_names, strict=False
@@ -1278,7 +1285,7 @@ class ProjectManager:
         if not video_files:
             return
 
-        new_batch = {
+        new_batch: dict[str, Any] = {
             "timestamp": datetime.now().isoformat(),
             "videos": [],
         }
@@ -1315,18 +1322,18 @@ class ProjectManager:
             ):
                 value = video_info.get(key)
                 if value is not None and (
-                    value != "" or isinstance(value, (int, float, bool, list))
+                    value != "" or isinstance(value, int | float | bool | list)
                 ):
                     metadata.setdefault(key, value)
 
             # Remove empty values to keep JSON compact
-            metadata = {
+            filtered_metadata: dict[str, Any] = {
                 key: value
                 for key, value in metadata.items()
-                if value is not None and (value != "" or isinstance(value, (int, float)))
+                if value is not None and (value != "" or isinstance(value, int | float))
             }
 
-            video_entry = {
+            video_entry: dict[str, Any] = {
                 "path": video_path,
                 "sha256": video_hash,
                 "status": "processed" if has_data else "pending",
@@ -1342,8 +1349,8 @@ class ProjectManager:
                 "zones_finalized": False,
             }
 
-            if metadata:
-                video_entry["metadata"] = metadata
+            if filtered_metadata:
+                video_entry["metadata"] = filtered_metadata
 
             new_batch["videos"].append(video_entry)
 
@@ -1365,7 +1372,7 @@ class ProjectManager:
             self.save_project()
 
     def _apply_project_migrations(
-        self, loaded_data: dict, log_context
+        self, loaded_data: dict, log_context: Any
     ) -> tuple[dict, bool, list[str]]:
         """Apply backward compatibility migrations to loaded project data.
 
@@ -1481,7 +1488,7 @@ class ProjectManager:
         return loaded_data, migration_applied, migrated_fields
 
     @_threadsafe
-    def load_project(self, project_path: Path | str):
+    def load_project(self, project_path: Path | str) -> None:
         """
         Load project data from a config file in the given directory.
 
@@ -1668,7 +1675,7 @@ class ProjectManager:
                     return True
         return False
 
-    def reset_all_video_statuses(self, to_status: str = "pending"):
+    def reset_all_video_statuses(self, to_status: str = "pending") -> bool:
         """Reset every video status to a given value (default 'pending')."""
         changed = False
         for batch in self.project_data.get("batches", []):
@@ -1685,7 +1692,7 @@ class ProjectManager:
         """Return a flat list of all videos from all batches. Delegates to VideoManager."""
         return VideoManager.get_all_videos(self.project_data)
 
-    def _iter_project_videos(self):
+    def _iter_project_videos(self) -> Iterator[tuple[dict, dict]]:
         """
         Yield (batch_dict, video_dict) pairs for every registered video.
 
@@ -1747,7 +1754,7 @@ class ProjectManager:
             if has_summary_outputs:
                 return False, "Remova relatórios e sumários antes de excluir o vídeo."
             if any(
-                self._video_has_asset(video_entry, dependency)
+                self._video_has_asset(video_entry, cast(AssetType, dependency))
                 for dependency in ("trajectory", "rois", "arena")
             ):
                 return (
@@ -2008,7 +2015,7 @@ class ProjectManager:
     def find_video_entry(
         self,
         *,
-        path: str | None = None,
+        path: Path | str | None = None,
         experiment_id: str | None = None,
     ) -> dict | None:
         """
@@ -2016,8 +2023,9 @@ class ProjectManager:
 
         Delegates to VideoManager.
         """
+        path_str = str(path) if path is not None else None
         return VideoManager.find_video_entry(
-            self.project_data, path=path, experiment_id=experiment_id
+            self.project_data, path=path_str, experiment_id=experiment_id
         )
 
     @staticmethod
@@ -2062,7 +2070,7 @@ class ProjectManager:
                 value = video_entry.get(key)
                 if (
                     value is not None
-                    and (value != "" or isinstance(value, (int, float)))
+                    and (value != "" or isinstance(value, int | float))
                     and key not in metadata
                 ):
                     metadata[key] = value
@@ -2170,7 +2178,7 @@ class ProjectManager:
         return base_dir / f"{safe_component}_results"
 
     @staticmethod
-    def _sanitize_path_component(value, *, fallback: str) -> str:
+    def _sanitize_path_component(value: Any, *, fallback: str) -> str:
         candidate = fallback if value is None else str(value).strip()
         if not candidate:
             candidate = fallback
@@ -2229,9 +2237,9 @@ class ProjectManager:
                     suffix = self._sanitize_path_component(candidate_str, fallback="Indefinido")
             else:
                 try:
-                    day_number = float(candidate)
-                    if day_number.is_integer():
-                        suffix = f"{int(day_number):02d}"
+                    day_float = float(candidate)
+                    if day_float.is_integer():
+                        suffix = f"{int(day_float):02d}"
                     else:
                         suffix = self._sanitize_path_component(candidate, fallback="Indefinido")
                 except (TypeError, ValueError):
@@ -2475,7 +2483,9 @@ class ProjectManager:
             day_component = self._format_day_component({"day": day})
             subject_component = self._format_subject_component({"subject_id": subject_id})
 
-            results_dir = self.project_path / group_component / day_component / subject_component
+            results_dir = (
+                Path(self.project_path) / group_component / day_component / subject_component
+            )
 
             results_dir.mkdir(parents=True, exist_ok=True)
             result[aq_id] = results_dir
@@ -2669,7 +2679,7 @@ class ProjectManager:
             return {}
         return self.project_data.get("batch_reports", {})
 
-    def get_next_video(self):
+    def get_next_video(self) -> str | None:
         """
         Return the path of the next video with 'pending' status from all batches.
 
@@ -2677,7 +2687,7 @@ class ProjectManager:
         """
         return VideoManager.get_next_video(self.project_data)
 
-    def get_project_name(self):
+    def get_project_name(self) -> str:
         """Return the project name.
 
         Returns:
@@ -2735,7 +2745,7 @@ class ProjectManager:
         self._groups_cache_valid = False
         self._groups_cache = None
 
-    def get_project_type(self):
+    def get_project_type(self) -> str | None:
         """Return the project type.
 
         Returns:
@@ -2761,18 +2771,20 @@ class ProjectManager:
     def get_multi_aquarium_zone_data(
         self,
         video_path: Path | str | None,
-    ):
+    ) -> MultiAquariumZoneData | None:
         """
         Retrieve multi-aquarium zone data for a specific video.
 
         Delegates to ZoneManager.
         """
+        if video_path is None:
+            return None
         return self.zone_manager.get_multi_aquarium_zone_data(self.project_data, video_path)
 
     def save_multi_aquarium_zone_data(
         self,
         video_path: Path | str | None,
-        multi_data,
+        multi_data: MultiAquariumZoneData,
         *,
         persist: bool = True,
     ) -> None:
@@ -2783,6 +2795,9 @@ class ProjectManager:
         """
         # Phase 1: Save zone data (and update has_arena flags in memory)
         # We defer persistence until after parquet export
+        if video_path is None:
+            return
+
         self.zone_manager.save_multi_aquarium_zone_data(
             self.project_data,
             video_path,
@@ -2861,6 +2876,9 @@ class ProjectManager:
 
         Delegates to ZoneManager for zone data check, also checks outputs.
         """
+        if video_path is None:
+            return False
+
         # Check zone data first (preferred source of truth)
         if self.zone_manager.is_multi_aquarium_video(self.project_data, video_path):
             return True
@@ -2880,6 +2898,8 @@ class ProjectManager:
 
         Delegates to ZoneManager.
         """
+        if video_path is None:
+            return 1
         return self.zone_manager.get_aquarium_count(self.project_data, video_path)
 
     def clear_multi_aquarium_zone_data(
@@ -2893,6 +2913,9 @@ class ProjectManager:
 
         Delegates to ZoneManager.
         """
+        if video_path is None:
+            return
+
         persist_callback = self.save_project if persist else None
         self.zone_manager.clear_multi_aquarium_zone_data(
             self.project_data,
@@ -2900,7 +2923,7 @@ class ProjectManager:
             persist_callback=persist_callback,
         )
 
-    def update_main_polygon(self, points: list):
+    def update_main_polygon(self, points: list) -> None:
         """
         Atualiza ou define o polígono principal nos dados do projeto.
 
@@ -2910,7 +2933,7 @@ class ProjectManager:
             self.project_data, points, persist_callback=self.save_project
         )
 
-    def load_metadata(self):
+    def load_metadata(self) -> None:
         """Load the metadata.csv file from the project root into a pandas DataFrame."""
         import pandas as pd  # Lazy import to avoid loading pandas during startup
 
@@ -2989,39 +3012,30 @@ class ProjectManager:
                 if meta.get("group") or meta.get("group_id"):
                     return meta
 
-        # 2. Internal Project Data Lookup (if video_path provided)
-        if video_path and self.project_data:
-            videos_map = self.project_data.get("videos", {})
-            # Normalized lookup
-            norm_path = os.path.normpath(video_path)
-
-            # Try exact match, then normalized match
-            video_info = videos_map.get(video_path) or videos_map.get(norm_path)
-
-            # Try matching by filename if full path fails (common if paths move)
-            if not video_info:
-                filename = os.path.basename(norm_path)
-                for vpath, vdata in videos_map.items():
-                    if os.path.basename(vpath) == filename:
-                        video_info = vdata
-                        break
+        # 2. Internal Project Data Lookup
+        # Use find_video_entry() which correctly iterates through the batches
+        # structure (project_data["batches"][N]["videos"]).
+        # NOTE: The old code used self.project_data.get("videos", {}) which was
+        # always empty because videos are stored in the batches hierarchy,
+        # NOT in a top-level "videos" dict.
+        if self.project_data:
+            video_info = self.find_video_entry(path=video_path, experiment_id=experiment_id)
 
             if video_info:
-                # Extract hierarchical data
-                if "day" in video_info and "day" not in meta:
-                    meta["day"] = video_info["day"]
-
-                # Check group/group_id
-                info_group = video_info.get("group") or video_info.get("group_id")
-                if info_group and not (meta.get("group") or meta.get("group_id")):
-                    meta["group"] = info_group
-
-                # Check subject/subject_id
-                info_subj = video_info.get("subject") or video_info.get("subject_id")
-                if info_subj is not None and not (
-                    meta.get("subject") or meta.get("subject_id") is not None
+                # Read nested metadata sub-dict first (where wizard stores group/subject)
+                nested_meta = video_info.get("metadata") or {}
+                for key in (
+                    "day",
+                    "group",
+                    "group_id",
+                    "group_display_name",
+                    "subject",
+                    "subject_id",
                 ):
-                    meta["subject"] = info_subj
+                    # Priority: nested metadata > top-level video entry
+                    val = nested_meta.get(key) or video_info.get(key)
+                    if val is not None and key not in meta:
+                        meta[key] = val
 
                 # Return if we have sufficient info now
                 if meta.get("group") or meta.get("group_id"):
@@ -3194,7 +3208,7 @@ class ProjectManager:
 
         return completed
 
-    def save_last_session_details(self, day: int, group: str):
+    def save_last_session_details(self, day: int, group: str) -> None:
         """Save the last selected day and group to the project config."""
         if not self.project_path:
             return

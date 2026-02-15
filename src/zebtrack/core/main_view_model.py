@@ -6,15 +6,16 @@ and orchestrates video processing workflows with dependency injection.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
 # Legacy imports kept for type hinting in signatures
 from zebtrack.core.application_bootstrapper import BootstrapResult
 from zebtrack.core.dependency_container import MainViewModelDependencies
-from zebtrack.core.detector import Detector
+from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.core.processing_mode import ProcessingMode
 from zebtrack.core.recording_service import RecordingService
 from zebtrack.core.state_manager import StateCategory
@@ -47,7 +48,7 @@ class MainViewModel:
         self,
         dependencies: MainViewModelDependencies,
         bootstrap_result: BootstrapResult,
-    ):
+    ) -> None:
         """Initialize MainViewModel with pre-bootstrapped components.
 
         Args:
@@ -80,6 +81,9 @@ class MainViewModel:
         self.hardware_vm = HardwareStatusViewModel(
             dependencies, bootstrap_result, self.ui_event_bus
         )
+
+        # Optional GUI reference (injected post-init when available)
+        self.view: Any | None = None
 
         # 4. Subscribe to state changes
         self._subscribe_to_state()
@@ -177,7 +181,7 @@ class MainViewModel:
 
         log.info("main_view_model.initialized", source="init")
 
-    def _extract_dependencies(self, dependencies: MainViewModelDependencies):
+    def _extract_dependencies(self, dependencies: MainViewModelDependencies) -> None:
         """Extract and assign injected dependencies."""
         self.root = dependencies.root
         self.settings = dependencies.settings_obj
@@ -206,7 +210,7 @@ class MainViewModel:
         if self._test_sync_event is not None:
             self.state_manager.subscribe_all(self._on_state_change_for_test)
 
-    def _assign_bootstrap_result(self, result: BootstrapResult):
+    def _assign_bootstrap_result(self, result: BootstrapResult) -> None:
         """Assign components created by ApplicationBootstrapper."""
         # Services
         self.project_service = result.project_service
@@ -259,15 +263,15 @@ class MainViewModel:
         self.is_capturing_for_video = False
         self.active_frame_source = None
         self.arduino = None  # Will be set when manager is initialized
-        self.report_results_paths = {}
+        self.report_results_paths: dict[str, str] = {}
         self.timed_recording_job = None
         self._pending_external_trigger = None
         self._using_project_overrides = False  # Model override flag (managed by orchestrators)
 
         # Set legacy services if needed (for properties)
-        self._recording_service = None
+        self._recording_service: RecordingService | None = None
 
-    def _subscribe_to_state(self):
+    def _subscribe_to_state(self) -> None:
         """Subscribe to state manager updates."""
         self.state_manager.subscribe(StateCategory.PROJECT, self._on_project_state_changed)
         self.state_manager.subscribe(StateCategory.DETECTOR, self._on_detector_state_changed)
@@ -277,28 +281,28 @@ class MainViewModel:
     # Facade Methods - Delegating to Sub-ViewModels
     # =========================================================================
 
-    def set_active_weight(self, name: str | None, dialog=None):
+    def set_active_weight(self, name: str | None, dialog: Any = None) -> Any:
         return self.hardware_vm.set_active_weight(name, dialog)
 
-    def set_openvino_usage(self, use_openvino: bool, dialog=None):
+    def set_openvino_usage(self, use_openvino: bool, dialog: Any = None) -> Any:
         return self.hardware_vm.set_openvino_usage(use_openvino, dialog)
 
-    def update_detector_parameters(self, params: dict, **kwargs) -> bool:
+    def update_detector_parameters(self, params: dict, **kwargs: Any) -> bool:
         return self.hardware_vm.update_detector_parameters(params, **kwargs)
 
     def get_current_detector_parameters(self) -> dict:
         return self.hardware_vm.get_current_detector_parameters()
 
-    def update_openvino_status(self, dialog=None):
+    def update_openvino_status(self, dialog: Any = None) -> Any:
         return self.hardware_vm.update_openvino_status(dialog)
 
-    def close_project(self):
+    def close_project(self) -> Any:
         return self.project_vm.close_project()
 
-    def open_project_workflow(self, project_path):
+    def open_project_workflow(self, project_path: str) -> Any:
         return self.project_vm.open_project_workflow(project_path)
 
-    def start_live_camera_analysis(self, camera_index: int | None = None):
+    def start_live_camera_analysis(self, camera_index: int | None = None) -> Any:
         return self.hardware_vm.start_live_camera_analysis(camera_index)
 
     def start_live_project_session(
@@ -307,7 +311,7 @@ class MainViewModel:
         group: str,
         subject: str,
         duration_s: float | None = None,
-    ):
+    ) -> Any:
         return self.hardware_vm.start_live_project_session(
             day=day, group=group, subject=subject, duration_s=duration_s
         )
@@ -315,13 +319,13 @@ class MainViewModel:
     def can_remove_project_asset(self, video_path: str, asset: str) -> tuple[bool, str | None]:
         return self.project_vm.can_remove_project_asset(video_path, asset)
 
-    def save_manual_arena(self, polygon: list[tuple[int, int]]):
+    def save_manual_arena(self, polygon: list[tuple[int, int]]) -> Any:
         return self.analysis_vm.save_manual_arena(polygon)
 
-    def setup_detector_zones(self):
+    def setup_detector_zones(self) -> None:
         """Setup detector zones from project data via ProjectLifecycleCoordinator."""
 
-        def _callback():
+        def _callback(_: Any = None) -> None:
             # Get active video and zone data
             active_video = self.project_manager.get_active_zone_video()
             zone_data = self.project_manager.get_zone_data(video_path=active_video)
@@ -329,86 +333,92 @@ class MainViewModel:
             # Configure detector
             self.detector_service.configure_zones(zones_data=zone_data)
 
-        self.project_lifecycle_coordinator._setup_zones_from_project(
-            setup_detector_zones_callback=_callback
-        )
+        if self.project_lifecycle_coordinator:
+            self.project_lifecycle_coordinator._setup_zones_from_project(
+                setup_detector_zones_callback=_callback
+            )
 
     # =========================================================================
     # Event Handlers delegates (kept for backward compat or event mapping)
     # =========================================================================
 
-    def start_recording(self, **kwargs):
+    def start_recording(self, **kwargs: Any) -> None:
         self.hardware_vm.start_recording(**kwargs)
 
-    def stop_recording(self):
+    def start_live_session(self, **kwargs: Any) -> None:
+        self.hardware_vm.start_live_session(**kwargs)
+
+    def stop_recording(self) -> None:
         self.hardware_vm.stop_recording()
 
-    def toggle_recording(self):
+    def toggle_recording(self) -> None:
         self.hardware_vm.toggle_recording()
 
-    def start_project_processing_workflow(self):
+    def start_project_processing_workflow(self) -> None:
         self.analysis_vm.start_project_processing_workflow()
 
-    def add_videos_to_project(self):
+    def add_videos_to_project(self) -> None:
         self.project_vm.add_videos_to_project()
 
-    def run_model_diagnostic(self, config: dict):
+    def run_model_diagnostic(self, config: dict) -> None:
         self.hardware_vm.run_model_diagnostic(config)
 
-    def handle_request_weight_file(self):
+    def handle_request_weight_file(self) -> None:
         self.hardware_vm.handle_request_weight_file()
 
-    def handle_open_manage_weights(self):
+    def handle_open_manage_weights(self) -> None:
         # This requires self.root, passing it to VM
         self.hardware_vm.handle_open_manage_weights(self.root)
 
-    def start_single_video_processing(self, **kwargs):
+    def start_single_video_processing(self, **kwargs: Any) -> None:
         self.analysis_vm.start_single_video_processing(**kwargs)
 
-    def auto_detect_zones(self, **kwargs):
+    def auto_detect_zones(self, **kwargs: Any) -> None:
         self.analysis_vm.auto_detect_zones(**kwargs)
 
-    def manage_weights(self):
+    def manage_weights(self) -> None:
         self.hardware_vm.manage_weights()
 
-    def add_new_weight(self, path: str, set_as_default: bool, weight_type: str | None = None):
+    def add_new_weight(
+        self, path: str, set_as_default: bool, weight_type: str | None = None
+    ) -> None:
         self.hardware_vm.add_new_weight(path, set_as_default, weight_type)
 
-    def delete_weight(self, name: str):
+    def delete_weight(self, name: str) -> None:
         self.hardware_vm.delete_weight(name)
 
-    def load_new_weight(self, **kwargs):
+    def load_new_weight(self, **kwargs: Any) -> None:
         self.hardware_vm.load_new_weight(**kwargs)
 
-    def handle_delete_project_asset(self, video_path: str, asset: str):
+    def handle_delete_project_asset(self, video_path: str, asset: str) -> None:
         self.project_vm.handle_delete_project_asset(video_path, asset)
 
-    def handle_calibration_copy_to_project(self):
+    def handle_calibration_copy_to_project(self) -> None:
         self.project_vm.handle_calibration_copy_to_project()
 
-    def handle_calibration_save_to_project(self):
+    def handle_calibration_save_to_project(self) -> None:
         self.project_vm.handle_calibration_save_to_project()
 
     # =========================================================================
     # Complex Workflows (Involving multiple VMs)
     # =========================================================================
 
-    def start_single_video_workflow(self, video_path, config):
+    def start_single_video_workflow(self, video_path: str, config: dict) -> None:
         """Delegate to AnalysisControlViewModel but inject dependencies from HardwareVM."""
         self.analysis_vm.start_single_video_workflow(
             video_path, config, detector_vm=self.hardware_vm
         )
 
-    def create_project_workflow(self, **wizard_data):
+    def create_project_workflow(self, **wizard_data: Any) -> Any:
         return self.project_vm.create_project_workflow(**wizard_data)
 
     def cancel_current_analysis(self) -> None:
         self.analysis_vm.cancel_current_analysis()
 
-    def apply_project_settings_to_batch(self, videos: list):
+    def apply_project_settings_to_batch(self, videos: list[str]) -> Any:
         return self.project_vm.apply_project_settings_to_batch(videos)
 
-    def generate_parquet_summaries(self, video_paths: list[str]):
+    def generate_parquet_summaries(self, video_paths: list[str]) -> None:
         self.analysis_vm.generate_parquet_summaries(video_paths)
 
     def setup_detector(self, temp_animal_method: str | None = None) -> bool:
@@ -421,16 +431,18 @@ class MainViewModel:
     # Application Lifecycle
     # =========================================================================
 
-    def run(self):
+    def run(self) -> None:
         """Start the Tkinter main event loop."""
         self.root.mainloop()
 
-    def bind_events(self):
+    def bind_events(self) -> None:
         """Binds all UI events."""
         if self._use_event_bus:
             self._register_event_handlers()
-            self.video_processing_orchestrator.register_event_handlers()
-            self.processing_coordinator.register_event_handlers()
+            if self.video_processing_orchestrator:
+                self.video_processing_orchestrator.register_event_handlers()
+            if self.processing_coordinator:
+                self.processing_coordinator.register_event_handlers()
 
     # ==================== Properties ====================
 
@@ -438,11 +450,11 @@ class MainViewModel:
     def active_weight_name(self) -> str:
         """Active weight name - delegates to hardware_vm for single source of truth."""
         if hasattr(self, "hardware_vm"):
-            return self.hardware_vm.active_weight_name
-        return getattr(self, "_active_weight_name", "")
+            return self.hardware_vm.active_weight_name or ""
+        return getattr(self, "_active_weight_name", "") or ""
 
     @active_weight_name.setter
-    def active_weight_name(self, value: str):
+    def active_weight_name(self, value: str) -> None:
         if hasattr(self, "hardware_vm"):
             self.hardware_vm.active_weight_name = value
         else:
@@ -456,7 +468,7 @@ class MainViewModel:
         return getattr(self, "_use_openvino", False)
 
     @use_openvino.setter
-    def use_openvino(self, value: bool):
+    def use_openvino(self, value: bool) -> None:
         if hasattr(self, "hardware_vm"):
             self.hardware_vm.use_openvino = value
         else:
@@ -515,11 +527,15 @@ class MainViewModel:
 
     # ==================== Event Handlers ====================
 
-    def _on_state_change_for_test(self, category, key, old, new):
+    def _on_state_change_for_test(
+        self, category: StateCategory, key: str, old: Any, new: Any
+    ) -> None:
         if self._test_sync_event is not None:
             self._test_sync_event.set()
 
-    def _on_project_state_changed(self, category, key, old, new):
+    def _on_project_state_changed(
+        self, category: StateCategory, key: str, old: Any, new: Any
+    ) -> None:
         if not self.ui_event_bus:
             return
         if key == "active_zone_video" or key == "project_data":
@@ -527,7 +543,9 @@ class MainViewModel:
             self.ui_event_bus.publish_event(Events.UI_REDRAW_ZONES, {"zone_data": zone_data})
             self.ui_event_bus.publish_event(Events.UI_UPDATE_ZONE_LIST, {"zone_data": zone_data})
 
-    def _on_detector_state_changed(self, category, key, old, new):
+    def _on_detector_state_changed(
+        self, category: StateCategory, key: str, old: Any, new: Any
+    ) -> None:
         if not self.ui_event_bus:
             return
         if key == "active_weight_name":
@@ -536,7 +554,9 @@ class MainViewModel:
             self.ui_event_bus.publish_event(Events.UI_UPDATE_OPENVINO_CHECKBOX, {"is_checked": new})
             self.ui_state_controller.update_openvino_status()
 
-    def _on_processing_state_changed(self, category, key, old, new):
+    def _on_processing_state_changed(
+        self, category: StateCategory, key: str, old: Any, new: Any
+    ) -> None:
         log.debug(
             "controller.processing_state_changed",
             key=key,
@@ -571,29 +591,36 @@ class MainViewModel:
         return "Status Indisponível (Inicializando)"
 
     @contextmanager
-    def global_calibration_session(self):
+    def global_calibration_session(self) -> Generator[None, None, None]:
         """Context manager for global calibration mode. Delegates to ProjectLifecycleCoordinator."""
-        with self.project_lifecycle_coordinator.global_calibration_session(
-            get_active_weight_name=lambda: self.active_weight_name,
-            get_use_openvino=lambda: self.use_openvino,
-        ):
+        if self.project_lifecycle_coordinator:
+            with self.project_lifecycle_coordinator.global_calibration_session(
+                get_active_weight_name=lambda: self.active_weight_name,
+                get_use_openvino=lambda: self.use_openvino,
+            ):
+                yield
+        else:
+            log.warning("main_view_model.global_calibration.coordinator_missing")
             yield
 
     @contextmanager
-    def project_calibration_session(self):
+    def project_calibration_session(self) -> Generator[None, None, None]:
         """Context manager for project calibration mode.
 
         Phase 3C: Delegates to ProjectLifecycleCoordinator (supersedes ProjectOrchestrator).
         """
-        with self.project_lifecycle_coordinator.project_calibration_session():
+        if self.project_lifecycle_coordinator:
+            with self.project_lifecycle_coordinator.project_calibration_session():
+                yield
+        else:
             yield
 
-    def on_close(self):
+    def on_close(self) -> None:
         if self.dialog_coordinator.confirm_exit():
             self.join_threads()
             self.root.destroy()
 
-    def join_threads(self):
+    def join_threads(self) -> None:
         log.info("controller.shutdown.start")
 
         # Signal all threads to exit
@@ -639,37 +666,40 @@ class MainViewModel:
                 message="Camera thread did not shut down cleanly",
             )
             if self.ui_event_bus:
-                from zebtrack.ui.event_bus_v2 import Event, UIEvents
-
-                self.ui_event_bus.publish(
-                    Event(
-                        UIEvents.ERROR_OCCURRED,
-                        {
-                            "title": "Erro Crítico",
-                            "message": (
-                                "A thread da câmera não foi finalizada corretamente. "
-                                "O aplicativo será encerrado."
-                            ),
-                        },
-                    )
+                self.ui_event_bus.publish_event(
+                    "error.occurred",
+                    {
+                        "title": "Erro Crítico",
+                        "message": (
+                            "A thread da câmera não foi finalizada corretamente. "
+                            "O aplicativo será encerrado."
+                        ),
+                    },
                 )
 
         self.hardware_vm._shutdown_arduino_manager()
         log.info("controller.shutdown.complete")
 
-    def _create_event_dispatcher(self, event_name: str):
+    def _create_event_dispatcher(self, event_name: str) -> Callable[[dict], None]:
         if event_name not in self._EVENT_METHOD_MAPPING:
-            return lambda data: None
+            # Type-safe empty dispatcher
+            def empty_dispatcher(data: dict) -> None:
+                pass
+
+            # Explicitly type the dispatcher variable to match expected signature
+            method: Callable[[dict], None] = empty_dispatcher
+            return method
 
         method_ref, param_names, mode = self._EVENT_METHOD_MAPPING[event_name]
 
         def dispatcher(data: dict) -> None:
+            method: Callable | Any | None = None
             if isinstance(method_ref, str):
                 method = getattr(self, method_ref, None)
             else:
                 method = method_ref
 
-            if not method:
+            if not method or not callable(method):
                 return
 
             # Ensure data is a dict before processing
@@ -715,16 +745,22 @@ class MainViewModel:
             self._handle_project_manager_replaced,
         )
 
-    def _handle_project_manager_replaced(self, data: dict):
+    def _handle_project_manager_replaced(self, data: dict) -> None:
         if not isinstance(data, dict):
             self.log.warning(
                 "main_view_model._handle_project_manager_replaced.invalid_data_type",
-                data_type=type(data).__name__,
+                expected="dict",
+                got=type(data).__name__,
             )
             return
+
         new_manager = data.get("new_manager")
         if not new_manager:
             return
+
+        # Ensure project_workflow_adapter is updated
+        if hasattr(self, "project_workflow_adapter") and self.project_workflow_adapter:
+            self.project_workflow_adapter.project_manager = new_manager
 
         services_to_update = [
             ("project_workflow_service", self.project_workflow_service),
@@ -762,29 +798,29 @@ class MainViewModel:
                         error=str(e),
                     )
 
-    def log_arduino_event(self, message: str):
+    def log_arduino_event(self, message: str) -> None:
         self.hardware_vm.log_arduino_event(message)
 
-    def on_arduino_status_change(self, connected: bool, port: str | None):
+    def on_arduino_status_change(self, connected: bool, port: str | None) -> None:
         self.hardware_vm.on_arduino_status_change(connected, port)
 
-    def on_arduino_command_sent(self, command: int, success: bool, source: str):
+    def on_arduino_command_sent(self, command: int, success: bool, source: str) -> None:
         self.hardware_vm.on_arduino_command_sent(command, success, source)
 
     # =========================================================================
     # Legacy / Misc Delegates
     # =========================================================================
 
-    def get_calibration_scope_info(self) -> dict:
+    def get_calibration_scope_info(self) -> dict[str, Any]:
         return self.project_vm.get_calibration_scope_info()
 
     def get_all_weight_names(self) -> list[str]:
         return self.hardware_vm.get_all_weight_names()
 
-    def get_global_model_defaults(self) -> dict:
+    def get_global_model_defaults(self) -> dict[str, Any]:
         return self._global_model_defaults
 
-    def resolve_project_model_settings(self, overrides: dict) -> tuple[str | None, bool]:
+    def resolve_project_model_settings(self, overrides: dict[str, Any]) -> tuple[str | None, bool]:
         return self.project_vm.resolve_project_model_settings(overrides)
 
     def save_project_model_overrides(
@@ -798,24 +834,33 @@ class MainViewModel:
     def restore_detector_defaults(self, scope: str = "global") -> bool:
         return self.hardware_vm.restore_detector_defaults(scope)
 
-    def create_new_project(self, **kwargs):
+    def on_video_selected(self, video_path: str | None = None) -> None:
+        if video_path is not None:
+            self.project_vm.on_video_selected(video_path)
+
+    def create_new_project(self, **kwargs: Any) -> Any:
         return self.project_vm.create_project_workflow(**kwargs)
 
-    def get_openvino_cache_status(self, weight_name: str | None = None) -> dict:
+    def start_project_analysis(self, **kwargs: Any) -> None:
+        self.analysis_vm.start_project_processing_workflow(**kwargs)
+
+    def get_openvino_cache_status(self, weight_name: str | None = None) -> dict[str, Any]:
         return self.hardware_vm.get_openvino_cache_status(weight_name)
 
-    def set_main_arena_polygon(self, points: list) -> bool:
+    def set_main_arena_polygon(self, points: list[tuple[int, int]]) -> bool:
         return self.analysis_vm.set_main_arena_polygon(points)
 
-    def add_roi_polygon(self, points: list, name: str, color: tuple) -> bool:
+    def add_roi_polygon(
+        self, points: list[tuple[int, int]], name: str, color: tuple[int, int, int]
+    ) -> bool:
         return self.analysis_vm.add_roi_polygon(points, name, color)
 
-    def get_arena_data(self, arena_id: str | None = None):
+    def get_arena_data(self, arena_id: str | None = None) -> ZoneData | None:
         if self.project_manager:
             return self.project_manager.get_zone_data()
         return None
 
-    def _get_project_data_dict(self) -> dict:
+    def _get_project_data_dict(self) -> dict[str, Any]:
         if self.project_manager:
             return self.project_manager.project_data
         return {}

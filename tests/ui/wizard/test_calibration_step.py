@@ -32,6 +32,8 @@ Incorrect usage (will fail):
 ==============================================================================
 """
 
+from typing import Any
+
 import pytest
 
 from zebtrack.ui.wizard.calibration_step import CalibrationStep
@@ -49,7 +51,7 @@ class TestCalibrationStep:
 
     def test_calibration_step_builds_ui_without_error(self):
         """Calibration step should build UI without errors."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = CalibrationStep(self.root, wizard_data)
         step.build_ui()
 
@@ -58,7 +60,7 @@ class TestCalibrationStep:
 
     def test_calibration_step_default_values(self):
         """Calibration step should have sensible default values."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = CalibrationStep(self.root, wizard_data)
         step.build_ui()
 
@@ -70,7 +72,7 @@ class TestCalibrationStep:
 
     def test_calibration_step_get_data(self):
         """get_data should return complete calibration data."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = CalibrationStep(self.root, wizard_data)
         step.build_ui()
 
@@ -89,7 +91,7 @@ class TestCalibrationStep:
 
     def test_calibration_step_set_data_restores_ui(self):
         """set_data should restore UI from previously collected data."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = CalibrationStep(self.root, wizard_data)
         step.build_ui()
 
@@ -111,7 +113,7 @@ class TestCalibrationStep:
 
     def test_validation_succeeds_with_valid_data(self):
         """Validation should succeed with valid data."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = CalibrationStep(self.root, wizard_data)
         step.build_ui()
 
@@ -127,7 +129,7 @@ class TestCalibrationStep:
 
     def test_validation_fails_with_zero_aquariums(self):
         """Validation should fail when num_aquariums is 0."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = CalibrationStep(self.root, wizard_data)
         step.build_ui()
 
@@ -143,7 +145,7 @@ class TestCalibrationStep:
 
     def test_validation_fails_with_zero_animals(self):
         """Validation should fail when animals_per_aquarium is 0."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = CalibrationStep(self.root, wizard_data)
         step.build_ui()
 
@@ -159,7 +161,7 @@ class TestCalibrationStep:
 
     def test_validation_fails_with_negative_dimensions(self):
         """Validation should fail with negative dimensions."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = CalibrationStep(self.root, wizard_data)
         step.build_ui()
 
@@ -175,7 +177,7 @@ class TestCalibrationStep:
 
     def test_validation_fails_with_zero_height(self):
         """Validation should fail when height is zero."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = CalibrationStep(self.root, wizard_data)
         step.build_ui()
 
@@ -262,7 +264,7 @@ class TestCalibrationStep:
 
     def test_template_banner_hidden_when_no_metadata(self):
         """Template banner should be hidden when no template_metadata."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
 
         step = CalibrationStep(self.root, wizard_data)
         step.build_ui()
@@ -288,7 +290,7 @@ class TestCalibrationStep:
         self, num_aquariums, animals, width, height, expected_valid
     ):
         """Test validation with various boundary conditions."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = CalibrationStep(self.root, wizard_data)
         step.build_ui()
 

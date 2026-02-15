@@ -24,6 +24,7 @@ Correct usage:
 ==============================================================================
 """
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -75,7 +76,7 @@ class TestModelSelectionStep:
 
     def test_model_selection_step_builds_ui_without_error(self, mock_weight_manager):
         """Model selection step should build UI without errors."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
         step.build_ui()
 
@@ -84,7 +85,7 @@ class TestModelSelectionStep:
 
     def test_model_selection_step_loads_weights_catalog(self, mock_weight_manager):
         """Step should load and categorize weights on initialization."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
 
         # Should have loaded seg and det weights
@@ -96,7 +97,7 @@ class TestModelSelectionStep:
 
     def test_model_selection_step_default_values(self, mock_weight_manager):
         """Step should have sensible default values."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
         step.build_ui()
 
@@ -117,7 +118,7 @@ class TestModelSelectionStep:
 
     def test_validation_succeeds_with_valid_thresholds(self, mock_weight_manager):
         """Validation should succeed with valid threshold values."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
         step.build_ui()
 
@@ -133,7 +134,7 @@ class TestModelSelectionStep:
 
     def test_validation_fails_with_invalid_confidence_format(self, mock_weight_manager):
         """Validation should fail with non-numeric confidence."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
         step.build_ui()
 
@@ -149,7 +150,7 @@ class TestModelSelectionStep:
 
     def test_validation_fails_with_threshold_out_of_range(self, mock_weight_manager):
         """Validation should fail when threshold is outside (0, 1) range."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
         step.build_ui()
 
@@ -166,7 +167,7 @@ class TestModelSelectionStep:
 
     def test_validation_fails_with_threshold_at_boundary(self, mock_weight_manager):
         """Validation should fail with threshold exactly at 0 or 1."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
         step.build_ui()
 
@@ -182,7 +183,7 @@ class TestModelSelectionStep:
 
     def test_get_data_returns_complete_configuration(self, mock_weight_manager):
         """get_data should return complete model configuration."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
         step.build_ui()
 
@@ -210,7 +211,7 @@ class TestModelSelectionStep:
 
     def test_set_data_restores_ui_state(self, mock_weight_manager):
         """set_data should restore UI from previously collected data."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
         step.build_ui()
 
@@ -242,7 +243,7 @@ class TestModelSelectionStep:
 
     def test_restore_default_thresholds_button(self, mock_weight_manager):
         """Restore defaults button should reset all thresholds."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
         step.build_ui()
 
@@ -264,7 +265,7 @@ class TestModelSelectionStep:
 
     def test_weight_dropdown_updates_on_method_change(self, mock_weight_manager):
         """Weight dropdown should update when method changes."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
         step.build_ui()
 
@@ -283,7 +284,7 @@ class TestModelSelectionStep:
 
     def test_validation_fails_with_mismatched_weight(self, mock_weight_manager):
         """Validation should fail if selected weight doesn't match method type."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
         step.build_ui()
 
@@ -331,6 +332,34 @@ class TestModelSelectionStep:
         # Should be empty or not show warning
         assert hint == "" or "⚠️" not in hint
 
+    def test_bytetrack_default_disabled_for_single_animal_detection(self, mock_weight_manager):
+        """ByteTrack should default to disabled for 1 animal + detection mode."""
+        wizard_data = {
+            "animals_per_aquarium": 1,
+            "model_selection": {
+                "animal_method": "det",
+            },
+        }
+        step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
+        step.build_ui()
+
+        assert step.use_bytetrack_var.get() is False
+
+    def test_bytetrack_default_kept_enabled_for_single_animal_segmentation(
+        self, mock_weight_manager
+    ):
+        """ByteTrack default should stay enabled when animal method is segmentation."""
+        wizard_data = {
+            "animals_per_aquarium": 1,
+            "model_selection": {
+                "animal_method": "seg",
+            },
+        }
+        step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
+        step.build_ui()
+
+        assert step.use_bytetrack_var.get() is True
+
     @pytest.mark.parametrize(
         "confidence,nms,track,match,expected_valid",
         [
@@ -348,7 +377,7 @@ class TestModelSelectionStep:
         self, mock_weight_manager, confidence, nms, track, match, expected_valid
     ):
         """Test threshold validation with various boundary conditions."""
-        wizard_data = {}
+        wizard_data: dict[str, Any] = {}
         step = ModelSelectionStep(self.root, wizard_data, settings_obj=None)
         step.build_ui()
 

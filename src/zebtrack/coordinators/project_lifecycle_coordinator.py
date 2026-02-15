@@ -13,7 +13,7 @@ CRITICAL: No dependency on MainViewModel. All dependencies injected explicitly.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -256,15 +256,15 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
     def create_project(  # noqa: C901
         self,
         *,
-        setup_detector_callback: Callable[[Any], None] | None = None,
-        set_active_weight_callback: Callable[[str, Any], None] | None = None,
-        set_openvino_usage_callback: Callable[[bool, Any], None] | None = None,
+        setup_detector_callback: Callable[[str | None], bool] | None = None,
+        set_active_weight_callback: Callable[[str], None] | None = None,
+        set_openvino_usage_callback: Callable[[bool], None] | None = None,
         update_openvino_status_callback: Callable[[], None] | None = None,
-        get_active_weight_name: Callable[[], str | None] | None = None,
+        get_active_weight_name: Callable[[], str] | None = None,
         get_use_openvino: Callable[[], bool] | None = None,
         apply_wizard_overrides_callback: Callable[[dict], None] | None = None,
         **wizard_data,
-    ) -> Path:
+    ) -> bool:
         """Create new project with wizard data.
 
         Args:
@@ -286,7 +286,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         # Provide default callbacks using available dependencies
         # These are safe no-op defaults when specific callbacks are not provided
-        def _default_setup_detector(animal_method: Any) -> bool:
+        def _default_setup_detector(animal_method: str | None) -> bool:
             """Default detector setup using detector_service if available."""
             if self.detector_service:
                 try:
@@ -355,14 +355,14 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             if self.state_manager:
                 detector_state = self.state_manager.get_detector_state()
                 return detector_state.active_weight_name or ""
-            return self.settings.detection.default_weight if self.settings else ""
+            return self.settings.weights.det_filename if self.settings else ""
 
         def _default_get_use_openvino() -> bool:
             """Default getter for OpenVINO usage from state_manager."""
             if self.state_manager:
                 detector_state = self.state_manager.get_detector_state()
                 return detector_state.use_openvino
-            return self.settings.detection.use_openvino if self.settings else False
+            return self.settings.model_selection.use_openvino if self.settings else False
 
         def _default_apply_wizard_overrides(metadata: dict) -> None:
             """Default wizard overrides applier using detector_service."""
@@ -378,7 +378,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
                         self.logger.warning("project.create.wizard_overrides_failed", error=str(e))
 
         # Delegate to adapter which handles all UI coordination
-        project_path = self.project_workflow_adapter.create_project_workflow(
+        success = self.project_workflow_adapter.create_project_workflow(
             setup_detector_callback=setup_detector_callback or _default_setup_detector,
             set_active_weight_callback=set_active_weight_callback or _default_set_active_weight,
             set_openvino_usage_callback=set_openvino_usage_callback or _default_set_openvino_usage,
@@ -392,24 +392,24 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             **wizard_data,
         )
 
-        if project_path:
-            self.logger.info("project.create.complete", path=str(project_path))
+        if success:
+            self.logger.info("project.create.complete")
         else:
             self.logger.warning("project.create.failed")
 
-        return project_path
+        return success
 
     def open_project(
         self,
         project_path: Path | str,
         *,
-        setup_detector_callback: Callable[[Any], None] | None = None,
-        set_active_weight_callback: Callable[[str, Any], None] | None = None,
-        set_openvino_usage_callback: Callable[[bool, Any], None] | None = None,
+        setup_detector_callback: Callable[[], bool] | None = None,
+        set_active_weight_callback: Callable[[str], None] | None = None,
+        set_openvino_usage_callback: Callable[[bool], None] | None = None,
         update_openvino_status_callback: Callable[[], None] | None = None,
         setup_zones_callback: Callable[[], None] | None = None,
-        restore_detector_callback: Callable[[], None] | None = None,
-        get_active_weight_name: Callable[[], str | None] | None = None,
+        restore_detector_callback: Callable[[dict], None] | None = None,
+        get_active_weight_name: Callable[[], str] | None = None,
         get_use_openvino: Callable[[], bool] | None = None,
     ) -> bool:
         """Open existing project and configure everything automatically.
@@ -487,14 +487,14 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             if self.state_manager:
                 detector_state = self.state_manager.get_detector_state()
                 return detector_state.active_weight_name or ""
-            return self.settings.detection.default_weight if self.settings else ""
+            return self.settings.weights.det_filename if self.settings else ""
 
         def _default_get_use_openvino() -> bool:
             """Default getter for OpenVINO usage from state_manager."""
             if self.state_manager:
                 detector_state = self.state_manager.get_detector_state()
                 return detector_state.use_openvino
-            return self.settings.detection.use_openvino if self.settings else False
+            return self.settings.model_selection.use_openvino if self.settings else False
 
         # Delegate to adapter which handles all UI coordination
         success = self.project_workflow_adapter.open_project_workflow(
@@ -504,7 +504,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             set_openvino_usage_callback=set_openvino_usage_callback or _default_set_openvino_usage,
             update_openvino_status_callback=update_openvino_status_callback
             or _default_update_openvino_status,
-            setup_zones_callback=setup_zones_callback or self._setup_zones_from_project,
+            setup_zones_callback=setup_zones_callback or (lambda: self._setup_zones_from_project()),
             restore_detector_callback=restore_detector_callback or _default_restore_detector,
             get_active_weight_name=get_active_weight_name or _default_get_active_weight_name,
             get_use_openvino=get_use_openvino or _default_get_use_openvino,
@@ -851,7 +851,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self,
         get_active_weight_name: Callable[[], str | None] | None = None,
         gui_instance: Any | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Get calibration scope information for UI display.
 
         Args:
@@ -954,7 +954,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         self,
         get_active_weight_name: Callable[[], str | None],
         get_use_openvino: Callable[[], bool],
-    ):
+    ) -> Generator[None, None, None]:
         """Context manager for global calibration mode.
 
         Temporarily disables project overrides and saves changes to global defaults.
@@ -979,7 +979,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
             self._using_project_overrides = previous_flag
 
     @contextmanager
-    def project_calibration_session(self):
+    def project_calibration_session(self) -> Generator[None, None, None]:
         """Context manager for project-specific calibration mode.
 
         Enables project override mode and saves changes to project settings.
@@ -1006,7 +1006,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
     def _setup_zones_from_project(
         self,
-        setup_detector_zones_callback: Callable[[Any], None] | None = None,
+        setup_detector_zones_callback: Callable[[], None] | None = None,
     ) -> None:
         """Set up zones from project data.
 
@@ -1031,14 +1031,16 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
 
         Phase 3: Consolidated from ProjectOrchestrator._ensure_project_overrides_record
         """
-        project_data = self.project_manager.project_data
+        project_data: dict[str, Any] = self.project_manager.project_data
         overrides = project_data.get("model_overrides")
         if not isinstance(overrides, dict):
             overrides = {"active_weight": None, "use_openvino": None}
             project_data["model_overrides"] = overrides
         return overrides
 
-    def _persist_project_model_settings(self, weight: str | None, use_openvino: bool) -> dict:
+    def _persist_project_model_settings(
+        self, weight: str | None, use_openvino: bool
+    ) -> dict[str, Any]:
         """Persist model settings to project configuration.
 
         Args:

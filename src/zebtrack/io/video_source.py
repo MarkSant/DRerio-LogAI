@@ -86,23 +86,26 @@ if __name__ == "__main__":
     frame_width, frame_height = 640, 480
     fps = 30
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
     writer = cv2.VideoWriter(test_video_path, fourcc, fps, (frame_width, frame_height))
 
     if not writer.isOpened():
         print("Failed to create a dummy video writer.")
     else:
         for i in range(100):
-            frame = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
+            dummy_frame = np.zeros((frame_height, frame_width, 3), dtype=np.uint8)
             text = f"Frame {i + 1}"
-            cv2.putText(frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            writer.write(frame)
+            cv2.putText(
+                dummy_frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2
+            )
+            writer.write(dummy_frame)
         writer.release()
         print(f"Created a dummy video file: {test_video_path}")
 
         try:
             video_source = VideoFileSource(test_video_path)
             frame_counter = 0
+            frame: np.ndarray | None = None
             while True:
                 ret, frame = video_source.get_frame()
                 if not ret:

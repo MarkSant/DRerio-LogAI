@@ -4,6 +4,7 @@ Focus: Graceful degradation, error messages, cleanup.
 """
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -267,7 +268,7 @@ class TestErrorHandling:
 
     def test_profile_matches_with_empty_criteria(self, analysis_service):
         """Test profile matching with empty criteria."""
-        profile = {"criteria": {}}
+        profile: dict[str, Any] = {"criteria": {}}
         metadata = {"group": "control", "subject": "fish_1"}
 
         # Empty criteria should match any metadata

@@ -41,6 +41,9 @@ class TestStateSnapshots:
         assert copy.project_data == state.project_data
         assert copy.active_zone_video == state.active_zone_video
 
+        assert copy.project_data is not None
+        assert state.project_data is not None
+
         # Modify copy
         copy.project_data["videos"].append("v2.mp4")
         copy.project_data["zones"][0] = 999

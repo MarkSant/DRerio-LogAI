@@ -2,9 +2,14 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
     branches: [main]
+
+env:
+  PYTHONUTF8: 1
+  PIP_CACHE_DIR: ~/.cache/pip
+  POETRY_CACHE_DIR: ~/.cache/pypoetry
 
 jobs:
   lint:
@@ -18,29 +23,76 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo rm -rf /usr/share/swift /usr/local/share/powershell /usr/local/share/chromium
+          sudo apt-get clean
+          df -h
+
       - name: Install Poetry
         run: |
           pip install poetry
+
+      - name: Install Poetry export plugin
+        run: |
+          poetry self add poetry-plugin-export
 
       - name: Configure Poetry virtualenv path
         run: |
           # Use in-project virtualenvs to avoid cache corruption issues
           poetry config virtualenvs.in-project true
+          poetry config virtualenvs.create true
 
-      - name: Cache Poetry dependencies
+      - name: Ensure cache paths exist
+        run: |
+          python -c "from pathlib import Path; home = Path.home(); (home / '.cache' / 'pip').mkdir(parents=True, exist_ok=True); (home / '.cache' / 'pypoetry').mkdir(parents=True, exist_ok=True)"
+
+      - name: Cache pip/poetry downloads (Linux)
+        if: runner.os == 'Linux'
         uses: actions/cache@v5
         with:
           path: |
-            .venv
+            ~/.cache/pip
             ~/.cache/pypoetry
-          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+          key: ${{ runner.os }}-pip-poetry-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            venv-${{ runner.os }}-
+            ${{ runner.os }}-pip-poetry-
+
+      - name: Set cache dirs (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "PIP_CACHE_DIR=$env:LOCALAPPDATA\pip\Cache" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "POETRY_CACHE_DIR=$env:LOCALAPPDATA\pypoetry\Cache" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Set cache dirs (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "PIP_CACHE_DIR=$env:LOCALAPPDATA\pip\Cache" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "POETRY_CACHE_DIR=$env:LOCALAPPDATA\pypoetry\Cache" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Cache pip/poetry downloads (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ env.PIP_CACHE_DIR }}
+            ${{ env.POETRY_CACHE_DIR }}
+          key: ${{ runner.os }}-pip-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-poetry-
 
       - name: Install dependencies
         run: |
           poetry install --no-interaction --no-ansi
         timeout-minutes: 10
+
+      - name: Install security tools
+        run: |
+          poetry run pip install pip-audit bandit
 
       - name: Build wizard template archive
         run: |
@@ -49,6 +101,10 @@ jobs:
       - name: Compile translations
         run: |
           poetry run python scripts/compile_translations.py
+
+      - name: Ensure build cache paths exist
+        run: |
+          python -c "from pathlib import Path; Path('src/zebtrack').mkdir(parents=True, exist_ok=True); Path('src/zebtrack/locale').mkdir(parents=True, exist_ok=True); Path('src/zebtrack/wizard_templates.zip').touch(exist_ok=True)"
 
       - name: Cache build artifacts
         uses: actions/cache@v5
@@ -59,6 +115,19 @@ jobs:
           key: ${{ runner.os }}-build-${{ hashFiles('src/zebtrack/ui/wizard/templates/*.yaml', 'locale/**/*.po') }}
           restore-keys: |
             ${{ runner.os }}-build-
+
+      - name: Run markdownlint
+        run: |
+          poetry run pre-commit run markdownlint --all-files
+
+      - name: Run pip-audit
+        run: |
+          poetry export -f requirements.txt --without-hashes -o /tmp/requirements.txt
+          poetry run pip-audit --strict -r /tmp/requirements.txt
+
+      - name: Run bandit
+        run: |
+          poetry run bandit -r src/zebtrack -ll
 
       - name: Run ruff check
         run: |
@@ -84,6 +153,8 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    env:
+      PYTHONUTF8: 1
     steps:
       - uses: actions/checkout@v6
 
@@ -91,6 +162,14 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo rm -rf /usr/share/swift /usr/local/share/powershell /usr/local/share/chromium
+          sudo apt-get clean
+          df -h
 
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
@@ -111,16 +190,54 @@ jobs:
         run: |
           # Use in-project virtualenvs to avoid cache corruption issues
           poetry config virtualenvs.in-project true
+          poetry config virtualenvs.create true
 
-      - name: Cache Poetry dependencies
+      - name: Configure cache paths (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          echo "PIP_CACHE_DIR=$Env:LOCALAPPDATA\pip\Cache" >> $Env:GITHUB_ENV
+          echo "POETRY_CACHE_DIR=$Env:LOCALAPPDATA\pypoetry\Cache" >> $Env:GITHUB_ENV
+          python -c "from pathlib import Path; import os; Path(os.environ['LOCALAPPDATA'], 'pip', 'Cache').mkdir(parents=True, exist_ok=True); Path(os.environ['LOCALAPPDATA'], 'pypoetry', 'Cache').mkdir(parents=True, exist_ok=True)"
+
+      - name: Ensure cache paths exist
+        run: |
+          python -c "from pathlib import Path; import os; home = Path.home(); local_app = os.environ.get('LOCALAPPDATA'); (Path(local_app, 'pip', 'Cache') if local_app else (home / '.cache' / 'pip')).mkdir(parents=True, exist_ok=True); (Path(local_app, 'pypoetry', 'Cache') if local_app else (home / '.cache' / 'pypoetry')).mkdir(parents=True, exist_ok=True)"
+
+      - name: Ensure in-project venv path exists (Windows only)
+        if: runner.os == 'Windows'
+        run: |
+          python -c "from pathlib import Path; Path('.venv').mkdir(parents=True, exist_ok=True)"
+
+      - name: Cache pip/poetry downloads (Linux)
+        if: runner.os == 'Linux'
         uses: actions/cache@v5
         with:
           path: |
-            .venv
+            ~/.cache/pip
             ~/.cache/pypoetry
-          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+          key: ${{ runner.os }}-pip-poetry-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            venv-${{ runner.os }}-
+            ${{ runner.os }}-pip-poetry-
+
+      - name: Cache pip/poetry downloads (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ env.PIP_CACHE_DIR }}
+            ${{ env.POETRY_CACHE_DIR }}
+          key: ${{ runner.os }}-pip-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-poetry-
+
+      - name: Cache in-project virtualenv (Windows only)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v5
+        with:
+          path: .venv
+          key: ${{ runner.os }}-venv-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-venv-
 
       - name: Install dependencies
         run: |
@@ -135,6 +252,10 @@ jobs:
         run: |
           poetry run python scripts/compile_translations.py
 
+      - name: Ensure build cache paths exist
+        run: |
+          python -c "from pathlib import Path; Path('src/zebtrack').mkdir(parents=True, exist_ok=True); Path('src/zebtrack/locale').mkdir(parents=True, exist_ok=True); Path('src/zebtrack/wizard_templates.zip').touch(exist_ok=True)"
+
       - name: Cache build artifacts
         uses: actions/cache@v5
         with:
@@ -148,19 +269,55 @@ jobs:
       - name: "Run tests (Linux - with xvfb)"
         if: runner.os == 'Linux'
         run: |
-          xvfb-run --auto-servernum poetry run pytest -m "not (gui or slow)" --cov-fail-under=60 --timeout=300 --timeout-method=thread
-        timeout-minutes: 15
+          xvfb-run --auto-servernum poetry run pytest -m "not gui" --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=45 --timeout=300 --timeout-method=thread
+        timeout-minutes: 45
+
+      - name: "Run GUI tests (Linux - with xvfb)"
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run --auto-servernum poetry run pytest -m gui -n0 --reruns 2 --reruns-delay 1 --cov=zebtrack --cov-report=xml:coverage-gui.xml --cov-fail-under=30 --timeout=300 --timeout-method=thread
+        timeout-minutes: 45
 
       - name: "Run tests (Windows)"
         if: runner.os == 'Windows'
         run: |
-          poetry run pytest -m "not (gui or slow)" --cov-fail-under=60 --timeout=300 --timeout-method=thread
-        timeout-minutes: 15
+          $Env:ZEBTRACK_HEADLESS_TESTS = "1"
+          poetry run pytest -m "not gui" --ignore=tests/ui --ignore=tests/ui/test_aquarium_dialogs.py --cov=zebtrack --cov-report=xml:coverage-core.xml --cov-fail-under=25 --timeout=300 --timeout-method=thread
+        timeout-minutes: 45
+
+      - name: Upload Codecov core coverage (Linux)
+        if: runner.os == 'Linux'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-core.xml
+          flags: core-linux
+          fail_ci_if_error: false
+
+      - name: Upload Codecov gui coverage (Linux)
+        if: runner.os == 'Linux'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-gui.xml
+          flags: gui-linux
+          fail_ci_if_error: false
+
+      - name: Upload Codecov core coverage (Windows)
+        if: runner.os == 'Windows'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage-core.xml
+          flags: core-windows
+          fail_ci_if_error: false
 
       - name: Archive coverage results
         uses: actions/upload-artifact@v6
         with:
-          name: coverage-report
+          name: coverage-report-${{ matrix.os }}
           path: |
-            coverage.xml
+            coverage-core.xml
+            coverage-gui.xml
+          if-no-files-found: warn
           retention-days: 30

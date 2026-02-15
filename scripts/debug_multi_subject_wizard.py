@@ -12,6 +12,7 @@ Then run the wizard with your multi-aquarium video files and check the logs.
 
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -56,7 +57,9 @@ def patch_detection_step():
 
         return result
 
-    detection_step.DetectionStep._pattern_custom_regex = patched_pattern_custom_regex
+    attr_name = "_pattern_custom_regex"
+    detection_step_class = cast(type[Any], detection_step.DetectionStep)
+    type.__setattr__(detection_step_class, attr_name, patched_pattern_custom_regex)
     log.info("✅ Patched detection_step._pattern_custom_regex")
 
 
@@ -119,9 +122,9 @@ def patch_project_workflow_service():
 
         return result
 
-    project_workflow_service.ProjectWorkflowService._enrich_videos_with_design_metadata = (
-        patched_enrich
-    )
+    attr_name = "_enrich_videos_with_design_metadata"
+    workflow_class = cast(type[Any], project_workflow_service.ProjectWorkflowService)
+    type.__setattr__(workflow_class, attr_name, patched_enrich)
     log.info("✅ Patched ProjectWorkflowService._enrich_videos_with_design_metadata")
 
 
@@ -129,7 +132,8 @@ def patch_validation_manager():
     """Patch validation_manager to add enhanced logging."""
     from zebtrack.ui.components import validation_manager
 
-    original_build = validation_manager.ValidationManager._build_video_hierarchy
+    validation_manager_class = cast(Any, validation_manager.ValidationManager)
+    original_build = validation_manager_class._build_video_hierarchy
 
     def patched_build(self, videos, search_text=""):
         """Patched version with enhanced logging."""
@@ -151,8 +155,8 @@ def patch_validation_manager():
 
         # Count total entries in hierarchy
         total_entries = 0
-        for group_id, group_data in result.items():
-            for day_id, day_data in group_data.get("days", {}).items():
+        for _group_id, group_data in result.items():
+            for _day_id, day_data in group_data.get("days", {}).items():
                 total_entries += len(day_data.get("videos", []))
 
         log.warning(
@@ -163,7 +167,7 @@ def patch_validation_manager():
 
         return result
 
-    validation_manager.ValidationManager._build_video_hierarchy = patched_build
+    validation_manager_class._build_video_hierarchy = patched_build
     log.info("✅ Patched ValidationManager._build_video_hierarchy")
 
 

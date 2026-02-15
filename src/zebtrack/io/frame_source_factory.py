@@ -165,7 +165,7 @@ class FrameSourceFactory:
             )
 
         # Handle file path (string or Path)
-        elif isinstance(source, (str, Path)):
+        elif isinstance(source, str | Path):
             return FrameSourceFactory.create_from_path(video_path=source, settings_obj=settings_obj)
 
         else:
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     # Test 4: Error handling
     print("\n4. Testing error handling...")
     try:
-        FrameSourceFactory.create(source=999.5)  # Invalid type
+        FrameSourceFactory.create(source={"type": "invalid"})
     except ValueError as e:
         print(f"   ✓ Caught expected ValueError: {e}")
 

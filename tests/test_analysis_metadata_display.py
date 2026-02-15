@@ -91,6 +91,7 @@ def test_update_analysis_metadata_formats_values() -> None:
         }
     )
 
+    assert gui_instance.analysis_metadata_var is not None
     assert (
         gui_instance.analysis_metadata_var.get()
         == "Grupo: Tratamento A | Dia: Dia 03 | Indivíduo: 07"
@@ -101,6 +102,7 @@ def test_update_analysis_metadata_handles_missing_values() -> None:
     gui_instance = _make_gui_instance()
     gui_instance.update_analysis_metadata(metadata={})
 
+    assert gui_instance.analysis_metadata_var is not None
     assert (
         gui_instance.analysis_metadata_var.get()
         == StateSynchronizer._default_analysis_metadata_text()
@@ -116,6 +118,7 @@ def test_update_analysis_task_status_formats_step() -> None:
         step="Etapa: Rastreamento",
     )
 
+    assert gui_instance.analysis_task_var is not None
     assert gui_instance.analysis_task_var.get() == "Vídeo 2 de 4 — EXP123 • Rastreamento"
 
 

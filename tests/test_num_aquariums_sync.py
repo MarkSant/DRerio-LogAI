@@ -57,7 +57,7 @@ class TestNumAquariumsSynchronization:
 
     def test_num_aquariums_synced_on_project_load_1_aquarium(self, mock_settings):
         """Test that num_aquariums stays 1 for single-aquarium projects."""
-        pm_project_data = {
+        pm_project_data: dict[str, object] = {
             "calibration": {
                 "num_aquariums": 1,
             },
@@ -73,7 +73,7 @@ class TestNumAquariumsSynchronization:
 
     def test_num_aquariums_defaults_when_missing(self, mock_settings):
         """Test that num_aquariums defaults to 1 when not in calibration."""
-        pm_project_data = {
+        pm_project_data: dict[str, object] = {
             "calibration": {},  # Missing num_aquariums
         }
 
@@ -87,7 +87,7 @@ class TestNumAquariumsSynchronization:
 
     def test_num_aquariums_handles_missing_calibration(self, mock_settings):
         """Test that synchronization handles missing calibration section."""
-        pm_project_data = {}  # No calibration section
+        pm_project_data: dict[str, object] = {}  # No calibration section
 
         calibration = pm_project_data.get("calibration", {})
         if isinstance(calibration, dict):

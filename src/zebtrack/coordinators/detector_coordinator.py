@@ -9,6 +9,7 @@ Extracted from: HardwareCoordinator detector-related methods
 
 from __future__ import annotations
 
+import typing
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -17,6 +18,7 @@ from zebtrack.coordinators.base import (
     BaseCoordinator,
     CoordinatorValidationError,
 )
+from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
 from zebtrack.core.state_manager import StateCategory
 
 if TYPE_CHECKING:
@@ -183,7 +185,7 @@ class DetectorCoordinator(BaseCoordinator):
                     StateCategory.DETECTOR,
                     is_detector_initialized=True,
                     animal_method=animal_method
-                    or self.detector_service.settings.detection.animal_method,
+                    or self.detector_service.settings.model_selection.animal_method,
                     use_openvino=use_openvino,
                 )
 
@@ -219,7 +221,7 @@ class DetectorCoordinator(BaseCoordinator):
 
     def configure_zones(
         self,
-        zones_data: list[dict] | None = None,
+        zones_data: list[dict] | ZoneData | MultiAquariumZoneData | None = None,
         video_width: int | None = None,
         video_height: int | None = None,
     ) -> bool:
@@ -253,15 +255,38 @@ class DetectorCoordinator(BaseCoordinator):
             ... )
         """
         # Validate dependencies
+        # Validate dependencies
         if not self.validate_dependencies():
+            count = 0
+            if isinstance(zones_data, list):
+                count = len(zones_data)
+            elif zones_data:
+                # Approximate count for logging/context
+                count = 1
+
             raise CoordinatorValidationError(
                 "Cannot configure zones - dependencies invalid",
-                context={"zones_count": len(zones_data) if zones_data else 0},
+                context={"zones_count": count},
             )
 
         # Validate inputs
         if zones_data is not None:
-            self._validate_type(zones_data, list, "zones_data")
+            self._validate_type(zones_data, (list, ZoneData, MultiAquariumZoneData), "zones_data")
+
+        # Convert legacy list of dicts to ZoneData object
+        if isinstance(zones_data, list):
+            # Simple conversion assuming standard structure
+            arena_poly: list[list[int]] = []
+            roi_polys: list[list[list[int]]] = []
+            roi_names: list[str] = []
+            for z in zones_data:
+                if z.get("type") == "arena":
+                    arena_poly = z.get("polygon", [])
+                else:
+                    roi_polys.append(z.get("polygon", []))
+                    roi_names.append(z.get("name", f"Zone_{len(roi_names)}"))
+
+            zones_data = ZoneData(polygon=arena_poly, roi_polygons=roi_polys, roi_names=roi_names)
 
         if video_width is not None:
             self._validate_type(video_width, int, "video_width")
@@ -282,18 +307,33 @@ class DetectorCoordinator(BaseCoordinator):
             )
 
             if success:
+                # Calculate count for state/events
+                count = 0
+                if isinstance(zones_data, list):
+                    count = len(zones_data)
+                elif zones_data:
+                    # For ZoneData/MultiAquariumZoneData, treat as 1 config object
+                    # or try to count items using a simple check to avoid heavy access.
+                    count = 1
+                    if hasattr(zones_data, "aquariums"):  # MultiAquariumZoneData
+                        count = len(getattr(zones_data, "aquariums", []))
+                    elif hasattr(zones_data, "roi_polygons"):  # ZoneData
+                        count = len(getattr(zones_data, "roi_polygons", [])) + (
+                            1 if getattr(zones_data, "polygon", None) else 0
+                        )
+
                 # Update state
                 self._update_state(
                     StateCategory.DETECTOR,
                     zones_configured=True,
-                    zones_count=len(zones_data) if zones_data else 0,
+                    zones_count=count,
                 )
 
                 # Publish success event
                 self._publish_event(
                     "ZONES_CONFIGURED",
                     {
-                        "zones_count": len(zones_data) if zones_data else 0,
+                        "zones_count": count,
                         "video_width": video_width,
                         "video_height": video_height,
                     },
@@ -301,7 +341,7 @@ class DetectorCoordinator(BaseCoordinator):
 
                 log.info(
                     "detector_coordinator.configure_zones.success",
-                    zones_count=len(zones_data) if zones_data else 0,
+                    zones_count=count,
                 )
             else:
                 log.warning("detector_coordinator.configure_zones.failed")
@@ -309,11 +349,17 @@ class DetectorCoordinator(BaseCoordinator):
             return success
 
         except Exception as e:
+            count = 0
+            if isinstance(zones_data, list):
+                count = len(zones_data)
+            elif zones_data:
+                count = 1
+
             log.exception("detector_coordinator.configure_zones.exception", error=str(e))
             raise DetectorCoordinatorError(
                 f"Failed to configure zones: {e}",
                 context={
-                    "zones_count": len(zones_data) if zones_data else 0,
+                    "zones_count": count,
                     "video_width": video_width,
                     "video_height": video_height,
                 },
@@ -387,7 +433,7 @@ class DetectorCoordinator(BaseCoordinator):
 
             if success:
                 # Update state
-                state_update = {"tracking_parameters_updated": True}
+                state_update: dict[str, Any] = {"tracking_parameters_updated": True}
                 if track_threshold is not None:
                     state_update["track_threshold"] = track_threshold
                 if match_threshold is not None:
@@ -481,7 +527,7 @@ class DetectorCoordinator(BaseCoordinator):
             success = self.detector_service.update_tracking_parameters(
                 params=params,
                 reset_overrides=reset_overrides,
-                scope=scope,
+                scope=typing.cast(typing.Literal["global", "project"], scope),
             )
 
             if success:

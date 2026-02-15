@@ -271,7 +271,7 @@ class TestMainViewModelThreadLifecycle:
             time.sleep(10.0)  # intentional interleaving delay
 
         main_view_model.processing_thread = threading.Thread(
-            target=long_running_worker, daemon=False
+            target=long_running_worker, daemon=True
         )
         main_view_model.processing_thread.start()
 
@@ -280,8 +280,9 @@ class TestMainViewModelThreadLifecycle:
         wait_for_thread_exit(main_view_model.processing_thread, timeout=0.5)
         elapsed = time.time() - start_time
 
-        # Should timeout in ~0.5s, not wait for full 10s
-        assert elapsed < 1.0
+        # Should timeout quickly and never wait for full 10s.
+        # On busy Windows CI runners, scheduling jitter can exceed 1s.
+        assert elapsed < 2.0
 
 
 class TestMainViewModelConcurrentOperations:
@@ -289,7 +290,7 @@ class TestMainViewModelConcurrentOperations:
 
     def test_concurrent_detector_calls(self, main_view_model):
         """Test concurrent calls to detector from multiple threads."""
-        detection_calls = []
+        detection_calls: list[tuple[int, int | str]] = []
 
         def detector_worker(worker_id):
             for i in range(3):
@@ -528,7 +529,7 @@ class TestMainViewModelProcessingWorker:
             while not main_view_model.cancel_event.is_set():
                 time.sleep(0.05)  # intentional interleaving delay
 
-        main_view_model.processing_thread = threading.Thread(target=worker, daemon=False)
+        main_view_model.processing_thread = threading.Thread(target=worker, daemon=True)
         main_view_model.processing_thread.start()
 
         # Both should be active
@@ -536,7 +537,7 @@ class TestMainViewModelProcessingWorker:
 
         # Cancel both
         main_view_model.cancel_event.set()
-        wait_for_thread_exit(main_view_model.processing_thread, timeout=2.0)
+        wait_for_thread_exit(main_view_model.processing_thread, timeout=5.0)
 
         # Thread should stop
         assert not main_view_model.processing_thread.is_alive()

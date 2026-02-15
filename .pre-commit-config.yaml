@@ -8,17 +8,23 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: \.md$
       - id: end-of-file-fixer
-        exclude: \.md$
       - id: check-yaml
         args: [--unsafe]  # Allow custom YAML tags
       - id: check-added-large-files
         args: [--maxkb=1000]
+        exclude: ^docs/archive/legacy/fapesp/(notebooks|manuscripts)/
       - id: check-merge-conflict
       - id: check-case-conflict
       - id: mixed-line-ending
         args: [--fix=lf]
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.41.0
+    hooks:
+      - id: markdownlint
+        args: [--config, .markdownlint.json, --ignore-path, .markdownlintignore]
 
   # Poetry lock file check
   - repo: https://github.com/python-poetry/poetry

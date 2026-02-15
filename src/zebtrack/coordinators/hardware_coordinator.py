@@ -37,6 +37,7 @@ import cv2
 import structlog
 
 from zebtrack.coordinators.base import BaseCoordinator, CoordinatorValidationError
+from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
 from zebtrack.core.state_manager import StateCategory
 from zebtrack.plugins import DETECTOR_PLUGINS
 from zebtrack.ui.events import Events
@@ -284,7 +285,7 @@ class HardwareCoordinator(BaseCoordinator):
                     StateCategory.DETECTOR,
                     is_detector_initialized=True,
                     animal_method=animal_method
-                    or self.detector_service.settings.detection.animal_method,
+                    or self.detector_service.settings.model_selection.animal_method,
                     use_openvino=use_openvino,
                 )
 
@@ -320,7 +321,7 @@ class HardwareCoordinator(BaseCoordinator):
 
     def configure_zones(
         self,
-        zones_data: list[dict] | None = None,
+        zones_data: list[dict] | ZoneData | MultiAquariumZoneData | None = None,
         video_width: int | None = None,
         video_height: int | None = None,
     ) -> bool:
@@ -354,14 +355,35 @@ class HardwareCoordinator(BaseCoordinator):
         """
         # Validate dependencies
         if not self.validate_dependencies():
+            count = 0
+            if isinstance(zones_data, list):
+                count = len(zones_data)
+            elif zones_data:
+                count = 1  # Approximate for context
+
             raise CoordinatorValidationError(
                 "Cannot configure zones - dependencies invalid",
-                context={"zones_count": len(zones_data) if zones_data else 0},
+                context={"zones_count": count},
             )
 
         # Validate inputs
         if zones_data is not None:
-            self._validate_type(zones_data, list, "zones_data")
+            self._validate_type(zones_data, (list, ZoneData, MultiAquariumZoneData), "zones_data")
+
+        # Convert legacy list of dicts to ZoneData object
+        if isinstance(zones_data, list):
+            # Simple conversion assuming standard structure
+            arena_poly = []
+            roi_polys = []
+            roi_names: list[str] = []
+            for z in zones_data:
+                if z.get("type") == "arena":
+                    arena_poly = z.get("polygon", [])
+                else:
+                    roi_polys.append(z.get("polygon", []))
+                    roi_names.append(z.get("name", f"Zone_{len(roi_names)}"))
+
+            zones_data = ZoneData(polygon=arena_poly, roi_polygons=roi_polys, roi_names=roi_names)
 
         if video_width is not None:
             self._validate_type(video_width, int, "video_width")
@@ -382,18 +404,29 @@ class HardwareCoordinator(BaseCoordinator):
             )
 
             if success:
+                # Calculate final count for logging/state
+                count = 0
+                if zones_data:
+                    count = 1
+                    if hasattr(zones_data, "aquariums"):
+                        count = len(getattr(zones_data, "aquariums", []))
+                    elif hasattr(zones_data, "roi_polygons"):
+                        count = len(getattr(zones_data, "roi_polygons", [])) + (
+                            1 if getattr(zones_data, "polygon", None) else 0
+                        )
+
                 # Update state
                 self._update_state(
                     StateCategory.DETECTOR,
                     zones_configured=True,
-                    zones_count=len(zones_data) if zones_data else 0,
+                    zones_count=count,
                 )
 
                 # Publish success event
                 self._publish_event(
                     "ZONES_CONFIGURED",
                     {
-                        "zones_count": len(zones_data) if zones_data else 0,
+                        "zones_count": count,
                         "video_width": video_width,
                         "video_height": video_height,
                     },
@@ -401,7 +434,7 @@ class HardwareCoordinator(BaseCoordinator):
 
                 log.info(
                     "hardware_coordinator.configure_zones.success",
-                    zones_count=len(zones_data) if zones_data else 0,
+                    zones_count=count,
                 )
             else:
                 log.warning("hardware_coordinator.configure_zones.failed")
@@ -409,11 +442,18 @@ class HardwareCoordinator(BaseCoordinator):
             return success
 
         except Exception as e:
+            # Fallback count calculation for error context
+            count = 0
+            if isinstance(zones_data, list):
+                count = len(zones_data)
+            elif zones_data:
+                count = 1
+
             log.exception("hardware_coordinator.configure_zones.exception", error=str(e))
             raise HardwareCoordinatorError(
                 f"Failed to configure zones: {e}",
                 context={
-                    "zones_count": len(zones_data) if zones_data else 0,
+                    "zones_count": count,
                     "video_width": video_width,
                     "video_height": video_height,
                 },
@@ -489,7 +529,7 @@ class HardwareCoordinator(BaseCoordinator):
 
             if success:
                 # Update state
-                state_update = {"tracking_parameters_updated": True}
+                state_update: dict[str, Any] = {"tracking_parameters_updated": True}
                 if track_threshold is not None:
                     state_update["track_threshold"] = track_threshold
                 if match_threshold is not None:
@@ -589,10 +629,12 @@ class HardwareCoordinator(BaseCoordinator):
 
         # Delegate to service
         try:
+            from typing import Literal, cast
+
             success = self.detector_service.update_tracking_parameters(
                 params=params,
                 reset_overrides=reset_overrides,
-                scope=scope,
+                scope=cast(Literal["global", "project"], scope),
             )
 
             if success:
@@ -1001,7 +1043,11 @@ class HardwareCoordinator(BaseCoordinator):
         if not active_weight_name and hasattr(self.weight_manager, "get_active_weight_name"):
             active_weight_name = self.weight_manager.get_active_weight_name()
 
-        active_weight_details = self.weight_manager.get_weight_details(active_weight_name)
+        active_weight_details = (
+            self.weight_manager.get_weight_details(active_weight_name)
+            if self.weight_manager and active_weight_name
+            else None
+        )
 
         log.info(
             "hardware_coordinator.diagnostic.active_weight",
@@ -1058,10 +1104,16 @@ class HardwareCoordinator(BaseCoordinator):
                         )
 
                     # Refresh details after conversion
-                    active_weight_details = self.weight_manager.get_weight_details(
-                        active_weight_name
-                    )
-                    if not _is_valid_openvino_directory(active_weight_details.get("openvino_path")):
+                    if active_weight_name:
+                        active_weight_details = self.weight_manager.get_weight_details(
+                            str(active_weight_name)
+                        )
+                    else:
+                        active_weight_details = None  # Should not happen if initial check passed
+
+                    if not active_weight_details or not _is_valid_openvino_directory(
+                        active_weight_details.get("openvino_path")
+                    ):
                         if self.event_bus:
                             self.event_bus.publish_event(
                                 Events.UI_SHOW_ERROR,

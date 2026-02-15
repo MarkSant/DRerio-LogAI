@@ -1,8 +1,18 @@
 """Pydantic schemas para validação de dados JSON."""
 
+from enum import Enum, auto
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class AssetType(Enum):
+    """Tipos de assets gerenciados pelo sistema."""
+
+    ROI_TEMPLATE = auto()
+    ANALYSIS_PROFILE = auto()
+    CALIBRATION = auto()
+    MODEL_WEIGHTS = auto()
 
 
 class ROITemplateSchema(BaseModel):

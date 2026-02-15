@@ -653,6 +653,19 @@ class TestTemporarySingleAnimalMode:
         assert hasattr(ctx, "__enter__")
         assert hasattr(ctx, "__exit__")
 
+    def test_temporary_mode_infers_tracker_pref_from_single_animal(
+        self, coordinator, mock_settings
+    ):
+        """Tracker preference follows single-animal mode when explicit pref is absent."""
+        coordinator._resolve_single_subject_tracker_preference = MagicMock(return_value=None)
+
+        with coordinator._temporary_single_animal_mode({"animals_per_aquarium": 1}):
+            assert mock_settings.video_processing.single_animal_per_aquarium is True
+            assert mock_settings.tracking.use_single_subject_tracker is True
+
+        assert mock_settings.video_processing.single_animal_per_aquarium is False
+        assert mock_settings.tracking.use_single_subject_tracker is False
+
 
 # =============================================================================
 # SUMMARY VIDEO PROCESSING TESTS

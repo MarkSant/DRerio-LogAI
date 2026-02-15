@@ -91,7 +91,7 @@ def test_behavioral_analyzer_all_metrics_are_numbers():
     result = analyzer.analyze("test.mp4")
 
     for key, value in result.items():
-        assert isinstance(value, (int, float)), f"{key} should be a number"
+        assert isinstance(value, int | float), f"{key} should be a number"
 
 
 def test_behavioral_analyzer_positive_values():

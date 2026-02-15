@@ -1,7 +1,9 @@
 """Video display widget component - handles canvas rendering and video frame display."""
 
 import os
+import tkinter as tk
 from tkinter import Canvas
+from typing import Any
 
 import cv2
 import structlog
@@ -33,12 +35,12 @@ class VideoDisplayWidget(BaseWidget):
 
     def __init__(
         self,
-        parent,
+        parent: tk.Widget,
         event_bus: EventBus | None = None,
         width: int = DEFAULT_WIDTH,
         height: int = DEFAULT_HEIGHT,
         bg: str = "gray",
-        **kwargs,
+        **kwargs: Any,
     ):
         """
         Initialize the video display widget.
@@ -61,13 +63,14 @@ class VideoDisplayWidget(BaseWidget):
         self._raw_bg_image: Image.Image | None = None
         self._canvas_bg_image: ImageTk.PhotoImage | None = None
         self._canvas_bg_position: tuple[int, int, str] | None = None
+        self._redraw_job: str | None = None
 
         # Coordinate transformation state
         self._bg_scale: float = 1.0
         self._bg_offset: tuple[int, int] = (0, 0)
         self._bg_img_size: tuple[int, int] = (width, height)
 
-        super().__init__(parent, event_bus=event_bus, **kwargs)
+        super().__init__(parent, event_bus=event_bus, **kwargs)  # type: ignore[arg-type]
 
     def _build_ui(self) -> None:
         """Build the video display widget UI."""
@@ -83,7 +86,7 @@ class VideoDisplayWidget(BaseWidget):
         # Bind canvas resize to redraw
         self.canvas.bind("<Configure>", self._on_canvas_resize)
 
-    def _on_canvas_resize(self, event) -> None:
+    def _on_canvas_resize(self, event: tk.Event) -> None:
         """Handle canvas resize events by redrawing the background."""
         if self._raw_bg_image or self._original_image:
             # Defer redraw to avoid multiple redraws during resize
@@ -199,9 +202,13 @@ class VideoDisplayWidget(BaseWidget):
             return
 
         # Use raw_bg_image if available, otherwise use original_image
-        image_to_draw = self._raw_bg_image or self._original_image
+        image_to_draw: Image.Image | None = self._raw_bg_image or self._original_image
+        assert image_to_draw is not None
 
         # Get actual canvas dimensions
+        if not self.canvas:
+            return
+
         canvas_width = self.canvas.winfo_width()
         canvas_height = self.canvas.winfo_height()
 
@@ -234,25 +241,29 @@ class VideoDisplayWidget(BaseWidget):
             try:
                 RESAMPLING_LANCZOS = Image.LANCZOS  # type: ignore[attr-defined]
             except Exception:
-                RESAMPLING_LANCZOS = Image.BICUBIC
+                RESAMPLING_LANCZOS = Image.BICUBIC  # type: ignore[attr-defined]
 
         # Scale the image
-        scaled_image = image_to_draw.resize((new_width, new_height), RESAMPLING_LANCZOS)
+        if image_to_draw:
+            scaled_image = image_to_draw.resize((new_width, new_height), RESAMPLING_LANCZOS)
+        else:
+            return
 
         # Clear canvas and display centered image
-        self.canvas.delete("all")
-        self._canvas_bg_image = ImageTk.PhotoImage(scaled_image)
+        if self.canvas:
+            self.canvas.delete("all")
+            self._canvas_bg_image = ImageTk.PhotoImage(scaled_image)
 
-        # Store positioning for reference
-        self._canvas_bg_position = (center_x, center_y, "center")
+            # Store positioning for reference
+            self._canvas_bg_position = (center_x, center_y, "center")
 
-        self.canvas.create_image(
-            center_x,
-            center_y,
-            anchor="center",
-            image=self._canvas_bg_image,
-            tags="background_image",
-        )
+            self.canvas.create_image(
+                center_x,
+                center_y,
+                anchor="center",
+                image=self._canvas_bg_image,
+                tags="background_image",
+            )
 
     def video_to_canvas(self, video_x: float, video_y: float) -> tuple[float, float]:
         """

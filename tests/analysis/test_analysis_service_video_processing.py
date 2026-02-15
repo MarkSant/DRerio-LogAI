@@ -5,6 +5,7 @@ Focus: Lines 399-730 in analysis_service.py
 """
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -208,8 +209,8 @@ class TestAnalysisServiceVideoProcessing:
 
     def test_resolve_analysis_profile_default(self, analysis_service, mock_settings):
         """Test resolving analysis profile returns defaults when no profiles exist."""
-        project_data = {}
-        metadata = {}
+        project_data: dict[str, Any] = {}
+        metadata: dict[str, Any] = {}
 
         profile = analysis_service.resolve_analysis_profile(metadata, project_data)
 

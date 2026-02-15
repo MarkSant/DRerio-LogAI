@@ -1,0 +1,38 @@
+name: Commitlint
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lint PR title (conventional commit format)
+        shell: bash
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          echo "Checking PR title: $TITLE"
+
+          if [ ${#TITLE} -gt 100 ]; then
+            echo "❌ PR title exceeds 100 characters (${#TITLE})"
+            exit 1
+          fi
+
+          if [[ "$TITLE" =~ \.$ ]]; then
+            echo "❌ PR title must not end with a period"
+            exit 1
+          fi
+
+          if [[ ! "$TITLE" =~ ^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?(!)?:\ [a-z0-9] ]]; then
+            echo "❌ PR title must follow conventional format: type(scope): subject"
+            echo "   Example: fix(ci): stabilize PR checks"
+            exit 1
+          fi
+
+          echo "✅ PR title passes conventional format checks"

@@ -81,6 +81,6 @@ Os testes deverão ser executados em ambiente com tkinter instalado antes do mer
 
 **TASK 2.1 CONCLUÍDA COM SUCESSO** ✅
 
-A refatoração reduziu significativamente a complexidade do God Object `ApplicationGUI`, 
-extraindo 2,301 linhas em 4 componentes bem definidos, mantendo 100% da funcionalidade 
+A refatoração reduziu significativamente a complexidade do God Object `ApplicationGUI`,
+extraindo 2,301 linhas em 4 componentes bem definidos, mantendo 100% da funcionalidade
 e qualidade do código.
