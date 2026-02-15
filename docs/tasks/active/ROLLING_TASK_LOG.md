@@ -24,6 +24,13 @@ correction, including commitlint false negatives and Domain Tests instability on
 - [x] Resolve headless Tkinter errors in multi-aquarium domain shard.
 - [x] Re-run CI and confirm all required checks pass.
 
+**2026-02-14 Follow-up (chat continuation):** Fixed a residual lint gate failure
+(`MD040`) by adding an explicit language marker to a fenced block in
+`docs/guides/developer/MCP_CONFIGURATION.md`, and completed first-phase Codecov
+hardening by injecting `secrets.CODECOV_TOKEN` into all Codecov upload steps in
+`ci.yml` (Linux core/gui and Windows core) while keeping `fail_ci_if_error: false`
+to avoid introducing hard failures before upload stability is fully observed.
+
 ### [2026-02-13] Batch UX, ROI template safeguards, processing-mode label, and unified reports hardening
 
 **ID:** TASK-029

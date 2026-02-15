@@ -16,7 +16,7 @@ VS Code Copilot integration. MCP allows Copilot to interact with external tools 
 
 Prior to this fix, the repository included a Docker MCP gateway configuration that caused errors:
 
-```
+```text
 Invalid schema for function 'mcp_mcp_docker_mcp-config-set':
 In context=('properties', 'value', 'type', '4'), array schema missing items.
 ```
