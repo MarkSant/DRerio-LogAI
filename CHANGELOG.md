@@ -137,6 +137,36 @@ package, and cleaned dead deprecated fields.
   `video_processing_orchestrator=None`)
 - **2778 tests passing**, 12 skipped, 0 failures, lint clean
 
+##### 3.5 Eliminated dead `AnalysisCoordinator`
+
+- **Deleted** `core/analysis_coordinator.py` (744 lines) — dead code
+  fully superseded by `ProcessingCoordinator`
+- Removed import and construction block from
+  `ApplicationBootstrapper._init_orchestrators()`
+- Removed proxy assignment (`controller_proxy.analysis_coordinator`)
+- Removed `analysis_coordinator` field from
+  `MainViewModelDependencies`
+- Removed attribute assignment and `services_to_update` entry from
+  `MainViewModel`
+- **Deleted** `tests/core/test_analysis_coordinator.py` (599 lines)
+- Cleaned 4 test helpers that referenced the dead coordinator
+
+##### 3.6 Eliminated dead `VideoOrchestrator`
+
+- **Deleted** `core/video_orchestrator.py` (911 lines) — dead code
+  fully superseded by `ProcessingCoordinator`
+- Removed import and construction block from
+  `ApplicationBootstrapper._init_orchestrators()`
+- Removed proxy assignment (`controller_proxy.video_orchestrator`)
+- Removed `video_orchestrator` field from
+  `MainViewModelDependencies`
+- Removed attribute assignment and `services_to_update` entry from
+  `MainViewModel`
+- **Deleted** `tests/core/test_video_orchestrator.py` (665 lines)
+- Cleaned 4 test helpers that referenced the dead coordinator
+- **Net removal**: ~2,919 lines of dead production + test code
+- **2718 tests passing**, 12 skipped, lint clean
+
 #### Phase 2 — Narrow Generic Exception Catches (February 2026)
 
 Narrowed **~130 `except Exception`** blocks to specific exception types

@@ -40,9 +40,6 @@ def test_process_videos_batch_publishes_social_summary_event(analysis_service, m
     mock_controller.batch_configuration_service = Mock()
     mock_controller.batch_configuration_service.apply_settings = Mock()
 
-    mock_controller.analysis_coordinator = Mock()
-    mock_controller.analysis_coordinator.generate_parquet_summaries = Mock()
-
     mock_controller._process_single_video = Mock(return_value=(True, "/tmp"))
 
     # Mock ROIAnalyzer and BehavioralAnalyzer

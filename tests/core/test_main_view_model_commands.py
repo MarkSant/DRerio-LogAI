@@ -127,8 +127,6 @@ def mock_bootstrap_result():
     # Mocks for legacy coordinators
     result.legacy_coordinators = {
         "detector_coordinator": Mock(),
-        "video_orchestrator": Mock(),
-        "analysis_coordinator": Mock(),
         "recording_coordinator": Mock(),
         "live_camera_coordinator": Mock(),
     }

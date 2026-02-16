@@ -33,14 +33,12 @@ from zebtrack.coordinators.recording_coordinator import RecordingCoordinator
 
 # Phase 3A/3B/3C/3D: Removed imports for superseded orchestrators
 from zebtrack.coordinators.ui_state_coordinator import UIStateController
-from zebtrack.core.analysis_coordinator import AnalysisCoordinator
 from zebtrack.core.batch_configuration_service import BatchConfigurationService
 from zebtrack.core.dependency_container import MainViewModelDependencies
 from zebtrack.core.orchestrator_registry import OrchestratorRegistry
 from zebtrack.core.project_service import ProjectService
 from zebtrack.core.thread_coordinator import ThreadCoordinator
 from zebtrack.core.video_classification_service import VideoClassificationService
-from zebtrack.core.video_orchestrator import VideoOrchestrator
 from zebtrack.core.video_selection_service import VideoSelectionService
 from zebtrack.core.video_validation_service import VideoValidationService
 from zebtrack.io.arduino_manager import ArduinoManager
@@ -178,8 +176,6 @@ class ApplicationBootstrapper:
         controller_proxy.recording_coordinator = self.deps.recording_coordinator
         controller_proxy.live_camera_coordinator = self.deps.live_camera_coordinator
         controller_proxy.detector_coordinator = self.deps.detector_coordinator
-        controller_proxy.video_orchestrator = self.deps.video_orchestrator
-        controller_proxy.analysis_coordinator = self.deps.analysis_coordinator
         controller_proxy.ui_state_controller = self.deps.ui_state_controller
         controller_proxy._pending_external_trigger = None
 
@@ -459,49 +455,8 @@ class ApplicationBootstrapper:
             )
         controller_proxy.detector_coordinator = legacy_coords["detector_coordinator"]
 
-        # Video Orchestrator
-        if self.deps.video_orchestrator:
-            legacy_coords["video_orchestrator"] = self.deps.video_orchestrator
-        else:
-            video_orc = VideoOrchestrator(
-                root=self.deps.root,
-                state_manager=self.state_manager,
-                ui_event_bus=self.deps.event_bus
-                if self.deps.event_bus is not None
-                else self.deps.ui_coordinator._create_fallback_event_bus()
-                if hasattr(self.deps.ui_coordinator, "_create_fallback_event_bus")
-                else self.deps.event_bus,  # type: ignore[arg-type]
-                ui_coordinator=self.deps.ui_coordinator,
-                settings_obj=self.settings,
-                project_manager=self.deps.project_manager,
-                video_processing_service=self.deps.video_processing_service,
-                analysis_service=self._services["analysis_service"],
-                recorder=self._runtime_state["recorder"],
-            )
-            video_orc.set_view(self.view)
-            legacy_coords["video_orchestrator"] = video_orc
-        controller_proxy.video_orchestrator = legacy_coords["video_orchestrator"]
-
-        # Analysis Coordinator
-        if self.deps.analysis_coordinator:
-            legacy_coords["analysis_coordinator"] = self.deps.analysis_coordinator
-        else:
-            analysis_coord = AnalysisCoordinator(
-                root=self.deps.root,
-                ui_event_bus=self.deps.event_bus
-                if self.deps.event_bus
-                else self.deps.ui_coordinator._create_fallback_event_bus()
-                if hasattr(self.deps.ui_coordinator, "_create_fallback_event_bus")
-                else None,  # type: ignore[arg-type]
-                ui_coordinator=self.deps.ui_coordinator,
-                settings_obj=self.settings,
-                project_manager=self.deps.project_manager,
-                analysis_service=self._services["analysis_service"],
-                video_processing_service=self.deps.video_processing_service,
-            )
-            analysis_coord.set_view(self.view)
-            legacy_coords["analysis_coordinator"] = analysis_coord
-        controller_proxy.analysis_coordinator = legacy_coords["analysis_coordinator"]
+        # Phase 3.5/3.6: Removed VideoOrchestrator and AnalysisCoordinator
+        # (dead code — superseded by ProcessingCoordinator)
 
         # Recording Coordinator
         if self.deps.recording_coordinator:

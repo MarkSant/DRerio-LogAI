@@ -214,8 +214,6 @@ def create_test_controller(root, **overrides):
         # Phase 3A/3B/3C/3D/3E: Removed unused orchestrators (superseded by Super Coordinators)
         legacy_coordinators={
             "detector_coordinator": overrides.get("detector_coordinator", MagicMock()),
-            "video_orchestrator": overrides.get("video_orchestrator", MagicMock()),
-            "analysis_coordinator": overrides.get("analysis_coordinator", MagicMock()),
             "recording_coordinator": overrides.get("recording_coordinator", MagicMock()),
             "live_camera_coordinator": overrides.get("live_camera_coordinator", MagicMock()),
         },

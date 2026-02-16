@@ -243,8 +243,7 @@ class MainViewModel:
 
         # Legacy Coordinators
         self.detector_coordinator = result.legacy_coordinators.get("detector_coordinator")
-        self.video_orchestrator = result.legacy_coordinators.get("video_orchestrator")
-        self.analysis_coordinator = result.legacy_coordinators.get("analysis_coordinator")
+        # Phase 3.5/3.6: Removed video_orchestrator and analysis_coordinator (dead code)
         self.recording_coordinator = result.legacy_coordinators.get("recording_coordinator")
         self.live_camera_coordinator = result.legacy_coordinators.get("live_camera_coordinator")
 
@@ -762,8 +761,6 @@ class MainViewModel:
             ("detector_service", self.detector_service),
             ("video_processing_service", self.video_processing_service),
             ("recording_service", self.recording_service),
-            ("video_orchestrator", self.video_orchestrator),
-            ("analysis_coordinator", self.analysis_coordinator),
             ("hardware_coordinator", self.hardware_coordinator),
             ("processing_coordinator", self.processing_coordinator),
         ]

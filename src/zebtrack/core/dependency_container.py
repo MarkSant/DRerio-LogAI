@@ -73,8 +73,6 @@ class MainViewModelDependencies:
     live_batch_coordinator: LiveBatchCoordinator | None = None  # v2.3.0
 
     # LEGACY coordinators — still used at runtime; migrate consumers in Phase 4
-    analysis_coordinator: Any = None  # LEGACY: Migrate to processing_coordinator
-    video_orchestrator: Any = None  # LEGACY: Migrate to processing_coordinator
     recording_coordinator: Any = None  # LEGACY: Migrate to session_coordinator
     live_camera_coordinator: Any = None  # LEGACY: Migrate to session_coordinator
     detector_coordinator: Any = None  # LEGACY: Migrate to hardware_coordinator
