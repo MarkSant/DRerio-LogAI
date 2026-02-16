@@ -2,11 +2,17 @@
 
 Provides publish-subscribe pattern and callable event queue for coordinating
 background threads with the Tkinter main thread.
+
+.. deprecated:: v4.1
+    EventBus (v1) is deprecated in favor of :class:`EventBusV2` from
+    ``zebtrack.ui.event_bus_v2``. See ``docs/decisions/ADR-009-event-bus-unification.md``
+    for rationale and migration plan. Removal target: v5.0.
 """
 
 from __future__ import annotations
 
 import queue
+import warnings
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -104,7 +110,20 @@ class EventBus:
         """Enqueue a callable event for execution.
 
         Convenience helper for enqueuing callable events.
+
+        .. deprecated:: v4.1
+            Use ``root.after(0, callback)`` for UI-thread scheduling, or
+            ``EventBusV2.publish(Event(...))`` for event-driven communication.
         """
+        warnings.warn(
+            "EventBus v1 publish_callable() is DEPRECATED. "
+            "Use root.after(0, callback) for UI-thread scheduling, or "
+            "EventBusV2.publish(Event(UIEvents.X, data)) for event communication. "
+            "See docs/decisions/ADR-009-event-bus-unification.md. "
+            "Removal target: v5.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         event = UIEvent(
             EventType.CALLABLE,
             CallableEvent(callback=callback, args=args, kwargs=kwargs),
@@ -127,6 +146,10 @@ class EventBus:
     ) -> bool:
         """Publish a named event with optional data payload.
 
+        .. deprecated:: v4.1
+            Use ``EventBusV2.publish(Event(UIEvents.X, data))`` instead.
+            See ``docs/decisions/ADR-009-event-bus-unification.md``.
+
         Args:
             event_name: Name of the event (e.g., "recording:start", "project:close")
             data: Optional payload (dict or Pydantic model)
@@ -136,6 +159,14 @@ class EventBus:
         Returns:
             True if event was successfully published, False if queue was full
         """
+        warnings.warn(
+            "EventBus v1 publish_event() is DEPRECATED. "
+            "Use EventBusV2.publish(Event(UIEvents.X, data)) instead. "
+            "See docs/decisions/ADR-009-event-bus-unification.md. "
+            "Removal target: v5.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         # Default to empty dict if None, otherwise use data as-is (dict or Model)
         payload = data if data is not None else {}
 
@@ -154,10 +185,22 @@ class EventBus:
     def subscribe(self, event_name: str, handler: Callable[[Any], Any]) -> None:
         """Subscribe a handler to a named event.
 
+        .. deprecated:: v4.1
+            Use ``EventBusV2.subscribe(UIEvents.X, handler)`` instead.
+            See ``docs/decisions/ADR-009-event-bus-unification.md``.
+
         Args:
             event_name: Name of the event to subscribe to
             handler: Callable that accepts the event payload (dict or object)
         """
+        warnings.warn(
+            "EventBus v1 subscribe() is DEPRECATED. "
+            "Use EventBusV2.subscribe(UIEvents.X, handler) instead. "
+            "See docs/decisions/ADR-009-event-bus-unification.md. "
+            "Removal target: v5.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if handler not in self._subscribers[event_name]:
             self._subscribers[event_name].append(handler)
             log.info(

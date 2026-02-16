@@ -222,6 +222,41 @@ across the priority scope (6 UI files + coordinators + core + I/O).
   `(OSError, ValueError)` to handle YAML serialization errors
 - Removed duplicate `raise e` dead code at `gui.py` line 535
 
+#### Phase 3.7 — EventBus Unification Decision (February 2026)
+
+Documented the decision to unify on `EventBusV2` as the canonical event
+bus and deprecated `EventBus` v1 with `DeprecationWarning`. No consumer
+migration in this phase — deferred to Phase 4+ alongside coordinator
+decomposition.
+
+##### ADR-009: EventBus Unification
+
+- Created `docs/decisions/ADR-009-event-bus-unification.md` establishing
+  `EventBusV2` as the canonical bus (type-safe enums, `RLock` thread
+  safety, 100ms slow-handler monitoring)
+- Decision: deprecate v1 starting v4.1 (Feb 2026), removal target v5.0
+- Migration plan: ~97 `Events` string constants will be progressively
+  absorbed into `UIEvents` enum during Phase 4+ coordinator refactoring
+
+##### DeprecationWarning on EventBus v1
+
+- Added `warnings.warn(..., DeprecationWarning, stacklevel=2)` to
+  `EventBus.publish_event()`, `EventBus.subscribe()`, and
+  `EventBus.publish_callable()` in `ui/event_bus.py`
+- Warning message includes migration path (`EventBusV2`), ADR reference,
+  and removal timeline (`v5.0`)
+- Follows existing deprecation pattern from `analysis/reporter.py`
+- Python's default filter shows each unique call site once per process
+  (no log flooding)
+
+##### Test noise suppression
+
+- Added `pytest.ini` `filterwarnings` entry to suppress expected v1
+  deprecation warnings during test runs
+- Narrow filter: matches only `EventBus v1 .*DEPRECATED.*` from
+  `zebtrack.ui.event_bus` module
+- Will be removed when Phase 4+ migration completes
+
 ### �🟢 New Features
 
 #### LiveBatchCoordinator v2.3.0 Integration (January 2026)
