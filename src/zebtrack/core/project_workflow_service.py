@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.core.project_manager import ProjectInvalidError
+from zebtrack.core.exceptions import ProjectInvalidError
 
 if TYPE_CHECKING:
     from zebtrack.core.model_service import ModelService

@@ -29,7 +29,7 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorError,
     CoordinatorValidationError,
 )
-from zebtrack.core.project_manager import ProjectInvalidError
+from zebtrack.core.exceptions import ProjectInvalidError
 from zebtrack.core.state_manager import StateCategory
 
 if TYPE_CHECKING:

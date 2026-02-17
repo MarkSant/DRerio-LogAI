@@ -430,7 +430,8 @@ class VideoManager:
             bool: True if video was found and updated, False otherwise.
         """
         video_path = Path(video_path) if isinstance(video_path, str) else video_path
-        video_path_str = str(video_path)
+        # Compare using POSIX format since project_data stores paths as POSIX
+        video_path_str = video_path.as_posix()
 
         for batch in project_data.get("batches", []):
             for video in batch.get("videos", []):

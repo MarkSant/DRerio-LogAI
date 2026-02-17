@@ -12,9 +12,11 @@ to reduce the God Object pattern and improve maintainability.
 
 from __future__ import annotations
 
+import glob
 import json
 import os
 import re
+import shutil
 import unicodedata
 from collections.abc import Callable
 from copy import deepcopy
@@ -754,3 +756,218 @@ class AssetManager:
         )
 
         return changed
+
+    # ------------------------------------------------------------------
+    # Phase 4.2: Additional asset removal methods
+    # Extracted from ProjectManager
+    # ------------------------------------------------------------------
+
+    def remove_arena_asset(
+        self,
+        video_path: str,
+        video_entry: dict,
+        delete_files: bool,
+        *,
+        clear_zone_data_fn: Callable[[str], None],
+    ) -> bool:
+        """Remove arena asset from a video entry.
+
+        Args:
+            video_path: String path to the video.
+            video_entry: Video entry dictionary to modify.
+            delete_files: Whether to delete physical files.
+            clear_zone_data_fn: Callback to clear zone data for the video.
+
+        Returns:
+            True if any changes were made, False otherwise.
+        """
+        changed = False
+
+        clear_zone_data_fn(video_path)
+        parquet_files = video_entry.get("parquet_files") or {}
+
+        for key in ("arena", "rois"):
+            file_path = parquet_files.pop(key, None)
+            if file_path:
+                changed = True
+                if delete_files:
+                    self.delete_file_if_exists(file_path)
+
+        if video_entry.get("has_arena"):
+            video_entry["has_arena"] = False
+            changed = True
+        if video_entry.get("has_rois"):
+            video_entry["has_rois"] = False
+            changed = True
+
+        self._refresh_complete_flag_static(video_entry)
+
+        return changed
+
+    def remove_rois_asset(
+        self,
+        video_path: str,
+        video_entry: dict,
+        delete_files: bool,
+        *,
+        get_zone_data_fn: Callable[..., Any],
+        save_zone_data_fn: Callable[..., None],
+    ) -> bool:
+        """Remove ROIs asset from a video entry.
+
+        Args:
+            video_path: String path to the video.
+            video_entry: Video entry dictionary to modify.
+            delete_files: Whether to delete physical files.
+            get_zone_data_fn: Callback to get zone data for the video.
+            save_zone_data_fn: Callback to save zone data for the video.
+
+        Returns:
+            True if any changes were made, False otherwise.
+        """
+        changed = False
+
+        zone_data = get_zone_data_fn(video_path, fallback_to_global=False)
+        if zone_data and zone_data.roi_polygons:
+            zone_data.roi_polygons = []
+            zone_data.roi_names = []
+            zone_data.roi_colors = []
+            save_zone_data_fn(zone_data, video_path=video_path, persist=False)
+            changed = True
+
+        parquet_files = video_entry.get("parquet_files") or {}
+        roi_path = parquet_files.pop("rois", None)
+        if roi_path:
+            changed = True
+            if delete_files:
+                self.delete_file_if_exists(roi_path)
+
+        if video_entry.get("has_rois"):
+            video_entry["has_rois"] = False
+            changed = True
+
+        self._refresh_complete_flag_static(video_entry)
+
+        return changed
+
+    def remove_video_entry(  # noqa: C901
+        self,
+        video_path: str,
+        video_entry: dict,
+        delete_files: bool,
+        *,
+        project_data: dict[str, Any],
+        clear_zone_data_fn: Callable[[str], None],
+        refresh_last_zone_source_fn: Callable[..., None],
+    ) -> bool:
+        """Remove a video entry and associated files from the project.
+
+        Args:
+            video_path: String path to the video.
+            video_entry: Video entry dictionary.
+            delete_files: Whether to delete physical files.
+            project_data: The project data dictionary.
+            clear_zone_data_fn: Callback to clear zone data for the video.
+            refresh_last_zone_source_fn: Callback to refresh zone source after removal.
+
+        Returns:
+            True if any changes were made, False otherwise.
+        """
+        normalized_video_path = video_path.replace("\\", "/").lower()
+        changed = False
+
+        parquet_files = dict(video_entry.get("parquet_files") or {})
+        if delete_files:
+            # Delete associated parquet/output files
+            for path in parquet_files.values():
+                self.delete_file_if_exists(path)
+            # Delete the video file itself
+            if self.delete_file_if_exists(video_path):
+                changed = True
+
+            # Delete results_dir if registered
+            results_dir = video_entry.get("results_dir")
+            if results_dir:
+                results_path = Path(results_dir)
+                if results_path.exists() and results_path.is_dir():
+                    try:
+                        shutil.rmtree(results_path, ignore_errors=True)
+                        log.info(
+                            "project_manager.results_dir_deleted",
+                            results_dir=str(results_path),
+                        )
+                        changed = True
+                    except OSError as e:
+                        log.warning(
+                            "project_manager.results_dir_delete_failed",
+                            results_dir=str(results_path),
+                            error=str(e),
+                        )
+
+            # Delete zone parquets and results folder
+            video_dir = Path(video_path).parent
+            if video_dir.exists():
+                for pattern in ["1_ProcessingArea_*.parquet", "2_ZonasROI_*.parquet"]:
+                    for zone_file in glob.glob(str(video_dir / pattern)):
+                        self.delete_file_if_exists(zone_file)
+
+                # Force delete subject folder
+                try:
+                    shutil.rmtree(video_dir, ignore_errors=True)
+                    log.info("project_manager.video_folder_deleted", folder=str(video_dir))
+                    changed = True
+                except OSError as e:
+                    log.warning("project_manager.folder_cleanup_failed", error=str(e))
+
+            # Delete multi-aquarium output directories if present
+            multi_aq_outputs = video_entry.get("multi_aquarium_outputs", {})
+            if multi_aq_outputs:
+                for aq_key, aq_data in multi_aq_outputs.items():
+                    aq_results_dir = aq_data.get("results_dir")
+                    if aq_results_dir:
+                        aq_results_path = Path(aq_results_dir)
+                        if aq_results_path.exists() and aq_results_path.is_dir():
+                            try:
+                                shutil.rmtree(aq_results_path, ignore_errors=True)
+                                log.info(
+                                    "project_manager.multi_aquarium_results_dir_deleted",
+                                    aquarium=aq_key,
+                                    results_dir=str(aq_results_path),
+                                )
+                            except OSError as e:
+                                log.warning(
+                                    "project_manager.multi_aquarium_results_dir_delete_failed",
+                                    aquarium=aq_key,
+                                    results_dir=str(aq_results_path),
+                                    error=str(e),
+                                )
+                    # Also delete individual parquet files
+                    for pq_path in (aq_data.get("parquet_files") or {}).values():
+                        if pq_path:
+                            self.delete_file_if_exists(pq_path)
+
+        clear_zone_data_fn(video_path)
+
+        for batch in project_data.get("batches", []):
+            original_count = len(batch.get("videos", []))
+            batch["videos"] = [
+                item
+                for item in batch.get("videos", [])
+                if item.get("path", "").replace("\\", "/").lower() != normalized_video_path
+            ]
+            if len(batch["videos"]) != original_count:
+                changed = True
+
+        if changed:
+            refresh_last_zone_source_fn(removed_path=video_path)
+
+        return changed
+
+    @staticmethod
+    def _refresh_complete_flag_static(video_entry: dict) -> None:
+        """Refresh complete data flag on a video entry."""
+        video_entry["has_complete_data"] = bool(
+            video_entry.get("has_arena")
+            and video_entry.get("has_rois")
+            and video_entry.get("has_trajectory")
+        )
