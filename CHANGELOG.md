@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### � Refactored
 
+#### Phase 4.2 — Decompose ProjectManager God Class (February 2026)
+
+- **Decomposed** ProjectManager (2,737 → 906 lines, -67%) into 5
+  domain-specific sub-managers using the callback pattern (static methods
+  with explicit params to avoid circular dependencies):
+  - ParquetIOManager (~521 lines) — Zone parquet I/O, copy, import
+  - OutputRegistrationManager (~745 lines) — Processing output registration
+  - MetadataManager (~435 lines) — Experiment metadata, detector state
+  - ProjectLifecycleManager (~748 lines) — Project create/load/save/migrate
+  - ZoneOrchestrationManager (~365 lines) — Zone persistence orchestration
+- Extended AssetManager (~960 lines) with asset removal logic
+- Moved ProjectInvalidError to xceptions.py (backward-compat re-export)
+- Fixed VideoManager.update_video_status POSIX path comparison
+- Simplified create_new_project to use **kwargs forwarding
+- Removed 10+ unused private delegates and 10 unused imports from PM
+- Consolidated has_*_data methods via shared _has_asset() helper
+- All 2,720 fast tests passing, 0 regressions
+
 #### Phase 4 — Decompose ProcessingCoordinator God Class (February 2026)
 
 - **Decomposed** `ProcessingCoordinator` (5,563 lines, 114 methods) into 5
