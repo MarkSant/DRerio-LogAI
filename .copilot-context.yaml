@@ -147,16 +147,14 @@ discovered_classes:
     "project_manager": {
       "path": "src/zebtrack/core/project_manager.py",
       "classes": [
-        "ProjectInvalidError",
         "ProjectManager"
       ],
       "key_methods": [
         "__init__",
-        "__init__",
-        "_ensure_zone_structures",
-        "_normalize_video_path",
         "_resolve_zone_entry",
-        "_deduplicate_zone_keys"
+        "list_roi_templates",
+        "save_roi_template",
+        "import_roi_template"
       ]
     },
     "state_manager": {
