@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pandas as pd
 import pytest
 
-from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
+from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
 from zebtrack.ui.events import Events
 
 # =============================================================================
@@ -51,27 +51,19 @@ def mock_project_manager():
 
 @pytest.fixture
 def coordinator(mock_settings, mock_project_manager):
-    """Create ProcessingCoordinator with mocked dependencies."""
+    """Create ReportGenerationCoordinator with mocked dependencies (Phase 4)."""
 
-    class _TestProcessingCoordinator(ProcessingCoordinator):
+    class _TestReportCoordinator(ReportGenerationCoordinator):
         _publish_event: MagicMock
 
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self._publish_event = MagicMock()
 
-    coord = _TestProcessingCoordinator(
+    coord = _TestReportCoordinator(
         project_manager=mock_project_manager,
-        detector_service=MagicMock(),
-        weight_manager=MagicMock(),
         settings_obj=mock_settings,
-        ui_coordinator=MagicMock(),
-        ui_state_controller=MagicMock(),
         state_manager=MagicMock(),
-        cancel_event=MagicMock(),
-        video_selection_service=MagicMock(),
-        video_validation_service=MagicMock(),
-        video_classification_service=MagicMock(),
     )
     return coord
 

@@ -12,10 +12,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from zebtrack.coordinators.processing_coordinator import (
-    ProcessingCoordinator,
-    ValidationResult,
-)
+from zebtrack.coordinators.processing_types import ValidationResult
+from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
 
 # =============================================================================
 # FIXTURES
@@ -143,8 +141,8 @@ def processing_coordinator(
     mock_recorder_factory,
     mock_event_bus,
 ):
-    """Create ProcessingCoordinator with mocked dependencies (Phase 3)."""
-    return ProcessingCoordinator(
+    """Create VideoProcessingCoordinator with mocked dependencies (Phase 4)."""
+    return VideoProcessingCoordinator(
         state_manager=mock_state_manager,
         project_manager=mock_project_manager,
         detector_service=mock_detector_service,
@@ -156,7 +154,6 @@ def processing_coordinator(
         video_selection_service=mock_video_selection_service,
         video_validation_service=mock_video_validation_service,
         video_classification_service=mock_video_classification_service,
-        analysis_service=mock_analysis_service,
         recorder_factory=mock_recorder_factory,
         event_bus=mock_event_bus,
         view=None,
@@ -171,10 +168,10 @@ def processing_coordinator(
 
 
 class TestProcessingCoordinatorInitialization:
-    """Test ProcessingCoordinator initialization (Phase 3)."""
+    """Test VideoProcessingCoordinator initialization (Phase 4)."""
 
     def test_init_with_all_dependencies(self, processing_coordinator):
-        """Test initialization with all dependencies (Phase 3)."""
+        """Test initialization with all dependencies (Phase 4)."""
         # Core dependencies
         assert processing_coordinator.state_manager is not None
         assert processing_coordinator.project_manager is not None
@@ -189,17 +186,16 @@ class TestProcessingCoordinatorInitialization:
         assert processing_coordinator.video_selection_service is not None
         assert processing_coordinator.video_validation_service is not None
         assert processing_coordinator.video_classification_service is not None
-        assert processing_coordinator.analysis_service is not None
         assert processing_coordinator.recorder_factory is not None
 
         # Optional
         assert processing_coordinator.event_bus is not None
 
     def test_coordinator_creation_succeeds(self, processing_coordinator):
-        """Test that ProcessingCoordinator can be created successfully."""
+        """Test that VideoProcessingCoordinator can be created successfully."""
         # Simple smoke test - if we get here, initialization succeeded
         assert processing_coordinator is not None
-        assert isinstance(processing_coordinator, ProcessingCoordinator)
+        assert isinstance(processing_coordinator, VideoProcessingCoordinator)
 
 
 # =============================================================================
@@ -297,16 +293,21 @@ class TestValidation:
         assert result.is_valid is True
         processing_coordinator.state_manager.update_processing_state.assert_called_once()
 
-    def test_on_processing_started_does_not_require_root(self, processing_coordinator):
-        """Should initialize UI/mode updates even when root is None."""
-        processing_coordinator.view = MagicMock()
-        processing_coordinator.root = None
-        processing_coordinator._publish_processing_mode = MagicMock()
+    def test_on_processing_started_delegates_to_progress_coordinator(self, processing_coordinator):
+        """Test _on_processing_started delegates to progress coordinator (Phase 4)."""
+        mock_ptc = MagicMock()
+        processing_coordinator._progress_coordinator = mock_ptc
 
         processing_coordinator._on_processing_started([{"path": "video.mp4"}])
 
-        processing_coordinator.ui_coordinator.show_progress_bar.assert_called_once()
-        processing_coordinator._publish_processing_mode.assert_called_once()
+        mock_ptc._on_processing_started.assert_called_once_with([{"path": "video.mp4"}])
+
+    def test_on_processing_started_noop_without_progress_coordinator(self, processing_coordinator):
+        """Test _on_processing_started is a no-op when no progress coordinator wired."""
+        processing_coordinator._progress_coordinator = None
+
+        # Should not raise
+        processing_coordinator._on_processing_started([{"path": "video.mp4"}])
 
 
 # =============================================================================

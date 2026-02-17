@@ -290,7 +290,7 @@ def main():  # noqa: C901
         _t0 = time.perf_counter()
 
         # Create cancel_event ONCE and share with ApplicationBootstrapper
-        # This ensures AnalysisControlViewModel and ProcessingCoordinator use the SAME Event object
+        # This ensures AnalysisControlViewModel and processing sub-coordinators use the SAME Event
         cancel_event = threading.Event()
 
         # VideoProcessingService is created before detector exists
@@ -322,7 +322,6 @@ def main():  # noqa: C901
 
         _t0 = time.perf_counter()
         from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
-        from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
         from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
         from zebtrack.coordinators.session_coordinator import SessionCoordinator
 
@@ -372,11 +371,18 @@ def main():  # noqa: C901
             elapsed_ms=int((time.perf_counter() - _t0_hw) * 1000),
         )
 
-        # 3. ProcessingCoordinator - Video processing, analysis, zones/arena management
+        # 3. ProcessingCoordinator → Phase 4 decomposition into 5 sub-coordinators
         _t0_proc = time.perf_counter()
 
-        # Import additional services for ProcessingCoordinator
+        # Import additional services for processing sub-coordinators
+        from zebtrack.coordinators.multi_aquarium_coordinator import MultiAquariumCoordinator
+        from zebtrack.coordinators.progress_tracking_coordinator import ProgressTrackingCoordinator
+        from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
+        from zebtrack.coordinators.sequential_processing_coordinator import (
+            SequentialProcessingCoordinator,
+        )
         from zebtrack.coordinators.ui_state_coordinator import UIStateController
+        from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
         from zebtrack.core.video_classification_service import VideoClassificationService
         from zebtrack.core.video_selection_service import VideoSelectionService
         from zebtrack.core.video_validation_service import VideoValidationService
@@ -398,7 +404,58 @@ def main():  # noqa: C901
             project_workflow_service=project_workflow_service,
         )
 
-        processing_coordinator = ProcessingCoordinator(
+        # 3a. ProgressTrackingCoordinator
+        progress_tracking_coordinator = ProgressTrackingCoordinator(
+            state_manager=state_manager,
+            settings_obj=settings_obj,
+            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            cancel_event=cancel_event,
+            event_bus=event_bus,
+            view=None,
+            root=root,
+        )
+
+        # 3b. MultiAquariumCoordinator
+        multi_aquarium_coordinator = MultiAquariumCoordinator(
+            state_manager=state_manager,
+            project_manager=project_manager,
+            detector_service=detector_service,
+            settings_obj=settings_obj,
+            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            ui_state_controller=ui_state_controller,
+            cancel_event=cancel_event,
+            video_classification_service=video_classification_service,
+            event_bus=event_bus,
+            view=None,
+            root=root,
+            detector=None,
+        )
+
+        # 3c. ReportGenerationCoordinator
+        report_generation_coordinator = ReportGenerationCoordinator(
+            state_manager=state_manager,
+            project_manager=project_manager,
+            settings_obj=settings_obj,
+            analysis_service=analysis_service,
+            event_bus=event_bus,
+        )
+
+        # 3d. SequentialProcessingCoordinator
+        sequential_processing_coordinator = SequentialProcessingCoordinator(
+            state_manager=state_manager,
+            project_manager=project_manager,
+            detector_service=detector_service,
+            settings_obj=settings_obj,
+            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            cancel_event=cancel_event,
+            recorder_factory=recorder_factory,
+            event_bus=event_bus,
+            view=None,
+            root=root,
+        )
+
+        # 3e. VideoProcessingCoordinator (central — acts as facade)
+        processing_coordinator = VideoProcessingCoordinator(
             state_manager=state_manager,
             project_manager=project_manager,
             detector_service=detector_service,
@@ -410,13 +467,26 @@ def main():  # noqa: C901
             video_selection_service=video_selection_service,
             video_validation_service=video_validation_service,
             video_classification_service=video_classification_service,
-            analysis_service=analysis_service,
             recorder_factory=recorder_factory,
             event_bus=event_bus,
+            dialog_coordinator=None,  # Set after ApplicationGUI is created
             view=None,  # Set after ApplicationGUI is created
             root=root,
             detector=None,  # Set after detector is initialized
         )
+
+        # Wire cross-coordinator references (post-construction injection)
+        processing_coordinator._progress_coordinator = progress_tracking_coordinator
+        processing_coordinator._multi_aquarium_coordinator = multi_aquarium_coordinator
+        processing_coordinator._sequential_coordinator = sequential_processing_coordinator
+        processing_coordinator._report_coordinator = report_generation_coordinator
+
+        progress_tracking_coordinator._video_processing_coordinator = processing_coordinator
+        sequential_processing_coordinator._video_processing_coordinator = processing_coordinator
+        sequential_processing_coordinator._report_coordinator = report_generation_coordinator
+        sequential_processing_coordinator._progress_coordinator = progress_tracking_coordinator
+        report_generation_coordinator._progress_coordinator = progress_tracking_coordinator
+
         log.info(
             "timing.processing_coordinator",
             elapsed_ms=int((time.perf_counter() - _t0_proc) * 1000),
@@ -554,6 +624,11 @@ def main():  # noqa: C901
         hardware_coordinator.view = controller.view  # type: ignore[attr-defined]
         processing_coordinator.view = controller.view  # type: ignore[attr-defined]
         session_coordinator.view = controller.view  # type: ignore[attr-defined]
+
+        # Phase 4: Set view on sub-coordinators
+        progress_tracking_coordinator.view = controller.view  # type: ignore[attr-defined]
+        multi_aquarium_coordinator.view = controller.view  # type: ignore[attr-defined]
+        sequential_processing_coordinator.view = controller.view  # type: ignore[attr-defined]
 
         # Phase 0.3: Inject dialog_coordinator into ProcessingCoordinator
         # (created by ApplicationBootstrapper, injected post-construction like view)

@@ -8,12 +8,13 @@ if TYPE_CHECKING:
 
 from zebtrack.analysis.analysis_service import AnalysisService
 
-# Phase 3: Super Coordinators (replace legacy coordinators/orchestrators)
+# Phase 3 → Phase 4: Super Coordinators
+# ProcessingCoordinator decomposed into 5 sub-coordinators (Phase 4)
 from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
-from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
 from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
 from zebtrack.coordinators.session_coordinator import SessionCoordinator
 from zebtrack.coordinators.ui_state_coordinator import UIStateController
+from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
 from zebtrack.core.detector_service import DetectorService
 from zebtrack.core.live_camera_service import LiveCameraService
 from zebtrack.core.model_service import ModelService
@@ -64,10 +65,11 @@ class MainViewModelDependencies:
     live_camera_service: LiveCameraService | None = None
     ui_state_controller: UIStateController | None = None
 
-    # Phase 3: Super Coordinators (NEW - replace 20 legacy coordinators)
+    # Phase 3 → Phase 4: Super Coordinators
+    # processing_coordinator now is VideoProcessingCoordinator (Phase 4 decomposition)
     project_lifecycle_coordinator: ProjectLifecycleCoordinator | None = None
     hardware_coordinator: HardwareCoordinator | None = None
-    processing_coordinator: ProcessingCoordinator | None = None
+    processing_coordinator: VideoProcessingCoordinator | None = None
     session_coordinator: SessionCoordinator | None = None
     project_workflow_adapter: ProjectWorkflowAdapter | None = None
     live_batch_coordinator: LiveBatchCoordinator | None = None  # v2.3.0

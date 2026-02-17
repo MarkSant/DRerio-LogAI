@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
+from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
 from zebtrack.ui.events import Events
 
 
@@ -49,7 +49,7 @@ def coordinator_setup():
     ui_state_controller = MagicMock()
     cancel_event = Event()
 
-    coordinator = ProcessingCoordinator(
+    coordinator = VideoProcessingCoordinator(
         state_manager=MagicMock(),
         project_manager=project_manager,
         detector_service=MagicMock(),
@@ -71,7 +71,7 @@ def coordinator_setup():
 
 def test_workflow_returns_early_without_view():
     """Workflow exits if view is not set."""
-    coordinator = ProcessingCoordinator(
+    coordinator = VideoProcessingCoordinator(
         state_manager=MagicMock(),
         project_manager=MagicMock(),
         detector_service=MagicMock(),
@@ -180,7 +180,7 @@ def test_workflow_processes_videos(coordinator_setup):
     mock_worker_instance.start_in_thread.return_value = MagicMock()
 
     with patch(
-        "zebtrack.coordinators.processing_coordinator.ProcessingWorker",
+        "zebtrack.coordinators.video_processing_coordinator.ProcessingWorker",
         return_value=mock_worker_instance,
     ):
         coordinator.start_project_processing_workflow()

@@ -2,7 +2,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from zebtrack.coordinators.processing_coordinator import ProcessingCoordinator
+from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
+from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
 from zebtrack.core.project_manager import ProjectManager
 
 
@@ -22,7 +23,7 @@ class TestProcessingCoordinatorSingleVideoFix:
         video_validation = MagicMock()
         video_classification = MagicMock()
 
-        coordinator = ProcessingCoordinator(
+        coordinator = VideoProcessingCoordinator(
             state_manager=state_manager,
             project_manager=project_manager,
             detector_service=detector_service,
@@ -35,6 +36,16 @@ class TestProcessingCoordinatorSingleVideoFix:
             video_validation_service=video_validation,
             video_classification_service=video_classification,
         )
+
+        # Wire report coordinator for proxy methods
+        report_coord = ReportGenerationCoordinator(
+            state_manager=state_manager,
+            project_manager=project_manager,
+            settings_obj=settings,
+            event_bus=None,
+        )
+        coordinator._report_coordinator = report_coord
+
         return coordinator
 
     def test_generate_parquet_summaries_single_video_mode(self, coordinator):
@@ -45,17 +56,16 @@ class TestProcessingCoordinatorSingleVideoFix:
         # Setup Single Video Mode
         coordinator.project_manager.project_path = None
 
-        # Mock _process_summary_video to return changed=True
+        # Mock _process_summary_video on report coordinator to return changed=True
         # Returns: (status, message, path, changed)
-        coordinator._process_summary_video = MagicMock(
+        coordinator._report_coordinator._process_summary_video = MagicMock(
             return_value=("completed", "msg", "path.parquet", True)
         )
 
         target_videos = [{"path": "video.mp4"}]
-        settings = MagicMock()
 
         # Execute
-        coordinator.generate_parquet_summaries(target_videos, settings)
+        coordinator.generate_parquet_summaries(target_videos)
 
         # Verify
         coordinator.project_manager.save_project.assert_not_called()
@@ -68,16 +78,15 @@ class TestProcessingCoordinatorSingleVideoFix:
         # Setup Project Mode
         coordinator.project_manager.project_path = "C:/fake/project"
 
-        # Mock _process_summary_video to return changed=True
-        coordinator._process_summary_video = MagicMock(
+        # Mock _process_summary_video on report coordinator to return changed=True
+        coordinator._report_coordinator._process_summary_video = MagicMock(
             return_value=("completed", "msg", "path.parquet", True)
         )
 
         target_videos = [{"path": "video.mp4"}]
-        settings = MagicMock()
 
         # Execute
-        coordinator.generate_parquet_summaries(target_videos, settings)
+        coordinator.generate_parquet_summaries(target_videos)
 
         # Verify
         coordinator.project_manager.save_project.assert_called_once()

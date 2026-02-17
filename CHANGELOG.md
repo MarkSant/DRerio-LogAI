@@ -11,6 +11,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### � Refactored
 
+#### Phase 4 — Decompose ProcessingCoordinator God Class (February 2026)
+
+- **Decomposed** `ProcessingCoordinator` (5,563 lines, 114 methods) into 5
+  domain-specific coordinators each under 1,700 lines:
+  - `VideoProcessingCoordinator` — Facade owning ProcessingWorker lifecycle
+    and proxy methods for backward compatibility (~1,700 lines)
+  - `ProgressTrackingCoordinator` — Processing lifecycle, progress UI, batch
+    context management (~440 lines)
+  - `MultiAquariumCoordinator` — Aquarium detection, zone/arena management,
+    processing modes (~800 lines)
+  - `SequentialProcessingCoordinator` — Sequential multi-aquarium processing
+    with per-aquarium video passes (~460 lines)
+  - `ReportGenerationCoordinator` — All report generation workflows (unified,
+    individual, parquet summaries) (~1,380 lines)
+- Added `processing_types.py` with shared `ValidationResult` dataclass and
+  `ProcessingCoordinatorError` exception
+- Updated `coordinators/__init__.py`, `dependency_container.py`, and
+  `__main__.py` (Composition Root) with 5-coordinator DI wiring
+- Deleted monolithic `processing_coordinator.py`
+- Fixed production bug: `Events.PROCESSING_MODE_CHANGED` renamed to
+  `Events.ZONE_PROCESSING_MODE_CHANGED` in `MultiAquariumCoordinator`
+- Fixed production bug: `_on_progress_wrapper` signature mismatch — now
+  correctly constructs dict for `ProgressTrackingCoordinator`
+- Fixed import error: `Calibration` import path in
+  `ReportGenerationCoordinator`
+- Added `state_manager.update_processing_state()` call to
+  `_on_processing_progress()` for observable state consistency
+- Updated 7 test files for new coordinator structure (97 tests passing)
+- All 2,720 fast tests passing, 0 regressions
+- Ruff lint clean on all coordinator files
+
 #### Phase 0 — Placeholder & Dead Code Cleanup (February 2026)
 
 ##### Phase 0.1: Fix placeholder URL in About dialog
