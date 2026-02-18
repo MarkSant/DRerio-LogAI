@@ -7,6 +7,7 @@ import time
 import tkinter as tk
 import warnings
 from tkinter import messagebox
+from typing import Literal, cast
 
 import structlog
 
@@ -117,7 +118,7 @@ def main():  # noqa: C901
     # Ensure Windows taskbar icon is displayed correctly (not generic Python icon)
     import ctypes
     import os
-    from typing import Any, cast
+    from typing import Any
 
     if os.name == "nt":
         try:
@@ -175,12 +176,22 @@ def main():  # noqa: C901
                         if rec.backend == "openvino":
                             settings_obj.model_selection.use_openvino = True
 
-                            # Apply specific OpenVINO optimizations
-                            settings_obj.openvino.device = rec.device_live  # type: ignore[assignment]
-                            settings_obj.openvino.device_batch = rec.device_batch  # type: ignore[assignment]
-                            settings_obj.openvino.performance_hint_live = rec.openvino_hint_live  # type: ignore[assignment]
-                            settings_obj.openvino.performance_hint_batch = rec.openvino_hint_batch  # type: ignore[assignment]
-                            settings_obj.openvino.precision = rec.openvino_precision  # type: ignore[assignment]
+                            # Apply specific OpenVINO optimizations (cast: validated str→Literal)
+                            settings_obj.openvino.device = cast(
+                                Literal["AUTO", "CPU", "GPU"], rec.device_live
+                            )
+                            settings_obj.openvino.device_batch = cast(
+                                Literal["AUTO", "CPU", "GPU"], rec.device_batch
+                            )
+                            settings_obj.openvino.performance_hint_live = cast(
+                                Literal["LATENCY", "THROUGHPUT"], rec.openvino_hint_live
+                            )
+                            settings_obj.openvino.performance_hint_batch = cast(
+                                Literal["LATENCY", "THROUGHPUT"], rec.openvino_hint_batch
+                            )
+                            settings_obj.openvino.precision = cast(
+                                Literal["FP32", "FP16", "INT8"], rec.openvino_precision
+                            )
                             settings_obj.openvino.enable_model_cache = rec.enable_model_cache
 
                         # Persist these settings to config.local.yaml so they are used in future
@@ -668,7 +679,7 @@ def main():  # noqa: C901
         # Initialize using bootstrapper
         bootstrap_result = bootstrapper.initialize(controller_proxy)
 
-        # Complete MainViewModel initialization
+        # Complete MainViewModel initialization (two-phase init for circular deps)
         controller_proxy.__init__(dependencies, bootstrap_result)  # type: ignore[misc]
 
         # Use the fully initialized controller
@@ -677,22 +688,22 @@ def main():  # noqa: C901
         log.info("timing.mainviewmodel_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # Set view reference for legacy components
-        ui_state_controller.view = controller.view  # type: ignore[attr-defined]
+        ui_state_controller.view = controller.view
         ui_state_controller.main_view_model = controller
 
         # Set view reference for Phase 4.9 coordinators (model diagnostics needs view)
-        model_diagnostics_coordinator.view = controller.view  # type: ignore[attr-defined]
-        processing_coordinator.view = controller.view  # type: ignore[attr-defined]
+        model_diagnostics_coordinator.view = controller.view
+        processing_coordinator.view = controller.view
 
         # Phase 4.7: Set view on session sub-coordinators
-        recording_session_coordinator.view = controller.view  # type: ignore[attr-defined]
-        live_camera_session_coordinator.view = controller.view  # type: ignore[attr-defined]
-        live_calibration_coordinator.view = controller.view  # type: ignore[attr-defined]
+        recording_session_coordinator.view = controller.view
+        live_camera_session_coordinator.view = controller.view
+        live_calibration_coordinator.view = controller.view
 
         # Phase 4: Set view on sub-coordinators
-        progress_tracking_coordinator.view = controller.view  # type: ignore[attr-defined]
-        multi_aquarium_coordinator.view = controller.view  # type: ignore[attr-defined]
-        sequential_processing_coordinator.view = controller.view  # type: ignore[attr-defined]
+        progress_tracking_coordinator.view = controller.view
+        multi_aquarium_coordinator.view = controller.view
+        sequential_processing_coordinator.view = controller.view
 
         # Phase 0.3: Inject dialog_coordinator into ProcessingCoordinator
         # (created by ApplicationBootstrapper, injected post-construction like view)

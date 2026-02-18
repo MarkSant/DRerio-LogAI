@@ -103,14 +103,14 @@ class BenchmarkRecommendation:
     # Backend selection
     backend: str  # "openvino" or "pytorch"
 
-    # Device selection
-    device_live: str  # Device for live camera analysis
-    device_batch: str  # Device for pre-recorded video
+    # Device selection (str to support both "cuda" for PyTorch and "AUTO"/"CPU"/"GPU" for OpenVINO)
+    device_live: str
+    device_batch: str
 
-    # OpenVINO specific
-    openvino_hint_live: str  # "LATENCY" or "THROUGHPUT"
+    # OpenVINO specific (str values: "LATENCY"/"THROUGHPUT", "FP32"/"FP16"/"INT8")
+    openvino_hint_live: str
     openvino_hint_batch: str
-    openvino_precision: str  # "FP32", "FP16", "INT8"
+    openvino_precision: str
     enable_model_cache: bool
 
     # Video decode
