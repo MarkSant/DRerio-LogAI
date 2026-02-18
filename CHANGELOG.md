@@ -11,6 +11,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔄 Refactored
 
+#### Phase 4.8 — Decompose Reporter (February 2026)
+
+- **Decomposed** `reporter.py` (`analysis/reporter.py`, 1,749 lines) into
+  8 focused modules under `analysis/reporters/` sub-package:
+  - `reporter_context.py` (~280 lines) — Shared context with two construction
+    paths (legacy `__init__` + modern `from_analysis()`), i18n helpers,
+    template constants
+  - `word_reporter.py` (~420 lines) — Word document export with step-by-step
+    progress callback, metadata sections, visualisation attachments
+  - `excel_reporter.py` (~80 lines) — Excel summary export with display
+    column renaming
+  - `parquet_reporter.py` (~65 lines) — Parquet summary export preserving
+    internal column names
+  - `html_reporter.py` (~230 lines) — Interactive HTML report generation
+  - `script_exporter.py` (~350 lines) — R/Python script and Feather export
+  - `project_reporter.py` (~260 lines) — Standalone `export_project_report()`
+    and `export_multi_aquarium_reports()` functions
+  - `__init__.py` — Re-exports all public symbols
+- **Original file deleted** — No facade; each consumer imports the specific
+  reporter class it needs
+- Updated 4 source consumer files: `report_generation_coordinator.py`,
+  `video_processing_service.py`, `analysis_control_view_model.py`,
+  `live_camera_service.py`
+- Updated 6 test files: `test_reporter.py`, `test_reporter_integration.py`,
+  `test_reporter_refactoring_compatibility.py`,
+  `test_analysis_multi_aquarium.py`, `test_unified_report.py`,
+  `test_parallel_detection_benchmark.py`
+- All 2,614 fast tests passing, 0 regressions
+
 #### Phase 4.7 — Decompose SessionCoordinator (February 2026)
 
 - **Decomposed** `SessionCoordinator` (`coordinators/session_coordinator.py`,

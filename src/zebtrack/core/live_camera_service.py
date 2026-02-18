@@ -1787,7 +1787,11 @@ class LiveCameraService:
             """Background thread worker for post-processing analysis."""
             try:
                 from zebtrack.analysis.analysis_service import AnalysisService
-                from zebtrack.analysis.reporter import Reporter
+                from zebtrack.analysis.reporters import (
+                    ExcelReporter,
+                    ReporterContext,
+                    WordReporter,
+                )
 
                 # Find generated trajectory parquet
                 trajectory_files = glob.glob(str(output_dir / "3_CoordMovimento_*.parquet"))
@@ -1920,15 +1924,15 @@ class LiveCameraService:
                 )
 
                 # 4. Generate Reports
-                reporter = Reporter.from_analysis(analysis_result)
+                ctx = ReporterContext.from_analysis(analysis_result)
 
                 # Save Excel summary
                 excel_path = output_dir / f"4_RelatorioSumario_{self._experiment_id}.xlsx"
-                reporter.export_summary_data(str(excel_path), format="excel")
+                ExcelReporter(ctx).export_summary(str(excel_path))
 
                 # Save Word report
                 word_path = output_dir / f"5_RelatorioIndividual_{self._experiment_id}.docx"
-                reporter.export_individual_report(str(word_path))
+                WordReporter(ctx).export_individual_report(str(word_path))
 
                 log.info(
                     "live_camera_service.reports_generated",

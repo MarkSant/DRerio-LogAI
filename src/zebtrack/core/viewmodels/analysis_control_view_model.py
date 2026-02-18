@@ -257,7 +257,12 @@ class AnalysisControlViewModel:
         """Implementation of summary generation running in a separate thread."""
         import os
 
-        from zebtrack.analysis.reporter import Reporter
+        from zebtrack.analysis.reporters import (
+            ExcelReporter,
+            ParquetSummaryReporter,
+            ReporterContext,
+            WordReporter,
+        )
 
         if not self.ui_event_bus:
             return
@@ -421,7 +426,7 @@ class AnalysisControlViewModel:
                 )
 
                 # Generate Reports
-                reporter = Reporter.from_analysis(analysis_result)
+                ctx = ReporterContext.from_analysis(analysis_result)
 
                 # sanitize helper
                 def _san(s):
@@ -442,15 +447,15 @@ class AnalysisControlViewModel:
 
                 # Excel Summary
                 excel_path = os.path.join(results_dir, excel_filename)
-                reporter.export_summary_data(excel_path, format="excel")
+                ExcelReporter(ctx).export_summary(excel_path)
 
                 # Parquet Summary (needed for unified project reports)
                 parquet_summary_path = os.path.join(results_dir, parquet_summary_filename)
-                reporter.export_summary_data(parquet_summary_path, format="parquet")
+                ParquetSummaryReporter(ctx).export_summary(parquet_summary_path)
 
                 # Word Report
                 docx_path = os.path.join(results_dir, docx_filename)
-                reporter.export_individual_report(docx_path)
+                WordReporter(ctx).export_individual_report(docx_path)
 
                 # Register outputs with ProjectManager to keep state consistent
                 # This ensures the 'summary' and 'trajectory' flags are set in the project data

@@ -329,7 +329,7 @@ class ReportGenerationCoordinator(BaseCoordinator):
         report_scope: str = "all",
     ) -> None:
         """Export unified reports (Parquet, Excel, and Word)."""
-        from zebtrack.analysis.reporter import Reporter
+        from zebtrack.analysis.reporters import export_project_report
 
         run_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         scope_prefix = "unified_partial" if report_scope == "selected" else "unified"
@@ -371,7 +371,7 @@ class ReportGenerationCoordinator(BaseCoordinator):
                 word_df[col] = (
                     word_df[col].where(word_df[col].notna(), np.nan).infer_objects(copy=False)
                 )
-            Reporter.export_project_report(
+            export_project_report(
                 aggregated_df=word_df,
                 output_path=word_path,
                 roi_colors=roi_colors_map if roi_colors_map else None,
@@ -893,7 +893,7 @@ class ReportGenerationCoordinator(BaseCoordinator):
         self, video, exp_id, path, aq_id, out, multi_zone, settings, expected
     ):
         """Process summary for a single aquarium in multi-aquarium mode."""
-        from zebtrack.analysis.reporter import Reporter
+        from zebtrack.analysis.reporters import ParquetSummaryReporter, ReporterContext
 
         aq_results_dir = out.get("results_dir")
         traj_path = out.get("parquet_files", {}).get("trajectory")
@@ -932,7 +932,7 @@ class ReportGenerationCoordinator(BaseCoordinator):
                 self.project_manager.project_data
             ).get("behavioral_config", {})
 
-        reporter = Reporter(
+        ctx = ReporterContext(
             trajectory_df=df,
             metadata=aq_meta,
             pixelcm_x=px_x,
@@ -951,13 +951,13 @@ class ReportGenerationCoordinator(BaseCoordinator):
 
         os.makedirs(aq_results_dir, exist_ok=True)
         s_path = os.path.join(aq_results_dir, f"{exp_id}_aq{aq_id}_summary.parquet")
-        reporter.export_summary_data(s_path, format="parquet", expected_roi_names=expected)
+        ParquetSummaryReporter(ctx).export_summary(s_path, expected_roi_names=expected)
         video["multi_aquarium_outputs"][str(aq_id)]["parquet_files"]["summary"] = s_path
         return s_path
 
     def _process_standard_summary_video(self, video, exp_id, path, settings, expected):
         """Process standard single-aquarium video for summary generation."""
-        from zebtrack.analysis.reporter import Reporter
+        from zebtrack.analysis.reporters import ParquetSummaryReporter, ReporterContext
 
         res_path = self.project_manager.resolve_results_directory(exp_id, video_path=path)
         res_dir = str(res_path)
@@ -997,7 +997,7 @@ class ReportGenerationCoordinator(BaseCoordinator):
                     self.project_manager.project_data
                 ).get("behavioral_config", {})
 
-            reporter = Reporter(
+            ctx = ReporterContext(
                 trajectory_df=df,
                 metadata=meta,
                 pixelcm_x=px_x,
@@ -1015,7 +1015,7 @@ class ReportGenerationCoordinator(BaseCoordinator):
 
             os.makedirs(res_dir, exist_ok=True)
             s_path = os.path.join(res_dir, f"{exp_id}_summary.parquet")
-            reporter.export_summary_data(s_path, format="parquet", expected_roi_names=expected)
+            ParquetSummaryReporter(ctx).export_summary(s_path, expected_roi_names=expected)
             video.setdefault("parquet_files", {})["summary"] = s_path
             video["has_complete_data"] = True
             return "completed", exp_id, s_path, True
@@ -1218,15 +1218,19 @@ class ReportGenerationCoordinator(BaseCoordinator):
         self, analysis_result: Any, results_dir: str, exp_id: str
     ) -> dict[str, str]:
         """Export individual Word and Excel reports."""
-        from zebtrack.analysis.reporter import Reporter
+        from zebtrack.analysis.reporters import (
+            ExcelReporter,
+            ReporterContext,
+            WordReporter,
+        )
 
-        reporter = Reporter.from_analysis(analysis_result)
+        ctx = ReporterContext.from_analysis(analysis_result)
         os.makedirs(results_dir, exist_ok=True)
         report_base = os.path.join(results_dir, f"4_Relatorio_{exp_id}")
         docx_path = f"{report_base}.docx"
         xlsx_path = f"{report_base}.xlsx"
-        reporter.export_individual_report(docx_path)
-        reporter.export_summary_data(xlsx_path, format="excel")
+        WordReporter(ctx).export_individual_report(docx_path)
+        ExcelReporter(ctx).export_summary(xlsx_path)
         return {"docx": docx_path, "xlsx": xlsx_path}
 
     def _probe_video_dimensions(self, video_file: str) -> tuple[int, int]:

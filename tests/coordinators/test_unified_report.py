@@ -634,9 +634,10 @@ def test_unified_report_shows_error_when_all_exports_fail(
         monkeypatch.setattr(pd.DataFrame, "to_parquet", _raise_parquet_error)
         monkeypatch.setattr(pd.DataFrame, "to_excel", _raise_excel_error)
 
-        from zebtrack.analysis.reporter import Reporter
-
-        monkeypatch.setattr(Reporter, "export_project_report", _raise_word_error)
+        monkeypatch.setattr(
+            "zebtrack.analysis.reporters.export_project_report",
+            _raise_word_error,
+        )
 
         coordinator.generate_unified_report([str(tmp_path / "video1.mp4")])
 

@@ -15,7 +15,7 @@ Or with pytest-benchmark:
 """
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -285,65 +285,63 @@ class TestBenchmarkAliases:
 
     def test_export_feather_creates_file(self, tmp_path):
         """Test export_feather alias creates a valid Feather file."""
-        # Create minimal reporter mock with tidy_data
         from unittest.mock import MagicMock
 
         import pandas as pd
 
-        reporter = MagicMock()
-        reporter.tidy_data = pd.DataFrame({"col1": [1, 2, 3], "col2": ["a", "b", "c"]})
+        from zebtrack.analysis.reporters import ScriptExporter
 
-        # Import and call the method directly on the class
-        from zebtrack.analysis.reporter import Reporter
+        mock_ctx = MagicMock()
+        mock_ctx.tidy_data = pd.DataFrame({"x": [1, 2], "y": [3, 4]})
 
-        # Create a patched instance
-        with patch.object(Reporter, "__init__", lambda self: None):
-            instance = Reporter()
-            instance.tidy_data = pd.DataFrame({"x": [1, 2], "y": [3, 4]})
+        exporter = ScriptExporter(mock_ctx)
+        output_path = tmp_path / "test_data.feather"
+        result = exporter.export_feather(output_path)
 
-            output_path = tmp_path / "test_data.feather"
-            result = Reporter.export_feather(instance, output_path)
+        assert result.exists()
+        assert result.suffix == ".feather"
 
-            assert result.exists()
-            assert result.suffix == ".feather"
+        # Verify it's readable
+        import pyarrow.feather as feather
 
-            # Verify it's readable
-            import pyarrow.feather as feather
-
-            df = feather.read_feather(result)
-            assert len(df) == 2
-            assert "x" in df.columns
+        df = feather.read_feather(result)
+        assert len(df) == 2
+        assert "x" in df.columns
 
     def test_export_r_script_creates_file(self, tmp_path):
         """Test export_r_script alias creates a valid R script."""
-        from zebtrack.analysis.reporter import Reporter
+        from unittest.mock import MagicMock
 
-        with patch.object(Reporter, "__init__", lambda self: None):
-            instance = Reporter()
+        from zebtrack.analysis.reporters import ScriptExporter
 
-            output_path = tmp_path / "analysis.R"
-            result = Reporter.export_r_script(instance, output_path)
+        mock_ctx = MagicMock()
+        exporter = ScriptExporter(mock_ctx)
 
-            assert result.exists()
-            assert result.suffix == ".R"
+        output_path = tmp_path / "analysis.R"
+        result = exporter.export_r_script(output_path)
 
-            content = result.read_text()
-            assert "library(arrow)" in content
-            assert "read_feather" in content
+        assert result.exists()
+        assert result.suffix == ".R"
+
+        content = result.read_text()
+        assert "library(arrow)" in content
+        assert "read_feather" in content
 
     def test_export_python_script_creates_file(self, tmp_path):
         """Test export_python_script alias creates a valid Python script."""
-        from zebtrack.analysis.reporter import Reporter
+        from unittest.mock import MagicMock
 
-        with patch.object(Reporter, "__init__", lambda self: None):
-            instance = Reporter()
+        from zebtrack.analysis.reporters import ScriptExporter
 
-            output_path = tmp_path / "analysis_notebook.py"
-            result = Reporter.export_python_script(instance, output_path)
+        mock_ctx = MagicMock()
+        exporter = ScriptExporter(mock_ctx)
 
-            assert result.exists()
-            assert result.suffix == ".py"
+        output_path = tmp_path / "analysis_notebook.py"
+        result = exporter.export_python_script(output_path)
 
-            content = result.read_text()
-            assert "import pandas" in content
-            assert "read_parquet" in content
+        assert result.exists()
+        assert result.suffix == ".py"
+
+        content = result.read_text()
+        assert "import pandas" in content
+        assert "read_parquet" in content

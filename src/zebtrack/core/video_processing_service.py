@@ -52,7 +52,12 @@ if TYPE_CHECKING:
     from zebtrack.ui.event_bus import EventBus
     from zebtrack.ui.ui_coordinator import UICoordinator
 
-from zebtrack.analysis.reporter import Reporter
+from zebtrack.analysis.reporters import (
+    ExcelReporter,
+    ParquetSummaryReporter,
+    ReporterContext,
+    WordReporter,
+)
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
 from zebtrack.core.calibration import Calibration
 from zebtrack.core.detector import ZoneData
@@ -1352,7 +1357,7 @@ class VideoProcessingService:
     def _generate_reports_for_video(
         self,
         *,
-        reporter: Reporter,
+        ctx: ReporterContext,
         experiment_id: str,
         results_dir: str,
         progress_callback,
@@ -1382,7 +1387,7 @@ class VideoProcessingService:
             )
             return None
 
-        reporter.export_summary_data(summary_parquet_path, format="parquet")
+        ParquetSummaryReporter(ctx).export_summary(summary_parquet_path)
         if cancel_event and cancel_event.is_set():
             log.info(
                 "controller.analysis.reports.partial_skip",
@@ -1390,7 +1395,7 @@ class VideoProcessingService:
                 reason="cancelled_after_parquet",
             )
             return None
-        reporter.export_summary_data(summary_excel_path, format="excel")
+        ExcelReporter(ctx).export_summary(summary_excel_path)
         if cancel_event and cancel_event.is_set():
             log.info(
                 "controller.analysis.reports.partial_skip",
@@ -1398,7 +1403,7 @@ class VideoProcessingService:
                 reason="cancelled_after_excel",
             )
             return None
-        reporter.export_individual_report_step_by_step(report_docx_path, progress_callback)
+        WordReporter(ctx).export_individual_report_step_by_step(report_docx_path, progress_callback)
 
         return summary_parquet_path, summary_excel_path, report_docx_path
 
@@ -1505,8 +1510,8 @@ class VideoProcessingService:
         freezing_duration: float,
         smoothing_window: int,
         smoothing_polyorder: int,
-    ) -> Reporter:
-        """Create Reporter instance with all required parameters.
+    ) -> ReporterContext:
+        """Create ReporterContext instance with all required parameters.
 
         Args:
             filtered_df: Filtered trajectory dataframe
@@ -1525,9 +1530,9 @@ class VideoProcessingService:
             smoothing_polyorder: Trajectory smoothing polynomial order
 
         Returns:
-            Reporter instance
+            ReporterContext instance
         """
-        return Reporter(
+        return ReporterContext(
             trajectory_df=filtered_df,
             metadata=metadata,
             pixelcm_x=pixelcm_x,
@@ -1756,8 +1761,8 @@ class VideoProcessingService:
 
         arena_polygon_warped_list = list(arena_polygon_warped)
 
-        # Create Reporter instance
-        reporter = self._create_reporter_instance(
+        # Create ReporterContext instance
+        ctx = self._create_reporter_instance(
             filtered_df=filtered_df,
             metadata=metadata,
             calibration=calibration,
@@ -1780,7 +1785,7 @@ class VideoProcessingService:
 
         # Generate reports
         generated_outputs = self._generate_reports_for_video(
-            reporter=reporter,
+            ctx=ctx,
             experiment_id=experiment_id,
             results_dir=results_dir,
             progress_callback=progress_callback,

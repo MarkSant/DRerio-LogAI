@@ -8,7 +8,7 @@ import pytest
 
 # Import the actual classes we want to integrate
 from zebtrack.analysis.analysis_service import AnalysisService
-from zebtrack.analysis.reporter import Reporter
+from zebtrack.analysis.reporters import ExcelReporter, ReporterContext
 from zebtrack.core.detector import Detector, ZoneData
 from zebtrack.io.recorder import Recorder
 from zebtrack.plugins.base import DetectorPlugin
@@ -204,11 +204,11 @@ def test_full_pipeline_from_video_to_report(integration_test_setup):
         freezing_min_duration=2.0,
         max_plausible_speed_cm_s=100.0,  # Higher threshold for integration test
     )
-    reporter = Reporter.from_analysis(analysis)
+    reporter = ReporterContext.from_analysis(analysis)
 
     # Generate a final summary report
     report_output_path = tracking_output_dir / "final_summary.xlsx"
-    reporter.export_summary_data(str(report_output_path), format="excel")
+    ExcelReporter(reporter).export_summary(str(report_output_path))
 
     # -- Phase 3: Final Assertion --
     assert report_output_path.exists()
