@@ -10,16 +10,14 @@ report complexity and many private helpers).
 
 from __future__ import annotations
 
+import math
 import os
 from typing import TYPE_CHECKING, Any
 
-import cv2
-import numpy as np
-import pandas as pd
 import structlog
-from shapely.geometry import Polygon
 
 from zebtrack.analysis.roi import ROI
+from zebtrack.analysis.roi_builder import build_roi_from_polygon
 from zebtrack.coordinators._unified_report_mixin import UnifiedReportMixin
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
@@ -27,11 +25,16 @@ from zebtrack.core.detection.calibration import Calibration
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from zebtrack.analysis.analysis_service import AnalysisService
     from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.services.trajectory_data_service import TrajectoryDataService
     from zebtrack.core.state_manager import StateManager
+    from zebtrack.core.video.video_metadata_service import VideoMetadataService
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus
+    from zebtrack.utils.video_frame_extractor import VideoFrameExtractor
 
 log = structlog.get_logger()
 
@@ -57,16 +60,34 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         settings_obj: Settings,
         analysis_service: AnalysisService | None = None,
         event_bus: EventBus | None = None,
+        video_metadata_service: VideoMetadataService | None = None,
+        trajectory_data_service: TrajectoryDataService | None = None,
+        video_frame_extractor: VideoFrameExtractor | None = None,
     ) -> None:
         super().__init__(state_manager, event_bus)
         self.project_manager = project_manager
         self.settings = settings_obj
         self.analysis_service = analysis_service
+        self._video_metadata_service = video_metadata_service
+        self._trajectory_data_service = trajectory_data_service
+        self._frame_extractor = video_frame_extractor
 
         # Cross-coordinator references (set post-construction)
         self._progress_coordinator: Any = None
 
         log.info("report_generation_coordinator.initialized")
+
+    # ========================================================================
+    # Internal helpers — delegated I/O
+    # ========================================================================
+
+    def _read_trajectory(self, path: str) -> pd.DataFrame:
+        """Read a trajectory Parquet file via injected service or fallback."""
+        if self._trajectory_data_service is not None:
+            return self._trajectory_data_service.load_trajectory(path)
+        import pandas as _pd  # pragma: no cover — fallback only
+
+        return _pd.read_parquet(path)  # pragma: no cover
 
     # ========================================================================
     # Batch context delegation
@@ -172,7 +193,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             log.warning("workflow.reports.multi_aquarium.missing_trajectory", video=path, aq=aq_id)
             return
 
-        df = pd.read_parquet(trajectory_path)
+        df = self._read_trajectory(trajectory_path)
         aq_metadata = {
             **entry.get("metadata", {}),
             "aquarium_id": aq_id,
@@ -261,7 +282,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             log.warning("workflow.reports.missing_trajectory", video=path)
             return
 
-        df = pd.read_parquet(traj_path)
+        df = self._read_trajectory(traj_path)
         zone_data = self.project_manager.get_zone_data(video_path=path)
         project_data = getattr(self.project_manager, "project_data", {}) or {}
 
@@ -500,7 +521,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         if not aq_zone:
             return None
 
-        df = pd.read_parquet(traj_path)
+        df = self._read_trajectory(traj_path)
         if df.empty:
             return None
 
@@ -567,7 +588,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         if not traj_path:
             return "skipped", f"{exp_id}: trajetória ausente.", None, False
 
-        df = pd.read_parquet(traj_path)
+        df = self._read_trajectory(traj_path)
         if df.empty:
             return "skipped", f"{exp_id}: trajetória vazia.", None, False
 
@@ -732,14 +753,9 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                 for i, poly in enumerate(aq.roi_polygons):
                     translated_poly = [(float(px) - off_x, float(py) - off_y) for px, py in poly]
                     name = aq.roi_names[i] if i < len(aq.roi_names) else f"ROI_{i}"
-                    if len(translated_poly) >= 3:
-                        rois.append(
-                            ROI(
-                                name=name,
-                                geometry=Polygon(translated_poly),
-                                coordinate_space="px",
-                            )
-                        )
+                    roi = build_roi_from_polygon(name, translated_poly)
+                    if roi is not None:
+                        rois.append(roi)
                     if i < len(aq.roi_colors):
                         roi_colors_map[name] = aq.roi_colors[i]
                 break
@@ -755,14 +771,9 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             for i, poly in enumerate(zone_data.roi_polygons):
                 translated_poly = [(float(px) - off_x, float(py) - off_y) for px, py in poly]
                 name = zone_data.roi_names[i] if i < len(zone_data.roi_names) else f"ROI_{i}"
-                if len(translated_poly) >= 3:
-                    rois.append(
-                        ROI(
-                            name=name,
-                            geometry=Polygon(translated_poly),
-                            coordinate_space="px",
-                        )
-                    )
+                roi = build_roi_from_polygon(name, translated_poly)
+                if roi is not None:
+                    rois.append(roi)
                 if i < len(zone_data.roi_colors):
                     roi_colors_map[name] = zone_data.roi_colors[i]
         return rois, roi_colors_map
@@ -801,7 +812,12 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             if frame is not None:
                 try:
                     bg_path = os.path.join(results_dir, f"{exp_id}_bg.png")
-                    cv2.imwrite(bg_path, frame)
+                    if self._frame_extractor is not None:
+                        self._frame_extractor.save_frame(frame, bg_path)
+                    else:
+                        import cv2 as _cv2  # pragma: no cover
+
+                        _cv2.imwrite(bg_path, frame)  # pragma: no cover
                     return bg_path
                 except OSError:
                     log.warning(
@@ -831,13 +847,21 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
 
     def _probe_video_dimensions(self, video_file: str) -> tuple[int, int]:
         """Probe video width and height."""
-        cap = cv2.VideoCapture(video_file)
-        if not cap.isOpened():
+        if self._video_metadata_service is not None:
+            dims = self._video_metadata_service.get_video_dimensions(video_file)
+            if dims is not None:
+                return dims
             return (0, 0)
-        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        cap.release()
-        return w, h
+        # Fallback when service not injected
+        import cv2 as _cv2  # pragma: no cover
+
+        cap = _cv2.VideoCapture(video_file)  # pragma: no cover
+        if not cap.isOpened():  # pragma: no cover
+            return (0, 0)  # pragma: no cover
+        w = int(cap.get(_cv2.CAP_PROP_FRAME_WIDTH))  # pragma: no cover
+        h = int(cap.get(_cv2.CAP_PROP_FRAME_HEIGHT))  # pragma: no cover
+        cap.release()  # pragma: no cover
+        return w, h  # pragma: no cover
 
     def _compute_local_space_geometry(
         self, polygon: list, fb_w: int, fb_h: int
@@ -846,8 +870,8 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         if not polygon:
             return 0, 0, max(fb_w, 1), max(fb_h, 1)
         xs, ys = [p[0] for p in polygon], [p[1] for p in polygon]
-        min_x, min_y = int(np.floor(min(xs))), int(np.floor(min(ys)))
-        max_x, max_y = int(np.ceil(max(xs))), int(np.ceil(max(ys)))
+        min_x, min_y = math.floor(min(xs)), math.floor(min(ys))
+        max_x, max_y = math.ceil(max(xs)), math.ceil(max(ys))
         return min_x, min_y, max(max_x - min_x, 1), max(max_y - min_y, 1)
 
     def _normalize_df_to_local_space(
@@ -871,40 +895,29 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         """Extract a single cropped frame from video."""
         if not crop_box:
             return None
-        cap = cv2.VideoCapture(video_file)
-        ret, frame = cap.read()
-        cap.release()
-        if not ret or frame is None:
-            log.warning("workflow.report.frame_read_failed", video_file=str(video_file))
-            return None
+        if self._frame_extractor is not None:
+            return self._frame_extractor.extract_and_crop_frame(video_file, crop_box)
+        # Fallback when service not injected
+        import cv2 as _cv2  # pragma: no cover
 
-        frame_h, frame_w = frame.shape[:2]
-        x, y, w, h = map(int, crop_box)
-
-        original_crop = (x, y, w, h)
-        x = max(0, min(x, frame_w - 1))
-        y = max(0, min(y, frame_h - 1))
-        w = min(w, frame_w - x)
-        h = min(h, frame_h - y)
-
-        if w <= 0 or h <= 0:
-            log.warning(
-                "workflow.report.crop_box_invalid",
-                original_crop=original_crop,
-                frame_size=(frame_w, frame_h),
-                reason="crop_box results in empty region after clamping",
+        cap = _cv2.VideoCapture(video_file)  # pragma: no cover
+        ret, frame = cap.read()  # pragma: no cover
+        cap.release()  # pragma: no cover
+        if not ret or frame is None:  # pragma: no cover
+            log.warning(  # pragma: no cover
+                "workflow.report.frame_read_failed",
+                video_file=str(video_file),
             )
-            return None
-
-        if (x, y, w, h) != original_crop:
-            log.info(
-                "workflow.report.crop_box_adjusted",
-                original=original_crop,
-                adjusted=(x, y, w, h),
-                frame_size=(frame_w, frame_h),
-            )
-
-        return frame[y : y + h, x : x + w].copy()
+            return None  # pragma: no cover
+        frame_h, frame_w = frame.shape[:2]  # pragma: no cover
+        x, y, w, h = map(int, crop_box)  # pragma: no cover
+        x = max(0, min(x, frame_w - 1))  # pragma: no cover
+        y = max(0, min(y, frame_h - 1))  # pragma: no cover
+        w = min(w, frame_w - x)  # pragma: no cover
+        h = min(h, frame_h - y)  # pragma: no cover
+        if w <= 0 or h <= 0:  # pragma: no cover
+            return None  # pragma: no cover
+        return frame[y : y + h, x : x + w].copy()  # pragma: no cover
 
     def _prepare_summary_geometry(
         self,
@@ -915,9 +928,11 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         calib: dict,
     ) -> tuple:
         """Common geometry preparation for summary generation."""
+        import numpy as _np  # lazy: only needed for Calibration constructor
+
         w_cm = calib.get("aquarium_width_cm", 0)
         h_cm = calib.get("aquarium_height_cm", 0)
-        cal = Calibration(np.array(poly), w_cm, h_cm)
+        cal = Calibration(_np.array(poly), w_cm, h_cm)
         _, video_h = cal.target_dims_px
         px_x, px_y = cal.pixel_per_cm_ratio
         poly_warped = cal.transform_points(poly)
@@ -926,13 +941,11 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
         for i, r_poly in enumerate(r_polys):
             wp = cal.transform_points(r_poly)
             name = r_names[i] if i < len(r_names) else f"ROI {i + 1}"
-            rois.append(
-                ROI(
-                    name=name,
-                    geometry=Polygon([(float(x), float(y)) for x, y in wp]),
-                    coordinate_space="px",
-                )
+            roi = build_roi_from_polygon(
+                name, [(float(x), float(y)) for x, y in wp], coordinate_space="px"
             )
+            if roi is not None:
+                rois.append(roi)
 
         colors = {
             (r_names[i] if i < len(r_names) else f"ROI {i + 1}"): r_colors[i]

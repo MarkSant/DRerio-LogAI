@@ -404,13 +404,19 @@ def main():  # noqa: C901
         )
         from zebtrack.coordinators.ui_state_coordinator import UIStateController
         from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
+        from zebtrack.core.services.trajectory_data_service import TrajectoryDataService
         from zebtrack.core.video.video_classification_service import VideoClassificationService
+        from zebtrack.core.video.video_metadata_service import VideoMetadataService
         from zebtrack.core.video.video_selection_service import VideoSelectionService
         from zebtrack.core.video.video_validation_service import VideoValidationService
+        from zebtrack.utils.video_frame_extractor import VideoFrameExtractor
 
         video_selection_service = VideoSelectionService()
         video_validation_service = VideoValidationService()
         video_classification_service = VideoClassificationService()
+        video_metadata_service = VideoMetadataService()
+        trajectory_data_service = TrajectoryDataService()
+        video_frame_extractor = VideoFrameExtractor()
         ui_state_controller = UIStateController(
             root=root,
             ui_event_bus=event_bus,
@@ -460,6 +466,9 @@ def main():  # noqa: C901
             settings_obj=settings_obj,
             analysis_service=analysis_service,
             event_bus=event_bus,
+            video_metadata_service=video_metadata_service,
+            trajectory_data_service=trajectory_data_service,
+            video_frame_extractor=video_frame_extractor,
         )
 
         # 3d. SequentialProcessingCoordinator
@@ -492,6 +501,7 @@ def main():  # noqa: C901
             recorder_factory=recorder_factory,
             event_bus=event_bus,
             dialog_coordinator=None,  # Set after ApplicationGUI is created
+            video_metadata_service=video_metadata_service,
             view=None,  # Set after ApplicationGUI is created
             root=root,
             detector=None,  # Set after detector is initialized

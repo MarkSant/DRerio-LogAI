@@ -19,7 +19,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import numpy as np
 import pandas as pd
 import structlog
 
@@ -357,7 +356,7 @@ class UnifiedReportMixin:
             word_df = final_df.copy()
             for col in word_df.columns:
                 word_df[col] = (
-                    word_df[col].where(word_df[col].notna(), np.nan).infer_objects(copy=False)
+                    word_df[col].where(word_df[col].notna(), float("nan")).infer_objects(copy=False)
                 )
             export_project_report(
                 aggregated_df=word_df,

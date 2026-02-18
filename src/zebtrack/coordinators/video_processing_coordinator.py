@@ -21,7 +21,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-import cv2
 import structlog
 
 from zebtrack.coordinators._video_selection_mixin import VideoSelectionMixin
@@ -52,6 +51,7 @@ if TYPE_CHECKING:
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.core.video.video_classification_service import VideoClassificationService
+    from zebtrack.core.video.video_metadata_service import VideoMetadataService
     from zebtrack.core.video.video_selection_service import VideoSelectionService
     from zebtrack.core.video.video_validation_service import VideoValidationService
     from zebtrack.io.recorder_factory import RecorderFactory
@@ -87,6 +87,7 @@ class VideoProcessingCoordinator(BaseCoordinator, VideoSelectionMixin):
         recorder_factory: RecorderFactory | None = None,
         event_bus: EventBus | None = None,
         dialog_coordinator: DialogCoordinator | None = None,
+        video_metadata_service: VideoMetadataService | None = None,
         # UI components
         view: Any = None,
         root: Any = None,
@@ -102,6 +103,7 @@ class VideoProcessingCoordinator(BaseCoordinator, VideoSelectionMixin):
         self.cancel_event = cancel_event
         self.recorder_factory = recorder_factory
         self.dialog_coordinator = dialog_coordinator
+        self._video_metadata_service = video_metadata_service
 
         # Services
         self.video_selection_service = video_selection_service
@@ -124,6 +126,40 @@ class VideoProcessingCoordinator(BaseCoordinator, VideoSelectionMixin):
         self._report_coordinator: ReportGenerationCoordinator | None = None
 
         log.info("video_processing_coordinator.initialized")
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _get_video_dimensions(self, video_path: str) -> tuple[int, int] | None:
+        """Return (width, height) for a video file, or *None* on failure.
+
+        Delegates to ``VideoMetadataService`` when available; falls back to
+        a direct *cv2.VideoCapture* call otherwise.
+        """
+        if self._video_metadata_service is not None:
+            try:
+                return self._video_metadata_service.get_video_dimensions(video_path)
+            except Exception:
+                log.warning(
+                    "video_processing_coordinator.get_dims.service_failed",
+                    video_path=video_path,
+                )
+                return None
+
+        # Fallback: lazy cv2 import  — pragma: no cover
+        try:  # pragma: no cover
+            import cv2 as _cv2  # pragma: no cover
+
+            cap = _cv2.VideoCapture(video_path)  # pragma: no cover
+            if not cap.isOpened():  # pragma: no cover
+                return None  # pragma: no cover
+            w = int(cap.get(_cv2.CAP_PROP_FRAME_WIDTH))  # pragma: no cover
+            h = int(cap.get(_cv2.CAP_PROP_FRAME_HEIGHT))  # pragma: no cover
+            cap.release()  # pragma: no cover
+            return (w, h)  # pragma: no cover
+        except Exception:  # pragma: no cover
+            return None  # pragma: no cover
 
     # ========================================================================
     # Event Handler Registration
@@ -1097,16 +1133,14 @@ class VideoProcessingCoordinator(BaseCoordinator, VideoSelectionMixin):
         """Setup detector with zones for single video."""
         if not self.detector:
             return True
-        cap = cv2.VideoCapture(str(video_path))
-        if not cap.isOpened():
+        dims = self._get_video_dimensions(str(video_path))
+        if dims is None:
             self._publish_event(
                 Events.UI_SHOW_ERROR,
                 {"title": "Erro", "message": f"Não foi possível abrir: {video_path}"},
             )
             return False
-        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        cap.release()
+        w, h = dims
         self.detector.set_zones(zone_data, w, h)
         has_aq = bool(zone_data and (zone_data.polygon or hasattr(zone_data, "aquariums")))
         self.detector.set_aquarium_region_defined(has_aq)
