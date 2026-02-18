@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 SerialExceptionType: type[BaseException]
 
 try:  # pragma: no cover - serial may not be available during unit tests
-    from serial import SerialException as SerialExceptionType  # type: ignore
+    from serial import SerialException as SerialExceptionType
 except Exception:  # pragma: no cover - fallback when pyserial is missing
 
     class _SerialExceptionError(Exception):

@@ -228,7 +228,7 @@ class Arduino:
         fallback_ports: list[object] = []
 
         try:
-            from serial.tools import list_ports  # type: ignore
+            from serial.tools import list_ports
         except Exception:  # pragma: no cover - pyserial not installed
             log.warning("arduino.scan.list_ports_unavailable")
             return handshake_ports, fallback_ports

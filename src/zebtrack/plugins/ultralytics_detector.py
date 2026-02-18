@@ -118,9 +118,9 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
         predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
         if results and results[0].boxes is not None:
             boxes = results[0].boxes
-            xyxys = boxes.xyxy.cpu().numpy()  # type: ignore[attr-defined]
-            confs = boxes.conf.cpu().numpy()  # type: ignore[attr-defined]
-            classes = boxes.cls.cpu().numpy()  # type: ignore[attr-defined]
+            xyxys = boxes.xyxy.cpu().numpy()
+            confs = boxes.conf.cpu().numpy()
+            classes = boxes.cls.cpu().numpy()
 
             # ✅ DEBUG: Log raw boxes from model
             log.debug(
@@ -179,7 +179,7 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
             # Process boxes and masks together
             if result.boxes is not None:
-                for i, box in enumerate(result.boxes):  # type: ignore[arg-type]
+                for i, box in enumerate(result.boxes):
                     x1, y1, x2, y2 = box.xyxy[0].tolist()
                     class_id = int(box.cls)
                     confidence = float(box.conf)
@@ -187,8 +187,8 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                     # Check if corresponding mask exists
                     has_mask = (
                         result.masks is not None
-                        and result.masks.xy is not None  # type: ignore[union-attr]
-                        and i < len(result.masks.xy)  # type: ignore[union-attr]
+                        and result.masks.xy is not None
+                        and i < len(result.masks.xy)
                     )
 
                     formatted_results.append(
@@ -198,17 +198,15 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
                             "class_id": class_id,
                             "class_name": result.names.get(class_id, f"class_{class_id}"),
                             "has_mask": has_mask,
-                            "mask_points": len(result.masks.xy[i])  # type: ignore[union-attr]
-                            if has_mask
-                            else 0,
+                            "mask_points": len(result.masks.xy[i]) if has_mask else 0,
                         }
                     )
 
             # Process orphan masks (without boxes)
-            if result.masks is not None and result.masks.xy is not None:  # type: ignore[union-attr]
+            if result.masks is not None and result.masks.xy is not None:
                 num_boxes = len(result.boxes) if result.boxes else 0
-                for i in range(num_boxes, len(result.masks.xy)):  # type: ignore[union-attr]
-                    mask_xy = result.masks.xy[i]  # type: ignore[union-attr]
+                for i in range(num_boxes, len(result.masks.xy)):
+                    mask_xy = result.masks.xy[i]
                     x_min = int(mask_xy[:, 0].min())
                     y_min = int(mask_xy[:, 1].min())
                     x_max = int(mask_xy[:, 0].max())

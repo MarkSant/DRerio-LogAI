@@ -167,7 +167,9 @@ module = [
     "matplotlib.*",
     "pandas.*",
     "pyarrow.*",
-    "pytest_timeout.*"
+    "pytest_timeout.*",
+    "serial.*",
+    "torch.*"
 ]
 ignore_missing_imports = true
 
