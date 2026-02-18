@@ -3,6 +3,7 @@ from typing import cast
 
 import pytest
 
+from zebtrack.ui.components.zone_edit_guard import ZoneEditGuard
 from zebtrack.ui.gui import ApplicationGUI
 
 
@@ -19,6 +20,14 @@ class _NotebookStub:
         return self.current
 
 
+def _make_guard(app: SimpleNamespace, *, confirm_result: bool) -> ZoneEditGuard:
+    """Create a ZoneEditGuard wired to *app* with a stubbed confirm method."""
+    guard = ZoneEditGuard.__new__(ZoneEditGuard)
+    guard.gui = app  # type: ignore[assignment]
+    guard.confirm_pending_zone_edit_before_navigation = lambda **_: confirm_result  # type: ignore[assignment]
+    return guard
+
+
 def test_on_tab_changed_reverts_when_pending_edit_cancelled() -> None:
     zone_tab_id = "zone-tab"
     target_tab_id = "analysis-tab"
@@ -32,7 +41,7 @@ def test_on_tab_changed_reverts_when_pending_edit_cancelled() -> None:
         _last_selected_tab_id=zone_tab_id,
     )
 
-    app._confirm_pending_zone_edit_before_navigation = lambda **_: False
+    app.zone_edit_guard = _make_guard(app, confirm_result=False)
     app._refresh_roi_templates = lambda *_, **__: None
 
     ApplicationGUI._on_tab_changed(cast(ApplicationGUI, app), event=None)
@@ -56,11 +65,7 @@ def test_on_tab_changed_keeps_target_tab_when_pending_edit_confirmed(decision: s
         _last_selected_tab_id=zone_tab_id,
     )
 
-    if decision == "save":
-        app._confirm_pending_zone_edit_before_navigation = lambda **_: True
-    else:
-        app._confirm_pending_zone_edit_before_navigation = lambda **_: True
-
+    app.zone_edit_guard = _make_guard(app, confirm_result=True)
     app._refresh_roi_templates = lambda *_, **__: None
 
     ApplicationGUI._on_tab_changed(cast(ApplicationGUI, app), event=None)

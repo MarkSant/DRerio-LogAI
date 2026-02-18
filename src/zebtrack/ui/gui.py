@@ -1,11 +1,9 @@
 """Este módulo define a interface gráfica principal (GUI) para a aplicação Zebtrack."""
 
 from collections.abc import Callable
-from pathlib import Path
 from tkinter import (
     BooleanVar,
     Button,
-    Frame,
     Label,
     Menu,
     StringVar,
@@ -26,7 +24,6 @@ except ImportError:  # pragma: no cover - optional dependency fallback
 # Import custom modules
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
-from zebtrack.io.camera import Camera
 from zebtrack.ui.builders import ButtonFactory, PanelBuilder, ZoneControlBuilder
 from zebtrack.ui.components import (
     AnalysisDisplayWidget,
@@ -46,6 +43,11 @@ from zebtrack.ui.components import (
     ValidationManager,
     WidgetFactory,
 )
+from zebtrack.ui.components.analysis_view_controller import AnalysisViewController
+from zebtrack.ui.components.project_initializer import ProjectInitializer
+from zebtrack.ui.components.single_video_workflow import SingleVideoWorkflow
+from zebtrack.ui.components.weight_hardware_manager import WeightHardwareManager
+from zebtrack.ui.components.zone_edit_guard import ZoneEditGuard
 from zebtrack.ui.decorators import public_api
 from zebtrack.ui.dialogs import (
     CalibrationDialog,
@@ -55,11 +57,7 @@ from zebtrack.ui.dialogs import (
 )
 from zebtrack.ui.event_bus import EventBus
 from zebtrack.ui.event_bus_v2 import Event, EventBusV2, UIEvents
-from zebtrack.ui.events import Events
 from zebtrack.ui.ui_coordinator import UICoordinator
-from zebtrack.ui.window_utils import (
-    reset_geometry_if_not_maximized,
-)
 
 log = structlog.get_logger()
 
@@ -198,6 +196,13 @@ class ApplicationGUI:
         self.zone_control_builder = ZoneControlBuilder(self, event_bus_v2=self.event_bus_v2)
         self.button_factory = ButtonFactory()
         self.panel_builder = PanelBuilder()
+
+        # Phase 6 components (extracted from gui.py — Phase 4.4 decomposition)
+        self.analysis_view_controller = AnalysisViewController(self)
+        self.project_initializer = ProjectInitializer(self)
+        self.single_video_workflow = SingleVideoWorkflow(self)
+        self.weight_hardware_manager = WeightHardwareManager(self)
+        self.zone_edit_guard = ZoneEditGuard(self)
 
         # Create menu bar
         self.menu_manager.create_menu_bar()
@@ -394,56 +399,15 @@ class ApplicationGUI:
         except (AttributeError, RuntimeError):
             log.warning("gui.post_init.controller_sync_failed", exc_info=True)
 
+    # --- Weight & Hardware (Phase 4.4 → WeightHardwareManager) ---
+
     def handle_request_weight_type(self, filepath: str) -> None:
-        """Handle request to identify weight type."""
-        from tkinter import simpledialog
-
-        weight_type = simpledialog.askstring(
-            "Tipo do Modelo",
-            "O tipo do modelo não pôde ser determinado automaticamente.\n"
-            "Digite 'seg' para Segmentação ou 'det' para Detecção:",
-            parent=self.root,
-        )
-
-        if weight_type:
-            # Normalize input
-            weight_type = weight_type.lower().strip()
-            if weight_type in ["seg", "segmentation", "segmentação"]:
-                weight_type = "seg"
-            elif weight_type in ["det", "detection", "detecção"]:
-                weight_type = "det"
-
-            # Resume workflow
-            self.controller.hardware_vm.load_new_weight(filepath=filepath, weight_type=weight_type)
+        """Delegates to WeightHardwareManager."""
+        self.weight_hardware_manager.handle_request_weight_type(filepath)
 
     def handle_request_weight_action(self, filepath: str, weight_type: str) -> None:
-        """Handle request for action on new weight."""
-        from tkinter import messagebox
-
-        type_label = "Segmentação" if weight_type == "seg" else "Detecção"
-
-        response = messagebox.askyesnocancel(
-            "Novo Peso Encontrado",
-            f"O arquivo '{Path(filepath).name}' foi identificado como modelo de {type_label}.\n\n"
-            "Deseja defini-lo como o novo padrão para {type_label}?\n"
-            "Sim: Define como padrão\n"
-            "Não: Apenas adiciona à lista\n"
-            "Cancelar: Aborta a operação",
-            parent=self.root,
-        )
-
-        choice = None
-        if response is True:
-            choice = "yes"
-        elif response is False:
-            choice = "no"
-        else:
-            choice = "cancel"
-
-        if choice != "cancel":
-            self.controller.hardware_vm.load_new_weight(
-                filepath=filepath, weight_type=weight_type, choice=choice
-            )
+        """Delegates to WeightHardwareManager."""
+        self.weight_hardware_manager.handle_request_weight_action(filepath, weight_type)
 
     # --- Event bus helpers -------------------------------------------------
 
@@ -466,31 +430,15 @@ class ApplicationGUI:
 
         return ValidationManager._deep_merge_dicts(base, override)
 
-    def _cleanup_single_analysis_button(self):
-        """Destroys the single analysis button if it exists."""
-        if (
-            hasattr(self, "start_single_analysis_btn")
-            and self.start_single_analysis_btn is not None
-        ):
-            if self.start_single_analysis_btn.winfo_exists():
-                self.start_single_analysis_btn.destroy()
-            self.start_single_analysis_btn = None
+    # --- Analysis View (Phase 4.4 → AnalysisViewController) ---
 
-        zone_controls = getattr(self, "zone_controls", None)
-        if zone_controls:
-            try:
-                zone_controls.hide_single_analysis_options()
-            except (TclError, AttributeError):
-                log.warning("gui.hide_single_analysis_options.suppressed", exc_info=True)
+    def _cleanup_single_analysis_button(self):
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.cleanup_single_analysis_button()
 
     def _reset_analysis_widgets(self) -> None:
-        """Encapsula a limpeza e destruição de widgets da aba de análise."""
-        # Break the cleanup into smaller helpers to reduce cognitive complexity
-        self.state_synchronizer._reset_analysis_media()
-        self.state_synchronizer._reset_analysis_progress_and_metadata()
-        self.state_synchronizer._reset_roi_and_visual_frames()
-        self.state_synchronizer._destroy_notebook_and_main_controls()
-        self.analysis_tab_frame = None
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.reset_analysis_widgets()
 
     def _initialize_theme(self) -> None:
         """Apply a modern ttkbootstrap theme if the library is available."""
@@ -574,205 +522,29 @@ class ApplicationGUI:
         self.set_active_weight_in_dropdown(self.controller.hardware_vm.active_weight_name)
         self.update_openvino_status_display(self.controller.hardware_vm.get_openvino_status())
 
+    # --- Zone Edit Guard (Phase 4.4 → ZoneEditGuard) ---
+
     def _on_tab_changed(self, event):
-        """
-        Handle tab change event to ensure analysis overlay is hidden.
-
-        Only shows overlay when on analysis tab.
-        """
-        if not self.notebook:
-            return
-
-        current_tab = self.notebook.select()
-        previous_tab = self._last_selected_tab_id
-        analysis_tab_id = str(self.analysis_tab_frame) if self.analysis_tab_frame else ""
-        zone_tab_id = str(self.zone_tab_frame) if self.zone_tab_frame else ""
-
-        is_leaving_zone_tab = (
-            bool(zone_tab_id) and previous_tab == zone_tab_id and current_tab != zone_tab_id
-        )
-
-        if is_leaving_zone_tab and not self._confirm_pending_zone_edit_before_navigation(
-            context="trocar de aba"
-        ):
-            # Revert tab switch when user cancels navigation.
-            self.notebook.select(zone_tab_id)
-            self._last_selected_tab_id = zone_tab_id
-            return
-
-        if zone_tab_id and current_tab == zone_tab_id:
-            combobox = getattr(self, "roi_template_combobox", None)
-            values = combobox.cget("values") if combobox else ()
-            if not values:
-                self._refresh_roi_templates()
-
-        if self.analysis_active:
-            self.canvas_view_mode = (
-                "analysis" if analysis_tab_id and current_tab == analysis_tab_id else "zones"
-            )
-
-        self._last_selected_tab_id = current_tab
+        """Handle tab change event. Delegates to ZoneEditGuard."""
+        self.zone_edit_guard.on_tab_changed(event)
 
     def _has_pending_zone_edit(self) -> bool:
-        """Return True when there is an active zone drawing/editing session or unsaved zones."""
-        drawing_manager = getattr(self, "drawing_state_manager", None)
-        drawing_mode = getattr(drawing_manager, "mode", None) if drawing_manager else None
-        drawing_active = drawing_mode is not None
-        drawing_points_active = bool(drawing_manager and drawing_manager.has_points())
-        editing_active = bool(getattr(self, "current_editing_zone", None))
-        edited_polygon_active = bool(getattr(self, "edited_polygon_points", None))
-        zones_dirty = getattr(self, "_zones_dirty", False)
-        return (
-            drawing_active
-            or drawing_points_active
-            or editing_active
-            or edited_polygon_active
-            or zones_dirty
-        )
+        """Delegates to ZoneEditGuard."""
+        return self.zone_edit_guard.has_pending_zone_edit()
 
     def _warn_about_pending_zone_edit(self, *, context: str) -> None:
-        """Show a non-blocking warning if user navigates with an unfinished zone edit."""
-        if not self._has_pending_zone_edit():
-            return
-        self.show_warning(
-            "Edição de zonas em andamento",
-            (
-                "Há uma edição/desenho de zona em andamento. "
-                "Clique em 'Concluir Edição do Vídeo' quando terminar, "
-                f"antes de {context}."
-            ),
-        )
+        """Delegates to ZoneEditGuard."""
+        self.zone_edit_guard.warn_about_pending_zone_edit(context=context)
 
     def _confirm_pending_zone_edit_before_navigation(self, *, context: str) -> bool:
-        """Confirm and resolve pending zone edits before navigation.
+        """Delegates to ZoneEditGuard."""
+        return self.zone_edit_guard.confirm_pending_zone_edit_before_navigation(context=context)
 
-        Returns:
-            True when navigation should proceed, False when it should be cancelled.
-        """
-        if not self._has_pending_zone_edit():
-            return True
-
-        # If only the _zones_dirty flag is set (template applied, arena saved, but not
-        # yet committed via "Concluir"), show a tailored warning and allow proceed/cancel.
-        has_active_drawing = False
-        drawing_manager = getattr(self, "drawing_state_manager", None)
-        if drawing_manager:
-            drawing_mode = getattr(drawing_manager, "mode", None)
-            has_active_drawing = (
-                drawing_mode is not None
-                or drawing_manager.has_points()
-                or bool(getattr(self, "current_editing_zone", None))
-                or bool(getattr(self, "edited_polygon_points", None))
-            )
-
-        if not has_active_drawing and getattr(self, "_zones_dirty", False):
-            # Zones were saved in memory but not committed to project via "Concluir"
-            from tkinter import messagebox
-
-            response = messagebox.askyesnocancel(
-                "Zonas não finalizadas",
-                "As zonas foram desenhadas/aplicadas mas não foram finalizadas "
-                "com o botão 'Concluir Edição do Vídeo'.\n\n"
-                "Deseja finalizar agora antes de prosseguir?\n\n"
-                "• Sim: Finaliza e prossegue\n"
-                "• Não: Prossegue sem finalizar\n"
-                "• Cancelar: Permanece no vídeo atual",
-            )
-            if response is None:
-                # Cancel — stay on current video
-                self.set_status("Troca de vídeo cancelada.")
-                return False
-            if response is True:
-                # Auto-conclude: trigger the same logic as "Concluir"
-                if hasattr(self, "zone_control_builder") and self.zone_control_builder:
-                    self.zone_control_builder._on_conclude_video()
-                else:
-                    self._zones_dirty = False
-            else:
-                # Discard — clear dirty flag, proceed without saving project
-                self._zones_dirty = False
-            return True
-
-        response = self.dialog_manager.confirm_pending_zone_edit_before_navigation(context=context)
-        if response is None:
-            self.set_status("Troca de vídeo cancelada para manter a edição atual.")
-            return False
-
-        if response is True:
-            # Save only when a concrete editable polygon exists.
-            if self.edited_polygon_points:
-                self.canvas_manager.save_arena()
-                self._zones_dirty = False
-                self.set_status("Edição salva. Prosseguindo para o próximo vídeo...")
-                return True
-
-            self.show_warning(
-                "Salvar edição",
-                (
-                    "Não foi possível salvar automaticamente porque o desenho ainda não foi "
-                    "finalizado. Finalize o desenho ou use 'Concluir' antes de trocar de vídeo."
-                ),
-            )
-            return False
-
-        self.canvas_manager.discard_arena()
-        self._zones_dirty = False
-        self.set_status("Edição descartada. Prosseguindo para o próximo vídeo...")
-        return True
+    # --- Project Initialization (Phase 4.4 → ProjectInitializer) ---
 
     def _create_main_control_frame(self):
-        """Create the main UI with tabs for controlling the app."""
-        if self.welcome_frame:
-            self.welcome_frame.destroy()
-        reset_geometry_if_not_maximized(self.root)
-
-        self.notebook = ttk.Notebook(self.root, style="Zebtrack.TNotebook")
-        self.notebook.pack(expand=True, fill="both", padx=5, pady=5)
-
-        # Bind tab change event to hide analysis overlay when switching tabs
-        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
-
-        # Create the tabs
-        self.tab_builder.build_main_controls_tab()
-        if self.controller.project_manager.get_project_type() == "live":
-            self.widget_factory.create_progress_grid_tab()
-        self.tab_builder.build_zone_tab()
-        self.tab_builder.build_processing_reports_tab()  # New unified tab
-        self.tab_builder.build_analysis_tab()
-        self.tab_builder.build_configuration_tab()
-
-        self._last_selected_tab_id = self.notebook.select()
-
-        # Status frame below the notebook
-        project_type_str = self.controller.project_manager.get_project_type()
-        if project_type_str == "live":
-            project_type_display = "Ao Vivo"
-        elif project_type_str == "pre-recorded":
-            project_type_display = "Pré-gravado"
-        else:
-            project_type_display = project_type_str
-
-        status_text = (
-            f"Projeto: {self.controller.project_manager.get_project_name()} "
-            f"({project_type_display})"
-        )
-        self.status_var.set(status_text)
-        status_frame = Frame(self.root)
-        status_frame.pack(pady=5, fill="x", padx=10, side="bottom")
-        Label(status_frame, textvariable=self.status_var).pack()
-
-        # Ensure analysis UI starts hidden
-        self.hide_progress_bar()
-
-        # Populate video selector tree after tabs are built
-        if self.event_bus_v2:
-            self.event_bus_v2.publish(
-                Event(
-                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                    data={"filter_text": None},
-                    source="ApplicationGUI._create_main_control_frame",
-                )
-            )
+        """Delegates to ProjectInitializer."""
+        self.project_initializer.create_main_control_frame()
 
     def _on_canvas_configure(self, event):
         """Handle canvas resize events."""
@@ -805,19 +577,8 @@ class ApplicationGUI:
         pass
 
     def _navigate_to_processing_reports_tab(self) -> None:
-        """Navigate to the Processing and Reports tab."""
-        if not self.notebook:
-            return
-
-        # Find the index of the Processing and Reports tab
-        tab_count = self.notebook.index("end")
-        for i in range(tab_count):
-            tab_text = self.notebook.tab(i, "text")
-            if "Processamento e Relatórios" in tab_text:
-                self.notebook.select(i)
-                return
-
-        log.warning("gui.navigate.processing_reports_tab_not_found")
+        """Delegates to ProjectInitializer."""
+        self.project_initializer.navigate_to_processing_reports_tab()
 
     def _create_project_overview_panel(self, parent: ttk.Frame | None) -> None:
         """Legacy helper preserved for TabBuilder/tests - delegates to WidgetFactory."""
@@ -1080,168 +841,32 @@ class ApplicationGUI:
             self.show_error("Erro", f"Falha ao aplicar configurações: {e!s}")
 
     def _update_window_title(self, project_name: str | None = None) -> None:
-        """Update the window title with the project name."""
-        base_title = "DRerio LogAI"
-        if project_name:
-            self.root.title(f"{base_title} - {project_name}")
-        else:
-            self.root.title(base_title)
+        """Delegates to ProjectInitializer."""
+        self.project_initializer.update_window_title(project_name)
 
     def _load_project_view(self):
-        """
-        Transitions from the welcome screen to the main control view.
-
-        Initializes the detector with the appropriate plugin.
-        """
-        # Reset analysis display state from single video workflow
-        self.hide_progress_bar()
-        self.analysis_status_var.set("Nenhuma análise em andamento.")
-        if self.analysis_display_widget and self.analysis_display_widget.video_label:
-            try:
-                self.analysis_display_widget.video_label.configure(image="")
-                self._analysis_overlay_image = None
-            except (TclError, AttributeError):
-                log.debug("gui.video_label_clear.suppressed", exc_info=True)
-
-        pm = self.controller.project_manager
-
-        # Update window title with project name
-        try:
-            project_name = pm.get_project_name() if hasattr(pm, "get_project_name") else None
-            self._update_window_title(project_name)
-        except (AttributeError, TclError):
-            log.debug("gui.update_window_title.suppressed", exc_info=True)
-
-        # Load persisted user preferences if present
-        if pm.get_project_type() == "pre-recorded":
-            self._restore_persisted_project_settings(pm)
-
-        self._create_main_control_frame()
-
-        project_type = pm.get_project_type()
-        if project_type == "live":
-            self._initialize_live_components(pm)
-        elif project_type == "pre-recorded":
-            self._initialize_prerecorded_components(pm)
-
-        if project_type == "live":
-            # Auto-calibration for Live projects when no zones are defined
-            self.root.after(1000, self._check_live_project_calibration)
+        """Delegates to ProjectInitializer."""
+        self.project_initializer.load_project_view()
 
     def _restore_persisted_project_settings(self, pm):
-        """Restore settings from project data."""
-        if pm.project_data.get("last_processing_interval") is not None:
-            try:
-                self.processing_interval_var.set(
-                    str(int(pm.project_data["last_processing_interval"]))
-                )
-            except (ValueError, TypeError):
-                log.debug("gui.restore_processing_interval.suppressed", exc_info=True)
-        if pm.project_data.get("last_show_preview") is not None:
-            try:
-                self.show_preview_var.set(
-                    bool(pm.project_data["last_show_preview"])  # type: ignore[arg-type]
-                )
-            except (ValueError, TypeError):
-                log.debug("gui.restore_show_preview.suppressed", exc_info=True)
-
-        # Restore analysis and display intervals
-        if pm.project_data.get("analysis_interval_frames") is not None:
-            try:
-                self.analysis_interval_var.set(
-                    str(int(pm.project_data["analysis_interval_frames"]))
-                )
-            except (ValueError, TypeError):
-                log.debug("gui.restore_analysis_interval.suppressed", exc_info=True)
-        if pm.project_data.get("display_interval_frames") is not None:
-            try:
-                self.display_interval_var.set(str(int(pm.project_data["display_interval_frames"])))
-            except (ValueError, TypeError):
-                log.debug("gui.restore_display_interval.suppressed", exc_info=True)
-
-        # Synchronize num_aquariums from project calibration to settings
-        # This ensures multi-aquarium detection mode works correctly
-        calibration = pm.project_data.get("calibration", {})
-        if isinstance(calibration, dict):
-            num_aquariums = calibration.get("num_aquariums", 1)
-            if self.settings and hasattr(self.settings, "analysis_config"):
-                try:
-                    self.settings.analysis_config.num_aquariums = int(num_aquariums)
-                    log.info(
-                        "project.load.num_aquariums_synced",
-                        num_aquariums=num_aquariums,
-                    )
-                except (ValueError, TypeError) as e:
-                    log.warning(
-                        "project.load.num_aquariums_sync_failed",
-                        error=str(e),
-                    )
+        """Delegates to ProjectInitializer."""
+        self.project_initializer.restore_persisted_project_settings(pm)
 
     def _initialize_live_components(self, pm):
-        """Initialize components for Live project type."""
-        # Initial rendering of the progress grid
-        self.root.after(100, self._render_progress_grid)
-
-        # Only attempt to connect if a port is configured from the dialog
-        if self.controller.settings and self.controller.settings.arduino.port:
-            if not self.controller.hardware_vm.arduino.connect():
-                self.show_warning(
-                    "Aviso do Arduino",
-                    f"Não foi possível conectar ao Arduino na porta "
-                    f"{self.controller.settings.arduino.port}. Executando em modo offline.",
-                )
-        try:
-            # ✅ Use camera_index from project_data (saved by wizard)
-            pm = self.controller.project_manager
-            camera_index = pm.project_data.get("camera_index", 0)
-
-            log.info(
-                "gui.project_loading.live_camera_setup",
-                camera_index=camera_index,
-                project_name=pm.get_project_name(),
-            )
-
-            # Create temporary settings with correct camera index
-            temp_settings = self.controller.settings.model_copy(deep=True)
-            temp_settings.camera.index = camera_index
-
-            # Initialize camera with modified settings
-            self.controller.hardware_vm.camera = Camera(settings_obj=temp_settings)
-
-            self.controller.hardware_vm.active_frame_source = self.controller.hardware_vm.camera
-            self.controller.hardware_vm.detector.update_scaling(
-                self.controller.hardware_vm.camera.actual_width,
-                self.controller.hardware_vm.camera.actual_height,
-            )
-        except OSError as e:
-            self.show_error("Erro na Câmera", str(e))
-            self.widget_factory.create_welcome_frame()
-            return
+        """Delegates to ProjectInitializer."""
+        self.project_initializer.initialize_live_components(pm)
 
     def _initialize_prerecorded_components(self, pm):
-        """Initialize components for Pre-recorded project type."""
-        self.update_reports_tree()
-
-        if self.event_bus_v2:
-            self.event_bus_v2.publish(
-                Event(
-                    type=UIEvents.VIDEO_TREE_REFRESH_REQUESTED,
-                    data={"filter_text": None},
-                    source="GUI._load_project_view",
-                )
-            )
-
-        ready_message = f"Projeto: {pm.get_project_name()} - Pronto."
-        self.set_status(ready_message)
-        self._request_overview_refresh(reason=ready_message, append_summary=True)
+        """Delegates to ProjectInitializer."""
+        self.project_initializer.initialize_prerecorded_components(pm)
 
     def _check_live_project_calibration(self):
         """Check if Live project needs calibration. Delegates to ValidationManager."""
         return self.validation_manager.check_live_project_calibration()
 
     def _manage_weights_clicked(self):
-        """Open the weight management dialog."""
-        self.event_dispatcher.publish_event(Events.MODEL_MANAGE_WEIGHTS)
+        """Delegates to WeightHardwareManager."""
+        self.weight_hardware_manager.manage_weights_clicked()
 
     @public_api
     def setup_interactive_polygon(self, polygon):
@@ -1395,243 +1020,56 @@ class ApplicationGUI:
 
     @public_api
     def update_weights_dropdown(self, weights: list[str]):
-        """Cache available weights so summaries stay consistent."""
-        self._available_weight_names = list(weights or [])
-        if (
-            self.controller.hardware_vm.active_weight_name
-            and self.controller.hardware_vm.active_weight_name in self._available_weight_names
-        ):
-            self._update_active_weight_display(self.controller.hardware_vm.active_weight_name)
-        elif not self._available_weight_names:
-            self._update_active_weight_display("")
+        """Delegates to WeightHardwareManager."""
+        self.weight_hardware_manager.update_weights_dropdown(weights)
 
     def set_active_weight_in_dropdown(self, weight_name: str | None):
-        """Update the active weight summary."""
-        self._update_active_weight_display(weight_name or "")
+        """Delegates to WeightHardwareManager."""
+        self.weight_hardware_manager.set_active_weight_in_dropdown(weight_name)
 
     def update_openvino_checkbox(self, enabled: bool):
-        """Synchronize OpenVINO toggle state with the summary label."""
-        self._openvino_enabled = bool(enabled)
-        self._refresh_openvino_summary()
+        """Delegates to WeightHardwareManager."""
+        self.weight_hardware_manager.update_openvino_checkbox(enabled)
 
     def update_openvino_status_display(self, status: str):
-        """Update the detailed OpenVINO status shown in the UI."""
-        self._openvino_status_message = status or ""
-        self._refresh_openvino_summary()
+        """Delegates to WeightHardwareManager."""
+        self.weight_hardware_manager.update_openvino_status_display(status)
 
     def _refresh_openvino_summary(self):
-        state_text = "Ativado" if self._openvino_enabled else "Desativado"
-        status_text = self._openvino_status_message.strip()
-        if status_text:
-            self._openvino_display_var.set(f"OpenVINO: {state_text} — {status_text}")
-        else:
-            self._openvino_display_var.set(f"OpenVINO: {state_text}")
+        """Delegates to WeightHardwareManager."""
+        self.weight_hardware_manager._refresh_openvino_summary()
 
     def _update_active_weight_display(self, weight_name: str):
-        if weight_name:
-            self._active_weight_display_var.set(f"Peso ativo: {weight_name}")
-        else:
-            self._active_weight_display_var.set("Peso ativo: Nenhum peso selecionado.")
+        """Delegates to WeightHardwareManager."""
+        self.weight_hardware_manager._update_active_weight_display(weight_name)
 
     def update_gpu_hardware_display(self, hardware_summary: dict):
-        """Update the GPU hardware information shown in the UI."""
-        gpu_name = "CPU apenas"
-        recommended_backend = hardware_summary.get("recommended_backend", "pytorch")
-
-        # Try to get NVIDIA GPU name first
-        if hardware_summary.get("cuda_available", False):
-            try:
-                import torch
-
-                if torch.cuda.is_available():
-                    gpu_name = torch.cuda.get_device_name(0)
-            except (ImportError, RuntimeError):
-                gpu_name = "NVIDIA GPU"
-        # Then check for Intel/OpenVINO GPU
-        elif hardware_summary.get("has_intel_gpu", False):
-            openvino_devices = hardware_summary.get("openvino_devices", [])
-            gpu_devices = [d for d in openvino_devices if "GPU" in d]
-            if gpu_devices:
-                gpu_name = "Intel GPU"
-
-        # Format display string
-        backend_display = "PyTorch" if recommended_backend == "pytorch" else "OpenVINO"
-        if "CPU" in gpu_name:
-            display_text = f"Hardware: {gpu_name}"
-        else:
-            display_text = f"Hardware: {gpu_name} (recomendado: {backend_display})"
-
-        self._gpu_hardware_display_var.set(display_text)
+        """Delegates to WeightHardwareManager."""
+        self.weight_hardware_manager.update_gpu_hardware_display(hardware_summary)
 
     def _create_project_workflow(self):
-        """
-        Handle the UI part of creating a new project by opening a comprehensive dialog.
-
-        Then calls the controller with the collected data.
-        Phase 7: Direct wizard data delegation to ProjectWorkflowService.
-        No adapter layer needed - service processes wizard output directly.
-        """
-        from zebtrack.ui.wizard.wizard_dialog import WizardDialog
-
-        wizard = WizardDialog(
-            self.root,
-            settings_obj=self.controller.settings,
-            event_bus=self.event_bus,
-        )
-        if not wizard.result:
-            return  # User cancelled
-
-        # Validate required fields
-        required_fields = ["project_path", "project_name", "project_type"]
-        missing = [f for f in required_fields if f not in wizard.result]
-        if missing:
-            self.show_error("Erro no Wizard", f"Campos obrigatórios ausentes: {', '.join(missing)}")
-            return
-
-        # Pass wizard data directly to controller (via ProjectWorkflowService)
-        # The service now handles data enrichment and processing internally
-        self.event_dispatcher.publish_event(Events.PROJECT_CREATE, wizard.result)
+        """Delegates to ProjectInitializer."""
+        self.project_initializer.create_project_workflow()
 
     def _open_project_workflow(self):
-        """Handle the UI part of opening a project, then call the controller."""
-        project_path = self.ask_directory(title="Selecione uma Pasta de Projeto Existente")
-        if not project_path:
-            return
+        """Delegates to ProjectInitializer."""
+        self.project_initializer.open_project_workflow()
 
-        self.event_dispatcher.publish_event(Events.PROJECT_OPEN, {"project_path": project_path})
+    # --- Single Video Workflow (Phase 4.4 → SingleVideoWorkflow) ---
 
     @public_api
     def _on_analyze_single_video_clicked(self):
-        """Handle single video analysis. Delegates to EventDispatcher."""
-        log.info("gui._on_analyze_single_video_clicked.START")
-        try:
-            self.event_dispatcher.handle_analyze_single_video_clicked()
-            log.info("gui._on_analyze_single_video_clicked.END")
-        except Exception as e:  # except Exception justified: UI error boundary for button click
-            log.error("gui._on_analyze_single_video_clicked.ERROR", error=str(e))
-            # We don't raise here to avoid crashing the UI loop for a single button click
-            # raise
-            self.show_error("Erro", f"Falha ao iniciar análise: {e}")
+        """Delegates to SingleVideoWorkflow."""
+        self.single_video_workflow.on_analyze_single_video_clicked()
 
     @public_api
     def setup_zone_definition_for_single_video(self, video_path: str, config: dict):
-        """Prepare and display the zone configuration tab for a single video."""
-        log.info(
-            "gui.setup_zone_definition_for_single_video.called",
-            video_path=video_path,
-            has_config=bool(config),
-        )
-        # Reset analysis UI elements for a clean setup
-        self.hide_progress_bar()
-        self.analysis_status_var.set("Nenhuma análise em andamento.")
-        if self.analysis_display_widget and self.analysis_display_widget.video_label:
-            try:
-                self.analysis_display_widget.video_label.configure(image="")
-                self._analysis_overlay_image = None
-            except (TclError, AttributeError):
-                log.debug("gui.video_label_clear.suppressed", exc_info=True)
-
-        self.pending_single_video_path = video_path
-        self.pending_single_video_config = config
-
-        # MELHORIA: Save num_aquariums to global settings so
-        # ProcessingCoordinator can see it during auto-detection
-        if config and "num_aquariums" in config and self.settings:
-            try:
-                self.settings.analysis_config.num_aquariums = int(config["num_aquariums"])
-            except (KeyError, ValueError, TypeError, AttributeError) as e:
-                log.warning("gui.setup_zone_definition.update_settings_failed", error=str(e))
-
-        # Ensure zone edits persist under the selected video
-        self.controller.project_manager.set_active_zone_video(video_path)
-
-        # Open the main project view if it is not already open
-        if not self.notebook:
-            self._create_main_control_frame()
-
-        self.canvas_manager.display_roi_video_frame(video_path)
-        if self.notebook:
-            self.notebook.select(self.zone_tab_frame)
-
-        # Clear template selection for single video workflow - user should
-        # explicitly choose if they want to apply a template
-        self._refresh_roi_templates(clear_selection=True)
-
-        # Add a "Start Analysis" button specific to this flow
-        if not self.start_single_analysis_btn:
-            btn = ttk.Button(
-                self.fixed_button_frame,  # Add to the fixed button frame at bottom
-                text="Iniciar Análise de Vídeo Único",
-                command=self._on_start_single_video_processing_clicked,
-            )
-            btn.pack(side="bottom", fill="x", pady=5)
-            self.start_single_analysis_btn = btn
-
-        if self.start_single_analysis_btn:
-            self.start_single_analysis_btn.config(state="normal")
-
-        self.state_synchronizer.prepare_single_video_ui_state(config)
+        """Delegates to SingleVideoWorkflow."""
+        self.single_video_workflow.setup_zone_definition_for_single_video(video_path, config)
 
     def _on_auto_detect_clicked(self, stabilization_frames: int | str | None = None):
-        """Handle the auto-detect button."""
-        # Prevent editing during analysis
-        if self.analysis_active:
-            self.show_warning(
-                "Análise em Progresso",
-                "Não é possível detectar zonas durante a análise de vídeo.",
-            )
-            return
-
-        raw_value = (
-            stabilization_frames
-            if stabilization_frames is not None
-            else self.stabilization_frames_var.get()
-        )
-
-        try:
-            stabilization_frames_int = int(raw_value)
-            if stabilization_frames_int <= 0:
-                raise ValueError
-        except (ValueError, TypeError):
-            self.show_warning(
-                "Entrada Inválida",
-                "O número de frames para análise deve ser um número inteiro positivo.",
-            )
-            return
-
-        # Keep UI entry in sync with validated value
-        self.stabilization_frames_var.set(str(stabilization_frames_int))
-
-        # Clear any old interactive polygon before starting a new detection
-        self._clear_interactive_polygon()
-
-        # Get the currently active video - prioritize active_zone_video for project mode
-        video_path = None
-        if hasattr(self, "controller") and self.controller:
-            pm = self.controller.project_manager
-            video_path = pm.get_active_zone_video()
-
-        # Fallback to pending_single_video_path for single video mode
-        if not video_path:
-            video_path = getattr(self, "pending_single_video_path", None)
-
-        log.info(
-            "gui._on_auto_detect_clicked.video_resolved",
-            video_path=video_path,
-            from_active_zone_video=bool(
-                self.controller.project_manager.get_active_zone_video()
-                if hasattr(self, "controller")
-                else False
-            ),
-        )
-
-        self.event_dispatcher.publish_event(
-            Events.ZONE_AUTO_DETECT,
-            {
-                "video_path": video_path,
-                "stabilization_frames": stabilization_frames_int,
-            },
-        )
+        """Delegates to SingleVideoWorkflow."""
+        self.single_video_workflow.on_auto_detect_clicked(stabilization_frames)
 
     def _clear_interactive_polygon(self):
         """Delegate clearing interactive polygon to CanvasManager."""
@@ -1639,55 +1077,8 @@ class ApplicationGUI:
             self.canvas_manager.clear_interactive_polygon()
 
     def _on_start_single_video_processing_clicked(self):
-        """Handle the 'Start Analysis' button in the single video flow."""
-        # If the user was editing a polygon, prompt for confirmation before saving.
-        if self.edited_polygon_points:
-            response = self.dialog_manager.confirm_save_polygon_before_analysis()
-            if response is None:
-                # Cancel pressed, abort analysis
-                return
-            elif response:
-                # Yes pressed, save polygon
-                self.controller.analysis_vm.save_manual_arena(self.edited_polygon_points)
-                self._clear_interactive_polygon()
-            else:
-                # No pressed, discard changes
-                self._clear_interactive_polygon()
-
-        # 1. Get the zone data that the user drew
-        zone_data = self._get_zone_data_for_active_context()
-
-        # Validation for Single vs Multi Aquarium
-        from zebtrack.core.detector import MultiAquariumZoneData
-
-        if isinstance(zone_data, MultiAquariumZoneData):
-            if not zone_data.aquariums:
-                self.show_error("Erro", "Nenhum aquário foi definido.")
-                return
-        elif not zone_data.polygon:
-            self.show_error("Erro", "A área principal do aquário (polígono) não foi definida.")
-            return
-
-        updated_config = self.validation_manager.compose_single_video_runtime_config()
-        if updated_config is None:
-            return
-        self.pending_single_video_config = updated_config
-
-        # 2. Disable the button and publish the event
-        if self.start_single_analysis_btn:
-            self.start_single_analysis_btn.config(state="disabled")
-        self.event_dispatcher.publish_event(
-            Events.VIDEO_START_SINGLE_PROCESSING,
-            {
-                "video_path": self.pending_single_video_path,
-                "config": self.pending_single_video_config,
-                "zone_data": zone_data,
-            },
-        )
-
-        # 3. Clear the pending state
-        self.pending_single_video_path = None
-        self.pending_single_video_config = None
+        """Delegates to SingleVideoWorkflow."""
+        self.single_video_workflow._on_start_single_video_processing_clicked()
 
     def _on_close(self):
         """Delegate the close action to the controller."""
@@ -1726,230 +1117,56 @@ class ApplicationGUI:
             self.analysis_display_widget.hide_progress()
 
     def _toggle_canvas_view(self):
-        """Toggle between zone drawing view and analysis progress view."""
-        if not self.notebook or not self.analysis_tab_frame or not self.zone_tab_frame:
-            return
-
-        current_tab = self.notebook.select()
-        analysis_tab_id = str(self.analysis_tab_frame)
-
-        if current_tab != analysis_tab_id:
-            self._switch_to_analysis_view()
-        else:
-            self._switch_to_zones_view()
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.toggle_canvas_view()
 
     def _switch_to_analysis_view(self):
-        """Switch to analysis progress view.
-
-        If notebook doesn't exist yet (e.g., single video analysis from welcome screen),
-        create the main control frame first.
-        """
-        log.info(
-            "gui._switch_to_analysis_view.called",
-            has_notebook=self.notebook is not None,
-            has_analysis_tab=self.analysis_tab_frame is not None,
-        )
-
-        # Create main control frame if it doesn't exist
-        if not self.notebook:
-            log.info("gui._switch_to_analysis_view.creating_main_frame")
-            self._create_main_control_frame()
-
-        if not self.notebook or not self.analysis_tab_frame:
-            log.warning("gui._switch_to_analysis_view.missing_widgets_after_create")
-            return
-
-        self.canvas_view_mode = "analysis"
-        self.notebook.select(self.analysis_tab_frame)
-        log.info("gui._switch_to_analysis_view.done")
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.switch_to_analysis_view()
 
     def _switch_to_zones_view(self):
-        """Switch to zone drawing view."""
-        if not self.notebook or not self.zone_tab_frame:
-            return
-
-        self.canvas_view_mode = "zones"
-        self.notebook.select(self.zone_tab_frame)
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.switch_to_zones_view()
 
     def start_analysis_view_mode(self):
-        """Start analysis - immediately switch to analysis view and enable toggle."""
-        log.info("gui.start_analysis_view_mode.called")
-        self.analysis_active = True
-        msg = "Preparando análise..."
-        self.analysis_status_var.set(msg)
-        if self.analysis_display_widget:
-            self.analysis_display_widget.set_status(msg)
-
-        if self.analysis_task_var is not None:
-            self.analysis_task_var.set("Preparando fila de análise...")
-        self.state_synchronizer._set_analysis_metadata_defaults()
-        self._reset_analysis_controls()
-        self.show_progress_bar()
-        if self.analysis_display_widget:
-            self.analysis_display_widget.enable_cancel_button()
-        self._switch_to_analysis_view()
-
-        # ── Defensive mode sync (race-condition guard) ─────────────────
-        # _active_processing_mode should already have been set synchronously
-        # by processing_coordinator._publish_processing_mode().  As a second
-        # line of defense, if our local value is still the init default
-        # (MULTI_TRACK), try reading the authoritative value from the
-        # processing coordinator which has the ground-truth.
-        mode = self._active_processing_mode
-        if mode is ProcessingMode.MULTI_TRACK and hasattr(self, "controller"):
-            coordinator = getattr(self.controller, "processing_coordinator", None)
-            if coordinator is not None:
-                coord_mode = getattr(coordinator, "_active_processing_mode", None)
-                if coord_mode is not None and coord_mode is not mode:
-                    mode = coord_mode
-                    self._active_processing_mode = mode
-
-        if self.analysis_display_widget:
-            self.analysis_display_widget.set_tracking_mode(mode.display_name)
-            if self.analysis_display_widget.track_selector_widget:
-                state = "disabled" if mode is ProcessingMode.SINGLE_SUBJECT else "readonly"
-                self.analysis_display_widget.track_selector_widget.configure(state=state)
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.start_analysis_view_mode()
 
     def stop_analysis_view_mode(self):
-        """Stop analysis - disable toggle and return to zones view."""
-        self.analysis_active = False
-        if self.analysis_display_widget:
-            self.analysis_display_widget.disable_cancel_button()
-        self.hide_progress_bar()
-        self.analysis_status_var.set("Nenhuma análise em andamento.")
-        if self.analysis_task_var is not None:
-            self.analysis_task_var.set("Nenhuma tarefa em andamento.")
-        self.state_synchronizer._set_analysis_metadata_defaults()
-        self._reset_analysis_controls()
-        self._switch_to_zones_view()
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.stop_analysis_view_mode()
 
     def update_detection_overlay(self, detections=None, report=None):
-        """Update the detection overlay on the canvas."""
-        # Handle report being a dict (stats) or ProcessingReport object
-        processing_mode = None
-        if report:
-            if hasattr(report, "mode"):
-                processing_mode = report.mode
-            elif isinstance(report, dict):
-                # If it's a dict, it might be stats or a report dict
-                # Try to get mode if present, otherwise default/ignore
-                processing_mode = report.get("mode")
-
-        # Check if we are in single subject mode
-        # If processing_mode is available, use it. Otherwise check controller.
-        from zebtrack.core.processing_mode import ProcessingMode
-
-        is_single_subject = processing_mode == ProcessingMode.SINGLE_SUBJECT
-
-        # If report didn't provide mode, fallback to current controller state
-        if processing_mode is None and self.controller:
-            # Access private attribute directly if property isn't exposed or simply default to False
-            # to avoid another AttributeError.
-            # Ideally controller has a property for this.
-            try:
-                # Check if controller has active_processing_mode property or attribute
-                if hasattr(self.controller, "_active_processing_mode"):
-                    is_single_subject = (
-                        self.controller._active_processing_mode == ProcessingMode.SINGLE_SUBJECT
-                    )
-            except AttributeError:
-                log.warning("gui.processing_mode_fallback.suppressed", exc_info=True)
-
-        self.canvas_manager.renderer.update_overlay(detections, is_single_subject)
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.update_detection_overlay(detections, report)
 
     def update_processing_mode(self, report: ProcessingReport | None) -> None:
-        """Update the UI to reflect the active tracking pipeline."""
-        if report is None:
-            return
-
-        previous_mode = self._active_processing_mode
-        mode = report.mode
-        self._active_processing_mode = mode
-
-        if self.analysis_display_widget:
-            self.analysis_display_widget.set_tracking_mode(mode.display_name)
-
-        if self.analysis_display_widget and self.analysis_display_widget.track_selector_widget:
-            state = "disabled" if mode is ProcessingMode.SINGLE_SUBJECT else "readonly"
-            self.analysis_display_widget.track_selector_widget.configure(state=state)
-
-        if mode is ProcessingMode.SINGLE_SUBJECT:
-            if self.analysis_display_widget:
-                self.analysis_display_widget.track_selector_var.set("Todos")
-            self.state_synchronizer._update_track_options(["Todos"])
-        elif previous_mode is ProcessingMode.SINGLE_SUBJECT:
-            # Re-populate track selector
-            options = self.widget_factory.build_track_options(self._current_detections)
-            self.state_synchronizer._update_track_options(options)
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.update_processing_mode(report)
 
     def update_analysis_profile(self, profile_name: str) -> None:
-        """Update the label describing the active analysis profile."""
-        text = (profile_name or "default").strip() or "default"
-        self.analysis_profile_var.set(f"Perfil de análise: {text}")
-        self._reset_analysis_controls()
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.update_analysis_profile(profile_name)
 
     def _reset_analysis_controls(self) -> None:
-        """Reset track selector state and cached frames."""
-        self._current_detections = []
-        self._last_analysis_frame = None
-        self._analysis_overlay_image = None
-
-        if self.analysis_display_widget:
-            self.analysis_display_widget.track_selector_var.set("Todos")
-            self.state_synchronizer._update_track_options(["Todos"])
-
-            if self.analysis_display_widget.track_selector_widget:
-                state = (
-                    "disabled"
-                    if self._active_processing_mode is ProcessingMode.SINGLE_SUBJECT
-                    else "readonly"
-                )
-                self.analysis_display_widget.track_selector_widget.configure(state=state)
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.reset_analysis_controls()
 
     def _build_track_options(self, detections: list[tuple]) -> list[str]:
-        observed: set[str] = set()
-        for det in detections:
-            if len(det) < 6:
-                continue
-            track_id = det[5]
-            if track_id is None:
-                continue
-            text = str(track_id).strip()
-            if text:
-                observed.add(text)
-
-        ordered = sorted(observed, key=str)
-        return ["Todos", *ordered]
+        """Delegates to AnalysisViewController."""
+        return self.analysis_view_controller.build_track_options(detections)
 
     def _on_track_selection_changed(self, _event=None) -> None:
-        self.canvas_manager._render_last_analysis_frame()
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.on_track_selection_changed(_event)
 
     def update_analysis_progress(self, value, status_text=None):
-        """Update progress bar and status in the analysis overlay."""
-        if self.analysis_display_widget:
-            if self.analysis_display_widget.progress_bar:
-                self.analysis_display_widget.progress_bar["value"] = value * 100
-            if status_text:
-                self.analysis_display_widget.set_status(status_text)
-
-        if status_text:
-            if self.analysis_display_widget:
-                self.analysis_display_widget.set_status(status_text)
-            self.analysis_status_var.set(status_text)
-        self.update_idletasks()
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.update_analysis_progress(value, status_text)
 
     def update_analysis_metadata(self, *, metadata: dict | None) -> None:
-        """Update the metadata display for the currently processed video."""
-        metadata = metadata or {}
-        group_display = self.validation_manager.resolve_group_display(metadata)
-        day_display = self.validation_manager.resolve_day_display(metadata)
-        subject_display = self.validation_manager.resolve_subject_display(metadata)
-
-        self.state_synchronizer._apply_analysis_metadata_strings(
-            group_display,
-            day_display,
-            subject_display,
-        )
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.update_analysis_metadata(metadata=metadata)
 
     def update_analysis_task_status(
         self,
@@ -1959,8 +1176,8 @@ class ApplicationGUI:
         experiment_id: str | None = None,
         step: str | None = None,
     ) -> None:
-        """Update the task summary indicating which video is being processed."""
-        self.state_synchronizer.update_analysis_task_status(
+        """Delegates to AnalysisViewController."""
+        self.analysis_view_controller.update_analysis_task_status(
             index=index,
             total=total,
             experiment_id=experiment_id,

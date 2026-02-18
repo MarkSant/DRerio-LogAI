@@ -11,6 +11,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔄 Refactored
 
+#### Phase 4.4 — Decompose ApplicationGUI (February 2026)
+
+- **Decomposed** `ApplicationGUI` (`ui/gui.py`) from 2,261 → 1,217 lines
+  (-46%, 1,044 lines removed) by extracting 43 methods into 5 focused
+  component classes under `ui/components/`:
+  - `AnalysisViewController` (~310 lines, 16 methods) — Analysis tab
+    lifecycle, overlays, mode sync, progress tracking, track selector
+  - `ProjectInitializer` (~280 lines, 9 methods) — Project loading,
+    welcome→project transition, tab building, workflow dialogs
+  - `SingleVideoWorkflow` (~210 lines, 4 methods) — Single-video analysis
+    flow: file selection, zone setup, processing start
+  - `WeightHardwareManager` (~210 lines, 10 methods) — Model weight state,
+    OpenVINO toggle, GPU hardware display
+  - `ZoneEditGuard` (~180 lines, 4 methods) — Tab navigation guard that
+    protects unsaved zone editing sessions
+- **Backward-compatible** via thin delegation shims on `ApplicationGUI`:
+  all 43 methods remain callable as `self.<method>()` and delegate to
+  `self.<component>.<method>()`; `@public_api` contracts preserved
+- Components use `gui` back-reference pattern (`self.gui = gui`) to
+  access parent state without circular imports
+- Component instantiation added in `__init__` after Phase 5 builders
+- Updated `ui/components/__init__.py` with all 5 new exports
+- Fixed 2 test files using `__new__` to bypass `__init__`:
+  - `test_analysis_metadata_display.py` — added `AnalysisViewController`
+    mock to `_make_gui_instance()` fixture
+  - `test_gui_zone_tab_navigation_guard.py` — replaced direct method mock
+    with `ZoneEditGuard` stub using `_make_guard()` helper
+- All 2,720 fast tests passing, 0 regressions
+
 #### Phase 4.3 — Decompose Detector God Class (February 2026)
 
 - **Decomposed** Detector (2,607 lines, ~55 methods) into 5 focused modules:
