@@ -190,7 +190,7 @@ class TestCanvasManagerIntegration:
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
 
         # Should log debug message when analysis_active=False (changed from warning to debug)
-        with patch("zebtrack.ui.components.canvas_manager.log") as mock_log:
+        with patch("zebtrack.ui.components.canvas.video_frame_manager.log") as mock_log:
             canvas_manager.update_video_frame(frame)
             # Verify debug was logged (frame skipped) - uses debug level to reduce log noise
             assert any(

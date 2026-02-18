@@ -11,6 +11,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔄 Refactored
 
+#### Phase 4.5 — Decompose CanvasManager (February 2026)
+
+- **Decomposed** `CanvasManager` (`ui/components/canvas_manager.py`) from
+  2,152 → 599 lines (-72%, 1,553 lines removed) by extracting methods
+  into 3 focused modules under `ui/components/canvas/`:
+  - `MultiAquariumOverlayManager` (~562 lines, 11 methods) — Multi-aquarium
+    auto-detection result handling, format conversion, overlay drawing,
+    side-by-side preview generation, aquarium indicator display
+  - `VideoFrameManager` (~513 lines, 11 methods) — Video frame loading,
+    canvas display, analysis track selection/filtering, detection overlay
+    rendering, analysis frame caching
+  - `ZoneEditor` (~650 lines, 24 methods) — Zone CRUD operations, polygon
+    drawing lifecycle, circle drawing, zone clipboard (copy/paste/delete),
+    ROI button state, processing mode toggle, geotaxis visualization,
+    BGR color name mapping
+- **Backward-compatible** via ~30 thin delegation shims on `CanvasManager`
+  facade: all public and internal methods remain callable as
+  `self.<method>()` and delegate to the appropriate sub-component
+- Class-level aliases preserved: `AQUARIUM_COLORS`, `_BGR_COLOR_MAP`
+- Shared state (`_bg_scale`, `_bg_offset`, `_raw_bg_image`,
+  `_canvas_bg_image`, `dragged_handle_index`, `current_editing_zone`, etc.)
+  stays on the facade, accessed by sub-components via `self.canvas_manager`
+  back-reference
+- Updated `ui/components/__init__.py` with 3 new exports
+- Fixed test `@patch` targets in `test_canvas_manager.py` (cv2/Image
+  patches now target `canvas.video_frame_manager` module)
+- Fixed test fixtures in `test_canvas_manager_multi_aquarium.py` (added
+  `MultiAquariumOverlayManager` instantiation after patched `__init__`)
+- Fixed mock targets in `test_single_video_workflow_prompt.py` (prompt
+  mock now targets `multi_aquarium` sub-component)
+- Fixed log patch in `test_live_analysis_integration.py` (log now in
+  `video_frame_manager` module)
+- Updated source-scanning tests in `test_roi_snap_indicator_arena_clamp.py`
+  to also scan `canvas/` sub-directory
+- All 2,720 fast tests passing, 0 regressions
+
 #### Phase 4.4 — Decompose ApplicationGUI (February 2026)
 
 - **Decomposed** `ApplicationGUI` (`ui/gui.py`) from 2,261 → 1,217 lines

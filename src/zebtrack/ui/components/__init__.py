@@ -16,6 +16,9 @@ from zebtrack.ui.components.arduino_dashboard import ArduinoDashboardWidget
 from zebtrack.ui.components.base import BaseWidget
 from zebtrack.ui.components.base_component import BaseUIComponent, UIComponentError
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
+from zebtrack.ui.components.canvas.multi_aquarium_overlay import MultiAquariumOverlayManager
+from zebtrack.ui.components.canvas.video_frame_manager import VideoFrameManager
+from zebtrack.ui.components.canvas.zone_editor import ZoneEditor
 from zebtrack.ui.components.canvas_manager import CanvasManager
 from zebtrack.ui.components.config_editor import ConfigEditorWidget
 from zebtrack.ui.components.control_panel import ControlPanelWidget
@@ -53,6 +56,7 @@ __all__ = [
     "DrawingStateManager",
     "EventDispatcher",
     "MenuManager",
+    "MultiAquariumOverlayManager",
     "PolygonDrawingService",
     "ProjectInitializer",
     "ProjectOverviewWidget",
@@ -64,8 +68,10 @@ __all__ = [
     "UIComponentError",
     "ValidationManager",
     "VideoDisplayWidget",
+    "VideoFrameManager",
     "WeightHardwareManager",
     "WidgetFactory",
     "ZoneControlsWidget",
     "ZoneEditGuard",
+    "ZoneEditor",
 ]

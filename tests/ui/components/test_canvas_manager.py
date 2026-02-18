@@ -408,8 +408,8 @@ class TestBackgroundImageDrawing:
             # Verify image was resized
             assert mock_image.resize.called
 
-    @patch("zebtrack.ui.components.canvas_manager.cv2")
-    @patch("zebtrack.ui.components.canvas_manager.Image")
+    @patch("zebtrack.ui.components.canvas.video_frame_manager.cv2")
+    @patch("zebtrack.ui.components.canvas.video_frame_manager.Image")
     @patch("os.path.exists")
     def test_display_roi_video_frame_success(
         self, mock_exists, mock_pil, mock_cv2, canvas_manager, mock_gui
@@ -463,7 +463,7 @@ class TestBackgroundImageDrawing:
         # Should clear active video
         mock_controller.project_manager.set_active_zone_video.assert_called_with(None)
 
-    @patch("zebtrack.ui.components.canvas_manager.cv2")
+    @patch("zebtrack.ui.components.canvas.video_frame_manager.cv2")
     @patch("os.path.exists")
     def test_display_roi_video_frame_cannot_open(
         self, mock_exists, mock_cv2, canvas_manager, mock_gui
@@ -479,7 +479,7 @@ class TestBackgroundImageDrawing:
 
         mock_gui.show_error.assert_called_once()
 
-    @patch("zebtrack.ui.components.canvas_manager.cv2")
+    @patch("zebtrack.ui.components.canvas.video_frame_manager.cv2")
     @patch("os.path.exists")
     def test_display_roi_video_frame_cannot_read(
         self, mock_exists, mock_cv2, canvas_manager, mock_gui
@@ -496,7 +496,7 @@ class TestBackgroundImageDrawing:
 
         mock_gui.show_error.assert_called_once()
 
-    @patch("zebtrack.ui.components.canvas_manager.cv2")
+    @patch("zebtrack.ui.components.canvas.video_frame_manager.cv2")
     @patch("os.path.exists")
     def test_load_video_frame_to_canvas_no_path(
         self, mock_exists, mock_cv2, canvas_manager, mock_controller
@@ -506,8 +506,8 @@ class TestBackgroundImageDrawing:
 
         assert result is False
 
-    @patch("zebtrack.ui.components.canvas_manager.cv2")
-    @patch("zebtrack.ui.components.canvas_manager.Image")
+    @patch("zebtrack.ui.components.canvas.video_frame_manager.cv2")
+    @patch("zebtrack.ui.components.canvas.video_frame_manager.Image")
     @patch("os.path.exists")
     def test_load_video_frame_to_canvas_with_path(
         self, mock_exists, mock_pil, mock_cv2, canvas_manager, mock_gui
@@ -540,7 +540,7 @@ class TestBackgroundImageDrawing:
         mock_cap.set.assert_called_once_with(mock_cv2.CAP_PROP_POS_FRAMES, 10)
         mock_cap.read.assert_called_once()
 
-    @patch("zebtrack.ui.components.canvas_manager.cv2")
+    @patch("zebtrack.ui.components.canvas.video_frame_manager.cv2")
     @patch("os.path.exists")
     def test_load_video_frame_to_canvas_read_failure(self, mock_exists, mock_cv2, canvas_manager):
         """Test handling when frame read fails."""
