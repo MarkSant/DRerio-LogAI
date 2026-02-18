@@ -1,10 +1,11 @@
-"""Detector Coordinator - Sprint 5.
+"""Detector Setup Coordinator — Phase 4.9 Extraction.
 
 Orchestrates detector setup, zone configuration, and tracking parameter management.
 Delegates business logic to DetectorService.
 
-Sprint: 5 of REFACTOR-MASTER-PLAN-2025.md
-Extracted from: HardwareCoordinator detector-related methods
+Phase 4.9: Fresh replacement for both HardwareCoordinator (Group A) and
+DetectorCoordinator (Sprint 5 duplicate). Unified into a single authoritative
+coordinator with the best API signatures from both predecessors.
 """
 
 from __future__ import annotations
@@ -31,8 +32,8 @@ if TYPE_CHECKING:
 log = structlog.get_logger()
 
 
-class DetectorCoordinatorError(Exception):
-    """Base exception for DetectorCoordinator errors."""
+class DetectorSetupCoordinatorError(Exception):
+    """Base exception for DetectorSetupCoordinator errors."""
 
     def __init__(self, message: str, context: dict[str, Any] | None = None):
         """Initialize exception with message and optional context.
@@ -45,9 +46,8 @@ class DetectorCoordinatorError(Exception):
         self.context = context or {}
 
 
-class DetectorCoordinator(BaseCoordinator):
-    """
-    Coordinator for detector setup and configuration workflows.
+class DetectorSetupCoordinator(BaseCoordinator):
+    """Coordinator for detector setup and configuration workflows.
 
     Orchestrates:
     - Detector initialization (YOLO/OpenVINO)
@@ -63,8 +63,8 @@ class DetectorCoordinator(BaseCoordinator):
     - StateManager: Detector state persistence
     - EventBus: UI notifications
 
-    Sprint 5: Extracted from HardwareCoordinator
-    Related: REFACTOR-MASTER-PLAN-2025.md
+    Phase 4.9: Replaces both HardwareCoordinator (Group A) and
+    DetectorCoordinator (Sprint 5 duplicate).
     """
 
     def __init__(
@@ -75,7 +75,7 @@ class DetectorCoordinator(BaseCoordinator):
         weight_manager: WeightManager | None = None,
         event_bus: EventBus | None = None,
     ):
-        """Initialize DetectorCoordinator with dependency injection.
+        """Initialize DetectorSetupCoordinator with dependency injection.
 
         Args:
             state_manager: StateManager for centralized state tracking
@@ -89,8 +89,11 @@ class DetectorCoordinator(BaseCoordinator):
         self.model_service = model_service
         self.weight_manager = weight_manager
 
+        # Cache settings from detector_service
+        self.settings = detector_service.settings if detector_service else None
+
         log.info(
-            "detector_coordinator.initialized",
+            "detector_setup.initialized",
             has_model_service=model_service is not None,
             has_weight_manager=weight_manager is not None,
         )
@@ -108,7 +111,7 @@ class DetectorCoordinator(BaseCoordinator):
             raise CoordinatorValidationError(
                 "DetectorService is required but was None",
                 context={
-                    "coordinator": "DetectorCoordinator",
+                    "coordinator": "DetectorSetupCoordinator",
                     "missing_dependency": "detector_service",
                 },
             )
@@ -121,8 +124,7 @@ class DetectorCoordinator(BaseCoordinator):
         active_weight_name: str | None = None,
         detector_plugins: dict | None = None,
     ) -> tuple[bool, str | None]:
-        """
-        Initialize the detector instance based on configuration.
+        """Initialize the detector instance based on configuration.
 
         Orchestrates detector initialization by:
         1. Validating dependencies
@@ -141,7 +143,7 @@ class DetectorCoordinator(BaseCoordinator):
 
         Raises:
             CoordinatorValidationError: If dependencies are invalid
-            DetectorCoordinatorError: If detector initialization fails
+            DetectorSetupCoordinatorError: If detector initialization fails
 
         Example:
             >>> success, error = coordinator.setup_detector(
@@ -190,13 +192,13 @@ class DetectorCoordinator(BaseCoordinator):
                 )
 
                 log.info(
-                    "detector_coordinator.setup_detector.success",
+                    "detector_setup.setup_detector.success",
                     animal_method=animal_method,
                     use_openvino=use_openvino,
                 )
             else:
                 log.error(
-                    "detector_coordinator.setup_detector.failed",
+                    "detector_setup.setup_detector.failed",
                     error=error_message,
                     animal_method=animal_method,
                     use_openvino=use_openvino,
@@ -206,11 +208,11 @@ class DetectorCoordinator(BaseCoordinator):
 
         except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
-                "detector_coordinator.setup_detector.exception",
+                "detector_setup.setup_detector.exception",
                 error=str(e),
                 animal_method=animal_method,
             )
-            raise DetectorCoordinatorError(
+            raise DetectorSetupCoordinatorError(
                 f"Failed to setup detector: {e}",
                 context={
                     "animal_method": animal_method,
@@ -225,8 +227,7 @@ class DetectorCoordinator(BaseCoordinator):
         video_width: int | None = None,
         video_height: int | None = None,
     ) -> bool:
-        """
-        Configure zones for the detector.
+        """Configure zones for the detector.
 
         Orchestrates zone configuration by:
         1. Validating dependencies and inputs
@@ -235,7 +236,7 @@ class DetectorCoordinator(BaseCoordinator):
         4. Publishing events for UI updates
 
         Args:
-            zones_data: List of zone dictionaries with zone definitions
+            zones_data: Zone definitions (list of dicts, ZoneData, or MultiAquariumZoneData)
             video_width: Width of the video for zone scaling
             video_height: Height of the video for zone scaling
 
@@ -244,7 +245,7 @@ class DetectorCoordinator(BaseCoordinator):
 
         Raises:
             CoordinatorValidationError: If dependencies are invalid
-            DetectorCoordinatorError: If zone configuration fails
+            DetectorSetupCoordinatorError: If zone configuration fails
 
         Example:
             >>> zones = [{"name": "Zone1", "polygon": [[0,0], [100,0], [100,100], [0,100]]}]
@@ -255,13 +256,11 @@ class DetectorCoordinator(BaseCoordinator):
             ... )
         """
         # Validate dependencies
-        # Validate dependencies
         if not self.validate_dependencies():
             count = 0
             if isinstance(zones_data, list):
                 count = len(zones_data)
             elif zones_data:
-                # Approximate count for logging/context
                 count = 1
 
             raise CoordinatorValidationError(
@@ -275,7 +274,6 @@ class DetectorCoordinator(BaseCoordinator):
 
         # Convert legacy list of dicts to ZoneData object
         if isinstance(zones_data, list):
-            # Simple conversion assuming standard structure
             arena_poly: list[list[int]] = []
             roi_polys: list[list[list[int]]] = []
             roi_names: list[str] = []
@@ -309,15 +307,11 @@ class DetectorCoordinator(BaseCoordinator):
             if success:
                 # Calculate count for state/events
                 count = 0
-                if isinstance(zones_data, list):
-                    count = len(zones_data)
-                elif zones_data:
-                    # For ZoneData/MultiAquariumZoneData, treat as 1 config object
-                    # or try to count items using a simple check to avoid heavy access.
+                if zones_data:
                     count = 1
-                    if hasattr(zones_data, "aquariums"):  # MultiAquariumZoneData
+                    if hasattr(zones_data, "aquariums"):
                         count = len(getattr(zones_data, "aquariums", []))
-                    elif hasattr(zones_data, "roi_polygons"):  # ZoneData
+                    elif hasattr(zones_data, "roi_polygons"):
                         count = len(getattr(zones_data, "roi_polygons", [])) + (
                             1 if getattr(zones_data, "polygon", None) else 0
                         )
@@ -340,11 +334,11 @@ class DetectorCoordinator(BaseCoordinator):
                 )
 
                 log.info(
-                    "detector_coordinator.configure_zones.success",
+                    "detector_setup.configure_zones.success",
                     zones_count=count,
                 )
             else:
-                log.warning("detector_coordinator.configure_zones.failed")
+                log.warning("detector_setup.configure_zones.failed")
 
             return success
 
@@ -355,8 +349,8 @@ class DetectorCoordinator(BaseCoordinator):
             elif zones_data:
                 count = 1
 
-            log.exception("detector_coordinator.configure_zones.exception", error=str(e))
-            raise DetectorCoordinatorError(
+            log.exception("detector_setup.configure_zones.exception", error=str(e))
+            raise DetectorSetupCoordinatorError(
                 f"Failed to configure zones: {e}",
                 context={
                     "zones_count": count,
@@ -374,8 +368,7 @@ class DetectorCoordinator(BaseCoordinator):
         iou_threshold: float | None = None,
         use_bytetrack: bool | None = None,
     ) -> bool:
-        """
-        Update ByteTrack tracking parameters.
+        """Update ByteTrack tracking parameters.
 
         Orchestrates tracking parameter updates by:
         1. Validating dependencies and inputs
@@ -393,6 +386,18 @@ class DetectorCoordinator(BaseCoordinator):
 
         Returns:
             bool: True if parameters were updated successfully
+
+        Raises:
+            CoordinatorValidationError: If dependencies are invalid
+            DetectorSetupCoordinatorError: If parameter update fails
+            ValueError: If parameter values are out of valid range
+
+        Example:
+            >>> success = coordinator.update_tracking_parameters(
+            ...     track_threshold=0.3,
+            ...     match_threshold=0.2,
+            ...     track_buffer=30
+            ... )
         """
         # Validate dependencies
         if not self.validate_dependencies():
@@ -463,22 +468,22 @@ class DetectorCoordinator(BaseCoordinator):
                 )
 
                 log.info(
-                    "detector_coordinator.update_tracking_parameters.success",
+                    "detector_setup.update_tracking_parameters.success",
                     track_threshold=track_threshold,
                     match_threshold=match_threshold,
                     track_buffer=track_buffer,
                 )
             else:
-                log.warning("detector_coordinator.update_tracking_parameters.failed")
+                log.warning("detector_setup.update_tracking_parameters.failed")
 
             return success
 
         except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
-                "detector_coordinator.update_tracking_parameters.exception",
+                "detector_setup.update_tracking_parameters.exception",
                 error=str(e),
             )
-            raise DetectorCoordinatorError(
+            raise DetectorSetupCoordinatorError(
                 f"Failed to update tracking parameters: {e}",
                 context={
                     "track_threshold": track_threshold,
@@ -494,8 +499,7 @@ class DetectorCoordinator(BaseCoordinator):
         reset_overrides: bool = False,
         scope: str = "global",
     ) -> bool:
-        """
-        Update detector parameters using dict-based interface.
+        """Update detector parameters using dict-based interface.
 
         Orchestrates detector parameter updates by:
         1. Validating dependencies and inputs
@@ -504,12 +508,17 @@ class DetectorCoordinator(BaseCoordinator):
         4. Publishing events for UI updates
 
         Args:
-            params: Dict of parameters to update
+            params: Dict of parameters to update (e.g., {'conf_threshold': 0.5})
             reset_overrides: If True, reset overrides for the given scope
             scope: Whether changes apply globally or only to project ('global' or 'project')
 
         Returns:
             bool: True if parameters were updated successfully
+
+        Raises:
+            CoordinatorValidationError: If dependencies are invalid
+            DetectorSetupCoordinatorError: If parameter update fails
+            ValueError: If scope or parameter values are invalid
         """
         # Validate dependencies
         if not self.validate_dependencies():
@@ -532,7 +541,7 @@ class DetectorCoordinator(BaseCoordinator):
 
             if success:
                 # Update state with filtered parameters
-                state_update = {
+                state_update: dict[str, Any] = {
                     "detector_parameters_updated": True,
                 }
 
@@ -556,7 +565,7 @@ class DetectorCoordinator(BaseCoordinator):
                 self._update_state(StateCategory.DETECTOR, **state_update)
 
                 log.info(
-                    "detector_coordinator.update_detector_parameters.success",
+                    "detector_setup.update_detector_parameters.success",
                     params=params,
                     scope=scope,
                     reset_overrides=reset_overrides,
@@ -566,41 +575,39 @@ class DetectorCoordinator(BaseCoordinator):
 
         except ValueError as e:
             log.error(
-                "detector_coordinator.update_detector_parameters.validation_failed",
+                "detector_setup.update_detector_parameters.validation_failed",
                 error=str(e),
                 params=params,
             )
-            raise DetectorCoordinatorError(
+            raise DetectorSetupCoordinatorError(
                 f"Parameter validation failed: {e}",
                 context={"params": params, "scope": scope},
             ) from e
         except Exception as e:  # except Exception justified: service boundary catch-all
             log.error(
-                "detector_coordinator.update_detector_parameters.failed",
+                "detector_setup.update_detector_parameters.failed",
                 error=str(e),
                 params=params,
             )
-            raise DetectorCoordinatorError(
+            raise DetectorSetupCoordinatorError(
                 f"Failed to update detector parameters: {e}",
                 context={"params": params, "scope": scope},
             ) from e
 
     def reset_tracking_state(self) -> bool:
-        """
-        Reset the detector's tracking state.
+        """Reset the detector's tracking state.
 
         Orchestrates tracking state reset by:
         1. Validating dependencies
         2. Delegating to DetectorService.reset_tracking_state()
         3. Updating StateManager
-        4. Publishing events for UI updates
 
         Returns:
             bool: True if tracking state was reset successfully
 
         Raises:
             CoordinatorValidationError: If dependencies are invalid
-            DetectorCoordinatorError: If reset fails
+            DetectorSetupCoordinatorError: If reset fails
 
         Example:
             >>> success = coordinator.reset_tracking_state()
@@ -624,28 +631,18 @@ class DetectorCoordinator(BaseCoordinator):
                 tracking_state_reset=True,
             )
 
-            # State update is sufficient - no need for event publication
-            # (StateManager already notifies subscribers via state change callbacks)
-
-            log.info("detector_coordinator.reset_tracking_state.success")
+            log.info("detector_setup.reset_tracking_state.success")
             return True
 
         except Exception as e:  # except Exception justified: service boundary catch-all
-            log.exception("detector_coordinator.reset_tracking_state.exception", error=str(e))
-            raise DetectorCoordinatorError(
+            log.exception("detector_setup.reset_tracking_state.exception", error=str(e))
+            raise DetectorSetupCoordinatorError(
                 f"Failed to reset tracking state: {e}",
                 context={},
             ) from e
 
     def set_single_subject_mode(self, enabled: bool) -> bool:
-        """
-        Enable or disable single subject tracking mode.
-
-        Orchestrates single subject mode by:
-        1. Validating dependencies and inputs
-        2. Delegating to DetectorService.set_single_subject_mode()
-        3. Updating StateManager with mode state
-        4. Publishing events for UI updates
+        """Enable or disable single subject tracking mode.
 
         Args:
             enabled: True to enable single subject mode, False to disable
@@ -655,12 +652,10 @@ class DetectorCoordinator(BaseCoordinator):
 
         Raises:
             CoordinatorValidationError: If dependencies are invalid
-            DetectorCoordinatorError: If mode change fails
+            DetectorSetupCoordinatorError: If mode change fails
 
         Example:
             >>> success = coordinator.set_single_subject_mode(enabled=True)
-            >>> if success:
-            ...     print("Single subject mode enabled")
         """
         # Validate dependencies
         if not self.validate_dependencies():
@@ -689,26 +684,23 @@ class DetectorCoordinator(BaseCoordinator):
             )
 
             log.info(
-                "detector_coordinator.set_single_subject_mode.success",
+                "detector_setup.set_single_subject_mode.success",
                 enabled=enabled,
             )
             return True
 
         except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
-                "detector_coordinator.set_single_subject_mode.exception",
+                "detector_setup.set_single_subject_mode.exception",
                 error=str(e),
             )
-            raise DetectorCoordinatorError(
+            raise DetectorSetupCoordinatorError(
                 f"Failed to set single subject mode: {e}",
                 context={"enabled": enabled},
             ) from e
 
     def get_detector_parameters(self) -> dict[str, float]:
-        """
-        Get current detector tracking parameters.
-
-        Delegates to DetectorService.get_detector_parameters().
+        """Get current detector tracking parameters.
 
         Returns:
             dict: Dictionary with current tracking parameters
@@ -716,7 +708,7 @@ class DetectorCoordinator(BaseCoordinator):
 
         Raises:
             CoordinatorValidationError: If dependencies are invalid
-            DetectorCoordinatorError: If retrieval fails
+            DetectorSetupCoordinatorError: If retrieval fails
 
         Example:
             >>> params = coordinator.get_detector_parameters()
@@ -732,32 +724,28 @@ class DetectorCoordinator(BaseCoordinator):
         # Delegate to service
         try:
             params = self.detector_service.get_detector_parameters()
-            log.debug("detector_coordinator.get_detector_parameters", params=params)
+            log.debug("detector_setup.get_detector_parameters", params=params)
             return params
 
         except Exception as e:  # except Exception justified: service boundary catch-all
-            log.exception("detector_coordinator.get_detector_parameters.exception", error=str(e))
-            raise DetectorCoordinatorError(
+            log.exception("detector_setup.get_detector_parameters.exception", error=str(e))
+            raise DetectorSetupCoordinatorError(
                 f"Failed to get detector parameters: {e}",
                 context={},
             ) from e
 
     def get_factory_detector_parameters(self) -> dict[str, float]:
-        """
-        Get factory default detector parameters.
-
-        Delegates to DetectorService.get_factory_detector_parameters().
+        """Get factory default detector parameters.
 
         Returns:
             dict: Dictionary with factory default tracking parameters
 
         Raises:
             CoordinatorValidationError: If dependencies are invalid
-            DetectorCoordinatorError: If retrieval fails
+            DetectorSetupCoordinatorError: If retrieval fails
 
         Example:
             >>> defaults = coordinator.get_factory_detector_parameters()
-            >>> print(f"Default track threshold: {defaults['track_threshold']}")
         """
         # Validate dependencies
         if not self.validate_dependencies():
@@ -769,28 +757,21 @@ class DetectorCoordinator(BaseCoordinator):
         # Delegate to service
         try:
             params = self.detector_service.get_factory_detector_parameters()
-            log.debug("detector_coordinator.get_factory_detector_parameters", params=params)
+            log.debug("detector_setup.get_factory_detector_parameters", params=params)
             return params
 
         except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
-                "detector_coordinator.get_factory_detector_parameters.exception",
+                "detector_setup.get_factory_detector_parameters.exception",
                 error=str(e),
             )
-            raise DetectorCoordinatorError(
+            raise DetectorSetupCoordinatorError(
                 f"Failed to get factory detector parameters: {e}",
                 context={},
             ) from e
 
     def restore_detector_settings(self, saved_detector_config: dict) -> bool:
-        """
-        Restore detector settings from saved configuration.
-
-        Orchestrates settings restoration by:
-        1. Validating dependencies and inputs
-        2. Delegating to DetectorService.restore_detector_settings()
-        3. Updating StateManager with restored state
-        4. Publishing events for UI updates
+        """Restore detector settings from saved configuration.
 
         Args:
             saved_detector_config: Dictionary with saved detector configuration
@@ -800,7 +781,7 @@ class DetectorCoordinator(BaseCoordinator):
 
         Raises:
             CoordinatorValidationError: If dependencies are invalid
-            DetectorCoordinatorError: If restoration fails
+            DetectorSetupCoordinatorError: If restoration fails
 
         Example:
             >>> config = {"track_threshold": 0.3, "match_threshold": 0.2}
@@ -833,50 +814,38 @@ class DetectorCoordinator(BaseCoordinator):
             )
 
             log.info(
-                "detector_coordinator.restore_detector_settings.success",
+                "detector_setup.restore_detector_settings.success",
                 config_keys=list(saved_detector_config.keys()),
             )
             return True
 
         except Exception as e:  # except Exception justified: service boundary catch-all
             log.exception(
-                "detector_coordinator.restore_detector_settings.exception",
+                "detector_setup.restore_detector_settings.exception",
                 error=str(e),
             )
-            raise DetectorCoordinatorError(
+            raise DetectorSetupCoordinatorError(
                 f"Failed to restore detector settings: {e}",
                 context={"config": saved_detector_config},
             ) from e
 
     def is_detector_initialized(self) -> bool:
-        """
-        Check if detector is initialized.
-
-        Queries StateManager for detector initialization state.
+        """Check if detector is initialized.
 
         Returns:
             bool: True if detector is initialized
-
-        Example:
-            >>> if coordinator.is_detector_initialized():
-            ...     print("Detector is ready")
         """
         detector_state = self.state_manager.get_state(StateCategory.DETECTOR)
         return detector_state.get("is_detector_initialized", False)
 
     def get_detector_info(self) -> dict[str, Any]:
-        """
-        Get information about current detector state.
-
-        Queries StateManager and DetectorService for detector information.
+        """Get information about current detector state.
 
         Returns:
             dict: Dictionary with detector information
-                Keys: 'initialized', 'animal_method', 'use_openvino', 'zones_configured', etc.
-
-        Example:
-            >>> info = coordinator.get_detector_info()
-            >>> print(f"Animal method: {info['animal_method']}")
+                Keys: 'initialized', 'animal_method', 'use_openvino',
+                      'zones_configured', 'zones_count', 'single_subject_mode',
+                      'tracking_parameters'
         """
         detector_state = self.state_manager.get_state(StateCategory.DETECTOR)
 
@@ -887,7 +856,7 @@ class DetectorCoordinator(BaseCoordinator):
                 params = self.get_detector_parameters()
             except Exception as e:  # except Exception justified: non-critical fallback
                 log.warning(
-                    "detector_coordinator.get_detector_info.params_unavailable",
+                    "detector_setup.get_detector_info.params_unavailable",
                     error=str(e),
                 )
 
@@ -902,11 +871,11 @@ class DetectorCoordinator(BaseCoordinator):
         }
 
     def __repr__(self) -> str:
-        """Return string representation of DetectorCoordinator."""
+        """Return string representation of DetectorSetupCoordinator."""
         initialized = self.is_detector_initialized()
         info = self.get_detector_info() if initialized else {}
         return (
-            f"<DetectorCoordinator("
+            f"<DetectorSetupCoordinator("
             f"initialized={initialized}, "
             f"method={info.get('animal_method', 'N/A')}, "
             f"openvino={info.get('use_openvino', False)}, "

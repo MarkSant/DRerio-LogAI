@@ -317,11 +317,11 @@ def main():  # noqa: C901
         log.info("timing.analysis_service", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         # ===== SUPER COORDINATORS (Phase 3 Consolidation) =====
-        # Four super coordinators replace 20 legacy coordinators/orchestrators
+        # Phase 4.9: HardwareCoordinator decomposed into
+        #   DetectorSetupCoordinator + ModelDiagnosticsCoordinator
         # Architecture: Zero MainViewModel dependency, pure dependency injection
 
         _t0 = time.perf_counter()
-        from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
 
         # Phase 4.7: SessionCoordinator decomposed into 3 sub-coordinators
         from zebtrack.coordinators.live_calibration_coordinator import LiveCalibrationCoordinator
@@ -362,13 +362,26 @@ def main():  # noqa: C901
             elapsed_ms=int((time.perf_counter() - _t0_proj) * 1000),
         )
 
-        # 2. HardwareCoordinator - Detector setup, zones, model diagnostics
+        # 2. Phase 4.9: HardwareCoordinator decomposed into 2 sub-coordinators
+        # 2a. DetectorSetupCoordinator - Detector setup, zones, tracking params
         _t0_hw = time.perf_counter()
-        hardware_coordinator = HardwareCoordinator(
+        from zebtrack.coordinators.detector_setup_coordinator import DetectorSetupCoordinator
+        from zebtrack.coordinators.model_diagnostics_coordinator import (
+            ModelDiagnosticsCoordinator,
+        )
+
+        detector_setup_coordinator = DetectorSetupCoordinator(
             state_manager=state_manager,
             detector_service=detector_service,
-            weight_manager=weight_manager,
             model_service=model_service,
+            weight_manager=weight_manager,
+            event_bus=event_bus,
+        )
+
+        # 2b. ModelDiagnosticsCoordinator - Model diagnostic tests
+        model_diagnostics_coordinator = ModelDiagnosticsCoordinator(
+            state_manager=state_manager,
+            weight_manager=weight_manager,
             event_bus=event_bus,
             cancel_event=cancel_event,
             root=root,
@@ -408,7 +421,7 @@ def main():  # noqa: C901
             detector_service=detector_service,
             model_service=model_service,
             settings=settings_obj,
-            detector_coordinator=hardware_coordinator,
+            detector_coordinator=detector_setup_coordinator,
             project_workflow_service=project_workflow_service,
         )
 
@@ -622,9 +635,10 @@ def main():  # noqa: C901
             recording_service=recording_service,
             live_camera_service=live_camera_service,
             ui_state_controller=ui_state_controller,
-            # Phase 3 → Phase 4.7: Super coordinators
+            # Phase 3 → Phase 4.9: Super coordinators
             project_lifecycle_coordinator=project_lifecycle_coordinator,
-            hardware_coordinator=hardware_coordinator,
+            detector_setup_coordinator=detector_setup_coordinator,
+            model_diagnostics_coordinator=model_diagnostics_coordinator,
             processing_coordinator=processing_coordinator,
             recording_session_coordinator=recording_session_coordinator,
             live_camera_session_coordinator=live_camera_session_coordinator,
@@ -655,8 +669,8 @@ def main():  # noqa: C901
         ui_state_controller.view = controller.view  # type: ignore[attr-defined]
         ui_state_controller.main_view_model = controller
 
-        # Set view reference for Phase 3 coordinators
-        hardware_coordinator.view = controller.view  # type: ignore[attr-defined]
+        # Set view reference for Phase 4.9 coordinators (model diagnostics needs view)
+        model_diagnostics_coordinator.view = controller.view  # type: ignore[attr-defined]
         processing_coordinator.view = controller.view  # type: ignore[attr-defined]
 
         # Phase 4.7: Set view on session sub-coordinators

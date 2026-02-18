@@ -197,7 +197,9 @@ class MainViewModel:
 
         # Super coordinators
         self.project_lifecycle_coordinator = dependencies.project_lifecycle_coordinator
-        self.hardware_coordinator = dependencies.hardware_coordinator
+        # Phase 4.9: HardwareCoordinator decomposed into 2 sub-coordinators
+        self.detector_setup_coordinator = dependencies.detector_setup_coordinator
+        self.model_diagnostics_coordinator = dependencies.model_diagnostics_coordinator
         self.processing_coordinator = dependencies.processing_coordinator
         # Phase 4.7: SessionCoordinator decomposed into 3 sub-coordinators
         self.recording_session_coordinator = dependencies.recording_session_coordinator
@@ -244,7 +246,8 @@ class MainViewModel:
         # Phase 3A/B/C/D: Removed superseded orchestrators (see BootstrapResult)
 
         # Legacy Coordinators
-        self.detector_coordinator = result.legacy_coordinators.get("detector_coordinator")
+        # Phase 4.9: detector_coordinator replaced by detector_setup_coordinator
+        self.detector_setup_coordinator = result.legacy_coordinators.get("detector_coordinator")
         # Phase 3.5/3.6: Removed video_orchestrator and analysis_coordinator (dead code)
         # Phase 4.7: Removed recording_coordinator and live_camera_coordinator (dead code)
 
@@ -762,7 +765,6 @@ class MainViewModel:
             ("detector_service", self.detector_service),
             ("video_processing_service", self.video_processing_service),
             ("recording_service", self.recording_service),
-            ("hardware_coordinator", self.hardware_coordinator),
             ("processing_coordinator", self.processing_coordinator),
         ]
 

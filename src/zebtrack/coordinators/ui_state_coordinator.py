@@ -57,7 +57,7 @@ class UIStateController:
         detector_service: DetectorService,
         model_service: ModelService,
         settings: Settings,
-        detector_coordinator: Any,  # HardwareCoordinator
+        detector_coordinator: Any,  # DetectorSetupCoordinator (Phase 4.9)
         project_workflow_service: ProjectWorkflowService,
         main_view_model: Any | None = None,
     ):
@@ -73,7 +73,7 @@ class UIStateController:
             detector_service: Detector service
             model_service: Model service
             settings: Application settings
-            detector_coordinator: Hardware coordinator (handles detector/zones)
+            detector_coordinator: DetectorSetupCoordinator (handles detector/zones)
             project_workflow_service: Project workflow service
             main_view_model: Optional reference to MainViewModel (for backward compatibility)
         """

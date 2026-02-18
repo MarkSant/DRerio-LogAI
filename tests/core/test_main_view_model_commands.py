@@ -113,7 +113,8 @@ def mock_dependencies(mock_root):
         live_camera_service=None,
         # Phase 3: Super coordinators (properly mocked)
         project_lifecycle_coordinator=project_lifecycle_coord,
-        hardware_coordinator=hardware_coord,
+        detector_setup_coordinator=hardware_coord,
+        model_diagnostics_coordinator=Mock(),
         processing_coordinator=processing_coord,
         # Phase 4.7: Replaced session_coordinator with 3 focused coordinators
         recording_session_coordinator=Mock(),

@@ -57,7 +57,7 @@ class TestDetectorServiceIntegration(unittest.TestCase):
 
     def setUp(self):
         """Set up test environment with DI pattern."""
-        from zebtrack.coordinators.detector_coordinator import DetectorCoordinator
+        from zebtrack.coordinators.detector_setup_coordinator import DetectorSetupCoordinator
         from zebtrack.core.detector_service import DetectorService
         from zebtrack.core.model_service import ModelService
         from zebtrack.core.state_manager import StateManager
@@ -98,8 +98,8 @@ class TestDetectorServiceIntegration(unittest.TestCase):
             settings_obj=self.mock_settings,
         )
 
-        # Create Real DetectorCoordinator
-        self.detector_coordinator = DetectorCoordinator(
+        # Create Real DetectorSetupCoordinator
+        self.detector_coordinator = DetectorSetupCoordinator(
             state_manager=state_manager,
             detector_service=detector_service,
             model_service=model_service,
@@ -107,7 +107,7 @@ class TestDetectorServiceIntegration(unittest.TestCase):
             event_bus=MagicMock(),  # Mock event bus
         )
 
-        # Create controller using factory with REAL detector_service AND detector_coordinator
+        # Create controller using factory with REAL detector_service AND detector_setup_coordinator
         self.controller = create_test_controller(
             self.root,
             settings_obj=self.mock_settings,
@@ -116,6 +116,7 @@ class TestDetectorServiceIntegration(unittest.TestCase):
             state_manager=state_manager,
             model_service=model_service,
             detector_service=detector_service,
+            detector_setup_coordinator=self.detector_coordinator,
             detector_coordinator=self.detector_coordinator,
         )
 

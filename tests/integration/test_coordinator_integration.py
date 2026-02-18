@@ -1,16 +1,16 @@
 """
-Integration tests for HardwareCoordinator with other components (Phase 3).
+Integration tests for DetectorSetupCoordinator with other components (Phase 4.9).
 
-Verifies that HardwareCoordinator integrates properly with StateManager,
-EventBus, DetectorService, and other Phase 3 components.
+Verifies that DetectorSetupCoordinator integrates properly with StateManager,
+EventBus, DetectorService, and other components.
 
-Migrated from Task 2.2 legacy API to Phase 3 architecture.
+Migrated from DetectorSetupCoordinator to DetectorSetupCoordinator in Phase 4.9.
 """
 
 import unittest
 from unittest.mock import Mock
 
-from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
+from zebtrack.coordinators.detector_setup_coordinator import DetectorSetupCoordinator
 from zebtrack.core.detector_service import DetectorService
 from zebtrack.core.model_service import ModelService
 from zebtrack.core.state_manager import StateManager
@@ -18,8 +18,8 @@ from zebtrack.core.weight_manager import WeightManager
 from zebtrack.ui.event_bus import EventBus
 
 
-class TestHardwareCoordinatorIntegration(unittest.TestCase):
-    """Test HardwareCoordinator integration with other components."""
+class TestDetectorSetupCoordinatorIntegration(unittest.TestCase):
+    """Test DetectorSetupCoordinator integration with other components."""
 
     def setUp(self):
         """Set up test fixtures."""
@@ -31,8 +31,8 @@ class TestHardwareCoordinatorIntegration(unittest.TestCase):
         self.model_service = Mock(spec=ModelService)
 
     def test_coordinator_initialization_with_all_components(self):
-        """Test that coordinator initializes with all Phase 3 components."""
-        coordinator = HardwareCoordinator(
+        """Test that coordinator initializes with all components."""
+        coordinator = DetectorSetupCoordinator(
             state_manager=self.state_manager,
             detector_service=self.detector_service,
             weight_manager=self.weight_manager,
@@ -48,7 +48,7 @@ class TestHardwareCoordinatorIntegration(unittest.TestCase):
 
     def test_coordinator_shares_state_manager(self):
         """Test that multiple coordinators can share StateManager."""
-        coordinator1 = HardwareCoordinator(
+        coordinator1 = DetectorSetupCoordinator(
             state_manager=self.state_manager,
             detector_service=self.detector_service,
             weight_manager=self.weight_manager,
@@ -56,7 +56,7 @@ class TestHardwareCoordinatorIntegration(unittest.TestCase):
 
         mock_detector2 = Mock(spec=DetectorService)
         mock_detector2.settings = Mock()
-        coordinator2 = HardwareCoordinator(
+        coordinator2 = DetectorSetupCoordinator(
             state_manager=self.state_manager,  # Same instance
             detector_service=mock_detector2,
             weight_manager=Mock(spec=WeightManager),
@@ -67,7 +67,7 @@ class TestHardwareCoordinatorIntegration(unittest.TestCase):
 
     def test_coordinator_shares_event_bus(self):
         """Test that multiple coordinators can share EventBus."""
-        coordinator1 = HardwareCoordinator(
+        coordinator1 = DetectorSetupCoordinator(
             state_manager=self.state_manager,
             detector_service=self.detector_service,
             weight_manager=self.weight_manager,
@@ -76,7 +76,7 @@ class TestHardwareCoordinatorIntegration(unittest.TestCase):
 
         mock_detector2 = Mock(spec=DetectorService)
         mock_detector2.settings = Mock()
-        coordinator2 = HardwareCoordinator(
+        coordinator2 = DetectorSetupCoordinator(
             state_manager=Mock(spec=StateManager),
             detector_service=mock_detector2,
             weight_manager=Mock(spec=WeightManager),
@@ -86,30 +86,9 @@ class TestHardwareCoordinatorIntegration(unittest.TestCase):
         # Both should reference same event bus
         assert coordinator1.event_bus is coordinator2.event_bus
 
-    def test_recording_callbacks_integration(self):
-        """Test that recording callbacks integrate with session coordinator."""
-        coordinator = HardwareCoordinator(
-            state_manager=self.state_manager,
-            detector_service=self.detector_service,
-            weight_manager=self.weight_manager,
-        )
-
-        # Simulate session coordinator setting callbacks
-        trigger_callback = Mock()
-        stop_callback = Mock()
-
-        coordinator.set_recording_callbacks(
-            trigger_callback=trigger_callback,
-            stop_callback=stop_callback,
-        )
-
-        # Verify callbacks are stored
-        assert coordinator._trigger_recording_callback == trigger_callback
-        assert coordinator._stop_recording_callback == stop_callback
-
     def test_detector_setup_delegates_to_service(self):
         """Test that detector setup is properly delegated to DetectorService."""
-        coordinator = HardwareCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=self.state_manager,
             detector_service=self.detector_service,
             weight_manager=self.weight_manager,
@@ -134,7 +113,7 @@ class TestHardwareCoordinatorIntegration(unittest.TestCase):
 
 
 class TestDetectorServiceIntegration(unittest.TestCase):
-    """Test integration between HardwareCoordinator and DetectorService."""
+    """Test integration between DetectorSetupCoordinator and DetectorService."""
 
     def setUp(self):
         """Set up test fixtures."""
@@ -143,7 +122,7 @@ class TestDetectorServiceIntegration(unittest.TestCase):
         self.detector_service.settings = Mock()
         self.weight_manager = Mock(spec=WeightManager)
 
-        self.coordinator = HardwareCoordinator(
+        self.coordinator = DetectorSetupCoordinator(
             state_manager=self.state_manager,
             detector_service=self.detector_service,
             weight_manager=self.weight_manager,
@@ -163,7 +142,7 @@ class TestDetectorServiceIntegration(unittest.TestCase):
         mock_settings = Mock()
         self.detector_service.settings = mock_settings
 
-        coordinator = HardwareCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=self.state_manager,
             detector_service=self.detector_service,
             weight_manager=self.weight_manager,
@@ -173,7 +152,7 @@ class TestDetectorServiceIntegration(unittest.TestCase):
 
 
 class TestStateManagerIntegration(unittest.TestCase):
-    """Test integration between HardwareCoordinator and StateManager."""
+    """Test integration between DetectorSetupCoordinator and StateManager."""
 
     def setUp(self):
         """Set up test fixtures."""
@@ -182,7 +161,7 @@ class TestStateManagerIntegration(unittest.TestCase):
         self.detector_service.settings = Mock()
         self.weight_manager = Mock(spec=WeightManager)
 
-        self.coordinator = HardwareCoordinator(
+        self.coordinator = DetectorSetupCoordinator(
             state_manager=self.state_manager,
             detector_service=self.detector_service,
             weight_manager=self.weight_manager,
@@ -195,13 +174,13 @@ class TestStateManagerIntegration(unittest.TestCase):
     def test_coordinator_inherits_base_coordinator_state_methods(self):
         """Test that coordinator inherits state update methods from BaseCoordinator."""
         # BaseCoordinator provides _update_state and _publish_event
-        # These should be available on HardwareCoordinator
+        # These should be available on DetectorSetupCoordinator
         assert hasattr(self.coordinator, "_update_state")
         assert hasattr(self.coordinator, "_publish_event")
 
 
 class TestEventBusIntegration(unittest.TestCase):
-    """Test integration between HardwareCoordinator and EventBus."""
+    """Test integration between DetectorSetupCoordinator and EventBus."""
 
     def setUp(self):
         """Set up test fixtures."""
@@ -211,7 +190,7 @@ class TestEventBusIntegration(unittest.TestCase):
         self.detector_service.settings = Mock()
         self.weight_manager = Mock(spec=WeightManager)
 
-        self.coordinator = HardwareCoordinator(
+        self.coordinator = DetectorSetupCoordinator(
             state_manager=self.state_manager,
             detector_service=self.detector_service,
             weight_manager=self.weight_manager,
@@ -229,7 +208,7 @@ class TestEventBusIntegration(unittest.TestCase):
 
 
 class TestWeightManagerIntegration(unittest.TestCase):
-    """Test integration between HardwareCoordinator and WeightManager."""
+    """Test integration between DetectorSetupCoordinator and WeightManager."""
 
     def setUp(self):
         """Set up test fixtures."""
@@ -238,7 +217,7 @@ class TestWeightManagerIntegration(unittest.TestCase):
         self.detector_service.settings = Mock()
         self.weight_manager = Mock(spec=WeightManager)
 
-        self.coordinator = HardwareCoordinator(
+        self.coordinator = DetectorSetupCoordinator(
             state_manager=self.state_manager,
             detector_service=self.detector_service,
             weight_manager=self.weight_manager,

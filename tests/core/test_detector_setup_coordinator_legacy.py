@@ -1,16 +1,14 @@
 """
-Unit tests for HardwareCoordinator (Phase 3).
+Unit tests for DetectorSetupCoordinator (Phase 4.9, migrated from HardwareCoordinator).
 
-Tests detector setup, model diagnostics, zone configuration,
-and state management using the Phase 3 consolidated API.
-
-Migrated from Task 2.2 legacy API to Phase 3 HardwareCoordinator.
+Tests detector setup, zone configuration, and state management.
+Migrated from HardwareCoordinator to DetectorSetupCoordinator in Phase 4.9.
 """
 
 import unittest
 from unittest.mock import Mock
 
-from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
+from zebtrack.coordinators.detector_setup_coordinator import DetectorSetupCoordinator
 from zebtrack.core.detector_service import DetectorService
 from zebtrack.core.model_service import ModelService
 from zebtrack.core.state_manager import StateManager
@@ -18,8 +16,8 @@ from zebtrack.core.weight_manager import WeightManager
 from zebtrack.ui.event_bus import EventBus
 
 
-class TestHardwareCoordinatorInitialization(unittest.TestCase):
-    """Test HardwareCoordinator initialization with Phase 3 API."""
+class TestDetectorSetupCoordinatorInitialization(unittest.TestCase):
+    """Test DetectorSetupCoordinator initialization (Phase 4.9)."""
 
     def setUp(self):
         """Create mock dependencies."""
@@ -32,7 +30,7 @@ class TestHardwareCoordinatorInitialization(unittest.TestCase):
 
     def test_init_stores_all_dependencies(self):
         """Test that all dependencies are stored during initialization."""
-        coordinator = HardwareCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=self.mock_state_manager,
             detector_service=self.mock_detector_service,
             weight_manager=self.mock_weight_manager,
@@ -49,7 +47,7 @@ class TestHardwareCoordinatorInitialization(unittest.TestCase):
 
     def test_init_minimal_dependencies(self):
         """Test initialization with only required dependencies."""
-        coordinator = HardwareCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=self.mock_state_manager,
             detector_service=self.mock_detector_service,
             weight_manager=self.mock_weight_manager,
@@ -63,24 +61,13 @@ class TestHardwareCoordinatorInitialization(unittest.TestCase):
 
     def test_init_caches_settings_from_detector_service(self):
         """Test that settings are cached from detector_service."""
-        coordinator = HardwareCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=self.mock_state_manager,
             detector_service=self.mock_detector_service,
             weight_manager=self.mock_weight_manager,
         )
 
         assert coordinator.settings == self.mock_detector_service.settings
-
-    def test_init_sets_callbacks_to_none(self):
-        """Test that recording callbacks start as None."""
-        coordinator = HardwareCoordinator(
-            state_manager=self.mock_state_manager,
-            detector_service=self.mock_detector_service,
-            weight_manager=self.mock_weight_manager,
-        )
-
-        assert coordinator._trigger_recording_callback is None
-        assert coordinator._stop_recording_callback is None
 
 
 class TestSetupDetector(unittest.TestCase):
@@ -93,7 +80,7 @@ class TestSetupDetector(unittest.TestCase):
         self.mock_state_manager = Mock(spec=StateManager)
         self.mock_weight_manager = Mock(spec=WeightManager)
 
-        self.coordinator = HardwareCoordinator(
+        self.coordinator = DetectorSetupCoordinator(
             state_manager=self.mock_state_manager,
             detector_service=self.mock_detector_service,
             weight_manager=self.mock_weight_manager,
@@ -147,45 +134,6 @@ class TestSetupDetector(unittest.TestCase):
         assert True  # Setup completed successfully
 
 
-class TestRecordingCallbacks(unittest.TestCase):
-    """Test recording callback functionality."""
-
-    def setUp(self):
-        """Create coordinator with mocked dependencies."""
-        self.mock_detector_service = Mock(spec=DetectorService)
-        self.mock_detector_service.settings = Mock()
-        self.mock_state_manager = Mock(spec=StateManager)
-        self.mock_weight_manager = Mock(spec=WeightManager)
-
-        self.coordinator = HardwareCoordinator(
-            state_manager=self.mock_state_manager,
-            detector_service=self.mock_detector_service,
-            weight_manager=self.mock_weight_manager,
-        )
-
-    def test_set_recording_callbacks_stores_callbacks(self):
-        """Test that set_recording_callbacks stores both callbacks."""
-        trigger_cb = Mock()
-        stop_cb = Mock()
-
-        self.coordinator.set_recording_callbacks(trigger_callback=trigger_cb, stop_callback=stop_cb)
-
-        assert self.coordinator._trigger_recording_callback == trigger_cb
-        assert self.coordinator._stop_recording_callback == stop_cb
-
-    def test_set_recording_callbacks_with_none(self):
-        """Test that callbacks can be cleared by passing None."""
-        # Set initial callbacks
-        self.coordinator._trigger_recording_callback = Mock()
-        self.coordinator._stop_recording_callback = Mock()
-
-        # Clear them
-        self.coordinator.set_recording_callbacks(trigger_callback=None, stop_callback=None)
-
-        assert self.coordinator._trigger_recording_callback is None
-        assert self.coordinator._stop_recording_callback is None
-
-
 class TestValidation(unittest.TestCase):
     """Test coordinator validation."""
 
@@ -194,7 +142,7 @@ class TestValidation(unittest.TestCase):
         mock_detector_service = Mock(spec=DetectorService)
         mock_detector_service.settings = Mock()
 
-        coordinator = HardwareCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=Mock(spec=StateManager),
             detector_service=mock_detector_service,
             weight_manager=Mock(spec=WeightManager),
@@ -211,7 +159,7 @@ class TestValidation(unittest.TestCase):
         mock_detector = Mock(spec=DetectorService)
         mock_detector.settings = None  # Missing settings should fail validation
 
-        coordinator = HardwareCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=Mock(spec=StateManager),
             detector_service=mock_detector,
             weight_manager=Mock(spec=WeightManager),

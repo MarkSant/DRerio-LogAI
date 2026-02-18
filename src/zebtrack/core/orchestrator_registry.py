@@ -8,7 +8,7 @@ Phase 3A/3B/3C/3D: Removed unused orchestrators:
 - ProcessingConfigOrchestrator → ProcessingCoordinator
 - ZoneArenaOrchestrator → ProcessingCoordinator
 - CalibrationOrchestrator → ProjectLifecycleCoordinator
-- ModelDiagnosticsOrchestrator → HardwareCoordinator
+- ModelDiagnosticsOrchestrator → ModelDiagnosticsCoordinator (Phase 4.9)
 - ProjectOrchestrator → ProjectLifecycleCoordinator
 - RecordingSessionOrchestrator → SessionCoordinator
 
@@ -38,7 +38,7 @@ class OrchestratorRegistry:
         - processing_config: Superseded by ProcessingCoordinator
         - zone_arena: Superseded by ProcessingCoordinator
         - calibration: Superseded by ProjectLifecycleCoordinator
-        - model_diagnostics: Superseded by HardwareCoordinator
+        - model_diagnostics: Superseded by ModelDiagnosticsCoordinator (Phase 4.9)
         - project: Superseded by ProjectLifecycleCoordinator
         - recording: Superseded by SessionCoordinator
 

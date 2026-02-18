@@ -6,7 +6,8 @@ by delegating to services.
 Available Coordinators:
     BaseCoordinator - Unified base class for all coordinators
     ProjectCoordinator - Project lifecycle management (Sprint 3)
-    DetectorCoordinator - Detector setup and configuration (Sprint 5)
+    DetectorSetupCoordinator - Detector setup and configuration (Phase 4.9)
+    ModelDiagnosticsCoordinator - Model diagnostic tests (Phase 4.9)
     VideoProcessingCoordinator - Core video processing workflow (Phase 4)
     ProgressTrackingCoordinator - Processing progress and batch context (Phase 4)
     MultiAquariumCoordinator - Aquarium detection and zone management (Phase 4)
@@ -15,7 +16,6 @@ Available Coordinators:
     RecordingSessionCoordinator - Recording session lifecycle (Phase 4.7)
     LiveCameraSessionCoordinator - Live camera analysis sessions (Phase 4.7)
     LiveCalibrationCoordinator - Camera calibration and zone validation (Phase 4.7)
-    HardwareCoordinator - Hardware setup (Phase 3 super coordinator)
     ProjectLifecycleCoordinator - Project lifecycle (Phase 3 super coordinator)
     UIStateController - UI state synchronization (moved from orchestrators/)
 """
@@ -26,9 +26,9 @@ from zebtrack.coordinators.base_coordinator import (
     CoordinatorError,
     CoordinatorValidationError,
 )
-from zebtrack.coordinators.detector_coordinator import (
-    DetectorCoordinator,
-    DetectorCoordinatorError,
+from zebtrack.coordinators.detector_setup_coordinator import (
+    DetectorSetupCoordinator,
+    DetectorSetupCoordinatorError,
 )
 from zebtrack.coordinators.live_calibration_coordinator import (
     LiveCalibrationCoordinator,
@@ -37,6 +37,11 @@ from zebtrack.coordinators.live_calibration_coordinator import (
 from zebtrack.coordinators.live_camera_session_coordinator import (
     LiveCameraSessionCoordinator,
     LiveCameraSessionCoordinatorError,
+)
+from zebtrack.coordinators.model_diagnostics_coordinator import (
+    DiagnosticAbortError,
+    ModelDiagnosticsCoordinator,
+    ModelDiagnosticsCoordinatorError,
 )
 from zebtrack.coordinators.multi_aquarium_coordinator import MultiAquariumCoordinator
 from zebtrack.coordinators.processing_types import ProcessingCoordinatorError
@@ -61,12 +66,15 @@ __all__ = [
     "CoordinatorDependencyError",
     "CoordinatorError",
     "CoordinatorValidationError",
-    "DetectorCoordinator",
-    "DetectorCoordinatorError",
+    "DetectorSetupCoordinator",
+    "DetectorSetupCoordinatorError",
+    "DiagnosticAbortError",
     "LiveCalibrationCoordinator",
     "LiveCalibrationCoordinatorError",
     "LiveCameraSessionCoordinator",
     "LiveCameraSessionCoordinatorError",
+    "ModelDiagnosticsCoordinator",
+    "ModelDiagnosticsCoordinatorError",
     "MultiAquariumCoordinator",
     "ProcessingCoordinatorError",
     "ProgressTrackingCoordinator",

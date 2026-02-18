@@ -25,7 +25,8 @@ class TestApplicationBootstrapper:
 
         # Coordinators
         deps.processing_coordinator = MagicMock()
-        deps.hardware_coordinator = MagicMock()
+        deps.detector_setup_coordinator = MagicMock()
+        deps.model_diagnostics_coordinator = MagicMock()
         # Phase 4.7: Replaced session_coordinator with 3 focused coordinators
         deps.recording_session_coordinator = MagicMock()
         deps.live_camera_session_coordinator = MagicMock()

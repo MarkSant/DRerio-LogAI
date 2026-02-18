@@ -25,8 +25,7 @@ import structlog
 
 from zebtrack.analysis.analysis_service import AnalysisService
 
-# Legacy Coordinators for backward compatibility
-from zebtrack.coordinators.detector_coordinator import DetectorCoordinator
+# Phase 4.9: DetectorCoordinator removed (replaced by DetectorSetupCoordinator)
 from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
 
 # Phase 4.7: Removed LiveCameraCoordinator and RecordingCoordinator (dead legacy code)
@@ -173,7 +172,9 @@ class ApplicationBootstrapper:
         controller_proxy.live_camera_service = self.deps.live_camera_service
         controller_proxy._recording_service = self.deps.recording_service
         # Phase 4.7: Removed recording_coordinator and live_camera_coordinator proxy assignments
-        controller_proxy.detector_coordinator = self.deps.detector_coordinator
+        # Phase 4.9: detector_coordinator replaced by detector_setup_coordinator
+        controller_proxy.detector_setup_coordinator = self.deps.detector_setup_coordinator
+        controller_proxy.model_diagnostics_coordinator = self.deps.model_diagnostics_coordinator
         controller_proxy.ui_state_controller = self.deps.ui_state_controller
         controller_proxy._pending_external_trigger = None
 
@@ -187,7 +188,8 @@ class ApplicationBootstrapper:
 
         # Coordinators from deps
         controller_proxy.processing_coordinator = self.deps.processing_coordinator
-        controller_proxy.hardware_coordinator = self.deps.hardware_coordinator
+        # Phase 4.9: hardware_coordinator replaced by
+        # detector_setup_coordinator + model_diagnostics_coordinator
         # Phase 4.7: Replaced single session_coordinator with 3 focused coordinators
         controller_proxy.recording_session_coordinator = self.deps.recording_session_coordinator
         controller_proxy.live_camera_session_coordinator = self.deps.live_camera_session_coordinator
@@ -443,18 +445,10 @@ class ApplicationBootstrapper:
             )
         controller_proxy.project_workflow_adapter = project_workflow_adapter
 
-        # Detector Coordinator
-        if self.deps.detector_coordinator:
-            legacy_coords["detector_coordinator"] = self.deps.detector_coordinator
-        else:
-            legacy_coords["detector_coordinator"] = DetectorCoordinator(
-                state_manager=self.state_manager,
-                detector_service=self.deps.detector_service,
-                model_service=self.deps.model_service,
-                weight_manager=self.deps.weight_manager,
-                event_bus=self.deps.event_bus,
-            )
-        controller_proxy.detector_coordinator = legacy_coords["detector_coordinator"]
+        # Phase 4.9: DetectorCoordinator removed — DetectorSetupCoordinator is injected
+        # from __main__.py via deps.detector_setup_coordinator
+        legacy_coords["detector_coordinator"] = self.deps.detector_setup_coordinator
+        controller_proxy.detector_setup_coordinator = self.deps.detector_setup_coordinator
 
         # Phase 3.5/3.6: Removed VideoOrchestrator and AnalysisCoordinator
         # (dead code — superseded by ProcessingCoordinator)
@@ -504,7 +498,7 @@ class ApplicationBootstrapper:
         # Phase 3A: Removed ZoneArenaOrchestrator (superseded by ProcessingCoordinator)
         # Phase 3A: Removed ProcessingConfigOrchestrator (superseded by ProcessingCoordinator)
         # Phase 3B: Removed CalibrationOrchestrator (superseded by ProjectLifecycleCoordinator)
-        # Phase 3C: Removed ModelDiagnosticsOrchestrator (superseded by HardwareCoordinator)
+        # Phase 3C: Removed ModelDiagnosticsOrchestrator (Phase 4.9: ModelDiagnosticsCoordinator)
         # Phase 3D: Removed RecordingSessionOrchestrator (superseded by SessionCoordinator)
 
         self._orchestrators = {
@@ -520,19 +514,7 @@ class ApplicationBootstrapper:
         # Project Workflow Adapter (already ensured earlier in this method)
         self._orchestrators["project_workflow_adapter"] = project_workflow_adapter
 
-        # Setup coordinator callbacks
-        # This replicates _setup_coordinator_callbacks from MainViewModel
-        # Phase 4.7: Route hardware callbacks to RecordingSessionCoordinator
-        if self.deps.hardware_coordinator and self.deps.recording_session_coordinator:
-            self.deps.hardware_coordinator.set_recording_callbacks(
-                self.deps.recording_session_coordinator.trigger_recording,
-                lambda: (
-                    self.deps.recording_session_coordinator.stop_recording()
-                    if self.deps.recording_session_coordinator
-                    else None,
-                    None,
-                )[1],
-            )
+        # Phase 4.9: Removed set_recording_callbacks (dead code from HardwareCoordinator)
 
     def _safe_get_default_weight(self) -> tuple[str | None, dict | None]:
         manager = self.deps.weight_manager

@@ -1,4 +1,4 @@
-"""Tests for DetectorCoordinator - Sprint 5.
+"""Tests for DetectorSetupCoordinator - Phase 4.9.
 
 Comprehensive test coverage for detector setup and configuration orchestration.
 """
@@ -9,9 +9,9 @@ from unittest.mock import MagicMock
 import pytest
 
 from zebtrack.coordinators.base_coordinator import CoordinatorValidationError
-from zebtrack.coordinators.detector_coordinator import (
-    DetectorCoordinator,
-    DetectorCoordinatorError,
+from zebtrack.coordinators.detector_setup_coordinator import (
+    DetectorSetupCoordinator,
+    DetectorSetupCoordinatorError,
 )
 from zebtrack.core.detector import ZoneData
 from zebtrack.core.state_manager import StateCategory, StateManager
@@ -79,15 +79,15 @@ def mock_state_manager():
 
 
 @pytest.fixture
-def detector_coordinator(
+def detector_setup_coordinator(
     mock_state_manager,
     mock_detector_service,
     mock_model_service,
     mock_weight_manager,
     mock_event_bus,
 ):
-    """Create DetectorCoordinator with mocked dependencies."""
-    return DetectorCoordinator(
+    """Create DetectorSetupCoordinator with mocked dependencies."""
+    return DetectorSetupCoordinator(
         state_manager=mock_state_manager,
         detector_service=mock_detector_service,
         model_service=mock_model_service,
@@ -101,8 +101,8 @@ def detector_coordinator(
 # =============================================================================
 
 
-class TestDetectorCoordinatorInitialization:
-    """Test DetectorCoordinator initialization."""
+class TestDetectorSetupCoordinatorInitialization:
+    """Test DetectorSetupCoordinator initialization."""
 
     def test_init_with_all_dependencies(
         self,
@@ -113,7 +113,7 @@ class TestDetectorCoordinatorInitialization:
         mock_event_bus,
     ):
         """Test initialization with all dependencies."""
-        coordinator = DetectorCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=mock_state_manager,
             detector_service=mock_detector_service,
             model_service=mock_model_service,
@@ -133,7 +133,7 @@ class TestDetectorCoordinatorInitialization:
         mock_detector_service,
     ):
         """Test initialization without optional dependencies."""
-        coordinator = DetectorCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=mock_state_manager,
             detector_service=mock_detector_service,
         )
@@ -142,16 +142,16 @@ class TestDetectorCoordinatorInitialization:
         assert coordinator.weight_manager is None
         assert coordinator.event_bus is None
 
-    def test_validate_dependencies_passes(self, detector_coordinator):
+    def test_validate_dependencies_passes(self, detector_setup_coordinator):
         """Test that validate_dependencies returns True with valid dependencies."""
-        assert detector_coordinator.validate_dependencies() is True
+        assert detector_setup_coordinator.validate_dependencies() is True
 
     def test_validate_dependencies_fails_without_detector_service(
         self,
         mock_state_manager,
     ):
         """Test that validate_dependencies raises error without detector_service."""
-        coordinator = DetectorCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=mock_state_manager,
             detector_service=cast(Any, None),
         )
@@ -171,9 +171,9 @@ class TestDetectorCoordinatorInitialization:
 class TestDetectorSetup:
     """Test detector setup workflows."""
 
-    def test_setup_detector_success(self, detector_coordinator, mock_detector_service):
+    def test_setup_detector_success(self, detector_setup_coordinator, mock_detector_service):
         """Test successful detector setup."""
-        success, error = detector_coordinator.setup_detector(
+        success, error = detector_setup_coordinator.setup_detector(
             animal_method="det",
             use_openvino=True,
             active_weight_name="yolo11n",
@@ -188,10 +188,10 @@ class TestDetectorSetup:
             detector_plugins=None,
         )
 
-    def test_setup_detector_with_plugins(self, detector_coordinator, mock_detector_service):
+    def test_setup_detector_with_plugins(self, detector_setup_coordinator, mock_detector_service):
         """Test detector setup with custom plugins."""
         plugins = {"custom": MagicMock()}
-        success, _error = detector_coordinator.setup_detector(
+        success, _error = detector_setup_coordinator.setup_detector(
             detector_plugins=plugins,
         )
 
@@ -202,11 +202,11 @@ class TestDetectorSetup:
 
     def test_setup_detector_updates_state(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_state_manager,
     ):
         """Test that setup_detector updates StateManager."""
-        detector_coordinator.setup_detector(
+        detector_setup_coordinator.setup_detector(
             animal_method="seg",
             use_openvino=False,
         )
@@ -219,11 +219,11 @@ class TestDetectorSetup:
 
     def test_setup_detector_updates_state_on_success(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_state_manager,
     ):
         """Test that setup_detector updates state on success."""
-        detector_coordinator.setup_detector(animal_method="det")
+        detector_setup_coordinator.setup_detector(animal_method="det")
 
         # Verify state was updated (setup_detector calls _update_state, not publish_event)
         mock_state_manager.update_state.assert_called()
@@ -231,36 +231,36 @@ class TestDetectorSetup:
         assert call_args[0][0] == StateCategory.DETECTOR
         assert call_args[1].get("is_detector_initialized") is True
 
-    def test_setup_detector_invalid_animal_method(self, detector_coordinator):
+    def test_setup_detector_invalid_animal_method(self, detector_setup_coordinator):
         """Test setup_detector with invalid animal_method."""
         with pytest.raises(ValueError) as exc_info:
-            detector_coordinator.setup_detector(animal_method="invalid")
+            detector_setup_coordinator.setup_detector(animal_method="invalid")
 
         assert "Invalid animal_method" in str(exc_info.value)
 
     def test_setup_detector_service_fails(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test setup_detector when service returns failure."""
         mock_detector_service.initialize_detector.return_value = (False, "Test error")
 
-        success, error = detector_coordinator.setup_detector()
+        success, error = detector_setup_coordinator.setup_detector()
 
         assert success is False
         assert error == "Test error"
 
     def test_setup_detector_service_raises_exception(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test setup_detector when service raises exception."""
         mock_detector_service.initialize_detector.side_effect = RuntimeError("Test error")
 
-        with pytest.raises(DetectorCoordinatorError) as exc_info:
-            detector_coordinator.setup_detector()
+        with pytest.raises(DetectorSetupCoordinatorError) as exc_info:
+            detector_setup_coordinator.setup_detector()
 
         assert "Failed to setup detector" in str(exc_info.value)
         assert "animal_method" in exc_info.value.context
@@ -270,7 +270,7 @@ class TestDetectorSetup:
         mock_state_manager,
     ):
         """Test setup_detector fails validation with None detector_service."""
-        coordinator = DetectorCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=mock_state_manager,
             detector_service=cast(Any, None),
         )
@@ -278,15 +278,15 @@ class TestDetectorSetup:
         with pytest.raises(CoordinatorValidationError):
             coordinator.setup_detector()
 
-    def test_setup_detector_invalid_weight_name_type(self, detector_coordinator):
+    def test_setup_detector_invalid_weight_name_type(self, detector_setup_coordinator):
         """Test setup_detector with invalid active_weight_name type."""
         with pytest.raises(TypeError):
-            detector_coordinator.setup_detector(active_weight_name=123)
+            detector_setup_coordinator.setup_detector(active_weight_name=123)
 
-    def test_setup_detector_invalid_use_openvino_type(self, detector_coordinator):
+    def test_setup_detector_invalid_use_openvino_type(self, detector_setup_coordinator):
         """Test setup_detector with invalid use_openvino type."""
         with pytest.raises(TypeError):
-            detector_coordinator.setup_detector(use_openvino="true")
+            detector_setup_coordinator.setup_detector(use_openvino="true")
 
 
 # =============================================================================
@@ -297,10 +297,10 @@ class TestDetectorSetup:
 class TestZoneConfiguration:
     """Test zone configuration workflows."""
 
-    def test_configure_zones_success(self, detector_coordinator, mock_detector_service):
+    def test_configure_zones_success(self, detector_setup_coordinator, mock_detector_service):
         """Test successful zone configuration."""
         zones = [{"name": "Zone1", "polygon": [[0, 0], [100, 0], [100, 100], [0, 100]]}]
-        success = detector_coordinator.configure_zones(
+        success = detector_setup_coordinator.configure_zones(
             zones_data=zones,
             video_width=1920,
             video_height=1080,
@@ -318,24 +318,24 @@ class TestZoneConfiguration:
 
     def test_configure_zones_without_dimensions(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test zone configuration without video dimensions."""
         zones = [{"name": "Zone1"}]
-        success = detector_coordinator.configure_zones(zones_data=zones)
+        success = detector_setup_coordinator.configure_zones(zones_data=zones)
 
         assert success is True
         mock_detector_service.configure_zones.assert_called_once()
 
     def test_configure_zones_updates_state(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_state_manager,
     ):
         """Test that configure_zones updates StateManager."""
         zones = [{"name": "Zone1"}, {"name": "Zone2"}]
-        detector_coordinator.configure_zones(zones_data=zones)
+        detector_setup_coordinator.configure_zones(zones_data=zones)
 
         mock_state_manager.update_state.assert_called()
         call_args = mock_state_manager.update_state.call_args
@@ -344,60 +344,60 @@ class TestZoneConfiguration:
 
     def test_configure_zones_publishes_event(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_event_bus,
     ):
         """Test that configure_zones publishes event."""
         zones = [{"name": "Zone1"}]
-        detector_coordinator.configure_zones(zones_data=zones)
+        detector_setup_coordinator.configure_zones(zones_data=zones)
 
         mock_event_bus.publish_event.assert_called()
         call_args = mock_event_bus.publish_event.call_args[0]
         assert call_args[0] == "ZONES_CONFIGURED"
 
-    def test_configure_zones_invalid_width(self, detector_coordinator):
+    def test_configure_zones_invalid_width(self, detector_setup_coordinator):
         """Test configure_zones with invalid video_width."""
         with pytest.raises(ValueError) as exc_info:
-            detector_coordinator.configure_zones(video_width=0)
+            detector_setup_coordinator.configure_zones(video_width=0)
 
         assert "video_width must be > 0" in str(exc_info.value)
 
-    def test_configure_zones_invalid_height(self, detector_coordinator):
+    def test_configure_zones_invalid_height(self, detector_setup_coordinator):
         """Test configure_zones with invalid video_height."""
         with pytest.raises(ValueError) as exc_info:
-            detector_coordinator.configure_zones(video_height=-10)
+            detector_setup_coordinator.configure_zones(video_height=-10)
 
         assert "video_height must be > 0" in str(exc_info.value)
 
     def test_configure_zones_service_fails(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test configure_zones when service returns failure."""
         mock_detector_service.configure_zones.return_value = False
 
-        success = detector_coordinator.configure_zones()
+        success = detector_setup_coordinator.configure_zones()
 
         assert success is False
 
     def test_configure_zones_service_raises_exception(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test configure_zones when service raises exception."""
         mock_detector_service.configure_zones.side_effect = RuntimeError("Test error")
 
-        with pytest.raises(DetectorCoordinatorError) as exc_info:
-            detector_coordinator.configure_zones()
+        with pytest.raises(DetectorSetupCoordinatorError) as exc_info:
+            detector_setup_coordinator.configure_zones()
 
         assert "Failed to configure zones" in str(exc_info.value)
 
-    def test_configure_zones_invalid_zones_data_type(self, detector_coordinator):
+    def test_configure_zones_invalid_zones_data_type(self, detector_setup_coordinator):
         """Test configure_zones with invalid zones_data type."""
         with pytest.raises(TypeError):
-            detector_coordinator.configure_zones(zones_data="invalid")
+            detector_setup_coordinator.configure_zones(zones_data="invalid")
 
 
 # =============================================================================
@@ -410,11 +410,11 @@ class TestTrackingParameters:
 
     def test_update_tracking_parameters_success(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test successful tracking parameter update."""
-        success = detector_coordinator.update_tracking_parameters(
+        success = detector_setup_coordinator.update_tracking_parameters(
             track_threshold=0.3,
             match_threshold=0.2,
             track_buffer=30,
@@ -432,11 +432,11 @@ class TestTrackingParameters:
 
     def test_update_tracking_parameters_partial(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test updating only some tracking parameters."""
-        success = detector_coordinator.update_tracking_parameters(track_threshold=0.4)
+        success = detector_setup_coordinator.update_tracking_parameters(track_threshold=0.4)
 
         assert success is True
         mock_detector_service.update_tracking_parameters.assert_called_once()
@@ -447,11 +447,11 @@ class TestTrackingParameters:
 
     def test_update_tracking_parameters_updates_state(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_state_manager,
     ):
         """Test that update_tracking_parameters updates StateManager."""
-        detector_coordinator.update_tracking_parameters(
+        detector_setup_coordinator.update_tracking_parameters(
             track_threshold=0.3,
             match_threshold=0.2,
         )
@@ -464,11 +464,11 @@ class TestTrackingParameters:
 
     def test_update_tracking_parameters_publishes_event(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_event_bus,
     ):
         """Test that update_tracking_parameters publishes event."""
-        detector_coordinator.update_tracking_parameters(track_threshold=0.3)
+        detector_setup_coordinator.update_tracking_parameters(track_threshold=0.3)
 
         mock_event_bus.publish_event.assert_called()
         call_args = mock_event_bus.publish_event.call_args[0]
@@ -476,66 +476,66 @@ class TestTrackingParameters:
 
     def test_update_tracking_parameters_invalid_track_threshold_range(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
     ):
         """Test update with track_threshold out of range."""
         with pytest.raises(ValueError) as exc_info:
-            detector_coordinator.update_tracking_parameters(track_threshold=1.5)
+            detector_setup_coordinator.update_tracking_parameters(track_threshold=1.5)
 
         assert "track_threshold must be between 0.0 and 1.0" in str(exc_info.value)
 
     def test_update_tracking_parameters_invalid_match_threshold_range(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
     ):
         """Test update with match_threshold out of range."""
         with pytest.raises(ValueError) as exc_info:
-            detector_coordinator.update_tracking_parameters(match_threshold=-0.1)
+            detector_setup_coordinator.update_tracking_parameters(match_threshold=-0.1)
 
         assert "match_threshold must be between 0.0 and 1.0" in str(exc_info.value)
 
     def test_update_tracking_parameters_invalid_track_buffer(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
     ):
         """Test update with negative track_buffer."""
         with pytest.raises(ValueError) as exc_info:
-            detector_coordinator.update_tracking_parameters(track_buffer=-5)
+            detector_setup_coordinator.update_tracking_parameters(track_buffer=-5)
 
         assert "track_buffer must be >= 0" in str(exc_info.value)
 
     def test_update_tracking_parameters_service_fails(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test update when service returns failure."""
         mock_detector_service.update_tracking_parameters.return_value = False
 
-        success = detector_coordinator.update_tracking_parameters(track_threshold=0.3)
+        success = detector_setup_coordinator.update_tracking_parameters(track_threshold=0.3)
 
         assert success is False
 
     def test_update_tracking_parameters_service_raises_exception(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test update when service raises exception."""
         mock_detector_service.update_tracking_parameters.side_effect = RuntimeError("Test error")
 
-        with pytest.raises(DetectorCoordinatorError) as exc_info:
-            detector_coordinator.update_tracking_parameters()
+        with pytest.raises(DetectorSetupCoordinatorError) as exc_info:
+            detector_setup_coordinator.update_tracking_parameters()
 
         assert "Failed to update tracking parameters" in str(exc_info.value)
 
     def test_get_detector_parameters_success(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test getting current detector parameters."""
-        params = detector_coordinator.get_detector_parameters()
+        params = detector_setup_coordinator.get_detector_parameters()
 
         assert params["track_threshold"] == 0.3
         assert params["match_threshold"] == 0.2
@@ -544,11 +544,11 @@ class TestTrackingParameters:
 
     def test_get_factory_detector_parameters_success(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test getting factory default parameters."""
-        params = detector_coordinator.get_factory_detector_parameters()
+        params = detector_setup_coordinator.get_factory_detector_parameters()
 
         assert params["track_threshold"] == 0.25
         assert params["match_threshold"] == 0.15
@@ -565,22 +565,22 @@ class TestTrackingState:
 
     def test_reset_tracking_state_success(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test successful tracking state reset."""
-        success = detector_coordinator.reset_tracking_state()
+        success = detector_setup_coordinator.reset_tracking_state()
 
         assert success is True
         mock_detector_service.reset_tracking_state.assert_called_once()
 
     def test_reset_tracking_state_updates_state(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_state_manager,
     ):
         """Test that reset_tracking_state updates StateManager."""
-        detector_coordinator.reset_tracking_state()
+        detector_setup_coordinator.reset_tracking_state()
 
         mock_state_manager.update_state.assert_called()
         call_args = mock_state_manager.update_state.call_args[1]
@@ -588,14 +588,14 @@ class TestTrackingState:
 
     def test_reset_tracking_state_service_raises_exception(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test reset when service raises exception."""
         mock_detector_service.reset_tracking_state.side_effect = RuntimeError("Test error")
 
-        with pytest.raises(DetectorCoordinatorError) as exc_info:
-            detector_coordinator.reset_tracking_state()
+        with pytest.raises(DetectorSetupCoordinatorError) as exc_info:
+            detector_setup_coordinator.reset_tracking_state()
 
         assert "Failed to reset tracking state" in str(exc_info.value)
 
@@ -610,33 +610,33 @@ class TestSingleSubjectMode:
 
     def test_set_single_subject_mode_enabled(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test enabling single subject mode."""
-        success = detector_coordinator.set_single_subject_mode(enabled=True)
+        success = detector_setup_coordinator.set_single_subject_mode(enabled=True)
 
         assert success is True
         mock_detector_service.set_single_subject_mode.assert_called_once_with(enabled=True)
 
     def test_set_single_subject_mode_disabled(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test disabling single subject mode."""
-        success = detector_coordinator.set_single_subject_mode(enabled=False)
+        success = detector_setup_coordinator.set_single_subject_mode(enabled=False)
 
         assert success is True
         mock_detector_service.set_single_subject_mode.assert_called_once_with(enabled=False)
 
     def test_set_single_subject_mode_updates_state(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_state_manager,
     ):
         """Test that set_single_subject_mode updates StateManager."""
-        detector_coordinator.set_single_subject_mode(enabled=True)
+        detector_setup_coordinator.set_single_subject_mode(enabled=True)
 
         mock_state_manager.update_state.assert_called()
         call_args = mock_state_manager.update_state.call_args[1]
@@ -644,31 +644,31 @@ class TestSingleSubjectMode:
 
     def test_set_single_subject_mode_publishes_event(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_event_bus,
     ):
         """Test that set_single_subject_mode publishes event."""
-        detector_coordinator.set_single_subject_mode(enabled=True)
+        detector_setup_coordinator.set_single_subject_mode(enabled=True)
 
         mock_event_bus.publish_event.assert_called()
         call_args = mock_event_bus.publish_event.call_args[0]
         assert call_args[0] == "SINGLE_SUBJECT_MODE_CHANGED"
 
-    def test_set_single_subject_mode_invalid_type(self, detector_coordinator):
+    def test_set_single_subject_mode_invalid_type(self, detector_setup_coordinator):
         """Test set_single_subject_mode with invalid type."""
         with pytest.raises(TypeError):
-            detector_coordinator.set_single_subject_mode(enabled="true")
+            detector_setup_coordinator.set_single_subject_mode(enabled="true")
 
     def test_set_single_subject_mode_service_raises_exception(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test set mode when service raises exception."""
         mock_detector_service.set_single_subject_mode.side_effect = RuntimeError("Test error")
 
-        with pytest.raises(DetectorCoordinatorError) as exc_info:
-            detector_coordinator.set_single_subject_mode(enabled=True)
+        with pytest.raises(DetectorSetupCoordinatorError) as exc_info:
+            detector_setup_coordinator.set_single_subject_mode(enabled=True)
 
         assert "Failed to set single subject mode" in str(exc_info.value)
 
@@ -683,24 +683,24 @@ class TestSettingsRestoration:
 
     def test_restore_detector_settings_success(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test successful settings restoration."""
         config = {"track_threshold": 0.3, "match_threshold": 0.2}
-        success = detector_coordinator.restore_detector_settings(config)
+        success = detector_setup_coordinator.restore_detector_settings(config)
 
         assert success is True
         mock_detector_service.restore_detector_settings.assert_called_once_with(config)
 
     def test_restore_detector_settings_updates_state(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_state_manager,
     ):
         """Test that restore_detector_settings updates StateManager."""
         config = {"track_threshold": 0.3}
-        detector_coordinator.restore_detector_settings(config)
+        detector_setup_coordinator.restore_detector_settings(config)
 
         mock_state_manager.update_state.assert_called()
         call_args = mock_state_manager.update_state.call_args[1]
@@ -708,32 +708,32 @@ class TestSettingsRestoration:
 
     def test_restore_detector_settings_publishes_event(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_event_bus,
     ):
         """Test that restore_detector_settings publishes event."""
         config = {"track_threshold": 0.3}
-        detector_coordinator.restore_detector_settings(config)
+        detector_setup_coordinator.restore_detector_settings(config)
 
         mock_event_bus.publish_event.assert_called()
         call_args = mock_event_bus.publish_event.call_args[0]
         assert call_args[0] == "DETECTOR_SETTINGS_RESTORED"
 
-    def test_restore_detector_settings_invalid_type(self, detector_coordinator):
+    def test_restore_detector_settings_invalid_type(self, detector_setup_coordinator):
         """Test restore with invalid config type."""
         with pytest.raises(TypeError):
-            detector_coordinator.restore_detector_settings("invalid")
+            detector_setup_coordinator.restore_detector_settings("invalid")
 
     def test_restore_detector_settings_service_raises_exception(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_detector_service,
     ):
         """Test restore when service raises exception."""
         mock_detector_service.restore_detector_settings.side_effect = RuntimeError("Test error")
 
-        with pytest.raises(DetectorCoordinatorError) as exc_info:
-            detector_coordinator.restore_detector_settings({})
+        with pytest.raises(DetectorSetupCoordinatorError) as exc_info:
+            detector_setup_coordinator.restore_detector_settings({})
 
         assert "Failed to restore detector settings" in str(exc_info.value)
 
@@ -748,27 +748,27 @@ class TestStateQueries:
 
     def test_is_detector_initialized_returns_true(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_state_manager,
     ):
         """Test is_detector_initialized when detector is initialized."""
         mock_state_manager.get_state.return_value = {"is_detector_initialized": True}
 
-        assert detector_coordinator.is_detector_initialized() is True
+        assert detector_setup_coordinator.is_detector_initialized() is True
 
     def test_is_detector_initialized_returns_false(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_state_manager,
     ):
         """Test is_detector_initialized when detector is not initialized."""
         mock_state_manager.get_state.return_value = {}
 
-        assert detector_coordinator.is_detector_initialized() is False
+        assert detector_setup_coordinator.is_detector_initialized() is False
 
     def test_get_detector_info_when_initialized(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_state_manager,
     ):
         """Test get_detector_info when detector is initialized."""
@@ -781,7 +781,7 @@ class TestStateQueries:
             "single_subject_mode": True,
         }
 
-        info = detector_coordinator.get_detector_info()
+        info = detector_setup_coordinator.get_detector_info()
 
         assert info["initialized"] is True
         assert info["animal_method"] == "det"
@@ -793,13 +793,13 @@ class TestStateQueries:
 
     def test_get_detector_info_when_not_initialized(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_state_manager,
     ):
         """Test get_detector_info when detector is not initialized."""
         mock_state_manager.get_state.return_value = {}
 
-        info = detector_coordinator.get_detector_info()
+        info = detector_setup_coordinator.get_detector_info()
 
         assert info["initialized"] is False
         assert info["zones_count"] == 0
@@ -807,7 +807,7 @@ class TestStateQueries:
 
     def test_repr_shows_detector_state(
         self,
-        detector_coordinator,
+        detector_setup_coordinator,
         mock_state_manager,
     ):
         """Test __repr__ shows detector state."""
@@ -818,9 +818,9 @@ class TestStateQueries:
             "zones_count": 2,
         }
 
-        repr_str = repr(detector_coordinator)
+        repr_str = repr(detector_setup_coordinator)
 
-        assert "DetectorCoordinator" in repr_str
+        assert "DetectorSetupCoordinator" in repr_str
         assert "initialized=True" in repr_str
         assert "method=seg" in repr_str
         assert "zones=2" in repr_str
@@ -831,7 +831,7 @@ class TestStateQueries:
 # =============================================================================
 
 
-class TestDetectorCoordinatorIntegration:
+class TestDetectorSetupCoordinatorIntegration:
     """Integration tests with real StateManager."""
 
     def test_full_detector_workflow(
@@ -845,7 +845,7 @@ class TestDetectorCoordinatorIntegration:
         # Use real StateManager
         state_manager = StateManager()
 
-        coordinator = DetectorCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=state_manager,
             detector_service=mock_detector_service,
             model_service=mock_model_service,
@@ -885,7 +885,7 @@ class TestDetectorCoordinatorIntegration:
         """Test that StateManager tracks detector state changes."""
         state_manager = StateManager(enable_history=True)
 
-        coordinator = DetectorCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=state_manager,
             detector_service=mock_detector_service,
         )
@@ -907,13 +907,13 @@ class TestDetectorCoordinatorIntegration:
         state_manager = StateManager()
         mock_detector_service.initialize_detector.side_effect = RuntimeError("Setup failed")
 
-        coordinator = DetectorCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=state_manager,
             detector_service=mock_detector_service,
         )
 
         # Attempt setup (should fail)
-        with pytest.raises(DetectorCoordinatorError):
+        with pytest.raises(DetectorSetupCoordinatorError):
             coordinator.setup_detector()
 
         # Verify detector is still not initialized
@@ -926,7 +926,7 @@ class TestDetectorCoordinatorIntegration:
         """Test multiple tracking parameter updates."""
         state_manager = StateManager()
 
-        coordinator = DetectorCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=state_manager,
             detector_service=mock_detector_service,
         )
@@ -946,7 +946,7 @@ class TestDetectorCoordinatorIntegration:
         """Test reconfiguring zones multiple times."""
         state_manager = StateManager()
 
-        coordinator = DetectorCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=state_manager,
             detector_service=mock_detector_service,
         )
@@ -970,7 +970,7 @@ class TestDetectorCoordinatorIntegration:
         """Test complete settings save/restore workflow."""
         state_manager = StateManager()
 
-        coordinator = DetectorCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=state_manager,
             detector_service=mock_detector_service,
         )
@@ -992,7 +992,7 @@ class TestDetectorCoordinatorIntegration:
         """Test toggling single subject mode on/off."""
         state_manager = StateManager()
 
-        coordinator = DetectorCoordinator(
+        coordinator = DetectorSetupCoordinator(
             state_manager=state_manager,
             detector_service=mock_detector_service,
         )
@@ -1014,12 +1014,12 @@ class TestDetectorCoordinatorIntegration:
         """Test that multiple coordinators can share StateManager."""
         state_manager = StateManager()
 
-        coordinator1 = DetectorCoordinator(
+        coordinator1 = DetectorSetupCoordinator(
             state_manager=state_manager,
             detector_service=mock_detector_service,
         )
 
-        coordinator2 = DetectorCoordinator(
+        coordinator2 = DetectorSetupCoordinator(
             state_manager=state_manager,
             detector_service=MagicMock(),
         )

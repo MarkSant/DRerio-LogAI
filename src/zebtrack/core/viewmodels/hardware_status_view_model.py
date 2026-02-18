@@ -25,8 +25,9 @@ class HardwareStatusViewModel:
     ) -> None:
         self.detector_service = dependencies.detector_service
         self.model_service = dependencies.model_service
-        self.hardware_coordinator = dependencies.hardware_coordinator
-        self.detector_coordinator = bootstrap_result.legacy_coordinators.get("detector_coordinator")
+        # Phase 4.9: HardwareCoordinator decomposed
+        self.detector_setup_coordinator = dependencies.detector_setup_coordinator
+        self.model_diagnostics_coordinator = dependencies.model_diagnostics_coordinator
         self.arduino_manager = bootstrap_result.arduino_manager
         self.weight_manager = dependencies.weight_manager
         # Phase 4.7: Replaced single session_coordinator with 3 focused coordinators
@@ -64,10 +65,10 @@ class HardwareStatusViewModel:
         return self.state_manager.get_detector_state().detector_initialized
 
     def setup_detector(self, temp_animal_method: str | None = None) -> bool:
-        if not self.detector_coordinator:
+        if not self.detector_setup_coordinator:
             return False
 
-        success, _ = self.detector_coordinator.setup_detector(
+        success, _ = self.detector_setup_coordinator.setup_detector(
             animal_method=temp_animal_method,
             use_openvino=self.use_openvino,
             active_weight_name=self.active_weight_name,
@@ -75,26 +76,26 @@ class HardwareStatusViewModel:
         return success
 
     def update_detector_parameters(self, params: dict, **kwargs) -> bool:
-        if self.detector_coordinator:
-            return self.detector_coordinator.update_detector_parameters(params, **kwargs)
+        if self.detector_setup_coordinator:
+            return self.detector_setup_coordinator.update_detector_parameters(params, **kwargs)
         return False
 
     def get_current_detector_parameters(self) -> dict:
-        if self.detector_coordinator:
-            return self.detector_coordinator.get_detector_parameters()
+        if self.detector_setup_coordinator:
+            return self.detector_setup_coordinator.get_detector_parameters()
         return {}
 
     def restore_detector_defaults(self, scope: str = "global") -> bool:
-        if not self.detector_coordinator:
+        if not self.detector_setup_coordinator:
             return False
 
         if scope == "global":
-            factory_defaults = self.detector_coordinator.get_factory_detector_parameters()
-            return self.detector_coordinator.update_detector_parameters(
+            factory_defaults = self.detector_setup_coordinator.get_factory_detector_parameters()
+            return self.detector_setup_coordinator.update_detector_parameters(
                 params=factory_defaults, scope="global", reset_overrides=True
             )
         elif scope == "project":
-            return self.detector_coordinator.update_detector_parameters(
+            return self.detector_setup_coordinator.update_detector_parameters(
                 params={}, scope="project", reset_overrides=True
             )
         return False
@@ -177,12 +178,12 @@ class HardwareStatusViewModel:
         self.ui_state_controller.manage_weights()
 
     def run_model_diagnostic(self, config: dict):
-        # Phase 3C: Redirect to HardwareCoordinator (supersedes ModelDiagnosticsOrchestrator)
-        if self.hardware_coordinator:
+        # Phase 4.9: Redirect to ModelDiagnosticsCoordinator
+        if self.model_diagnostics_coordinator:
             # Inject active weight name into config so coordinator doesn't depend on
             # WeightManager state
             config["active_weight_name"] = self.active_weight_name
-            self.hardware_coordinator.run_model_diagnostic(config)
+            self.model_diagnostics_coordinator.run_model_diagnostic(config)
 
     def handle_request_weight_file(self):
         from tkinter import filedialog

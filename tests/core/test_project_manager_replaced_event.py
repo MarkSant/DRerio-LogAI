@@ -34,7 +34,7 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.project_workflow_service = mock_service1  # type: ignore
             controller.detector_service = mock_service2  # type: ignore
             controller.video_processing_service = None  # type: ignore
-            controller.hardware_coordinator = None  # type: ignore
+            controller.detector_setup_coordinator = None  # type: ignore
             controller.processing_coordinator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
@@ -63,7 +63,7 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.project_workflow_service = mock_service  # type: ignore
             controller.detector_service = None  # type: ignore
             controller.video_processing_service = None  # type: ignore
-            controller.hardware_coordinator = None  # type: ignore
+            controller.detector_setup_coordinator = None  # type: ignore
             controller.processing_coordinator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
@@ -85,7 +85,7 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.project_workflow_service = mock_service  # type: ignore
             controller.detector_service = None  # type: ignore
             controller.video_processing_service = None  # type: ignore
-            controller.hardware_coordinator = None  # type: ignore
+            controller.detector_setup_coordinator = None  # type: ignore
             controller.processing_coordinator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore
@@ -112,7 +112,7 @@ class TestProjectManagerReplacedEvent(unittest.TestCase):
             controller.project_workflow_service = mock_service  # type: ignore
             controller.detector_service = None  # type: ignore
             controller.video_processing_service = None  # type: ignore
-            controller.hardware_coordinator = None  # type: ignore
+            controller.detector_setup_coordinator = None  # type: ignore
             controller.processing_coordinator = None  # type: ignore
             controller.analysis_orchestrator = None  # type: ignore
             controller.calibration_orchestrator = None  # type: ignore

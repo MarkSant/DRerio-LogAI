@@ -11,6 +11,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔄 Refactored
 
+#### Phase 4.9 — Decompose HardwareCoordinator + DetectorCoordinator (February 2026)
+
+- **Decomposed** `HardwareCoordinator` (`coordinators/hardware_coordinator.py`,
+  1,692 lines) and `DetectorCoordinator` (`coordinators/detector_coordinator.py`,
+  916 lines) — total 2,608 lines — into 2 focused coordinators:
+  - `DetectorSetupCoordinator` (~885 lines) — Detector setup, zone
+    configuration, tracking parameter updates, single-subject mode,
+    factory parameter retrieval, detector restore/reset workflows.
+    Consolidates all detector-lifecycle methods from both original files.
+  - `ModelDiagnosticsCoordinator` (~580 lines) — Model diagnostic test
+    workflows, diagnostic processing thread, progress callbacks,
+    cancel/abort handling, UI-safe scheduling via `root.after()`
+- **Both original files deleted** — No facades; each consumer imports the
+  specific coordinator it needs
+- **Dead code removed** — `set_recording_callbacks()`,
+  `set_convert_weight_callback()`, legacy `DetectorCoordinator` fallback
+  block in `application_bootstrapper.py`, `TestRecordingCallbacks` test
+  class, `test_recording_callbacks_integration` test
+- Updated 8 consumer source files: `coordinators/__init__.py`,
+  `dependency_container.py`, `__main__.py`, `main_view_model.py`,
+  `application_bootstrapper.py`, `hardware_status_view_model.py`,
+  `ui_state_coordinator.py`, `orchestrator_registry.py`
+- Migrated 11 test files (~199 references): renamed
+  `test_detector_coordinator.py` → `test_detector_setup_coordinator.py`,
+  `test_hardware_coordinator.py` → `test_detector_setup_coordinator_legacy.py`,
+  updated `test_coordinator_integration.py`,
+  `test_hardware_status_view_model.py`,
+  `test_detector_service_integration.py`, `controller_factory.py`,
+  `test_main_view_model_commands.py`,
+  `test_project_manager_replaced_event.py`, `test_bootstrapper.py`,
+  `test_main_view_model_threading.py`, `test_ui_state_coordinator.py`
+- All 2,607 fast tests passing, 0 regressions
+
 #### Phase 4.8 — Decompose Reporter (February 2026)
 
 - **Decomposed** `reporter.py` (`analysis/reporter.py`, 1,749 lines) into

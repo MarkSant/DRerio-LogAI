@@ -11,9 +11,11 @@ from zebtrack.analysis.analysis_service import AnalysisService
 # Phase 3 → Phase 4: Super Coordinators
 # ProcessingCoordinator decomposed into 5 sub-coordinators (Phase 4)
 # SessionCoordinator decomposed into 3 sub-coordinators (Phase 4.7)
-from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
+# HardwareCoordinator decomposed into 2 sub-coordinators (Phase 4.9)
+from zebtrack.coordinators.detector_setup_coordinator import DetectorSetupCoordinator
 from zebtrack.coordinators.live_calibration_coordinator import LiveCalibrationCoordinator
 from zebtrack.coordinators.live_camera_session_coordinator import LiveCameraSessionCoordinator
+from zebtrack.coordinators.model_diagnostics_coordinator import ModelDiagnosticsCoordinator
 from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
 from zebtrack.coordinators.recording_session_coordinator import RecordingSessionCoordinator
 from zebtrack.coordinators.ui_state_coordinator import UIStateController
@@ -43,8 +45,10 @@ class MainViewModelDependencies:
     Phase 3 Update:
         - Added 4 super coordinators (ProjectLifecycleCoordinator, HardwareCoordinator,
           ProcessingCoordinator, SessionCoordinator)
-        - Kept legacy coordinator fields for backward compatibility during migration
-        - Will be cleaned up in Phase 4 after MainViewModel is fully refactored
+    Phase 4.9 Update:
+        - HardwareCoordinator decomposed into DetectorSetupCoordinator +
+          ModelDiagnosticsCoordinator
+        - Removed LEGACY detector_coordinator field
     """
 
     # Core infrastructure
@@ -71,17 +75,16 @@ class MainViewModelDependencies:
     # Phase 3 → Phase 4: Super Coordinators
     # processing_coordinator now is VideoProcessingCoordinator (Phase 4 decomposition)
     # session_coordinator decomposed into 3 sub-coordinators (Phase 4.7)
+    # hardware_coordinator decomposed into 2 sub-coordinators (Phase 4.9)
     project_lifecycle_coordinator: ProjectLifecycleCoordinator | None = None
-    hardware_coordinator: HardwareCoordinator | None = None
+    detector_setup_coordinator: DetectorSetupCoordinator | None = None
+    model_diagnostics_coordinator: ModelDiagnosticsCoordinator | None = None
     processing_coordinator: VideoProcessingCoordinator | None = None
     recording_session_coordinator: RecordingSessionCoordinator | None = None
     live_camera_session_coordinator: LiveCameraSessionCoordinator | None = None
     live_calibration_coordinator: LiveCalibrationCoordinator | None = None
     project_workflow_adapter: ProjectWorkflowAdapter | None = None
     live_batch_coordinator: LiveBatchCoordinator | None = None  # v2.3.0
-
-    # LEGACY coordinators — migrate consumers in Phase 4
-    detector_coordinator: Any = None  # LEGACY: Migrate to hardware_coordinator
 
     # Runtime State
     cancel_event: Any = None
