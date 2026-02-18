@@ -20,7 +20,11 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from zebtrack.core.detector import AquariumData, Detector, MultiAquariumZoneData
+from zebtrack.core.detection_post_processor import DetectionPostProcessor
+from zebtrack.core.detection_types import AquariumData, MultiAquariumZoneData
+from zebtrack.core.multi_aquarium_detector import MultiAquariumDetector
+from zebtrack.core.single_detector import SingleDetector
+from zebtrack.core.zone_scaler import ZoneScaler
 
 
 @pytest.fixture
@@ -95,8 +99,10 @@ class TestParallelDetectionSpeedup:
         that parallel detection is at least 15% faster to account for
         threading overhead and test environment variability.
         """
-        detector = Detector(
+        detector = MultiAquariumDetector(
             plugin=mock_plugin,
+            zone_scaler=ZoneScaler(1280, 720),
+            post_processor=DetectionPostProcessor(),
             base_width=1280,
             base_height=720,
         )
@@ -167,14 +173,16 @@ class TestParallelDetectionSpeedup:
     @pytest.mark.benchmark
     def test_batch_inference_throughput(self, mock_plugin, sample_frame):
         """Test batch inference throughput for offline processing."""
-        detector = Detector(
+        detector = SingleDetector(
             plugin=mock_plugin,
+            zone_scaler=ZoneScaler(1280, 720),
+            post_processor=DetectionPostProcessor(),
             base_width=1280,
             base_height=720,
         )
 
         # Set single aquarium mode (batch is for single-aquarium)
-        from zebtrack.core.detector import ZoneData
+        from zebtrack.core.detection_types import ZoneData
 
         zones = ZoneData(
             polygon=[[0, 0], [1280, 0], [1280, 720], [0, 720]],
@@ -244,8 +252,10 @@ class TestParallelDetectionErrorRecovery:
 
         plugin.detect = flaky_detect
 
-        detector = Detector(
+        detector = MultiAquariumDetector(
             plugin=plugin,
+            zone_scaler=ZoneScaler(1280, 720),
+            post_processor=DetectionPostProcessor(),
             base_width=1280,
             base_height=720,
         )

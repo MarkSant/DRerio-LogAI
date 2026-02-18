@@ -26,11 +26,21 @@ class FakePlugin:
 class FakeDetector:
     """Detector stub capturing single-subject mode updates."""
 
-    def __init__(self, plugin, base_width: int, base_height: int, settings_obj=None):
+    def __init__(
+        self,
+        plugin,
+        base_width: int,
+        base_height: int,
+        settings_obj=None,
+        zone_scaler=None,
+        post_processor=None,
+    ):
         self.plugin = plugin
         self.base_width = base_width
         self.base_height = base_height
         self.settings_obj = settings_obj
+        self.zone_scaler = zone_scaler
+        self.post_processor = post_processor
         self.single_mode: bool | None = None
 
     def set_single_subject_mode(self, enabled: bool):

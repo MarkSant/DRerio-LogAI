@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 
     from zebtrack.core.detector_service import DetectorService
     from zebtrack.core.main_view_model import MainViewModel
+    from zebtrack.core.multi_aquarium_detector import MultiAquariumDetector
     from zebtrack.core.project_manager import ProjectManager
     from zebtrack.core.recording_service import RecordingService
     from zebtrack.core.state_manager import StateManager
@@ -254,6 +255,9 @@ class LiveCameraService:
 
         # Session timer for countdown display (v2.3.0)
         self._session_start_time: float | None = None
+
+        # Phase 4.3: Lazily-created MultiAquariumDetector (shares plugin w/ SingleDetector)
+        self._multi_aq_detector: MultiAquariumDetector | None = None
 
     def _cleanup_existing_session_folders(
         self,
@@ -2260,6 +2264,10 @@ class LiveCameraService:
     ) -> list:
         """Run detection for multi-aquarium setup using partitioned processing.
 
+        Creates (or reuses) a ``MultiAquariumDetector`` that shares the same
+        plugin, zone_scaler, and post_processor from the existing
+        ``SingleDetector`` held by ``detector_service``.
+
         Args:
             frame: Full camera frame
             frame_number: Current frame number
@@ -2273,20 +2281,33 @@ class LiveCameraService:
             return []
 
         try:
-            # Use optimized partitioned detection if available
-            if hasattr(detector, "detect_partitioned_optimized"):
-                all_detections = detector.detect_partitioned_optimized(
-                    frame=frame,
+            # Lazily create MultiAquariumDetector sharing the same plugin
+            if self._multi_aq_detector is None:
+                from zebtrack.core.multi_aquarium_detector import (
+                    MultiAquariumDetector,
                 )
-            elif hasattr(detector, "detect_partitioned_parallel"):
-                all_detections = detector.detect_partitioned_parallel(
-                    frame=frame,
+
+                self._multi_aq_detector = MultiAquariumDetector(
+                    plugin=detector.plugin,
+                    zone_scaler=detector.zone_scaler,
+                    post_processor=detector.post_processor,
+                    base_width=detector.base_width,
+                    base_height=detector.base_height,
+                    settings_obj=detector.settings,
                 )
-            else:
-                # Fallback to sequential processing
-                log.warning("live_camera_service.no_partitioned_detection_fallback")
-                fallback_detections, _ = detector.detect(frame, "live")
-                return fallback_detections if isinstance(fallback_detections, list) else []
+                # Configure zones from the MultiAquariumZoneData
+                if hasattr(zone_data, "aquariums") and zone_data.aquariums:
+                    h, w = frame.shape[:2]
+                    self._multi_aq_detector.set_multi_aquarium_zones(
+                        zone_data.aquariums,
+                        w,
+                        h,
+                    )
+
+            # Use optimized partitioned detection
+            all_detections = self._multi_aq_detector.detect_partitioned_optimized(
+                frame=frame,
+            )
 
             # Record detections per aquarium if recorder supports it
             if self.recorder and self.recorder.start_time:

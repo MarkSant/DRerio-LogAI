@@ -14,7 +14,9 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import structlog
 
+from zebtrack.core.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detector import Detector, MultiAquariumZoneData, ZoneData
+from zebtrack.core.zone_scaler import ZoneScaler
 from zebtrack.settings import save_settings
 from zebtrack.utils import IntegrityError
 
@@ -174,11 +176,17 @@ class DetectorService:
             # MELHORIA #2: Validar classes esperadas pelo sistema
             self._validate_model_classes(plugin_instance, model_path)
 
-            # Create detector instance
+            # Create detector instance with decomposed helpers (Phase 4.3)
+            base_w = self.settings.camera.desired_width
+            base_h = self.settings.camera.desired_height
+            zone_scaler = ZoneScaler(base_w, base_h)
+            post_processor = DetectionPostProcessor()
             self.detector = Detector(
                 plugin=plugin_instance,
-                base_width=self.settings.camera.desired_width,
-                base_height=self.settings.camera.desired_height,
+                zone_scaler=zone_scaler,
+                post_processor=post_processor,
+                base_width=base_w,
+                base_height=base_h,
                 settings_obj=self.settings,
             )
 

@@ -9,7 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### � Refactored
+### 🔄 Refactored
+
+#### Phase 4.3 — Decompose Detector God Class (February 2026)
+
+- **Decomposed** Detector (2,607 lines, ~55 methods) into 5 focused modules:
+  - `detection_types.py` (~120 lines) — `ZoneData`, `AquariumData`,
+    `MultiAquariumZoneData` data classes
+  - `zone_scaler.py` (~360 lines) — Polygon scaling, point-in-polygon,
+    crop helpers, scaling cache
+  - `detection_post_processor.py` (~480 lines) — Stateless detection
+    validation, tracking config, ByteTrack helpers
+  - `single_detector.py` (~1,035 lines) — Single-aquarium detection,
+    tracking (ByteTrack + SingleSubjectTracker), overlay drawing
+  - `multi_aquarium_detector.py` (~1,070 lines) — Multi-aquarium
+    partitioned/parallel detection with independent per-aquarium trackers
+- **Backward-compatible** via gutted `detector.py` re-export shim:
+  `Detector = SingleDetector` alias; all existing imports unaffected
+- Shared `ZoneScaler` and `DetectionPostProcessor` injected via
+  composition into both `SingleDetector` and `MultiAquariumDetector`
+- Updated `processing_worker.py` to create `MultiAquariumDetector`
+  alongside `SingleDetector` when multi-aquarium zones detected
+- Updated `live_camera_service.py` to lazily create
+  `MultiAquariumDetector` in `_run_multi_aquarium_detection`
+- Updated `detector_service.py` to wire `ZoneScaler` and
+  `DetectionPostProcessor` into constructor
+- Updated test suites: `test_detector.py`, `test_detector_partitioned.py`,
+  `test_processing_worker_unit.py`, `test_parallel_detection_benchmark.py`
+- All 2,400 fast tests passing, 0 regressions
 
 #### Phase 4.2 — Decompose ProjectManager God Class (February 2026)
 

@@ -29,7 +29,10 @@ import cv2
 import numpy as np
 import structlog
 
+from zebtrack.core.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detector import Detector, MultiAquariumZoneData, ZoneData
+from zebtrack.core.multi_aquarium_detector import MultiAquariumDetector
+from zebtrack.core.zone_scaler import ZoneScaler
 from zebtrack.io.recorder import Recorder
 
 # Settings is used at runtime in WorkerConfig
@@ -503,11 +506,18 @@ class _WorkerProcess(multiprocessing.Process):
 
             plugin = UltralyticsDetectorPlugin(model_path=model_path, settings_obj=settings)
 
-        # Initialize Detector
+        # Initialize Detector with decomposed helpers (Phase 4.3)
         width = settings.camera.desired_width
         height = settings.camera.desired_height
+        zone_scaler = ZoneScaler(width, height)
+        post_processor = DetectionPostProcessor()
         detector = Detector(
-            plugin=plugin, base_width=width, base_height=height, settings_obj=settings
+            plugin=plugin,
+            zone_scaler=zone_scaler,
+            post_processor=post_processor,
+            base_width=width,
+            base_height=height,
+            settings_obj=settings,
         )
 
         # CRITICAL: Propagate single_subject_mode from settings
@@ -682,21 +692,38 @@ class _WorkerProcess(multiprocessing.Process):
         detector.base_height = height
 
         # 2. Setup Zones
-        is_multi_aquarium = hasattr(video_zone_data, "aquariums")
+        is_multi_aquarium = isinstance(video_zone_data, MultiAquariumZoneData) and bool(
+            video_zone_data.aquariums
+        )
+        multi_aq_detector: MultiAquariumDetector | None = None
 
-        if isinstance(video_zone_data, MultiAquariumZoneData):
-            # Multi-aquarium mode logic
-            detector.set_zones(video_zone_data, width, height)
-            has_aquarium = bool(video_zone_data.aquariums)
-            detector.set_aquarium_region_defined(has_aquarium)
+        if is_multi_aquarium:
+            assert isinstance(video_zone_data, MultiAquariumZoneData)
+            # Create a MultiAquariumDetector sharing the same plugin/helpers
+            multi_aq_detector = MultiAquariumDetector(
+                plugin=detector.plugin,
+                zone_scaler=detector.zone_scaler,
+                post_processor=detector.post_processor,
+                base_width=width,
+                base_height=height,
+                settings_obj=detector.settings,
+            )
+            multi_aq_detector.set_multi_aquarium_zones(
+                video_zone_data.aquariums,
+                width,
+                height,
+            )
+            has_aquarium = True
+            detector.set_aquarium_region_defined(True)
         elif isinstance(video_zone_data, ZoneData):
             # Single aquarium legacy logic
             detector.set_zones(video_zone_data, width, height)
             # Fix: Ensure detector knows aquarium is defined if we have a polygon
             has_aquarium = bool(video_zone_data.polygon and len(video_zone_data.polygon) >= 3)
             detector.set_aquarium_region_defined(has_aquarium)
+        else:
+            has_aquarium = False
 
-        # DEBUG: Log zone setup results
         # DEBUG: Log zone setup results
         log.info(
             "worker.zones_configured_for_video",
@@ -712,6 +739,7 @@ class _WorkerProcess(multiprocessing.Process):
             if hasattr(detector, "scaled_polygon")
             else "N/A",
             aquarium_region_defined=detector._aquarium_region_defined,
+            is_multi_aquarium=is_multi_aquarium,
         )
 
         # 3. Setup Recorder
@@ -857,7 +885,10 @@ class _WorkerProcess(multiprocessing.Process):
                 calibration=calibration,
             )
 
-        detector.reset_tracking_state()
+        if is_multi_aquarium and multi_aq_detector is not None:
+            multi_aq_detector.reset_multi_aquarium_tracking()
+        else:
+            detector.reset_tracking_state()
 
         # 4. Processing Loop
         frame_num = 0
@@ -886,10 +917,10 @@ class _WorkerProcess(multiprocessing.Process):
                     log.debug("worker.frame.read_success", frame=frame_num, shape=frame.shape)
 
                     # Detect
-                    if is_multi_aquarium:
+                    if is_multi_aquarium and multi_aq_detector is not None:
                         log.debug("worker.detect_multi.start", frame=frame_num)
                         partitioned_detections: dict[int, list[tuple[Any, ...]]] = (
-                            detector.detect_partitioned_optimized(frame)
+                            multi_aq_detector.detect_partitioned_optimized(frame)
                         )
                         log.debug("worker.detect_multi.end", frame=frame_num)
                         for aq_dets in partitioned_detections.values():
@@ -920,7 +951,10 @@ class _WorkerProcess(multiprocessing.Process):
                     if frame_num % self.config.display_interval_frames == 0:
                         # Draw static arena/ROI overlays in worker.
                         # Bounding boxes stay UI-side to support Track ID filtering.
-                        detector.draw_overlay(frame, [])
+                        if is_multi_aquarium and multi_aq_detector is not None:
+                            multi_aq_detector.draw_multi_aquarium_overlay(frame)
+                        else:
+                            detector.draw_overlay(frame, [])
 
                         # Prepare preview frame for UI-side bbox rendering.
                         # Resize for preview if needed
