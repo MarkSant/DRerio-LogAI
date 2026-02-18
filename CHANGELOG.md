@@ -9,7 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 🔄 Refactored
+### � Security & Thread Safety
+
+#### Phase 5 — Security and Thread Safety Hardening (February 2026)
+
+- **Replaced** `pickle` with JSON serialization in `analysis/metrics_cache.py`
+  — eliminates arbitrary code execution risk from cache deserialization; added
+  `_NumpyJSONEncoder` and `_sanitize_for_json()` for NumPy type handling
+- **Added** `threading.Lock` to `io/recorder.py` — protects
+  `detection_data` list from concurrent access in multi-threaded processing;
+  uses snapshot-buffer pattern in `_flush_detection_data()` so I/O happens
+  outside the lock; best-effort recovery re-injects data on flush failure
+- **Implemented** atomic Parquet writes via temp-file + `os.replace()` in
+  `io/recorder.py` — prevents partial/corrupt files on crash; added
+  `_verify_parquet_integrity()` validation after close; JSON backup writes
+  are also atomic
+- **Created** `utils/video_frame_extractor.py` — encapsulates `cv2`
+  frame-reading and image-saving so coordinators no longer import `cv2`
+- **Created** `core/services/trajectory_data_service.py` — encapsulates
+  `pd.read_parquet` so coordinators no longer import `pandas` directly
+- **Created** `analysis/roi_builder.py` — encapsulates
+  `shapely.geometry.Polygon` import for ROI construction
+- **Refactored** `coordinators/report_generation_coordinator.py` — removed
+  top-level `cv2`, `numpy`, `pandas`, and `shapely` imports; all 4
+  `pd.read_parquet` calls replaced with `TrajectoryDataService`; frame
+  operations delegated to `VideoFrameExtractor`; ROI construction via
+  `roi_builder`; math.floor/ceil replaces np.floor/ceil; lazy numpy
+  import only where `Calibration` constructor requires `ndarray`
+- **Refactored** `coordinators/video_processing_coordinator.py` — removed
+  top-level `cv2` import; video dimensions obtained via
+  `VideoMetadataService` with lazy `cv2` fallback
+- **Refactored** `coordinators/_unified_report_mixin.py` — replaced
+  `np.nan` with `float('nan')`; removed `numpy` import
+- **Wired** all new services (`VideoMetadataService`,
+  `TrajectoryDataService`, `VideoFrameExtractor`) into the Composition Root
+  (`__main__.py`)
+- **Added** 23 new tests: 3 recorder (concurrent writes, atomic write,
+  integrity verification), 11 video frame extractor, 6 trajectory data
+  service, 9 ROI builder — total 2,642 fast tests passing
+
+### �🔄 Refactored
 
 #### Phase 4.10 — Sub-packetize `core/` into domain sub-packages (February 2026)
 
