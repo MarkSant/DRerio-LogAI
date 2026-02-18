@@ -7,7 +7,7 @@ creation, loading, configuration management, and asset tracking for zebrafish be
 from __future__ import annotations
 
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -760,6 +760,51 @@ class ProjectManager:
         return self.zone_manager.get_zone_data(
             self.project_data, video_path=video_path, fallback_to_global=fallback_to_global
         )
+
+    # ------------------------------------------------------------------
+    # Convenience arena/ROI accessors (used by ZoneManagementFacade)
+    # ------------------------------------------------------------------
+
+    def set_arena_for_video(
+        self,
+        video_path: str,
+        polygon: Sequence[Sequence[int]] | None,
+    ) -> None:
+        """Set the arena polygon for a specific video."""
+        zone_data = self.get_zone_data(video_path=video_path, fallback_to_global=False)
+        zone_data.polygon = polygon or []
+        self.save_zone_data(zone_data, video_path, persist=True)
+
+    def get_arena_for_video(
+        self,
+        video_path: str,
+    ) -> Sequence[Sequence[int]] | None:
+        """Get the arena polygon for a specific video."""
+        zone_data = self.get_zone_data(video_path=video_path, fallback_to_global=False)
+        return zone_data.polygon if zone_data.polygon else None
+
+    def set_rois_for_video(
+        self,
+        video_path: str,
+        roi_polygons: Sequence[Sequence[Sequence[int]]] | None = None,
+        roi_names: Sequence[str] | None = None,
+        roi_colors: Sequence[tuple[int, int, int]] | None = None,
+    ) -> None:
+        """Set ROIs for a specific video."""
+        zone_data = self.get_zone_data(video_path=video_path, fallback_to_global=False)
+        zone_data.roi_polygons = roi_polygons or []
+        zone_data.roi_names = roi_names or []
+        zone_data.roi_colors = roi_colors or []
+        self.save_zone_data(zone_data, video_path, persist=True)
+
+    def get_rois_for_video(self, video_path: str) -> dict[str, Any]:
+        """Get ROIs for a specific video as a dict."""
+        zone_data = self.get_zone_data(video_path=video_path, fallback_to_global=False)
+        return {
+            "roi_polygons": zone_data.roi_polygons,
+            "roi_names": zone_data.roi_names,
+            "roi_colors": zone_data.roi_colors,
+        }
 
     def get_multi_aquarium_zone_data(
         self,
