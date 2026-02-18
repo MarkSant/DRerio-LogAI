@@ -25,7 +25,7 @@ import structlog
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
-    pass
+    from zebtrack.coordinators._protocols import UnifiedReportHost
 
 log = structlog.get_logger()
 
@@ -33,16 +33,12 @@ log = structlog.get_logger()
 class UnifiedReportMixin:
     """Mixin providing unified report generation.
 
-    Must be composed with a coordinator that provides:
-        - self.project_manager: ProjectManager
-        - self.settings: Settings
-        - self._publish_event(event, data): event publishing
-        - self._is_batch_processing() -> bool
-        - self._enrich_unified_report_metadata(df, meta, entry) -> DataFrame
+    Must be composed with a coordinator that satisfies
+    :class:`~zebtrack.coordinators._protocols.UnifiedReportHost`.
     """
 
     def generate_unified_report(
-        self,
+        self: UnifiedReportHost,
         video_paths: list[str] | None = None,
         *,
         replace_existing: bool = False,
@@ -59,11 +55,9 @@ class UnifiedReportMixin:
             scope=scope,
             replace_existing=replace_existing,
         )
-        self._publish_event(  # type: ignore[attr-defined]
-            Events.UI_SET_STATUS, {"message": "Gerando relatório unificado..."}
-        )
+        self._publish_event(Events.UI_SET_STATUS, {"message": "Gerando relatório unificado..."})
 
-        project_path = self.project_manager.project_path  # type: ignore[attr-defined]
+        project_path = self.project_manager.project_path
         if not project_path:
             return
 
@@ -77,15 +71,13 @@ class UnifiedReportMixin:
         roi_colors_map: dict = {}
 
         for path in video_paths:
-            entry = self.project_manager.find_video_entry(path=path)  # type: ignore[attr-defined]
+            entry = self.project_manager.find_video_entry(path=path)
             if not entry:
                 continue
 
             # Collect ROI colors from zone data
             try:
-                zone_data = self.project_manager.get_zone_data(  # type: ignore[attr-defined]
-                    video_path=path
-                )
+                zone_data = self.project_manager.get_zone_data(video_path=path)
                 if zone_data and zone_data.roi_names and zone_data.roi_colors:
                     for roi_name, color in zip(
                         zone_data.roi_names, zone_data.roi_colors, strict=True
@@ -105,7 +97,7 @@ class UnifiedReportMixin:
 
             if multi_outputs:
                 exp_id = entry.get("experiment_id", os.path.splitext(os.path.basename(path))[0])
-                fresh_meta = self.project_manager.get_metadata_for_experiment(  # type: ignore[attr-defined]
+                fresh_meta = self.project_manager.get_metadata_for_experiment(
                     exp_id, video_path=path
                 )
                 for aq_id, out_info in multi_outputs.items():
@@ -127,7 +119,7 @@ class UnifiedReportMixin:
                     )
             else:
                 exp_id = entry.get("experiment_id", os.path.splitext(os.path.basename(path))[0])
-                fresh_meta = self.project_manager.get_metadata_for_experiment(  # type: ignore[attr-defined]
+                fresh_meta = self.project_manager.get_metadata_for_experiment(
                     exp_id, video_path=path
                 )
                 entries_to_process.append(
@@ -148,9 +140,7 @@ class UnifiedReportMixin:
                     try:
                         df = pd.read_parquet(summary_path)
                         if entry_meta:
-                            df = self._enrich_unified_report_metadata(  # type: ignore[attr-defined]
-                                df, entry_meta, process_entry
-                            )
+                            df = self._enrich_unified_report_metadata(df, entry_meta, process_entry)
                         dfs.append(df)
                     except Exception as e:
                         log.warning(
@@ -160,7 +150,7 @@ class UnifiedReportMixin:
                         )
 
         if not dfs:
-            self._publish_event(  # type: ignore[attr-defined]
+            self._publish_event(
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Dados insuficientes",
@@ -181,17 +171,13 @@ class UnifiedReportMixin:
             )
         except Exception as e:
             log.error("workflow.unified_report.failed", error=str(e), exc_info=True)
-            self._publish_event(  # type: ignore[attr-defined]
+            self._publish_event(
                 Events.UI_SHOW_ERROR,
                 {"title": "Erro no Relatório", "message": f"{e}"},
             )
         finally:
-            self._publish_event(  # type: ignore[attr-defined]
-                Events.UI_SET_STATUS, {"message": "Pronto."}
-            )
-            self._publish_event(  # type: ignore[attr-defined]
-                Events.UI_REFRESH_PROJECT_VIEWS, {}
-            )
+            self._publish_event(Events.UI_SET_STATUS, {"message": "Pronto."})
+            self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {})
 
     # ------------------------------------------------------------------
     # DataFrame alignment
@@ -295,7 +281,7 @@ class UnifiedReportMixin:
     # ------------------------------------------------------------------
 
     def _export_unified_reports(
-        self,
+        self: UnifiedReportHost,
         final_df,
         unified_dir: Path,
         roi_colors_map: dict,
@@ -386,7 +372,7 @@ class UnifiedReportMixin:
             )
 
         if export_failures:
-            self._publish_event(  # type: ignore[attr-defined]
+            self._publish_event(
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Relatório Unificado Parcial",
@@ -415,8 +401,8 @@ class UnifiedReportMixin:
                 message=("DataFrames had different column sets; missing values filled with NA"),
                 columns=all_columns,
             )
-            if not self.settings.ui_features.suppress_roi_mismatch_warning:  # type: ignore[attr-defined]
-                self._publish_event(  # type: ignore[attr-defined]
+            if not self.settings.ui_features.suppress_roi_mismatch_warning:
+                self._publish_event(
                     Events.UI_SHOW_WARNING,
                     {
                         "title": "ROIs Diferentes",
@@ -428,8 +414,8 @@ class UnifiedReportMixin:
                     },
                 )
 
-        if not self._is_batch_processing():  # type: ignore[attr-defined]
-            self._publish_event(  # type: ignore[attr-defined]
+        if not self._is_batch_processing():
+            self._publish_event(
                 Events.UI_SHOW_INFO,
                 {
                     "title": (

@@ -23,6 +23,7 @@ from zebtrack.core.project.project_manager import ProjectManager
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
+    from zebtrack.coordinators._protocols import VideoSelectionHost
     from zebtrack.core.detection import ZoneData
 
 log = structlog.get_logger()
@@ -31,15 +32,8 @@ log = structlog.get_logger()
 class VideoSelectionMixin:
     """Mixin providing video selection, validation, and zone loading.
 
-    Must be composed with a coordinator that provides:
-        - self.project_manager: ProjectManager
-        - self.state_manager: StateManager
-        - self._publish_event(event, data): event publishing
-        - self.view: optional GUI view
-        - self.processing_worker: optional ProcessingWorker
-        - self.processing_thread: optional threading.Thread
-        - self._multi_aquarium_coordinator: optional MAC reference
-        - self.settings: Settings
+    Must be composed with a coordinator that satisfies
+    :class:`~zebtrack.coordinators._protocols.VideoSelectionHost`.
     """
 
     # ------------------------------------------------------------------
@@ -47,13 +41,13 @@ class VideoSelectionMixin:
     # ------------------------------------------------------------------
 
     def select_eligible_videos(
-        self, skip_dialog, ready_traj, ready_zones, arena_only, without_arena
+        self: VideoSelectionHost, skip_dialog, ready_traj, ready_zones, arena_only, without_arena
     ) -> list[dict] | None:
         """Select eligible videos for processing."""
         eligible_videos: list[dict] = []
 
-        if ready_traj and self.view:  # type: ignore[attr-defined]
-            if not self.view.ask_ok_cancel(  # type: ignore[attr-defined]
+        if ready_traj and self.view:
+            if not self.view.ask_ok_cancel(
                 "Resultados Existentes",
                 f"{len(ready_traj)} vídeos já possuem trajetórias processadas.\n"
                 "Deseja reprocessá-los (sobrescrevendo os dados anteriores)?",
@@ -65,7 +59,7 @@ class VideoSelectionMixin:
             eligible_videos.extend(ready_zones)
             eligible_videos.extend(arena_only)
             if not eligible_videos:
-                self._publish_event(  # type: ignore[attr-defined]
+                self._publish_event(
                     Events.UI_SHOW_INFO,
                     {
                         "title": "Processamento",
@@ -74,9 +68,9 @@ class VideoSelectionMixin:
                 )
                 return None
         else:
-            if not self.view:  # type: ignore[attr-defined]
+            if not self.view:
                 return None
-            dialog_result = self.view.show_pending_videos_dialog(  # type: ignore[attr-defined]
+            dialog_result = self.view.show_pending_videos_dialog(
                 ready_with_trajectory=ready_traj,
                 ready_with_zones=ready_zones,
                 arena_only=arena_only,
@@ -89,7 +83,7 @@ class VideoSelectionMixin:
             if dialog_result.get("include_arena_only"):
                 eligible_videos.extend(arena_only)
             if not eligible_videos:
-                self._publish_event(  # type: ignore[attr-defined]
+                self._publish_event(
                     Events.UI_SHOW_INFO,
                     {
                         "title": "Processamento",
@@ -105,32 +99,28 @@ class VideoSelectionMixin:
     # ------------------------------------------------------------------
 
     def validate_can_start_processing(
-        self,
+        self: VideoSelectionHost,
         *,
         check_project_loaded: bool = True,
         check_zones: bool = False,
         check_videos_exist: bool = False,
     ) -> ValidationResult:
         """Validate that processing can start."""
-        processing_state = self.state_manager.get_processing_state()  # type: ignore[attr-defined]
+        processing_state = self.state_manager.get_processing_state()
         if processing_state.is_processing:
-            worker_running = bool(
-                self.processing_worker and self.processing_worker.is_running  # type: ignore[attr-defined]
-            )
-            thread_running = bool(
-                self.processing_thread and self.processing_thread.is_alive()  # type: ignore[attr-defined]
-            )
+            worker_running = bool(self.processing_worker and self.processing_worker.is_running)
+            thread_running = bool(self.processing_thread and self.processing_thread.is_alive())
             live_active = self._is_live_session_currently_active(processing_state)
 
             if not live_active and not worker_running and not thread_running:
-                self.state_manager.update_processing_state(  # type: ignore[attr-defined]
+                self.state_manager.update_processing_state(
                     source="validation.stale_reset",
                     is_processing=False,
                     current_video=None,
                     cancel_requested=False,
                     is_live_session_active=False,
                 )
-                mac = self._multi_aquarium_coordinator  # type: ignore[attr-defined]
+                mac = self._multi_aquarium_coordinator
                 if mac:
                     mac._publish_processing_mode(source="validation.stale_reset", force=True)
             else:
@@ -143,14 +133,14 @@ class VideoSelectionMixin:
                     context={"current_video": processing_state.current_video},
                 )
 
-        if check_project_loaded and not self.project_manager.project_path:  # type: ignore[attr-defined]
+        if check_project_loaded and not self.project_manager.project_path:
             return ValidationResult.failure(
                 error_code="no_project_loaded",
                 error_message="Nenhum projeto carregado",
             )
 
         if check_zones:
-            zone_data = self.project_manager.get_zone_data()  # type: ignore[attr-defined]
+            zone_data = self.project_manager.get_zone_data()
             if not zone_data or not zone_data.polygon:
                 return ValidationResult.failure(
                     error_code="no_main_arena",
@@ -158,7 +148,7 @@ class VideoSelectionMixin:
                 )
 
         if check_videos_exist:
-            all_videos = self.project_manager.get_all_videos() or []  # type: ignore[attr-defined]
+            all_videos = self.project_manager.get_all_videos() or []
             if not all_videos:
                 return ValidationResult.failure(
                     error_code="no_videos_in_project",
@@ -167,14 +157,12 @@ class VideoSelectionMixin:
 
         return ValidationResult.success()
 
-    def _is_live_session_currently_active(self, processing_state: Any) -> bool:
+    def _is_live_session_currently_active(self: VideoSelectionHost, processing_state: Any) -> bool:
         """Check if a live session is truly active."""
         state_flag = bool(getattr(processing_state, "is_live_session_active", False))
         if not state_flag:
             return False
-        controller = (
-            getattr(self.view, "controller", None) if self.view else None  # type: ignore[attr-defined]
-        )
+        controller = getattr(self.view, "controller", None) if self.view else None
         live_cam_coordinator = (
             getattr(controller, "live_camera_session_coordinator", None) if controller else None
         )
@@ -195,17 +183,19 @@ class VideoSelectionMixin:
     # Selection helpers
     # ------------------------------------------------------------------
 
-    def _show_validation_error(self, val) -> None:
+    def _show_validation_error(self: VideoSelectionHost, val) -> None:
         """Show validation error to UI."""
-        self._publish_event(  # type: ignore[attr-defined]
+        self._publish_event(
             Events.UI_SHOW_WARNING,
             {"title": "Validação Falhou", "message": val.error_message},
         )
 
-    def _handle_targeted_selection_errors(self, selection_result, video_paths) -> bool:
+    def _handle_targeted_selection_errors(
+        self: VideoSelectionHost, selection_result, video_paths
+    ) -> bool:
         """Handle UI feedback for targeted selection mode errors."""
         if not video_paths:
-            self._publish_event(  # type: ignore[attr-defined]
+            self._publish_event(
                 Events.UI_SHOW_INFO,
                 {"title": "Processamento", "message": "Nenhum vídeo selecionado."},
             )
@@ -214,7 +204,7 @@ class VideoSelectionMixin:
             sample = [os.path.basename(p) for p in selection_result.missing_targets[:5]]
             if len(selection_result.missing_targets) > 5:
                 sample.append(f"... (+{len(selection_result.missing_targets) - 5})")
-            self._publish_event(  # type: ignore[attr-defined]
+            self._publish_event(
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Vídeos fora do projeto",
@@ -222,7 +212,7 @@ class VideoSelectionMixin:
                 },
             )
         if selection_result.candidate_count == 0:
-            self._publish_event(  # type: ignore[attr-defined]
+            self._publish_event(
                 Events.UI_SHOW_INFO,
                 {
                     "title": "Processamento",
@@ -232,17 +222,19 @@ class VideoSelectionMixin:
             return False
         return True
 
-    def _handle_pending_selection_errors(self, selection_result) -> bool:
+    def _handle_pending_selection_errors(self: VideoSelectionHost, selection_result) -> bool:
         """Handle UI feedback for pending selection mode errors."""
         if selection_result.candidate_count == 0:
-            self._publish_event(  # type: ignore[attr-defined]
+            self._publish_event(
                 Events.UI_SHOW_INFO,
                 {"title": "Processamento", "message": "Nenhum vídeo pendente para processar."},
             )
             return False
         return True
 
-    def _extract_and_validate_candidate_paths(self, candidate_entries) -> list[str] | None:
+    def _extract_and_validate_candidate_paths(
+        self: VideoSelectionHost, candidate_entries
+    ) -> list[str] | None:
         """Extract and validate video paths from candidate entries."""
         candidate_paths = [
             v.get("path")
@@ -250,7 +242,7 @@ class VideoSelectionMixin:
             if isinstance(v.get("path"), str) and v.get("path")
         ]
         if not candidate_paths:
-            self._publish_event(  # type: ignore[attr-defined]
+            self._publish_event(
                 Events.UI_SHOW_ERROR,
                 {
                     "title": "Erro",
@@ -260,13 +252,13 @@ class VideoSelectionMixin:
             return None
         return candidate_paths
 
-    def _handle_missing_files_warning(self, scan_result) -> None:
+    def _handle_missing_files_warning(self: VideoSelectionHost, scan_result) -> None:
         """Show warning UI if scanned files are missing."""
         if scan_result.has_missing:
             sample = [os.path.basename(p) for p in scan_result.missing_files[:5]]
             if len(scan_result.missing_files) > 5:
                 sample.append(f"... (+{len(scan_result.missing_files) - 5})")
-            self._publish_event(  # type: ignore[attr-defined]
+            self._publish_event(
                 Events.UI_SHOW_WARNING,
                 {
                     "title": "Vídeos Não Encontrados",
@@ -278,7 +270,7 @@ class VideoSelectionMixin:
     # Zone loading
     # ------------------------------------------------------------------
 
-    def _load_zones_for_eligible_videos(self, eligible_videos: list) -> None:
+    def _load_zones_for_eligible_videos(self: VideoSelectionHost, eligible_videos: list) -> None:
         """Load zone data from parquet files for eligible videos."""
         zones_updated = False
         from zebtrack.core.project.zone_manager import ZoneManager
@@ -287,16 +279,14 @@ class VideoSelectionMixin:
             video_path = video_info.get("path", "")
             experiment_id = os.path.splitext(os.path.basename(video_path))[0] if video_path else ""
             metadata = video_info.get("metadata", {})
-            results_path = self.project_manager.resolve_results_directory(  # type: ignore[attr-defined]
+            results_path = self.project_manager.resolve_results_directory(
                 experiment_id=experiment_id,
                 video_path=video_path,
                 metadata=metadata,
             )
             video_info["results_dir"] = str(results_path)
 
-            multi_data = self.project_manager.get_multi_aquarium_zone_data(  # type: ignore[attr-defined]
-                video_path
-            )
+            multi_data = self.project_manager.get_multi_aquarium_zone_data(video_path)
             if multi_data:
                 video_info["zone_data"] = ZoneManager.multi_aquarium_zone_data_to_dict(multi_data)
                 continue
@@ -308,12 +298,10 @@ class VideoSelectionMixin:
                     zone_data = None
 
                 if not zone_data or not zone_data.polygon:
-                    zone_data = self.project_manager.get_zone_data(  # type: ignore[attr-defined]
-                        video_path=video_path
-                    )
+                    zone_data = self.project_manager.get_zone_data(video_path=video_path)
 
                 if zone_data and (zone_data.polygon or zone_data.roi_polygons):
-                    self.project_manager.save_zone_data(  # type: ignore[attr-defined]
+                    self.project_manager.save_zone_data(
                         zone_data, video_info["path"], persist=False
                     )
                     zones_updated = True
@@ -324,17 +312,17 @@ class VideoSelectionMixin:
                         "roi_colors": zone_data.roi_colors,
                     }
 
-        if zones_updated and self.project_manager.project_path:  # type: ignore[attr-defined]
-            self.project_manager.save_project()  # type: ignore[attr-defined]
+        if zones_updated and self.project_manager.project_path:
+            self.project_manager.save_project()
 
     # ------------------------------------------------------------------
     # Settings snapshot
     # ------------------------------------------------------------------
 
-    def _create_project_settings_snapshot(self) -> Any:
+    def _create_project_settings_snapshot(self: VideoSelectionHost) -> Any:
         """Create a Settings object with project-specific overrides applied."""
-        snapshot = self.settings.model_copy(deep=True)  # type: ignore[attr-defined]
-        project_data = self.project_manager.project_data or {}  # type: ignore[attr-defined]
+        snapshot = self.settings.model_copy(deep=True)
+        project_data = self.project_manager.project_data or {}
 
         if "analysis_offset_frames" in project_data:
             snapshot.video_processing.processing_offset = project_data["analysis_offset_frames"]
