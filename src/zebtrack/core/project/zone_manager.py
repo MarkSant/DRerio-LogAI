@@ -20,7 +20,7 @@ from typing import cast
 
 import structlog
 
-from zebtrack.core.detector import AquariumData, MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection import AquariumData, MultiAquariumZoneData, ZoneData
 
 log = structlog.get_logger()
 
@@ -48,7 +48,7 @@ class ZoneManager:
     @staticmethod
     def normalize_video_path(path: Path | str | None) -> str | None:
         """Normalize a video path for consistent comparison."""
-        from zebtrack.core.video_manager import VideoManager
+        from zebtrack.core.project.video_manager import VideoManager
 
         return VideoManager.normalize_path(path)
 
@@ -202,7 +202,7 @@ class ZoneManager:
         has_arena = False
         has_rois = False
 
-        from zebtrack.core.detector import MultiAquariumZoneData
+        from zebtrack.core.detection import MultiAquariumZoneData
 
         if isinstance(zone_data, MultiAquariumZoneData):
             for aq in zone_data.aquariums:
@@ -452,7 +452,7 @@ class ZoneManager:
         if hasattr(zone_data, "aquariums"):
             # Multi-Aquarium Data
             # Cast for type checker since we just checked hasattr
-            from zebtrack.core.detector import MultiAquariumZoneData
+            from zebtrack.core.detection import MultiAquariumZoneData
 
             mq_data = cast(MultiAquariumZoneData, zone_data)
             # Store in dedicated multi-aquarium section if applicable

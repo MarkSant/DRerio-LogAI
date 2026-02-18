@@ -23,9 +23,9 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 if TYPE_CHECKING:
-    from zebtrack.core.detector_service import DetectorService
-    from zebtrack.core.project_manager import ProjectManager
-    from zebtrack.core.project_workflow_service import ProjectWorkflowService
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
+    from zebtrack.core.services.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.ui.event_bus import EventBus
 
@@ -91,7 +91,7 @@ class ProjectWorkflowAdapter:
 
         # Reset project manager (pass StateManager reference and settings)
         # Note: This creates a new ProjectManager instance
-        from zebtrack.core.project_manager import ProjectManager
+        from zebtrack.core.project.project_manager import ProjectManager
 
         new_project_manager = ProjectManager(
             state_manager=self.state_manager, settings_obj=settings_obj

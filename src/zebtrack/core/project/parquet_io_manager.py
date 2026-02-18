@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.core.exceptions import ProjectInvalidError
 
 if TYPE_CHECKING:

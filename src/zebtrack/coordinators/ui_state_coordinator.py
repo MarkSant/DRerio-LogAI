@@ -12,18 +12,18 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
-from zebtrack.core.weight_manager import OpenVINOExportError
+from zebtrack.core.services.weight_manager import OpenVINOExportError
+from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
-    from zebtrack.core.detector_service import DetectorService
-    from zebtrack.core.model_service import ModelService
-    from zebtrack.core.project_manager import ProjectManager
-    from zebtrack.core.project_workflow_service import ProjectWorkflowService
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
+    from zebtrack.core.services.detector_service import DetectorService
+    from zebtrack.core.services.model_service import ModelService
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
-    from zebtrack.core.weight_manager import WeightManager
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus
 

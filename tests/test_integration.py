@@ -9,7 +9,7 @@ import pytest
 # Import the actual classes we want to integrate
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.reporters import ExcelReporter, ReporterContext
-from zebtrack.core.detector import Detector, ZoneData
+from zebtrack.core.detection import Detector, ZoneData
 from zebtrack.io.recorder import Recorder
 from zebtrack.plugins.base import DetectorPlugin
 

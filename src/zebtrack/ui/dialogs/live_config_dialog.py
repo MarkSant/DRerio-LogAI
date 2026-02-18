@@ -119,7 +119,7 @@ class LiveConfigDialog(simpledialog.Dialog):
 
     def _refresh_cameras(self):
         """Refresh camera list on user request."""
-        from zebtrack.core.wizard_service import WizardService
+        from zebtrack.core.services.wizard_service import WizardService
 
         # Clear cache and re-detect
         self.available_cameras.clear()
@@ -148,7 +148,7 @@ class LiveConfigDialog(simpledialog.Dialog):
     def _detect_devices(self):
         """Detect available cameras and serial ports."""
         # Import here to access WizardService camera detection
-        from zebtrack.core.wizard_service import WizardService
+        from zebtrack.core.services.wizard_service import WizardService
 
         # Use WizardService to detect cameras (includes real names)
         log.info("device_detection.camera.start")

@@ -34,9 +34,9 @@ from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
     from zebtrack.coordinators.live_calibration_coordinator import LiveCalibrationCoordinator
-    from zebtrack.core.live_camera_service import LiveCameraService
-    from zebtrack.core.project_manager import ProjectManager
-    from zebtrack.core.recording_service import RecordingService
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.recording.live_camera_service import LiveCameraService
+    from zebtrack.core.recording.recording_service import RecordingService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.io.arduino_manager import ArduinoManager
     from zebtrack.settings import Settings

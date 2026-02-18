@@ -3,7 +3,7 @@
 from typing import Any, cast
 from unittest.mock import Mock
 
-from zebtrack.core.live_camera_mode import LiveCameraMode
+from zebtrack.core.recording.live_camera_mode import LiveCameraMode
 from zebtrack.ui.dialogs.live_camera_mode_selection_dialog import (
     LiveCameraModeSelectionDialog,
 )

@@ -18,7 +18,7 @@ import structlog
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
+    from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
 
 log = structlog.get_logger()
 
@@ -316,8 +316,8 @@ class ZoneOrchestrationManager:
             get_active_zone_video_fn: Returns the currently active zone video.
             save_project_fn: Optional persistence callback.
         """
-        from zebtrack.core.detector import ZoneData
-        from zebtrack.core.zone_manager import ZoneManager
+        from zebtrack.core.detection import ZoneData
+        from zebtrack.core.project.zone_manager import ZoneManager
 
         ZoneManager.ensure_zone_structures(project_data)
 

@@ -5,7 +5,7 @@ Uso:
     poetry run python scripts/cleanup_templates.py
 """
 
-from zebtrack.core.roi_template_manager import ROITemplateManager
+from zebtrack.core.project.roi_template_manager import ROITemplateManager
 
 
 def main():

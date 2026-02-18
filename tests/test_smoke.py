@@ -15,7 +15,9 @@ pytestmark = pytest.mark.smoke
 def test_imports_work():
     """Verifica que imports principais funcionam."""
     from zebtrack import settings  # noqa: F401
-    from zebtrack.core import detector_service, project_manager, state_manager  # noqa: F401
+    from zebtrack.core import state_manager  # noqa: F401
+    from zebtrack.core.project import project_manager  # noqa: F401
+    from zebtrack.core.services import detector_service  # noqa: F401
     from zebtrack.ui import gui  # noqa: F401
 
 
@@ -42,7 +44,7 @@ def test_state_manager_basic():
 
 def test_project_manager_create():
     """Verifica que ProjectManager pode ser importado."""
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
 
     # ProjectManager existe
     assert ProjectManager is not None
@@ -52,7 +54,7 @@ def test_detector_service_init():
     """Verifica inicialização do DetectorService."""
     # DetectorService requer muitos parâmetros injetados
     # Apenas verifica que a classe existe e pode ser importada
-    from zebtrack.core.detector_service import DetectorService
+    from zebtrack.core.services.detector_service import DetectorService
 
     assert DetectorService is not None
 
@@ -100,8 +102,8 @@ def test_ui_components_exist():
 @pytest.mark.parametrize(
     "module_path",
     [
-        "zebtrack.core.processing_worker",
-        "zebtrack.core.project_workflow_service",
+        "zebtrack.core.video.processing_worker",
+        "zebtrack.core.project.project_workflow_service",
         "zebtrack.analysis.analysis_service",
         "zebtrack.utils.hardware_detection",
     ],

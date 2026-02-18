@@ -8,7 +8,7 @@ import tkinter as tk
 
 import structlog
 
-from zebtrack.core.processing_mode import ProcessingMode
+from zebtrack.core.video.processing_mode import ProcessingMode
 
 log = structlog.get_logger()
 
@@ -449,7 +449,7 @@ class StateSynchronizer:
         tracks: list[str] | None,
     ) -> None:
         """Display aggregated social proximity statistics for the active video."""
-        from zebtrack.core.processing_mode import ProcessingMode
+        from zebtrack.core.video.processing_mode import ProcessingMode
 
         if stats and isinstance(stats, dict):
             percentages = stats.get("social_time_percentage") or {}

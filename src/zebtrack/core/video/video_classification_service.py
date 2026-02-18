@@ -138,7 +138,7 @@ class VideoClassificationService:
                 continue
 
             # Get video info from lookup
-            from zebtrack.core.video_manager import VideoManager
+            from zebtrack.core.project.video_manager import VideoManager
 
             norm_path = VideoManager.normalize_path(path)
 

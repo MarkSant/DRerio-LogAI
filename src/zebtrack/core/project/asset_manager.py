@@ -25,9 +25,9 @@ from typing import Any, ClassVar, Literal, cast
 
 import structlog
 
-from zebtrack.core.detector import ZoneData
-from zebtrack.core.roi_template_manager import ROITemplateManager
-from zebtrack.core.types import AssetType
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.project.roi_template_manager import ROITemplateManager
+from zebtrack.core.project.types import AssetType
 
 log = structlog.get_logger()
 

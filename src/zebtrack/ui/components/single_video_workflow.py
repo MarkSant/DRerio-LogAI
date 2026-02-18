@@ -201,7 +201,7 @@ class SingleVideoWorkflow:
         zone_data = gui._get_zone_data_for_active_context()
 
         # Validation for Single vs Multi Aquarium
-        from zebtrack.core.detector import MultiAquariumZoneData
+        from zebtrack.core.detection import MultiAquariumZoneData
 
         if isinstance(zone_data, MultiAquariumZoneData):
             if not zone_data.aquariums:

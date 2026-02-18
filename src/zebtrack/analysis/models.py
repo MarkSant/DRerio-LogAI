@@ -16,7 +16,7 @@ import pandas as pd
 if TYPE_CHECKING:
     from zebtrack.analysis.behavior import ConcreteBehavioralAnalyzer
     from zebtrack.analysis.roi import ROI, ROIAnalyzer
-    from zebtrack.core.calibration import Calibration
+    from zebtrack.core.detection.calibration import Calibration
 
 
 @dataclass

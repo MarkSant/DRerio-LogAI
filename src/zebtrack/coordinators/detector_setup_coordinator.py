@@ -19,14 +19,14 @@ from zebtrack.coordinators.base_coordinator import (
     BaseCoordinator,
     CoordinatorValidationError,
 )
-from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
 from zebtrack.core.state_manager import StateCategory
 
 if TYPE_CHECKING:
-    from zebtrack.core.detector_service import DetectorService
-    from zebtrack.core.model_service import ModelService
+    from zebtrack.core.services.detector_service import DetectorService
+    from zebtrack.core.services.model_service import ModelService
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
-    from zebtrack.core.weight_manager import WeightManager
     from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()

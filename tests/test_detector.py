@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from zebtrack.core.detector import Detector, ZoneData
+from zebtrack.core.detection import Detector, ZoneData
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.tracker.basetrack import BaseTrack
 
@@ -409,7 +409,7 @@ class TestDetector(unittest.TestCase):
         zones = ZoneData(polygon=[[0, 0], [1, 1]])
         self.detector.set_zones(zones, 640, 480)
 
-        with patch("zebtrack.core.single_detector.log.warning") as mock_log:
+        with patch("zebtrack.core.detection.single_detector.log.warning") as mock_log:
             self.detector.detect(dummy_frame, "live")
             mock_log.assert_called_once_with(
                 "single_detector.dimension_mismatch",
@@ -669,7 +669,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
 
     def test_ensure_track_tuple_with_5_elements(self):
         """Test ensure_track_tuple handles 5-element tuples (no track_id, no class_id)."""
-        from zebtrack.core.detection_post_processor import DetectionPostProcessor
+        from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 
         detection_5 = (100, 150, 200, 250, 0.95)
         result = DetectionPostProcessor.ensure_track_tuple(detection_5)
@@ -681,7 +681,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
 
     def test_ensure_track_tuple_with_6_elements(self):
         """Test ensure_track_tuple handles 6-element tuples (with track_id, no class_id)."""
-        from zebtrack.core.detection_post_processor import DetectionPostProcessor
+        from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 
         detection_6 = (100, 150, 200, 250, 0.92, 42)
         result = DetectionPostProcessor.ensure_track_tuple(detection_6)
@@ -692,7 +692,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
 
     def test_get_track_threshold_from_plugin(self):
         """Test get_track_threshold retrieves from plugin if available."""
-        from zebtrack.core.detection_post_processor import DetectionPostProcessor
+        from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 
         self.mock_plugin.track_threshold = 0.35
         threshold = DetectionPostProcessor.get_track_threshold(None, self.mock_plugin)
@@ -700,7 +700,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
 
     def test_get_match_threshold_from_plugin(self):
         """Test get_match_threshold retrieves from plugin if available."""
-        from zebtrack.core.detection_post_processor import DetectionPostProcessor
+        from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 
         self.mock_plugin.match_threshold = 0.20
         threshold = DetectionPostProcessor.get_match_threshold(None, self.mock_plugin)
@@ -708,7 +708,7 @@ class TestDetectorZoneLogic(unittest.TestCase):
 
     def test_get_track_buffer_from_plugin(self):
         """Test get_track_buffer retrieves from plugin if available."""
-        from zebtrack.core.detection_post_processor import DetectionPostProcessor
+        from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 
         self.mock_plugin.track_buffer = 45
         buffer = DetectionPostProcessor.get_track_buffer(None, self.mock_plugin)

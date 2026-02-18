@@ -44,8 +44,8 @@ import structlog
 from shapely.geometry import Polygon
 
 if TYPE_CHECKING:
-    from zebtrack.core.detector import Detector
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.detection import Detector
+    from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.io.recorder import Recorder
     from zebtrack.settings import Settings
@@ -59,8 +59,8 @@ from zebtrack.analysis.reporters import (
     WordReporter,
 )
 from zebtrack.analysis.roi import ROI, ROIAnalyzer
-from zebtrack.core.calibration import Calibration
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.detection.calibration import Calibration
 from zebtrack.ui.events import Events
 
 log = structlog.get_logger()
@@ -778,7 +778,7 @@ class VideoProcessingService:
 
         # Prepare Worker Config
         # Prepare Worker Context and Callbacks
-        from zebtrack.core.processing_worker import (
+        from zebtrack.core.video.processing_worker import (
             ProcessingCallbacks,
             ProcessingContext,
             ProcessingWorker,

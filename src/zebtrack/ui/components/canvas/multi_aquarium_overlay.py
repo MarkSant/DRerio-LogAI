@@ -17,7 +17,7 @@ import numpy as np
 import structlog
 
 if TYPE_CHECKING:
-    from zebtrack.core.detector import MultiAquariumZoneData
+    from zebtrack.core.detection import MultiAquariumZoneData
     from zebtrack.ui.components.canvas_manager import CanvasManager
 
 log = structlog.get_logger()
@@ -70,7 +70,7 @@ class MultiAquariumOverlayManager:
         log.info("canvas_manager.multi_success.called", count=len(polygons))
 
         # 1. Create MultiAquariumZoneData - PRESERVE EXISTING METADATA
-        from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+        from zebtrack.core.detection import AquariumData, MultiAquariumZoneData
 
         pm = self.gui.controller.project_manager
 
@@ -187,7 +187,7 @@ class MultiAquariumOverlayManager:
 
     def _convert_to_multi_aquarium_format(self) -> None:
         """Convert current zone data to multi-aquarium format."""
-        from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+        from zebtrack.core.detection import AquariumData, MultiAquariumZoneData
 
         video_path = self.gui.controller.project_manager.get_active_zone_video()
         if not video_path:
@@ -254,7 +254,7 @@ class MultiAquariumOverlayManager:
             return None
 
         # Try to get from multi-aquarium data structure
-        from zebtrack.core.zone_manager import ZoneManager
+        from zebtrack.core.project.zone_manager import ZoneManager
 
         zone_manager = ZoneManager()
         multi_data = zone_manager.get_multi_aquarium_zone_data(project_data, video_path)
@@ -320,7 +320,7 @@ class MultiAquariumOverlayManager:
             ...     detections_by_aquarium={0: [...], 1: [...]},
             ... )
         """
-        from zebtrack.core.detector import MultiAquariumZoneData
+        from zebtrack.core.detection import MultiAquariumZoneData
 
         if not isinstance(zone_data, MultiAquariumZoneData):
             log.warning(

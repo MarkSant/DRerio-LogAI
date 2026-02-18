@@ -26,7 +26,7 @@ from zebtrack.analysis.trajectory_validator import TrajectoryQualityValidator
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
-    from zebtrack.core.detector import AquariumData
+    from zebtrack.core.detection import AquariumData
     from zebtrack.settings import Settings
 
 log = structlog.get_logger()

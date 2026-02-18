@@ -31,14 +31,14 @@ from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
 # Phase 4.7: Removed LiveCameraCoordinator and RecordingCoordinator (dead legacy code)
 # Phase 3A/3B/3C/3D: Removed imports for superseded orchestrators
 from zebtrack.coordinators.ui_state_coordinator import UIStateController
-from zebtrack.core.batch_configuration_service import BatchConfigurationService
 from zebtrack.core.dependency_container import MainViewModelDependencies
 from zebtrack.core.orchestrator_registry import OrchestratorRegistry
-from zebtrack.core.project_service import ProjectService
+from zebtrack.core.project.project_service import ProjectService
 from zebtrack.core.thread_coordinator import ThreadCoordinator
-from zebtrack.core.video_classification_service import VideoClassificationService
-from zebtrack.core.video_selection_service import VideoSelectionService
-from zebtrack.core.video_validation_service import VideoValidationService
+from zebtrack.core.video.batch_configuration_service import BatchConfigurationService
+from zebtrack.core.video.video_classification_service import VideoClassificationService
+from zebtrack.core.video.video_selection_service import VideoSelectionService
+from zebtrack.core.video.video_validation_service import VideoValidationService
 from zebtrack.io.arduino_manager import ArduinoManager
 from zebtrack.io.recorder import Recorder
 from zebtrack.ui.components.event_dispatcher import EventDispatcher

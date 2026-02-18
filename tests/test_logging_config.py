@@ -36,7 +36,7 @@ def test_configure_logging_levels_from_settings(mock_config_file):
         "reproducibility": {"seed": 42},
         "logging": {
             "levels": {
-                "zebtrack.core.detector": "DEBUG",
+                "zebtrack.core.detection": "DEBUG",
                 "zebtrack.ui": "WARNING",
                 "zebtrack.io": "ERROR",
             }
@@ -48,7 +48,7 @@ def test_configure_logging_levels_from_settings(mock_config_file):
     # DI architecture: pass settings_obj directly to configure_logging_levels
     configure_logging_levels(settings_obj)
 
-    assert logging.getLogger("zebtrack.core.detector").level == logging.DEBUG
+    assert logging.getLogger("zebtrack.core.detection").level == logging.DEBUG
     assert logging.getLogger("zebtrack.ui").level == logging.WARNING
     assert logging.getLogger("zebtrack.io").level == logging.ERROR
     assert logging.getLogger("zebtrack.analysis").level in (
@@ -69,7 +69,7 @@ def test_validate_invalid_log_level(mock_config_file):
         },
         "video_processing": {"fps": 30, "processing_interval": 1, "processing_offset": 0},
         "reproducibility": {"seed": 42},
-        "logging": {"levels": {"zebtrack.core.detector": "INVALID_LEVEL"}},
+        "logging": {"levels": {"zebtrack.core.detection": "INVALID_LEVEL"}},
     }
     config_path = mock_config_file(config_data)
 

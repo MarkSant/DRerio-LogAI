@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from zebtrack.core.video_processing_service import VideoContext, VideoProcessingService
+from zebtrack.core.video.video_processing_service import VideoContext, VideoProcessingService
 from zebtrack.ui.events import Events
 
 
@@ -141,7 +141,10 @@ def test_ensure_arena_polygon_from_video_path(monkeypatch):
     cap.isOpened.return_value = True
     cap.get.side_effect = [640, 480]
 
-    monkeypatch.setattr("zebtrack.core.video_processing_service.cv2.VideoCapture", lambda _: cap)
+    monkeypatch.setattr(
+        "zebtrack.core.video.video_processing_service.cv2.VideoCapture",
+        lambda _: cap,
+    )
 
     polygon = service.ensure_arena_polygon(None, video_path="video.mp4")
 
@@ -295,7 +298,7 @@ def test_prepare_results_directory_archives_existing(tmp_path):
     results_dir.mkdir()
     (results_dir / "old.txt").write_text("old")
 
-    with patch("zebtrack.core.video_processing_service.datetime") as dt_mock:
+    with patch("zebtrack.core.video.video_processing_service.datetime") as dt_mock:
         dt_mock.now.return_value.strftime.return_value = "20240101-120000"
         service._prepare_results_directory(str(results_dir))
 

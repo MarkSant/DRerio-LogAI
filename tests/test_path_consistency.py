@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from zebtrack.core.project_service import ProjectService
+from zebtrack.core.project.project_service import ProjectService
 
 
 class TestProjectServicePathConsistency:

@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from zebtrack.core.zone_management_facade import ZoneManagementFacade
+from zebtrack.core.services.zone_management_facade import ZoneManagementFacade
 
 
 @pytest.fixture

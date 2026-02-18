@@ -18,18 +18,18 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
-from zebtrack.core.processing_mode import ProcessingMode
+from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
     from threading import Event
 
     from zebtrack.coordinators.ui_state_coordinator import UIStateController
-    from zebtrack.core.detector_service import DetectorService
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.services.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
-    from zebtrack.core.video_classification_service import VideoClassificationService
+    from zebtrack.core.video.video_classification_service import VideoClassificationService
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus
 
@@ -114,7 +114,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
 
     def _apply_processing_mode_to_video(self, video_path: str, *, sequential: bool) -> None:
         """Apply sequential/parallel mode to a specific video's multi-aquarium data."""
-        from zebtrack.core.zone_manager import ZoneManager
+        from zebtrack.core.project.zone_manager import ZoneManager
 
         multi_data = self.project_manager.get_multi_aquarium_zone_data(video_path)
         if multi_data:
@@ -184,7 +184,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
                 log.error("processing_coordinator.aquarium_detection.frame_read_failed")
                 return None
 
-            from zebtrack.core.aquarium_detector import AquariumDetector
+            from zebtrack.core.detection.aquarium_detector import AquariumDetector
 
             detector = AquariumDetector()
 
@@ -345,7 +345,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
                         break
 
             # Save updated multi-aquarium data
-            from zebtrack.core.zone_manager import ZoneManager
+            from zebtrack.core.project.zone_manager import ZoneManager
 
             serialized = ZoneManager.multi_aquarium_zone_data_to_dict(multi_data)
             entry["multi_aquarium_zone_data"] = serialized
@@ -481,7 +481,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
 
         zone_data = self.project_manager.get_zone_data()
         if zone_data is None:
-            from zebtrack.core.detector import ZoneData
+            from zebtrack.core.detection import ZoneData
 
             zone_data = ZoneData(polygon=list(points))
         else:
@@ -506,7 +506,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
 
         zone_data = self.project_manager.get_zone_data()
         if zone_data is None:
-            from zebtrack.core.detector import ZoneData
+            from zebtrack.core.detection import ZoneData
 
             zone_data = ZoneData(polygon=polygon_list)
         else:

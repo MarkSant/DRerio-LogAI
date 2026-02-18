@@ -13,7 +13,7 @@ from zebtrack.coordinators.detector_setup_coordinator import (
     DetectorSetupCoordinator,
     DetectorSetupCoordinatorError,
 )
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.core.state_manager import StateCategory, StateManager
 
 # =============================================================================

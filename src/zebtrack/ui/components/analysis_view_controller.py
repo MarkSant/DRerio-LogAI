@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
+from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
 
 if TYPE_CHECKING:
     from tkinter import StringVar, ttk

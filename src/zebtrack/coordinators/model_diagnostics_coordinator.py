@@ -32,8 +32,8 @@ except ImportError:
 if TYPE_CHECKING:
     from threading import Event
 
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
-    from zebtrack.core.weight_manager import WeightManager
     from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()

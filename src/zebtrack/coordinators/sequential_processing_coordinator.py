@@ -21,8 +21,8 @@ from zebtrack.ui.events import Events
 if TYPE_CHECKING:
     from threading import Event
 
-    from zebtrack.core.detector_service import DetectorService
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.services.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.io.recorder_factory import RecorderFactory
@@ -170,8 +170,8 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         Converts aquarium data to standard ZoneData and runs the standard
         single-video processing pipeline.
         """
-        from zebtrack.core.detector import ZoneData
-        from zebtrack.core.processing_worker import (
+        from zebtrack.core.detection import ZoneData
+        from zebtrack.core.video.processing_worker import (
             ProcessingCallbacks,
             ProcessingContext,
             ProcessingWorker,

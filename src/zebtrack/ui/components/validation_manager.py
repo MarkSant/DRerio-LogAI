@@ -16,7 +16,7 @@ import structlog
 import yaml
 from pydantic import ValidationError
 
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.settings import Settings
 
 log = structlog.get_logger()

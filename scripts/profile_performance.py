@@ -290,8 +290,8 @@ class PerformanceProfiler:
         print("=" * 80 + "\n")
 
         try:
-            from zebtrack.core.detector import Detector
-            from zebtrack.core.weight_manager import WeightManager
+            from zebtrack.core.detection import Detector
+            from zebtrack.core.services.weight_manager import WeightManager
             from zebtrack.plugins import DETECTOR_PLUGINS
             from zebtrack.settings import load_settings
 

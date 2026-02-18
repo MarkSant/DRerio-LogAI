@@ -15,10 +15,10 @@ import structlog
 # Legacy imports kept for type hinting in signatures
 from zebtrack.core.application_bootstrapper import BootstrapResult
 from zebtrack.core.dependency_container import MainViewModelDependencies
-from zebtrack.core.detector import Detector, ZoneData
-from zebtrack.core.processing_mode import ProcessingMode
-from zebtrack.core.recording_service import RecordingService
+from zebtrack.core.detection import Detector, ZoneData
+from zebtrack.core.recording.recording_service import RecordingService
 from zebtrack.core.state_manager import StateCategory
+from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.core.viewmodels.analysis_control_view_model import AnalysisControlViewModel
 from zebtrack.core.viewmodels.hardware_status_view_model import HardwareStatusViewModel
 

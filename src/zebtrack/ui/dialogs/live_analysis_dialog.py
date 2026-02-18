@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus
 
-from zebtrack.core.wizard_service import WizardService
+from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.wizard.tooltip import ToolTip, create_help_label
 

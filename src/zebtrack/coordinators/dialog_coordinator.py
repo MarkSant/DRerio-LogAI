@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from zebtrack.core.video_metadata_service import VideoMetadataService
+from zebtrack.core.video.video_metadata_service import VideoMetadataService
 
 if TYPE_CHECKING:
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.ui.event_bus import EventBus

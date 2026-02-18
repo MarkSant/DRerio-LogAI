@@ -28,7 +28,7 @@ try:
 except ImportError:
     ULTRALYTICS_AVAILABLE = False
 
-from zebtrack.core.aquarium_detector import AquariumDetector
+from zebtrack.core.detection.aquarium_detector import AquariumDetector
 
 # ============================================================================
 # FIXTURES
@@ -96,7 +96,7 @@ class TestAquariumDetectorInit:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_yolo.return_value = MagicMock()
 
             detector = AquariumDetector(model_path, mode="seg")
@@ -111,7 +111,7 @@ class TestAquariumDetectorInit:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_yolo.return_value = MagicMock()
 
             detector = AquariumDetector(model_path, mode="det")
@@ -124,7 +124,7 @@ class TestAquariumDetectorInit:
         """Teste de error handling quando arquivo de modelo não existe."""
         model_path = tmp_path / "nonexistent_model.pt"
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_yolo.side_effect = FileNotFoundError("Model file not found")
 
             with pytest.raises(FileNotFoundError):
@@ -136,7 +136,7 @@ class TestAquariumDetectorInit:
         model_path = tmp_path / "corrupted_model.pt"
         model_path.write_bytes(b"corrupted data")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_yolo.side_effect = RuntimeError("Failed to load model")
 
             with pytest.raises(RuntimeError):
@@ -148,7 +148,7 @@ class TestAquariumDetectorInit:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO"):
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO"):
             with pytest.raises(ValueError, match="Invalid mode 'invalid'"):
                 AquariumDetector(model_path, mode="invalid")
 
@@ -157,7 +157,7 @@ class TestAquariumDetectorInit:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.ULTRALYTICS_AVAILABLE", False):
+        with patch("zebtrack.core.detection.aquarium_detector.ULTRALYTICS_AVAILABLE", False):
             with pytest.raises(ImportError, match="Ultralytics is not available"):
                 AquariumDetector(model_path)
 
@@ -167,7 +167,7 @@ class TestAquariumDetectorInit:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_yolo.return_value = MagicMock()
 
             # Passar como string em vez de Path
@@ -191,7 +191,7 @@ class TestAquariumDetectorIoU:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_yolo.return_value = MagicMock()
             return AquariumDetector(model_path)
 
@@ -300,7 +300,7 @@ class TestAquariumDetectorExtraction:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_yolo.return_value = MagicMock()
             return AquariumDetector(model_path, mode="det")
 
@@ -469,7 +469,7 @@ class TestAquariumDetectorDetection:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_model = MagicMock()
 
             # Mock de resultado de segmentação
@@ -499,7 +499,7 @@ class TestAquariumDetectorDetection:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_model = MagicMock()
 
             # Mock de resultado de detecção (bbox)
@@ -526,7 +526,7 @@ class TestAquariumDetectorDetection:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_model = MagicMock()
             mock_model.predict = MagicMock(side_effect=Exception("Invalid frame"))
             mock_yolo.return_value = mock_model
@@ -543,7 +543,7 @@ class TestAquariumDetectorDetection:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_yolo.return_value = MagicMock()
 
             # Criar detector em modo seg
@@ -569,7 +569,7 @@ class TestAquariumDetectorVideoDetection:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_model = MagicMock()
 
             # Mock de resultado consistente
@@ -596,7 +596,7 @@ class TestAquariumDetectorVideoDetection:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_yolo.return_value = MagicMock()
 
             detector = AquariumDetector(model_path)
@@ -613,7 +613,7 @@ class TestAquariumDetectorVideoDetection:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_model = MagicMock()
 
             # Mock de resultado vazio
@@ -638,7 +638,7 @@ class TestAquariumDetectorVideoDetection:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_model = MagicMock()
 
             call_count = 0
@@ -676,7 +676,7 @@ class TestAquariumDetectorVideoDetection:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_model = MagicMock()
 
             mock_box = MagicMock()
@@ -712,7 +712,7 @@ class TestAquariumDetectorStabilization:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_yolo.return_value = MagicMock()
             return AquariumDetector(model_path)
 
@@ -793,7 +793,7 @@ class TestAquariumDetectorStabilization:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_model = MagicMock()
 
             frame_count = 0
@@ -831,7 +831,7 @@ class TestAquariumDetectorStabilization:
         model_path = tmp_path / "model.pt"
         model_path.write_text("fake model")
 
-        with patch("zebtrack.core.aquarium_detector.YOLO") as mock_yolo:
+        with patch("zebtrack.core.detection.aquarium_detector.YOLO") as mock_yolo:
             mock_model = MagicMock()
 
             # Primeiro frame sem detecção, demais com detecção

@@ -12,10 +12,10 @@ import cv2
 import numpy as np
 import structlog
 
-from zebtrack.core.detection_post_processor import DetectionPostProcessor
-from zebtrack.core.detection_types import MultiAquariumZoneData, ZoneData
-from zebtrack.core.single_subject_tracker import SingleSubjectTracker
-from zebtrack.core.zone_scaler import ZoneScaler
+from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
+from zebtrack.core.detection.detection_types import MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection.single_subject_tracker import SingleSubjectTracker
+from zebtrack.core.detection.zone_scaler import ZoneScaler
 from zebtrack.plugins.base import DetectorPlugin
 from zebtrack.tracker.byte_tracker import BYTETracker
 

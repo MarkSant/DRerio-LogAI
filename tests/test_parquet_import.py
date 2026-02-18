@@ -15,8 +15,8 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from zebtrack.core.detector import ZoneData
-from zebtrack.core.project_manager import ProjectManager
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.project.project_manager import ProjectManager
 
 
 class TestParquetImport(unittest.TestCase):

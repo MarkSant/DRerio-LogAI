@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from zebtrack.core.detector import AquariumData, MultiAquariumZoneData
+from zebtrack.core.detection import AquariumData, MultiAquariumZoneData
 from zebtrack.ui.components.canvas.multi_aquarium_overlay import MultiAquariumOverlayManager
 from zebtrack.ui.components.canvas_manager import CanvasManager
 

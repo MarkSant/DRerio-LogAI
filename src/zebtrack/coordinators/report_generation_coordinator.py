@@ -24,13 +24,13 @@ from shapely.geometry import Polygon
 
 from zebtrack.analysis.roi import ROI
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
-from zebtrack.core.calibration import Calibration
-from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection.calibration import Calibration
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
     from zebtrack.analysis.analysis_service import AnalysisService
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus

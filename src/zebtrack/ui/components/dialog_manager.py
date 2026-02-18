@@ -413,7 +413,7 @@ class DialogManager:
                 template_data = json.load(f)
 
             # Convert to ZoneData
-            from zebtrack.core.detector import ZoneData
+            from zebtrack.core.detection import ZoneData
 
             template_zone = ZoneData(
                 polygon=template_data.get("polygon"),

@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from zebtrack.core.detector_service import DetectorService
+from zebtrack.core.services.detector_service import DetectorService
 
 
 class TestClassNamesConsistency:
@@ -244,8 +244,8 @@ class TestModelInspection:
     )
     def test_inspect_model_success(self):
         """Test model inspection returns correct information."""
-        from zebtrack.core.model_service import ModelService
-        from zebtrack.core.weight_manager import WeightManager
+        from zebtrack.core.services.model_service import ModelService
+        from zebtrack.core.services.weight_manager import WeightManager
         from zebtrack.settings import load_settings
 
         settings = load_settings()
@@ -277,8 +277,8 @@ class TestModelInspection:
 
     def test_inspect_model_not_found(self):
         """Test inspection handles missing models gracefully."""
-        from zebtrack.core.model_service import ModelService
-        from zebtrack.core.weight_manager import WeightManager
+        from zebtrack.core.services.model_service import ModelService
+        from zebtrack.core.services.weight_manager import WeightManager
         from zebtrack.settings import load_settings
 
         settings = load_settings()

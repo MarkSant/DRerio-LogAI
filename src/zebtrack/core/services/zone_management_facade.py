@@ -19,7 +19,7 @@ import structlog
 from shapely.geometry import Polygon
 
 if TYPE_CHECKING:
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
 
 log = structlog.get_logger()

@@ -22,8 +22,8 @@ except ImportError:  # pragma: no cover - optional dependency fallback
     ttkb = cast(Any, None)
 
 # Import custom modules
-from zebtrack.core.detector import ZoneData
-from zebtrack.core.processing_mode import ProcessingMode, ProcessingReport
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.video.processing_mode import ProcessingMode, ProcessingReport
 from zebtrack.ui.builders import ButtonFactory, PanelBuilder, ZoneControlBuilder
 from zebtrack.ui.components import (
     AnalysisDisplayWidget,

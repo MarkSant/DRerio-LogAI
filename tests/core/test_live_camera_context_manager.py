@@ -3,7 +3,7 @@
 from typing import Any, cast
 from unittest.mock import MagicMock
 
-from zebtrack.core.live_camera_service import DetectorContextManager
+from zebtrack.core.recording.live_camera_service import DetectorContextManager
 
 
 class DummyDetector:

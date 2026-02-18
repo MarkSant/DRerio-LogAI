@@ -72,7 +72,7 @@ def create_test_controller(root, **overrides):
     from zebtrack.core.application_bootstrapper import BootstrapResult
     from zebtrack.core.dependency_container import MainViewModelDependencies
     from zebtrack.core.main_view_model import MainViewModel
-    from zebtrack.core.project_workflow_service import ProjectWorkflowService
+    from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
 
     # Check for overrides first
     settings_obj = overrides.get("settings_obj", create_mock_settings())

@@ -225,8 +225,8 @@ def main():  # noqa: C901
 
         # Model and weight management
         _t0 = time.perf_counter()
-        from zebtrack.core.model_service import ModelService
-        from zebtrack.core.weight_manager import WeightManager
+        from zebtrack.core.services.model_service import ModelService
+        from zebtrack.core.services.weight_manager import WeightManager
 
         weight_manager = WeightManager(settings_obj=settings_obj)
         model_service = ModelService(weight_manager)
@@ -236,8 +236,8 @@ def main():  # noqa: C901
 
         # Project management
         _t0 = time.perf_counter()
-        from zebtrack.core.project_manager import ProjectManager
-        from zebtrack.core.project_workflow_service import ProjectWorkflowService
+        from zebtrack.core.project.project_manager import ProjectManager
+        from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
 
         log.info(
             "timing.import_project_manager", elapsed_ms=int((time.perf_counter() - _t0) * 1000)
@@ -263,7 +263,7 @@ def main():  # noqa: C901
 
         # Detector service
         _t0 = time.perf_counter()
-        from zebtrack.core.detector_service import DetectorService
+        from zebtrack.core.services.detector_service import DetectorService
 
         detector_service = DetectorService(
             state_manager=state_manager,
@@ -278,7 +278,7 @@ def main():  # noqa: C901
 
         # Video processing service
         _t0 = time.perf_counter()
-        from zebtrack.core.video_processing_service import VideoProcessingService
+        from zebtrack.core.video.video_processing_service import VideoProcessingService
         from zebtrack.io.recorder_factory import RecorderFactory
 
         # Create recorder factory (lazy-loads on first use)
@@ -334,7 +334,7 @@ def main():  # noqa: C901
         )
 
         # Additional services needed by coordinators
-        from zebtrack.core.project_service import ProjectService
+        from zebtrack.core.project.project_service import ProjectService
         from zebtrack.ui.project_workflow_adapter import ProjectWorkflowAdapter
 
         project_service = ProjectService()
@@ -404,9 +404,9 @@ def main():  # noqa: C901
         )
         from zebtrack.coordinators.ui_state_coordinator import UIStateController
         from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
-        from zebtrack.core.video_classification_service import VideoClassificationService
-        from zebtrack.core.video_selection_service import VideoSelectionService
-        from zebtrack.core.video_validation_service import VideoValidationService
+        from zebtrack.core.video.video_classification_service import VideoClassificationService
+        from zebtrack.core.video.video_selection_service import VideoSelectionService
+        from zebtrack.core.video.video_validation_service import VideoValidationService
 
         video_selection_service = VideoSelectionService()
         video_validation_service = VideoValidationService()
@@ -520,8 +520,8 @@ def main():  # noqa: C901
         _t0_sess = time.perf_counter()
 
         # RecordingService and LiveCameraService
-        from zebtrack.core.live_camera_service import LiveCameraService
-        from zebtrack.core.recording_service import RecordingService
+        from zebtrack.core.recording.live_camera_service import LiveCameraService
+        from zebtrack.core.recording.recording_service import RecordingService
 
         recording_service = RecordingService(
             controller=None,  # type: ignore[arg-type]

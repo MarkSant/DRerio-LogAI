@@ -26,14 +26,14 @@ import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
 from zebtrack.coordinators.processing_types import ValidationResult
-from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
-from zebtrack.core.processing_mode import ProcessingMode
-from zebtrack.core.processing_worker import (
+from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
+from zebtrack.core.project.project_manager import ProjectManager
+from zebtrack.core.video.processing_mode import ProcessingMode
+from zebtrack.core.video.processing_worker import (
     ProcessingCallbacks,
     ProcessingContext,
     ProcessingWorker,
 )
-from zebtrack.core.project_manager import ProjectManager
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
@@ -47,13 +47,13 @@ if TYPE_CHECKING:
         SequentialProcessingCoordinator,
     )
     from zebtrack.coordinators.ui_state_coordinator import UIStateController
-    from zebtrack.core.detector_service import DetectorService
+    from zebtrack.core.services.detector_service import DetectorService
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
-    from zebtrack.core.video_classification_service import VideoClassificationService
-    from zebtrack.core.video_selection_service import VideoSelectionService
-    from zebtrack.core.video_validation_service import VideoValidationService
-    from zebtrack.core.weight_manager import WeightManager
+    from zebtrack.core.video.video_classification_service import VideoClassificationService
+    from zebtrack.core.video.video_selection_service import VideoSelectionService
+    from zebtrack.core.video.video_validation_service import VideoValidationService
     from zebtrack.io.recorder_factory import RecorderFactory
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus
@@ -828,7 +828,7 @@ class VideoProcessingCoordinator(BaseCoordinator):
     def _sync_multi_aquarium_setup(self, video_path, n_aq, zone_data) -> Any:
         """Sync multi-aquarium setup with UI and model."""
         if n_aq > 1:
-            from zebtrack.core.detector import AquariumData
+            from zebtrack.core.detection import AquariumData
 
             curr = self.project_manager.get_multi_aquarium_zone_data(video_path)
             if not curr:
@@ -1355,7 +1355,7 @@ class VideoProcessingCoordinator(BaseCoordinator):
                 and zone_data_dict.get("sequential_processing")
             ):
                 try:
-                    from zebtrack.core.zone_manager import ZoneManager
+                    from zebtrack.core.project.zone_manager import ZoneManager
 
                     multi_data = ZoneManager.multi_aquarium_zone_data_from_dict(zone_data_dict)
                     video_basename = os.path.basename(str(video_info.get("path", "")))
@@ -1625,7 +1625,7 @@ class VideoProcessingCoordinator(BaseCoordinator):
     def _load_zones_for_eligible_videos(self, eligible_videos: list) -> None:
         """Load zone data from parquet files for eligible videos."""
         zones_updated = False
-        from zebtrack.core.zone_manager import ZoneManager
+        from zebtrack.core.project.zone_manager import ZoneManager
 
         for video_info in eligible_videos:
             video_path = video_info.get("path", "")

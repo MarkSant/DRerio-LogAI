@@ -14,7 +14,7 @@ import pytest
 from zebtrack.analysis.analysis_service import AnalysisService
 from zebtrack.analysis.models import AnalysisResult
 from zebtrack.analysis.reporters import export_multi_aquarium_reports
-from zebtrack.core.detector import AquariumData
+from zebtrack.core.detection import AquariumData
 
 
 @pytest.fixture

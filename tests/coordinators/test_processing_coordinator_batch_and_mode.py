@@ -74,7 +74,7 @@ def test_batch_context_flow(progress_coordinator):
     assert progress_coordinator._is_batch_processing() is False
 
 
-@patch("zebtrack.core.zone_manager.ZoneManager")
+@patch("zebtrack.core.project.zone_manager.ZoneManager")
 def test_apply_processing_mode_to_video_updates_and_persists(
     mock_zone_manager_cls, multi_aquarium_coordinator
 ):
@@ -94,7 +94,7 @@ def test_apply_processing_mode_to_video_updates_and_persists(
     multi_aquarium_coordinator.project_manager.save_project.assert_called_once()
 
 
-@patch("zebtrack.core.zone_manager.ZoneManager")
+@patch("zebtrack.core.project.zone_manager.ZoneManager")
 def test_apply_processing_mode_to_video_no_data(mock_zone_manager_cls, multi_aquarium_coordinator):
     multi_aquarium_coordinator.project_manager.get_multi_aquarium_zone_data.return_value = None
 

@@ -7,7 +7,7 @@ import structlog
 if TYPE_CHECKING:
     from zebtrack.core.application_bootstrapper import BootstrapResult
     from zebtrack.core.dependency_container import MainViewModelDependencies
-    from zebtrack.core.detector import Detector
+    from zebtrack.core.detection import Detector
 
 log = structlog.get_logger()
 

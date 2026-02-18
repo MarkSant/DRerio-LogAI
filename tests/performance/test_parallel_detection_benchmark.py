@@ -20,11 +20,11 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from zebtrack.core.detection_post_processor import DetectionPostProcessor
-from zebtrack.core.detection_types import AquariumData, MultiAquariumZoneData
-from zebtrack.core.multi_aquarium_detector import MultiAquariumDetector
-from zebtrack.core.single_detector import SingleDetector
-from zebtrack.core.zone_scaler import ZoneScaler
+from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
+from zebtrack.core.detection.detection_types import AquariumData, MultiAquariumZoneData
+from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
+from zebtrack.core.detection.single_detector import SingleDetector
+from zebtrack.core.detection.zone_scaler import ZoneScaler
 
 
 @pytest.fixture
@@ -182,7 +182,7 @@ class TestParallelDetectionSpeedup:
         )
 
         # Set single aquarium mode (batch is for single-aquarium)
-        from zebtrack.core.detection_types import ZoneData
+        from zebtrack.core.detection.detection_types import ZoneData
 
         zones = ZoneData(
             polygon=[[0, 0], [1280, 0], [1280, 720], [0, 720]],

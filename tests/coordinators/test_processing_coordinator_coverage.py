@@ -25,8 +25,8 @@ from zebtrack.coordinators.processing_types import (
 from zebtrack.coordinators.progress_tracking_coordinator import ProgressTrackingCoordinator
 from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
 from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
-from zebtrack.core.detector import ZoneData
-from zebtrack.core.processing_mode import ProcessingMode
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.video.processing_mode import ProcessingMode
 
 # =============================================================================
 # FIXTURES - Extended for Coverage
@@ -580,7 +580,7 @@ class TestAquariumDetection:
         assert hasattr(coordinator, "run_aquarium_detection")
         assert callable(coordinator.run_aquarium_detection)
 
-    @patch("zebtrack.core.aquarium_detector.AquariumDetector")
+    @patch("zebtrack.core.detection.aquarium_detector.AquariumDetector")
     def test_run_aquarium_detection_uses_detector(
         self, mock_aquarium_detector, coordinator, tmp_path
     ):

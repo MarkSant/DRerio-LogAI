@@ -15,7 +15,7 @@ def test_live_config_dialog_with_camera_dropdown(tkinter_root):
 
     # Mock WizardService to return camera list
     with patch(
-        "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+        "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
     ) as mock_detect:
         mock_detect.return_value = [
             {
@@ -74,7 +74,7 @@ def test_live_config_dialog_refresh_cameras(tkinter_root):
     ]
 
     with patch(
-        "zebtrack.core.wizard_service.WizardService.detect_available_cameras"
+        "zebtrack.core.services.wizard_service.WizardService.detect_available_cameras"
     ) as mock_detect:
         mock_detect.return_value = initial_cameras
 

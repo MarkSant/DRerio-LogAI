@@ -124,7 +124,7 @@ class CanvasRenderer:
         self._draw_geotaxis_overlay()
 
         # Handle Multi-Aquarium Data
-        from zebtrack.core.detector import MultiAquariumZoneData
+        from zebtrack.core.detection import MultiAquariumZoneData
 
         if isinstance(zone_data, MultiAquariumZoneData):
             self._draw_multi_aquarium_zones(canvas, zone_data)
@@ -538,7 +538,7 @@ class CanvasRenderer:
         if not zone_data:
             return
 
-        from zebtrack.core.detector import MultiAquariumZoneData
+        from zebtrack.core.detection import MultiAquariumZoneData
 
         polygons_to_draw = []
         if isinstance(zone_data, MultiAquariumZoneData):

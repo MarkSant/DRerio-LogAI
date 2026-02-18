@@ -26,12 +26,12 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 
-from zebtrack.core.live_camera_mode import (
+from zebtrack.core.recording.live_camera_mode import (
     LiveCameraMode,
     LiveCameraModeRecommendation,
     LiveCameraModeSelector,
 )
-from zebtrack.core.wizard_service import WizardService
+from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner

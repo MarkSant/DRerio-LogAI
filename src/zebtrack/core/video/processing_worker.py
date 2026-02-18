@@ -29,10 +29,10 @@ import cv2
 import numpy as np
 import structlog
 
-from zebtrack.core.detection_post_processor import DetectionPostProcessor
-from zebtrack.core.detector import Detector, MultiAquariumZoneData, ZoneData
-from zebtrack.core.multi_aquarium_detector import MultiAquariumDetector
-from zebtrack.core.zone_scaler import ZoneScaler
+from zebtrack.core.detection import Detector, MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
+from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
+from zebtrack.core.detection.zone_scaler import ZoneScaler
 from zebtrack.io.recorder import Recorder
 
 # Settings is used at runtime in WorkerConfig
@@ -124,7 +124,7 @@ class ProcessingWorker:
             else:
                 # Check for MultiAquariumZoneData (attribute-based)
                 if hasattr(z_data, "aquariums"):
-                    from zebtrack.core.zone_manager import ZoneManager
+                    from zebtrack.core.project.zone_manager import ZoneManager
 
                     z_dict = ZoneManager.multi_aquarium_zone_data_to_dict(z_data)
                 else:
@@ -546,7 +546,7 @@ class _WorkerProcess(multiprocessing.Process):
             zd: ZoneData | MultiAquariumZoneData
             # Check for MultiAquariumZoneData (dictionary key)
             if "aquariums" in self.config.zone_data:
-                from zebtrack.core.zone_manager import ZoneManager
+                from zebtrack.core.project.zone_manager import ZoneManager
 
                 zd = ZoneManager.multi_aquarium_zone_data_from_dict(self.config.zone_data)
                 # DEBUG: Log deserialized multi-aquarium data
@@ -612,7 +612,7 @@ class _WorkerProcess(multiprocessing.Process):
         if video_zone_dict and isinstance(video_zone_dict, dict):
             # Check for multi-aquarium data (Phase 5)
             if "aquariums" in video_zone_dict:
-                from zebtrack.core.zone_manager import ZoneManager
+                from zebtrack.core.project.zone_manager import ZoneManager
 
                 multi_data = ZoneManager.multi_aquarium_zone_data_from_dict(video_zone_dict)
                 log.info(
@@ -782,7 +782,7 @@ class _WorkerProcess(multiprocessing.Process):
         calibration_by_aquarium = {}
 
         if width_cm > 0 and height_cm > 0:
-            from zebtrack.core.calibration import Calibration
+            from zebtrack.core.detection.calibration import Calibration
 
             if isinstance(video_zone_data, MultiAquariumZoneData):
                 # Create per-aquarium calibration

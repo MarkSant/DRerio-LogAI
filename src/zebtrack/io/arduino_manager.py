@@ -143,7 +143,7 @@ class ArduinoManager:
         Returns:
             List of serial port names
         """
-        from zebtrack.core.wizard_service import WizardService
+        from zebtrack.core.services.wizard_service import WizardService
 
         ports = WizardService.detect_arduino_ports(use_cache=True)
         return [port.get("device", "") for port in ports if port.get("device")]

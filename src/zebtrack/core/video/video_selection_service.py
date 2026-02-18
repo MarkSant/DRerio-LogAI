@@ -116,7 +116,7 @@ class VideoSelectionService:
 
         # Build normalized path lookup
         videos_by_norm: dict[str, dict] = {}
-        from zebtrack.core.video_manager import VideoManager
+        from zebtrack.core.project.video_manager import VideoManager
 
         for video in all_videos:
             path_value = video.get("path")
@@ -153,7 +153,7 @@ class VideoSelectionService:
         Returns:
             VideoSelectionResult: Targeted selection results
         """
-        from zebtrack.core.video_manager import VideoManager
+        from zebtrack.core.project.video_manager import VideoManager
 
         # Normalize target paths
         normalized_targets: list[str] = []

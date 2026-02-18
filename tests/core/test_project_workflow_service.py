@@ -9,7 +9,7 @@ import unittest
 from typing import Any, cast
 from unittest.mock import Mock, patch
 
-from zebtrack.core.project_workflow_service import ProjectWorkflowService
+from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
 
 
 class TestProjectWorkflowServiceInitialization(unittest.TestCase):
@@ -308,7 +308,7 @@ class TestProjectWorkflowServiceProjectCreation(unittest.TestCase):
 
     def test_create_project_creation_failure(self):
         """Test project creation fails at ProjectManager level."""
-        from zebtrack.core.project_manager import ProjectInvalidError
+        from zebtrack.core.project.project_manager import ProjectInvalidError
 
         # Make create_new_project raise an exception
         self.mock_project_manager.create_new_project.side_effect = ProjectInvalidError(
@@ -402,7 +402,7 @@ class TestProjectWorkflowServiceProjectOpening(unittest.TestCase):
 
     def test_open_project_failure(self):
         """Test project opening fails."""
-        from zebtrack.core.project_manager import ProjectInvalidError
+        from zebtrack.core.project.project_manager import ProjectInvalidError
 
         # Make load_project raise an exception instead of returning False
         self.mock_project_manager.load_project.side_effect = ProjectInvalidError(
@@ -575,7 +575,7 @@ class TestProjectWorkflowServiceProjectLoadFailures(unittest.TestCase):
 
     def test_open_project_file_not_found(self):
         """Test opening project when project.json doesn't exist."""
-        from zebtrack.core.project_manager import ProjectInvalidError
+        from zebtrack.core.project.project_manager import ProjectInvalidError
 
         self.mock_project_manager.load_project.side_effect = ProjectInvalidError(
             message="project.json não encontrado"
@@ -592,7 +592,7 @@ class TestProjectWorkflowServiceProjectLoadFailures(unittest.TestCase):
 
     def test_open_project_corrupted_json(self):
         """Test opening project with corrupted project.json."""
-        from zebtrack.core.project_manager import ProjectInvalidError
+        from zebtrack.core.project.project_manager import ProjectInvalidError
 
         self.mock_project_manager.load_project.side_effect = ProjectInvalidError(
             message="Arquivo de projeto corrompido"

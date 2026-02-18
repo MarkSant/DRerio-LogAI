@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 if TYPE_CHECKING:
-    from zebtrack.core.weight_manager import WeightManager
+    from zebtrack.core.services.weight_manager import WeightManager
 
 log = structlog.get_logger()
 

@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from tkinter import Misc
 
     from zebtrack.core.main_view_model import MainViewModel
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
 
 log = structlog.get_logger()

@@ -9,10 +9,10 @@ import unittest
 from unittest.mock import Mock
 
 from zebtrack.coordinators.detector_setup_coordinator import DetectorSetupCoordinator
-from zebtrack.core.detector_service import DetectorService
-from zebtrack.core.model_service import ModelService
+from zebtrack.core.services.detector_service import DetectorService
+from zebtrack.core.services.model_service import ModelService
+from zebtrack.core.services.weight_manager import WeightManager
 from zebtrack.core.state_manager import StateManager
-from zebtrack.core.weight_manager import WeightManager
 from zebtrack.ui.event_bus import EventBus
 
 

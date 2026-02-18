@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from zebtrack.core.wizard_service import WizardService
+from zebtrack.core.services.wizard_service import WizardService
 
 
 class TestWizardServiceCaching:

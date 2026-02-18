@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from zebtrack.core.processing_mode import ProcessingMode
+from zebtrack.core.video.processing_mode import ProcessingMode
 from zebtrack.ui.components.state_synchronizer import StateSynchronizer
 
 

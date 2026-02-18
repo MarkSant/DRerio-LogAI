@@ -11,9 +11,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from zebtrack.core.detector import ZoneData
-from zebtrack.core.project_manager import CONFIG_FILE_NAME, ProjectInvalidError, ProjectManager
-from zebtrack.core.zone_manager import ZoneManager
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.project.project_manager import (
+    CONFIG_FILE_NAME,
+    ProjectInvalidError,
+    ProjectManager,
+)
+from zebtrack.core.project.zone_manager import ZoneManager
 from zebtrack.settings import load_settings
 
 

@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from zebtrack.core.recording_facade import RecordingFacade
+from zebtrack.core.recording.recording_facade import RecordingFacade
 
 
 @pytest.fixture

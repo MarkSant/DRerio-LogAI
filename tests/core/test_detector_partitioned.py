@@ -17,11 +17,11 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from zebtrack.core.detection_post_processor import DetectionPostProcessor
-from zebtrack.core.detection_types import AquariumData
-from zebtrack.core.multi_aquarium_detector import MultiAquariumDetector
-from zebtrack.core.single_detector import SingleDetector
-from zebtrack.core.zone_scaler import ZoneScaler
+from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
+from zebtrack.core.detection.detection_types import AquariumData
+from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
+from zebtrack.core.detection.single_detector import SingleDetector
+from zebtrack.core.detection.zone_scaler import ZoneScaler
 
 
 @pytest.fixture
@@ -724,7 +724,7 @@ class TestBatchInference:
 
     def test_detect_batch_returns_list(self, single_detector, mock_plugin):
         """Test batch detection returns list of detection lists."""
-        from zebtrack.core.detection_types import ZoneData
+        from zebtrack.core.detection.detection_types import ZoneData
 
         zones = ZoneData(polygon=[(0, 0), (1280, 0), (1280, 720), (0, 720)])
         single_detector.set_zones(zones, 1280, 720)
@@ -739,7 +739,7 @@ class TestBatchInference:
 
     def test_detect_batch_respects_batch_size(self, single_detector, mock_plugin):
         """Test batch detection respects batch size parameter."""
-        from zebtrack.core.detection_types import ZoneData
+        from zebtrack.core.detection.detection_types import ZoneData
 
         zones = ZoneData(polygon=[(0, 0), (1280, 0), (1280, 720), (0, 720)])
         single_detector.set_zones(zones, 1280, 720)
@@ -757,7 +757,7 @@ class TestBatchInference:
 
     def test_detect_batch_with_native_batch_support(self, single_detector, mock_plugin):
         """Test batch detection uses native batch if plugin supports it."""
-        from zebtrack.core.detection_types import ZoneData
+        from zebtrack.core.detection.detection_types import ZoneData
 
         zones = ZoneData(polygon=[(0, 0), (1280, 0), (1280, 720), (0, 720)])
         single_detector.set_zones(zones, 1280, 720)

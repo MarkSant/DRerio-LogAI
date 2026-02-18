@@ -6,7 +6,7 @@ from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.ui.components.validation_manager import (
     PROJECT_STATUS_META,
     STATUS_SYMBOLS,

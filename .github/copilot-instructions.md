@@ -127,14 +127,14 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 - **Entry Point**: `src/zebtrack/__main__.py` (lines 140-280: Composition Root)
 - **Main UI**: `src/zebtrack/ui/gui.py` (MainWindow + MainViewModel)
 - **Settings**: `src/zebtrack/settings.py` (Pydantic v2 models)
-- **Core Services**: `src/zebtrack/core/{detector_service,project_manager,state_manager,processing_worker}.py`
+- **Core Services**: `src/zebtrack/core/services/detector_service.py`, `core/project/project_manager.py`, `core/state_manager.py`, `core/video/processing_worker.py`
 - **Data I/O**: `src/zebtrack/io/{video_source,recorder}.py`
 - **Wizard**: `src/zebtrack/ui/wizard/wizard_dialog.py` (5 steps)
 
 ## ⚡ Fast Decision Trees (Avoid Unnecessary Reads)
 
 **UI Change?** → Check `ui/widgets/` → Update `MainViewModel` → Use `root.after()` → Test `tests/test_*_integration.py`
-**Processing Change?** → Check `core/detector_service.py` or `plugins/` → Inject `settings_obj` → Update schema if needed
+**Processing Change?** → Check `core/services/detector_service.py` or `plugins/` → Inject `settings_obj` → Update schema if needed
 **Config Change?** → Edit `settings.py` → Update `config.yaml` → Pass from `__main__.py` constructor → NEVER singleton import
 **Debug UI?** → Check logs (structlog) → Verify `StateManager` → Check `root.after()` → Run `pytest -m gui -n0`
 **Debug Processing?** → Check zone scaling → Verify `ProcessingWorker` → Validate `Recorder` schema → Run `pytest -q`
@@ -146,11 +146,11 @@ Keep editor diagnostics consistent and avoid formatter conflicts.
 - **Docs first**: Validate changes against `docs/explanation/architecture.md`, `docs/reference/operational_reference.md`, `docs/explanation/dependency_injection.md` before rerouting flows.
 - **Config**: Settings loaded via `load_settings()` in `__main__.py` (Composition Root) and injected as `settings_obj` parameter; precedence `config.yaml` < `config.local.yaml`; Pydantic v2 models enforce `extra="forbid"`. **Never import singleton** `from zebtrack import settings`—use constructor injection instead.
 - **Architecture**: MVVM with DI—`MainViewModel` receives all dependencies via constructor (11 parameters including `settings_obj`); `StateManager` tracks observable state; `EventBus` only enabled when `settings_obj.ui_features.enable_event_queue` is true. Composition Root in `__main__.py` wires all services.
-- **Lifecycle**: `io/video_source.py` feeds frames → `core/detector_service.DetectorService` wraps plugin detectors (`plugins/`) and zone scaling → `core/processing_worker.ProcessingWorker` handles background analysis → `io/recorder.Recorder` persists Parquet/MP4. All services receive `settings_obj` via constructor. **Threading** (v2.1): All worker threads (LiveCameraService, GUI live analysis) are daemon=True to allow Python shutdown.
+- **Lifecycle**: `io/video_source.py` feeds frames → `core/services/detector_service.DetectorService` wraps plugin detectors (`plugins/`) and zone scaling → `core/video/processing_worker.ProcessingWorker` handles background analysis → `io/recorder.Recorder` persists Parquet/MP4. All services receive `settings_obj` via constructor. **Threading** (v2.1): All worker threads (LiveCameraService, GUI live analysis) are daemon=True to allow Python shutdown.
 - **UI**: Tk widgets under `zebtrack.ui` never block main thread; schedule updates with `root.after(0, ...)` or via `core/ui_scheduler.UIScheduler`.
 - **Wizard**: `ui/wizard/` drives the 5-step project setup through `core/project_workflow_service.ProjectWorkflowService`; respect 1150×550 layout and keep SKIP/IMPORT/PARTIAL/FULL semantics.
-- **Project data**: `core/project_manager.ProjectManager` stores ROI templates, arenas, intervals; call `Detector.set_zones()` after getting actual video dimensions to rescale coordinates.
-- **Processing modes**: `core/processing_mode.ProcessingMode` toggles multi vs single subject; overlay locks UI when single subject forced—check tests in `tests/test_overlay_integration.py`.
+- **Project data**: `core/project/project_manager.ProjectManager` stores ROI templates, arenas, intervals; call `Detector.set_zones()` after getting actual video dimensions to rescale coordinates.
+- **Processing modes**: `core/video/processing_mode.ProcessingMode` toggles multi vs single subject; overlay locks UI when single subject forced—check tests in `tests/test_overlay_integration.py`.
 - **Hardware**: Startup runs `utils/hardware_detection.get_hardware_summary()` and `recommend_backend()`; OpenVINO auto-enabled only if `WeightManager` reports converted XML under `openvino_model_cache/`.
 - **Logging**: Use `structlog` with `domain.action.result` keys, e.g. `logger.info("controller.load_project.success", project=...)`.
 - **Data schema**: Recorder outputs `timestamp, frame, track_id, x1, y1, x2, y2, confidence, uncertainty, bbox_iou` with derived centers/cm appended; confirm schema in `tests/test_recorder.py`. Multi-aquarium adds per-aquarium directories `<video>_aquarium_N/`.

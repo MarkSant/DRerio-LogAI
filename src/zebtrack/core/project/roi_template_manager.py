@@ -16,8 +16,8 @@ from typing import Any, Literal
 import structlog
 from pydantic import ValidationError
 
-from zebtrack.core.detector import ZoneData
-from zebtrack.core.schemas import InvalidTemplateError, ROITemplateSchema
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.project.schemas import InvalidTemplateError, ROITemplateSchema
 
 log = structlog.get_logger()
 

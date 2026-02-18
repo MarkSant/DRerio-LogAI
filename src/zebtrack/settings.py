@@ -744,7 +744,7 @@ class LoggingSettings(BaseModel):
     levels: dict[str, str] = Field(
         default_factory=lambda: {
             "zebtrack": "INFO",
-            "zebtrack.core.detector": "INFO",
+            "zebtrack.core.detection": "INFO",
             "zebtrack.ui": "WARNING",
             "zebtrack.io": "WARNING",
             "zebtrack.analysis": "INFO",

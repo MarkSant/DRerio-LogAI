@@ -9,7 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from zebtrack.core.arduino_facade import ArduinoFacade
+from zebtrack.core.recording.arduino_facade import ArduinoFacade
 
 
 @pytest.fixture

@@ -8,7 +8,7 @@ instead of going through the full MainViewModel stack.
 import tempfile
 from unittest.mock import MagicMock
 
-from zebtrack.core.project_workflow_service import ProjectWorkflowService
+from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
 
 
 def test_detection_mode_with_multiple_animals_blocked():

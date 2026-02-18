@@ -2,7 +2,7 @@ import os
 import tempfile
 from unittest.mock import MagicMock
 
-from zebtrack.core.weight_manager import WeightManager
+from zebtrack.core.services.weight_manager import WeightManager
 
 
 def test_initialize_both_seg_and_det_weights():

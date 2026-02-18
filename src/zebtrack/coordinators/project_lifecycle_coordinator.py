@@ -22,14 +22,14 @@ import numpy as np
 import structlog
 
 from zebtrack.coordinators.base_coordinator import BaseCoordinator
-from zebtrack.core.calibration import Calibration
-from zebtrack.core.project_manager import AssetType
+from zebtrack.core.detection.calibration import Calibration
+from zebtrack.core.project.project_manager import AssetType
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
-    from zebtrack.core.detector_service import DetectorService
-    from zebtrack.core.project_manager import ProjectManager
-    from zebtrack.core.project_workflow_service import ProjectWorkflowService
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.project.project_workflow_service import ProjectWorkflowService
+    from zebtrack.core.services.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus

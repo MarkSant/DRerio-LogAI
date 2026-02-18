@@ -4,7 +4,7 @@ import pytest
 
 from zebtrack.coordinators.report_generation_coordinator import ReportGenerationCoordinator
 from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
-from zebtrack.core.project_manager import ProjectManager
+from zebtrack.core.project.project_manager import ProjectManager
 
 
 class TestProcessingCoordinatorSingleVideoFix:
@@ -111,7 +111,7 @@ class TestProcessingCoordinatorSingleVideoFix:
         # But we can patch it or rely on fallback
 
         with patch(
-            "zebtrack.core.project_manager.ProjectManager.load_zones_from_parquet"
+            "zebtrack.core.project.project_manager.ProjectManager.load_zones_from_parquet"
         ) as mock_load:
             mock_load.return_value = None  # Fail parquet load to trigger fallback
 
@@ -144,7 +144,7 @@ class TestProcessingCoordinatorSingleVideoFix:
         coordinator.project_manager.get_multi_aquarium_zone_data.return_value = None
 
         with patch(
-            "zebtrack.core.project_manager.ProjectManager.load_zones_from_parquet"
+            "zebtrack.core.project.project_manager.ProjectManager.load_zones_from_parquet"
         ) as mock_load:
             mock_load.return_value = None
 

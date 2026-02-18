@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
-from zebtrack.core.video_classification_service import VideoClassificationService
+from zebtrack.core.video.video_classification_service import VideoClassificationService
+
+_NORMALIZE_ATTR = "zebtrack.core.project.video_manager.VideoManager.normalize_path"
 
 
 def _normalize(path: str) -> str | None:
@@ -15,7 +17,7 @@ def _normalize(path: str) -> str | None:
 def test_classify_videos_buckets(monkeypatch):
     service = VideoClassificationService()
 
-    monkeypatch.setattr("zebtrack.core.video_manager.VideoManager.normalize_path", _normalize)
+    monkeypatch.setattr(_NORMALIZE_ATTR, _normalize)
 
     candidates: list[dict[str, object]] = [
         {"path": "A.MP4"},
@@ -43,7 +45,7 @@ def test_classify_videos_buckets(monkeypatch):
 def test_classify_videos_copies_scan_data(monkeypatch):
     service = VideoClassificationService()
 
-    monkeypatch.setattr("zebtrack.core.video_manager.VideoManager.normalize_path", _normalize)
+    monkeypatch.setattr(_NORMALIZE_ATTR, _normalize)
 
     video = {"path": "A.MP4"}
     info_by_norm = {
@@ -66,7 +68,7 @@ def test_classify_videos_skips_invalid_entries(monkeypatch):
     service = VideoClassificationService()
 
     normalize_mock = MagicMock(side_effect=_normalize)
-    monkeypatch.setattr("zebtrack.core.video_manager.VideoManager.normalize_path", normalize_mock)
+    monkeypatch.setattr(_NORMALIZE_ATTR, normalize_mock)
 
     candidates: list[dict[str, object]] = [
         {"path": ""},
@@ -84,7 +86,7 @@ def test_classify_videos_skips_invalid_entries(monkeypatch):
 def test_classify_videos_missing_info(monkeypatch):
     service = VideoClassificationService()
 
-    monkeypatch.setattr("zebtrack.core.video_manager.VideoManager.normalize_path", _normalize)
+    monkeypatch.setattr(_NORMALIZE_ATTR, _normalize)
 
     candidates: list[dict[str, object]] = [{"path": "A.MP4"}]
     info_by_norm: dict[str, dict[str, Any]] = {}

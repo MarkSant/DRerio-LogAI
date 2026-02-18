@@ -26,7 +26,7 @@ import structlog
 
 if TYPE_CHECKING:
     from zebtrack.analysis.analysis_service import AnalysisService
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus

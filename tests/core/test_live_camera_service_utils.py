@@ -6,8 +6,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from zebtrack.core import live_camera_service as live_camera_module
-from zebtrack.core.live_camera_service import LiveCameraService
+from zebtrack.core.recording import live_camera_service as live_camera_module
+from zebtrack.core.recording.live_camera_service import LiveCameraService
 
 
 @pytest.fixture

@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from zebtrack.core.detector import ZoneData
-from zebtrack.core.roi_template_manager import ROITemplateManager
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.project.roi_template_manager import ROITemplateManager
 
 
 @pytest.fixture

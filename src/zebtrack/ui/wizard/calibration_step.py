@@ -19,7 +19,7 @@ from tkinter import (
 )
 from typing import TYPE_CHECKING, Any
 
-from zebtrack.core.wizard_service import WizardService
+from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.components.behavioral_config_widget import BehavioralConfigWidget
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import ProjectType, WizardStepID

@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-from zebtrack.core.detector import ZoneData
-from zebtrack.core.processing_worker import WorkerConfig, _WorkerProcess
+from zebtrack.core.detection import ZoneData
+from zebtrack.core.video.processing_worker import WorkerConfig, _WorkerProcess
 
 
 class FakePlugin:
@@ -74,7 +74,7 @@ def test_initialize_detector_syncs_interval_and_single_mode(worker_config):
 
     with (
         patch("zebtrack.plugins.ultralytics_detector.UltralyticsDetectorPlugin", FakePlugin),
-        patch("zebtrack.core.processing_worker.Detector", FakeDetector),
+        patch("zebtrack.core.video.processing_worker.Detector", FakeDetector),
     ):
         detector = worker._initialize_detector()
 

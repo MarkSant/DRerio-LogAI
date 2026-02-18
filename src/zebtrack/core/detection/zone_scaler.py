@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 import structlog
 
-from zebtrack.core.detection_types import AquariumData, MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection.detection_types import AquariumData, MultiAquariumZoneData, ZoneData
 
 log = structlog.get_logger()
 

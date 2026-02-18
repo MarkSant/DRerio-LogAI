@@ -120,7 +120,7 @@ class TestCLIArgumentParsing:
         monkeypatch.setattr(
             sys,
             "argv",
-            ["zebtrack", "--log-level", "zebtrack.core.detector=DEBUG"],
+            ["zebtrack", "--log-level", "zebtrack.core.detection=DEBUG"],
         )
 
         # Make load_settings raise to exit early (we just want to test arg parsing)
@@ -135,7 +135,7 @@ class TestCLIArgumentParsing:
         # Check that the log level was set
         captured = capsys.readouterr()
         assert "CLI override" in captured.out or (
-            logging.getLogger("zebtrack.core.detector").level in [logging.DEBUG, 10]
+            logging.getLogger("zebtrack.core.detection").level in [logging.DEBUG, 10]
         )
 
     def test_log_level_override_invalid_format_prints_warning(self, monkeypatch, capsys):

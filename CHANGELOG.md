@@ -11,6 +11,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔄 Refactored
 
+#### Phase 4.10 — Sub-packetize `core/` into domain sub-packages (February 2026)
+
+- **Reorganized** 40+ flat modules in `src/zebtrack/core/` into 6 domain
+  sub-packages, improving discoverability and enforcing bounded contexts:
+  - `core/detection/` (8 modules) — Detector implementations, zone scaling,
+    detection types, calibration, single-subject tracker, post-processing
+  - `core/project/` (14 modules) — Project manager, zone manager, video
+    manager, asset/metadata/parquet I/O, schemas, ROI templates
+  - `core/video/` (8 modules) — Video processing service, processing worker,
+    processing mode, classification/selection/validation/metadata services,
+    batch configuration
+  - `core/recording/` (5 modules) — Recording service/facade, live camera
+    service/mode, Arduino facade
+  - `core/services/` (5 modules) — Detector service, model service, weight
+    manager, wizard service, zone management facade
+  - `core/events/` (4 modules) — Event payload dataclasses (pre-existing
+    directory, added `__init__.py`)
+- **Created** 6 `__init__.py` files with curated public API re-exports for
+  each sub-package
+- **Updated** 527 import statements across 167 source and test files — zero
+  backward-compatibility shims; all consumers use canonical new paths
+- **Deleted** `core/detector.py` facade (47-line re-export shim from
+  Phase 4.3) — its exports absorbed into `core/detection/__init__.py`
+- **Updated** `core/__init__.py` docstring documenting new sub-package
+  structure
+- Root-level infrastructure modules remain at `core/`: `state_manager`,
+  `main_view_model`, `dependency_container`, `application_bootstrapper`,
+  `ui_scheduler`, `orchestrator_registry`, `thread_coordinator`, `exceptions`
+- All 2,610 fast tests passing, 0 regressions; `ruff check .` clean
+
 #### Phase 4.9 — Decompose HardwareCoordinator + DetectorCoordinator (February 2026)
 
 - **Decomposed** `HardwareCoordinator` (`coordinators/hardware_coordinator.py`,

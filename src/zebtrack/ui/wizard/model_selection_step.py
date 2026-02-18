@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from zebtrack.core.weight_manager import WeightManager
+from zebtrack.core.services.weight_manager import WeightManager
 from zebtrack.ui.wizard.base import WizardStep
 from zebtrack.ui.wizard.enums import WizardStepID
 from zebtrack.ui.wizard.templates import format_template_banner

@@ -26,8 +26,8 @@ import structlog
 from zebtrack.core.exceptions import ProjectInvalidError
 
 if TYPE_CHECKING:
-    from zebtrack.core.model_service import ModelService
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.services.model_service import ModelService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
     from zebtrack.ui.ui_coordinator import UICoordinator

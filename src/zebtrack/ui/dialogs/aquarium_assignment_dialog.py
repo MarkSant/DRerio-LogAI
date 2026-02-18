@@ -358,7 +358,7 @@ class AquariumAssignmentDialog(simpledialog.Dialog):
 
     def _resolve_group_name(self, regex_value: str) -> str:
         """Resolve regex group name using ProjectManager helper."""
-        from zebtrack.core.project_manager import ProjectManager
+        from zebtrack.core.project.project_manager import ProjectManager
 
         return ProjectManager.resolve_group_name(regex_value, self.available_groups)
 

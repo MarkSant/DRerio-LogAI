@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from zebtrack.core.wizard_service import WizardService
+from zebtrack.core.services.wizard_service import WizardService
 from zebtrack.ui.wizard.models import (
     CalibrationData,
     ExperimentalDesignData,

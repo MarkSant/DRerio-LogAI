@@ -33,11 +33,11 @@ import structlog
 if TYPE_CHECKING:
     from tkinter import Misc
 
-    from zebtrack.core.detector_service import DetectorService
+    from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
     from zebtrack.core.main_view_model import MainViewModel
-    from zebtrack.core.multi_aquarium_detector import MultiAquariumDetector
-    from zebtrack.core.project_manager import ProjectManager
-    from zebtrack.core.recording_service import RecordingService
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.recording.recording_service import RecordingService
+    from zebtrack.core.services.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.io.camera import Camera
     from zebtrack.ui.dialogs import LivePreviewWindow
@@ -412,7 +412,7 @@ class LiveCameraService:
         if isinstance(mode, str):
             # Convert string to enum
             try:
-                from zebtrack.core.live_camera_mode import LiveCameraMode
+                from zebtrack.core.recording.live_camera_mode import LiveCameraMode
 
                 self._preferred_mode = LiveCameraMode[mode]
                 log.info("live_camera_service.preferred_mode_set", mode=mode)
@@ -623,7 +623,7 @@ class LiveCameraService:
                 # ✅ CRITICAL: Must call set_zones() before detect() to avoid RuntimeError
                 # Use empty zone for now - will be defined after aquarium detection
                 if self.camera:
-                    from zebtrack.core.detector import ZoneData
+                    from zebtrack.core.detection import ZoneData
 
                     empty_zone = ZoneData()
                     self.detector_service.detector.set_zones(
@@ -696,7 +696,7 @@ class LiveCameraService:
         if not self._aquarium_detection_phase:
             # Arena already defined - start recording immediately
             if record_video and self.recorder:
-                from zebtrack.core.detector import ZoneData
+                from zebtrack.core.detection import ZoneData
 
                 recorder_zones = zone_data if zone_data else ZoneData()
 
@@ -972,7 +972,7 @@ class LiveCameraService:
 
     def _create_preview_window(self, camera_index: int, duration_s: float) -> None:
         """Create the live preview window."""
-        from zebtrack.core.zone_manager import MultiAquariumZoneData
+        from zebtrack.core.project.zone_manager import MultiAquariumZoneData
         from zebtrack.ui.dialogs import LivePreviewWindow
         from zebtrack.ui.dialogs.multi_aquarium_live_preview_window import (
             MultiAquariumLivePreviewWindow,
@@ -2049,8 +2049,8 @@ class LiveCameraService:
         This ensures we only record animal detections, not the aquarium detection phase.
         """
         # Get zone data for recorder
-        from zebtrack.core.detector import ZoneData
-        from zebtrack.core.zone_manager import MultiAquariumZoneData
+        from zebtrack.core.detection import ZoneData
+        from zebtrack.core.project.zone_manager import MultiAquariumZoneData
 
         zone_data = self.project_manager.get_zone_data() if self.project_manager else ZoneData()
 
@@ -2136,7 +2136,7 @@ class LiveCameraService:
 
         Called after aquarium detection phase completes (30 frames or manual stop).
         """
-        from zebtrack.core.detector import ZoneData
+        from zebtrack.core.detection import ZoneData
 
         w = self._actual_width
         h = self._actual_height
@@ -2287,7 +2287,7 @@ class LiveCameraService:
         try:
             # Lazily create MultiAquariumDetector sharing the same plugin
             if self._multi_aq_detector is None:
-                from zebtrack.core.multi_aquarium_detector import (
+                from zebtrack.core.detection.multi_aquarium_detector import (
                     MultiAquariumDetector,
                 )
 

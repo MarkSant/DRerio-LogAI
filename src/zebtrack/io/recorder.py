@@ -11,7 +11,7 @@ import pyarrow as pa
 import structlog
 from pyarrow import parquet as pq
 
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.utils.validation import validate_calibration
 
 if TYPE_CHECKING:

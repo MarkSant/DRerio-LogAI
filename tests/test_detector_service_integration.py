@@ -15,7 +15,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from tests.helpers import create_mock_settings, create_test_controller
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 
 
 class MockDetectorPlugin:
@@ -58,8 +58,8 @@ class TestDetectorServiceIntegration(unittest.TestCase):
     def setUp(self):
         """Set up test environment with DI pattern."""
         from zebtrack.coordinators.detector_setup_coordinator import DetectorSetupCoordinator
-        from zebtrack.core.detector_service import DetectorService
-        from zebtrack.core.model_service import ModelService
+        from zebtrack.core.services.detector_service import DetectorService
+        from zebtrack.core.services.model_service import ModelService
         from zebtrack.core.state_manager import StateManager
 
         self.root = MagicMock()

@@ -33,8 +33,8 @@ from zebtrack.core.exceptions import ProjectInvalidError
 from zebtrack.core.state_manager import StateCategory
 
 if TYPE_CHECKING:
-    from zebtrack.core.project_manager import ProjectManager
-    from zebtrack.core.project_service import ProjectService
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.project.project_service import ProjectService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.ui.event_bus import EventBus
 

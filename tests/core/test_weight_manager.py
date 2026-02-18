@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from zebtrack.core.weight_manager import OPENVINO_CACHE_DIR, WeightManager
+from zebtrack.core.services.weight_manager import OPENVINO_CACHE_DIR, WeightManager
 
 
 @pytest.fixture
@@ -132,7 +132,7 @@ def test_wm_cannot_delete_last_weight(wm_setup):
     assert len(manager.get_all_weights()) == 1
 
 
-@patch("zebtrack.core.weight_manager.YOLO")
+@patch("zebtrack.core.services.weight_manager.YOLO")
 @patch("shutil.move")
 def test_wm_convert_to_openvino(mock_move, mock_yolo, wm_setup):
     """

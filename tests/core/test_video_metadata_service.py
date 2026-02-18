@@ -5,10 +5,10 @@ from unittest.mock import Mock, patch
 import cv2
 import pytest
 
-from zebtrack.core.video_metadata_service import VideoMetadataService
+from zebtrack.core.video.video_metadata_service import VideoMetadataService
 
 
-@patch("zebtrack.core.video_metadata_service.cv2.VideoCapture")
+@patch("zebtrack.core.video.video_metadata_service.cv2.VideoCapture")
 def test_get_video_dimensions_success(mock_video_capture):
     mock_cap = Mock()
     mock_cap.isOpened.return_value = True
@@ -24,7 +24,7 @@ def test_get_video_dimensions_success(mock_video_capture):
     mock_cap.release.assert_called_once()
 
 
-@patch("zebtrack.core.video_metadata_service.cv2.VideoCapture")
+@patch("zebtrack.core.video.video_metadata_service.cv2.VideoCapture")
 def test_get_video_dimensions_open_fail(mock_video_capture):
     mock_cap = Mock()
     mock_cap.isOpened.return_value = False
@@ -34,7 +34,7 @@ def test_get_video_dimensions_open_fail(mock_video_capture):
         VideoMetadataService.get_video_dimensions("/path/to/video.mp4")
 
 
-@patch("zebtrack.core.video_metadata_service.cv2.VideoCapture")
+@patch("zebtrack.core.video.video_metadata_service.cv2.VideoCapture")
 def test_get_video_dimensions_invalid_values(mock_video_capture):
     mock_cap = Mock()
     mock_cap.isOpened.return_value = True
@@ -48,7 +48,7 @@ def test_get_video_dimensions_invalid_values(mock_video_capture):
         VideoMetadataService.get_video_dimensions("/path/to/video.mp4")
 
 
-@patch("zebtrack.core.video_metadata_service.cv2.VideoCapture")
+@patch("zebtrack.core.video.video_metadata_service.cv2.VideoCapture")
 def test_get_video_info_success(mock_video_capture):
     mock_cap = Mock()
     mock_cap.isOpened.return_value = True
@@ -66,7 +66,7 @@ def test_get_video_info_success(mock_video_capture):
     mock_cap.release.assert_called_once()
 
 
-@patch("zebtrack.core.video_metadata_service.cv2.VideoCapture")
+@patch("zebtrack.core.video.video_metadata_service.cv2.VideoCapture")
 def test_get_video_info_open_fail(mock_video_capture):
     mock_cap = Mock()
     mock_cap.isOpened.return_value = False

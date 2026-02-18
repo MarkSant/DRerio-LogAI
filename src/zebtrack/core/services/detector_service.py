@@ -14,17 +14,17 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import structlog
 
-from zebtrack.core.detection_post_processor import DetectionPostProcessor
-from zebtrack.core.detector import Detector, MultiAquariumZoneData, ZoneData
-from zebtrack.core.zone_scaler import ZoneScaler
+from zebtrack.core.detection import Detector, MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
+from zebtrack.core.detection.zone_scaler import ZoneScaler
 from zebtrack.settings import save_settings
 from zebtrack.utils import IntegrityError
 
 if TYPE_CHECKING:
-    from zebtrack.core.model_service import ModelService
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.services.model_service import ModelService
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
-    from zebtrack.core.weight_manager import WeightManager
     from zebtrack.plugins.base import DetectorPlugin
     from zebtrack.settings import Settings
 

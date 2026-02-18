@@ -13,7 +13,7 @@ from pathlib import Path
 
 import structlog
 
-from zebtrack.core.project_manager import ProjectManager
+from zebtrack.core.project.project_manager import ProjectManager
 from zebtrack.settings import Settings
 
 log = structlog.get_logger()

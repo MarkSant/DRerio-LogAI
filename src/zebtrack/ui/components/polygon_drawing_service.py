@@ -59,7 +59,7 @@ class ArenaCompletionStrategy(PolygonCompletionStrategy):
         self, video_points: list, gui: "ApplicationGUI", zone_controls
     ) -> bool:
         """Complete polygon in multi-aquarium mode."""
-        from zebtrack.core.zone_manager import ZoneManager
+        from zebtrack.core.project.zone_manager import ZoneManager
 
         active_aquarium_id = zone_controls.active_aquarium_var.get()
         video_path = gui.controller.project_manager.get_active_zone_video()
@@ -86,7 +86,7 @@ class ArenaCompletionStrategy(PolygonCompletionStrategy):
             aquarium.polygon = video_points
         else:
             # Create new aquarium if it doesn't exist
-            from zebtrack.core.detector import AquariumData
+            from zebtrack.core.detection import AquariumData
 
             new_aquarium = AquariumData(id=active_aquarium_id, polygon=video_points)
             multi_data.aquariums.append(new_aquarium)

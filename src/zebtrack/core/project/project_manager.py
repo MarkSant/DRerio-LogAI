@@ -13,19 +13,19 @@ from typing import Any, Literal
 
 import structlog
 
-from zebtrack.core.asset_manager import AssetManager
-from zebtrack.core.detector import MultiAquariumZoneData, ZoneData
+from zebtrack.core.detection import MultiAquariumZoneData, ZoneData
 from zebtrack.core.exceptions import ProjectInvalidError
-from zebtrack.core.metadata_manager import MetadataManager
-from zebtrack.core.output_registration_manager import OutputRegistrationManager
-from zebtrack.core.parquet_io_manager import ParquetIOManager
-from zebtrack.core.project_lifecycle_manager import ProjectLifecycleManager
-from zebtrack.core.project_service import ProjectService
+from zebtrack.core.project.asset_manager import AssetManager
+from zebtrack.core.project.metadata_manager import MetadataManager
+from zebtrack.core.project.output_registration_manager import OutputRegistrationManager
+from zebtrack.core.project.parquet_io_manager import ParquetIOManager
+from zebtrack.core.project.project_lifecycle_manager import ProjectLifecycleManager
+from zebtrack.core.project.project_service import ProjectService
+from zebtrack.core.project.types import AssetType
+from zebtrack.core.project.video_manager import VideoManager
+from zebtrack.core.project.zone_manager import ZoneManager
+from zebtrack.core.project.zone_orchestration_manager import ZoneOrchestrationManager
 from zebtrack.core.state_manager import StateManager
-from zebtrack.core.types import AssetType
-from zebtrack.core.video_manager import VideoManager
-from zebtrack.core.zone_manager import ZoneManager
-from zebtrack.core.zone_orchestration_manager import ZoneOrchestrationManager
 
 # Re-export for backward compatibility — external code imports ProjectInvalidError from here
 __all__ = ["ProjectInvalidError", "ProjectManager"]

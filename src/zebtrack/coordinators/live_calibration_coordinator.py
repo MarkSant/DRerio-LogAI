@@ -28,15 +28,15 @@ from zebtrack.coordinators.base_coordinator import (
     BaseCoordinator,
     CoordinatorError,
 )
-from zebtrack.core.aquarium_detector import AquariumDetector
+from zebtrack.core.detection.aquarium_detector import AquariumDetector
 from zebtrack.io.camera import Camera
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
-    from zebtrack.core.detector_service import DetectorService
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.services.detector_service import DetectorService
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
-    from zebtrack.core.weight_manager import WeightManager
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus
 
@@ -591,7 +591,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
 
         # Save detected zone if approved
         if approved:
-            from zebtrack.core.zone_manager import ZoneData
+            from zebtrack.core.project.zone_manager import ZoneData
 
             metadata = {
                 "detection_method": "auto",

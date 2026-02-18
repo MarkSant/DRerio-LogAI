@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from zebtrack.core.detector import ZoneData
+from zebtrack.core.detection import ZoneData
 from zebtrack.core.state_manager import StateManager
 from zebtrack.io.recorder import Recorder
 from zebtrack.ui.gui import ApplicationGUI

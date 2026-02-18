@@ -35,9 +35,9 @@ from zebtrack.ui.events import Events
 if TYPE_CHECKING:
     from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
     from zebtrack.coordinators.live_calibration_coordinator import LiveCalibrationCoordinator
-    from zebtrack.core.detector_service import DetectorService
-    from zebtrack.core.live_camera_service import LiveCameraService
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.core.recording.live_camera_service import LiveCameraService
+    from zebtrack.core.services.detector_service import DetectorService
     from zebtrack.core.state_manager import StateManager
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus

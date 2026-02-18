@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import pytest
 
-from zebtrack.core.live_camera_service import LiveCameraService
+from zebtrack.core.recording.live_camera_service import LiveCameraService
 from zebtrack.ui.events import Events
 
 

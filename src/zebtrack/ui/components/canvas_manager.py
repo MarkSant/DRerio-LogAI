@@ -346,7 +346,7 @@ class CanvasManager:
         zone_data = self.gui._get_zone_data_for_active_context()
         all_polygons = []
 
-        from zebtrack.core.detector import MultiAquariumZoneData
+        from zebtrack.core.detection import MultiAquariumZoneData
 
         # Normalize to a list of (ZoneData, is_active) tuples
         targets = []

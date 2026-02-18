@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from zebtrack.core.asset_manager import AssetManager
+from zebtrack.core.project.asset_manager import AssetManager
 
 
 def test_slugify_normalizes_text():

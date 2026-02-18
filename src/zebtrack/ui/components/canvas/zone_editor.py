@@ -81,7 +81,7 @@ class ZoneEditor:
         controls = getattr(self.gui, "zone_controls", None)
 
         # Handle Multi-Aquarium Data for Listbox
-        from zebtrack.core.detector import MultiAquariumZoneData
+        from zebtrack.core.detection import MultiAquariumZoneData
 
         if isinstance(zone_data, MultiAquariumZoneData):
             if controls:
@@ -123,7 +123,7 @@ class ZoneEditor:
         """
         zone_data = self.gui._get_zone_data_for_active_context()
 
-        from zebtrack.core.detector import MultiAquariumZoneData
+        from zebtrack.core.detection import MultiAquariumZoneData
 
         if isinstance(zone_data, MultiAquariumZoneData):
             zone_data.sequential_processing = sequential
@@ -669,7 +669,7 @@ class ZoneEditor:
         zone_data = self.gui._get_zone_data_for_active_context()
 
         # Handle Multi-Aquarium Data
-        from zebtrack.core.detector import MultiAquariumZoneData
+        from zebtrack.core.detection import MultiAquariumZoneData
 
         if isinstance(zone_data, MultiAquariumZoneData):
             zone_controls = getattr(self.gui, "zone_controls", None)
@@ -851,7 +851,7 @@ class ZoneEditor:
         # Get or create zone data for target video
         zone_data = project_manager.get_zone_data(video_path)
         if zone_data is None:
-            from zebtrack.core.project_manager import ZoneData
+            from zebtrack.core.project.project_manager import ZoneData
 
             zone_data = ZoneData()
 
@@ -909,7 +909,7 @@ class ZoneEditor:
             return
 
         # Clear the zones
-        from zebtrack.core.project_manager import ZoneData
+        from zebtrack.core.project.project_manager import ZoneData
 
         project_manager.save_zone_data(ZoneData(), video_path)
 

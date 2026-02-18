@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from zebtrack.core.roi_template_manager import ROITemplateManager
-from zebtrack.core.schemas import InvalidTemplateError
+from zebtrack.core.project.roi_template_manager import ROITemplateManager
+from zebtrack.core.project.schemas import InvalidTemplateError
 
 
 @pytest.fixture

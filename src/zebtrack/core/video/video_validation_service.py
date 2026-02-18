@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import structlog
 
 if TYPE_CHECKING:
-    from zebtrack.core.project_manager import ProjectManager
+    from zebtrack.core.project.project_manager import ProjectManager
 
 log = structlog.get_logger()
 
@@ -83,7 +83,7 @@ class VideoValidationService:
         """
         Scan and validate video paths for available data.
         """
-        from zebtrack.core.video_manager import VideoManager
+        from zebtrack.core.project.video_manager import VideoManager
 
         log.debug(
             "video_validation_service.scan_and_validate_paths.start",
