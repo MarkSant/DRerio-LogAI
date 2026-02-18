@@ -29,8 +29,8 @@ if TYPE_CHECKING:
     from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.services.model_service import ModelService
     from zebtrack.core.state_manager import StateManager
+    from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.settings import Settings
-    from zebtrack.ui.ui_coordinator import UICoordinator
 
 log = structlog.get_logger()
 
@@ -56,7 +56,7 @@ class ProjectWorkflowService:
         project_manager: ProjectManager,
         model_service: ModelService,
         state_manager: StateManager,
-        ui_coordinator: UICoordinator | None = None,
+        ui_coordinator: UIScheduler | None = None,
         settings_obj: Settings | None = None,
     ):
         """
@@ -66,7 +66,7 @@ class ProjectWorkflowService:
             project_manager: ProjectManager instance for project operations
             model_service: ModelService instance for model configuration
             state_manager: StateManager instance for state updates
-            ui_coordinator: Optional UICoordinator for UI updates
+            ui_coordinator: Optional UIScheduler for UI updates
             settings_obj: Settings instance (injected, optional for backward compatibility)
         """
         self.project_manager = project_manager

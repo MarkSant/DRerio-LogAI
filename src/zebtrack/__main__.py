@@ -252,7 +252,7 @@ def main():  # noqa: C901
             project_manager=project_manager,
             model_service=model_service,
             state_manager=state_manager,
-            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            ui_coordinator=ui_coordinator,
             settings_obj=settings_obj,
         )
         log.info(
@@ -300,7 +300,7 @@ def main():  # noqa: C901
         video_processing_service = VideoProcessingService(
             project_manager=project_manager,
             state_manager=state_manager,
-            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            ui_coordinator=ui_coordinator,
             ui_event_bus=event_bus,
             cancel_event=cancel_event,
             settings_obj=settings_obj,
@@ -421,7 +421,7 @@ def main():  # noqa: C901
             root=root,
             ui_event_bus=event_bus,
             state_manager=state_manager,
-            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            ui_coordinator=ui_coordinator,
             project_manager=project_manager,
             weight_manager=weight_manager,
             detector_service=detector_service,
@@ -435,7 +435,7 @@ def main():  # noqa: C901
         progress_tracking_coordinator = ProgressTrackingCoordinator(
             state_manager=state_manager,
             settings_obj=settings_obj,
-            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            ui_coordinator=ui_coordinator,
             cancel_event=cancel_event,
             event_bus=event_bus,
             view=None,
@@ -448,7 +448,7 @@ def main():  # noqa: C901
             project_manager=project_manager,
             detector_service=detector_service,
             settings_obj=settings_obj,
-            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            ui_coordinator=ui_coordinator,
             ui_state_controller=ui_state_controller,
             cancel_event=cancel_event,
             video_classification_service=video_classification_service,
@@ -477,7 +477,7 @@ def main():  # noqa: C901
             project_manager=project_manager,
             detector_service=detector_service,
             settings_obj=settings_obj,
-            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            ui_coordinator=ui_coordinator,
             cancel_event=cancel_event,
             recorder_factory=recorder_factory,
             event_bus=event_bus,
@@ -492,7 +492,7 @@ def main():  # noqa: C901
             detector_service=detector_service,
             weight_manager=weight_manager,
             settings_obj=settings_obj,
-            ui_coordinator=ui_coordinator,  # type: ignore[arg-type]
+            ui_coordinator=ui_coordinator,
             ui_state_controller=ui_state_controller,
             cancel_event=cancel_event,
             video_selection_service=video_selection_service,

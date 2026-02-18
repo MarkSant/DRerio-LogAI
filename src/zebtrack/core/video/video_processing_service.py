@@ -19,7 +19,7 @@ Dependencies (injected):
 - recorder: Recorder instance for trajectory writing
 - project_manager: ProjectManager for project state
 - state_manager: StateManager for centralized state
-- ui_coordinator: UICoordinator for UI updates
+- ui_coordinator: UIScheduler for UI updates
 - root: Tkinter root for scheduling UI updates
 - view: ApplicationGUI for direct UI access (minimized)
 - cancel_event: threading.Event for cancellation signaling
@@ -47,10 +47,10 @@ if TYPE_CHECKING:
     from zebtrack.core.detection import Detector
     from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.state_manager import StateManager
+    from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.io.recorder import Recorder
     from zebtrack.settings import Settings
     from zebtrack.ui.event_bus import EventBus
-    from zebtrack.ui.ui_coordinator import UICoordinator
 
 from zebtrack.analysis.reporters import (
     ExcelReporter,
@@ -105,7 +105,7 @@ class VideoProcessingService:
         *,
         project_manager: ProjectManager,
         state_manager: StateManager,
-        ui_coordinator: UICoordinator,
+        ui_coordinator: UIScheduler,
         ui_event_bus: EventBus,
         cancel_event: threading.Event,
         settings_obj: Settings,
@@ -119,7 +119,7 @@ class VideoProcessingService:
         Args:
             project_manager: ProjectManager for project state
             state_manager: StateManager for centralized state
-            ui_coordinator: UICoordinator for UI updates
+            ui_coordinator: UIScheduler for UI updates
             ui_event_bus: Event bus for UI events (publishes ERROR_OCCURRED, etc.)
             cancel_event: Threading event for cancellation signaling
             settings_obj: Settings instance for configuration access
