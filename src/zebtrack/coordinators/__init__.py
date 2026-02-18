@@ -30,6 +30,8 @@ from zebtrack.coordinators.detector_setup_coordinator import (
     DetectorSetupCoordinator,
     DetectorSetupCoordinatorError,
 )
+from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
+from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
 from zebtrack.coordinators.live_calibration_coordinator import (
     LiveCalibrationCoordinator,
     LiveCalibrationCoordinatorError,
@@ -50,6 +52,7 @@ from zebtrack.coordinators.project_coordinator import (
     ProjectCoordinator,
     ProjectCoordinatorError,
 )
+from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
 from zebtrack.coordinators.recording_session_coordinator import (
     RecordingSessionCoordinator,
     RecordingSessionCoordinatorError,
@@ -69,6 +72,8 @@ __all__ = [
     "DetectorSetupCoordinator",
     "DetectorSetupCoordinatorError",
     "DiagnosticAbortError",
+    "DialogCoordinator",
+    "LiveBatchCoordinator",
     "LiveCalibrationCoordinator",
     "LiveCalibrationCoordinatorError",
     "LiveCameraSessionCoordinator",
@@ -80,6 +85,7 @@ __all__ = [
     "ProgressTrackingCoordinator",
     "ProjectCoordinator",
     "ProjectCoordinatorError",
+    "ProjectLifecycleCoordinator",
     "RecordingSessionCoordinator",
     "RecordingSessionCoordinatorError",
     "ReportGenerationCoordinator",

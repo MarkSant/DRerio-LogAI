@@ -98,7 +98,7 @@ def test_callbacks_progress_updates_ui_and_state(coordinator_with_view):
     )
 
     coordinator_with_view.ui_coordinator.set_status.assert_called()
-    coordinator_with_view.ui_coordinator.show_progress.assert_called()
+    coordinator_with_view.ui_coordinator.update_progress.assert_called()
     coordinator_with_view.state_manager.update_processing_state.assert_called_with(
         source="controller.processing_progress", current_frame=10, total_frames=20
     )

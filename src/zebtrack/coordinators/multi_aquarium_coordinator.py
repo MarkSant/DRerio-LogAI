@@ -13,7 +13,7 @@ import contextlib
 import os
 import shutil
 from collections.abc import Generator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from zebtrack.coordinators.ui_state_coordinator import UIStateController
     from zebtrack.core.project.project_manager import ProjectManager
     from zebtrack.core.services.detector_service import DetectorService
+    from zebtrack.core.services.weight_manager import WeightManager
     from zebtrack.core.state_manager import StateManager
     from zebtrack.core.ui_scheduler import UIScheduler
     from zebtrack.core.video.video_classification_service import VideoClassificationService
@@ -61,6 +62,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
         ui_state_controller: UIStateController,
         cancel_event: Event,
         video_classification_service: VideoClassificationService,
+        weight_manager: WeightManager | None = None,
         event_bus: EventBus | None = None,
         view: Any = None,
         root: Any = None,
@@ -74,6 +76,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
         self.ui_state_controller = ui_state_controller
         self.cancel_event = cancel_event
         self.video_classification_service = video_classification_service
+        self.weight_manager = weight_manager
         self.view = view
         self.root = root
         self.detector = detector
@@ -149,14 +152,16 @@ class MultiAquariumCoordinator(BaseCoordinator):
         count: int | None = None,
         method: str = "auto",
         multi_aquarium: bool = False,
+        stabilization_frames: int = 10,
     ) -> dict | None:
-        """Run aquarium detection on a video frame.
+        """Run aquarium detection on a video.
 
         Args:
             video_path: Path to the video file.
             count: Expected number of aquariums (None for single).
             method: Detection method ('auto', 'contour', 'corners', 'model').
             multi_aquarium: Whether to detect multiple aquariums.
+            stabilization_frames: Number of initial frames to analyze for stability.
 
         Returns:
             Detection results dict, or None on failure.
@@ -174,39 +179,45 @@ class MultiAquariumCoordinator(BaseCoordinator):
         )
 
         try:
-            import cv2
-
-            cap = cv2.VideoCapture(video_path)
-            ret, frame = cap.read()
-            cap.release()
-
-            if not ret or frame is None:
-                log.error("processing_coordinator.aquarium_detection.frame_read_failed")
-                return None
-
             from zebtrack.core.detection.aquarium_detector import AquariumDetector
 
-            detector = AquariumDetector()
+            # Resolve model path via weight_manager (same pattern as LiveCalibrationCoordinator)
+            detection_method = method if method != "auto" else "det"
+            model_path = None
+            if self.weight_manager:
+                model_path = self.weight_manager.get_weight_path_by_method(
+                    method=detection_method, task="aquarium"
+                )
+            if not model_path:
+                log.error(
+                    "processing_coordinator.aquarium_detection.no_model",
+                    method=detection_method,
+                )
+                return None
+
+            detector = AquariumDetector(model_path=model_path, mode=detection_method)
 
             if multi_aquarium:
-                results = detector.detect_multiple(
-                    frame,
+                polygons = detector.detect_multiple_aquariums(
+                    video_path=video_path,
                     expected_count=count or 2,
-                    method=method,
+                    stabilization_frames=stabilization_frames,
                 )
-                if results:
-                    polygons = results.get("polygons", [])
+                if polygons:
                     log.info(
                         "processing_coordinator.aquarium_detection.multi_success",
                         count=len(polygons),
                     )
 
+                    # Convert numpy arrays to lists for serialization
+                    polygon_lists = [p.tolist() if hasattr(p, "tolist") else p for p in polygons]
+
                     self._publish_event(
                         Events.ZONE_MULTI_AUTO_DETECT_SUCCESS,
                         {
                             "video_path": video_path,
-                            "polygons": polygons,
-                            "count": len(polygons),
+                            "polygons": polygon_lists,
+                            "count": len(polygon_lists),
                             "method": method,
                         },
                     )
@@ -216,33 +227,39 @@ class MultiAquariumCoordinator(BaseCoordinator):
                         Events.ZONE_SHOW_AQUARIUM_ASSIGNMENT_DIALOG,
                         {
                             "video_path": video_path,
-                            "polygons": polygons,
-                            "count": len(polygons),
+                            "polygons": polygon_lists,
+                            "count": len(polygon_lists),
                         },
                     )
+                    return {"polygons": polygon_lists, "count": len(polygon_lists)}
                 else:
                     log.warning("processing_coordinator.aquarium_detection.multi_failed")
                     self._publish_event(
                         Events.ZONE_MULTI_AUTO_DETECT_FAILED,
                         {"video_path": video_path, "reason": "Detecção falhou"},
                     )
-                return results
+                return None
             else:
                 # Single aquarium detection
-                result = detector.detect_single(frame, method=method)
-                if result:
-                    polygon = result.get("polygon", [])
+                results = detector.detect_aquariums(
+                    video_path=video_path,
+                    stabilization_frames=stabilization_frames,
+                )
+                if results:
+                    polygon = results[0]
+                    polygon_list: list[tuple[float, float]] = (
+                        polygon.tolist() if hasattr(polygon, "tolist") else list(polygon)
+                    )
                     log.info(
                         "processing_coordinator.aquarium_detection.single_success",
-                        points=len(polygon),
+                        points=len(polygon_list),
                     )
-                    self._publish_event(
-                        Events.ZONE_AUTO_DETECT_SUCCESS,
-                        {"video_path": video_path, "polygon": polygon},
-                    )
+                    # Set arena polygon directly (no SUCCESS event exists for single detect)
+                    self.set_main_arena_polygon(polygon_list)
+                    return {"polygon": polygon_list}
                 else:
                     log.warning("processing_coordinator.aquarium_detection.single_failed")
-                return result
+                return None
 
         except Exception as exc:
             log.error(
@@ -483,9 +500,9 @@ class MultiAquariumCoordinator(BaseCoordinator):
         if zone_data is None:
             from zebtrack.core.detection import ZoneData
 
-            zone_data = ZoneData(polygon=list(points))
+            zone_data = ZoneData(polygon=[(int(x), int(y)) for x, y in points])
         else:
-            zone_data.polygon = list(points)
+            zone_data.polygon = [(int(x), int(y)) for x, y in points]
 
         self.project_manager.save_zone_data(zone_data)
         self._publish_processing_mode(source="set_main_arena_polygon")
@@ -565,11 +582,15 @@ class MultiAquariumCoordinator(BaseCoordinator):
         except Exception:
             log.debug("processing_coordinator.add_roi.overlap_check.suppressed", exc_info=True)
 
-        # Add the ROI
-        zone_data.roi_polygons.append(list(points_list))
-        zone_data.roi_names.append(name)
+        # Add the ROI (cast to list since ZoneData fields are typed as Sequence
+        # but default_factory=list ensures they're mutable lists at runtime)
+        roi_polys = cast(list, zone_data.roi_polygons)
+        roi_polys.append(list(points_list))
+        roi_nms = cast(list, zone_data.roi_names)
+        roi_nms.append(name)
         if color:
-            zone_data.roi_colors.append(color)
+            roi_cols = cast(list, zone_data.roi_colors)
+            roi_cols.append(color)
 
         self.project_manager.save_zone_data(zone_data)
         log.info(
@@ -589,7 +610,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
         resolved = self._resolve_single_animal_mode(single_video_config)
 
         if resolved is True:
-            self._active_processing_mode = ProcessingMode.SINGLE_TRACK
+            self._active_processing_mode = ProcessingMode.SINGLE_SUBJECT
         else:
             self._active_processing_mode = ProcessingMode.MULTI_TRACK
 
@@ -689,8 +710,8 @@ class MultiAquariumCoordinator(BaseCoordinator):
         Returns:
             Tuple of (analysis_interval_frames, display_interval_frames).
         """
-        analysis = self.settings.video_processing.analysis_interval_frames
-        display = self.settings.video_processing.display_interval_frames
+        analysis = self.settings.video_processing.processing_interval
+        display = self.settings.video_processing.display_interval
 
         if config:
             if "analysis_interval_frames" in config:

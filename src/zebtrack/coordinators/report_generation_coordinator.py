@@ -699,7 +699,9 @@ class ReportGenerationCoordinator(BaseCoordinator):
         px_x, px_y = self._resolve_pixel_cm(metadata, calib, loc_w, loc_h, px_x_orig, px_y_orig)
 
         frame_crop = (off_x, off_y, loc_w, loc_h)
-        video_path_report = self._prepare_background_image(path, exp_id, results_path, frame_crop)
+        video_path_report = self._prepare_background_image(
+            path, exp_id, str(results_path), frame_crop
+        )
 
         service = self.analysis_service
         if not service:
@@ -722,7 +724,7 @@ class ReportGenerationCoordinator(BaseCoordinator):
             behavioral_config=analysis_params.get("behavioral_config"),
         )
 
-        report_paths = self._export_individual_outputs(analysis_result, results_path, exp_id)
+        report_paths = self._export_individual_outputs(analysis_result, str(results_path), exp_id)
         self.project_manager.register_processing_outputs(
             video_path=path,
             report_path=report_paths["docx"],
@@ -980,10 +982,10 @@ class ReportGenerationCoordinator(BaseCoordinator):
             zone_data = self.project_manager.get_zone_data(video_path=path)
             calib = self.project_manager.project_data.get("calibration", {}) or {}
             px_x, px_y, poly_warped, video_h, rois, colors, cal = self._prepare_summary_geometry(
-                zone_data.polygon or [],
-                zone_data.roi_polygons,
-                zone_data.roi_names,
-                zone_data.roi_colors,
+                list(zone_data.polygon or []),
+                list(zone_data.roi_polygons),
+                list(zone_data.roi_names),
+                list(zone_data.roi_colors),
                 calib,
             )
 
@@ -1109,11 +1111,11 @@ class ReportGenerationCoordinator(BaseCoordinator):
 
         # Apply project overrides
         if "analysis_interval_frames" in project_data:
-            settings_snapshot.video_processing.analysis_interval_frames = int(
+            settings_snapshot.video_processing.processing_interval = int(
                 project_data["analysis_interval_frames"]
             )
         if "display_interval_frames" in project_data:
-            settings_snapshot.video_processing.display_interval_frames = int(
+            settings_snapshot.video_processing.display_interval = int(
                 project_data["display_interval_frames"]
             )
         if "single_animal_per_aquarium" in project_data:

@@ -179,7 +179,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
     def _update_ui_progress(self, pct: int, processed: int, total: int, detected: int) -> None:
         """Update progress bar and status (must run on main thread)."""
         if self.view:
-            self.ui_coordinator.show_progress(self.view, pct)
+            self.ui_coordinator.update_progress(self.view, pct)
             self.ui_coordinator.set_status(
                 self.view,
                 f"Processando: {processed}/{total} quadros ({pct}%) - {detected} detecções",

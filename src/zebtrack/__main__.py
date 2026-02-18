@@ -446,6 +446,7 @@ def main():  # noqa: C901
             ui_state_controller=ui_state_controller,
             cancel_event=cancel_event,
             video_classification_service=video_classification_service,
+            weight_manager=weight_manager,
             event_bus=event_bus,
             view=None,
             root=root,

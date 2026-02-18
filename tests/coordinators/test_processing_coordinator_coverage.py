@@ -649,8 +649,8 @@ class TestProcessingIntervals:
 
     def test_determine_processing_intervals_uses_settings(self, coordinator, mock_settings):
         """Test intervals come from settings."""
-        mock_settings.video_processing.analysis_interval_frames = 5
-        mock_settings.video_processing.display_interval_frames = 10
+        mock_settings.video_processing.processing_interval = 5
+        mock_settings.video_processing.display_interval = 10
 
         analysis, display = coordinator._determine_processing_intervals(config={})
 

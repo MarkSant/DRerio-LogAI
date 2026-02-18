@@ -10,7 +10,6 @@ Estimated size: ~450 lines (target <800).
 from __future__ import annotations
 
 import os
-import threading
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -208,11 +207,11 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         os.makedirs(results_dir, exist_ok=True)
 
         # Set up detector zones
-        self.detector_service.set_zones(zone_data)
+        self.detector_service.configure_zones(zones_data=zone_data)
 
         # Determine intervals
-        analysis_interval = self.settings.video_processing.analysis_interval_frames
-        display_interval = self.settings.video_processing.display_interval_frames
+        analysis_interval = self.settings.video_processing.processing_interval
+        display_interval = self.settings.video_processing.display_interval
 
         if single_video_config:
             if "analysis_interval_frames" in single_video_config:
@@ -220,26 +219,27 @@ class SequentialProcessingCoordinator(BaseCoordinator):
             if "display_interval_frames" in single_video_config:
                 display_interval = int(single_video_config["display_interval_frames"])
 
-        # Build processing context
+        # Build processing context (matches ProcessingContext dataclass fields)
+        video_info = {
+            "video_path": video_path,
+            "experiment_id": f"{experiment_id}_aq{aq_id}",
+            "output_dir": results_dir,
+            **aq_metadata,
+        }
         processing_context = ProcessingContext(
-            video_path=video_path,
-            results_dir=results_dir,
-            experiment_id=f"{experiment_id}_aq{aq_id}",
+            videos_to_process=[video_info],
+            output_base_dir=results_dir,
+            cancel_event=self.cancel_event,
+            settings=self.settings,
+            single_video_config=single_video_config,
             zone_data={
                 "polygon": zone_data.polygon,
                 "roi_polygons": zone_data.roi_polygons,
                 "roi_names": zone_data.roi_names,
                 "roi_colors": zone_data.roi_colors,
             },
-            settings_snapshot={
-                "analysis_interval_frames": analysis_interval,
-                "display_interval_frames": display_interval,
-                "fps": self.settings.video_processing.fps,
-                "single_animal_per_aquarium": (
-                    self.settings.video_processing.single_animal_per_aquarium
-                ),
-            },
-            metadata=aq_metadata,
+            analysis_interval_frames=analysis_interval,
+            display_interval_frames=display_interval,
         )
 
         # Build callbacks
@@ -297,34 +297,32 @@ class SequentialProcessingCoordinator(BaseCoordinator):
                 self._process_next_aquarium_in_sequence()
 
         callbacks = ProcessingCallbacks(
-            on_started=lambda vp: log.info(
+            on_started=lambda: log.info(
                 "processing_coordinator.sequential.aq_started",
                 aquarium=aq_id,
-                video=os.path.basename(vp),
             ),
-            on_progress=lambda pd: None,  # Progress handled by the worker
-            on_frame_processed=lambda fd: None,
-            on_video_completed=on_sequential_complete,
-            on_error=lambda ed: log.warning(
+            on_progress=lambda idx, total, exp_id, frac, msg, stats: None,
+            on_frame_processed=lambda frame, dets, fn: None,
+            on_video_completed=lambda idx, total, exp_id, success: on_sequential_complete(
+                {"success": success}
+            ),
+            on_error=lambda exc, msg: log.warning(
                 "processing_coordinator.sequential.aq_error",
                 aquarium=aq_id,
-                error=ed.get("error", ""),
+                error=str(exc),
             ),
-            on_fatal_error=lambda ed: on_sequential_complete(
-                {"success": False, "error": ed.get("error", "")}
+            on_completed=lambda success, msg, data: on_sequential_complete(
+                {"success": success, "error": msg if not success else ""}
             ),
-            on_complete=lambda rd: None,
+            on_fatal_error=lambda exc, msg, data: on_sequential_complete(
+                {"success": False, "error": str(exc)}
+            ),
         )
 
         # Create worker and start processing
-        recorder = self.recorder_factory.get_recorder() if self.recorder_factory else None
         worker = ProcessingWorker(
-            detector_service=self.detector_service,
-            project_manager=self.project_manager,
-            settings_obj=self.settings,
-            cancel_event=self.cancel_event,
+            context=processing_context,
             callbacks=callbacks,
-            recorder=recorder,
         )
 
         # Store reference for cancellation access
@@ -332,17 +330,10 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         if vpc:
             vpc.processing_worker = worker
 
-        thread = threading.Thread(
-            target=worker.process_single_video,
-            args=(processing_context,),
-            daemon=True,
-            name=f"sequential-aq{aq_id}",
-        )
+        thread = worker.start_in_thread()
 
         if vpc:
             vpc.processing_thread = thread
-
-        thread.start()
 
     # ========================================================================
     # Sequential Advancement (from _on_video_completed)
@@ -425,15 +416,13 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         )
 
         if self.view and self.root:
-            self.root.after(
-                0,
-                lambda: (
-                    self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode"),
-                    self.ui_coordinator.hide_progress_bar(self.view),
-                )
-                if self.view
-                else None,
-            )
+
+            def _cleanup_ui() -> None:
+                if self.view:
+                    self.ui_coordinator.update_view(self.view, "stop_analysis_view_mode")
+                    self.ui_coordinator.hide_progress_bar(self.view)
+
+            self.root.after(0, _cleanup_ui)
 
         # Generate reports if report coordinator is available
         if self._report_coordinator:

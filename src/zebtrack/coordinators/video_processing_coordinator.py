@@ -162,7 +162,7 @@ class VideoProcessingCoordinator(BaseCoordinator):
             Events.ZONE_AUTO_DETECT,
             lambda data: (
                 mac.run_aquarium_detection(
-                    video_path=data.get("video_path") if isinstance(data, dict) else None,
+                    video_path=str(data.get("video_path", "")) if isinstance(data, dict) else "",
                     stabilization_frames=(
                         int(data.get("stabilization_frames", 10)) if isinstance(data, dict) else 10
                     ),
@@ -402,12 +402,19 @@ class VideoProcessingCoordinator(BaseCoordinator):
         videos_to_process: list[dict],
         on_completed_callback: Callable | None = None,
     ) -> ProcessingCallbacks:
-        """Create thread-safe callbacks for the processing worker."""
+        """Create thread-safe callbacks for the processing worker.
+
+        Bridges ProcessingCallbacks signatures to ProgressTrackingCoordinator methods.
+        """
         ptc = self._progress_coordinator
 
         def _on_started_wrapper():
             if ptc:
-                ptc._on_processing_started(videos_to_process)
+                # PTC._on_processing_started expects a video_path: str
+                first_video = (
+                    videos_to_process[0].get("video_path", "") if videos_to_process else ""
+                )
+                ptc._on_processing_started(first_video)
 
         def _on_progress_wrapper(
             idx: int, total: int, exp_id: str | None, fraction: float, msg: str, stats: dict | None
@@ -428,20 +435,39 @@ class VideoProcessingCoordinator(BaseCoordinator):
         ) -> None:
             self._on_video_completed(videos_to_process, idx, total, exp_id, success)
 
-        def _on_completed_wrapper(cancelled, output_dir, summary=None):
+        def _on_completed_wrapper(cancelled: bool, output_dir: str, summary: dict | None = None):
             if ptc:
-                ptc._on_processing_complete(
-                    videos_to_process, cancelled, output_dir, summary, on_completed_callback
+                result_data = {
+                    "videos_to_process": videos_to_process,
+                    "cancelled": cancelled,
+                    "output_dir": output_dir,
+                    "summary": summary,
+                    "on_completed_callback": on_completed_callback,
+                }
+                ptc._on_processing_complete(result_data)
+
+        def _on_error_wrapper(exc: Exception, msg: str) -> None:
+            if ptc:
+                ptc._on_processing_error({"error": str(exc), "message": msg})
+
+        def _on_frame_processed_wrapper(frame: Any, detections: Any, frame_number: Any) -> None:
+            if ptc:
+                ptc._on_frame_processed(
+                    {"frame": frame, "detections": detections, "frame_number": frame_number}
                 )
+
+        def _on_fatal_error_wrapper(exc: Exception, msg: str, data: dict) -> None:
+            if ptc:
+                ptc._on_processing_fatal_error({"error": str(exc), "message": msg, **data})
 
         return ProcessingCallbacks(
             on_started=_on_started_wrapper,
             on_progress=_on_progress_wrapper,
-            on_frame_processed=ptc._on_frame_processed if ptc else lambda *a: None,
+            on_frame_processed=_on_frame_processed_wrapper,
             on_video_completed=_on_video_completed_wrapper,
-            on_error=ptc._on_processing_error if ptc else lambda *a: None,
+            on_error=_on_error_wrapper,
             on_completed=_on_completed_wrapper,
-            on_fatal_error=ptc._on_processing_fatal_error if ptc else lambda *a: None,
+            on_fatal_error=_on_fatal_error_wrapper,
         )
 
     # ========================================================================
@@ -599,7 +625,7 @@ class VideoProcessingCoordinator(BaseCoordinator):
             # Delegate sequential advancement
             seq = self._sequential_coordinator
             if seq:
-                seq._handle_sequential_multi_aquarium(outputs_by_aquarium)
+                seq._handle_sequential_multi_aquarium(video_path)
             self._publish_event(Events.UI_REFRESH_PROJECT_VIEWS, {})
             self._generate_completion_reports(video_path, experiment_id, True)
         elif trajectory_exists:
@@ -694,7 +720,7 @@ class VideoProcessingCoordinator(BaseCoordinator):
         if use_seq:
             seq = self._sequential_coordinator
             if seq:
-                seq._handle_sequential_single_video_start(video_path, config, zone_data, calib_data)
+                seq._handle_sequential_single_video_start(str(video_path), zone_data, config)
             return
 
         # 3. Validate
@@ -742,9 +768,8 @@ class VideoProcessingCoordinator(BaseCoordinator):
                 if self.settings.tracking.use_single_subject_tracker
                 else ProcessingMode.MULTI_TRACK
             )
-            mac._publish_processing_mode(
-                source="single_video.preflight", force=True, mode_override=effective_mode
-            )
+            mac._active_processing_mode = effective_mode
+            mac._publish_processing_mode(source="single_video.preflight", force=True)
 
         # 9. Execute
         self._execute_single_video_analysis(video_path)
@@ -915,11 +940,11 @@ class VideoProcessingCoordinator(BaseCoordinator):
         if rc:
             rc.generate_unified_report(video_paths, **kwargs)
 
-    def generate_parquet_summaries(self, video_paths: list[str] | None = None) -> None:
+    def generate_parquet_summaries(self, video_entries: list[dict] | None = None) -> None:
         """Proxy → ReportGenerationCoordinator."""
         rc = self._report_coordinator
         if rc:
-            rc.generate_parquet_summaries(video_paths)
+            rc.generate_parquet_summaries(video_entries or [])
 
     def run_aquarium_detection(self, *args, **kwargs) -> None:
         """Proxy → MultiAquariumCoordinator."""
@@ -957,16 +982,16 @@ class VideoProcessingCoordinator(BaseCoordinator):
         mac = self._multi_aquarium_coordinator
         return mac._resolve_single_subject_tracker_preference(config) if mac else None
 
-    def _find_project_roi_names(self, video_paths=None) -> list[str]:
+    def _find_project_roi_names(self, video_paths=None) -> list[str] | None:
         """Proxy → ReportGenerationCoordinator."""
         rc = self._report_coordinator
-        return rc._find_project_roi_names(video_paths) if rc else []
+        return rc._find_project_roi_names(video_paths or []) if rc else None
 
-    def _on_processing_started(self, videos) -> None:
+    def _on_processing_started(self, video_path: str) -> None:
         """Proxy → ProgressTrackingCoordinator."""
         ptc = self._progress_coordinator
         if ptc:
-            ptc._on_processing_started(videos)
+            ptc._on_processing_started(video_path)
 
     def make_progress_callback(self, *args, **kwargs):
         """Proxy → ProgressTrackingCoordinator."""
@@ -1107,44 +1132,9 @@ class VideoProcessingCoordinator(BaseCoordinator):
     def process_videos(self, videos_to_process: list[dict], output_base_dir: Path | str) -> None:
         """Execute processing for a list of videos (legacy support)."""
         output_dir_str = str(output_base_dir)
-        ptc = self._progress_coordinator
 
-        def _on_started_wrapper() -> None:
-            if ptc:
-                ptc._on_processing_started(videos_to_process)
-
-        def _on_progress_wrapper(idx, tot, eid, frac, msg, st) -> None:
-            if ptc:
-                progress_data = {
-                    "idx": idx,
-                    "total_videos": tot,
-                    "exp_id": eid,
-                    "fraction": frac,
-                    "msg": msg,
-                    **(st or {}),
-                }
-                ptc._on_processing_progress(progress_data)
-
-        def _on_video_completed_wrapper(index, total, exp_id, success) -> None:
-            self._on_video_completed(videos_to_process, index, total, exp_id, success)
-
-        def _on_finished_wrapper(cancelled, o_dir, summary=None) -> None:
-            if ptc:
-                ptc._on_processing_complete(videos_to_process, cancelled, o_dir, summary, None)
-
-        def _on_fatal_error_wrapper(exc, context, info) -> None:
-            if ptc:
-                ptc._on_processing_fatal_error(exc, context, info)
-
-        callbacks = ProcessingCallbacks(
-            on_started=_on_started_wrapper,
-            on_progress=_on_progress_wrapper,
-            on_frame_processed=ptc._on_frame_processed if ptc else lambda *a: None,
-            on_video_completed=_on_video_completed_wrapper,
-            on_error=ptc._on_processing_error if ptc else lambda *a: None,
-            on_completed=_on_finished_wrapper,
-            on_fatal_error=_on_fatal_error_wrapper,
-        )
+        # Reuse the unified callback factory
+        callbacks = self.create_processing_callbacks(videos_to_process)
         context = self.create_processing_context(videos_to_process, output_dir_str)
         if self.cancel_event:
             self.cancel_event.clear()
@@ -1305,9 +1295,7 @@ class VideoProcessingCoordinator(BaseCoordinator):
         if mac:
             resolved_mode = mac._determine_processing_mode()
             mac._active_processing_mode = resolved_mode
-            mac._publish_processing_mode(
-                source="batch_pre_start_sync", force=True, mode_override=resolved_mode
-            )
+            mac._publish_processing_mode(source="batch_pre_start_sync", force=True)
 
         try:
             first_video = final_tasks[0] if final_tasks else {}
