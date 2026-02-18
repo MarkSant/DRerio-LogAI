@@ -39,6 +39,7 @@ tomli = "^2.0.1"
 # See: https://setuptools.pypa.io/en/latest/pkg_resources.html
 setuptools = "<81"
 plotly = "^5.18.0"
+mypy = "^1.15"
 
 [tool.poetry.scripts]
 zebtrack = "zebtrack.__main__:main"
@@ -141,6 +142,12 @@ check_untyped_defs = true
 disallow_untyped_defs = false
 exclude = '(^analyze_mypy_.*\.py$)'
 mypy_path = "src:typings/third_party"
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
 
 [[tool.mypy.overrides]]
 module = [
