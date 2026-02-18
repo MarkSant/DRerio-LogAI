@@ -215,8 +215,8 @@ class WidgetFactory:
         )
 
         # Initial update
-        if hasattr(self.gui, "project_view_manager"):
-            self.gui.project_view_manager.update_zone_summary_cards()
+        if hasattr(self.gui, "video_selector_manager"):
+            self.gui.video_selector_manager.update_zone_summary_cards()
 
     def create_drawing_buttons(self):
         """
@@ -495,10 +495,10 @@ class WidgetFactory:
         self.gui.processing_reports_widget = ProcessingReportsWidget(
             self.gui.processing_reports_tab_frame,
             event_bus=self.gui.event_bus,
-            on_generate_trajectories=self.gui.project_view_manager.trigger_batch_trajectory_processing,
-            on_export_summaries=self.gui.project_view_manager.trigger_parquet_summaries,
-            on_generate_partial_report=self.gui.project_view_manager.on_processing_reports_generate_partial,
-            on_generate_unified_report=self.gui.project_view_manager.generate_unified_report,
+            on_generate_trajectories=self.gui.video_selector_manager.trigger_batch_trajectory_processing,
+            on_export_summaries=self.gui.video_selector_manager.trigger_parquet_summaries,
+            on_generate_partial_report=self.gui.reports_tree_manager.on_processing_reports_generate_partial,
+            on_generate_unified_report=self.gui.reports_tree_manager.generate_unified_report,
         )
         self.gui.processing_reports_widget.pack(fill="both", expand=True)
 
@@ -506,7 +506,7 @@ class WidgetFactory:
         if self.gui.processing_reports_widget.tree:
             self.gui.processing_reports_widget.tree.bind(
                 "<Double-Button-1>",
-                self.gui.project_view_manager.on_processing_reports_item_double_click,
+                self.gui.reports_tree_manager.on_processing_reports_item_double_click,
             )
 
         # Initial refresh
@@ -564,7 +564,7 @@ class WidgetFactory:
         ttk.Button(
             self.gui.project_overview_frame,
             text="Ir para Processamento e Relatórios →",
-            command=self.gui.project_view_manager.navigate_to_processing_reports_tab,
+            command=self.gui.video_selector_manager.navigate_to_processing_reports_tab,
         ).pack(fill="x", padx=5, pady=(0, 5))
 
     # ===========================================================================

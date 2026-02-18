@@ -36,7 +36,6 @@ from zebtrack.ui.components import (
     MenuManager,
     PolygonDrawingService,
     ProjectOverviewWidget,
-    ProjectViewManager,
     ROITemplateManager,
     StateSynchronizer,
     TabBuilder,
@@ -45,6 +44,10 @@ from zebtrack.ui.components import (
 )
 from zebtrack.ui.components.analysis_view_controller import AnalysisViewController
 from zebtrack.ui.components.project_initializer import ProjectInitializer
+from zebtrack.ui.components.project_views import (
+    ReportsTreeManager,
+    VideoSelectorTreeManager,
+)
 from zebtrack.ui.components.single_video_workflow import SingleVideoWorkflow
 from zebtrack.ui.components.weight_hardware_manager import WeightHardwareManager
 from zebtrack.ui.components.zone_edit_guard import ZoneEditGuard
@@ -166,7 +169,10 @@ class ApplicationGUI:
         self.validation_manager = ValidationManager(self, settings_obj=self.settings)
         self.dialog_manager = DialogManager(self, event_bus_v2=self.event_bus_v2)
         self.widget_factory = WidgetFactory(self, settings_obj=self.settings)
-        self.project_view_manager = ProjectViewManager(self, event_bus_v2=self.event_bus_v2)
+        self.reports_tree_manager = ReportsTreeManager(self, event_bus_v2=self.event_bus_v2)
+        self.video_selector_manager = VideoSelectorTreeManager(self, event_bus_v2=self.event_bus_v2)
+        # Backward-compat alias used by shims and tests
+        self.project_view_manager = self.video_selector_manager
 
         # Phase 2.5: Initialize UI Coordinator (Mediator)
         self.ui_coordinator = UICoordinator(
@@ -174,7 +180,8 @@ class ApplicationGUI:
             legacy_event_bus=self.event_bus,
             canvas_manager=self.canvas_manager,
             validation_manager=self.validation_manager,
-            project_view_manager=self.project_view_manager,
+            video_selector_manager=self.video_selector_manager,
+            reports_tree_manager=self.reports_tree_manager,
             dialog_manager=self.dialog_manager,
             state_synchronizer=self.state_synchronizer,
             root=self.root,
@@ -598,7 +605,7 @@ class ApplicationGUI:
 
         item_id = self.project_overview_tree.focus()
         if item_id:
-            self.project_view_manager._on_project_overview_tree_double_click_impl(None)
+            self.video_selector_manager._on_project_overview_tree_double_click_impl(None)
 
     def _on_project_overview_right_click(self, event) -> None:
         """Handle right-click events on the overview tree (legacy handler)."""
@@ -801,11 +808,11 @@ class ApplicationGUI:
         if not hasattr(self, "zone_controls") or not self.zone_controls:
             return
         search_text = self.zone_controls.video_search_var.get()
-        self.project_view_manager._populate_video_selector_tree(filter_text=search_text)
+        self.video_selector_manager._populate_video_selector_tree(filter_text=search_text)
 
     def _refresh_video_selector_tree(self) -> None:
         """Refresh video selector tree. Delegates to ProjectViewManager."""
-        self.project_view_manager._populate_video_selector_tree(filter_text=None)
+        self.video_selector_manager._populate_video_selector_tree(filter_text=None)
 
     def _on_apply_roi_settings(self, params: dict | None = None) -> None:
         """Apply ROI settings.
@@ -888,7 +895,7 @@ class ApplicationGUI:
         without_arena: list,
     ) -> None:
         """Apply the readiness snapshot through ProjectViewManager."""
-        return self.project_view_manager.apply_pending_readiness_snapshot(
+        return self.video_selector_manager.apply_pending_readiness_snapshot(
             ready_with_trajectory=ready_with_trajectory,
             ready_with_zones=ready_with_zones,
             arena_only=arena_only,
@@ -897,7 +904,7 @@ class ApplicationGUI:
 
     def _populate_video_selector_tree(self, filter_text: str | None = None) -> None:
         """Populate the video selector tree via ProjectViewManager (legacy shim)."""
-        return self.project_view_manager._populate_video_selector_tree(filter_text)
+        return self.video_selector_manager._populate_video_selector_tree(filter_text)
 
     def _request_overview_refresh(
         self,
@@ -912,14 +919,14 @@ class ApplicationGUI:
             self._overview_status_append = True
 
         # Prefer new public API when available.
-        if hasattr(self.project_view_manager, "request_overview_refresh"):
-            return self.project_view_manager.request_overview_refresh(
+        if hasattr(self.video_selector_manager, "request_overview_refresh"):
+            return self.video_selector_manager.request_overview_refresh(
                 reason=reason,
                 force=immediate,
             )
 
         # Fallback for older extracted method names if still present.
-        legacy_handler = getattr(self.project_view_manager, "_request_overview_refresh", None)
+        legacy_handler = getattr(self.video_selector_manager, "_request_overview_refresh", None)
         if legacy_handler:
             return legacy_handler(
                 reason=reason,
@@ -928,7 +935,7 @@ class ApplicationGUI:
             )
 
         # As a last resort, trigger an immediate full refresh.
-        refresh_fn = getattr(self.project_view_manager, "refresh_project_views", None)
+        refresh_fn = getattr(self.video_selector_manager, "refresh_project_views", None)
         if refresh_fn:
             return refresh_fn()
 
@@ -1335,11 +1342,11 @@ class ApplicationGUI:
 
     def _refresh_processing_reports_tab(self) -> None:
         """Refresh the processing reports tab."""
-        self.project_view_manager.refresh_processing_reports_tab()
+        self.reports_tree_manager.refresh_processing_reports_tab()
 
     def _resolve_processing_reports_video_paths(self, selection=None) -> list[str]:
         """Resolve video paths from processing reports selection."""
-        return self.project_view_manager.resolve_processing_reports_video_paths(selection)
+        return self.video_selector_manager.resolve_processing_reports_video_paths(selection)
 
     def _subscribe_zone_component_events(self) -> None:
         """Delegate subscription of zone component events to EventDispatcher."""
@@ -1347,7 +1354,7 @@ class ApplicationGUI:
 
     def _update_zone_summary_cards(self, all_videos=None) -> None:
         """Delegate zone summary card updates to ProjectViewManager."""
-        self.project_view_manager.update_zone_summary_cards()
+        self.video_selector_manager.update_zone_summary_cards()
 
     def _get_zone_summary_helper_text(self) -> str:
         """Delegate helper text retrieval to WidgetFactory."""
@@ -1355,13 +1362,13 @@ class ApplicationGUI:
 
     def _handle_project_refresh_requested(self, data: dict) -> None:
         """Handle project refresh request from overview widget."""
-        self.project_view_manager.request_overview_refresh(reason="Atualização manual")
+        self.video_selector_manager.request_overview_refresh(reason="Atualização manual")
 
     def _handle_project_video_double_click(self, data: dict) -> None:
         """Handle video double-click from overview widget."""
         item_id = data.get("item_id")
         if item_id:
-            self.project_view_manager.handle_project_overview_double_click(item_id)
+            self.video_selector_manager.handle_project_overview_double_click(item_id)
 
     def _handle_project_video_right_click(self, data: dict) -> None:
         """Handle video right-click from overview widget."""
@@ -1381,8 +1388,8 @@ class ApplicationGUI:
 
     def update_reports_tree(self):
         """Delegate to ProjectViewManager to update the reports tree."""
-        if self.project_view_manager:
-            self.project_view_manager.update_reports_tree()
+        if self.reports_tree_manager:
+            self.reports_tree_manager.update_reports_tree()
 
     def get_current_detector_parameters(self) -> dict:
         """Delegate to controller to get current detector parameters."""

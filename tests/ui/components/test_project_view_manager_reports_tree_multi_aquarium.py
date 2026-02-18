@@ -43,9 +43,9 @@ class _GUIStub:
 
 def _make_pvm_stub(gui):
     # Import lazily so tests can stub zebtrack.ui.gui before the method runs.
-    from zebtrack.ui.components.project_view_manager import ProjectViewManager
+    from zebtrack.ui.components.project_views.reports_tree_manager import ReportsTreeManager
 
-    pvm = ProjectViewManager.__new__(ProjectViewManager)
+    pvm = ReportsTreeManager.__new__(ReportsTreeManager)
     pvm.gui = gui
 
     # Avoid touching filesystem from this unit test.

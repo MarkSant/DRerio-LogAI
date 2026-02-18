@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔄 Refactored
 
+#### Phase 4.6 — Decompose ProjectViewManager (February 2026)
+
+- **Decomposed** `ProjectViewManager` (`ui/components/project_view_manager.py`,
+  2,136 lines) into 3 focused modules under `ui/components/project_views/`:
+  - `VideoSelectorTreeManager` (~850 lines) — Video selector tree, project
+    overview panel, batch processing triggers, navigation helpers, zone
+    summary cards, readiness snapshot application
+  - `ReportsTreeManager` (~1,045 lines) — Processing reports tree population,
+    report file opening, unified-report generation, right-click context
+    menu, delete operations, partial report dispatch
+  - `project_view_helpers` (~170 lines) — Pure formatting functions:
+    `format_status_label`, `format_status_summary`, `format_status_ratio`,
+    `format_status_token`, `format_video_metadata`, `video_sort_key`,
+    `summarize_batch_data`, `format_data_badges`
+- **Original file deleted** — No facade; `gui.py` instantiates both managers
+  directly via composition
+- Backward-compat alias `self.project_view_manager = self.video_selector_manager`
+  preserved in `gui.py` and `UICoordinator` to minimize test churn
+- Updated 5 consumer files: `gui.py`, `ui_coordinator.py`, `event_dispatcher.py`,
+  `widget_factory.py`, `components/__init__.py`
+- Updated 9 test files: import paths, mock targets, SimpleNamespace attributes
+- All 2,720 fast tests passing, 0 regressions
+
 #### Phase 4.5 — Decompose CanvasManager (February 2026)
 
 - **Decomposed** `CanvasManager` (`ui/components/canvas_manager.py`) from

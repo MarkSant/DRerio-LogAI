@@ -282,13 +282,13 @@ class EventDispatcher:
         # Project View Updates
         event_bus.subscribe(
             Events.UI_VIDEO_HIERARCHY_SNAPSHOT_UPDATED,
-            lambda d: gui.project_view_manager.on_video_hierarchy_snapshot_updated(
+            lambda d: gui.video_selector_manager.on_video_hierarchy_snapshot_updated(
                 d.get("snapshot", []) if isinstance(d, dict) else []
             ),
         )
         event_bus.subscribe(
             Events.UI_REFRESH_PROJECT_VIEWS,
-            lambda d: gui.project_view_manager.refresh_project_views(
+            lambda d: gui.video_selector_manager.refresh_project_views(
                 reason=d.get("reason") if isinstance(d, dict) else None,
                 append_summary=d.get("append_summary", False) if isinstance(d, dict) else False,
                 immediate=d.get("immediate", False) if isinstance(d, dict) else False,

@@ -267,6 +267,7 @@ class TestGuiSubscriptions:
 
     def test_subscribe_to_ui_events(self):
         event_bus = MagicMock()
+        _vsm = MagicMock()
         gui = SimpleNamespace(
             event_bus=event_bus,
             widget_factory=MagicMock(),
@@ -274,7 +275,8 @@ class TestGuiSubscriptions:
             status_var=MagicMock(),
             notebook=MagicMock(),
             state_synchronizer=MagicMock(),
-            project_view_manager=MagicMock(),
+            video_selector_manager=_vsm,
+            project_view_manager=_vsm,
             canvas_manager=MagicMock(),
             zone_controls=MagicMock(),
             menu_manager=MagicMock(),
@@ -328,41 +330,41 @@ class TestZoneComponentEventHandlers:
     """Testes para handlers de eventos do ZoneControlsWidget."""
 
     def test_filter_video_tree_delegation(self):
-        """Verifica delegação para ProjectViewManager com texto de busca."""
+        """Verifica delegação para VideoSelectorTreeManager com texto de busca."""
         # Arrange
         mock_gui = MagicMock()
         mock_gui.zone_controls = MagicMock()
         mock_gui.zone_controls.video_search_var.get.return_value = "test_search"
-        mock_gui.project_view_manager = MagicMock()
+        mock_gui.video_selector_manager = MagicMock()
 
         # Act
         mock_gui._filter_video_tree = lambda: (
             mock_gui.zone_controls
-            and mock_gui.project_view_manager._populate_video_selector_tree(
+            and mock_gui.video_selector_manager._populate_video_selector_tree(
                 filter_text=mock_gui.zone_controls.video_search_var.get()
             )
         )
         mock_gui._filter_video_tree()
 
         # Assert
-        mock_gui.project_view_manager._populate_video_selector_tree.assert_called_once_with(
+        mock_gui.video_selector_manager._populate_video_selector_tree.assert_called_once_with(
             filter_text="test_search"
         )
 
     def test_refresh_video_selector_tree_delegation(self):
-        """Verifica delegação para ProjectViewManager sem filtro."""
+        """Verifica delegação para VideoSelectorTreeManager sem filtro."""
         # Arrange
         mock_gui = MagicMock()
-        mock_gui.project_view_manager = MagicMock()
+        mock_gui.video_selector_manager = MagicMock()
 
         # Act
         mock_gui._refresh_video_selector_tree = lambda: (
-            mock_gui.project_view_manager._populate_video_selector_tree(filter_text=None)
+            mock_gui.video_selector_manager._populate_video_selector_tree(filter_text=None)
         )
         mock_gui._refresh_video_selector_tree()
 
         # Assert
-        mock_gui.project_view_manager._populate_video_selector_tree.assert_called_once_with(
+        mock_gui.video_selector_manager._populate_video_selector_tree.assert_called_once_with(
             filter_text=None
         )
 
