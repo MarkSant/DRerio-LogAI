@@ -4,7 +4,7 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 from zebtrack.coordinators.live_batch_coordinator import LiveBatchCoordinator
-from zebtrack.coordinators.session_coordinator import SessionCoordinator
+from zebtrack.coordinators.live_camera_session_coordinator import LiveCameraSessionCoordinator
 
 
 def test_wizard_to_batch_coordinator_flow(test_settings, tmp_path):
@@ -77,14 +77,12 @@ def test_wizard_to_batch_coordinator_flow(test_settings, tmp_path):
 
 
 def test_session_coordinator_batch_registration(test_settings, tmp_path):
-    """Test SessionCoordinator correctly registers sessions with batch coordinator."""
+    """Test LiveCameraSessionCoordinator correctly registers sessions with batch coordinator."""
     # Setup mocks
-    mock_recording_service = MagicMock()
     mock_live_camera_service = MagicMock()
     mock_live_camera_service.current_output_dir = tmp_path
     mock_project_manager = MagicMock()
     mock_detector_service = MagicMock()
-    mock_weight_manager = MagicMock()
 
     # Create batch coordinator
     mock_analysis_service = MagicMock()
@@ -95,15 +93,14 @@ def test_session_coordinator_batch_registration(test_settings, tmp_path):
         settings_obj=test_settings,
     )
 
-    # Create session coordinator with batch coordinator
-    session_coord = SessionCoordinator(
+    # Create live camera session coordinator with batch coordinator
+    session_coord = LiveCameraSessionCoordinator(
         state_manager=MagicMock(),
-        recording_service=mock_recording_service,
         live_camera_service=mock_live_camera_service,
         project_manager=mock_project_manager,
         detector_service=mock_detector_service,
-        weight_manager=mock_weight_manager,
         settings_obj=test_settings,
+        live_calibration_coordinator=MagicMock(),
         live_batch_coordinator=batch_coord,
     )
 
@@ -141,12 +138,10 @@ def test_session_coordinator_batch_registration(test_settings, tmp_path):
 def test_batch_metadata_incomplete_skips_registration(test_settings, tmp_path):
     """Test that incomplete batch metadata skips registration gracefully."""
     # Setup mocks
-    mock_recording_service = MagicMock()
     mock_live_camera_service = MagicMock()
     mock_live_camera_service.current_output_dir = tmp_path
     mock_project_manager = MagicMock()
     mock_detector_service = MagicMock()
-    mock_weight_manager = MagicMock()
     mock_analysis_service = MagicMock()
 
     batch_coord = LiveBatchCoordinator(
@@ -156,14 +151,13 @@ def test_batch_metadata_incomplete_skips_registration(test_settings, tmp_path):
         settings_obj=test_settings,
     )
 
-    session_coord = SessionCoordinator(
+    session_coord = LiveCameraSessionCoordinator(
         state_manager=MagicMock(),
-        recording_service=mock_recording_service,
         live_camera_service=mock_live_camera_service,
         project_manager=mock_project_manager,
         detector_service=mock_detector_service,
-        weight_manager=mock_weight_manager,
         settings_obj=test_settings,
+        live_calibration_coordinator=MagicMock(),
         live_batch_coordinator=batch_coord,
     )
 

@@ -28,9 +28,8 @@ from zebtrack.analysis.analysis_service import AnalysisService
 # Legacy Coordinators for backward compatibility
 from zebtrack.coordinators.detector_coordinator import DetectorCoordinator
 from zebtrack.coordinators.dialog_coordinator import DialogCoordinator
-from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
-from zebtrack.coordinators.recording_coordinator import RecordingCoordinator
 
+# Phase 4.7: Removed LiveCameraCoordinator and RecordingCoordinator (dead legacy code)
 # Phase 3A/3B/3C/3D: Removed imports for superseded orchestrators
 from zebtrack.coordinators.ui_state_coordinator import UIStateController
 from zebtrack.core.batch_configuration_service import BatchConfigurationService
@@ -173,8 +172,7 @@ class ApplicationBootstrapper:
         controller_proxy.analysis_service = self._services["analysis_service"]
         controller_proxy.live_camera_service = self.deps.live_camera_service
         controller_proxy._recording_service = self.deps.recording_service
-        controller_proxy.recording_coordinator = self.deps.recording_coordinator
-        controller_proxy.live_camera_coordinator = self.deps.live_camera_coordinator
+        # Phase 4.7: Removed recording_coordinator and live_camera_coordinator proxy assignments
         controller_proxy.detector_coordinator = self.deps.detector_coordinator
         controller_proxy.ui_state_controller = self.deps.ui_state_controller
         controller_proxy._pending_external_trigger = None
@@ -190,7 +188,10 @@ class ApplicationBootstrapper:
         # Coordinators from deps
         controller_proxy.processing_coordinator = self.deps.processing_coordinator
         controller_proxy.hardware_coordinator = self.deps.hardware_coordinator
-        controller_proxy.session_coordinator = self.deps.session_coordinator
+        # Phase 4.7: Replaced single session_coordinator with 3 focused coordinators
+        controller_proxy.recording_session_coordinator = self.deps.recording_session_coordinator
+        controller_proxy.live_camera_session_coordinator = self.deps.live_camera_session_coordinator
+        controller_proxy.live_calibration_coordinator = self.deps.live_calibration_coordinator
         controller_proxy.project_lifecycle_coordinator = self.deps.project_lifecycle_coordinator
 
         # 4. Initialize view
@@ -458,45 +459,9 @@ class ApplicationBootstrapper:
         # Phase 3.5/3.6: Removed VideoOrchestrator and AnalysisCoordinator
         # (dead code — superseded by ProcessingCoordinator)
 
-        # Recording Coordinator
-        if self.deps.recording_coordinator:
-            legacy_coords["recording_coordinator"] = self.deps.recording_coordinator
-        else:
-            if self.deps.recording_service is not None:
-                legacy_coords["recording_coordinator"] = RecordingCoordinator(
-                    state_manager=self.state_manager,
-                    recording_service=self.deps.recording_service,
-                    arduino_manager=None,  # Initialized lazily
-                    event_bus=self.deps.event_bus,
-                )
-            else:
-                log.warning(
-                    "bootstrapper.recording_coordinator.skipping_init",
-                    reason="No recording_service",
-                )
-                legacy_coords["recording_coordinator"] = None
-        controller_proxy.recording_coordinator = legacy_coords["recording_coordinator"]
-
-        # Live Camera Coordinator
-        if self.deps.live_camera_coordinator:
-            legacy_coords["live_camera_coordinator"] = self.deps.live_camera_coordinator
-        else:
-            if self.deps.live_camera_service is not None:
-                legacy_coords["live_camera_coordinator"] = LiveCameraCoordinator(
-                    state_manager=self.state_manager,
-                    live_camera_service=self.deps.live_camera_service,
-                    project_manager=self.deps.project_manager,
-                    settings=self.settings,
-                    camera=None,
-                    event_bus=self.deps.event_bus,
-                )
-            else:
-                log.warning(
-                    "bootstrapper.live_camera_coordinator.skipping_init",
-                    reason="No live_camera_service",
-                )
-                legacy_coords["live_camera_coordinator"] = None
-        controller_proxy.live_camera_coordinator = legacy_coords["live_camera_coordinator"]
+        # Phase 4.7: Removed RecordingCoordinator and LiveCameraCoordinator
+        # (dead legacy code — superseded by RecordingSessionCoordinator,
+        #  LiveCameraSessionCoordinator, and LiveCalibrationCoordinator)
 
         self._legacy_coordinators = legacy_coords
 
@@ -549,7 +514,6 @@ class ApplicationBootstrapper:
         # Registry
         registry = OrchestratorRegistry(
             ui_state_controller=ui_state_controller,
-            live_camera_coordinator=legacy_coords["live_camera_coordinator"],
         )
         self._orchestrators["registry"] = registry
 
@@ -558,12 +522,13 @@ class ApplicationBootstrapper:
 
         # Setup coordinator callbacks
         # This replicates _setup_coordinator_callbacks from MainViewModel
-        if self.deps.hardware_coordinator and self.deps.session_coordinator:
+        # Phase 4.7: Route hardware callbacks to RecordingSessionCoordinator
+        if self.deps.hardware_coordinator and self.deps.recording_session_coordinator:
             self.deps.hardware_coordinator.set_recording_callbacks(
-                self.deps.session_coordinator.trigger_recording,
+                self.deps.recording_session_coordinator.trigger_recording,
                 lambda: (
-                    self.deps.session_coordinator.stop_recording()
-                    if self.deps.session_coordinator
+                    self.deps.recording_session_coordinator.stop_recording()
+                    if self.deps.recording_session_coordinator
                     else None,
                     None,
                 )[1],

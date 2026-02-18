@@ -1522,12 +1522,13 @@ class VideoProcessingCoordinator(BaseCoordinator):
         if not state_flag:
             return False
         controller = getattr(self.view, "controller", None) if self.view else None
-        session_coordinator = (
-            getattr(controller, "session_coordinator", None) if controller else None
+        # Phase 4.7: session_coordinator decomposed into live_camera_session_coordinator
+        live_cam_coordinator = (
+            getattr(controller, "live_camera_session_coordinator", None) if controller else None
         )
-        if session_coordinator is None:
+        if live_cam_coordinator is None:
             return state_flag
-        is_active_fn = getattr(session_coordinator, "is_live_session_active", None)
+        is_active_fn = getattr(live_cam_coordinator, "is_live_session_active", None)
         if callable(is_active_fn):
             try:
                 result = is_active_fn()
@@ -1535,7 +1536,7 @@ class VideoProcessingCoordinator(BaseCoordinator):
                     return result
             except (AttributeError, RuntimeError):
                 pass
-        camera = getattr(getattr(session_coordinator, "live_camera_service", None), "camera", None)
+        camera = getattr(getattr(live_cam_coordinator, "live_camera_service", None), "camera", None)
         return camera is not None
 
     # ========================================================================

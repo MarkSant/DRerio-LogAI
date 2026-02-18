@@ -17,8 +17,10 @@ def view_model():
     model_service = Mock()
     hardware_coordinator = Mock()
     weight_manager = Mock()
-    session_coordinator = Mock()
-    recording_coordinator = Mock()
+    # Phase 4.7: Replaced session_coordinator with 3 focused coordinators
+    recording_session_coordinator = Mock()
+    live_camera_session_coordinator = Mock()
+    live_calibration_coordinator = Mock()
     state_manager = Mock()
     state_manager.get_detector_state.return_value = SimpleNamespace(detector_initialized=True)
 
@@ -27,8 +29,9 @@ def view_model():
         model_service=model_service,
         hardware_coordinator=hardware_coordinator,
         weight_manager=weight_manager,
-        session_coordinator=session_coordinator,
-        recording_coordinator=recording_coordinator,
+        recording_session_coordinator=recording_session_coordinator,
+        live_camera_session_coordinator=live_camera_session_coordinator,
+        live_calibration_coordinator=live_calibration_coordinator,
         state_manager=state_manager,
         settings_obj=Mock(),
     )
@@ -176,22 +179,24 @@ def test_start_live_session_and_recording_delegates(view_model):
     view_model.start_recording(mode="rec")
     view_model.stop_recording()
 
-    view_model.session_coordinator.start_live_session.assert_called_once_with(mode="live")
-    view_model.session_coordinator.start_recording.assert_called_once_with(mode="rec")
-    view_model.session_coordinator.stop_recording.assert_called_once()
+    view_model.live_camera_session_coordinator.start_live_session.assert_called_once_with(
+        mode="live"
+    )
+    view_model.recording_session_coordinator.start_recording.assert_called_once_with(mode="rec")
+    view_model.recording_session_coordinator.stop_recording.assert_called_once()
 
 
 def test_toggle_recording_starts_when_not_recording(view_model):
-    view_model.session_coordinator.recording_service = SimpleNamespace(is_recording=False)
+    view_model.recording_session_coordinator.recording_service = SimpleNamespace(is_recording=False)
 
     view_model.toggle_recording()
 
-    view_model.session_coordinator.start_recording.assert_called_once()
+    view_model.recording_session_coordinator.start_recording.assert_called_once()
 
 
 def test_toggle_recording_stops_when_recording(view_model):
-    view_model.session_coordinator.recording_service = SimpleNamespace(is_recording=True)
+    view_model.recording_session_coordinator.recording_service = SimpleNamespace(is_recording=True)
 
     view_model.toggle_recording()
 
-    view_model.session_coordinator.stop_recording.assert_called_once()
+    view_model.recording_session_coordinator.stop_recording.assert_called_once()

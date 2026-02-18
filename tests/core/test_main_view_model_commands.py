@@ -115,7 +115,10 @@ def mock_dependencies(mock_root):
         project_lifecycle_coordinator=project_lifecycle_coord,
         hardware_coordinator=hardware_coord,
         processing_coordinator=processing_coord,
-        session_coordinator=session_coord,
+        # Phase 4.7: Replaced session_coordinator with 3 focused coordinators
+        recording_session_coordinator=Mock(),
+        live_camera_session_coordinator=Mock(),
+        live_calibration_coordinator=Mock(),
     )
 
 
@@ -127,8 +130,7 @@ def mock_bootstrap_result():
     # Mocks for legacy coordinators
     result.legacy_coordinators = {
         "detector_coordinator": Mock(),
-        "recording_coordinator": Mock(),
-        "live_camera_coordinator": Mock(),
+        # Phase 4.7: Removed recording_coordinator and live_camera_coordinator (dead code)
     }
 
     # Mocks for orchestrators (Phase 3A/3B/3C/3D: Removed superseded orchestrators)

@@ -29,10 +29,13 @@ class HardwareStatusViewModel:
         self.detector_coordinator = bootstrap_result.legacy_coordinators.get("detector_coordinator")
         self.arduino_manager = bootstrap_result.arduino_manager
         self.weight_manager = dependencies.weight_manager
-        self.session_coordinator = dependencies.session_coordinator
+        # Phase 4.7: Replaced single session_coordinator with 3 focused coordinators
+        self.recording_session_coordinator = dependencies.recording_session_coordinator
+        self.live_camera_session_coordinator = dependencies.live_camera_session_coordinator
+        self.live_calibration_coordinator = dependencies.live_calibration_coordinator
         self.ui_state_controller = bootstrap_result.ui_state_controller
         # Phase 3C/D: model_diagnostics_orchestrator and recording_session_orchestrator removed
-        self.recording_coordinator = dependencies.recording_coordinator
+        # Phase 4.7: Removed recording_coordinator (dead legacy code)
         self.state_manager = dependencies.state_manager
         self.settings = dependencies.settings_obj
 
@@ -198,8 +201,8 @@ class HardwareStatusViewModel:
     # --- Recording / Live Session ---
 
     def start_live_camera_analysis(self, camera_index: int | None = None) -> Any:
-        if self.session_coordinator:
-            return self.session_coordinator.start_live_camera_analysis(camera_index)
+        if self.live_camera_session_coordinator:
+            return self.live_camera_session_coordinator.start_live_camera_analysis(camera_index)
         return None
 
     def start_live_project_session(
@@ -209,26 +212,26 @@ class HardwareStatusViewModel:
         subject: str,
         duration_s: float | None = None,
     ) -> Any:
-        if self.session_coordinator:
-            return self.session_coordinator.start_live_project_session(
+        if self.live_camera_session_coordinator:
+            return self.live_camera_session_coordinator.start_live_project_session(
                 day=day, group=group, subject=subject, duration_s=duration_s
             )
         return None
 
     def start_live_session(self, **kwargs: Any) -> None:
-        """Start a live session (delegates to SessionCoordinator)."""
-        if self.session_coordinator:
-            self.session_coordinator.start_live_session(**kwargs)
+        """Start a live session (delegates to LiveCameraSessionCoordinator)."""
+        if self.live_camera_session_coordinator:
+            self.live_camera_session_coordinator.start_live_session(**kwargs)
 
     def start_recording(self, **kwargs: Any) -> None:
-        # Use SessionCoordinator for recording (consolidated from RecordingSessionOrchestrator)
-        if self.session_coordinator:
-            self.session_coordinator.start_recording(**kwargs)
+        # Phase 4.7: Delegates to RecordingSessionCoordinator
+        if self.recording_session_coordinator:
+            self.recording_session_coordinator.start_recording(**kwargs)
 
     def stop_recording(self) -> None:
-        # Use SessionCoordinator for recording (consolidated from RecordingSessionOrchestrator)
-        if self.session_coordinator:
-            self.session_coordinator.stop_recording()
+        # Phase 4.7: Delegates to RecordingSessionCoordinator
+        if self.recording_session_coordinator:
+            self.recording_session_coordinator.stop_recording()
 
     def toggle_recording(self) -> None:
         if self.recording_service and self.recording_service.is_recording:
@@ -241,10 +244,10 @@ class HardwareStatusViewModel:
         # Return Any | None because types might be circular or loaded dynamically
         if self._recording_service:
             return self._recording_service
-        return getattr(self.session_coordinator, "recording_service", None)
+        # Phase 4.7: Get from recording_session_coordinator
+        return getattr(self.recording_session_coordinator, "recording_service", None)
 
     @recording_service.setter
     def recording_service(self, value: Any | None) -> None:
         self._recording_service = value
-        if self.recording_coordinator:
-            self.recording_coordinator.recording_service = value
+        # Phase 4.7: Removed forwarding to dead recording_coordinator

@@ -1104,7 +1104,7 @@ class TestGridCellClick:
         mock_dialog.return_value = dialog_instance
 
         mock_gui.controller.live_batch_coordinator = None
-        mock_gui.controller.session_coordinator = None
+        mock_gui.controller.live_camera_session_coordinator = None
         mock_gui.controller.project_manager.get_completed_sessions.return_value = []
         mock_gui.controller.project_manager.project_data["subjects_per_group"] = 3
         mock_gui.controller.project_manager.get_project_type.return_value = "live"
@@ -1122,7 +1122,7 @@ class TestGridCellClick:
     def test_handle_grid_cell_click_batch_dialog(self, mock_dialog, dialog_manager, mock_gui):
         """Batch-aware path should open BlockDetailDialog and refresh grid."""
         mock_gui.controller.live_batch_coordinator = Mock()
-        mock_gui.controller.session_coordinator = Mock()
+        mock_gui.controller.live_camera_session_coordinator = Mock()
         mock_gui.widget_factory = Mock()
 
         dialog_manager.handle_grid_cell_click(2, "GroupA")

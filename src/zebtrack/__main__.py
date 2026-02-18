@@ -322,8 +322,16 @@ def main():  # noqa: C901
 
         _t0 = time.perf_counter()
         from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
+
+        # Phase 4.7: SessionCoordinator decomposed into 3 sub-coordinators
+        from zebtrack.coordinators.live_calibration_coordinator import LiveCalibrationCoordinator
+        from zebtrack.coordinators.live_camera_session_coordinator import (
+            LiveCameraSessionCoordinator,
+        )
         from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
-        from zebtrack.coordinators.session_coordinator import SessionCoordinator
+        from zebtrack.coordinators.recording_session_coordinator import (
+            RecordingSessionCoordinator,
+        )
 
         # Additional services needed by coordinators
         from zebtrack.core.project_service import ProjectService
@@ -492,17 +500,16 @@ def main():  # noqa: C901
             elapsed_ms=int((time.perf_counter() - _t0_proc) * 1000),
         )
 
-        # 4. SessionCoordinator - Recording sessions, live camera, Arduino triggers
+        # 4. Phase 4.7: SessionCoordinator decomposed into 3 sub-coordinators
+        # 4a. LiveCalibrationCoordinator - Camera calibration and zone validation
+        # 4b. RecordingSessionCoordinator - Recording lifecycle and Arduino triggers
+        # 4c. LiveCameraSessionCoordinator - Live camera analysis sessions
         _t0_sess = time.perf_counter()
 
-        # RecordingService and LiveCameraService will be created by SessionCoordinator
-        # Note: These are temporarily created here for backward compatibility
-        # In future sprints, they should be created directly by SessionCoordinator
+        # RecordingService and LiveCameraService
         from zebtrack.core.live_camera_service import LiveCameraService
         from zebtrack.core.recording_service import RecordingService
 
-        # Create services (will be passed to SessionCoordinator)
-        # Note: controller parameter is temporary - will be removed in future refactoring
         recording_service = RecordingService(
             controller=None,  # type: ignore[arg-type]
             state_manager=state_manager,
@@ -539,22 +546,48 @@ def main():  # noqa: C901
             elapsed_ms=int((time.perf_counter() - _t0_batch) * 1000),
         )
 
-        session_coordinator = SessionCoordinator(
+        # 4a. LiveCalibrationCoordinator (no coordinator deps — created first)
+        live_calibration_coordinator = LiveCalibrationCoordinator(
             state_manager=state_manager,
-            recording_service=recording_service,
-            live_camera_service=live_camera_service,
             project_manager=project_manager,
             detector_service=detector_service,
             weight_manager=weight_manager,
             settings_obj=settings_obj,
             event_bus=event_bus,
-            arduino_manager=None,  # Will be set when Arduino is initialized
-            live_batch_coordinator=live_batch_coordinator,  # v2.3.0: Batch tracking
             root=root,
             view=None,  # Set after ApplicationGUI is created
         )
+
+        # 4b. RecordingSessionCoordinator (depends on live_calibration_coordinator)
+        recording_session_coordinator = RecordingSessionCoordinator(
+            state_manager=state_manager,
+            recording_service=recording_service,
+            live_camera_service=live_camera_service,
+            project_manager=project_manager,
+            settings_obj=settings_obj,
+            live_calibration_coordinator=live_calibration_coordinator,
+            event_bus=event_bus,
+            arduino_manager=None,  # Will be set when Arduino is initialized
+            root=root,
+            view=None,  # Set after ApplicationGUI is created
+        )
+
+        # 4c. LiveCameraSessionCoordinator (depends on live_calibration_coordinator)
+        live_camera_session_coordinator = LiveCameraSessionCoordinator(
+            state_manager=state_manager,
+            live_camera_service=live_camera_service,
+            project_manager=project_manager,
+            detector_service=detector_service,
+            settings_obj=settings_obj,
+            live_calibration_coordinator=live_calibration_coordinator,
+            event_bus=event_bus,
+            live_batch_coordinator=live_batch_coordinator,
+            root=root,
+            view=None,  # Set after ApplicationGUI is created
+        )
+
         log.info(
-            "timing.session_coordinator",
+            "timing.session_coordinators",
             elapsed_ms=int((time.perf_counter() - _t0_sess) * 1000),
         )
 
@@ -589,11 +622,13 @@ def main():  # noqa: C901
             recording_service=recording_service,
             live_camera_service=live_camera_service,
             ui_state_controller=ui_state_controller,
-            # Phase 3: Four super coordinators replace legacy coordinators
+            # Phase 3 → Phase 4.7: Super coordinators
             project_lifecycle_coordinator=project_lifecycle_coordinator,
             hardware_coordinator=hardware_coordinator,
             processing_coordinator=processing_coordinator,
-            session_coordinator=session_coordinator,
+            recording_session_coordinator=recording_session_coordinator,
+            live_camera_session_coordinator=live_camera_session_coordinator,
+            live_calibration_coordinator=live_calibration_coordinator,
             live_batch_coordinator=live_batch_coordinator,  # v2.3.0
             # Threading events - shared across components
             cancel_event=cancel_event,
@@ -623,7 +658,11 @@ def main():  # noqa: C901
         # Set view reference for Phase 3 coordinators
         hardware_coordinator.view = controller.view  # type: ignore[attr-defined]
         processing_coordinator.view = controller.view  # type: ignore[attr-defined]
-        session_coordinator.view = controller.view  # type: ignore[attr-defined]
+
+        # Phase 4.7: Set view on session sub-coordinators
+        recording_session_coordinator.view = controller.view  # type: ignore[attr-defined]
+        live_camera_session_coordinator.view = controller.view  # type: ignore[attr-defined]
+        live_calibration_coordinator.view = controller.view  # type: ignore[attr-defined]
 
         # Phase 4: Set view on sub-coordinators
         progress_tracking_coordinator.view = controller.view  # type: ignore[attr-defined]

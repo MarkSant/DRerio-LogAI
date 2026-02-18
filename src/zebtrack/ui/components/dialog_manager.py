@@ -674,7 +674,8 @@ class DialogManager:
         from zebtrack.ui.dialogs.block_detail_dialog import BlockDetailDialog
 
         live_batch_coordinator = getattr(self.gui.controller, "live_batch_coordinator", None)
-        session_coordinator = getattr(self.gui.controller, "session_coordinator", None)
+        # Phase 4.7: Use live_camera_session_coordinator instead of session_coordinator
+        session_coordinator = getattr(self.gui.controller, "live_camera_session_coordinator", None)
 
         if not live_batch_coordinator or not session_coordinator:
             # Fallback to legacy SubjectSelectionDialog if coordinators not available

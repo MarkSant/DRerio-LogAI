@@ -28,14 +28,15 @@ def view_model():
     processing_coordinator.processing_thread = Mock()
     processing_coordinator.processing_thread.is_alive.return_value = False
 
-    session_coordinator = Mock()
-    session_coordinator.live_camera_service = Mock()
-    session_coordinator.live_camera_service.camera = None
+    # Phase 4.7: Use live_camera_session_coordinator instead of session_coordinator
+    live_camera_session_coordinator = Mock()
+    live_camera_session_coordinator.live_camera_service = Mock()
+    live_camera_session_coordinator.live_camera_service.camera = None
 
     dependencies = SimpleNamespace(
         video_processing_service=Mock(),
         processing_coordinator=processing_coordinator,
-        session_coordinator=session_coordinator,
+        live_camera_session_coordinator=live_camera_session_coordinator,
         state_manager=state_manager,
         project_manager=Mock(),
         settings_obj=settings,
@@ -151,13 +152,13 @@ def test_cancel_current_analysis_no_active_processing(view_model):
 
 def test_cancel_current_analysis_stops_live_session(view_model):
     """Stops live session and requests cancel."""
-    view_model.session_coordinator.live_camera_service.camera = object()
+    view_model.live_camera_session_coordinator.live_camera_service.camera = object()
 
     with patch("zebtrack.core.viewmodels.analysis_control_view_model.threading.Thread") as tmock:
         view_model.cancel_current_analysis()
 
     assert view_model.cancel_event.is_set() is True
-    view_model.session_coordinator.live_camera_service.stop_session.assert_called_once()
+    view_model.live_camera_session_coordinator.live_camera_service.stop_session.assert_called_once()
     view_model.processing_coordinator.cancel_processing.assert_called_once()
     view_model.state_manager.update_processing_state.assert_called_once()
     view_model.ui_event_bus.publish_event.assert_called_once_with(

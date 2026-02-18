@@ -199,11 +199,13 @@ class MainViewModel:
         self.project_lifecycle_coordinator = dependencies.project_lifecycle_coordinator
         self.hardware_coordinator = dependencies.hardware_coordinator
         self.processing_coordinator = dependencies.processing_coordinator
-        self.session_coordinator = dependencies.session_coordinator
+        # Phase 4.7: SessionCoordinator decomposed into 3 sub-coordinators
+        self.recording_session_coordinator = dependencies.recording_session_coordinator
+        self.live_camera_session_coordinator = dependencies.live_camera_session_coordinator
+        self.live_calibration_coordinator = dependencies.live_calibration_coordinator
         self.live_batch_coordinator = dependencies.live_batch_coordinator  # v2.3.0
 
         # Legacy dependencies
-        self.recording_coordinator = dependencies.recording_coordinator
         self._live_camera_service_param = dependencies.live_camera_service
 
         if self._test_sync_event is not None:
@@ -244,8 +246,7 @@ class MainViewModel:
         # Legacy Coordinators
         self.detector_coordinator = result.legacy_coordinators.get("detector_coordinator")
         # Phase 3.5/3.6: Removed video_orchestrator and analysis_coordinator (dead code)
-        self.recording_coordinator = result.legacy_coordinators.get("recording_coordinator")
-        self.live_camera_coordinator = result.legacy_coordinators.get("live_camera_coordinator")
+        # Phase 4.7: Removed recording_coordinator and live_camera_coordinator (dead code)
 
         # Registry & Adapter
         self.orchestrators = result.orchestrators

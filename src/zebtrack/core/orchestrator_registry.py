@@ -20,7 +20,6 @@ Phase 3 Structural Unification:
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from zebtrack.coordinators.live_camera_coordinator import LiveCameraCoordinator
     from zebtrack.coordinators.ui_state_coordinator import UIStateController
 
 
@@ -33,7 +32,6 @@ class OrchestratorRegistry:
 
     Attributes:
         ui_state: UIStateController (23 facades removidos)
-        live_camera: LiveCameraCoordinator (1 facade removido)
 
     Removed in Phase 3A/3B/3C/3D (superseded by Super Coordinators):
         - analysis: Superseded by ProcessingCoordinator
@@ -46,22 +44,22 @@ class OrchestratorRegistry:
 
     Removed in Phase 3 Structural Unification:
         - video_processing: Dead stub, logic in ProcessingCoordinator
+
+    Removed in Phase 4.7:
+        - live_camera: Superseded by LiveCameraSessionCoordinator
     """
 
     def __init__(
         self,
         ui_state_controller: "UIStateController",
-        live_camera_coordinator: "LiveCameraCoordinator | None" = None,
     ):
         """Initialize registry with all orchestrators.
 
         Args:
             ui_state_controller: Controller para estado da UI
-            live_camera_coordinator: Coordinator para câmera ao vivo
         """
         # Atribuir com nomes curtos e descritivos
         self.ui_state = ui_state_controller
-        self.live_camera = live_camera_coordinator
 
     def get_all_orchestrators(self) -> dict[str, object]:
         """Retorna dict com todos os orchestrators registrados.
@@ -71,5 +69,4 @@ class OrchestratorRegistry:
         """
         return {
             "ui_state": self.ui_state,
-            "live_camera": self.live_camera,
         }

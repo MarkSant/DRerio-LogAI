@@ -5,6 +5,7 @@ criado na Fase 2 da refatoração do MainViewModel.
 
 Phase 3A/3B/3C/3D: Removed orchestrators superseded by Super Coordinators.
 Phase 3 Structural Unification: Removed video_processing (dead stub).
+Phase 4.7: Removed live_camera (superseded by LiveCameraSessionCoordinator).
 """
 
 from unittest.mock import MagicMock
@@ -19,7 +20,6 @@ def mock_orchestrators():
     """Cria mocks de todos os orchestrators."""
     return {
         "ui_state": MagicMock(),
-        "live_camera": MagicMock(),
     }
 
 
@@ -28,7 +28,6 @@ def registry(mock_orchestrators):
     """Cria instância do registry para testes."""
     return OrchestratorRegistry(
         ui_state_controller=mock_orchestrators["ui_state"],
-        live_camera_coordinator=mock_orchestrators["live_camera"],
     )
 
 
@@ -38,12 +37,6 @@ class TestOrchestratorRegistryInitialization:
     def test_init(self, registry, mock_orchestrators):
         """Testa inicialização com todos os orchestrators."""
         assert registry.ui_state is mock_orchestrators["ui_state"]
-        assert registry.live_camera is mock_orchestrators["live_camera"]
-
-    def test_init_with_defaults(self):
-        """Testa inicialização com parâmetros opcionais padrão."""
-        reg = OrchestratorRegistry(ui_state_controller=MagicMock())
-        assert reg.live_camera is None
 
 
 class TestOrchestratorRegistryAccess:
@@ -55,12 +48,6 @@ class TestOrchestratorRegistryAccess:
         registry.ui_state.update_status("test")
         registry.ui_state.update_status.assert_called_once_with("test")
 
-    def test_live_camera_access(self, registry):
-        """Testa acesso ao LiveCameraCoordinator."""
-        assert registry.live_camera is not None
-        registry.live_camera.start()
-        registry.live_camera.start.assert_called_once()
-
 
 class TestOrchestratorRegistryGetAll:
     """Testes do método get_all_orchestrators."""
@@ -69,9 +56,8 @@ class TestOrchestratorRegistryGetAll:
         """Testa que get_all_orchestrators retorna todos os orchestrators."""
         all_orch = registry.get_all_orchestrators()
 
-        assert len(all_orch) == 2  # Phase 3: Reduced from 3 to 2
+        assert len(all_orch) == 1  # Phase 4.7: Reduced from 2 to 1
         assert all_orch["ui_state"] is mock_orchestrators["ui_state"]
-        assert all_orch["live_camera"] is mock_orchestrators["live_camera"]
 
     def test_get_all_returns_dict(self, registry):
         """Testa que get_all_orchestrators retorna um dict."""

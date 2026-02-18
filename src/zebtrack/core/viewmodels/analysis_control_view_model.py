@@ -28,7 +28,8 @@ class AnalysisControlViewModel:
     ) -> None:
         self.video_processing_service = dependencies.video_processing_service
         self.processing_coordinator = dependencies.processing_coordinator
-        self.session_coordinator = dependencies.session_coordinator
+        # Phase 4.7: Use live_camera_session_coordinator instead of session_coordinator
+        self.live_camera_session_coordinator = dependencies.live_camera_session_coordinator
         # Phase 3A: analysis_orchestrator removed (no production calls)
         self.analysis_service = bootstrap_result.analysis_service
         self.state_manager = dependencies.state_manager
@@ -133,9 +134,9 @@ class AnalysisControlViewModel:
 
         # Check if there's an active live camera session
         live_session_active = bool(
-            self.session_coordinator
-            and self.session_coordinator.live_camera_service
-            and self.session_coordinator.live_camera_service.camera is not None
+            self.live_camera_session_coordinator
+            and self.live_camera_session_coordinator.live_camera_service
+            and self.live_camera_session_coordinator.live_camera_service.camera is not None
         )
 
         # If nothing is running, early return
@@ -154,14 +155,14 @@ class AnalysisControlViewModel:
             log.info(
                 "cancel_current_analysis.stopping_live_session",
                 has_camera=(
-                    self.session_coordinator.live_camera_service.camera is not None
-                    if self.session_coordinator
+                    self.live_camera_session_coordinator.live_camera_service.camera is not None
+                    if self.live_camera_session_coordinator
                     else False
                 ),
             )
             try:
-                if self.session_coordinator:
-                    self.session_coordinator.live_camera_service.stop_session()
+                if self.live_camera_session_coordinator:
+                    self.live_camera_session_coordinator.live_camera_service.stop_session()
                 log.info("cancel_current_analysis.live_session_stopped")
             # except Exception justified: live camera stop — hardware + thread cleanup boundary
             except Exception as e:

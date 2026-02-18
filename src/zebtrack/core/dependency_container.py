@@ -10,9 +10,12 @@ from zebtrack.analysis.analysis_service import AnalysisService
 
 # Phase 3 → Phase 4: Super Coordinators
 # ProcessingCoordinator decomposed into 5 sub-coordinators (Phase 4)
+# SessionCoordinator decomposed into 3 sub-coordinators (Phase 4.7)
 from zebtrack.coordinators.hardware_coordinator import HardwareCoordinator
+from zebtrack.coordinators.live_calibration_coordinator import LiveCalibrationCoordinator
+from zebtrack.coordinators.live_camera_session_coordinator import LiveCameraSessionCoordinator
 from zebtrack.coordinators.project_lifecycle_coordinator import ProjectLifecycleCoordinator
-from zebtrack.coordinators.session_coordinator import SessionCoordinator
+from zebtrack.coordinators.recording_session_coordinator import RecordingSessionCoordinator
 from zebtrack.coordinators.ui_state_coordinator import UIStateController
 from zebtrack.coordinators.video_processing_coordinator import VideoProcessingCoordinator
 from zebtrack.core.detector_service import DetectorService
@@ -67,16 +70,17 @@ class MainViewModelDependencies:
 
     # Phase 3 → Phase 4: Super Coordinators
     # processing_coordinator now is VideoProcessingCoordinator (Phase 4 decomposition)
+    # session_coordinator decomposed into 3 sub-coordinators (Phase 4.7)
     project_lifecycle_coordinator: ProjectLifecycleCoordinator | None = None
     hardware_coordinator: HardwareCoordinator | None = None
     processing_coordinator: VideoProcessingCoordinator | None = None
-    session_coordinator: SessionCoordinator | None = None
+    recording_session_coordinator: RecordingSessionCoordinator | None = None
+    live_camera_session_coordinator: LiveCameraSessionCoordinator | None = None
+    live_calibration_coordinator: LiveCalibrationCoordinator | None = None
     project_workflow_adapter: ProjectWorkflowAdapter | None = None
     live_batch_coordinator: LiveBatchCoordinator | None = None  # v2.3.0
 
-    # LEGACY coordinators — still used at runtime; migrate consumers in Phase 4
-    recording_coordinator: Any = None  # LEGACY: Migrate to session_coordinator
-    live_camera_coordinator: Any = None  # LEGACY: Migrate to session_coordinator
+    # LEGACY coordinators — migrate consumers in Phase 4
     detector_coordinator: Any = None  # LEGACY: Migrate to hardware_coordinator
 
     # Runtime State

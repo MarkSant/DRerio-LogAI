@@ -284,8 +284,9 @@ class TestValidation:
 
         processing_coordinator.view = MagicMock()
         processing_coordinator.view.controller = MagicMock()
-        processing_coordinator.view.controller.session_coordinator = MagicMock()
-        session_coordinator = processing_coordinator.view.controller.session_coordinator
+        # Phase 4.7: Use live_camera_session_coordinator
+        processing_coordinator.view.controller.live_camera_session_coordinator = MagicMock()
+        session_coordinator = processing_coordinator.view.controller.live_camera_session_coordinator
         session_coordinator.is_live_session_active.return_value = False
 
         result = processing_coordinator.validate_can_start_processing()

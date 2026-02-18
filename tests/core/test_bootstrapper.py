@@ -26,7 +26,10 @@ class TestApplicationBootstrapper:
         # Coordinators
         deps.processing_coordinator = MagicMock()
         deps.hardware_coordinator = MagicMock()
-        deps.session_coordinator = MagicMock()
+        # Phase 4.7: Replaced session_coordinator with 3 focused coordinators
+        deps.recording_session_coordinator = MagicMock()
+        deps.live_camera_session_coordinator = MagicMock()
+        deps.live_calibration_coordinator = MagicMock()
         deps.project_lifecycle_coordinator = MagicMock()
 
         return deps

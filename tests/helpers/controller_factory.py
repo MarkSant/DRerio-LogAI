@@ -111,8 +111,15 @@ def create_test_controller(root, **overrides):
         ),
         "hardware_coordinator": overrides.get("hardware_coordinator", MagicMock()),
         "processing_coordinator": overrides.get("processing_coordinator", MagicMock()),
-        "session_coordinator": overrides.get("session_coordinator", MagicMock()),
-        "recording_coordinator": overrides.get("recording_coordinator", MagicMock()),
+        # Phase 4.7: Replaced session_coordinator with 3 focused coordinators
+        "recording_session_coordinator": overrides.get(
+            "recording_session_coordinator", MagicMock()
+        ),
+        "live_camera_session_coordinator": overrides.get(
+            "live_camera_session_coordinator", MagicMock()
+        ),
+        "live_calibration_coordinator": overrides.get("live_calibration_coordinator", MagicMock()),
+        # Phase 4.7: Removed recording_coordinator (dead legacy code)
         "live_camera_service": overrides.get("live_camera_service", MagicMock()),
     }
 
@@ -214,8 +221,7 @@ def create_test_controller(root, **overrides):
         # Phase 3A/3B/3C/3D/3E: Removed unused orchestrators (superseded by Super Coordinators)
         legacy_coordinators={
             "detector_coordinator": overrides.get("detector_coordinator", MagicMock()),
-            "recording_coordinator": overrides.get("recording_coordinator", MagicMock()),
-            "live_camera_coordinator": overrides.get("live_camera_coordinator", MagicMock()),
+            # Phase 4.7: Removed recording_coordinator and live_camera_coordinator (dead code)
         },
         orchestrators=overrides.get("orchestrators", MagicMock()),
         project_workflow_adapter=project_workflow_adapter,

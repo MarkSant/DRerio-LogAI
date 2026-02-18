@@ -11,6 +11,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔄 Refactored
 
+#### Phase 4.7 — Decompose SessionCoordinator (February 2026)
+
+- **Decomposed** `SessionCoordinator` (`coordinators/session_coordinator.py`,
+  2,111 lines) into 3 focused coordinators under `coordinators/`:
+  - `LiveCalibrationCoordinator` (~500 lines) — Camera calibration with
+    auto-detection, reference frame capture, zone validation,
+    `ensure_zones_before_recording()` shared by recording and live sessions
+  - `RecordingSessionCoordinator` (~530 lines) — Recording session lifecycle,
+    Arduino triggers, session scheduling, start/stop recording
+  - `LiveCameraSessionCoordinator` (~680 lines) — Live camera session
+    lifecycle, config-based starts, batch registration,
+    `start_live_camera_analysis()`, `start_session_from_config()`
+- **Original file deleted** — No facade; each consumer imports the specific
+  coordinator it needs
+- **Deleted 2 dead legacy files** — `recording_coordinator.py` (320 lines)
+  and `live_camera_coordinator.py` (686 lines) were unused Phase 3 stubs
+- Updated 11 consumer source files: `__init__.py`, `dependency_container.py`,
+  `__main__.py`, `main_view_model.py`, `application_bootstrapper.py`,
+  `hardware_status_view_model.py`, `analysis_control_view_model.py`,
+  `block_detail_dialog.py`, `dialog_manager.py`, `orchestrator_registry.py`,
+  `video_processing_coordinator.py`
+- Deleted 3 dead test files, updated 10 test files
+- All 2,614 fast tests passing, 0 regressions
+
 #### Phase 4.6 — Decompose ProjectViewManager (February 2026)
 
 - **Decomposed** `ProjectViewManager` (`ui/components/project_view_manager.py`,
