@@ -9,7 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### � Security & Thread Safety
+### 🏷️ Type System & Static Quality
+
+#### Phase 6 — Type System & Static Quality (February 2026)
+
+**Metrics**: `# type: ignore` 166 → 40 (−76%); mypy errors 24 (all pre-existing)
+
+- **Enabled** `pydantic.mypy` plugin (`init_forbid_extra`, `init_typed`,
+  `warn_required_dynamic_aliases`) — removed 15 unnecessary `# type:
+  ignore[call-arg]` from `settings.py` Pydantic model instantiations
+- **Created** `coordinators/_protocols.py` with `@runtime_checkable`
+  Protocol classes (`UnifiedReportHost`, `VideoSelectionHost`) documenting
+  host contracts for coordinator mixins — then replaced `self: Protocol`
+  annotation pattern with class-level attribute declarations on mixin
+  classes to avoid mypy "Invalid self argument" errors (net −46 ignores)
+- **Fixed** `UICoordinator` → `UIScheduler` type mismatch in `__main__.py`
+  Composition Root — removed 7 `# type: ignore[arg-type]` from coordinator
+  constructor calls
+- **Added** convenience methods `has_main_arena()`, `has_roi_polygons()`,
+  `get_arena_polygon()` to `ProjectManager` — replaced unsafe
+  `zone_data.polygon` access patterns, removed 9 ignores from
+  `zone_management_facade.py`
+- **Retyped** `decorators.py` with `ParamSpec`/`TypeVar` for
+  `@public_api` and `@deprecated` — removed 8 `# type: ignore`
+- **Added** mypy `ignore_missing_imports` overrides for `serial.*` and
+  `torch.*` third-party modules — removed 15 conditional-import ignores
+  from `plugins/`, `arduino_manager.py`, `arduino.py`
+- **Narrowed** `view` and OpenVINO types in `__main__.py` with `isinstance`
+  checks and `cast()` — removed 14 ignores (`attr-defined`, `arg-type`)
+- **Made** `RecordingService.controller` properly `Optional` — removed 1
+  ignore from `controller.state_manager` access
+- **Swept** remaining fixable ignores: widened `base_coordinator.py` param
+  types, added `isinstance` guards in `single_detector.py` and
+  `zone_scaler.py`, added `assert` narrows in `processing_reports.py`,
+  narrowed 3 bare `# type: ignore` to specific error codes — total −11
+  ignores in sweep batch
+- **Added** `UP047` to ruff ignore list — defers PEP 695 type-param syntax
+  migration until ecosystem support matures
+
+**Remaining 40 ignores** (unfixable without upstream changes): Pillow
+`LANCZOS`/`BICUBIC` compat (5), Tkinter `label.image` trick (5), Tkinter
+overloads/arg-type (7), `cv2.VideoWriter_fourcc` (2), conditional imports
+(4), `ttkbootstrap` (1), `os.startfile` Windows-only (1), structlog
+`list-item` (1), ByteTracker private attr (1), and miscellaneous
+narrowing/assignment (13).
+
+### 🛡️ Security & Thread Safety
 
 #### Phase 5 — Security and Thread Safety Hardening (February 2026)
 
