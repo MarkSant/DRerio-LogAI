@@ -258,7 +258,7 @@ class DetectorService:
     def get_active_config(self) -> str | None:
         """Return the name of the currently active model weight."""
         if self.detector and self.detector.plugin:
-            return getattr(self.detector.plugin, "name", "None")  # type: ignore[union-attr]
+            return getattr(self.detector.plugin, "name", "None")
         return None
 
     def set_active_config(self, weight_name: str) -> bool:

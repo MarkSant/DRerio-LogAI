@@ -112,7 +112,7 @@ class AnalysisControlViewModel:
             self.processing_coordinator.start_single_video_processing(
                 video_path=str(video_path_arg) if video_path_arg else "",
                 config=kwargs.get("config", {}),
-                zone_data=zone_data_arg if zone_data_arg else None,  # type: ignore
+                zone_data=zone_data_arg if zone_data_arg else None,  # type: ignore[arg-type]  # zone_data_arg is Any from kwargs
             )
 
     def cancel_current_analysis(self) -> None:

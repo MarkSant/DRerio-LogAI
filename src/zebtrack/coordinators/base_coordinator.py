@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 if TYPE_CHECKING:
-    from zebtrack.core.state_manager import StateManager
+    from zebtrack.core.state_manager import StateCategory, StateManager
     from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
@@ -130,7 +130,7 @@ class BaseCoordinator:
     # State helpers
     # ------------------------------------------------------------------
 
-    def _update_state(self, category: Any, **kwargs: Any) -> None:
+    def _update_state(self, category: str | StateCategory, **kwargs: Any) -> None:
         """Update state via StateManager.
 
         Supports both ``StateCategory`` enum values and plain strings.
@@ -160,7 +160,7 @@ class BaseCoordinator:
         if isinstance(category, str):
             cat_enum = StateCategory[category.upper()]
         else:
-            cat_enum = category  # type: ignore[assignment]
+            cat_enum = category
 
         # Prefer the unified API when available
         prefer_unified = getattr(self.state_manager, "prefer_unified_state_api", False)
@@ -180,7 +180,7 @@ class BaseCoordinator:
             # Last resort: generic update_state
             self.state_manager.update_state(cat_enum, **kwargs)
 
-    def _get_state(self, category: str, key: str, default: Any = None) -> Any:
+    def _get_state(self, category: str | StateCategory, key: str, default: Any = None) -> Any:
         """Get a value from state manager.
 
         Args:
@@ -202,7 +202,7 @@ class BaseCoordinator:
         if isinstance(category, str):
             cat_enum = StateCategory[category.upper()]
         else:
-            cat_enum = category  # type: ignore[assignment]
+            cat_enum = category
 
         state = self.state_manager.get_state(cat_enum)
         return state.get(key, default)

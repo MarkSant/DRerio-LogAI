@@ -370,7 +370,7 @@ class EventDispatcher:
         event_bus.subscribe(
             Events.UI_DISPLAY_FRAME,
             lambda d: gui.canvas_manager.update_video_frame(
-                d.get("frame") if isinstance(d, dict) else None,  # type: ignore
+                d.get("frame") if isinstance(d, dict) else None,  # type: ignore[arg-type]  # frame is Any from dict
                 d.get("detections") if isinstance(d, dict) else None,
             ),
         )

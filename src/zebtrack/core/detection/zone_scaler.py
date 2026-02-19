@@ -112,7 +112,9 @@ class ZoneScaler:
         scale_y = actual_height / self.base_height
 
         # Scale each aquarium's polygon
-        for aq in zones.aquariums:  # type: ignore[union-attr]
+        if not isinstance(zones, MultiAquariumZoneData):
+            return
+        for aq in zones.aquariums:
             base_poly = np.array(aq.polygon, dtype=np.int32)
             if base_poly.size > 0:
                 if actual_width == self.base_width and actual_height == self.base_height:

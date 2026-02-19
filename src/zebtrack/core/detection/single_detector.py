@@ -72,7 +72,7 @@ class SingleDetector:
         log.info("single_detector.init.success", plugin=self.plugin.get_name())
 
         # Zone configuration
-        self.zones: ZoneData = ZoneData()
+        self.zones: ZoneData | MultiAquariumZoneData = ZoneData()
         self._zones_configured = False
         self._last_width: int | None = None
         self._last_height: int | None = None
@@ -169,7 +169,7 @@ class SingleDetector:
                 f"actual_height={actual_height})"
             )
 
-        self.zones = zones  # type: ignore[assignment]
+        self.zones = zones
         # Clear cache if zones are redefined
         self.zone_scaler.clear_cache()
 
@@ -945,9 +945,9 @@ class SingleDetector:
 
     def get_zone_data(self) -> ZoneData:
         """Helper to get current zone configuration as ZoneData object."""
-        if hasattr(self.zones, "to_zone_data"):
-            return self.zones.to_zone_data(0)  # type: ignore[union-attr]
-        return self.zones  # type: ignore[return-value]
+        if isinstance(self.zones, MultiAquariumZoneData):
+            return self.zones.to_zone_data(0)
+        return self.zones
 
     def bbox_hits_roi_polygon(
         self,

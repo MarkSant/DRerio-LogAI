@@ -330,10 +330,9 @@ class ProcessingReportsWidget(BaseWidget):
             return
 
         def expand_recursive(item_id: str) -> None:
-            # Type ignore needed because passing 'open' kwarg to item() might trigger stubs issues
-            # or simply because tree is known to be Treeview here.
-            tree.item(item_id, open=True)  # type: ignore[union-attr]
-            for child in tree.get_children(item_id):  # type: ignore[union-attr]
+            assert tree is not None  # narrowed by early return above
+            tree.item(item_id, open=True)
+            for child in tree.get_children(item_id):
                 expand_recursive(child)
 
         # Expand all root items and their children
@@ -347,8 +346,9 @@ class ProcessingReportsWidget(BaseWidget):
             return
 
         def collapse_recursive(item_id: str) -> None:
-            tree.item(item_id, open=False)  # type: ignore[union-attr]
-            for child in tree.get_children(item_id):  # type: ignore[union-attr]
+            assert tree is not None  # narrowed by early return above
+            tree.item(item_id, open=False)
+            for child in tree.get_children(item_id):
                 collapse_recursive(child)
 
         # Collapse all root items and their children
