@@ -11,7 +11,6 @@ from __future__ import annotations
 import os
 import sys
 import threading
-import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
@@ -22,6 +21,7 @@ import serial.tools.list_ports
 import structlog
 
 from zebtrack.io.arduino import Arduino
+from zebtrack.utils.cache import TTLCache
 
 if TYPE_CHECKING:
     from zebtrack.settings import Settings
@@ -39,12 +39,9 @@ class WizardService:
     - Lazy loading of heavy operations
     """
 
-    # Class-level cache for hardware detection results
-    _camera_cache: list[dict[str, Any]] | None = None
-    _camera_cache_time: float = 0.0
-    _arduino_cache: list[dict[str, Any]] | None = None
-    _arduino_cache_time: float = 0.0
-    _cache_ttl_seconds: float = 30.0  # Cache results for 30 seconds
+    # Phase 7.7: Unified hardware cache — replaces 6 class-level attributes
+    # with a single TTLCache instance (thread-safe, automatic expiry).
+    _hw_cache: TTLCache = TTLCache(ttl_seconds=30.0)
 
     @staticmethod
     def validate_live_config(data: dict[str, Any]) -> tuple[bool, str]:
@@ -140,19 +137,8 @@ class WizardService:
     @classmethod
     def clear_hardware_cache(cls) -> None:
         """Clear all hardware detection caches. Useful for testing or manual refresh."""
-        cls._camera_cache = None
-        cls._camera_cache_time = 0.0
-        cls._arduino_cache = None
-        cls._arduino_cache_time = 0.0
+        cls._hw_cache.clear()
         log.debug("wizard_service.cache_cleared")
-
-    @classmethod
-    def _is_cache_valid(cls, cache_time: float) -> bool:
-        """Check if cache is still valid based on TTL."""
-        if cache_time == 0.0:
-            return False
-        elapsed = time.time() - cache_time
-        return elapsed < cls._cache_ttl_seconds
 
     @classmethod
     def detect_available_cameras(cls, use_cache: bool = True) -> list[dict[str, Any]]:
@@ -181,10 +167,11 @@ class WizardService:
             ]
         """
         # Check cache first (with ghost camera detection, cache is now reliable)
-        cache_is_valid = cls._is_cache_valid(cls._camera_cache_time)
-        if use_cache and cls._camera_cache is not None and cache_is_valid:
-            log.debug("wizard_service.detect_cameras.cache_hit")
-            return cls._camera_cache
+        if use_cache:
+            cached = cls._hw_cache.get("cameras")
+            if cached is not None:
+                log.debug("wizard_service.detect_cameras.cache_hit")
+                return cached
 
         log.info("wizard_service.detect_cameras.start")
         cameras: list[dict[str, Any]] = []
@@ -344,8 +331,10 @@ class WizardService:
         )
 
         # Update cache
-        cls._camera_cache = cameras if cameras else None
-        cls._camera_cache_time = time.time()
+        if cameras:
+            cls._hw_cache.set("cameras", cameras)
+        else:
+            cls._hw_cache.invalidate("cameras")
 
         return cameras
 
@@ -377,10 +366,11 @@ class WizardService:
             ]
         """
         # Check cache first
-        cache_is_valid = cls._is_cache_valid(cls._arduino_cache_time)
-        if use_cache and cls._arduino_cache is not None and cache_is_valid:
-            log.debug("wizard_service.detect_arduino.cache_hit")
-            return cls._arduino_cache
+        if use_cache:
+            cached = cls._hw_cache.get("arduino")
+            if cached is not None:
+                log.debug("wizard_service.detect_arduino.cache_hit")
+                return cached
 
         log.info("wizard_service.detect_arduino.start")
         ports_info = []
@@ -457,8 +447,7 @@ class WizardService:
             log.warning("wizard_service.detect_arduino.error", error=str(e))
 
         # Update cache
-        cls._arduino_cache = ports_info
-        cls._arduino_cache_time = time.time()
+        cls._hw_cache.set("arduino", ports_info)
 
         return ports_info
 

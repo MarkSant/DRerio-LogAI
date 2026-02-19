@@ -123,8 +123,8 @@ class TestWizardServiceCaching:
         mock_video_capture.side_effect = create_mock_cap
 
         # Temporarily reduce TTL for testing
-        original_ttl = WizardService._cache_ttl_seconds
-        WizardService._cache_ttl_seconds = 0.1  # 100ms
+        original_ttl = WizardService._hw_cache.ttl_seconds
+        WizardService._hw_cache.ttl_seconds = 0.1  # 100ms
 
         try:
             # First call
@@ -141,24 +141,20 @@ class TestWizardServiceCaching:
 
         finally:
             # Restore original TTL
-            WizardService._cache_ttl_seconds = original_ttl
+            WizardService._hw_cache.ttl_seconds = original_ttl
 
     def test_clear_cache_method(self):
         """Test that clear_hardware_cache clears all caches."""
-        # Manually set some cache values
-        WizardService._camera_cache = [{"index": 0}]
-        WizardService._camera_cache_time = time.time()
-        WizardService._arduino_cache = [{"device": "COM3"}]
-        WizardService._arduino_cache_time = time.time()
+        # Manually set some cache values via TTLCache API
+        WizardService._hw_cache.set("cameras", [{"index": 0}])
+        WizardService._hw_cache.set("arduino", [{"device": "COM3"}])
 
         # Clear cache
         WizardService.clear_hardware_cache()
 
         # Verify all caches are cleared
-        assert WizardService._camera_cache is None
-        assert WizardService._camera_cache_time == 0.0
-        assert WizardService._arduino_cache is None
-        assert WizardService._arduino_cache_time == 0.0
+        assert WizardService._hw_cache.get("cameras") is None
+        assert WizardService._hw_cache.get("arduino") is None
 
     @patch("cv2.VideoCapture")
     def test_cache_reduces_detection_time(self, mock_video_capture):

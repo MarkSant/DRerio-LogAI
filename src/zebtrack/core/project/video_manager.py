@@ -14,7 +14,6 @@ to reduce the God Object pattern and improve maintainability.
 from __future__ import annotations
 
 import os
-import time
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +22,7 @@ from typing import Any, ClassVar
 import structlog
 
 from zebtrack.utils import calculate_sha256
+from zebtrack.utils.cache import TTLCache
 
 log = structlog.get_logger()
 
@@ -47,10 +47,10 @@ class VideoManager:
     - Use clear_scan_cache() to manually invalidate cache if needed
     """
 
-    # Cache for video scanning operations (30s TTL)
-    # NOTE: Class-level cache is shared across all instances for performance
-    _SCAN_CACHE_TTL_SECONDS: ClassVar[float] = 30.0
-    _scan_cache: ClassVar[dict[str, dict[str, Any]]] = {}
+    # Phase 7.7: Unified scan cache — replaces hand-rolled dict + timestamp
+    # with TTLCache. Signature validation is done after cache hit to detect
+    # file-system changes within the TTL window.
+    _scan_cache: ClassVar[TTLCache] = TTLCache(ttl_seconds=30.0)
 
     @staticmethod
     def scan_input_paths(paths: list[str]) -> list[dict[str, Any]]:
@@ -200,15 +200,14 @@ class VideoManager:
         directory = Path(directory) if isinstance(directory, str) else directory
         cache_key = str(directory.resolve())
         signature = cls._compute_path_signature(directory)
-        now = time.time()
 
         cached = cls._scan_cache.get(cache_key)
-        if (
-            cached
-            and cached["signature"] == signature
-            and now - cached["timestamp"] <= cls._SCAN_CACHE_TTL_SECONDS
-        ):
-            return [Path(item) for item in cached["videos"]]
+        if cached is not None:
+            cached_sig, cached_videos = cached
+            if cached_sig == signature:
+                return [Path(item) for item in cached_videos]
+            # Signature changed → filesystem modified within TTL
+            cls._scan_cache.invalidate(cache_key)
 
         videos: list[Path] = []
         try:
@@ -222,11 +221,7 @@ class VideoManager:
                 error=str(exc),
             )
 
-        cls._scan_cache[cache_key] = {
-            "signature": signature,
-            "timestamp": now,
-            "videos": [str(video) for video in videos],
-        }
+        cls._scan_cache.set(cache_key, (signature, [str(video) for video in videos]))
         return videos
 
     @classmethod
@@ -246,23 +241,17 @@ class VideoManager:
 
         cache_key = str(file_path.resolve())
         signature = cls._compute_path_signature(file_path)
-        now = time.time()
 
         cached = cls._scan_cache.get(cache_key)
-        if (
-            cached
-            and cached["signature"] == signature
-            and now - cached["timestamp"] <= cls._SCAN_CACHE_TTL_SECONDS
-        ):
-            return [Path(item) for item in cached["videos"]]
+        if cached is not None:
+            cached_sig, cached_videos = cached
+            if cached_sig == signature:
+                return [Path(item) for item in cached_videos]
+            cls._scan_cache.invalidate(cache_key)
 
         videos = [file_path]
 
-        cls._scan_cache[cache_key] = {
-            "signature": signature,
-            "timestamp": now,
-            "videos": [str(file_path)],
-        }
+        cls._scan_cache.set(cache_key, (signature, [str(file_path)]))
         return videos
 
     @staticmethod
@@ -297,8 +286,8 @@ class VideoManager:
 
         target_path = Path(target_path) if isinstance(target_path, str) else target_path
         resolved = str(target_path.resolve())
-        cls._scan_cache.pop(resolved, None)
-        cls._scan_cache.pop(str(target_path), None)
+        cls._scan_cache.invalidate(resolved)
+        cls._scan_cache.invalidate(str(target_path))
 
     @staticmethod
     def add_video_batch(
