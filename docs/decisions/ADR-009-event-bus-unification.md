@@ -143,3 +143,14 @@ v1 to v2 as a natural part of the refactoring:
   "Dois EventBus coexistindo")
 - Existing deprecation pattern: `src/zebtrack/analysis/reporter.py`
   (lines 210-223)
+
+## Change Log
+
+- **2026-02-15**: ADR created during Phase 3.7. DeprecationWarning added
+  to EventBus v1 `publish_event()`, `subscribe()`, `publish_callable()`.
+- **2026-02-03**: Phase 8 update. Phase 4 coordinator decomposition
+  completed (17 coordinators extracted), but v1 → v2 consumer migration
+  has **not yet started**. Both buses still coexist. Migration will occur
+  during the next refactoring cycle targeting Event-Driven Architecture
+  convergence. Current state: v1 still has ~33 consumer files; v2 has
+  ~12 consumer files. pytest.ini filter suppresses expected warnings.
