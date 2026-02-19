@@ -873,12 +873,9 @@ class SingleDetector:
         for i in range(0, len(frames), batch_size):
             batch = frames[i : i + batch_size]
 
-            if hasattr(self.plugin, "detect_batch") and callable(
-                getattr(self.plugin, "detect_batch", None)
-            ):
-                batch_detections = self.plugin.detect_batch(batch)
-            else:
-                batch_detections = [self.plugin.detect(frame) for frame in batch]
+            # Phase 7.2: base class always provides detect_batch (sequential
+            # fallback); plugins override with native batch support.
+            batch_detections = self.plugin.detect_batch(batch)
 
             for frame_detections in batch_detections:
                 processed = []

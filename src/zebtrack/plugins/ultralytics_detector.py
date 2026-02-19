@@ -291,3 +291,62 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
         # Ultralytics YOLO keeps minimal state across predict() calls, so no-op.
         pass
+
+    # Phase 7.2 — Batch inference
+    # =========================================================================
+
+    def detect_batch(
+        self,
+        frames: list[np.ndarray],
+        conf_threshold: float | None = None,
+    ) -> list[list[tuple[int, int, int, int, float, int | None, int]]]:
+        """Process multiple frames via Ultralytics native batch predict.
+
+        Passes the list of frames directly to ``model.predict()``, which
+        stacks them internally for GPU-efficient batch inference.
+
+        Args:
+            frames: List of BGR frames.
+            conf_threshold: Optional confidence threshold override.
+
+        Returns:
+            List of detection lists, one per input frame.
+        """
+        if not frames:
+            return []
+
+        conf = conf_threshold if conf_threshold is not None else self.conf_threshold
+
+        results = self.model.predict(
+            frames,
+            verbose=False,
+            conf=conf,
+            iou=self.nms_threshold,
+            classes=None,
+            half=self._half_enabled,
+            imgsz=self._imgsz,
+        )
+
+        all_detections: list[list[tuple[int, int, int, int, float, int | None, int]]] = []
+        for result in results:
+            frame_predictions: list[tuple[int, int, int, int, float, int | None, int]] = []
+            if result.boxes is not None:
+                xyxys = result.boxes.xyxy.cpu().numpy()
+                confs = result.boxes.conf.cpu().numpy()
+                classes = result.boxes.cls.cpu().numpy()
+                for i in range(len(xyxys)):
+                    x1, y1, x2, y2 = xyxys[i]
+                    frame_predictions.append(
+                        (
+                            int(x1),
+                            int(y1),
+                            int(x2),
+                            int(y2),
+                            float(confs[i]),
+                            None,
+                            int(classes[i]),
+                        )
+                    )
+            all_detections.append(frame_predictions)
+
+        return all_detections
