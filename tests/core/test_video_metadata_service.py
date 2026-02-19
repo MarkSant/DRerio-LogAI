@@ -30,7 +30,7 @@ def test_get_video_dimensions_open_fail(mock_video_capture):
     mock_cap.isOpened.return_value = False
     mock_video_capture.return_value = mock_cap
 
-    with pytest.raises(ValueError, match="Não foi possível abrir"):
+    with pytest.raises(ValueError, match="Could not open video"):
         VideoMetadataService.get_video_dimensions("/path/to/video.mp4")
 
 
@@ -44,7 +44,7 @@ def test_get_video_dimensions_invalid_values(mock_video_capture):
     }[prop]
     mock_video_capture.return_value = mock_cap
 
-    with pytest.raises(ValueError, match="Dimensões inválidas"):
+    with pytest.raises(ValueError, match="Invalid dimensions"):
         VideoMetadataService.get_video_dimensions("/path/to/video.mp4")
 
 
@@ -72,5 +72,5 @@ def test_get_video_info_open_fail(mock_video_capture):
     mock_cap.isOpened.return_value = False
     mock_video_capture.return_value = mock_cap
 
-    with pytest.raises(ValueError, match="Não foi possível abrir"):
+    with pytest.raises(ValueError, match="Could not open video"):
         VideoMetadataService.get_video_info("/path/to/video.mp4")

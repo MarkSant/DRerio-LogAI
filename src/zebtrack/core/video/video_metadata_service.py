@@ -26,7 +26,7 @@ class VideoMetadataService:
             cap = cv2.VideoCapture(video_path)
 
             if not cap.isOpened():
-                raise ValueError(f"Não foi possível abrir o vídeo: {video_path}")
+                raise ValueError(f"Could not open video: {video_path}")
 
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))

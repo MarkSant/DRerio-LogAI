@@ -31,8 +31,9 @@ def mock_plugin():
     plugin.get_name.return_value = "MockPlugin"
     plugin.class_names = {0: "aquarium", 1: "zebrafish"}
     plugin.detect.return_value = []
-    # Remove detect_batch so it falls back to sequential processing
-    del plugin.detect_batch
+    # Phase 7.2: plugin.detect_batch always exists (base class provides
+    # sequential fallback). Configure it to delegate to detect() by default.
+    plugin.detect_batch.side_effect = lambda batch: [plugin.detect(f) for f in batch]
     return plugin
 
 
