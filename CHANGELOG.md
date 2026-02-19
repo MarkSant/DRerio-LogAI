@@ -9,6 +9,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ⚡ Performance
+
+#### Phase 7 — Performance Optimizations (February 2026)
+
+**Measured speedups** (pytest-benchmark, -n0):
+
+| Optimization | Before | After | Speedup |
+|---|---|---|---|
+| Angular velocity (5 000 pts) | 13.5 ms (loop) | 1.4 ms (NumPy) | ~9× |
+| Recorder flush (500 rows) | 3.6 ms (pd.DataFrame) | 0.4 ms (pa.table) | ~8× |
+| Polygon containment (1 000 pts) | 3.2 ms (pointPolygonTest) | 1.9 ms (mask) | ~1.7× |
+| Preview IPC write (720p) | 2.8 ms (pickle) | 0.9 ms (SharedMemory) | ~3× |
+
+- **7.2 Batch inference**: Added `detect_batch()` default to
+  `DetectorPlugin` ABC (sequential fallback); `UltralyticsPlugin` overrides
+  with native `model.predict(frames)` for GPU-efficient stacked inference;
+  OpenVINO uses base fallback (model compiled for batch=1);
+  `SingleDetector.detect_batch()` delegates directly
+- **7.3 SharedMemory preview frames**: Created `SharedFrameBuffer` utility
+  (`core/video/shared_frame_buffer.py`) — single-slot shared memory block
+  with sequence-numbered header for zero-copy IPC; `ProcessingWorker`
+  creates the buffer, `_WorkerProcess` attaches and writes preview frames,
+  `_monitor_loop` reads via sequence metadata; graceful pickle fallback on
+  failure; eliminated ~2–6 MB per-frame serialisation overhead
+- **7.4 Vectorized angular velocity**: Replaced Python `for`-loop in
+  `behavior.py:get_angular_velocity()` with NumPy vectorised operations
+  (`np.diff`, `np.hypot`, `np.arctan2`, boolean masking) — ~9× faster for
+  typical 5 000-point trajectories
+- **7.5 Columnar buffers recorder**: Replaced `pd.DataFrame(snapshot)` →
+  `pa.Table.from_pandas(df)` path in `recorder.py` with direct `pa.table()`
+  construction from column arrays — bypasses pandas allocation entirely;
+  added `_snapshot_to_pa_table()` and `_dedup_snapshot()` methods
+- **7.6 ROI polygon mask cache**: Pre-computes binary polygon masks via
+  `cv2.fillPoly()` at zone-scaling time in `zone_scaler.py`; both
+  `is_inside_polygon()` and `bbox_hits_roi_polygon()` use O(1) pixel
+  lookups with automatic fallback to `cv2.pointPolygonTest`
+- **7.7 TTL cache utility**: Created reusable `TTLCache` and `ttl_cache`
+  decorator in `utils/cache.py` (thread-safe, per-entry expiry, maxsize
+  eviction, hit/miss counters); refactored `WizardService` (replaced 6
+  class-level cache attrs) and `VideoManager` (replaced `_scan_cache` dict)
+- **7.8 Model warm-up**: Added `_warm_up()` to `UltralyticsPlugin` and
+  `OpenVINODetectorPlugin` — runs a single dummy inference at load time to
+  pre-allocate device memory and JIT-compile CUDA/OpenVINO kernels
+- **Benchmarks**: 11 pytest-benchmark tests in
+  `tests/benchmarks/test_phase7_benchmarks.py` covering all optimisations
+  with before/after baselines
+
 ### 🏷️ Type System & Static Quality
 
 #### Phase 6 — Type System & Static Quality (February 2026)

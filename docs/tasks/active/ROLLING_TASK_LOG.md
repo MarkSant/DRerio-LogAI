@@ -10,23 +10,32 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 **ID:** TASK-032
 **Agent:** GitHub Copilot (Claude Opus 4.6)
-**Status:** In Progress 🔄
+**Status:** Completed ✅
 **Branch:** `refactor/phase-7-performance`
+**Completed:** 2026-02-19
 **Description:**
 Seven performance optimizations targeting inference latency, data pipeline
 throughput, vectorized computation, IPC efficiency, and cache cleanup.
 
 ### Subtasks (TASK-032)
 
-- [ ] 7.8 Model warm-up in plugins (ultralytics + openvino)
-- [ ] 7.4 Vectorize `get_angular_velocity()` (eliminate Python loop)
-- [ ] 7.5 Columnar buffers for Recorder flush (bypass pd.DataFrame)
-- [ ] 7.7 TTL cache utility replacing hand-rolled caches
-- [ ] 7.6 ROI polygon mask cache (pixel lookup vs pointPolygonTest)
-- [ ] 7.2 Batch inference in plugins (detect_batch)
-- [ ] 7.3 SharedMemory for preview frames (replace Queue pickle)
-- [ ] Benchmark test suite (pytest-benchmark)
-- [ ] CHANGELOG, commit, push, PR
+- [x] 7.8 Model warm-up in plugins (ultralytics + openvino)
+- [x] 7.4 Vectorize `get_angular_velocity()` (eliminate Python loop)
+- [x] 7.5 Columnar buffers for Recorder flush (bypass pd.DataFrame)
+- [x] 7.7 TTL cache utility replacing hand-rolled caches
+- [x] 7.6 ROI polygon mask cache (pixel lookup vs pointPolygonTest)
+- [x] 7.2 Batch inference in plugins (detect_batch)
+- [x] 7.3 SharedMemory for preview frames (replace Queue pickle)
+- [x] Benchmark test suite (pytest-benchmark)
+- [x] CHANGELOG, commit, push, PR
+
+**Results:**
+
+- 7 sub-tasks implemented across 12 source files
+- 42 new tests (20 cache + 11 shared memory + 11 benchmarks)
+- Measured speedups: angular velocity ~9×, recorder flush ~8×,
+  polygon containment ~1.7×, preview IPC write ~3×
+- Skipped 7.1 (detection-only model) — training outside codebase scope
 
 ---
 
