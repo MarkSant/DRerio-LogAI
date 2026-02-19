@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 📚 Documentation & Standardization
+
+#### Phase 8 — Documentation & Standardization (February 2026)
+
+- **8.1 English translation**: Translated Portuguese docstrings and inline
+  comments to English across 12 source files (gui.py, drawing_state_manager,
+  roi_template_manager, polygon_drawing_service, event_dispatcher,
+  batch_configuration_service, video_metadata_service, thread_coordinator,
+  orchestrator_registry, detection_types, dialog_coordinator,
+  visualization_generator); kept PT-BR user-facing strings intentionally
+- **8.2 Coverage gates**: Researched JOSS, pyOpenSci, OpenSSF standards;
+  measured baseline at 46.1%; raised CI gates (Linux core 45→50%, GUI
+  30→32%, Windows 25→28%, local 40→45%); fixed 5 test regressions from
+  Phase 7 API changes; created `docs/testing/COVERAGE_STANDARDS_ANALYSIS.md`
+  with evidence-based roadmap to OpenSSF Silver (80%)
+- **8.3 Property-based testing**: Added Hypothesis ^6.100.0 dependency; 83
+  property tests across 6 files covering settings round-trips, detection
+  type conversions, recorder IOU/dedup/normalize, zone scaler identity and
+  proportional scaling, behavioral analysis invariants, and calibration
+  point ordering
+- **8.4 ADR documentation**: Created ADR-001 (Multi-Aquarium Support) and
+  ADR-004 (Live Camera Architecture Divergence); updated ADR-009 with Phase
+  4 coordinator decomposition status
+- **8.5 System integration map**: Updated from v3.2 to v4.0 — documented
+  Phase 4 coordinator decomposition (4 super → 16 specialized), added
+  ADR-009 deprecation notice, performance architecture (Phase 7),
+  documentation standards section, document changelog
+
 ### ⚡ Performance
 
 #### Phase 7 — Performance Optimizations (February 2026)
