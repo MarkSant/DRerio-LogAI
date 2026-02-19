@@ -23,8 +23,11 @@ from zebtrack.core.project.project_manager import ProjectManager
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
-    from zebtrack.coordinators._protocols import VideoSelectionHost
     from zebtrack.core.detection import ZoneData
+    from zebtrack.core.state_manager import StateManager
+    from zebtrack.core.video.processing_worker import ProcessingWorker
+    from zebtrack.settings import Settings
+    from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
 
@@ -34,14 +37,29 @@ class VideoSelectionMixin:
 
     Must be composed with a coordinator that satisfies
     :class:`~zebtrack.coordinators._protocols.VideoSelectionHost`.
+
+    Host-provided attributes (declared for mypy, set by coordinator __init__):
     """
+
+    # Declare host-provided attributes for mypy (set by coordinator __init__)
+    project_manager: ProjectManager
+    state_manager: StateManager
+    settings: Settings
+    event_bus: EventBus | None
+    view: Any
+    processing_worker: ProcessingWorker | None
+    processing_thread: Any
+    _multi_aquarium_coordinator: Any
+
+    # Host-provided method (declared for mypy, implemented by coordinator)
+    _publish_event: Any  # (event: Any, data: Any) -> None
 
     # ------------------------------------------------------------------
     # Video selection
     # ------------------------------------------------------------------
 
     def select_eligible_videos(
-        self: VideoSelectionHost, skip_dialog, ready_traj, ready_zones, arena_only, without_arena
+        self, skip_dialog, ready_traj, ready_zones, arena_only, without_arena
     ) -> list[dict] | None:
         """Select eligible videos for processing."""
         eligible_videos: list[dict] = []
@@ -99,7 +117,7 @@ class VideoSelectionMixin:
     # ------------------------------------------------------------------
 
     def validate_can_start_processing(
-        self: VideoSelectionHost,
+        self,
         *,
         check_project_loaded: bool = True,
         check_zones: bool = False,
@@ -157,7 +175,7 @@ class VideoSelectionMixin:
 
         return ValidationResult.success()
 
-    def _is_live_session_currently_active(self: VideoSelectionHost, processing_state: Any) -> bool:
+    def _is_live_session_currently_active(self, processing_state: Any) -> bool:
         """Check if a live session is truly active."""
         state_flag = bool(getattr(processing_state, "is_live_session_active", False))
         if not state_flag:
@@ -183,16 +201,14 @@ class VideoSelectionMixin:
     # Selection helpers
     # ------------------------------------------------------------------
 
-    def _show_validation_error(self: VideoSelectionHost, val) -> None:
+    def _show_validation_error(self, val) -> None:
         """Show validation error to UI."""
         self._publish_event(
             Events.UI_SHOW_WARNING,
             {"title": "Validação Falhou", "message": val.error_message},
         )
 
-    def _handle_targeted_selection_errors(
-        self: VideoSelectionHost, selection_result, video_paths
-    ) -> bool:
+    def _handle_targeted_selection_errors(self, selection_result, video_paths) -> bool:
         """Handle UI feedback for targeted selection mode errors."""
         if not video_paths:
             self._publish_event(
@@ -222,7 +238,7 @@ class VideoSelectionMixin:
             return False
         return True
 
-    def _handle_pending_selection_errors(self: VideoSelectionHost, selection_result) -> bool:
+    def _handle_pending_selection_errors(self, selection_result) -> bool:
         """Handle UI feedback for pending selection mode errors."""
         if selection_result.candidate_count == 0:
             self._publish_event(
@@ -232,9 +248,7 @@ class VideoSelectionMixin:
             return False
         return True
 
-    def _extract_and_validate_candidate_paths(
-        self: VideoSelectionHost, candidate_entries
-    ) -> list[str] | None:
+    def _extract_and_validate_candidate_paths(self, candidate_entries) -> list[str] | None:
         """Extract and validate video paths from candidate entries."""
         candidate_paths = [
             v.get("path")
@@ -252,7 +266,7 @@ class VideoSelectionMixin:
             return None
         return candidate_paths
 
-    def _handle_missing_files_warning(self: VideoSelectionHost, scan_result) -> None:
+    def _handle_missing_files_warning(self, scan_result) -> None:
         """Show warning UI if scanned files are missing."""
         if scan_result.has_missing:
             sample = [os.path.basename(p) for p in scan_result.missing_files[:5]]
@@ -270,7 +284,7 @@ class VideoSelectionMixin:
     # Zone loading
     # ------------------------------------------------------------------
 
-    def _load_zones_for_eligible_videos(self: VideoSelectionHost, eligible_videos: list) -> None:
+    def _load_zones_for_eligible_videos(self, eligible_videos: list) -> None:
         """Load zone data from parquet files for eligible videos."""
         zones_updated = False
         from zebtrack.core.project.zone_manager import ZoneManager
@@ -319,7 +333,7 @@ class VideoSelectionMixin:
     # Settings snapshot
     # ------------------------------------------------------------------
 
-    def _create_project_settings_snapshot(self: VideoSelectionHost) -> Any:
+    def _create_project_settings_snapshot(self) -> Any:
         """Create a Settings object with project-specific overrides applied."""
         snapshot = self.settings.model_copy(deep=True)
         project_data = self.project_manager.project_data or {}

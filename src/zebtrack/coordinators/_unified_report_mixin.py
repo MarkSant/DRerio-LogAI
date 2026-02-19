@@ -25,7 +25,9 @@ import structlog
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
-    from zebtrack.coordinators._protocols import UnifiedReportHost
+    from zebtrack.core.project.project_manager import ProjectManager
+    from zebtrack.settings import Settings
+    from zebtrack.ui.event_bus import EventBus
 
 log = structlog.get_logger()
 
@@ -35,10 +37,22 @@ class UnifiedReportMixin:
 
     Must be composed with a coordinator that satisfies
     :class:`~zebtrack.coordinators._protocols.UnifiedReportHost`.
+
+    Host-provided attributes (declared for mypy, set by coordinator __init__):
     """
 
+    # Declare host-provided attributes for mypy (set by coordinator __init__)
+    project_manager: ProjectManager
+    settings: Settings
+    event_bus: EventBus | None
+
+    # Host-provided methods (declared for mypy, implemented by coordinator)
+    _publish_event: Any  # (event: Any, data: Any) -> None
+    _is_batch_processing: Any  # () -> bool
+    _enrich_unified_report_metadata: Any  # (df, meta, entry) -> pd.DataFrame
+
     def generate_unified_report(
-        self: UnifiedReportHost,
+        self,
         video_paths: list[str] | None = None,
         *,
         replace_existing: bool = False,
@@ -281,7 +295,7 @@ class UnifiedReportMixin:
     # ------------------------------------------------------------------
 
     def _export_unified_reports(
-        self: UnifiedReportHost,
+        self,
         final_df,
         unified_dir: Path,
         roi_colors_map: dict,
