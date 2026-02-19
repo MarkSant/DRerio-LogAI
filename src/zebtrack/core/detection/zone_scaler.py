@@ -35,6 +35,10 @@ class ZoneScaler:
         self._scaling_cache: dict = {}
         self._scaled_aquarium_polygons: dict[int, np.ndarray] = {}
         self._scaled_aquarium_roi_polygons: dict[int, list[np.ndarray]] = {}
+        # Phase 7.6: precomputed binary masks for polygon containment tests.
+        # Built once per update_scaling() call, queried O(1) per detection.
+        self._polygon_masks: dict[int, np.ndarray] = {}  # id(polygon) → uint8 mask
+        self._mask_frame_size: tuple[int, int] = (0, 0)  # (width, height)
 
     def update_scaling(
         self,
@@ -88,6 +92,8 @@ class ZoneScaler:
             "polygon": self.scaled_polygon,
             "roi_polygons": self.scaled_roi_polygons,
         }
+        # Phase 7.6: Build binary masks for fast containment checks
+        self._build_masks(actual_width, actual_height)
         log.info(
             "zone_scaler.scaling.updated_and_cached",
             width=actual_width,
@@ -161,6 +167,108 @@ class ZoneScaler:
                 scaled_rois.append(scaled_roi)
             self._scaled_aquarium_roi_polygons[aq.id] = scaled_rois
 
+        # Phase 7.6: Build masks for multi-aquarium polygons
+        self._build_masks(actual_width, actual_height)
+
+    def _build_masks(self, frame_width: int, frame_height: int) -> None:
+        """Pre-compute binary masks for all current polygons.
+
+        Phase 7.6: A binary mask allows O(1) pixel-lookup containment checks
+        instead of the per-point ``cv2.pointPolygonTest`` calls (5 per bbox).
+        Masks are rebuilt whenever ``update_scaling()`` changes the polygons.
+        """
+        self._polygon_masks.clear()
+        self._mask_frame_size = (frame_width, frame_height)
+
+        # Main arena polygon
+        if self.scaled_polygon.size > 0:
+            self._polygon_masks[id(self.scaled_polygon)] = self._build_single_mask(
+                self.scaled_polygon, frame_width, frame_height
+            )
+
+        # ROI polygons
+        for roi_poly in self.scaled_roi_polygons:
+            if roi_poly.size > 0:
+                self._polygon_masks[id(roi_poly)] = self._build_single_mask(
+                    roi_poly, frame_width, frame_height
+                )
+
+        # Aquarium polygons
+        for _aq_id, aq_poly in self._scaled_aquarium_polygons.items():
+            if aq_poly.size > 0:
+                self._polygon_masks[id(aq_poly)] = self._build_single_mask(
+                    aq_poly, frame_width, frame_height
+                )
+
+        # Aquarium ROI polygons
+        for _aq_id, roi_list in self._scaled_aquarium_roi_polygons.items():
+            for roi_poly in roi_list:
+                if roi_poly.size > 0:
+                    self._polygon_masks[id(roi_poly)] = self._build_single_mask(
+                        roi_poly, frame_width, frame_height
+                    )
+
+        log.debug(
+            "zone_scaler.masks_built",
+            count=len(self._polygon_masks),
+            frame_size=(frame_width, frame_height),
+        )
+
+    @staticmethod
+    def _build_single_mask(
+        polygon: np.ndarray,
+        frame_width: int,
+        frame_height: int,
+    ) -> np.ndarray:
+        """Create a uint8 binary mask from a polygon via cv2.fillPoly.
+
+        Args:
+            polygon: Polygon vertices as int32 array.
+            frame_width: Frame width in pixels.
+            frame_height: Frame height in pixels.
+
+        Returns:
+            Binary mask (height × width, dtype uint8) where 255 = inside.
+        """
+        mask = np.zeros((frame_height, frame_width), dtype=np.uint8)
+        pts = polygon.reshape((-1, 1, 2))
+        cv2.fillPoly(mask, [pts], 255)
+        return mask
+
+    @staticmethod
+    def _check_mask(mask: np.ndarray, x1: int, y1: int, x2: int, y2: int) -> bool:
+        """Test 5 bbox points against a precomputed binary mask.
+
+        O(1) pixel lookups instead of 5× cv2.pointPolygonTest calls.
+
+        Args:
+            mask: Binary mask (height × width, uint8, 255=inside).
+            x1: Left x coordinate.
+            y1: Top y coordinate.
+            x2: Right x coordinate.
+            y2: Bottom y coordinate.
+
+        Returns:
+            True if any of the 5 test points (4 corners + center) is inside.
+        """
+        h, w = mask.shape[:2]
+        center_x = (x1 + x2) // 2
+        center_y = (y1 + y2) // 2
+
+        for px, py in (
+            (x1, y1),
+            (x2, y1),
+            (x2, y2),
+            (x1, y2),
+            (center_x, center_y),
+        ):
+            # Clamp to valid pixel coordinates
+            cx = max(0, min(px, w - 1))
+            cy = max(0, min(py, h - 1))
+            if mask[cy, cx]:
+                return True
+        return False
+
     def is_inside_polygon(self, x1: int, y1: int, x2: int, y2: int, polygon: np.ndarray) -> bool:
         """Check if any of the 4 corners OR the center of bbox is inside the polygon.
 
@@ -179,6 +287,12 @@ class ZoneScaler:
         if polygon.size == 0:
             return False
 
+        # Phase 7.6: Try mask-based O(1) lookup first
+        mask = self._polygon_masks.get(id(polygon))
+        if mask is not None:
+            return self._check_mask(mask, x1, y1, x2, y2)
+
+        # Fallback to cv2.pointPolygonTest (e.g. polygon not pre-cached)
         # Calculate all 5 points: 4 corners + center
         center_x = (x1 + x2) / 2
         center_y = (y1 + y2) / 2
@@ -218,6 +332,12 @@ class ZoneScaler:
         if roi_polygon.size == 0:
             return False
 
+        # Phase 7.6: Try mask-based O(1) lookup first
+        mask = self._polygon_masks.get(id(roi_polygon))
+        if mask is not None:
+            return self._check_mask(mask, x1, y1, x2, y2)
+
+        # Fallback to cv2.pointPolygonTest
         # Calculate all 5 points: 4 corners + center
         center_x = (x1 + x2) / 2
         center_y = (y1 + y2) / 2
@@ -350,6 +470,8 @@ class ZoneScaler:
         return self._scaled_aquarium_roi_polygons.get(aquarium_id, [])
 
     def clear_cache(self) -> None:
-        """Clear the internal scaling cache to free memory."""
+        """Clear the internal scaling cache and polygon masks to free memory."""
         self._scaling_cache.clear()
+        self._polygon_masks.clear()
+        self._mask_frame_size = (0, 0)
         log.debug("zone_scaler.cache.cleared")
