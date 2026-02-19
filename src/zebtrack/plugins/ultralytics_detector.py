@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +73,36 @@ class UltralyticsDetectorPlugin(DetectorPlugin):
 
         # ByteTrack buffer size
         self.track_buffer = 60
+
+        # Phase 7: Model warm-up — eliminates JIT compilation latency on first real frame
+        self._warm_up(log)
+
+    def _warm_up(self, log: Any) -> None:
+        """Run a single dummy inference to trigger JIT compilation and cache allocation.
+
+        First YOLO inference is significantly slower due to internal graph optimisation
+        and CUDA kernel compilation.  Running a dummy frame during ``__init__`` moves
+        that latency out of the real-time processing loop.
+
+        The dummy frame uses the same ``half``/``imgsz`` settings as production
+        inference so that all kernel variants are compiled ahead of time.
+        """
+        try:
+            h, w = self._imgsz, self._imgsz
+            dummy_frame = np.zeros((h, w, 3), dtype=np.uint8)
+            t0 = time.perf_counter()
+            self.model.predict(
+                dummy_frame,
+                verbose=False,
+                conf=self.conf_threshold,
+                iou=self.nms_threshold,
+                half=self._half_enabled,
+                imgsz=self._imgsz,
+            )
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            log.info("ultralytics.warmup.complete", elapsed_ms=round(elapsed_ms, 1))
+        except Exception as e:  # except Exception justified: warm-up is best-effort
+            log.warning("ultralytics.warmup.failed", error=str(e))
 
     def detect(
         self, frame: np.ndarray, conf_threshold: float | None = None

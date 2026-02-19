@@ -6,6 +6,30 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-19] Phase 7 — Performance Optimizations
+
+**ID:** TASK-032
+**Agent:** GitHub Copilot (Claude Opus 4.6)
+**Status:** In Progress 🔄
+**Branch:** `refactor/phase-7-performance`
+**Description:**
+Seven performance optimizations targeting inference latency, data pipeline
+throughput, vectorized computation, IPC efficiency, and cache cleanup.
+
+### Subtasks (TASK-032)
+
+- [ ] 7.8 Model warm-up in plugins (ultralytics + openvino)
+- [ ] 7.4 Vectorize `get_angular_velocity()` (eliminate Python loop)
+- [ ] 7.5 Columnar buffers for Recorder flush (bypass pd.DataFrame)
+- [ ] 7.7 TTL cache utility replacing hand-rolled caches
+- [ ] 7.6 ROI polygon mask cache (pixel lookup vs pointPolygonTest)
+- [ ] 7.2 Batch inference in plugins (detect_batch)
+- [ ] 7.3 SharedMemory for preview frames (replace Queue pickle)
+- [ ] Benchmark test suite (pytest-benchmark)
+- [ ] CHANGELOG, commit, push, PR
+
+---
+
 ### [2026-02-15] Phase 2 — Narrow Generic Exception Catches
 
 **ID:** TASK-031

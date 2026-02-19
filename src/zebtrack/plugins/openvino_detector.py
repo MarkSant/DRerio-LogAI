@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any, Literal
 
@@ -300,6 +301,28 @@ class OpenVINOPlugin(DetectorPlugin):
                     "with proper class names"
                 ),
             )
+
+        # Phase 7: Model warm-up — eliminates first-inference latency
+        self._warm_up()
+
+    def _warm_up(self) -> None:
+        """Run a single dummy inference to prime the OpenVINO infer request.
+
+        The first inference through a compiled OpenVINO model is significantly
+        slower because the runtime still needs to allocate internal buffers and
+        optimise the execution graph for the target device.  Running a dummy
+        frame during ``__init__`` moves that cost out of the real-time loop.
+        """
+        try:
+            h, w = self._target_h, self._target_w
+            dummy_frame = np.zeros((h, w, 3), dtype=np.uint8)
+            input_tensor = self._preprocess(dummy_frame)
+            t0 = time.perf_counter()
+            self.infer_request.infer({self.input_layer.any_name: input_tensor})
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            log.info("openvino.warmup.complete", elapsed_ms=round(elapsed_ms, 1))
+        except Exception as e:  # except Exception justified: warm-up is best-effort
+            log.warning("openvino.warmup.failed", error=str(e))
 
     def get_context_info(self) -> dict:
         """Get current context and aquarium region status for debugging."""
