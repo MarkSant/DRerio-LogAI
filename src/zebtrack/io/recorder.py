@@ -921,22 +921,25 @@ class Recorder:
                 )
                 raise ValueError("Parquet schema cannot change during recording")
 
-            df = pd.DataFrame(snapshot)
-            if df.empty:
+            if not snapshot:
                 self._last_flush_time = time.time()
                 log.info("recorder.flush.skipped_empty_dataframe")
                 return
 
-            # BUG FIX #2: Remove duplicate detections (same frame + track_id)
-            df = self._validate_unique_detections(df)
+            # Phase 7: Dedup at snapshot level (avoids DataFrame construction)
+            snapshot = self._dedup_snapshot(snapshot)
+            if not snapshot:
+                self._last_flush_time = time.time()
+                return
 
             if not self._parquet_columns:
                 self._parquet_columns = self._determine_parquet_columns()
 
-            df = df.reindex(columns=self._parquet_columns)
+            # Phase 7: Build pa.Table directly from columnar arrays — bypasses
+            # the expensive pd.DataFrame(list-of-dicts) → pa.Table.from_pandas path.
+            table = self._snapshot_to_pa_table(snapshot, self._parquet_columns)
 
             if self._parquet_schema is None:
-                table = pa.Table.from_pandas(df, preserve_index=False)
                 self._parquet_schema = table.schema
                 self._parquet_writer = pq.ParquetWriter(
                     self._parquet_filename,
@@ -949,7 +952,8 @@ class Recorder:
                     schema=str(self._parquet_schema),
                 )
             else:
-                table = pa.Table.from_pandas(df, schema=self._parquet_schema, preserve_index=False)
+                # Re-cast columns to match the established schema (handles None → null)
+                table = table.cast(self._parquet_schema)
                 if self._parquet_writer is None:
                     self._parquet_writer = pq.ParquetWriter(
                         self._parquet_filename,
@@ -981,6 +985,68 @@ class Recorder:
                 path=self._parquet_filename,
                 exc_info=e,
             )
+
+    @staticmethod
+    def _dedup_snapshot(
+        snapshot: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Remove duplicate detections (same frame + track_id) from snapshot.
+
+        BUG FIX #2: Prevents inflated metrics caused by duplicate detections
+        of the same object in the same frame.  Uses a Python set for O(n)
+        dedup instead of building a full DataFrame.
+
+        Args:
+            snapshot: List of detection dicts.
+
+        Returns:
+            Deduplicated snapshot (keeps first occurrence).
+        """
+        seen: set[tuple[Any, Any]] = set()
+        deduped: list[dict[str, Any]] = []
+        dup_count = 0
+        for row in snapshot:
+            key = (row.get("frame"), row.get("track_id"))
+            if key in seen:
+                dup_count += 1
+                continue
+            seen.add(key)
+            deduped.append(row)
+
+        if dup_count > 0:
+            log.warning(
+                "recorder.duplicate_detections_removed",
+                count=dup_count,
+                total_rows=len(snapshot),
+                percentage=f"{(dup_count / len(snapshot)) * 100:.2f}%",
+            )
+        return deduped
+
+    @staticmethod
+    def _snapshot_to_pa_table(
+        snapshot: list[dict[str, Any]],
+        columns: list[str],
+    ) -> pa.Table:
+        """Build a PyArrow Table directly from a list-of-dicts snapshot.
+
+        Phase 7 optimisation: Extracts each column as a Python list and
+        constructs the table via ``pa.table()``, completely bypassing the
+        ``pd.DataFrame`` intermediate.  For a 500-row flush this avoids:
+        - dict→DataFrame allocation (pandas type inference, index creation)
+        - DataFrame→ArrowTable conversion (pandas metadata, index handling)
+
+        Args:
+            snapshot: List of detection dicts (each dict has column keys).
+            columns: Ordered list of column names for the table.
+
+        Returns:
+            A ``pa.Table`` with the specified column ordering.
+        """
+        col_arrays: dict[str, list[Any]] = {col: [] for col in columns}
+        for row in snapshot:
+            for col in columns:
+                col_arrays[col].append(row.get(col))
+        return pa.table(col_arrays)
 
     def _atomic_write_table(
         self,
@@ -1119,14 +1185,13 @@ class Recorder:
                 self.detection_data.clear()
             parquet_path = self._parquet_filename
             try:
-                df = pd.DataFrame(snapshot)
-                if df.empty:
+                if not snapshot:
                     log.info("recorder.save_parquet.no_data")
                 else:
-                    df = df.reindex(
-                        columns=self._parquet_columns or self._determine_parquet_columns()
-                    )
-                    table = pa.Table.from_pandas(df, preserve_index=False)
+                    # Phase 7: Dedup + columnar build — same as _flush path
+                    snapshot = self._dedup_snapshot(snapshot)
+                    cols = self._parquet_columns or self._determine_parquet_columns()
+                    table = self._snapshot_to_pa_table(snapshot, cols)
                     # Phase 5.3: Atomic write — temp file + rename
                     self._atomic_write_table(table, parquet_path)
                     log.info("recorder.save_parquet.success", path=parquet_path)
