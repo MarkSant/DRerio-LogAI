@@ -1,9 +1,9 @@
-"""Serviço para aplicar configurações de projeto a lotes de vídeos.
+"""Service for applying project settings to video batches.
 
-Este serviço foi extraído do MainViewModel como parte da Fase 1 do
-plano de refatoração (PLANO_REFATORACAO_MAINVIEWMODEL.md).
-Responsável por aplicar configurações do projeto (zonas, calibração, etc.)
-a novos vídeos adicionados ao lote.
+Extracted from MainViewModel as part of Phase 1 of the refactoring
+plan (PLANO_REFATORACAO_MAINVIEWMODEL.md).
+Responsible for applying project settings (zones, calibration, etc.)
+to newly added batch videos.
 """
 
 import json
@@ -20,14 +20,14 @@ log = structlog.get_logger()
 
 
 class BatchConfigurationService:
-    """Serviço para aplicar configurações de projeto a lotes de vídeos.
+    """Service for applying project settings to video batches.
 
-    Extrai e centraliza a lógica de aplicação de configurações de projeto
-    (zonas, calibração, detector, etc.) a múltiplos vídeos em lote.
+    Extracts and centralizes the logic for applying project settings
+    (zones, calibration, detector, etc.) to multiple videos in a batch.
 
     Attributes:
-        project_manager: Gerenciador de projeto com acesso aos dados do projeto
-        settings: Configurações da aplicação
+        project_manager: Project manager with access to project data.
+        settings: Application settings.
     """
 
     def __init__(
@@ -35,29 +35,29 @@ class BatchConfigurationService:
         project_manager: ProjectManager,
         settings_obj: Settings,
     ):
-        """Inicializa o serviço de configuração em lote.
+        """Initialize the batch configuration service.
 
         Args:
-            project_manager: Gerenciador de projeto
-            settings_obj: Configurações da aplicação
+            project_manager: Project manager instance.
+            settings_obj: Application settings.
         """
         self.project_manager = project_manager
         self.settings = settings_obj
         self.log = structlog.get_logger()
 
     def apply_settings(self, videos: list) -> bool:
-        """Aplica configurações do projeto ao lote de vídeos.
+        """Apply project settings to a batch of videos.
 
-        Para cada vídeo no lote, salva:
-        - project_settings.json: Configurações completas do projeto
-        - zones.json: Dados de zonas e ROIs (se configurados)
+        For each video in the batch, saves:
+        - project_settings.json: Complete project settings
+        - zones.json: Zone and ROI data (if configured)
 
         Args:
-            videos: Lista de dicts com informações dos vídeos (deve conter 'path')
+            videos: List of dicts with video information (must contain 'path').
 
         Returns:
-            True se configurações foram aplicadas a todos os vídeos com sucesso,
-            False caso contrário
+            True if settings were applied to all videos successfully,
+            False otherwise.
         """
         if not self._validate_project():
             return False
@@ -66,10 +66,10 @@ class BatchConfigurationService:
         return self._apply_to_videos(videos, config)
 
     def _validate_project(self) -> bool:
-        """Valida que o projeto está carregado e configurado.
+        """Validate that the project is loaded and configured.
 
         Returns:
-            True se o projeto está válido, False caso contrário
+            True if the project is valid, False otherwise.
         """
         if not self.project_manager.project_path:
             self.log.warning("batch_config.no_project_path")
@@ -77,16 +77,16 @@ class BatchConfigurationService:
         return True
 
     def _build_configuration(self) -> dict:
-        """Constrói dict de configuração a partir dos dados do projeto.
+        """Build a configuration dict from project data.
 
         Returns:
-            Dict contendo todas as configurações necessárias:
-            - zone_data: Dados de zonas e ROIs
-            - calibration: Dados de calibração
-            - project_data: Dados completos do projeto
-            - has_zones: Flag indicando se há zonas configuradas
-            - has_calibration: Flag indicando se há calibração
-            - has_rois: Número de ROIs configurados
+            Dict containing all necessary settings:
+            - zone_data: Zone and ROI data
+            - calibration: Calibration data
+            - project_data: Complete project data
+            - has_zones: Flag indicating whether zones are configured
+            - has_calibration: Flag indicating whether calibration exists
+            - has_rois: Number of configured ROIs
         """
         project_data = self.project_manager.project_data
         zone_data = self.project_manager.get_zone_data()
@@ -109,15 +109,15 @@ class BatchConfigurationService:
         }
 
     def _apply_to_videos(self, videos: list, config: dict) -> bool:
-        """Aplica configuração a cada vídeo no lote.
+        """Apply configuration to each video in the batch.
 
         Args:
-            videos: Lista de dicts com informações dos vídeos
-            config: Dict de configuração gerado por _build_configuration
+            videos: List of dicts with video information.
+            config: Configuration dict generated by _build_configuration.
 
         Returns:
-            True se configurações foram aplicadas a todos os vídeos,
-            False caso contrário
+            True if settings were applied to all videos,
+            False otherwise.
         """
         self.log.info(
             "batch_config.apply_to_videos",
@@ -141,14 +141,14 @@ class BatchConfigurationService:
         return settings_applied == len(videos)
 
     def _apply_to_single_video(self, video_info: dict, config: dict) -> bool:
-        """Aplica configuração a um único vídeo.
+        """Apply configuration to a single video.
 
         Args:
-            video_info: Dict com informações do vídeo (deve conter 'path')
-            config: Dict de configuração
+            video_info: Dict with video information (must contain 'path').
+            config: Configuration dict.
 
         Returns:
-            True se configurações foram aplicadas com sucesso, False caso contrário
+            True if settings were applied successfully, False otherwise.
         """
         video_path = video_info.get("path")
         if not video_path:
@@ -176,20 +176,20 @@ class BatchConfigurationService:
             return False
 
     def _prepare_results_directory(self, results_path: Path) -> None:
-        """Prepara o diretório de resultados para o vídeo.
+        """Prepare the results directory for the video.
 
         Args:
-            results_path: Caminho para o diretório de resultados
+            results_path: Path to the results directory.
         """
         results_path.mkdir(parents=True, exist_ok=True)
 
     def _save_project_settings(self, results_path: Path, video_info: dict, config: dict) -> None:
-        """Salva as configurações do projeto em JSON.
+        """Save project settings as JSON.
 
         Args:
-            results_path: Caminho para o diretório de resultados
-            video_info: Dict com informações do vídeo
-            config: Dict de configuração
+            results_path: Path to the results directory.
+            video_info: Dict with video information.
+            config: Configuration dict.
         """
         project_data = config["project_data"]
         settings_file = results_path / "project_settings.json"
@@ -210,12 +210,12 @@ class BatchConfigurationService:
             json.dump(settings_data, f, indent=2)
 
     def _save_zone_data(self, results_path: Path, experiment_id: str, config: dict) -> None:
-        """Salva os dados de zonas em JSON (se houver).
+        """Save zone data as JSON (if present).
 
         Args:
-            results_path: Caminho para o diretório de resultados
-            experiment_id: ID do experimento/vídeo
-            config: Dict de configuração
+            results_path: Path to the results directory.
+            experiment_id: Experiment/video ID.
+            config: Configuration dict.
         """
         zone_data = config["zone_data"]
 

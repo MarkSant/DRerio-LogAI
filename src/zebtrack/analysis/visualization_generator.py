@@ -357,8 +357,8 @@ class VisualizationGenerator:
                         # Store offsets for extent calculation
                         crop_x_offset = x_crop
                         crop_y_offset = y_crop
-                    # CORREÇÃO: Para PNGs pré-cropped, NÃO aplicar offset!
-                    # A PNG já começa em (0,0) - os offsets permanecem 0 (default acima)
+                    # FIX: For pre-cropped PNGs, do NOT apply offset!
+                    # The PNG already starts at (0,0) - offsets remain 0 (default above)
 
                     frame_height_px = frame.shape[0]
                     frame_width_px = frame.shape[1]
@@ -648,8 +648,8 @@ class VisualizationGenerator:
                         # Store offsets for extent calculation
                         crop_x_offset = x_crop
                         crop_y_offset = y_crop
-                    # CORREÇÃO: Para PNGs pré-cropped, NÃO aplicar offset!
-                    # A PNG já começa em (0,0) - os offsets permanecem 0 (default acima)
+                    # FIX: For pre-cropped PNGs, do NOT apply offset!
+                    # The PNG already starts at (0,0) - offsets remain 0 (default above)
 
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frame_rgb = cv2.flip(frame_rgb, 0)  # Invert Y for Cartesian

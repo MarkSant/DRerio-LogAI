@@ -6,6 +6,33 @@ This document tracks all major agent interventions, technical debt resolutions, 
 
 ## Active Tasks
 
+### [2026-02-19] Phase 8 — Documentation & Standardization
+
+**ID:** TASK-033
+**Agent:** GitHub Copilot (Claude Opus 4.6)
+**Status:** In Progress 🔄
+**Branch:** `refactor/phase-8-docs-standardization`
+**Description:**
+Documentation standardization, coverage gate elevation with evidence-based
+thresholds, property-based testing expansion, ADR creation, and system
+integration map update.
+
+### Subtasks (TASK-033)
+
+- [ ] 8.1 Translate Portuguese docstrings/comments to English (8+ files, 31 docstrings)
+- [ ] 8.2.0 Research scientific software coverage standards (NASA, JOSS, pyOpenSci, CII)
+- [ ] 8.2.1 Measure current coverage baseline (core, GUI, Windows)
+- [ ] 8.2.2 Analyze coverage gaps (top uncovered modules)
+- [ ] 8.2.3 Write new tests to fill coverage gaps
+- [ ] 8.2.4 Verify coverage meets targets & update CI gates
+- [ ] 8.3 Add property-based tests with Hypothesis (7 new test files)
+- [ ] 8.4 Update ADR-009, create ADR-001, ADR-004
+- [ ] 8.5 Update system integration map (v3.2 → v4.1)
+- [ ] Sync agent instructions (AGENTS.md, CLAUDE.md, copilot-instructions.md)
+- [ ] CHANGELOG, commit, push, PR
+
+---
+
 ### [2026-02-19] Phase 7 — Performance Optimizations
 
 **ID:** TASK-032

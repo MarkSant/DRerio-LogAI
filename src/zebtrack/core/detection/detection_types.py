@@ -80,13 +80,13 @@ class MultiAquariumZoneData:
     sequential_processing: bool = True
 
     def get_aquarium(self, aquarium_id: int) -> AquariumData | None:
-        """Retorna dados do aquário pelo ID.
+        """Return aquarium data by ID.
 
         Args:
-            aquarium_id: ID do aquário (0 ou 1).
+            aquarium_id: Aquarium ID (0 or 1).
 
         Returns:
-            AquariumData se encontrado, None caso contrário.
+            AquariumData if found, None otherwise.
         """
         for aquarium in self.aquariums:
             if aquarium.id == aquarium_id:
@@ -94,13 +94,13 @@ class MultiAquariumZoneData:
         return None
 
     def to_zone_data(self, aquarium_id: int = 0) -> ZoneData:
-        """Converte um aquário específico para ZoneData.
+        """Convert a specific aquarium to ZoneData.
 
         Args:
-            aquarium_id: ID do aquário a converter (padrão: 0).
+            aquarium_id: Aquarium ID to convert (default: 0).
 
         Returns:
-            ZoneData do aquário especificado, ou ZoneData vazio se não encontrado.
+            ZoneData for the specified aquarium, or empty ZoneData if not found.
         """
         aquarium = self.get_aquarium(aquarium_id)
         if aquarium:
@@ -109,10 +109,10 @@ class MultiAquariumZoneData:
 
     @property
     def aquarium_count(self) -> int:
-        """Retorna o número de aquários configurados."""
+        """Return the number of configured aquariums."""
         return len(self.aquariums)
 
     @property
     def is_multi_aquarium(self) -> bool:
-        """Retorna True se há mais de um aquário configurado."""
+        """Return True if more than one aquarium is configured."""
         return len(self.aquariums) > 1

@@ -1,7 +1,7 @@
-"""Registry centralizado para acesso direto aos orchestrators.
+"""Centralized registry for direct access to orchestrators.
 
-Este registry foi criado na Fase 2 da refatoração do MainViewModel
-(PLANO_REFATORACAO_MAINVIEWMODEL.md) para eliminar métodos facade.
+Created in Phase 2 of the MainViewModel refactoring
+(PLANO_REFATORACAO_MAINVIEWMODEL.md) to eliminate facade methods.
 
 Phase 3A/3B/3C/3D: Removed unused orchestrators:
 - AnalysisOrchestrator → ProcessingCoordinator
@@ -24,11 +24,11 @@ if TYPE_CHECKING:
 
 
 class OrchestratorRegistry:
-    """Registry centralizado para todos os orchestrators do MainViewModel.
+    """Centralized registry for all MainViewModel orchestrators.
 
-    Fornece acesso direto aos orchestrators sem passar por facades
-    no MainViewModel. Isso permite que callers (GUI, event handlers)
-    interajam diretamente com orchestrators.
+    Provides direct access to orchestrators without going through facades
+    in MainViewModel. This allows callers (GUI, event handlers)
+    to interact directly with orchestrators.
 
     Attributes:
         ui_state: UIStateController (23 facades removidos)
@@ -56,16 +56,16 @@ class OrchestratorRegistry:
         """Initialize registry with all orchestrators.
 
         Args:
-            ui_state_controller: Controller para estado da UI
+            ui_state_controller: Controller for UI state.
         """
-        # Atribuir com nomes curtos e descritivos
+        # Assign with short, descriptive names
         self.ui_state = ui_state_controller
 
     def get_all_orchestrators(self) -> dict[str, object]:
-        """Retorna dict com todos os orchestrators registrados.
+        """Return dict with all registered orchestrators.
 
         Returns:
-            Dict mapeando nome curto para instância do orchestrator
+            Dict mapping short name to orchestrator instance.
         """
         return {
             "ui_state": self.ui_state,

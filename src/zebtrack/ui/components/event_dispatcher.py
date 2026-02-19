@@ -23,12 +23,12 @@ log = structlog.get_logger()
 
 
 class EventDispatcher:
-    """Dispatcher para rotear eventos do EventBus para handlers apropriados.
+    """Dispatcher for routing EventBus events to appropriate handlers.
 
-    Adapta-se tanto ao uso no MainViewModel (Core) quanto na ApplicationGUI (UI).
+    Adapts to both MainViewModel (Core) and ApplicationGUI (UI) usage.
     """
 
-    # Modos de passagem de parâmetros
+    # Parameter passing modes
     MODE_NO_PARAMS = "no_params"
     MODE_KWARGS_ALL = "kwargs_all"
     MODE_KWARGS_GET = "kwargs_get"
@@ -36,11 +36,11 @@ class EventDispatcher:
     MODE_POSITIONAL_OPTIONAL = "positional_optional"
 
     def __init__(self, context: "EventBus | ApplicationGUI | None"):
-        """Inicializa o dispatcher de eventos.
+        """Initialize the event dispatcher.
 
         Args:
-            context: Pode ser uma instância de EventBus (Core usage)
-                     ou ApplicationGUI (UI usage).
+            context: Can be an EventBus instance (Core usage)
+                     or ApplicationGUI (UI usage).
         """
         self.log = structlog.get_logger()
         self.handlers: dict[str, Callable] = {}
@@ -76,7 +76,7 @@ class EventDispatcher:
         param_names: list[str] | None = None,
         mode: str = MODE_NO_PARAMS,
     ) -> None:
-        """Registra um handler para um evento específico."""
+        """Register a handler for a specific event."""
         if not self.event_bus:
             self.log.warning("event_dispatcher.no_event_bus", event_name=event_name)
             return
@@ -91,7 +91,7 @@ class EventDispatcher:
         param_names: list[str] | None,
         mode: str,
     ) -> Callable:
-        """Cria função dispatcher que adapta event data para handler."""
+        """Create dispatcher function that adapts event data for the handler."""
 
         def dispatcher(data: dict) -> None:
             try:
@@ -114,14 +114,14 @@ class EventDispatcher:
         return dispatcher
 
     def register_direct_handler(self, event_name: str, handler: Callable) -> None:
-        """Registra handler direto (sem adaptação de parâmetros)."""
+        """Register a direct handler (no parameter adaptation)."""
         if not self.event_bus:
             return
         self.event_bus.subscribe(event_name, handler)
         self.handlers[event_name] = handler
 
     def unregister_handler(self, event_name: str) -> None:
-        """Remove handler registrado anteriormente, se existir."""
+        """Remove a previously registered handler, if it exists."""
         dispatcher = self.handlers.pop(event_name, None)
         if not dispatcher or not self.event_bus:
             return

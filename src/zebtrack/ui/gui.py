@@ -1,4 +1,4 @@
-"""Este módulo define a interface gráfica principal (GUI) para a aplicação Zebtrack."""
+"""Main graphical user interface (GUI) module for the Zebtrack application."""
 
 from collections.abc import Callable
 from tkinter import (
@@ -94,7 +94,7 @@ PROJECT_STATUS_WIDGET_ORDER: tuple[str, ...] = (
 
 
 class ApplicationGUI:
-    """A classe principal que gerencia a interface gráfica (a "Visão")."""
+    """Main class that manages the graphical user interface (the View layer)."""
 
     DEFAULT_CANVAS_WIDTH = 800
     DEFAULT_CANVAS_HEIGHT = 600
@@ -107,7 +107,7 @@ class ApplicationGUI:
         settings_obj=None,
         project_manager: Any | None = None,
     ):
-        """Inicializa a ApplicationGUI."""
+        """Initialize the ApplicationGUI."""
         self.root = root
         self.controller = controller
         self.event_bus = event_bus

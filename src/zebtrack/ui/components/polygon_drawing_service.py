@@ -6,21 +6,21 @@ if TYPE_CHECKING:
 
 
 class PolygonCompletionStrategy(ABC):
-    """Strategy para completar desenho de polígono."""
+    """Strategy for completing polygon drawing."""
 
     @abstractmethod
     def can_complete(self, points: list) -> tuple[bool, str | None]:
-        """Verifica se polígono pode ser completado. Retorna (sucesso, erro_msg)."""
+        """Check whether the polygon can be completed. Returns (success, error_msg)."""
         pass
 
     @abstractmethod
     def complete(self, video_points: list, gui: "ApplicationGUI") -> bool:
-        """Completa o polígono. Retorna status de sucesso."""
+        """Complete the polygon. Returns success status."""
         pass
 
 
 class ArenaCompletionStrategy(PolygonCompletionStrategy):
-    """Strategy para completar polígono de arena."""
+    """Strategy for completing an arena polygon."""
 
     def can_complete(self, points: list) -> tuple[bool, str | None]:
         if len(points) < 3:
@@ -101,7 +101,7 @@ class ArenaCompletionStrategy(PolygonCompletionStrategy):
 
 
 class ROICompletionStrategy(PolygonCompletionStrategy):
-    """Strategy para completar polígono de ROI."""
+    """Strategy for completing an ROI polygon."""
 
     def can_complete(self, points: list) -> tuple[bool, str | None]:
         if len(points) < 3:
@@ -109,19 +109,19 @@ class ROICompletionStrategy(PolygonCompletionStrategy):
         return True, None
 
     def complete(self, video_points: list, gui: "ApplicationGUI") -> bool:
-        # Pede nome de ROI
+        # Ask for ROI name
         roi_name = gui.ask_string("Nome da ROI", "Digite um nome:")
         if not roi_name:
             return False
 
-        # Seleciona cor
+        # Select color
         from zebtrack.ui.dialogs import ColorSelectionDialog
 
         color_dialog = ColorSelectionDialog(gui.root)
         if not color_dialog.result:
             return False
 
-        # Salva ROI
+        # Save ROI
         # color_dialog.result is expected to be a dict with "rgb" key based on plan
         # but verify ColorSelectionDialog implementation if possible.
         # Assuming plan is correct.
@@ -148,7 +148,7 @@ class ROICompletionStrategy(PolygonCompletionStrategy):
 
 
 class PolygonDrawingService:
-    """Serviço para gerenciar conclusão de desenho de polígono."""
+    """Service for managing polygon drawing completion."""
 
     def __init__(self, event_bus_v2=None):
         self.event_bus_v2 = event_bus_v2
@@ -160,16 +160,16 @@ class PolygonDrawingService:
     def complete_polygon(
         self, drawing_type: str, video_points: list, gui: "ApplicationGUI"
     ) -> bool:
-        """Completa polígono usando strategy apropriada."""
+        """Complete polygon using the appropriate strategy."""
         strategy = self._strategies.get(drawing_type)
         if not strategy:
             return False
 
-        # Valida
+        # Validate
         can_complete, error_msg = strategy.can_complete(video_points)
         if not can_complete:
             gui.show_warning("Polígono Incompleto", error_msg)
             return False
 
-        # Completa
+        # Complete
         return strategy.complete(video_points, gui)
