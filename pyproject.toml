@@ -95,6 +95,7 @@ ignore = [
   "N802",    # function name should be lowercase (methods like setUp)
   "N803",    # argument name should be lowercase (Tkinter conventions)
   "N806",    # variable in function should be lowercase (Mock* in tests)
+  "UP047",   # PEP 695 type-param syntax - defer until ecosystem fully supported
 ]
 
 [tool.ruff.lint.per-file-ignores]
