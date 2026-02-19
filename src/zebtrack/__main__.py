@@ -546,7 +546,7 @@ def main():  # noqa: C901
         from zebtrack.core.recording.recording_service import RecordingService
 
         recording_service = RecordingService(
-            controller=None,  # type: ignore[arg-type]
+            controller=None,  # Set by MainViewModel post-construction
             state_manager=state_manager,
             project_manager=project_manager,
             root=root,

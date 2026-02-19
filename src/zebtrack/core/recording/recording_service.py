@@ -45,16 +45,17 @@ class RecordingService:
 
     def __init__(
         self,
-        controller: MainViewModel,
         state_manager: StateManager,
         project_manager: ProjectManager,
+        controller: MainViewModel | None = None,
         root: Misc | None = None,
     ):
         """
         Initialize RecordingService.
 
         Args:
-            controller: MainViewModel controller for accessing recorder and arduino_manager
+            controller: MainViewModel controller for accessing recorder and arduino_manager.
+                        Can be None during construction and set later.
             state_manager: StateManager for centralized state tracking
             project_manager: ProjectManager for project-specific data
             root: Tkinter root for scheduling timed jobs
@@ -73,11 +74,15 @@ class RecordingService:
     @property
     def recorder(self):
         """Property to access controller's current recorder instance."""
+        if self.controller is None:
+            raise RuntimeError("RecordingService.controller not yet set")
         return self.controller.recorder
 
     @property
     def arduino_manager(self):
         """Property to access controller's current arduino_manager instance."""
+        if self.controller is None:
+            raise RuntimeError("RecordingService.controller not yet set")
         return self.controller.arduino_manager
 
     def set_ui_callbacks(self, callbacks: dict[str, Callable]) -> None:
