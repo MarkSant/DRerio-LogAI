@@ -33,6 +33,7 @@ from zebtrack.core.detection import Detector, MultiAquariumZoneData, ZoneData
 from zebtrack.core.detection.detection_post_processor import DetectionPostProcessor
 from zebtrack.core.detection.multi_aquarium_detector import MultiAquariumDetector
 from zebtrack.core.detection.zone_scaler import ZoneScaler
+from zebtrack.core.video.shared_frame_buffer import SharedFrameBuffer
 from zebtrack.io.recorder import Recorder
 
 # Settings is used at runtime in WorkerConfig
@@ -88,6 +89,7 @@ class WorkerConfig:
     model_path: str = ""
     model_type: str = "yolo"  # 'yolo' or 'openvino'
     zone_data: dict | None = None  # serialized ZoneData
+    shm_name: str = ""  # shared memory block name for preview frames
 
 
 class ProcessingWorker:
@@ -103,6 +105,7 @@ class ProcessingWorker:
         self.command_queue: multiprocessing.Queue = multiprocessing.Queue()
         self.process: _WorkerProcess | None = None
         self._monitor_thread: threading.Thread | None = None
+        self._shm_buffer: SharedFrameBuffer | None = None
 
     @property
     def is_running(self) -> bool:
@@ -148,6 +151,18 @@ class ProcessingWorker:
                 else "empty",
             )
 
+        # Create SharedFrameBuffer for zero-copy preview frame transfer.
+        # Falls back to pickle-based queue transfer if shared memory is unavailable.
+        shm_name = ""
+        try:
+            shm_name = f"zebtrack_preview_{os.getpid()}"
+            self._shm_buffer = SharedFrameBuffer(name=shm_name, create=True)
+            log.info("worker.shared_memory.created", name=shm_name)
+        except Exception:
+            log.warning("worker.shared_memory.fallback_to_pickle", exc_info=True)
+            self._shm_buffer = None
+            shm_name = ""
+
         # Create WorkerConfig
         config = WorkerConfig(
             settings=self.context.settings,
@@ -157,6 +172,7 @@ class ProcessingWorker:
             analysis_interval_frames=self.context.analysis_interval_frames,
             display_interval_frames=self.context.display_interval_frames,
             zone_data=z_dict,
+            shm_name=shm_name,
             # Model path logic inside _WorkerProcess will handle defaults
         )
 
@@ -246,10 +262,18 @@ class ProcessingWorker:
                         )
 
                 elif msg_type == "frame":
-                    # Pass frame to callback
-                    if self.callbacks.on_frame_processed is not None:
+                    # Read preview frame from shared memory when available,
+                    # falling back to the pickled payload otherwise.
+                    frame = None
+                    shm_seq = msg.get("shm_seq")
+                    if shm_seq is not None and self._shm_buffer is not None:
+                        frame = self._shm_buffer.read(shm_seq)
+                    if frame is None:
+                        frame = msg.get("frame")
+
+                    if self.callbacks.on_frame_processed is not None and frame is not None:
                         self.callbacks.on_frame_processed(
-                            msg["frame"],
+                            frame,
                             msg.get("detections"),
                             msg.get("info"),
                         )
@@ -310,6 +334,11 @@ class ProcessingWorker:
                 log.warning("worker.process.force_terminate")
                 self.process.terminate()
 
+        # Release shared memory owned by the main process.
+        if self._shm_buffer is not None:
+            self._shm_buffer.close_and_unlink()
+            self._shm_buffer = None
+
 
 class _WorkerProcess(multiprocessing.Process):
     """
@@ -328,6 +357,7 @@ class _WorkerProcess(multiprocessing.Process):
         self.command_queue = command_queue
         self._cancel_requested = False
         self._default_zone_data: ZoneData | MultiAquariumZoneData | None = None
+        self._shm_buffer: SharedFrameBuffer | None = None
 
     @staticmethod
     def _sanitize_component(value: str) -> str:
@@ -381,6 +411,15 @@ class _WorkerProcess(multiprocessing.Process):
         import os
 
         log.info("worker.process.started", pid=os.getpid())
+
+        # Attach to shared memory created by the main process (if available).
+        if self.config.shm_name:
+            try:
+                self._shm_buffer = SharedFrameBuffer(name=self.config.shm_name, create=False)
+                log.info("worker.shared_memory.attached", name=self.config.shm_name)
+            except Exception:
+                log.warning("worker.shared_memory.attach_failed", exc_info=True)
+                self._shm_buffer = None
 
         try:
             # 1. Initialize dependencies
@@ -466,6 +505,10 @@ class _WorkerProcess(multiprocessing.Process):
             )
         finally:
             self.result_queue.put({"type": "completed", "cancelled": self._cancel_requested})
+            # Close shared memory handle (but do NOT unlink — main process owns it).
+            if self._shm_buffer is not None:
+                self._shm_buffer.close()
+                self._shm_buffer = None
             log.info("worker.process.finished", pid=os.getpid())
 
     def _initialize_detector(self) -> Detector:
@@ -1012,15 +1055,27 @@ class _WorkerProcess(multiprocessing.Process):
                             "detected_frames": detected_frames,  # Frames with detections
                         }
 
-                        self.result_queue.put(
-                            {
-                                "type": "frame",
-                                "frame": preview_frame,
-                                "detections": preview_detections,
-                                "info": stats,
-                                "experiment_id": experiment_id,
-                            }
-                        )
+                        # Build frame message.  When shared memory is available,
+                        # write the large numpy array there and send only metadata
+                        # through the pickle-based queue (zero-copy IPC).
+                        frame_msg: dict[str, Any] = {
+                            "type": "frame",
+                            "detections": preview_detections,
+                            "info": stats,
+                            "experiment_id": experiment_id,
+                        }
+
+                        if self._shm_buffer is not None:
+                            try:
+                                shm_meta = self._shm_buffer.write(preview_frame)
+                                frame_msg.update(shm_meta)
+                            except Exception:
+                                # Fallback: include frame in pickle payload
+                                frame_msg["frame"] = preview_frame
+                        else:
+                            frame_msg["frame"] = preview_frame
+
+                        self.result_queue.put(frame_msg)
 
                         self._send_progress(
                             index,
