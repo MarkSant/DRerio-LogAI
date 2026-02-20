@@ -242,8 +242,8 @@ class ArduinoManager:
 
             try:
                 decoded = raw_line.decode("utf-8", errors="ignore").strip()
-            # except Exception justified: serial decode — encoding errors from corrupted data
             except Exception:
+                log.debug("arduino.serial_decode.corrupted_data")
                 continue
 
             if not decoded:

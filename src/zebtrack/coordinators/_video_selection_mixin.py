@@ -309,6 +309,7 @@ class VideoSelectionMixin:
                 try:
                     zone_data: ZoneData | None = ProjectManager.load_zones_from_parquet(video_info)
                 except Exception:
+                    log.debug("video_selection.load_zones_from_parquet.fallback", video=video_path)
                     zone_data = None
 
                 if not zone_data or not zone_data.polygon:

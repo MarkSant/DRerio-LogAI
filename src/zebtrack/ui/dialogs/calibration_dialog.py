@@ -897,6 +897,7 @@ class CalibrationDialog(simpledialog.Dialog):
         try:
             params = self.controller.get_current_detector_parameters()
         except Exception:
+            log.debug("calibration.get_detector_params.fallback")
             params = {}
 
         resolved_params = _extract_params(params)

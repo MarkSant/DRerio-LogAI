@@ -447,6 +447,7 @@ class ValidationManager:
                     fallback_to_global=is_live_project,  # v2.3.1: Fallback for Live projects
                 )
             except Exception:
+                log.warning("validation.get_zone_data.fallback", video=str(active_video))
                 zone_data = ZoneData()
 
             if zone_data and (zone_data.polygon or zone_data.roi_polygons):
