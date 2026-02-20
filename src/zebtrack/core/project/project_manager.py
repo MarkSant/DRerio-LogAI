@@ -762,7 +762,7 @@ class ProjectManager:
         )
 
     # ------------------------------------------------------------------
-    # Convenience arena/ROI accessors (used by ZoneManagementFacade)
+    # Convenience arena/ROI accessors
     # ------------------------------------------------------------------
 
     def set_arena_for_video(

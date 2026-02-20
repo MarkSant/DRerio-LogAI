@@ -1,7 +1,7 @@
 """Recording sub-package — recording sessions, live camera, and Arduino.
 
-Provides the recording service, live camera service/mode, recording facade,
-and Arduino facade for hardware-integrated recording workflows.
+Provides the recording service and live camera service/mode
+for hardware-integrated recording workflows.
 
 Phase 4.10 — Sub-packetize core/ into domain-specific sub-packages.
 """

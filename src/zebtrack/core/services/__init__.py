@@ -2,7 +2,7 @@
 
 Provides the detector service (detector initialization and zone configuration),
 model service (AI model management), weight manager (model catalog and conversion),
-wizard service (project wizard business logic), and zone management facade.
+and wizard service (project wizard business logic).
 
 Phase 4.10 — Sub-packetize core/ into domain-specific sub-packages.
 """
