@@ -118,7 +118,7 @@ class MultiAquariumOverlayManager:
         if existing_data and hasattr(existing_data, "sequential_processing"):
             multi_data.sequential_processing = existing_data.sequential_processing
 
-        # 2. Save via ProjectManager (pm já foi obtido acima)
+        # 2. Save via ProjectManager (pm already obtained above)
         pm.save_multi_aquarium_zone_data(video_path, multi_data)
 
         # 3. Update UI

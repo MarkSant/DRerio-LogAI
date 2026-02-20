@@ -16,7 +16,7 @@ log = structlog.get_logger()
 
 
 class TabBuilder:
-    """Constrói abas de notebook para aplicação principal."""
+    """Builds notebook tabs for the main application."""
 
     def __init__(self, gui: "ApplicationGUI"):
         self.gui = gui
@@ -24,7 +24,7 @@ class TabBuilder:
         self.project_manager = gui.project_manager
 
     def build_main_controls_tab(self) -> ttk.Frame:
-        """Constrói aba de controles principais baseada no tipo de projeto."""
+        """Build main controls tab based on project type."""
         if self.gui.notebook is None:
             return ttk.Frame(self.gui.root)  # Fallback
 
@@ -52,17 +52,17 @@ class TabBuilder:
             command=lambda: self.gui.event_dispatcher.publish_event(Events.PROJECT_CLOSE, {}),
         ).pack(side="right", padx=5)
 
-        # Constrói painel de overview (Delegates to GUI/WidgetFactory)
+        # Build overview panel (Delegates to GUI/WidgetFactory)
         self.gui._create_project_overview_panel(self.gui.main_controls_frame)
 
-        # Container para widgets lado a lado na parte inferior
+        # Container for side-by-side widgets at the bottom
         bottom_container = ttk.Frame(self.gui.main_controls_frame)
         bottom_container.pack(fill="x", pady=(5, 10), padx=10)
 
-        # Status de modelo - lado direito (ocupa largura total agora)
+        # Model status - right side (takes full width now)
         self._build_model_status_section(bottom_container)
 
-        # Constrói widgets específicos de tipo de projeto
+        # Build project-type-specific widgets
         if project_type == "live":
             self._build_live_project_widgets(self.gui.main_controls_frame)
 
@@ -189,7 +189,7 @@ class TabBuilder:
         return self.gui.widget_factory.create_configuration_tab_widget()
 
     def _add_recording_buttons(self, parent):
-        """Adiciona botões de gravação para projetos ao vivo."""
+        """Add recording buttons for live projects."""
         self.gui.start_rec_btn = Button(
             parent,
             text="Iniciar Gravação",
@@ -206,7 +206,7 @@ class TabBuilder:
         self.gui.stop_rec_btn.pack(side="left", padx=5)
 
     def _add_processing_buttons(self, parent):
-        """Adiciona botões de processamento para projetos pré-gravados."""
+        """Add processing buttons for pre-recorded projects."""
         ttk.Button(
             parent,
             text="Adicionar e Processar Novos Vídeos/Pastas...",
@@ -216,7 +216,7 @@ class TabBuilder:
         ).pack(side="left", padx=5)
 
     def _build_model_status_section(self, parent):
-        """Constrói seção de status de modelo."""
+        """Build model status section."""
         model_status_frame = ttk.LabelFrame(
             parent,
             text="Estado do Modelo de Detecção",
@@ -248,7 +248,7 @@ class TabBuilder:
             ).pack(side="left")
 
     def _build_live_project_widgets(self, parent):
-        """Constrói widgets específicos para projetos ao vivo."""
+        """Build widgets specific to live projects."""
         label = Label(
             parent,
             textvariable=self.gui.external_trigger_notice_var,

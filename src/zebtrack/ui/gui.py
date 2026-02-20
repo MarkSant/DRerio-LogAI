@@ -680,7 +680,7 @@ class ApplicationGUI:
 
     def _on_video_tree_double_click(self, event):
         """Handle double click on video selector."""
-        del event  # Evento não é utilizado diretamente
+        del event  # Event is not used directly
         self.canvas_manager.load_selected_video_frame()
 
     def _refresh_roi_templates(self, clear_selection: bool = False) -> None:

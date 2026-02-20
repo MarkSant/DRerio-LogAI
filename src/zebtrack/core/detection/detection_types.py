@@ -27,17 +27,17 @@ class ZoneData:
 
 @dataclass
 class AquariumData:
-    """Dados de zona para um único aquário com metadados.
+    """Zone data for a single aquarium with metadata.
 
-    Usado em modo multi-aquário para armazenar configurações específicas
-    de cada aquário, incluindo metadados experimentais.
+    Used in multi-aquarium mode to store configuration specific
+    to each aquarium, including experimental metadata.
     """
 
     id: int  # 0 ou 1 para vídeos com 2 aquários
     polygon: Sequence[Sequence[int]] = field(default_factory=list)  # Polígono da arena
     roi_polygons: Sequence[Sequence[Sequence[int]]] = field(
         default_factory=list
-    )  # ROIs dentro deste aquário
+    )  # ROIs within this aquarium
     roi_names: Sequence[str] = field(default_factory=list)
     roi_colors: Sequence[tuple[int, int, int]] = field(default_factory=list)
     group: str = ""  # Grupo (ex: "Controle", "Tratamento")
@@ -60,18 +60,18 @@ class AquariumData:
 
 @dataclass
 class MultiAquariumZoneData:
-    """Dados de zona para vídeos com múltiplos aquários.
+    """Zone data for videos with multiple aquariums.
 
-    Encapsula configurações para 2 aquários em um único vídeo,
-    permitindo tracking e análise independentes.
+    Encapsulates configurations for 2 aquariums in a single video,
+    enabling independent tracking and analysis.
 
     Attributes:
-        aquariums: Lista de configurações por aquário.
-        video_width: Largura do vídeo em pixels.
-        video_height: Altura do vídeo em pixels.
-        sequential_processing: Se True (padrão), processa cada aquário separadamente
-            (2 passagens pelo vídeo). Se False, processa ambos simultaneamente
-            (1 passagem). Padrão alterado para True pois oferece melhor precisão.
+        aquariums: List of per-aquarium configurations.
+        video_width: Video width in pixels.
+        video_height: Video height in pixels.
+        sequential_processing: If True (default), processes each aquarium separately
+            (2 video passes). If False, processes both simultaneously
+            (1 pass). Default changed to True for better precision.
     """
 
     aquariums: list[AquariumData] = field(default_factory=list)

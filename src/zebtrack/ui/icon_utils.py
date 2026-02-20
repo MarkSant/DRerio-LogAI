@@ -1,4 +1,4 @@
-"""Utilitários para carregar ícones da aplicação DRerio LogAI."""
+"""Utilities for loading DRerio LogAI application icons."""
 
 import tkinter as tk
 from pathlib import Path
@@ -15,16 +15,16 @@ def get_icon_path() -> Path | None:
     Returns:
         Path para o ícone ou None se não encontrado.
     """
-    # Tenta localizar o asset relativo ao pacote
+    # Try to locate the asset relative to the package
     try:
-        # Caminho relativo a este módulo (zebtrack/ui/icon_utils.py)
+        # Path relative to this module (zebtrack/ui/icon_utils.py)
         icon_path = Path(__file__).parent / "assets" / "drerio_logai.ico"
 
         if icon_path.exists():
             log.debug("icon.path.found", path=str(icon_path))
             return icon_path
 
-        # Fallback: caminho relativo ao diretório de trabalho (desenvolvimento)
+        # Fallback: path relative to the working directory (development)
         icon_path_dev = Path("src/zebtrack/ui/assets/drerio_logai.ico")
         if icon_path_dev.exists():
             log.debug("icon.path.found_dev", path=str(icon_path_dev))

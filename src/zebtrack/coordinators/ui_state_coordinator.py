@@ -456,7 +456,7 @@ class UIStateController:
                 )
 
     def apply_roi_template(self, template: dict[str, Any]) -> None:
-        """Aplica um template de ROI ao vídeo ativo."""
+        """Apply an ROI template to the active video."""
         pm = self.project_manager
         active_video = pm.get_active_zone_video()
         if not active_video:

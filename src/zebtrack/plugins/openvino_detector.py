@@ -30,9 +30,9 @@ except ImportError:
     torch = None  # type: ignore[assignment]  # conditional import fallback
     TORCH_AVAILABLE = False
 
-# Substitui imports diretos por bloco compatível com múltiplas versões do ultralytics
+# Replace direct imports with block compatible with multiple ultralytics versions
 try:
-    # Versões onde non_max_suppression está em ops
+    # Versions where non_max_suppression is in ops
     from ultralytics.utils.ops import (
         non_max_suppression,
         process_mask,
@@ -41,7 +41,7 @@ try:
     )
 except ImportError:
     try:
-        # Fallback para versões que expõem non_max_suppression em utils.nms
+        # Fallback for versions that expose non_max_suppression in utils.nms
         from ultralytics.utils.nms import non_max_suppression
         from ultralytics.utils.ops import (
             process_mask,

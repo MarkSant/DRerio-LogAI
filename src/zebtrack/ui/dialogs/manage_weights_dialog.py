@@ -133,7 +133,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
         return self.listbox.item(selected[0])["values"][0]
 
     def set_default_seg(self):
-        """Define o peso selecionado como padrão para Segmentação."""
+        """Set the selected weight as default for Segmentation."""
         name = self.get_selected_item_name()
         if not name:
             return
@@ -163,7 +163,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
             )
 
     def set_default_det(self):
-        """Define o peso selecionado como padrão para Detecção."""
+        """Set the selected weight as default for Detection."""
         name = self.get_selected_item_name()
         if not name:
             return
@@ -193,7 +193,7 @@ class ManageWeightsDialog(simpledialog.Dialog):
             )
 
     def set_default(self):
-        """Método legado mantido para compatibilidade."""
+        """Legacy method kept for backwards compatibility."""
         name = self.get_selected_item_name()
         if name:
             try:

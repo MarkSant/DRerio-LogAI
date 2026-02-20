@@ -40,8 +40,8 @@ class ROITemplateManager:
     """
 
     def __init__(self):
-        """Inicializa o gerenciador de templates."""
-        # Diretório global de templates
+        """Initialize the template manager."""
+        # Global templates directory
         self.global_templates_dir = Path.home() / ".zebtrack" / "roi_templates"
         self.global_templates_dir.mkdir(parents=True, exist_ok=True)
 
@@ -113,7 +113,7 @@ class ROITemplateManager:
         if save_rois and not zone_data.roi_polygons:
             raise ValueError("Nenhuma ROI disponível para salvar.")
 
-        # Determinar diretório de destino
+        # Determine target directory
         if save_location == "global":
             target_dir = self.global_templates_dir
         elif save_location == "project":
@@ -127,29 +127,29 @@ class ROITemplateManager:
             if custom_path.is_dir():
                 target_dir = custom_path
             else:
-                # Se custom_path é um arquivo, usar seu diretório pai
+                # If custom_path is a file, use its parent directory
                 target_dir = custom_path.parent
         else:
             raise ValueError(f"save_location inválido: {save_location}")
 
-        # Criar diretório se não existir
+        # Create directory if it doesn't exist
         target_dir.mkdir(parents=True, exist_ok=True)
 
-        # Gerar slug e caminho do arquivo
+        # Generate slug and file path
         normalized_slug = slug or self._slugify(name)
         if not normalized_slug:
             normalized_slug = self._slugify(name)
 
         template_path = target_dir / f"{normalized_slug}.json"
 
-        # Verificar se já existe
+        # Check if it already exists
         if template_path.exists() and not overwrite:
             raise ValueError(
                 f"Template '{name}' já existe em {target_dir}. "
                 f"Use overwrite=True para sobrescrever."
             )
 
-        # Preparar dados do template (incluir apenas componentes selecionados)
+        # Prepare template data (include only selected components)
         now = datetime.now(UTC).isoformat()
 
         serialized_data: dict[str, Any] = {}
@@ -164,7 +164,7 @@ class ROITemplateManager:
             serialized_data["roi_names"] = list(zone_data.roi_names or [])
             serialized_data["roi_colors"] = [list(color) for color in (zone_data.roi_colors or [])]
 
-        # Metadados do arquivo
+        # File metadata
         payload = {
             "version": ROI_TEMPLATE_VERSION,
             "name": name,
@@ -176,11 +176,11 @@ class ROITemplateManager:
             "data": serialized_data,
         }
 
-        # Salvar arquivo JSON
+        # Save JSON file
         with open(template_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
 
-        # Preparar metadados de retorno
+        # Prepare return metadata
         metadata = {
             "name": name,
             "slug": normalized_slug,

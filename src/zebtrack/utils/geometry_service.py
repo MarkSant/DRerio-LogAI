@@ -96,12 +96,12 @@ class GeometryService:
         polygon_points: list[Point] = [(float(p[0]), float(p[1])) for p in polygon]
         poly_array = np.array(polygon_points, dtype=np.float32)
 
-        # Verifica se está dentro
+        # Check if point is inside
         result = cv2.pointPolygonTest(poly_array, point, True)
         if result >= 0:
-            return point  # Já está dentro
+            return point  # Already inside
 
-        # Encontra ponto de borda mais próximo
+        # Find nearest edge point
         min_dist = float("inf")
         closest = point
 

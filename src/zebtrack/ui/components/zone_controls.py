@@ -592,7 +592,7 @@ class ZoneControlsWidget(BaseWidget):
         self._update_video_tree_toggle_label()
 
     def _toggle_video_tree_nodes(self) -> None:
-        """Alterna entre expandir ou recolher todos os grupos do seletor de vídeos."""
+        """Toggle expand/collapse all groups in the video selector."""
         if not self.video_selector_tree:
             return
 
@@ -606,7 +606,7 @@ class ZoneControlsWidget(BaseWidget):
         self._update_video_tree_toggle_label()
 
     def _set_video_tree_open_state(self, expanded: bool) -> None:
-        """Define a abertura dos nós de nível superior."""
+        """Set the open state of top-level nodes."""
         if not self.video_selector_tree:
             return
 

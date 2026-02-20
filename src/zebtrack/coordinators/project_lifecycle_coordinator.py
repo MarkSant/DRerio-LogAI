@@ -560,7 +560,7 @@ class ProjectLifecycleCoordinator(BaseCoordinator):
         *,
         delete_source: bool = True,
     ) -> bool:
-        """Remove a project asset (arena, ROIs, trajetória, sumário ou vídeo).
+        """Remove a project asset (arena, ROIs, trajectory, summary, or video).
 
         Args:
             video_path: Path to video file

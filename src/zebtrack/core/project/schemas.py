@@ -25,7 +25,7 @@ class ROITemplateSchema(BaseModel):
     @field_validator("version")
     @classmethod
     def validate_version(cls, v: int) -> int:
-        """Valida que a versão é suportada."""
+        """Validate that the version is supported."""
         CURRENT_VERSION = 1
         if v > CURRENT_VERSION:
             raise ValueError(f"Template version {v} não suportado. Versão atual: {CURRENT_VERSION}")
@@ -34,8 +34,8 @@ class ROITemplateSchema(BaseModel):
     @field_validator("data")
     @classmethod
     def validate_data_structure(cls, v: dict) -> dict:
-        """Valida estrutura básica dos dados."""
-        # Template deve ter pelo menos arena (polygon) OU ROIs (roi_polygons, roi_names, roi_colors)
+        """Validate basic data structure."""
+        # Template must have at least arena (polygon) OR ROIs (roi_polygons, roi_names, roi_colors)
         has_polygon = "polygon" in v
         has_rois = all(k in v for k in ("roi_polygons", "roi_names", "roi_colors"))
 
@@ -66,12 +66,12 @@ class ProjectConfigSchema(BaseModel):
     calibration: dict[str, Any]
     videos: list[dict[str, Any]]
 
-    model_config = ConfigDict(extra="allow")  # Permitir campos adicionais para compatibilidade
+    model_config = ConfigDict(extra="allow")  # Allow additional fields for compatibility
 
 
 class InvalidTemplateError(ValueError):
-    """Erro quando template é inválido."""
+    """Error when template is invalid."""
 
 
 class InvalidProjectConfigError(ValueError):
-    """Erro quando configuração de projeto é inválida."""
+    """Error when project configuration is invalid."""

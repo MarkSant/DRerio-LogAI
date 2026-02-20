@@ -21,7 +21,7 @@ ALLOWED_ARDUINO_COMMANDS = frozenset(
 
 
 class ArduinoCommandError(ValueError):
-    """Erro quando comando Arduino é inválido."""
+    """Error when Arduino command is invalid."""
 
 
 class Arduino:

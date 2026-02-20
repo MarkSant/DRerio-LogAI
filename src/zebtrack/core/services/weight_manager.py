@@ -401,7 +401,7 @@ class WeightManager:
             log.error("set_default.unknown_type", name=name, type=weight_type)
             return False
 
-        # Resetar todos os defaults
+        # Reset all defaults
         for weight in self.weights.values():
             weight["is_default"] = False
             if weight.get("type") == "seg":
@@ -409,7 +409,7 @@ class WeightManager:
             if weight.get("type") == "det":
                 weight["is_default_det"] = False
 
-        # Definir o novo default
+        # Set the new default
         target_weight["is_default"] = True
         if weight_type == "seg":
             target_weight["is_default_seg"] = True

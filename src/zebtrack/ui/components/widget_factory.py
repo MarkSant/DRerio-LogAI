@@ -1,17 +1,17 @@
 """
 Widget Factory Component for ApplicationGUI.
 
-Responsável por criar widgets, frames, abas e helpers de layout da aplicação.
-Centraliza a lógica de construção de UI em um único componente reutilizável.
+Responsible for creating widgets, frames, tabs, and layout helpers for the application.
+Centralizes UI construction logic in a single reusable component.
 
 Categories:
-1. Utilitários Simples - formatação e identificadores
-2. Construtores Simples - widgets básicos
-3. Helpers de Layout - callbacks e configuração de layout
-4. Construtores de Abas - abas completas da aplicação
-5. Construtores Complexos - frames complexos multi-componente
-6. Config Handlers - manipulação de configurações
-7. Processadores de Dados - preparação de dados para exibição
+1. Simple Utilities - formatting and identifiers
+2. Simple Builders - basic widgets
+3. Layout Helpers - callbacks and layout configuration
+4. Tab Builders - complete application tabs
+5. Complex Builders - multi-component complex frames
+6. Config Handlers - configuration manipulation
+7. Data Processors - data preparation for display
 """
 
 import hashlib
@@ -63,7 +63,7 @@ class WidgetFactory:
         self._settings = settings_obj
 
     # ===========================================================================
-    # CATEGORIA 1: UTILITÁRIOS SIMPLES
+    # CATEGORY 1: SIMPLE UTILITIES
     # ===========================================================================
 
     def build_status_icon_legend_simple(self, *, include_summary: bool = False) -> str:
@@ -155,7 +155,7 @@ class WidgetFactory:
         return ["Todos", *ordered]
 
     # ===========================================================================
-    # CATEGORIA 2: CONSTRUTORES SIMPLES
+    # CATEGORY 2: SIMPLE BUILDERS
     # ===========================================================================
 
     def build_project_actions(self, parent) -> None:
@@ -276,7 +276,7 @@ class WidgetFactory:
         self.render_progress_grid()
 
     # ===========================================================================
-    # CATEGORIA 3: HELPERS DE LAYOUT
+    # CATEGORY 3: LAYOUT HELPERS
     # ===========================================================================
 
     def on_frame_configure(self, event=None):
@@ -370,7 +370,7 @@ class WidgetFactory:
         # self.gui._bind_mousewheel()
 
     # ===========================================================================
-    # CATEGORIA 4: CONSTRUTORES DE ABAS DELEGADORAS
+    # CATEGORY 4: DELEGATING TAB BUILDERS
     # ===========================================================================
 
     def create_configuration_tab_widget(self) -> None:
@@ -568,7 +568,7 @@ class WidgetFactory:
         ).pack(fill="x", padx=5, pady=(0, 5))
 
     # ===========================================================================
-    # CATEGORIA 5: CONSTRUTORES COMPLEXOS
+    # CATEGORY 5: COMPLEX BUILDERS
     # ===========================================================================
 
     def create_welcome_frame(self):
@@ -650,7 +650,7 @@ class WidgetFactory:
         self.gui.hide_progress_bar()
 
     # ===========================================================================
-    # CATEGORIA 6: CONFIG HANDLERS
+    # CATEGORY 6: CONFIG HANDLERS
     # ===========================================================================
 
     def reload_config_editor_values_widget(self) -> None:
@@ -1003,7 +1003,7 @@ class WidgetFactory:
             return False
 
     # ===========================================================================
-    # CATEGORIA 5: CONSTRUTORES COMPLEXOS - Zone Control Widgets
+    # CATEGORY 5: COMPLEX BUILDERS - Zone Control Widgets
     # ===========================================================================
 
     def create_zone_control_widgets(self):

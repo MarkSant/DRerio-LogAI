@@ -755,7 +755,7 @@ class LiveCameraService:
         """Stop the current live camera analysis session."""
         log.info("live_camera_service.stop_session")
 
-        # ✅ NOVO: Cancelar timer se existir
+        # Cancel timer if it exists
         if hasattr(self, "timer_id") and self.timer_id and self.root:
             try:
                 self.root.after_cancel(self.timer_id)
@@ -763,7 +763,7 @@ class LiveCameraService:
             except tk.TclError as e:
                 log.warning("live_camera_service.timer_cancel_error", error=str(e))
 
-        # ✅ NOVO: Parar recorder diretamente (não via RecordingService)
+        # Stop recorder directly (not via RecordingService)
         if self.recorder:
             try:
                 self.recorder.stop_recording()
