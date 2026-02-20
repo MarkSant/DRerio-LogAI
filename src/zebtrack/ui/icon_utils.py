@@ -33,7 +33,7 @@ def get_icon_path() -> Path | None:
         log.warning("icon.path.not_found", attempted_paths=[str(icon_path), str(icon_path_dev)])
         return None
 
-    except Exception as e:
+    except (OSError, ValueError) as e:
         log.warning("icon.path.error", error=str(e))
         return None
 
@@ -56,7 +56,7 @@ def set_window_icon(window) -> None:
         if not window.winfo_exists():
             log.debug("icon.set.skipped", reason="Window no longer exists")
             return
-    except Exception:
+    except (tk.TclError, RuntimeError):
         # Window might be in invalid state, skip silently
         log.debug("icon.set.skipped", reason="Window in invalid state")
         return
@@ -70,6 +70,6 @@ def set_window_icon(window) -> None:
     except tk.TclError as e:
         # Tkinter-specific errors (e.g., bad window path) - downgrade to debug
         log.debug("icon.set.tk_error", error=str(e))
-    except Exception as e:
+    except Exception as e:  # except Exception justified: platform-specific icon failures
         # Unexpected errors - keep as warning
         log.warning("icon.set.failed", error=str(e), path=str(icon_path))

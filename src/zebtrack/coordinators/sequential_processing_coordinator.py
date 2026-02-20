@@ -428,7 +428,7 @@ class SequentialProcessingCoordinator(BaseCoordinator):
         if self._report_coordinator:
             try:
                 self._report_coordinator.generate_project_reports([video_path])
-            except Exception:
+            except Exception:  # except Exception justified: non-critical post-processing reports
                 log.warning(
                     "processing_coordinator.sequential.report_generation.suppressed",
                     exc_info=True,

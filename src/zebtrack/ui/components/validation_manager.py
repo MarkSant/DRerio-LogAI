@@ -144,7 +144,7 @@ class ValidationManager:
                     sort_keys=False,
                     allow_unicode=True,
                 )
-        except Exception as exc:
+        except (OSError, yaml.YAMLError) as exc:
             self.gui.show_error("Erro", f"Não foi possível salvar config.local.yaml: {exc}")
             return
 
@@ -446,7 +446,7 @@ class ValidationManager:
                     video_path=active_video,
                     fallback_to_global=is_live_project,  # v2.3.1: Fallback for Live projects
                 )
-            except Exception:
+            except (OSError, ValueError, KeyError):
                 log.warning("validation.get_zone_data.fallback", video=str(active_video))
                 zone_data = ZoneData()
 
@@ -1294,7 +1294,7 @@ class ValidationManager:
 
         except ValueError as e:
             self.gui.show_error("Erro de Validação", str(e))
-        except Exception as e:
+        except Exception as e:  # except Exception justified: multi-step settings apply pipeline
             self.gui.show_error("Erro", f"Erro ao aplicar configurações: {e!s}")
 
     def resolve_subject_display(self, metadata: dict) -> str:

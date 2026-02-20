@@ -208,7 +208,7 @@ class ProgressTrackingCoordinator(BaseCoordinator):
             canvas_manager = getattr(self.view, "canvas_manager", None)
             if canvas_manager and hasattr(canvas_manager, "display_detection_frame"):
                 canvas_manager.display_detection_frame(frame, detections, frame_number)
-        except Exception:
+        except Exception:  # except Exception justified: Tkinter canvas + getattr fallible
             log.debug("progress_tracking.frame_display.suppressed", exc_info=True)
 
     def _on_processing_error(self, error_data: dict) -> None:

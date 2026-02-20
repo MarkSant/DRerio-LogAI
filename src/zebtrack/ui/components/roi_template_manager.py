@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from tkinter import Misc, StringVar, Tcl, TclError, filedialog, ttk
 from typing import TYPE_CHECKING, Any
@@ -54,7 +55,7 @@ class ROITemplateManager:
         """
         try:
             templates = self.project_manager.list_roi_templates()
-        except Exception as exc:
+        except (OSError, ValueError, KeyError) as exc:
             log.warning("roi_templates.refresh_failed", error=str(exc))
             templates = []
 
@@ -230,7 +231,7 @@ class ROITemplateManager:
             self.gui.set_status(f"Template '{template_name}' aplicado ao vídeo em edição.")
 
             return True
-        except Exception as exc:
+        except Exception as exc:  # except Exception justified: template apply multi-step pipeline
             log.error("roi_templates.apply_failed", error=str(exc))
             self.gui.show_error("Erro ao aplicar template", str(exc))
             return False
@@ -257,7 +258,7 @@ class ROITemplateManager:
 
             self.refresh_templates(clear_selection=True)
             return True
-        except Exception as exc:
+        except (OSError, PermissionError, KeyError) as exc:
             log.error("roi_templates.delete_failed", error=str(exc))
             self.gui.show_error("Erro ao excluir template", str(exc))
             return False
@@ -289,7 +290,7 @@ class ROITemplateManager:
             self.gui.canvas_manager.delete_zones_from_video(active_video)
             self.gui.set_status("Desenhos do vídeo atual foram limpos.")
             return True
-        except Exception as exc:
+        except Exception as exc:  # except Exception justified: canvas + zone multi-step cleanup
             log.error("roi_templates.clear_applied_failed", error=str(exc), video=active_video)
             self.gui.show_error("Erro ao limpar desenho", str(exc))
             return False
@@ -397,7 +398,7 @@ class ROITemplateManager:
 
         try:
             metadata = self.project_manager.import_roi_template(file_path)
-        except Exception as exc:
+        except (OSError, json.JSONDecodeError, ValueError, RuntimeError) as exc:
             log.error("roi_templates.import_failed", error=str(exc), file=file_path)
             self.gui.show_error("Erro ao importar", str(exc))
             return
@@ -492,7 +493,7 @@ class ROITemplateManager:
         except ValueError as exc:
             self.gui.show_warning("Template inválido", str(exc))
             return
-        except Exception as exc:
+        except (OSError, PermissionError) as exc:
             log.error("roi_templates.save_failed", error=str(exc))
             self.gui.show_error("Erro ao salvar", str(exc))
             return

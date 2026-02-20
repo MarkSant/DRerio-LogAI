@@ -1099,7 +1099,7 @@ class Recorder:
                 rows=meta.num_rows,
             )
             return True
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             log.warning(
                 "recorder.parquet_verify.failed",
                 path=path,

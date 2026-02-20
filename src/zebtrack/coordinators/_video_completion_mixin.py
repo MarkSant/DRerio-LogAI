@@ -223,7 +223,7 @@ class VideoCompletionMixin:
             return
         try:
             rc.generate_project_reports([video_path])
-        except Exception as e:
+        except Exception as e:  # except Exception justified: report generation I/O + data
             log.error(
                 f"controller.video_completed.report_failed_{'multi' if is_multi else 'single'}",
                 video=experiment_id,

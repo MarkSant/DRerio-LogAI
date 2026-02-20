@@ -143,7 +143,7 @@ class VideoProcessingCoordinator(
         if self._video_metadata_service is not None:
             try:
                 return self._video_metadata_service.get_video_dimensions(video_path)
-            except Exception:
+            except (OSError, ValueError, RuntimeError):
                 log.warning(
                     "video_processing_coordinator.get_dims.service_failed",
                     video_path=video_path,
@@ -683,7 +683,7 @@ class VideoProcessingCoordinator(
             context = self.create_processing_context(final_tasks, output_dir)
             self.processing_worker = ProcessingWorker(context, callbacks)
             self.processing_thread = self.processing_worker.start_in_thread()
-        except Exception as exc:
+        except Exception as exc:  # except Exception justified: worker + multiprocessing + I/O
             log.exception("workflow.project_processing.worker_creation_failed", error=str(exc))
             self._publish_event(
                 Events.UI_SHOW_ERROR,
@@ -732,7 +732,7 @@ class VideoProcessingCoordinator(
                 total=len(final_tasks),
                 targeted=bool(video_paths),
             )
-        except Exception as e:
+        except Exception as e:  # except Exception justified: post-worker non-critical setup
             log.exception("workflow.project_processing.post_worker_error", error=str(e))
 
     def _explode_sequential_tasks(self, eligible_videos: list[dict]) -> list[dict]:
@@ -779,7 +779,7 @@ class VideoProcessingCoordinator(
                         aq_task["subject"] = aq.subject_id
                         aq_task["day"] = aq.day
                         final_tasks.append(aq_task)
-                except Exception:
+                except (KeyError, AttributeError, ValueError):
                     log.exception("workflow.sequential_explosion_failed")
                     final_tasks.append(video_info)
             else:

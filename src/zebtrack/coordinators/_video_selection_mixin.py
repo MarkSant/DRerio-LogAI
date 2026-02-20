@@ -308,7 +308,7 @@ class VideoSelectionMixin:
             if video_info.get("has_arena") or video_info.get("has_rois"):
                 try:
                     zone_data: ZoneData | None = ProjectManager.load_zones_from_parquet(video_info)
-                except Exception:
+                except (OSError, ValueError, KeyError):
                     log.debug("video_selection.load_zones_from_parquet.fallback", video=video_path)
                     zone_data = None
 

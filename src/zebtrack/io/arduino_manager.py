@@ -242,7 +242,7 @@ class ArduinoManager:
 
             try:
                 decoded = raw_line.decode("utf-8", errors="ignore").strip()
-            except Exception:
+            except (UnicodeDecodeError, AttributeError):
                 log.debug("arduino.serial_decode.corrupted_data")
                 continue
 

@@ -261,7 +261,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
                     log.warning("processing_coordinator.aquarium_detection.single_failed")
                 return None
 
-        except Exception as exc:
+        except Exception as exc:  # except Exception justified: YOLO + cv2 + geometry pipeline
             log.error(
                 "processing_coordinator.aquarium_detection.error",
                 error=str(exc),
@@ -579,7 +579,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
                             existing_roi=existing_name,
                             overlap_pct=f"{overlap_pct:.1f}%",
                         )
-        except Exception:
+        except Exception:  # except Exception justified: non-critical polygon overlap geometry
             log.debug("processing_coordinator.add_roi.overlap_check.suppressed", exc_info=True)
 
         # Add the ROI (cast to list since ZoneData fields are typed as Sequence
@@ -695,7 +695,7 @@ class MultiAquariumCoordinator(BaseCoordinator):
         if self.detector_service:
             try:
                 self.detector_service.set_single_subject_mode(enabled)
-            except Exception:
+            except Exception:  # except Exception justified: detector may not support mode
                 log.debug(
                     "processing_coordinator.configure_tracker.suppressed",
                     exc_info=True,

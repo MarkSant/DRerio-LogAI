@@ -122,7 +122,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             try:
                 self._generate_single_video_reports(path)
                 count += 1
-            except Exception as e:
+            except Exception as e:  # except Exception justified: per-video error isolation in batch
                 log.exception("workflow.reports.video_failed", video=path, error=str(e))
                 errors.append(f"{os.path.basename(path)}: {e}")
 
@@ -502,7 +502,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
                     True,
                 )
             return "skipped", f"{exp_id}: nenhum aquário processado.", None, False
-        except Exception as e:
+        except Exception as e:  # except Exception justified: multi-aquarium summary pipeline
             log.error("processing.multi_summary_failed", error=str(e))
             return "failed", f"{exp_id}: erro multi-aquário {e}", None, False
 
@@ -636,7 +636,7 @@ class ReportGenerationCoordinator(BaseCoordinator, UnifiedReportMixin):
             video.setdefault("parquet_files", {})["summary"] = s_path
             video["has_complete_data"] = True
             return "completed", exp_id, s_path, True
-        except Exception as e:
+        except Exception as e:  # except Exception justified: single-video summary I/O + transforms
             return "failed", f"{exp_id}: erro {e}", None, False
         finally:
             self.project_manager.set_active_zone_video(None)

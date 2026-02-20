@@ -614,7 +614,7 @@ class LiveConfigStep(WizardStep):
 
                 messagebox.showinfo("Detecção de Hardware", msg, parent=self)
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: hardware detection multi-library
             log.error("live_config.hardware_detection_failed", error=str(e))
             # Non-critical - continue without hardware report
             self.hardware_report = None
@@ -872,7 +872,7 @@ class LiveConfigStep(WizardStep):
             )
             log.warning("live_config.pyserial_not_available")
 
-        except Exception as e:
+        except Exception as e:  # except Exception justified: serial port + pyserial multi-error
             self.arduino_status_label.config(text="✗ Erro inesperado", fg="red")
             messagebox.showerror(
                 "Erro Inesperado",
@@ -941,7 +941,7 @@ class LiveConfigStep(WizardStep):
 
             return (True, "")
 
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError) as e:
             return (False, f"Erro ao validar dados: {e!s}")
 
     def get_data(self) -> dict:

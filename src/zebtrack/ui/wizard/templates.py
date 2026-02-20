@@ -115,7 +115,7 @@ class TemplateManager:
             )
             return True
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, ValueError) as e:
             log.error(
                 "template_manager.save_error",
                 name=name,
@@ -148,7 +148,7 @@ class TemplateManager:
             log.info("template_manager.template_loaded", name=name)
             return template
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, KeyError) as e:
             log.error(
                 "template_manager.load_error",
                 name=name,
@@ -186,7 +186,7 @@ class TemplateManager:
             )
             return template
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, KeyError) as e:
             log.error(
                 "template_manager.load_error",
                 name=str(path),
@@ -217,7 +217,7 @@ class TemplateManager:
                             "project_type": template.get("project_type", "Unknown"),
                         }
                     )
-                except Exception as e:
+                except (OSError, json.JSONDecodeError, KeyError) as e:
                     log.warning(
                         "template_manager.template_read_error",
                         path=str(template_path),
@@ -227,7 +227,7 @@ class TemplateManager:
             templates.sort(key=lambda t: t.get("created_at", ""), reverse=True)
             log.info("template_manager.templates_listed", count=len(templates))
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             log.error(
                 "template_manager.list_error",
                 error=str(e),
@@ -258,7 +258,7 @@ class TemplateManager:
             log.info("template_manager.template_deleted", name=name)
             return True
 
-        except Exception as e:
+        except (OSError, PermissionError) as e:
             log.error(
                 "template_manager.delete_error",
                 name=name,

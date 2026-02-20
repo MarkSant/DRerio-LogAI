@@ -156,7 +156,7 @@ class UnifiedReportMixin:
                         if entry_meta:
                             df = self._enrich_unified_report_metadata(df, entry_meta, process_entry)
                         dfs.append(df)
-                    except Exception as e:
+                    except (OSError, ValueError) as e:
                         log.warning(
                             "workflow.unified_report.read_failed",
                             file=summary_path,
@@ -183,6 +183,7 @@ class UnifiedReportMixin:
                 all_columns,
                 report_scope=scope,
             )
+        # except Exception justified: DataFrame alignment + multi-format export
         except Exception as e:
             log.error("workflow.unified_report.failed", error=str(e), exc_info=True)
             self._publish_event(
@@ -342,7 +343,7 @@ class UnifiedReportMixin:
             exported_artifacts.append(excel_path.name)
             exported_paths["excel"] = str(excel_path)
             log.info("workflow.unified_report.excel_exported", path=str(excel_path))
-        except Exception as e:
+        except (OSError, ImportError, ValueError) as e:
             export_failures.append(f"Excel: {e}")
             log.error(
                 "workflow.unified_report.excel_failed",
@@ -370,7 +371,7 @@ class UnifiedReportMixin:
                 "workflow.unified_report.word_exported",
                 path=str(word_path) + ".docx",
             )
-        except Exception as e:
+        except (OSError, PermissionError, ImportError, ValueError) as e:
             export_failures.append(f"Word: {e}")
             log.error(
                 "workflow.unified_report.word_failed",
