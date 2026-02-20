@@ -294,22 +294,6 @@ class TestValidation:
         assert result.is_valid is True
         processing_coordinator.state_manager.update_processing_state.assert_called_once()
 
-    def test_on_processing_started_delegates_to_progress_coordinator(self, processing_coordinator):
-        """Test _on_processing_started delegates to progress coordinator (Phase 4)."""
-        mock_ptc = MagicMock()
-        processing_coordinator._progress_coordinator = mock_ptc
-
-        processing_coordinator._on_processing_started([{"path": "video.mp4"}])
-
-        mock_ptc._on_processing_started.assert_called_once_with([{"path": "video.mp4"}])
-
-    def test_on_processing_started_noop_without_progress_coordinator(self, processing_coordinator):
-        """Test _on_processing_started is a no-op when no progress coordinator wired."""
-        processing_coordinator._progress_coordinator = None
-
-        # Should not raise
-        processing_coordinator._on_processing_started([{"path": "video.mp4"}])
-
 
 # =============================================================================
 # SINGLE VIDEO PROCESSING TESTS

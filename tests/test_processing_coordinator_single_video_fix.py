@@ -65,7 +65,7 @@ class TestProcessingCoordinatorSingleVideoFix:
         target_videos = [{"path": "video.mp4"}]
 
         # Execute
-        coordinator.generate_parquet_summaries(target_videos)
+        coordinator._report_coordinator.generate_parquet_summaries(target_videos)
 
         # Verify
         coordinator.project_manager.save_project.assert_not_called()
@@ -86,7 +86,7 @@ class TestProcessingCoordinatorSingleVideoFix:
         target_videos = [{"path": "video.mp4"}]
 
         # Execute
-        coordinator.generate_parquet_summaries(target_videos)
+        coordinator._report_coordinator.generate_parquet_summaries(target_videos)
 
         # Verify
         coordinator.project_manager.save_project.assert_called_once()
