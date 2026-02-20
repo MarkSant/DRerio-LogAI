@@ -62,11 +62,11 @@ Constraint: If a file is modified, output the ENTIRE changed section with suffic
 poetry install                    # First time
 poetry run zebtrack               # Run app
 
-# Testing (fast by default, 2568 tests total)
-poetry run pytest                 # Fast tests only (excludes GUI/slow) - ~1586 tests
+# Testing (fast by default, ~2678 tests total)
+poetry run pytest                 # Fast tests only (excludes GUI/slow) - ~2678 tests
 poetry run pytest -m gui -n0      # GUI tests (sequential) - ~949 tests
 poetry run pytest -m slow         # Slow tests only - ~35 tests
-poetry run pytest -m "" -n0       # All tests - ~2568 tests (6-7 min)
+poetry run pytest -m "" -n0       # All tests - ~3660+ tests (6-7 min)
 
 # Code Quality
 poetry run ruff check .           # Lint
@@ -252,7 +252,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 - **E2E Tests**: 16 integration tests (`test_wizard_live_e2e.py`)
 - **Cache Tests**: 8 tests (`test_wizard_service_caching.py`)
-- **Total**: 712 tests passing, 1 skipped
+- **Total**: 2678+ tests passing (as of Feb 2026)
 
 ### Phase 6: Live Camera Analysis (Nov 2025)
 
@@ -284,7 +284,7 @@ timestamp, frame, track_id, x1, y1, x2, y2, confidence, [x_center_px, y_center_p
 
 **VALIDATION**:
 
-- ✅ 2568 tests pass (8 skip, 1 xfail) in 6min40s - **no hang**
+- ✅ 2678+ tests pass (12 skip) — no hang (as of Feb 2026)
 - ✅ Coverage: 61% measured successfully
 - ✅ Works in terminal and VSCode Test Explorer
 - ✅ System remains responsive
@@ -593,10 +593,10 @@ logger.error("recorder.save_parquet.error", error=str(e))
 
 ## Testing Requirements
 
-- **Coverage**: CI gate 40% (Linux), 0% (Windows)
+- **Coverage gates**: 50% Linux core, 32% Linux GUI, 28% Windows core
 - **Markers**: `@pytest.mark.{gui,slow,integration,unit}`
 - **Fixtures**: `tests/conftest.py`
-- **Current Status**: 712 passing, 1 skipped
+- **Current Status**: 2678+ fast tests passing, 12 skipped (as of Feb 2026)
 
 ### Pre-Merge Checklist
 
