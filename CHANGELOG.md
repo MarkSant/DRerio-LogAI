@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 📚 Documentation & Standardization
 
+#### Phase 9 — Audit Debt Remediation (February 2026)
+
+- **9.1 Documentation sync**: Aligned coverage gates and test counts across
+  all 3 agent instruction files (AGENTS.md, copilot-instructions.md,
+  CLAUDE.md) to match CI actuals — Linux core 50%, Linux GUI 32%, Windows
+  core 28%; corrected stale test counts from 2568/712 to ~2678
+- **9.2 Exception narrowing**: Narrowed or justified 45 bare
+  `except Exception` blocks across 16 source files; 26 blocks narrowed to
+  specific types (OSError, ValueError, json.JSONDecodeError, TclError, etc.)
+  and 19 blocks annotated with justification comments explaining why broad
+  catching is necessary (multi-library pipelines, batch error isolation,
+  platform-specific failures)
+
+### 📚 Documentation & Standardization
+
 #### Phase 8 — Documentation & Standardization (February 2026)
 
 - **8.1 English translation**: Translated Portuguese docstrings and inline
