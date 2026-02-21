@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 if TYPE_CHECKING:
+    from zebtrack.ui.components.dialog_manager import DialogManager
     from zebtrack.ui.gui import ApplicationGUI
 
 log = structlog.get_logger()
@@ -23,8 +24,19 @@ class ZoneEditGuard:
     exist before allowing the user to switch tabs.
     """
 
-    def __init__(self, gui: ApplicationGUI) -> None:
+    def __init__(
+        self,
+        gui: ApplicationGUI,
+        *,
+        dialog_manager: DialogManager | None = None,
+    ) -> None:
         self.gui = gui
+        self._dialog_manager = dialog_manager
+
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """DialogManager instance (injected or resolved from gui)."""
+        return self._dialog_manager or self.gui.dialog_manager
 
     # ------------------------------------------------------------------
     # Tab change handler
@@ -60,7 +72,7 @@ class ZoneEditGuard:
             combobox = getattr(gui, "roi_template_combobox", None)
             values = combobox.cget("values") if combobox else ()
             if not values:
-                gui._refresh_roi_templates()
+                gui.roi_template_manager.refresh_templates()
 
         if gui.analysis_active:
             gui.canvas_view_mode = (
@@ -99,7 +111,7 @@ class ZoneEditGuard:
         """Show a non-blocking warning if user navigates with an unfinished zone edit."""
         if not self.has_pending_zone_edit():
             return
-        self.gui.show_warning(
+        self.dialog_manager.show_warning(
             "Edição de zonas em andamento",
             (
                 "Há uma edição/desenho de zona em andamento. "
@@ -177,7 +189,7 @@ class ZoneEditGuard:
                 gui.set_status("Edição salva. Prosseguindo para o próximo vídeo...")
                 return True
 
-            gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Salvar edição",
                 (
                     "Não foi possível salvar automaticamente porque o desenho ainda não foi "

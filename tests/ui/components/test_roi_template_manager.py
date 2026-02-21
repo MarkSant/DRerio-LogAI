@@ -67,7 +67,7 @@ def test_apply_template(manager, mock_pm, mock_gui):
         mock_pm.load_roi_template.assert_called()
         mock_pm.save_zone_data.assert_called()
         mock_gui.controller.setup_detector_zones.assert_called()
-        mock_gui.show_warning.assert_called()
+        mock_gui.dialog_manager.show_warning.assert_called()
 
 
 def test_delete_template(manager, mock_pm, mock_gui):
@@ -76,7 +76,7 @@ def test_delete_template(manager, mock_pm, mock_gui):
     ]
     manager.template_var.set("T1")
 
-    mock_gui.ask_ok_cancel.return_value = True
+    mock_gui.dialog_manager.ask_ok_cancel.return_value = True
 
     result = manager.delete_template()
 
@@ -88,7 +88,7 @@ def test_save_template(manager, mock_pm, mock_gui):
     mock_pm.get_zone_data.return_value = MagicMock(polygon=[(0, 0)], roi_polygons=[])
     mock_pm.project_path = "path"
 
-    mock_gui._show_template_save_dialog.return_value = {
+    dialog_result = {
         "name": "NewT",
         "save_arena": True,
         "save_rois": True,
@@ -98,12 +98,16 @@ def test_save_template(manager, mock_pm, mock_gui):
 
     mock_pm.save_roi_template.return_value = {"name": "NewT"}
 
-    with patch("zebtrack.ui.components.roi_template_manager.Path") as MockPath:
+    with (
+        patch("zebtrack.ui.components.roi_template_manager.Path") as MockPath,
+        patch("zebtrack.ui.dialogs.SaveROITemplateDialog") as MockDialog,
+    ):
         MockPath.return_value.exists.return_value = True
+        MockDialog.return_value.result = dialog_result
         manager.save_template()
 
     mock_pm.save_roi_template.assert_called()
-    mock_gui.show_info.assert_called()
+    mock_gui.dialog_manager.show_info.assert_called()
 
 
 def test_get_selected_template_returns_match(manager):
@@ -125,7 +129,7 @@ def test_apply_template_no_selection(manager, mock_gui):
     result = manager.apply_template()
 
     assert result is False
-    mock_gui.show_warning.assert_called_once()
+    mock_gui.dialog_manager.show_warning.assert_called_once()
 
 
 def test_apply_template_no_active_video(manager, mock_pm, mock_gui):
@@ -139,7 +143,7 @@ def test_apply_template_no_active_video(manager, mock_pm, mock_gui):
     result = manager.apply_template()
 
     assert result is False
-    mock_gui.show_warning.assert_called_once()
+    mock_gui.dialog_manager.show_warning.assert_called_once()
 
 
 def test_validate_template_file_fixes_path(manager, tmp_path):
@@ -179,7 +183,7 @@ def test_import_template_error_shows_message(manager, mock_pm, mock_gui):
 
         manager.import_template()
 
-    mock_gui.show_error.assert_called_once()
+    mock_gui.dialog_manager.show_error.assert_called_once()
 
 
 def test_update_combobox_values_falls_back_to_gui_combobox(mock_pm, tkinter_root):

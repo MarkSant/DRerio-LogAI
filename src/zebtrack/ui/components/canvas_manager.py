@@ -17,12 +17,18 @@ This file retains:
 - Delegation shims for backward compatibility
 """
 
+from __future__ import annotations
+
 import typing
+from typing import TYPE_CHECKING
 
 import numpy as np
 import structlog
 
 from zebtrack.ui.components.canvas.event_handler import CanvasEventHandler
+
+if TYPE_CHECKING:
+    from zebtrack.core.services.zone_context_service import ZoneContextService
 from zebtrack.ui.components.canvas.multi_aquarium_overlay import MultiAquariumOverlayManager
 from zebtrack.ui.components.canvas.renderer import CanvasRenderer
 from zebtrack.ui.components.canvas.video_frame_manager import VideoFrameManager
@@ -45,15 +51,19 @@ class CanvasManager:
     AQUARIUM_COLORS: typing.ClassVar = MultiAquariumOverlayManager.AQUARIUM_COLORS
     _BGR_COLOR_MAP: typing.ClassVar = ZoneEditor._BGR_COLOR_MAP
 
-    def __init__(self, gui, event_bus_v2=None):
+    def __init__(
+        self, gui, event_bus_v2=None, *, zone_context_service: ZoneContextService | None = None
+    ):
         """Initialize CanvasManager.
 
         Args:
             gui: Reference to ApplicationGUI instance
             event_bus_v2: EventBusV2 instance for v4.0 Event-Driven Architecture (optional)
+            zone_context_service: Optional ZoneContextService for dependency injection.
         """
         self.gui = gui
         self.event_bus_v2 = event_bus_v2
+        self._zone_context_service = zone_context_service
         # Transformation attributes
         self._bg_scale = None
         self._bg_offset = None
@@ -82,11 +92,18 @@ class CanvasManager:
         # Initialize sub-components (Phase 4.5 extractions)
         self.multi_aquarium = MultiAquariumOverlayManager(self)
         self.video_frame = VideoFrameManager(self)
-        self.zone_editor = ZoneEditor(self)
+        self.zone_editor = ZoneEditor(self, zone_context_service=zone_context_service)
 
         # Subscribe to events if event bus is available
         if self.event_bus_v2:
             self._setup_event_subscriptions()
+
+    @property
+    def zone_context_service(self):
+        """ZoneContextService instance (injected or resolved from gui)."""
+        if self._zone_context_service is not None:
+            return self._zone_context_service
+        return getattr(self.gui, "_zone_context_service", None)
 
     def _get_canvas(self):
         """Get the canvas safely, returning None if video_display doesn't exist or is destroyed.
@@ -343,7 +360,7 @@ class CanvasManager:
 
     def apply_snapping(self, canvas_x, canvas_y, exclude_current_polygon=False, snap_threshold=10):
         """Apply snapping to nearby vertices or edges of existing polygons."""
-        zone_data = self.gui._get_zone_data_for_active_context()
+        zone_data = self.zone_context_service.get_zone_data_for_active_context()
         all_polygons = []
 
         from zebtrack.core.detection import MultiAquariumZoneData

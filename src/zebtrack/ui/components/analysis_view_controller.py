@@ -119,7 +119,7 @@ class AnalysisViewController:
         # Create main control frame if it doesn't exist
         if not self._notebook:
             log.info("analysis_view_controller.switch_to_analysis.creating_main_frame")
-            self.gui._create_main_control_frame()
+            self.gui.project_initializer.create_main_control_frame()
 
         if not self._notebook or not self._analysis_tab_frame:
             log.warning("analysis_view_controller.switch_to_analysis.missing_widgets_after_create")

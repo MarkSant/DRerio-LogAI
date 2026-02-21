@@ -176,7 +176,7 @@ class EventDispatcher:
 
         event_bus.subscribe(
             Events.UI_NAVIGATE_TO_PROJECT_VIEW,
-            lambda d: gui._create_main_control_frame(),
+            lambda d: gui.project_initializer.create_main_control_frame(),
         )
 
         event_bus.subscribe(
@@ -255,7 +255,7 @@ class EventDispatcher:
         )
         event_bus.subscribe(
             Events.UI_UPDATE_ANALYSIS_METADATA,
-            lambda d: gui.update_analysis_metadata(
+            lambda d: gui.analysis_view_controller.update_analysis_metadata(
                 metadata=d.get("metadata") if isinstance(d, dict) else None
             ),
         )
@@ -273,7 +273,7 @@ class EventDispatcher:
         )
         event_bus.subscribe(
             Events.UI_UPDATE_DETECTION_OVERLAY,
-            lambda d: gui.update_detection_overlay(
+            lambda d: gui.analysis_view_controller.update_detection_overlay(
                 detections=d.get("detections") if isinstance(d, dict) else None,
                 report=d.get("report") if isinstance(d, dict) else None,
             ),
@@ -298,25 +298,25 @@ class EventDispatcher:
         # Weight Management
         event_bus.subscribe(
             Events.UI_SET_ACTIVE_WEIGHT,
-            lambda d: gui.set_active_weight_in_dropdown(
+            lambda d: gui.weight_hardware_manager.set_active_weight_in_dropdown(
                 d.get("weight_name") if isinstance(d, dict) else None
             ),
         )
         event_bus.subscribe(
             Events.UI_UPDATE_OPENVINO_STATUS,
-            lambda d: gui.update_openvino_status_display(
+            lambda d: gui.weight_hardware_manager.update_openvino_status_display(
                 str(d.get("status")) if isinstance(d, dict) and d.get("status") else "Unknown"
             ),
         )
         event_bus.subscribe(
             Events.UI_UPDATE_OPENVINO_CHECKBOX,
-            lambda d: gui.update_openvino_checkbox(
+            lambda d: gui.weight_hardware_manager.update_openvino_checkbox(
                 bool(d.get("is_checked")) if isinstance(d, dict) else False
             ),
         )
         event_bus.subscribe(
             Events.UI_UPDATE_WEIGHTS_LIST,
-            lambda d: gui.update_weights_dropdown(
+            lambda d: gui.weight_hardware_manager.update_weights_dropdown(
                 list(d.get("weights", [])) if isinstance(d, dict) else []
             ),
         )
@@ -343,7 +343,7 @@ class EventDispatcher:
         # View Navigation & Modes
         def _handle_navigate_to_analysis(d):
             log.info("event_dispatcher.navigate_to_analysis_view.received")
-            gui.start_analysis_view_mode()
+            gui.analysis_view_controller.start_analysis_view_mode()
 
         log.info(
             "event_dispatcher.subscribing_navigation",
@@ -352,7 +352,8 @@ class EventDispatcher:
         )
         event_bus.subscribe(Events.UI_NAVIGATE_TO_ANALYSIS_VIEW, _handle_navigate_to_analysis)
         event_bus.subscribe(
-            Events.UI_NAVIGATE_FROM_ANALYSIS_VIEW, lambda d: gui.stop_analysis_view_mode()
+            Events.UI_NAVIGATE_FROM_ANALYSIS_VIEW,
+            lambda d: gui.analysis_view_controller.stop_analysis_view_mode(),
         )
         event_bus.subscribe(
             Events.UI_UPDATE_PROCESSING_MODE,
@@ -395,13 +396,13 @@ class EventDispatcher:
         # Weight Management Interactive Requests
         event_bus.subscribe(
             Events.UI_REQUEST_WEIGHT_TYPE,
-            lambda d: gui.handle_request_weight_type(
+            lambda d: gui.weight_hardware_manager.handle_request_weight_type(
                 str(d.get("filepath")) if isinstance(d, dict) and d.get("filepath") else ""
             ),
         )
         event_bus.subscribe(
             Events.UI_REQUEST_WEIGHT_ACTION,
-            lambda d: gui.handle_request_weight_action(
+            lambda d: gui.weight_hardware_manager.handle_request_weight_action(
                 str(d.get("filepath")) if isinstance(d, dict) and d.get("filepath") else "",
                 str(d.get("weight_type")) if isinstance(d, dict) and d.get("weight_type") else "",
             ),
@@ -425,11 +426,12 @@ class EventDispatcher:
             return
 
         gui = self._require_gui()
-        polygon = polygon_data
-        if polygon is None:
-            polygon = []
+        polygon = polygon_data if polygon_data is not None else []
 
-        gui.setup_interactive_polygon(polygon)
+        import numpy as np
+
+        polygon_array = np.array(polygon, dtype=float)
+        gui.canvas_manager.setup_interactive_polygon(polygon_array)
 
     def _handle_setup_zone_definition_for_single_video(self, data: dict) -> None:
         """Handler for single video zone setup event."""
@@ -451,11 +453,11 @@ class EventDispatcher:
         video_path = data.get("video_path")
         config = data.get("config")
         if video_path and config:
-            if hasattr(gui, "setup_zone_definition_for_single_video"):
+            if hasattr(gui, "single_video_workflow"):
                 self.log.info(
                     "event_dispatcher._handle_setup_zone_definition_for_single_video.calling_gui_method"
                 )
-                gui.setup_zone_definition_for_single_video(video_path, config)
+                gui.single_video_workflow.setup_zone_definition_for_single_video(video_path, config)
             else:
                 self.log.error(
                     "gui.missing_method", method="setup_zone_definition_for_single_video"
@@ -478,7 +480,7 @@ class EventDispatcher:
         # Drawing Actions
         event_bus.subscribe(
             Events.ZONE_AUTO_DETECT_CLICKED,
-            lambda d: gui._on_auto_detect_clicked(
+            lambda d: gui.single_video_workflow.on_auto_detect_clicked(
                 stabilization_frames=d.get("stabilization_frames") if isinstance(d, dict) else None
             ),
         )
@@ -486,22 +488,38 @@ class EventDispatcher:
             Events.ZONE_DRAW_ARENA, lambda d: gui.canvas_manager.start_main_arena_drawing()
         )
         event_bus.subscribe(Events.ZONE_DRAW_ROI, lambda d: gui.canvas_manager.start_roi_drawing())
-        event_bus.subscribe(Events.ZONE_TOGGLE_VIEW, lambda d: gui._toggle_canvas_view())
+        event_bus.subscribe(
+            Events.ZONE_TOGGLE_VIEW,
+            lambda d: gui.analysis_view_controller.toggle_canvas_view(),
+        )
 
         # ROI Templates
-        event_bus.subscribe(Events.ZONE_TEMPLATE_APPLY, lambda d: gui._on_apply_roi_template())
-        event_bus.subscribe(Events.ZONE_TEMPLATE_SAVE, lambda d: gui._on_save_roi_template())
         event_bus.subscribe(
-            Events.ZONE_TEMPLATE_IMPORT, lambda d: gui._on_import_and_apply_roi_template()
+            Events.ZONE_TEMPLATE_APPLY,
+            lambda d: gui._on_apply_roi_template(),
+        )
+        event_bus.subscribe(
+            Events.ZONE_TEMPLATE_SAVE,
+            lambda d: gui.roi_template_manager.save_template(),
+        )
+        event_bus.subscribe(
+            Events.ZONE_TEMPLATE_IMPORT,
+            lambda d: gui.dialog_manager.import_and_apply_roi_template(),
         )
         event_bus.subscribe(
             Events.ZONE_TEMPLATE_CLEAR_APPLIED,
-            lambda d: gui._on_clear_applied_roi_template(),
+            lambda d: gui.roi_template_manager.clear_applied_template_drawings(),
         )
 
         # Video Selector
-        event_bus.subscribe(Events.ZONE_VIDEO_SEARCH_CHANGED, lambda d: gui._filter_video_tree())
-        event_bus.subscribe(Events.ZONE_VIDEO_REFRESH, lambda d: gui._refresh_video_selector_tree())
+        event_bus.subscribe(
+            Events.ZONE_VIDEO_SEARCH_CHANGED,
+            lambda d: gui._filter_video_tree(),
+        )
+        event_bus.subscribe(
+            Events.ZONE_VIDEO_REFRESH,
+            lambda d: gui.video_selector_manager._populate_video_selector_tree(filter_text=None),
+        )
         event_bus.subscribe(
             Events.ZONE_VIDEO_DOUBLE_CLICK,
             lambda d: gui.canvas_manager.load_selected_video_frame(),

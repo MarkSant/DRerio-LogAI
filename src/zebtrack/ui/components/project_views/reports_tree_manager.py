@@ -15,9 +15,12 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
+
+if TYPE_CHECKING:
+    from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
 
@@ -28,18 +31,31 @@ class ReportsTreeManager:
     Thread-safety: All UI updates must use ``gui.root.after(0, ...)`` pattern.
     """
 
-    def __init__(self, gui: Any, *, event_bus_v2: Any | None = None) -> None:
+    def __init__(
+        self,
+        gui: Any,
+        *,
+        event_bus_v2: Any | None = None,
+        dialog_manager: DialogManager | None = None,
+    ) -> None:
         """Initialise with parent GUI reference and optional event bus.
 
         Args:
             gui: Reference to ``ApplicationGUI`` instance.
             event_bus_v2: ``EventBusV2`` instance for v4.0 EDA (optional).
+            dialog_manager: Optional DialogManager for dependency injection.
         """
         self.gui = gui
         self.event_bus_v2 = event_bus_v2
+        self._dialog_manager = dialog_manager
 
         if self.event_bus_v2:
             self._setup_event_subscriptions()
+
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """Return injected DialogManager or fall back to gui.dialog_manager."""
+        return self._dialog_manager or self.gui.dialog_manager
 
     # ------------------------------------------------------------------
     # Event wiring
@@ -663,7 +679,9 @@ class ReportsTreeManager:
 
         unified_dir = Path(pm.project_path) / "unified_reports"
         if not unified_dir.exists():
-            self.gui.show_warning("Indisponível", "Nenhum relatório unificado encontrado.")
+            self.dialog_manager.show_warning(
+                "Indisponível", "Nenhum relatório unificado encontrado."
+            )
             return
 
         pattern = ""
@@ -679,7 +697,9 @@ class ReportsTreeManager:
 
         files = list(unified_dir.glob(pattern))
         if not files:
-            self.gui.show_warning("Indisponível", f"Nenhum relatório {file_type} encontrado.")
+            self.dialog_manager.show_warning(
+                "Indisponível", f"Nenhum relatório {file_type} encontrado."
+            )
             return
 
         latest_file = max(files, key=lambda f: f.stat().st_mtime)
@@ -732,7 +752,7 @@ class ReportsTreeManager:
                 has_results = True
 
         if not results_dir or not os.path.isdir(results_dir) or not has_results:
-            self.gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Relatórios indisponíveis",
                 "Gere o relatório para este vídeo antes de abrir a pasta de resultados.",
             )
@@ -750,7 +770,7 @@ class ReportsTreeManager:
 
         all_videos = self.gui.controller.project_manager.get_all_videos()
         if not all_videos:
-            self.gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Sem Dados",
                 "Não há vídeos processados neste projeto para gerar um relatório.",
             )
@@ -937,7 +957,9 @@ class ReportsTreeManager:
 
             if success:
                 log.info("project.delete_unified.success", path=unified_dir)
-                self.gui.show_info("Sucesso", "Todos os relatórios unificados foram apagados.")
+                self.dialog_manager.show_info(
+                    "Sucesso", "Todos os relatórios unificados foram apagados."
+                )
 
                 if hasattr(self.gui, "processing_reports_widget"):
                     self.gui.processing_reports_widget._update_button_states(pm.project_path)
@@ -951,9 +973,9 @@ class ReportsTreeManager:
                         "Tente novamente em instantes."
                     )
 
-                self.gui.show_error("Erro ao Apagar", f"{msg}\n\nErro: {last_error}")
+                self.dialog_manager.show_error("Erro ao Apagar", f"{msg}\n\nErro: {last_error}")
         else:
-            self.gui.show_info("Aviso", "Não havia relatórios unificados para apagar.")
+            self.dialog_manager.show_info("Aviso", "Não havia relatórios unificados para apagar.")
 
     # ------------------------------------------------------------------
     # Status counts
@@ -1032,4 +1054,4 @@ class ReportsTreeManager:
                 subprocess.Popen(["xdg-open", path])
         except OSError as e:
             log.error("gui.open_path.failed", path=path, error=str(e))
-            self.gui.show_error("Erro", f"Não foi possível abrir: {e}")
+            self.dialog_manager.show_error("Erro", f"Não foi possível abrir: {e}")

@@ -4,11 +4,17 @@ Extracted from gui.py to reduce God Object complexity.
 Handles state observation, UI updates based on state changes, and reset operations.
 """
 
+from __future__ import annotations
+
 import tkinter as tk
+from typing import TYPE_CHECKING
 
 import structlog
 
 from zebtrack.core.video.processing_mode import ProcessingMode
+
+if TYPE_CHECKING:
+    from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
 
@@ -16,13 +22,20 @@ log = structlog.get_logger()
 class StateSynchronizer:
     """Manages state synchronization between StateManager and UI components."""
 
-    def __init__(self, gui):
+    def __init__(self, gui, *, dialog_manager: DialogManager | None = None):
         """Initialize StateSynchronizer.
 
         Args:
             gui: Reference to ApplicationGUI instance
+            dialog_manager: Optional DialogManager for dependency injection.
         """
         self.gui = gui
+        self._dialog_manager = dialog_manager
+
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """Return injected DialogManager or fall back to gui.dialog_manager."""
+        return self._dialog_manager or self.gui.dialog_manager
 
     # ========================================================================
     # State Change Subscription
@@ -117,16 +130,16 @@ class StateSynchronizer:
             if self.gui.process_video_btn:
                 self.gui.process_video_btn.config(state="disabled")
             # Switch to analysis view mode
-            if hasattr(self.gui, "start_analysis_view_mode"):
-                self.gui.start_analysis_view_mode()
+            if hasattr(self.gui, "analysis_view_controller"):
+                self.gui.analysis_view_controller.start_analysis_view_mode()
         else:
             log.debug("gui.processing_state.stopped")
             # Re-enable process button after processing
             if self.gui.process_video_btn:
                 self.gui.process_video_btn.config(state="normal")
             # Switch back from analysis view mode
-            if hasattr(self.gui, "stop_analysis_view_mode"):
-                self.gui.stop_analysis_view_mode()
+            if hasattr(self.gui, "analysis_view_controller"):
+                self.gui.analysis_view_controller.stop_analysis_view_mode()
 
     def _update_detector_ui(self, detector_initialized: bool) -> None:
         """Update UI elements based on detector state."""
@@ -341,7 +354,7 @@ class StateSynchronizer:
     def reset_global_config_form_widget(self) -> None:
         """Reset ConfigEditorWidget form fields to reflect current settings object."""
         self.gui._reload_config_editor_values_widget()
-        self.gui.show_info(
+        self.dialog_manager.show_info(
             "Formulário recarregado",
             "Valores restaurados para refletir as configurações atuais.",
         )

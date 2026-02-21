@@ -53,11 +53,7 @@ def mock_gui(tkinter_root, mock_controller):
     gui._original_image = None
     gui._last_analysis_frame = None
     gui.analysis_active = False
-    gui.show_error = Mock()
-    gui.show_warning = Mock()
-    gui._refresh_roi_templates = Mock()
     gui.update_zone_listbox = Mock()
-    gui._get_zone_data_for_active_context = Mock()
     gui.current_polygon_points = []
     gui.edited_polygon_points = []
     gui.current_editing_zone = None
@@ -458,7 +454,7 @@ class TestBackgroundImageDrawing:
         canvas_manager.display_roi_video_frame("/invalid/path.mp4")
 
         # Should show error
-        mock_gui.show_error.assert_called_once()
+        mock_gui.dialog_manager.show_error.assert_called_once()
 
         # Should clear active video
         mock_controller.project_manager.set_active_zone_video.assert_called_with(None)
@@ -477,7 +473,7 @@ class TestBackgroundImageDrawing:
 
         canvas_manager.display_roi_video_frame("/path/to/video.mp4")
 
-        mock_gui.show_error.assert_called_once()
+        mock_gui.dialog_manager.show_error.assert_called_once()
 
     @patch("zebtrack.ui.components.canvas.video_frame_manager.cv2")
     @patch("os.path.exists")
@@ -494,7 +490,7 @@ class TestBackgroundImageDrawing:
 
         canvas_manager.display_roi_video_frame("/path/to/video.mp4")
 
-        mock_gui.show_error.assert_called_once()
+        mock_gui.dialog_manager.show_error.assert_called_once()
 
     @patch("zebtrack.ui.components.canvas.video_frame_manager.cv2")
     @patch("os.path.exists")
@@ -617,7 +613,9 @@ class TestInteractivePolygonDrawing:
         """Test boundary checking for ROI editing."""
         mock_gui.edited_polygon_points = [[100, 100], [200, 200]]
         mock_gui.current_editing_zone = ("roi", 0)
-        mock_gui._get_zone_data_for_active_context.return_value = mock_zone_data
+        mock_gui._zone_context_service.get_zone_data_for_active_context.return_value = (
+            mock_zone_data
+        )
 
         canvas_manager._bg_scale = 1.0
         canvas_manager._bg_offset = (0, 0)
@@ -674,7 +672,7 @@ class TestZoneDrawing:
 
     def test_redraw_zones_from_project_data_no_zone_data(self, canvas_manager, mock_gui):
         """Test redraw when zone data is None."""
-        mock_gui._get_zone_data_for_active_context.return_value = None
+        mock_gui._zone_context_service.get_zone_data_for_active_context.return_value = None
 
         # Should return without error
         canvas_manager.redraw_zones_from_project_data()
@@ -683,7 +681,9 @@ class TestZoneDrawing:
         self, canvas_manager, mock_gui, mock_zone_data
     ):
         """Test redraw with arena polygon."""
-        mock_gui._get_zone_data_for_active_context.return_value = mock_zone_data
+        mock_gui._zone_context_service.get_zone_data_for_active_context.return_value = (
+            mock_zone_data
+        )
         canvas_manager._bg_scale = 1.0
         canvas_manager._bg_offset = (0, 0)
 
@@ -696,7 +696,9 @@ class TestZoneDrawing:
         self, canvas_manager, mock_gui, mock_zone_data
     ):
         """Test redraw with ROI polygons."""
-        mock_gui._get_zone_data_for_active_context.return_value = mock_zone_data
+        mock_gui._zone_context_service.get_zone_data_for_active_context.return_value = (
+            mock_zone_data
+        )
         canvas_manager._bg_scale = 1.0
         canvas_manager._bg_offset = (0, 0)
 
@@ -713,7 +715,9 @@ class TestZoneDrawing:
         self, canvas_manager, mock_gui, mock_zone_data
     ):
         """Test that background image is restored if missing."""
-        mock_gui._get_zone_data_for_active_context.return_value = mock_zone_data
+        mock_gui._zone_context_service.get_zone_data_for_active_context.return_value = (
+            mock_zone_data
+        )
 
         # Set background image but don't add to canvas
         mock_bg_image = Mock()

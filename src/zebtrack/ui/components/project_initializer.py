@@ -45,7 +45,7 @@ class ProjectInitializer:
         gui.notebook.pack(expand=True, fill="both", padx=5, pady=5)
 
         # Bind tab change event to hide analysis overlay when switching tabs
-        gui.notebook.bind("<<NotebookTabChanged>>", gui._on_tab_changed)
+        gui.notebook.bind("<<NotebookTabChanged>>", gui.zone_edit_guard.on_tab_changed)
 
         # Create the tabs
         gui.tab_builder.build_main_controls_tab()
@@ -131,7 +131,7 @@ class ProjectInitializer:
 
         if project_type == "live":
             # Auto-calibration for Live projects when no zones are defined
-            gui.root.after(1000, gui._check_live_project_calibration)
+            gui.root.after(1000, gui.validation_manager.check_live_project_calibration)
 
     # ------------------------------------------------------------------
     # Settings restoration
@@ -196,12 +196,12 @@ class ProjectInitializer:
         gui = self.gui
 
         # Initial rendering of the progress grid
-        gui.root.after(100, gui._render_progress_grid)
+        gui.root.after(100, gui.widget_factory.render_progress_grid)
 
         # Only attempt to connect if a port is configured from the dialog
         if gui.controller.settings and gui.controller.settings.arduino.port:
             if not gui.controller.hardware_vm.arduino.connect():
-                gui.show_warning(
+                gui.dialog_manager.show_warning(
                     "Aviso do Arduino",
                     f"Não foi possível conectar ao Arduino na porta "
                     f"{gui.controller.settings.arduino.port}. Executando em modo offline.",
@@ -231,7 +231,7 @@ class ProjectInitializer:
                 gui.controller.hardware_vm.camera.actual_height,
             )
         except OSError as e:
-            gui.show_error("Erro na Câmera", str(e))
+            gui.dialog_manager.show_error("Erro na Câmera", str(e))
             gui.widget_factory.create_welcome_frame()
             return
 
@@ -239,7 +239,7 @@ class ProjectInitializer:
         """Initialize components for Pre-recorded project type."""
         gui = self.gui
 
-        gui.update_reports_tree()
+        gui.reports_tree_manager.update_reports_tree()
 
         if gui.event_bus_v2:
             from zebtrack.ui.event_bus_v2 import Event, UIEvents
@@ -254,7 +254,7 @@ class ProjectInitializer:
 
         ready_message = f"Projeto: {pm.get_project_name()} - Pronto."
         gui.set_status(ready_message)
-        gui._request_overview_refresh(reason=ready_message, append_summary=True)
+        gui.video_selector_manager.request_overview_refresh(reason=ready_message)
 
     # ------------------------------------------------------------------
     # Window title
@@ -311,7 +311,10 @@ class ProjectInitializer:
         required_fields = ["project_path", "project_name", "project_type"]
         missing = [f for f in required_fields if f not in wizard.result]
         if missing:
-            gui.show_error("Erro no Wizard", f"Campos obrigatórios ausentes: {', '.join(missing)}")
+            gui.dialog_manager.show_error(
+                "Erro no Wizard",
+                f"Campos obrigatórios ausentes: {', '.join(missing)}",
+            )
             return
 
         # Pass wizard data directly to controller (via ProjectWorkflowService)

@@ -14,11 +14,13 @@ Categories:
 7. Data Processors - data preparation for display
 """
 
+from __future__ import annotations
+
 import hashlib
 import tkinter as tk
 from pathlib import Path
 from tkinter import Canvas, Frame, Label, StringVar, ttk
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 import yaml
@@ -29,6 +31,9 @@ from zebtrack.ui.builders.button_factory import ButtonFactory
 from zebtrack.ui.builders.panel_builder import PanelBuilder
 from zebtrack.ui.builders.zone_control_builder import ZoneControlBuilder
 from zebtrack.ui.window_utils import reset_geometry_if_not_maximized
+
+if TYPE_CHECKING:
+    from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
 
@@ -51,16 +56,29 @@ class WidgetFactory:
     Thread-safety: All UI updates must use gui.root.after(0, ...) pattern.
     """
 
-    def __init__(self, gui, settings_obj: Settings | None = None):
+    def __init__(
+        self,
+        gui,
+        settings_obj: Settings | None = None,
+        *,
+        dialog_manager: DialogManager | None = None,
+    ):
         """
         Initialize WidgetFactory with reference to parent GUI.
 
         Args:
             gui: Reference to ApplicationGUI instance
             settings_obj: Settings instance for dependency injection
+            dialog_manager: Optional DialogManager for dependency injection.
         """
         self.gui = gui
         self._settings = settings_obj
+        self._dialog_manager = dialog_manager
+
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """Return injected DialogManager or fall back to gui.dialog_manager."""
+        return self._dialog_manager or self.gui.dialog_manager
 
     # ===========================================================================
     # CATEGORY 1: SIMPLE UTILITIES
@@ -167,10 +185,10 @@ class WidgetFactory:
         """
         commands = {
             "calibration": self.gui._open_global_calibration_window,
-            "single_analysis": self.gui._on_analyze_single_video_clicked,
+            "single_analysis": self.gui.single_video_workflow.on_analyze_single_video_clicked,
             "live_camera": lambda: self.gui.controller.start_live_camera_analysis(),
-            "create_project": self.gui._create_project_workflow,
-            "open_project": self.gui._open_project_workflow,
+            "create_project": self.gui.project_initializer.create_project_workflow,
+            "open_project": self.gui.project_initializer.open_project_workflow,
         }
 
         ButtonFactory.create_project_action_buttons(parent, commands)
@@ -449,7 +467,7 @@ class WidgetFactory:
         if self.gui.event_bus:
             # Register handlers directly in event_bus (not just in dictionary)
             def track_handler(data):
-                return self.gui._on_track_selection_changed()
+                return self.gui.canvas_manager._render_last_analysis_frame()
 
             def cancel_handler(data):
                 return self.gui.event_dispatcher.publish_event(Events.VIDEO_CANCEL_ANALYSIS, {})
@@ -510,7 +528,7 @@ class WidgetFactory:
             )
 
         # Initial refresh
-        self.gui._refresh_processing_reports_tab()
+        self.gui.reports_tree_manager.refresh_processing_reports_tab()
 
     def create_project_overview_panel(self, parent: ttk.Frame) -> None:
         """
@@ -578,15 +596,15 @@ class WidgetFactory:
         This is the main entry screen shown when no project is loaded.
         """
         # Reset title to default (no project)
-        self.gui._update_window_title()
+        self.gui.project_initializer.update_window_title()
 
-        self.gui._cleanup_single_analysis_button()
+        self.gui.analysis_view_controller.cleanup_single_analysis_button()
         # CRITICAL: Force process all pending GUI events before cleanup
         # This ensures all scheduled callbacks are executed
         self.gui.root.update_idletasks()
 
         # Reset + destroy analysis-related widgets
-        self.gui._reset_analysis_widgets()
+        self.gui.analysis_view_controller.reset_analysis_widgets()
 
         # Force final GUI update before creating welcome frame
         self.gui.root.update_idletasks()
@@ -617,7 +635,7 @@ class WidgetFactory:
         self.gui.notebook.pack(expand=True, fill="both", padx=5, pady=5)
 
         # Bind tab change event to hide analysis overlay when switching tabs
-        self.gui.notebook.bind("<<NotebookTabChanged>>", self.gui._on_tab_changed)
+        self.gui.notebook.bind("<<NotebookTabChanged>>", self.gui.zone_edit_guard.on_tab_changed)
 
         # Create the tabs
         self.gui.tab_builder.build_main_controls_tab()
@@ -661,7 +679,9 @@ class WidgetFactory:
         Prioritizes project-specific values over global settings.
         """
         if self._settings is None:
-            self.gui.show_error("Erro", "Settings não disponível. Não foi possível carregar.")
+            self.dialog_manager.show_error(
+                "Erro", "Settings não disponível. Não foi possível carregar."
+            )
             return
 
         current = self._settings
@@ -763,7 +783,7 @@ class WidgetFactory:
         Reloads values from settings and shows confirmation message.
         """
         self.reload_config_editor_values_widget()
-        self.gui.show_info(
+        self.dialog_manager.show_info(
             "Formulário recarregado",
             "Valores restaurados para refletir as configurações atuais.",
         )
@@ -781,22 +801,26 @@ class WidgetFactory:
         try:
             self._validate_config_values(values)
         except ValueError as exc:
-            self.gui.show_error("Erro de Validação", str(exc))
+            self.dialog_manager.show_error("Erro de Validação", str(exc))
             return
 
         update_payload: dict[str, Any] = values
 
         # Use injected settings object
         if self._settings is None:
-            self.gui.show_error("Erro", "Settings não disponível. Não foi possível salvar.")
+            self.dialog_manager.show_error(
+                "Erro", "Settings não disponível. Não foi possível salvar."
+            )
             return
 
-        merged = self.gui._deep_merge_dicts(self._settings.model_dump(), update_payload)
+        from zebtrack.ui.components.validation_manager import ValidationManager
+
+        merged = ValidationManager._deep_merge_dicts(self._settings.model_dump(), update_payload)
 
         try:
             validated = Settings.model_validate(merged)
         except ValidationError as exc:
-            self.gui.show_error("Erro de Validação", str(exc))
+            self.dialog_manager.show_error("Erro de Validação", str(exc))
             return
 
         # LOGIC SPLIT: Project Open vs No Project
@@ -871,7 +895,7 @@ class WidgetFactory:
             # 3. Save to project_config.json
             self.gui.controller.project_manager.save_project()
 
-            self.gui.show_info(
+            self.dialog_manager.show_info(
                 "Configurações do Projeto Atualizadas",
                 "As alterações foram salvas APENAS no projeto atual.\n"
                 "O arquivo global (config.local.yaml) NÃO foi alterado.",
@@ -881,11 +905,13 @@ class WidgetFactory:
             self.reload_config_editor_values_widget()
 
         except (OSError, ValueError, AttributeError) as e:
-            self.gui.show_error(
+            self.dialog_manager.show_error(
                 "Erro ao Salvar no Projeto", f"Falha ao atualizar configurações do projeto: {e}"
             )
 
     def _update_global_settings_file(self, update_payload: dict, validated: Settings) -> None:
+        from zebtrack.ui.components.validation_manager import ValidationManager
+
         """Update global settings file (config.local.yaml)."""
         override_path = Path("config.local.yaml")
         try:
@@ -895,7 +921,7 @@ class WidgetFactory:
             else:
                 override_content = {}
 
-            merged_override = self.gui._deep_merge_dicts(override_content, update_payload)
+            merged_override = ValidationManager._deep_merge_dicts(override_content, update_payload)
             with open(override_path, "w", encoding="utf-8") as handle:
                 yaml.safe_dump(
                     merged_override,
@@ -904,7 +930,9 @@ class WidgetFactory:
                     allow_unicode=True,
                 )
         except (OSError, yaml.YAMLError) as exc:
-            self.gui.show_error("Erro", f"Não foi possível salvar config.local.yaml: {exc}")
+            self.dialog_manager.show_error(
+                "Erro", f"Não foi possível salvar config.local.yaml: {exc}"
+            )
             return
 
         # Update injected settings object with validated values
@@ -926,7 +954,7 @@ class WidgetFactory:
         if project_updated:
             msg += "\n\nO projeto atual também foi atualizado com estes valores."
 
-        self.gui.show_info("Configurações Salvas", msg)
+        self.dialog_manager.show_info("Configurações Salvas", msg)
 
     def _sync_global_to_project(self, validated: Settings) -> bool:
         """Sync global settings changes to the active project."""
@@ -997,7 +1025,7 @@ class WidgetFactory:
 
         except (OSError, ValueError, KeyError, AttributeError) as e:
             log.error("config.save.project_sync_failed", error=str(e))
-            self.gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Aviso", f"Configuração global salva, mas erro ao atualizar projeto atual: {e}"
             )
             return False
@@ -1094,13 +1122,15 @@ class WidgetFactory:
 
         current_arena_id = self.gui.arena_selector_var.get()
         if not current_arena_id:
-            self.gui.show_error("Erro", "Selecione um aquário ativo primeiro.")
+            self.dialog_manager.show_error("Erro", "Selecione um aquário ativo primeiro.")
             return
 
         # Get the arena polygon bounds from the controller
         arena_data = self.gui.controller.get_arena_data(current_arena_id)
         if not arena_data or "polygon_px" not in arena_data:
-            self.gui.show_error("Erro", "Não foi possível obter os dados do polígono do aquário.")
+            self.dialog_manager.show_error(
+                "Erro", "Não foi possível obter os dados do polígono do aquário."
+            )
             return
 
         poly_points = np.array(arena_data["polygon_px"])
@@ -1164,7 +1194,7 @@ class WidgetFactory:
                     )
 
         self.gui.roi_data.setdefault(current_arena_id, []).extend(rois_to_add)
-        self.gui._on_arena_select()
+        self.gui.canvas_manager.update_zone_listbox()
 
     def render_progress_grid(self) -> None:
         """Clear and redraw the experimental progress grid based on project data."""
@@ -1266,7 +1296,9 @@ class WidgetFactory:
     def reload_config_editor_values(self) -> None:
         """Load current settings into ConfigEditorWidget."""
         if self._settings is None:
-            self.gui.show_error("Erro", "Settings não disponível. Não foi possível carregar.")
+            self.dialog_manager.show_error(
+                "Erro", "Settings não disponível. Não foi possível carregar."
+            )
             return
 
         current = self._settings

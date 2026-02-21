@@ -19,6 +19,7 @@ from PIL import Image
 
 if TYPE_CHECKING:
     from zebtrack.ui.components.canvas_manager import CanvasManager
+    from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
 
@@ -37,13 +38,17 @@ class VideoFrameManager:
     - Frame caching for re-rendering after settings changes
     """
 
-    def __init__(self, canvas_manager: CanvasManager) -> None:
+    def __init__(
+        self, canvas_manager: CanvasManager, *, dialog_manager: DialogManager | None = None
+    ) -> None:
         """Initialize VideoFrameManager.
 
         Args:
             canvas_manager: Reference to the parent CanvasManager instance.
+            dialog_manager: Optional DialogManager for dependency injection.
         """
         self.canvas_manager = canvas_manager
+        self._dialog_manager = dialog_manager
 
         # Analysis frame cache (moved from CanvasManager)
         self._last_analysis_frame: np.ndarray | None = None
@@ -53,6 +58,11 @@ class VideoFrameManager:
     def gui(self):
         """Shortcut to parent CanvasManager's gui reference."""
         return self.canvas_manager.gui
+
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """Return injected DialogManager or fall back to gui.dialog_manager."""
+        return self._dialog_manager or self.gui.dialog_manager
 
     def _draw_bg_image_to_canvas(self) -> None:
         """Draw the background image to canvas. Delegates to renderer."""
@@ -82,14 +92,14 @@ class VideoFrameManager:
                     path=video_path,
                 )
                 self.gui.controller.project_manager.set_active_zone_video(None)
-                self.gui.show_error(
+                self.dialog_manager.show_error(
                     "Erro",
                     "O vídeo selecionado não foi encontrado ou está inacessível.",
                 )
                 return
 
             self.gui.controller.project_manager.set_active_zone_video(video_path)
-            self.gui._refresh_roi_templates()
+            self.gui.roi_template_manager.refresh_templates()
 
             # Check if file is an image or video
             lower_path = video_path.lower()
@@ -113,19 +123,21 @@ class VideoFrameManager:
                     frame = cv2.imread(video_path)
 
                 if frame is None:
-                    self.gui.show_error("Erro", "Não foi possível ler a imagem.")
+                    self.dialog_manager.show_error("Erro", "Não foi possível ler a imagem.")
                     return
                 ret = True
             else:
                 # Assume it's a video
                 cap = cv2.VideoCapture(video_path)
                 if not cap.isOpened():
-                    self.gui.show_error("Erro", "Não foi possível abrir o vídeo.")
+                    self.dialog_manager.show_error("Erro", "Não foi possível abrir o vídeo.")
                     return
                 ret, frame = cap.read()
                 cap.release()
                 if not ret:
-                    self.gui.show_error("Erro", "Não foi possível ler um frame do vídeo.")
+                    self.dialog_manager.show_error(
+                        "Erro", "Não foi possível ler um frame do vídeo."
+                    )
                     return
 
             # Logic to display on the canvas
@@ -159,7 +171,7 @@ class VideoFrameManager:
             self.gui.root.after(10, lambda: self._draw_bg_image_to_canvas())
 
         except Exception as e:
-            self.gui.show_error("Erro ao Exibir Frame", str(e))
+            self.dialog_manager.show_error("Erro ao Exibir Frame", str(e))
 
     def update_video_frame(self, frame: np.ndarray, detections: list | None = None) -> None:
         """Update the canvas with a raw video frame (numpy array).
@@ -434,8 +446,8 @@ class VideoFrameManager:
 
     def load_selected_video_frame(self, event=None) -> None:
         """Load the frame from the selected video to the main canvas."""
-        if hasattr(self.gui, "_confirm_pending_zone_edit_before_navigation"):
-            should_continue = self.gui._confirm_pending_zone_edit_before_navigation(
+        if hasattr(self.gui, "zone_edit_guard") and self.gui.zone_edit_guard:
+            should_continue = self.gui.zone_edit_guard.confirm_pending_zone_edit_before_navigation(
                 context="abrir outro vídeo"
             )
             if not should_continue:
@@ -447,7 +459,7 @@ class VideoFrameManager:
 
         selection = tree.selection()
         if not selection:
-            self.gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Nenhum Vídeo Selecionado",
                 "Por favor, selecione um vídeo da lista para carregar.",
             )
@@ -457,7 +469,7 @@ class VideoFrameManager:
         tags = tree.item(item_id, "tags")
 
         if not tags or not tags[0]:
-            self.gui.show_info(
+            self.dialog_manager.show_info(
                 "Selecione um Vídeo",
                 "Por favor, escolha um item com ícone de peixe (🐟) para carregar o frame.",
             )
@@ -467,13 +479,13 @@ class VideoFrameManager:
         success = self.load_video_frame_to_canvas(video_path, frame_number=0)
 
         if success:
-            self.gui._maybe_offer_zone_reuse(video_path)
+            self.dialog_manager.offer_zone_reuse(video_path)
             self.canvas_manager.redraw_zones_from_project_data()
             filename = os.path.basename(video_path)
             self.gui.set_status(f"✓ Frame carregado: {filename}")
             log.info("gui.video_selector.frame_loaded", path=video_path)
         else:
-            self.gui.show_error(
+            self.dialog_manager.show_error(
                 "Erro ao Carregar",
                 f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
             )

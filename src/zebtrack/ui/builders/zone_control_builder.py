@@ -29,6 +29,64 @@ class ZoneControlBuilder:
         self.gui = gui
         self.event_bus_v2 = event_bus_v2
 
+    def _on_roi_rule_change(self, event=None) -> None:
+        """Toggle visibility of ROI parameter frames based on the selected rule.
+
+        This handles the <<ComboboxSelected>> event from the ROI rule combobox
+        and the initial display setup at build time.
+        """
+        rule = self.gui.roi_inclusion_rule_var.get()
+
+        # Hide all parameter frames first
+        if hasattr(self.gui, "radius_frame") and self.gui.radius_frame:
+            self.gui.radius_frame.pack_forget()
+        if hasattr(self.gui, "overlap_frame") and self.gui.overlap_frame:
+            self.gui.overlap_frame.pack_forget()
+
+        if rule == "centroid_in":
+            help_text = (
+                "Considera dentro quando o centróide do animal está dentro do "
+                "polígono da ROI. Simples e rápido; pode perder entradas parciais "
+                "(ex.: cabeça entra primeiro)."
+            )
+        elif rule == "centroid_in_on_buffered_roi":
+            if self.gui.radius_frame:
+                self.gui.radius_frame.pack(fill="x", pady=2)
+            help_text = (
+                "Igual ao centróide, porém com ROI dilatada por r para capturar "
+                "entradas parciais (ex.: cabeça). r em cm se houver calibração; "
+                "senão em px."
+            )
+        elif rule == "bbox_intersects":
+            if self.gui.overlap_frame:
+                self.gui.overlap_frame.pack(fill="x", pady=2)
+            if hasattr(self.gui, "overlap_help_label") and self.gui.overlap_help_label:
+                self.gui.overlap_help_label.config(
+                    text="A detecção é considerada dentro da ROI quando a fração "
+                    "de área do bbox contida na ROI atinge este valor."
+                )
+            help_text = (
+                "Considera dentro quando o retângulo do animal (bbox) sobrepõe "
+                "a ROI ao menos pela fração definida. Captura entradas parciais; "
+                "pode superestimar em bordas."
+            )
+        elif rule == "seg_overlap":
+            if self.gui.overlap_frame:
+                self.gui.overlap_frame.pack(fill="x", pady=2)
+            if hasattr(self.gui, "overlap_help_label") and self.gui.overlap_help_label:
+                self.gui.overlap_help_label.config(
+                    text="Requer dados de máscara. Se não houver, selecione outra regra."
+                )
+            help_text = (
+                "Considera dentro com base na sobreposição da máscara do animal "
+                "com a ROI. Requer segmentação; mais preciso e mais custoso."
+            )
+        else:
+            help_text = ""
+
+        if hasattr(self.gui, "rule_help_label") and self.gui.rule_help_label:
+            self.gui.rule_help_label.config(text=help_text)
+
     def _refresh_video_tree_dual_mode(self, filter_text: str | None = None):
         """Refresh video tree via Event Bus.
 
@@ -97,7 +155,7 @@ class ZoneControlBuilder:
         - ROI inclusion rule panel
         """
         # Call zone summary cards creation (delegated separately)
-        self.gui._create_zone_summary_cards_section()
+        self.gui.widget_factory.create_zone_summary_cards_section()
 
         # --- Drawing Actions ---
         actions_frame = ttk.LabelFrame(
@@ -158,7 +216,7 @@ class ZoneControlBuilder:
         ttk.Button(
             actions_frame,
             text="Detectar Aquário (Auto)",
-            command=self.gui._on_auto_detect_clicked,
+            command=self.gui.single_video_workflow.on_auto_detect_clicked,
         ).pack(fill="x", pady=2)
 
         # New Entry for stabilization frames
@@ -189,7 +247,7 @@ class ZoneControlBuilder:
         self.gui.toggle_view_btn = ttk.Button(
             actions_frame,
             text="Ver Análise em Progresso",
-            command=self.gui._toggle_canvas_view,
+            command=self.gui.analysis_view_controller.toggle_canvas_view,
             state="disabled",
         )
         self.gui.toggle_view_btn.pack(fill="x", pady=2)
@@ -222,9 +280,10 @@ class ZoneControlBuilder:
             width=25,
         )
         self.gui.roi_template_combobox.pack(side="left", fill="x", expand=True)
-        # Add binding to log selection changes
+        # Update delete button state when template selection changes
         self.gui.roi_template_combobox.bind(
-            "<<ComboboxSelected>>", self.gui._on_template_combobox_changed
+            "<<ComboboxSelected>>",
+            lambda _e: self.gui.roi_template_manager._update_delete_button_state(),
         )
 
         ttk.Button(
@@ -241,20 +300,20 @@ class ZoneControlBuilder:
         ttk.Button(
             template_actions,
             text="💾 Salvar Zonas Atuais",
-            command=self.gui._on_save_roi_template,
+            command=self.gui.roi_template_manager.save_template,
         ).pack(side="left", padx=(0, 4))
 
         ttk.Button(
             template_actions,
             text="📂 Importar e Aplicar Arquivo...",
-            command=self.gui._on_import_and_apply_roi_template,
+            command=self.gui.dialog_manager.import_and_apply_roi_template,
         ).pack(side="left", padx=(0, 4))
 
         # Delete button - store reference to control state
         self.gui.delete_template_btn = ttk.Button(
             template_actions,
             text="🗑️ Deletar Template",
-            command=self.gui._on_delete_roi_template,
+            command=self.gui.roi_template_manager.delete_template,
             state="disabled",  # Start disabled
         )
         self.gui.delete_template_btn.pack(side="left")
@@ -277,7 +336,7 @@ class ZoneControlBuilder:
             style="Small.TLabel",
         ).pack(anchor="w", pady=(6, 0))
 
-        self.gui._refresh_roi_templates()
+        self.gui.roi_template_manager.refresh_templates()
 
         # --- Video Selector ---
         video_selector_frame = ttk.LabelFrame(
@@ -339,13 +398,13 @@ class ZoneControlBuilder:
 
         self.gui.video_selector_tree.bind(
             "<Double-Button-1>",
-            self.gui._on_video_tree_double_click,
+            lambda e: self.gui.canvas_manager.load_selected_video_frame(),
         )
 
         ttk.Button(
             video_selector_frame,
             text="📹 Carregar Frame do Vídeo Selecionado",
-            command=self.gui._load_selected_video_frame,
+            command=self.gui.canvas_manager.load_selected_video_frame,
         ).pack(pady=(5, 0))
 
         # 3.2. Legend section
@@ -391,8 +450,11 @@ class ZoneControlBuilder:
         self.gui.zone_listbox.configure(yscrollcommand=scrollbar.set)
 
         # Bind events
-        self.gui.zone_listbox.bind("<Button-3>", self.gui._on_zone_right_click)
-        self.gui.zone_listbox.bind("<Double-Button-1>", self.gui._on_zone_double_click)
+        self.gui.zone_listbox.bind("<Button-3>", self.gui.menu_manager.show_roi_context_menu)
+        self.gui.zone_listbox.bind(
+            "<Double-Button-1>",
+            lambda e: self.gui.canvas_manager.edit_selected_zone_vertices(),
+        )
 
         # Menu de contexto para ROIs
         self.gui.roi_context_menu = None
@@ -412,7 +474,7 @@ class ZoneControlBuilder:
         self.gui.discard_arena_btn = ttk.Button(
             self.gui.interactive_buttons_frame,
             text="❌ Descartar",
-            command=self.gui._on_discard_arena,
+            command=self.gui.canvas_manager.discard_arena,
         )
         self.gui.discard_arena_btn.pack(side="left", fill="x", expand=True, padx=2)
         # This frame is packed later when needed (via pack() in _enter_edit_mode)
@@ -440,7 +502,7 @@ class ZoneControlBuilder:
             width=30,
         )
         self.gui.roi_rule_combo.pack(side="left", fill="x", expand=True)
-        self.gui.roi_rule_combo.bind("<<ComboboxSelected>>", self.gui._on_roi_rule_change)
+        self.gui.roi_rule_combo.bind("<<ComboboxSelected>>", self._on_roi_rule_change)
 
         # Parameter fields (shown/hidden based on rule)
         self.gui.radius_frame = ttk.Frame(self.gui.roi_inclusion_frame)
@@ -492,4 +554,4 @@ class ZoneControlBuilder:
         ).pack(side="right")
 
         # Initialize display based on current rule
-        self.gui._on_roi_rule_change()
+        self._on_roi_rule_change()

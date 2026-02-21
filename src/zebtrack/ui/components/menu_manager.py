@@ -4,12 +4,14 @@ Extracted from gui.py to reduce God Object complexity.
 Handles menu bar, context menus, and menu-related operations.
 """
 
+from __future__ import annotations
+
 import os
 import tkinter.font as tkfont
 from collections.abc import Callable
 from pathlib import Path
 from tkinter import Menu, Toplevel, messagebox, ttk
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from PIL import Image, ImageTk
@@ -17,24 +19,34 @@ from PIL import Image, ImageTk
 from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.events import Events
 
+if TYPE_CHECKING:
+    from zebtrack.ui.components.dialog_manager import DialogManager
+
 log = structlog.get_logger()
 
 
 class MenuManager:
     """Manages menu bar and context menus for ApplicationGUI."""
 
-    def __init__(self, gui):
+    def __init__(self, gui, *, dialog_manager: DialogManager | None = None):
         """Initialize MenuManager.
 
         Args:
             gui: Reference to ApplicationGUI instance
+            dialog_manager: Optional DialogManager for dependency injection.
         """
         self.gui = gui
+        self._dialog_manager = dialog_manager
 
         # Menu-related attributes
         self._overview_context_menu: Menu | None = None
         self._overview_menu_font: tkfont.Font | None = None
         self._about_logo_image = None
+
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """Return injected DialogManager or fall back to gui.dialog_manager."""
+        return self._dialog_manager or self.gui.dialog_manager
 
     def create_menu_bar(self):
         """Create the application menu bar with File and Help menus."""
@@ -181,9 +193,10 @@ class MenuManager:
             self._overview_context_menu.destroy()
 
         self._overview_context_menu = Menu(self.gui.root, tearoff=0)
+        pvm = self.gui.project_view_manager
         self._overview_context_menu.add_command(
             label="Carregar vídeo",
-            command=lambda: self.gui._on_project_overview_tree_double_click_impl(item_id),
+            command=lambda: pvm.handle_project_overview_double_click(item_id),
         )
         self._overview_context_menu.post(x, y)
 
@@ -294,7 +307,7 @@ class MenuManager:
         """
         allowed, reason = self.gui.controller.can_remove_project_asset(video_path, asset)
         if not allowed:
-            self.gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Ação indisponível",
                 reason or "Não é possível remover o item selecionado neste momento.",
             )
@@ -385,7 +398,7 @@ class MenuManager:
             )
 
         if asset == "video":
-            self.gui.publish_event(
+            self.gui.event_dispatcher.publish_event(
                 Events.PROJECT_DELETE_ASSET,
                 {
                     "video_path": video_path,
@@ -395,13 +408,13 @@ class MenuManager:
             )
             success = True  # Assume success
         else:
-            self.gui.publish_event(
+            self.gui.event_dispatcher.publish_event(
                 Events.PROJECT_DELETE_ASSET, {"video_path": video_path, "asset": asset}
             )
             success = True  # Assume success
 
         if not success:
-            self.gui.show_error(
+            self.dialog_manager.show_error(
                 "Remoção não realizada",
                 (
                     "Não foi possível remover o item selecionado. Consulte os "

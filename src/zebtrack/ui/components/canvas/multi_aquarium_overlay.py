@@ -19,6 +19,7 @@ import structlog
 if TYPE_CHECKING:
     from zebtrack.core.detection import MultiAquariumZoneData
     from zebtrack.ui.components.canvas_manager import CanvasManager
+    from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
 
@@ -41,18 +42,30 @@ class MultiAquariumOverlayManager:
         1: {"border": (0, 204, 102), "fill": (0, 204, 102, 51), "text": "Aquário 2"},
     }
 
-    def __init__(self, canvas_manager: CanvasManager) -> None:
+    def __init__(
+        self,
+        canvas_manager: CanvasManager,
+        *,
+        dialog_manager: DialogManager | None = None,
+    ) -> None:
         """Initialize MultiAquariumOverlayManager.
 
         Args:
             canvas_manager: Reference to the parent CanvasManager instance.
+            dialog_manager: Optional injected DialogManager (falls back to gui).
         """
         self.canvas_manager = canvas_manager
+        self._dialog_manager = dialog_manager
 
     @property
     def gui(self):
         """Shortcut to parent CanvasManager's gui reference."""
         return self.canvas_manager.gui
+
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """DialogManager instance (injected or resolved from gui)."""
+        return self._dialog_manager or self.gui.dialog_manager
 
     def on_multi_auto_detect_success(self, data: dict) -> None:
         """Handle successful multi-aquarium detection.
@@ -134,7 +147,7 @@ class MultiAquariumOverlayManager:
         self.canvas_manager.redraw_zones_from_project_data(multi_data)
         self.canvas_manager.update_zone_listbox(multi_data)
 
-        self.gui.show_info(
+        self.dialog_manager.show_info(
             "Sucesso",
             f"Detectados {len(polygons)} aquários com sucesso!\n"
             "Verifique se as marcações estão corretas.",
@@ -225,7 +238,7 @@ class MultiAquariumOverlayManager:
 
     def _start_second_aquarium_drawing(self) -> None:
         """Start drawing the second aquarium polygon."""
-        self.gui.show_info(
+        self.dialog_manager.show_info(
             "Informação",
             "Desenhe o polígono do Aquário 2.\n"
             "O polígono do Aquário 1 será mostrado como referência.",

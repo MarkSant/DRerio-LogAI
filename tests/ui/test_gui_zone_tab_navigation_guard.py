@@ -1,10 +1,8 @@
 from types import SimpleNamespace
-from typing import cast
 
 import pytest
 
 from zebtrack.ui.components.zone_edit_guard import ZoneEditGuard
-from zebtrack.ui.gui import ApplicationGUI
 
 
 class _NotebookStub:
@@ -41,10 +39,11 @@ def test_on_tab_changed_reverts_when_pending_edit_cancelled() -> None:
         _last_selected_tab_id=zone_tab_id,
     )
 
-    app.zone_edit_guard = _make_guard(app, confirm_result=False)
-    app._refresh_roi_templates = lambda *_, **__: None
+    guard = _make_guard(app, confirm_result=False)
+    app.zone_edit_guard = guard
+    app.roi_template_manager = SimpleNamespace(refresh_templates=lambda: None)
 
-    ApplicationGUI._on_tab_changed(cast(ApplicationGUI, app), event=None)
+    guard.on_tab_changed(event=None)
 
     assert notebook.current == zone_tab_id
     assert notebook.selected_history == [zone_tab_id]
@@ -65,10 +64,11 @@ def test_on_tab_changed_keeps_target_tab_when_pending_edit_confirmed(decision: s
         _last_selected_tab_id=zone_tab_id,
     )
 
-    app.zone_edit_guard = _make_guard(app, confirm_result=True)
-    app._refresh_roi_templates = lambda *_, **__: None
+    guard = _make_guard(app, confirm_result=True)
+    app.zone_edit_guard = guard
+    app.roi_template_manager = SimpleNamespace(refresh_templates=lambda: None)
 
-    ApplicationGUI._on_tab_changed(cast(ApplicationGUI, app), event=None)
+    guard.on_tab_changed(event=None)
 
     assert notebook.current == target_tab_id
     assert notebook.selected_history == []

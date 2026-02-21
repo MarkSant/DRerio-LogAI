@@ -79,9 +79,11 @@ def test_build_track_options(factory):
 def test_build_project_actions_calls_button_factory(monkeypatch):
     gui = SimpleNamespace(
         _open_global_calibration_window=Mock(),
-        _on_analyze_single_video_clicked=Mock(),
-        _create_project_workflow=Mock(),
-        _open_project_workflow=Mock(),
+        single_video_workflow=SimpleNamespace(on_analyze_single_video_clicked=Mock()),
+        project_initializer=SimpleNamespace(
+            create_project_workflow=Mock(),
+            open_project_workflow=Mock(),
+        ),
         controller=SimpleNamespace(start_live_camera_analysis=Mock()),
         validation_manager=_ValidationManagerStub(),
     )

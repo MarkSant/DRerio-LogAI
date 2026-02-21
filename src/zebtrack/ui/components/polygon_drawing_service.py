@@ -168,7 +168,7 @@ class PolygonDrawingService:
         # Validate
         can_complete, error_msg = strategy.can_complete(video_points)
         if not can_complete:
-            gui.show_warning("Polígono Incompleto", error_msg)
+            gui.dialog_manager.show_warning("Polígono Incompleto", error_msg or "")
             return False
 
         # Complete

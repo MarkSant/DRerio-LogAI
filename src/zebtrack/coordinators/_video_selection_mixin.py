@@ -65,7 +65,7 @@ class VideoSelectionMixin:
         eligible_videos: list[dict] = []
 
         if ready_traj and self.view:
-            if not self.view.ask_ok_cancel(
+            if not self.view.dialog_manager.ask_ok_cancel(
                 "Resultados Existentes",
                 f"{len(ready_traj)} vídeos já possuem trajetórias processadas.\n"
                 "Deseja reprocessá-los (sobrescrevendo os dados anteriores)?",
@@ -88,7 +88,7 @@ class VideoSelectionMixin:
         else:
             if not self.view:
                 return None
-            dialog_result = self.view.show_pending_videos_dialog(
+            dialog_result = self.view.dialog_manager.show_pending_videos_dialog(
                 ready_with_trajectory=ready_traj,
                 ready_with_zones=ready_zones,
                 arena_only=arena_only,

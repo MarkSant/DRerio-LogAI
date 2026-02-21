@@ -16,6 +16,7 @@ from zebtrack.ui.decorators import public_api
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
+    from zebtrack.ui.components.dialog_manager import DialogManager
     from zebtrack.ui.gui import ApplicationGUI
 
 log = structlog.get_logger()
@@ -27,8 +28,19 @@ class SingleVideoWorkflow:
     All methods operate on the host *ApplicationGUI* via ``gui`` back-reference.
     """
 
-    def __init__(self, gui: ApplicationGUI) -> None:
+    def __init__(
+        self,
+        gui: ApplicationGUI,
+        *,
+        dialog_manager: DialogManager | None = None,
+    ) -> None:
         self.gui = gui
+        self._dialog_manager = dialog_manager
+
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """DialogManager instance (injected or resolved from gui)."""
+        return self._dialog_manager or self.gui.dialog_manager
 
     # ------------------------------------------------------------------
     # Entry point
@@ -43,7 +55,7 @@ class SingleVideoWorkflow:
             log.info("single_video_workflow.on_analyze_clicked.END")
         except Exception as e:  # except Exception justified: UI error boundary for button click
             log.error("single_video_workflow.on_analyze_clicked.ERROR", error=str(e))
-            self.gui.show_error("Erro", f"Falha ao iniciar análise: {e}")
+            self.dialog_manager.show_error("Erro", f"Falha ao iniciar análise: {e}")
 
     # ------------------------------------------------------------------
     # Zone definition setup
@@ -84,14 +96,14 @@ class SingleVideoWorkflow:
 
         # Open the main project view if it is not already open
         if not gui.notebook:
-            gui._create_main_control_frame()
+            gui.project_initializer.create_main_control_frame()
 
         gui.canvas_manager.display_roi_video_frame(video_path)
         if gui.notebook:
             gui.notebook.select(gui.zone_tab_frame)
 
         # Clear template selection for single video workflow
-        gui._refresh_roi_templates(clear_selection=True)
+        gui.roi_template_manager.refresh_templates(clear_selection=True)
 
         # Add a "Start Analysis" button specific to this flow
         if not gui.start_single_analysis_btn:
@@ -118,7 +130,7 @@ class SingleVideoWorkflow:
 
         # Prevent editing during analysis
         if gui.analysis_active:
-            gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Análise em Progresso",
                 "Não é possível detectar zonas durante a análise de vídeo.",
             )
@@ -135,7 +147,7 @@ class SingleVideoWorkflow:
             if stabilization_frames_int <= 0:
                 raise ValueError
         except (ValueError, TypeError):
-            gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Entrada Inválida",
                 "O número de frames para análise deve ser um número inteiro positivo.",
             )
@@ -145,7 +157,7 @@ class SingleVideoWorkflow:
         gui.stabilization_frames_var.set(str(stabilization_frames_int))
 
         # Clear any old interactive polygon before starting a new detection
-        gui._clear_interactive_polygon()
+        gui.canvas_manager.clear_interactive_polygon()
 
         # Get the currently active video
         video_path = None
@@ -192,10 +204,10 @@ class SingleVideoWorkflow:
             elif response:
                 # Yes pressed, save polygon
                 gui.controller.analysis_vm.save_manual_arena(gui.edited_polygon_points)
-                gui._clear_interactive_polygon()
+                gui.canvas_manager.clear_interactive_polygon()
             else:
                 # No pressed, discard changes
-                gui._clear_interactive_polygon()
+                gui.canvas_manager.clear_interactive_polygon()
 
         # 1. Get the zone data that the user drew
         zone_data = gui._get_zone_data_for_active_context()
@@ -205,10 +217,13 @@ class SingleVideoWorkflow:
 
         if isinstance(zone_data, MultiAquariumZoneData):
             if not zone_data.aquariums:
-                gui.show_error("Erro", "Nenhum aquário foi definido.")
+                self.dialog_manager.show_error("Erro", "Nenhum aquário foi definido.")
                 return
         elif not zone_data.polygon:
-            gui.show_error("Erro", "A área principal do aquário (polígono) não foi definida.")
+            self.dialog_manager.show_error(
+                "Erro",
+                "A área principal do aquário (polígono) não foi definida.",
+            )
             return
 
         updated_config = gui.validation_manager.compose_single_video_runtime_config()

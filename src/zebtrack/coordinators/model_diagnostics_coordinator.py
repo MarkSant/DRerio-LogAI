@@ -253,7 +253,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
                             "diagnostic.openvino.cleanup_failed", path=ov_path, error=str(e)
                         )
 
-                if self.view and self.view.ask_ok_cancel(
+                if self.view and self.view.dialog_manager.ask_ok_cancel(
                     "Converter Modelo?",
                     (
                         "O modelo OpenVINO não foi encontrado ou está incompleto. "
@@ -664,7 +664,7 @@ class ModelDiagnosticsCoordinator(BaseCoordinator):
             log.warning("model_diagnostics.diagnostic.no_view_for_save")
             return
 
-        save_path = self.view.ask_save_filename(
+        save_path = self.view.dialog_manager.ask_save_filename(
             title="Salvar Relatório de Diagnóstico",
             defaultextension=".txt",
             initialfile="diagnostic_report.txt",

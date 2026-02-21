@@ -21,7 +21,9 @@ from zebtrack.ui.event_bus_v2 import Event, UIEvents
 from zebtrack.ui.events import Events
 
 if TYPE_CHECKING:
+    from zebtrack.core.services.zone_context_service import ZoneContextService
     from zebtrack.ui.components.canvas_manager import CanvasManager
+    from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
 
@@ -50,13 +52,23 @@ class ZoneEditor:
         (255, 255, 0): "Ciano",
     }
 
-    def __init__(self, canvas_manager: CanvasManager) -> None:
+    def __init__(
+        self,
+        canvas_manager: CanvasManager,
+        *,
+        dialog_manager: DialogManager | None = None,
+        zone_context_service: ZoneContextService | None = None,
+    ) -> None:
         """Initialize ZoneEditor.
 
         Args:
             canvas_manager: Reference to the parent CanvasManager instance.
+            dialog_manager: Optional DialogManager for dependency injection.
+            zone_context_service: Optional ZoneContextService for dependency injection.
         """
         self.canvas_manager = canvas_manager
+        self._dialog_manager = dialog_manager
+        self._zone_context_service = zone_context_service
 
         # Zone clipboard (for copy/paste operations)
         self._zone_clipboard: dict | None = None
@@ -65,6 +77,18 @@ class ZoneEditor:
     def gui(self):
         """Shortcut to parent CanvasManager's gui reference."""
         return self.canvas_manager.gui
+
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """Return injected DialogManager or fall back to gui.dialog_manager."""
+        return self._dialog_manager or self.gui.dialog_manager
+
+    @property
+    def zone_context_service(self):
+        """ZoneContextService instance (injected or resolved from gui)."""
+        if self._zone_context_service is not None:
+            return self._zone_context_service
+        return getattr(self.gui, "_zone_context_service", None)
 
     # -------------------------------------------------------------------------
     # Zone Listbox & Processing Mode
@@ -76,7 +100,7 @@ class ZoneEditor:
 
         # Update the listbox widget via ZoneControls (Restored Logic)
         if zone_data is None:
-            zone_data = self.gui._get_zone_data_for_active_context()
+            zone_data = self.zone_context_service.get_zone_data_for_active_context()
 
         controls = getattr(self.gui, "zone_controls", None)
 
@@ -121,7 +145,7 @@ class ZoneEditor:
             sequential: If True, process each aquarium separately (2 video passes).
                        If False, process both aquariums simultaneously (1 video pass).
         """
-        zone_data = self.gui._get_zone_data_for_active_context()
+        zone_data = self.zone_context_service.get_zone_data_for_active_context()
 
         from zebtrack.core.detection import MultiAquariumZoneData
 
@@ -158,7 +182,7 @@ class ZoneEditor:
         if self.canvas_manager._canvas_bg_image is None:
             self.gui.set_status("Carregando frame para desenho...")
             if not self.canvas_manager.load_video_frame_to_canvas():
-                self.gui.show_error(
+                self.dialog_manager.show_error(
                     "Erro",
                     "Não foi possível carregar um frame. "
                     "Por favor, carregue um vídeo ou use 'Detectar Aquário (Auto)' "
@@ -192,7 +216,7 @@ class ZoneEditor:
             self.gui.drawing_instruction_label.pack(pady=5, before=zc_listbox.master)
 
         # Create floating undo/redo buttons over canvas
-        self.gui._create_drawing_buttons()
+        self.gui.widget_factory.create_drawing_buttons()
 
         self.gui.set_status(
             "Modo de Desenho (Polígono): Clique para adicionar pontos, "
@@ -238,7 +262,7 @@ class ZoneEditor:
     def start_main_arena_drawing(self) -> None:
         """Start drawing the main arena polygon."""
         if self.gui.analysis_active:
-            self.gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Análise em Progresso",
                 "Não é possível editar zonas durante a análise de vídeo.",
             )
@@ -258,15 +282,15 @@ class ZoneEditor:
     def start_roi_drawing(self) -> None:
         """Start drawing an ROI polygon."""
         if self.gui.analysis_active:
-            self.gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Análise em Progresso",
                 "Não é possível editar zonas durante a análise de vídeo.",
             )
             return
 
-        main_arena = self.gui._get_zone_data_for_active_context().polygon
+        main_arena = self.zone_context_service.get_zone_data_for_active_context().polygon
         if not main_arena:
-            self.gui.show_error(
+            self.dialog_manager.show_error(
                 "Erro",
                 "Por favor, defina o 'Polígono Principal' primeiro antes de "
                 "adicionar Áreas de Interesse.",
@@ -327,7 +351,7 @@ class ZoneEditor:
             self.stop_drawing()
             return
 
-        roi_name = self.gui.ask_string(
+        roi_name = self.dialog_manager.ask_string(
             "Nome da ROI",
             "Digite um nome para esta nova Região de Interesse (Círculo):",
         )
@@ -394,18 +418,18 @@ class ZoneEditor:
 
         # Check if we are already in drawing mode
         if self.gui.drawing_state_manager.mode is not None:
-            self.gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Modo de Desenho Ativo",
                 "Finalize o desenho atual antes de editar vértices de outra zona.",
             )
             return
 
-        zone_data = self.gui._get_zone_data_for_active_context()
+        zone_data = self.zone_context_service.get_zone_data_for_active_context()
 
         if "Arena Principal" in zone_name:
             # Edit main arena
             if not zone_data.polygon:
-                self.gui.show_warning("Erro", "Arena principal não encontrada.")
+                self.dialog_manager.show_warning("Erro", "Arena principal não encontrada.")
                 return
 
             # Convert polygon to the format expected by setup_interactive_polygon
@@ -465,7 +489,7 @@ class ZoneEditor:
                     self.gui.zone_controls.show_interactive_buttons()
 
             except (ValueError, IndexError):
-                self.gui.show_error("Erro", f"ROI '{roi_name}' não encontrada.")
+                self.dialog_manager.show_error("Erro", f"ROI '{roi_name}' não encontrada.")
                 return
 
     def save_arena(self) -> None:
@@ -501,7 +525,7 @@ class ZoneEditor:
                     # Auto-advance to next aquarium if available
                     next_id = active_id + 1
                     if next_id < zone_controls.aquarium_count_var.get():
-                        self.gui.show_info(
+                        self.dialog_manager.show_info(
                             "Próximo Aquário",
                             f"Arena do Aquário {active_id + 1} salva.\n"
                             f"Agora desenhe a arena do Aquário {next_id + 1}.",
@@ -509,7 +533,9 @@ class ZoneEditor:
                         zone_controls.set_active_aquarium(next_id)
                         self.start_main_arena_drawing()
                     else:
-                        self.gui.show_info("Concluído", "Todas as arenas foram definidas.")
+                        self.dialog_manager.show_info(
+                            "Concluído", "Todas as arenas foram definidas."
+                        )
 
                     # Refresh UI
                     self.clear_interactive_polygon()
@@ -573,7 +599,7 @@ class ZoneEditor:
         ):
             # Save ROI
             _, roi_index, roi_name = self.canvas_manager.current_editing_zone
-            zone_data = self.gui._get_zone_data_for_active_context()
+            zone_data = self.zone_context_service.get_zone_data_for_active_context()
 
             # Update the ROI polygon
             zone_data.roi_polygons[roi_index] = self.gui.edited_polygon_points
@@ -666,7 +692,7 @@ class ZoneEditor:
 
     def update_roi_button_state(self) -> None:
         """Enable ROI button if arena exists."""
-        zone_data = self.gui._get_zone_data_for_active_context()
+        zone_data = self.zone_context_service.get_zone_data_for_active_context()
 
         # Handle Multi-Aquarium Data
         from zebtrack.core.detection import MultiAquariumZoneData
@@ -699,7 +725,7 @@ class ZoneEditor:
         if not iid.startswith("roi_"):
             return
 
-        zone_data = self.gui._get_zone_data_for_active_context()
+        zone_data = self.zone_context_service.get_zone_data_for_active_context()
 
         try:
             # Extract index from IID (e.g. "roi_0" -> 0)
@@ -707,7 +733,7 @@ class ZoneEditor:
 
             # Verify index validity
             if idx < 0 or idx >= len(zone_data.roi_names):
-                self.gui.show_error("Erro", "Índice da ROI inválido ou desincronizado.")
+                self.dialog_manager.show_error("Erro", "Índice da ROI inválido ou desincronizado.")
                 return
 
             roi_name = zone_data.roi_names[idx]
@@ -735,7 +761,7 @@ class ZoneEditor:
 
                 status_message = f"ROI '{roi_name}' removida com sucesso."
                 self.gui.set_status(status_message)
-                self.gui.show_info("Sucesso", status_message)
+                self.dialog_manager.show_info("Sucesso", status_message)
 
                 # Refresh project views
                 if self.canvas_manager.event_bus_v2:
@@ -759,7 +785,7 @@ class ZoneEditor:
 
         except (ValueError, IndexError, AttributeError) as e:
             log.error("canvas_manager.remove_roi.error", error=str(e))
-            self.gui.show_error("Erro", f"Falha ao remover ROI: {e}")
+            self.dialog_manager.show_error("Erro", f"Falha ao remover ROI: {e}")
 
     # -------------------------------------------------------------------------
     # Color Mapping Utilities

@@ -15,7 +15,7 @@ import os
 import subprocess
 import tkinter as tk
 from collections import Counter
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -23,6 +23,9 @@ from zebtrack.ui.components.project_views.project_view_helpers import (
     summarize_batch_data,
     video_sort_key,
 )
+
+if TYPE_CHECKING:
+    from zebtrack.ui.components.dialog_manager import DialogManager
 
 log = structlog.get_logger()
 
@@ -33,20 +36,33 @@ class VideoSelectorTreeManager:
     Thread-safety: All UI updates must use ``gui.root.after(0, ...)`` pattern.
     """
 
-    def __init__(self, gui: Any, *, event_bus_v2: Any | None = None) -> None:
+    def __init__(
+        self,
+        gui: Any,
+        *,
+        event_bus_v2: Any | None = None,
+        dialog_manager: DialogManager | None = None,
+    ) -> None:
         """Initialise with parent GUI reference and optional event bus.
 
         Args:
             gui: Reference to ``ApplicationGUI`` instance.
             event_bus_v2: ``EventBusV2`` instance for v4.0 EDA (optional).
+            dialog_manager: Optional DialogManager for dependency injection.
         """
         self.gui = gui
         self.event_bus_v2 = event_bus_v2
+        self._dialog_manager = dialog_manager
         self._overview_refresh_pending = False
         self._overview_refresh_after_id: str | None = None
 
         if self.event_bus_v2:
             self._setup_event_subscriptions()
+
+    @property
+    def dialog_manager(self) -> DialogManager:
+        """Return injected DialogManager or fall back to gui.dialog_manager."""
+        return self._dialog_manager or self.gui.dialog_manager
 
     # ------------------------------------------------------------------
     # Event wiring
@@ -553,10 +569,10 @@ class VideoSelectorTreeManager:
                     Events.PROJECT_PROCESS_VIDEOS, {"video_paths": None}
                 )
                 self.request_overview_refresh()
-                self.gui._switch_to_analysis_view()
+                self.gui.analysis_view_controller.switch_to_analysis_view()
                 return
 
-            self.gui.show_info(
+            self.dialog_manager.show_info(
                 "Processamento",
                 "Nenhum vídeo elegível foi encontrado ou selecionado.",
             )
@@ -574,7 +590,7 @@ class VideoSelectorTreeManager:
             Events.PROJECT_PROCESS_VIDEOS, {"video_paths": unique_paths}
         )
         self.request_overview_refresh()
-        self.gui._switch_to_analysis_view()
+        self.gui.analysis_view_controller.switch_to_analysis_view()
 
     def trigger_parquet_summaries(self) -> None:
         """Trigger export of parquet summaries for selected videos."""
@@ -583,7 +599,7 @@ class VideoSelectorTreeManager:
         selections = self.resolve_processing_reports_video_paths()
 
         if not selections:
-            self.gui.show_info(
+            self.dialog_manager.show_info(
                 "Sumários",
                 "Selecione ao menos um vídeo com trajetória para exportar o sumário.",
             )
@@ -738,7 +754,7 @@ class VideoSelectorTreeManager:
                     subprocess.Popen(["xdg-open", results_dir])
             except OSError as e:
                 log.error("gui.open_results_folder.failed", error=str(e))
-                self.gui.show_error("Erro", f"Não foi possível abrir a pasta: {e}")
+                self.dialog_manager.show_error("Erro", f"Não foi possível abrir a pasta: {e}")
 
     def on_project_overview_right_click(self, event: Any | None = None) -> None:
         """Handle right-click on project overview tree."""
@@ -770,7 +786,7 @@ class VideoSelectorTreeManager:
             return
 
         if not os.path.exists(video_path):
-            self.gui.show_warning(
+            self.dialog_manager.show_warning(
                 "Arquivo não encontrado",
                 f"O vídeo selecionado não foi localizado:\n{video_path}",
             )
@@ -778,13 +794,13 @@ class VideoSelectorTreeManager:
 
         success = self.gui.canvas_manager.load_video_frame_to_canvas(video_path, frame_number=0)
         if success:
-            self.gui._maybe_offer_zone_reuse(video_path)
+            self.dialog_manager.offer_zone_reuse(video_path)
             self.gui.canvas_manager.redraw_zones_from_project_data()
             message = f"Frame carregado: {os.path.basename(video_path)}"
             self.gui.set_status(message)
-            self.gui._request_overview_refresh(reason=message, append_summary=True)
+            self.gui.video_selector_manager.request_overview_refresh(reason=message)
         else:
-            self.gui.show_error(
+            self.dialog_manager.show_error(
                 "Erro ao Carregar",
                 f"Não foi possível carregar o vídeo selecionado.\n{video_path}",
             )

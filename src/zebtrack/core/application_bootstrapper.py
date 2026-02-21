@@ -414,16 +414,18 @@ class ApplicationBootstrapper:
             )
 
         # Update GPU hardware display in UI
-        if hasattr(self.view, "update_gpu_hardware_display"):
-            self.view.update_gpu_hardware_display(self._hardware_state["hardware_summary"])
+        if hasattr(self.view, "weight_hardware_manager"):
+            self.view.weight_hardware_manager.update_gpu_hardware_display(
+                self._hardware_state["hardware_summary"]
+            )
 
         # Update OpenVINO status
         if (
             self._hardware_state["recommended_backend"] == "openvino"
             and not self._hardware_state["use_openvino"]
         ):
-            if hasattr(self.view, "update_openvino_status_display"):
-                self.view.update_openvino_status_display(
+            if hasattr(self.view, "weight_hardware_manager"):
+                self.view.weight_hardware_manager.update_openvino_status_display(
                     "Recomendado mas modelo não convertido. Use 'Diagnóstico' para converter."
                 )
 

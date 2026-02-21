@@ -340,7 +340,9 @@ class SingleVideoMixin:
         scanned = ProjectManager.scan_input_paths([str(video_path)])
         if not scanned:
             if self.view:
-                self.view.show_error("Erro", "Não foi possível identificar vídeo válido.")
+                self.view.dialog_manager.show_error(
+                    "Erro", "Não foi possível identificar vídeo válido."
+                )
             return
         video_stem = Path(video_path).stem
         out_dir = self.project_manager.resolve_results_directory(

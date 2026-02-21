@@ -154,14 +154,14 @@ class TabBuilder:
         roi_canvas = self.gui.video_display.canvas
         self.gui._roi_canvas_widget = roi_canvas
         if roi_canvas:
-            roi_canvas.bind("<Configure>", self.gui._on_canvas_configure)
+            roi_canvas.bind("<Configure>", self.gui.canvas_manager.on_canvas_configure)
 
         # 7. ✨ NEW: Create context menu before subscribing to events
         gui.roi_context_menu = None
         self.gui.menu_manager.create_roi_context_menu()
 
         # 8. ✨ NEW: Subscribe to events emitted by the components
-        self.gui._subscribe_zone_component_events()
+        self.gui.event_dispatcher.subscribe_zone_component_events()
 
         def _set_initial_sash():
             try:

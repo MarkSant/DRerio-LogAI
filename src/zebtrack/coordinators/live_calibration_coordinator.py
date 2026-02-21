@@ -279,7 +279,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
             if not self.view:
                 return False
 
-            response = self.view.ask_ok_cancel(
+            response = self.view.dialog_manager.ask_ok_cancel(
                 "Arena Principal Não Definida",
                 "O polígono principal do aquário não foi definido.\n\n"
                 "É recomendado definir a arena antes de iniciar gravação.\n"
@@ -305,7 +305,7 @@ class LiveCalibrationCoordinator(BaseCoordinator):
                 return False
             else:
                 # Continue without arena defined
-                if not self.view.ask_ok_cancel(
+                if not self.view.dialog_manager.ask_ok_cancel(
                     "Continuar Sem Arena?",
                     "Deseja continuar a gravação sem arena definida?\n"
                     "(A arena padrão será o frame completo)",
