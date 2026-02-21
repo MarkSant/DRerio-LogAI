@@ -117,9 +117,9 @@ discovered_classes:
       "key_methods": [
         "__init__",
         "_post_init",
-        "handle_request_weight_type",
-        "handle_request_weight_action",
-        "_extract_setting"
+        "_extract_setting",
+        "_initialize_theme",
+        "_open_global_calibration_window"
       ]
     },
     "settings": {
