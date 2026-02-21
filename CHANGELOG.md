@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🏗️ Refactoring
+
+#### Phase 10 — GUI Shim Layer Removal (February 2026)
+
+- **10.1 Mass shim removal**: Removed ~108 pure delegation shim methods from
+  `ApplicationGUI` in gui.py, reducing 658 lines (1378 → 720, ~48% reduction).
+  All removed methods were one-liner delegations to component managers
+  (DialogManager, CanvasManager, MenuManager, etc.)
+- **10.2 DI call-site redirection**: Redirected 67+ call sites across 20+ source
+  files to use DI-injected component managers directly instead of routing through
+  gui.py shims (e.g., `gui.show_error()` → `gui.dialog_manager.show_error()`)
+- **10.3 ZoneContextService**: Created new `core/services/zone_context_service.py`
+  to replace `gui._get_zone_data_for_active_context()` shim with a proper
+  injectable service, propagated through CanvasManager → ZoneEditor chain
+- **10.4 Logic restoration**: Moved `_on_roi_rule_change` real UI logic into
+  `ZoneControlBuilder`; moved `_on_tab_changed` into `ZoneEditGuard.on_tab_changed`
+- **10.5 Test updates**: Updated 15 test files with new mock patterns reflecting
+  the DI component paths; updated public API contract (23 → 8 methods) and
+  API baseline fixture
+- **10.6 TYPE_CHECKING fixes**: Added `from __future__ import annotations` to
+  9 files to resolve circular import issues from TYPE_CHECKING-only imports
+
 ### 📚 Documentation & Standardization
 
 #### Phase 9 — Audit Debt Remediation (February 2026)
