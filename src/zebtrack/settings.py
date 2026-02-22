@@ -622,6 +622,17 @@ class OpenVINOSettings(BaseModel):
             "optimal settings. Results are cached and reused."
         ),
     )
+    batch_nireq: int = Field(
+        4,
+        ge=1,
+        le=16,
+        description=(
+            "Number of parallel inference requests for batch mode "
+            "(AsyncInferQueue pool size). Higher values overlap more "
+            "preprocessing with inference but consume more memory. "
+            "Typical range: 2-8. Default 4 balances throughput vs memory."
+        ),
+    )
 
 
 class ModelSelectionSettings(BaseModel):

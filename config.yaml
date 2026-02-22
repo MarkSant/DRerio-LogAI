@@ -223,6 +223,11 @@ openvino:
   # Run hardware benchmark on first startup to detect optimal settings
   auto_benchmark: true
 
+  # Number of parallel inference requests for batch mode (AsyncInferQueue).
+  # Higher values overlap preprocessing with device inference for better
+  # throughput but consume more memory. Typical range: 2-8.
+  batch_nireq: 4
+
 # -----------------------------------------------------------------------------
 # Weight File Selection
 # -----------------------------------------------------------------------------

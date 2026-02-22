@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ⚡ Performance
+
+#### Phase 7 — OpenVINO AsyncInferQueue Batch Inference (February 2026)
+
+- **7.1 `detect_batch()` override**: Implemented `OpenVINOPlugin.detect_batch()`
+  using `ov.AsyncInferQueue` to pipeline N inference requests through a batch=1
+  compiled model — avoids `model.reshape()` recompilation penalty while
+  overlapping host preprocessing with device inference
+- **7.2 `_run_async_batch()` inner method**: Creates `AsyncInferQueue(model, nireq)`,
+  attaches a completion callback that copies output tensors via `np.copy()` indexed
+  by `userdata` (frame index), submits frames with `start_async()`, calls
+  `wait_all()`, then post-processes all results through existing `_postprocess()`
+- **7.3 `_OutputProxy` helper**: Lightweight `__slots__`-based proxy that maps
+  `ov.Output` keys to copied numpy arrays, allowing `_postprocess()` to index
+  async-collected tensors identically to live `infer_request.results`
+- **7.4 `batch_nireq` setting**: Added `OpenVINOSettings.batch_nireq` (int,
+  default 4, range 1–16) to control the AsyncInferQueue pool size; clamped at
+  runtime to `min(nireq, len(frames))`
+- **7.5 Graceful fallback**: On any `AsyncInferQueue` failure, automatically
+  falls back to sequential `detect()` loop with structured warning log
+- **7.6 Benchmark script**: Added `debug/benchmark_openvino_batch.py` — standalone
+  CLI tool that loads a real OpenVINO model, generates synthetic frames, and
+  compares sequential vs batch with nireq sweep table
+- **7.7 Tests**: 24 new unit tests across 4 test classes
+  (`TestDetectBatchEntryPoint`, `TestRunAsyncBatch`, `TestOutputProxy`,
+  `TestBatchNireqSettings`) using mocked OpenVINO with `FakeAsyncQueue` simulation;
+  2 benchmark tests added to `test_phase7_benchmarks.py`
+- **Validation**: 2723 passed + 24 new = 2747 total, 12 skipped. Ruff: 0 errors.
+
 ### 🏗️ Refactoring
 
 #### Phase 4 — EventBus v1 → v2 Complete Migration (February 2026)

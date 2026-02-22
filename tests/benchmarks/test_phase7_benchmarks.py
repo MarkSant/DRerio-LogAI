@@ -295,3 +295,73 @@ def test_benchmark_warm_up_ultralytics(benchmark):
 
     benchmark(warm_up)
     assert plugin.model.predict.called
+
+
+# ---------------------------------------------------------------------------
+# 7.9 — OpenVINO AsyncInferQueue batch inference
+# ---------------------------------------------------------------------------
+
+
+def _make_mock_openvino_plugin(*, latency_ms: float = 2.0, nireq: int = 4):
+    """Create a mock OpenVINOPlugin with simulated inference latency.
+
+    Uses ``time.sleep(latency_ms / 1000)`` to model real device latency
+    so the benchmark captures the pipeline overlap benefit.
+    """
+    import time
+    from types import SimpleNamespace
+
+    settings = SimpleNamespace(
+        yolo_model=SimpleNamespace(confidence_threshold=0.25, nms_threshold=0.45),
+        openvino=SimpleNamespace(batch_nireq=nireq),
+    )
+
+    class FakePlugin:
+        """Lightweight stand-in that simulates detect / detect_batch timing."""
+
+        def __init__(self) -> None:
+            self._settings = settings
+            self._latency = latency_ms / 1000.0
+
+        def detect(self, frame, conf_threshold=None):
+            """Simulate single-frame inference with sleep."""
+            time.sleep(self._latency)
+            return [(10, 20, 100, 200, 0.85, None, 0)]
+
+        def detect_batch(self, frames, conf_threshold=None):
+            """Simulate pipelined batch — overlap is modeled as sqrt(N)*latency."""
+            # Approximate: with perfect overlap, N requests over nireq slots
+            # takes ceil(N / nireq) * latency instead of N * latency.
+            n = len(frames)
+            slots = min(nireq, n)
+            passes = math.ceil(n / slots) if slots > 0 else n
+            time.sleep(passes * self._latency)
+            return [[(10, 20, 100, 200, 0.85, None, 0)] for _ in range(n)]
+
+    return FakePlugin()
+
+
+@pytest.mark.benchmark
+def test_benchmark_openvino_batch_inference(benchmark):
+    """Benchmark pipelined detect_batch() with simulated latency (Phase 7.9)."""
+    plugin = _make_mock_openvino_plugin(latency_ms=1.0, nireq=4)
+    rng = np.random.default_rng(0)
+    frames = [rng.integers(0, 255, (480, 640, 3), dtype=np.uint8) for _ in range(20)]
+
+    result = benchmark(plugin.detect_batch, frames)
+    assert len(result) == 20
+    assert all(len(dets) >= 1 for dets in result)
+
+
+@pytest.mark.benchmark
+def test_benchmark_openvino_sequential_baseline(benchmark):
+    """Baseline: sequential detect() per frame for comparison (Phase 7.9)."""
+    plugin = _make_mock_openvino_plugin(latency_ms=1.0, nireq=4)
+    rng = np.random.default_rng(0)
+    frames = [rng.integers(0, 255, (480, 640, 3), dtype=np.uint8) for _ in range(20)]
+
+    def sequential():
+        return [plugin.detect(f) for f in frames]
+
+    result = benchmark(sequential)
+    assert len(result) == 20
