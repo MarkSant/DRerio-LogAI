@@ -56,6 +56,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **10.6 TYPE_CHECKING fixes**: Added `from __future__ import annotations` to
   9 files to resolve circular import issues from TYPE_CHECKING-only imports
 
+#### Phase 5 — Decomposition of Files > 1,000 Lines (February 2026)
+
+- **5A ReportsTreeManager** (1053 → ~280 lines, -73%): Extracted into 3 focused
+  modules—`ReportTreeBuilder` (tree population/status counts),
+  `ReportGeneratorActions` (unified report generation/deletion),
+  `ReportAssetActions` (asset deletion, file opening, artifact helpers).
+  Original kept as thin coordinator with delegation shims.
+- **5B ProjectLifecycleCoordinator** (1085 → 704 lines, -35%): Extracted
+  `ModelOverrideService` (model override state, persistence, resolve) into
+  `core/services/` and `CalibrationCoordinator` (calibration scope, context,
+  sessions) into `coordinators/`. Original retains lifecycle (create/open/close)
+  and asset management; Groups C/D/E become thin delegation shims.
+  Composition root updated to wire new delegates. All callers unchanged.
+
 ### 📚 Documentation & Standardization
 
 #### Phase 9 — Audit Debt Remediation (February 2026)
