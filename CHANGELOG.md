@@ -56,6 +56,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **10.6 TYPE_CHECKING fixes**: Added `from __future__ import annotations` to
   9 files to resolve circular import issues from TYPE_CHECKING-only imports
 
+#### Phase 6 — Replace `__new__` Two-Phase Init with LazyRef DI (February 2026)
+
+- **6.1 LazyRef[T] proxy**: Created thread-safe `LazyRef[T]` class in
+  `core/dependency_container.py` — transparent proxy with `set()` once
+  semantics, `__getattr__`/`__setattr__` delegation, `threading.Lock`,
+  Python 3.12 type-parameter syntax
+- **6.2 Composition root**: Replaced unsafe `MainViewModel.__new__()` +
+  manual `__init__()` call in `__main__.py` with `LazyRef("MainViewModel")`
+  flow — `controller_ref` created pre-GUI, resolved post-`__init__`
+- **6.3 Bootstrapper cleanup**: Removed ~30-line attribute patching block
+  from `ApplicationBootstrapper.initialize()` that manually copied attrs
+  onto the `__new__`-allocated proxy; removed 3 redundant
+  `controller_proxy.xxx` assignments from `_init_orchestrators()`
+- **6.4 MainViewModel view assignment**: `_assign_bootstrap_result()` now
+  sets `self.view = result.view` internally instead of external patching;
+  removed stale `self.view: Any | None = None` override
+- **6.5 Test coverage**: 19 new tests in `test_lazy_ref.py` (lifecycle,
+  transparent proxy, Tkinter callback pattern, thread safety); updated
+  `test_bootstrapper.py` to use LazyRef; fixed `test_main_view_model_commands.py`
+  mock fixture for new `result.view` attribute
+- **Validation**: 2697 passed, 12 skipped. Ruff: 0 errors.
+
 #### Phase 5 — Decomposition of Files > 1,000 Lines (February 2026)
 
 - **5A ReportsTreeManager** (1053 → ~280 lines, -73%): Extracted into 3 focused

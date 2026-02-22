@@ -166,6 +166,9 @@ def mock_bootstrap_result():
     result.orchestrators = {}
     result.project_workflow_adapter = Mock()
 
+    # Phase 6: view is now assigned from BootstrapResult inside _assign_bootstrap_result
+    result.view = Mock()
+
     return result
 
 

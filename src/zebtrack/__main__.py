@@ -655,12 +655,15 @@ def main():  # noqa: C901
         # Create MainViewModel with all injected dependencies
         _t0 = time.perf_counter()
         from zebtrack.core.application_bootstrapper import ApplicationBootstrapper
-        from zebtrack.core.dependency_container import MainViewModelDependencies
+        from zebtrack.core.dependency_container import LazyRef, MainViewModelDependencies
         from zebtrack.core.main_view_model import MainViewModel
 
         log.info("timing.import_mainviewmodel", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 
         _t0 = time.perf_counter()
+
+        # Phase 6: LazyRef replaces __new__ two-phase init for circular dependency resolution
+        controller_ref: LazyRef = LazyRef("MainViewModel")
 
         dependencies = MainViewModelDependencies(
             root=root,
@@ -688,6 +691,8 @@ def main():  # noqa: C901
             live_camera_session_coordinator=live_camera_session_coordinator,
             live_calibration_coordinator=live_calibration_coordinator,
             live_batch_coordinator=live_batch_coordinator,  # v2.3.0
+            # Phase 6: LazyRef proxy for circular dependency resolution
+            controller_ref=controller_ref,
             # Threading events - shared across components
             cancel_event=cancel_event,
         )
@@ -695,17 +700,14 @@ def main():  # noqa: C901
         # Use Bootstrapper to complete initialization
         bootstrapper = ApplicationBootstrapper(dependencies)
 
-        # Create controller proxy to handle circular dependencies in legacy code
-        controller_proxy = MainViewModel.__new__(MainViewModel)
+        # Phase 6: Bootstrap with LazyRef (replaces __new__ two-phase init)
+        bootstrap_result = bootstrapper.initialize(controller_ref)
 
-        # Initialize using bootstrapper
-        bootstrap_result = bootstrapper.initialize(controller_proxy)
+        # Standard __init__ — no more __new__ / manual attribute patching
+        controller = MainViewModel(dependencies, bootstrap_result)
 
-        # Complete MainViewModel initialization (two-phase init for circular deps)
-        controller_proxy.__init__(dependencies, bootstrap_result)  # type: ignore[misc]
-
-        # Use the fully initialized controller
-        controller = controller_proxy
+        # Resolve the LazyRef — all deferred attribute accesses now go to the real controller
+        controller_ref.set(controller)
 
         log.info("timing.mainviewmodel_init", elapsed_ms=int((time.perf_counter() - _t0) * 1000))
 

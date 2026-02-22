@@ -82,8 +82,8 @@ class MainViewModel:
             dependencies, bootstrap_result, self.ui_event_bus
         )
 
-        # Optional GUI reference (injected post-init when available)
-        self.view: Any | None = None
+        # Phase 6: self.view is now set inside _assign_bootstrap_result() from
+        # BootstrapResult.view — no longer needs a None default here.
 
         # 4. Subscribe to state changes
         self._subscribe_to_state()
@@ -225,6 +225,10 @@ class MainViewModel:
         self.thread_coordinator = result.thread_coordinator
         self.dialog_coordinator = result.dialog_coordinator
         self.event_dispatcher = result.event_dispatcher
+
+        # Phase 6: View is now assigned from BootstrapResult instead of external patching
+        # (previously set by bootstrapper via controller_proxy.view = self.view)
+        self.view = result.view
 
         # Hardware & Runtime
         # Note: active_weight_name and use_openvino are now properties that delegate to hardware_vm
