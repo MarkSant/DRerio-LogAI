@@ -255,8 +255,8 @@ class VideoSelectorTreeManager:
         # Refresh project overview
         self._refresh_project_overview()
 
-        # Refresh processing reports tab (cross-component call)
-        self.gui.reports_tree_manager._refresh_processing_reports_tab()
+        # Refresh processing reports tab (cross-component call — public API)
+        self.gui.reports_tree_manager.refresh_processing_reports_tab()
 
     def _refresh_project_overview(self) -> None:
         """Update the project overview panel with current project data."""
